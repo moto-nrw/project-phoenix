@@ -77,6 +77,13 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //   ui-kit/no-raw-z-index           — no `z-[n]` inside src/components/ui/;
 //                                     levels come from Z_LAYER
 //
+// One more keeps icon tiles on the kit (#5582):
+//
+//   ui-kit/no-hand-rolled-icon-tile — no hand-built icon tile (symbol on a
+//                                     grey or tinted h-8…h-12 square/circle),
+//                                     also inside src/components/ui/; use
+//                                     IconTile or ConceptIconTile
+//
 // One more keeps select fields on one look (#5580):
 //
 //   ui-kit/no-select-override       — no frame, fill, height or radius
@@ -1122,30 +1129,30 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
 src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@202
-src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1335 text-[11px]@1335 text-[10px]@1339 text-[10px]@1348 text-[11px]@1348
+src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1336 text-[11px]@1336 text-[10px]@1340 text-[10px]@1349 text-[11px]@1349
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
-src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@232 text-[11px]@276
+src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@233 text-[11px]@277
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
-src/components/active-supervisions/planned-now-section.tsx|text-[11px]@431
+src/components/active-supervisions/planned-now-section.tsx|text-[11px]@430
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@905 text-[11px]@933 text-[11px]@1020 text-[11px]@1081 text-[11px]@1089 text-[11px]@1095 text-[11px]@1142 text-[11px]@1148 text-[10px]@1168 text-[11px]@1221 text-[11px]@1301 text-[11px]@1312 text-[11px]@1317
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@43 text-[10px]@99
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@969 text-[11px]@988
-src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1469
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@970 text-[11px]@989
+src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1471
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
-src/components/enrollment/phases-editor.tsx|text-[11px]@768 text-[11px]@773
+src/components/enrollment/phases-editor.tsx|text-[11px]@769 text-[11px]@774
 src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@377
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@742 text-[11px]@807
-src/components/parent/parent-enroll-picker.tsx|text-[11px]@229 text-[11px]@233
+src/components/parent/parent-enroll-picker.tsx|text-[11px]@228 text-[11px]@232
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/planning/closing-day-marker.tsx|text-[10px]@54
 src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@484 text-[11px]@580 text-[11px]@589 text-[11px]@596 text-[10px]@730
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
-src/components/students/care-schedule-manager.tsx|text-[10px]@1231 text-[11px]@1392 text-[11px]@1481 text-[11px]@1491 text-[11px]@1521
-src/components/students/planned-status-days-modal.tsx|text-[10px]@937 text-[11px]@937
+src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1393 text-[11px]@1482 text-[11px]@1492 text-[11px]@1520
+src/components/students/planned-status-days-modal.tsx|text-[10px]@936 text-[11px]@936
 src/components/students/school-checkin-fab.tsx|text-[10px]@199
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
 src/components/time-tracking/leave-requests-card.tsx|text-[10px]@543
@@ -2117,6 +2124,144 @@ const noGreyButtonFill = makeButtonRatchetRule({
   }),
 });
 
+// --- ui-kit/no-hand-rolled-icon-tile (#5582) --------------------------------
+//
+// Eine Icon-Kachel (zentriertes Symbol auf grauer oder getönter Fläche) kommt
+// aus `IconTile` / `ConceptIconTile`. Erkannt wird die Klassenkette
+// `flex h-(8–12) w-(8–12)` (oder `size-(8–12)`) `items-center justify-center
+// rounded-(lg|xl|2xl|full) bg-(gray|moto)-…` an einem Element, dessen Kind ein Symbol ist. Kreise mit
+// Initialen oder Schrittnummern (Text als Kind) und Schaltflächen bleiben frei.
+
+const ICON_TILE_FILE = "src/components/ui/icon-tile.tsx";
+// `size-10` steht für `h-10 w-10`; `inline-flex` baut dieselbe Kachel.
+const ICON_TILE_BOX_RE =
+  /(?:^|\s)(?:size-(?:8|9|10|11|12)|h-(?:8|9|10|11|12)\s(?:\S+\s)*?w-(?:8|9|10|11|12)|w-(?:8|9|10|11|12)\s(?:\S+\s)*?h-(?:8|9|10|11|12))(?=\s|$)/;
+const ICON_TILE_TOKENS = [
+  /(?:^|\s)(?:inline-)?flex(?=\s|$)/,
+  ICON_TILE_BOX_RE,
+  /(?:^|\s)items-center(?=\s|$)/,
+  /(?:^|\s)justify-center(?=\s|$)/,
+  /(?:^|\s)rounded-(?:lg|xl|2xl|full)(?=\s|$)/,
+  /(?:^|\s)bg-(?:gray|moto)-\S+/,
+];
+const INTERACTIVE_ELEMENTS = new Set([
+  "button",
+  "a",
+  "Link",
+  "NavLink",
+  "NavigationLink",
+  "Button",
+  "ButtonLink",
+  "label",
+]);
+
+const isIconTileCombo = (text) =>
+  ICON_TILE_TOKENS.every((token) => token.test(text));
+
+function expressionNamesIcon(expression) {
+  if (!expression) return false;
+  if (expression.type === "Identifier") return /icon/i.test(expression.name);
+  if (expression.type === "MemberExpression") {
+    return (
+      expression.property?.type === "Identifier" &&
+      /icon/i.test(expression.property.name)
+    );
+  }
+  if (expression.type === "JSXElement")
+    return elementNamesIcon(expression) || hasIconChild(expression);
+  if (expression.type === "JSXFragment")
+    return hasIconChild(expression);
+  if (expression.type === "ConditionalExpression") {
+    return (
+      expressionNamesIcon(expression.consequent) ||
+      expressionNamesIcon(expression.alternate)
+    );
+  }
+  if (expression.type === "LogicalExpression") {
+    return expressionNamesIcon(expression.right);
+  }
+  return false;
+}
+
+function elementNamesIcon(element) {
+  const name = element.openingElement?.name;
+  if (name?.type !== "JSXIdentifier") return false;
+  if (name.name === "svg" || /icon/i.test(name.name)) return true;
+  return /^[A-Z]/.test(name.name) && (element.children?.length ?? 0) === 0;
+}
+
+/** Ein Symbol als Kind, kein Text: Initialen und Schrittnummern sind keine Kachel. */
+function hasIconChild(element) {
+  let icon = false;
+  for (const child of element.children ?? []) {
+    if (child.type === "JSXText") {
+      if (child.value.trim() !== "") return false;
+      continue;
+    }
+    if (child.type === "JSXElement") {
+      if (elementNamesIcon(child)) icon = true;
+      else if (hasIconChild(child)) icon = true;
+      else return false;
+      continue;
+    }
+    if (child.type === "JSXExpressionContainer") {
+      if (child.expression.type === "JSXEmptyExpression") continue;
+      if (expressionNamesIcon(child.expression)) icon = true;
+      else return false;
+    }
+  }
+  return icon;
+}
+
+const noHandRolledIconTile = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow hand-rolled icon tiles; use IconTile or ConceptIconTile from the kit.",
+    },
+    messages: {
+      handRolledIconTile:
+        "Handgebaute Icon-Kachel. IconTile (~/components/ui/icon-tile) mit size, shape und tone nehmen, für ein fachliches Konzept ConceptIconTile (#5582, .claude/rules/frontend-ui-kit.md).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || key === ICON_TILE_FILE) return {};
+    const sourceCode = context.sourceCode ?? context.getSourceCode?.();
+
+    return {
+      JSXOpeningElement(node) {
+        const name = jsxName(node.name);
+        if (name === null || INTERACTIVE_ELEMENTS.has(name)) return;
+        const classAttribute = node.attributes.find(
+          (attribute) =>
+            attribute.type === "JSXAttribute" &&
+            attribute.name.type === "JSXIdentifier" &&
+            attribute.name.name === "className",
+        );
+        if (!classAttribute?.value) return;
+        const combos = classCombinations(
+          classAttribute.value,
+          new WeakSet(),
+          sourceCode,
+        ) ?? [
+          (() => {
+            const chunks = [];
+            collectStaticStrings(classAttribute.value, chunks);
+            return chunks.join(" ");
+          })(),
+        ];
+        if (!combos.some(isIconTileCombo)) return;
+        if (!hasIconChild(node.parent)) return;
+        context.report({ node, messageId: "handRolledIconTile" });
+      },
+    };
+  },
+};
+
 // --- ui-kit/no-select-override (#5580) --------------------------------------
 //
 // Auswahlfelder bringen ihre Optik aus dem Kit mit: ListboxDropdown zeichnet
@@ -2388,6 +2533,7 @@ export default {
     "no-generic-brand-colors": noGenericBrandColors,
     "no-grey-button-fill": noGreyButtonFill,
     "no-hand-rolled-button": noHandRolledButton,
+    "no-hand-rolled-icon-tile": noHandRolledIconTile,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
     "no-hand-rolled-surface": noHandRolledSurface,

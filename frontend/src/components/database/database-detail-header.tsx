@@ -3,6 +3,7 @@
 import { AlertTriangle } from "lucide-react";
 import type { ReactNode } from "react";
 import { Avatar } from "~/components/ui/avatar";
+import { IconTile } from "~/components/ui/icon-tile";
 
 /**
  * `avatar` accepts either:
@@ -38,9 +39,7 @@ export function DatabaseDetailHeader({
   return (
     <div className="flex items-center gap-4 px-6 py-5">
       {icon ? (
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gray-100">
-          {icon}
-        </div>
+        <IconTile size="page" icon={icon} />
       ) : typeof avatar === "string" ? (
         // Legacy chip for roles/groups/permissions: light-blue brand chip
         // with pre-computed initials (Task 6 moved it from a raw hex chip

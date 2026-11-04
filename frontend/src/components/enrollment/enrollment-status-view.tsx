@@ -50,6 +50,7 @@ import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-
 import { EnrollmentSignatureStatus } from "~/components/enrollment/enrollment-signature-status";
 import { childrenConcept } from "~/lib/concepts/children";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { IconTile } from "~/components/ui/icon-tile";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
 
@@ -780,9 +781,7 @@ function EnrollmentStatusHero({
   submittedDate,
 }: EnrollmentStatusHeroProps) {
   const t = useTranslations("enrollmentStatus");
-  const statusIconClass = justSubmitted
-    ? "bg-moto-green/15 text-moto-green-strong"
-    : "moto-content-surface border text-gray-600";
+  const statusIconTone = justSubmitted ? "green" : "neutral";
 
   return (
     <section className="moto-content-surface overflow-hidden rounded-2xl border">
@@ -795,15 +794,17 @@ function EnrollmentStatusHero({
               className="mb-4"
             />
           ) : null}
-          <div
-            className={`flex h-12 w-12 items-center justify-center rounded-xl sm:h-14 sm:w-14 ${statusIconClass}`}
-          >
-            {justSubmitted ? (
-              <Check className="h-7 w-7" aria-hidden="true" />
-            ) : (
-              <Clock className="h-7 w-7" aria-hidden="true" />
-            )}
-          </div>
+          <IconTile
+            size="hero"
+            tone={statusIconTone}
+            icon={
+              justSubmitted ? (
+                <Check aria-hidden="true" />
+              ) : (
+                <Clock aria-hidden="true" />
+              )
+            }
+          />
           <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
             {justSubmitted ? t("submittedEyebrow") : t("statusEyebrow")}
           </p>
@@ -1385,9 +1386,7 @@ function WithdrawAllSection({
     <section className="moto-content-surface rounded-xl border p-5 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
-          <span className="border-moto-red/30 bg-moto-red/5 text-moto-red flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border shadow-sm">
-            <AlertTriangle className="h-5 w-5" aria-hidden="true" />
-          </span>
+          <IconTile tone="red" icon={<AlertTriangle aria-hidden="true" />} />
           <div>
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
               {t("manageEyebrow")}

@@ -12,6 +12,7 @@ import { Modal } from "~/components/ui/modal";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { useAnnouncements } from "~/lib/hooks/use-announcements";
 import { createLogger } from "~/lib/logger";
+import { IconTile } from "~/components/ui/icon-tile";
 
 const logger = createLogger({ component: "AnnouncementModal" });
 
@@ -148,9 +149,7 @@ export function AnnouncementModal() {
       onClose={handleClose}
       title={header.subtitle}
       icon={
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
-          <MotoDuotoneIcon icon={header.icon} tone="amber" size={22} />
-        </div>
+        <IconTile icon={<MotoDuotoneIcon icon={header.icon} tone="amber" />} />
       }
       description={
         <>

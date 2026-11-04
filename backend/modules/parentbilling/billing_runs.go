@@ -89,6 +89,9 @@ type BillingCorrection struct {
 	Reason             string    `json:"reason"`
 	CreatedByAccountID *int64    `json:"created_by_account_id"`
 	CreatedAt          time.Time `json:"created_at"`
+	// CarriedFromNumber names the cancelled invoice a release took this
+	// correction over from (#5663); empty for a correction of the run itself.
+	CarriedFromNumber string `json:"carried_from_number"`
 }
 
 // BillingPosition is one position of an invoice: a line of the frozen
@@ -109,15 +112,17 @@ type BillingPosition struct {
 }
 
 // BillingChild is a child of an invoice with its positions and the history
-// of its corrections. ChildID is zero on an issued invoice once the
-// registration is gone.
+// of its corrections. CarriedCorrections are the corrections of a cancelled
+// invoice a draft proposes (#5663); they are positions too. ChildID is zero
+// on an issued invoice once the registration is gone.
 type BillingChild struct {
-	ChildID     int64               `json:"child_id"`
-	FirstName   string              `json:"first_name"`
-	LastName    string              `json:"last_name"`
-	Positions   []BillingPosition   `json:"positions"`
-	Corrections []BillingCorrection `json:"corrections"`
-	TotalCents  int64               `json:"total_cents"`
+	ChildID            int64                      `json:"child_id"`
+	FirstName          string                     `json:"first_name"`
+	LastName           string                     `json:"last_name"`
+	Positions          []BillingPosition          `json:"positions"`
+	Corrections        []BillingCorrection        `json:"corrections"`
+	CarriedCorrections []BillingCarriedCorrection `json:"carried_corrections"`
+	TotalCents         int64                      `json:"total_cents"`
 }
 
 // PostalAddress is the postal address of the recipient of an invoice: all
@@ -137,7 +142,9 @@ type PostalAddress struct {
 // credit names its invoice in ReferenceDocumentID and ReferenceNumber and
 // carries its Reason; an invoice issued again names the cancelled invoice
 // it replaces, a draft the one it will replace. History lists the
-// cancellation, the credits and the replacing invoice of an issued invoice.
+// cancellation, the credits and the replacing invoice of an issued invoice;
+// ReplacedCredits the credits of the cancelled invoice a draft replaces, which
+// it does not carry over (#5663).
 type BillingDocument struct {
 	ID                  int64                 `json:"id"`
 	RunID               int64                 `json:"run_id"`
@@ -146,6 +153,7 @@ type BillingDocument struct {
 	ReferenceNumber     string                `json:"reference_number"`
 	Reason              string                `json:"reason"`
 	History             []BillingDocumentLink `json:"history"`
+	ReplacedCredits     []BillingDocumentLink `json:"replaced_credits"`
 	Number              string                `json:"number"`
 	IssuedOn            *calendar.Date        `json:"issued_on"`
 	RegistrationID      int64                 `json:"registration_id"`
@@ -270,6 +278,11 @@ type BillingRuns interface {
 	BillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (BillingRunDetail, error)
 	CorrectBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64, input BillingCorrectionInput) (BillingRunDetail, error)
 	ReleaseBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64, release BillingRelease) (BillingRunDetail, error)
+	// RemoveCarriedCorrection and ChangeCarriedCorrection decide a correction
+	// of a cancelled invoice the preview proposes (#5663). A position that is
+	// no proposal of the run is ErrCarriedCorrectionNotFound.
+	RemoveCarriedCorrection(ctx context.Context, reviewer HolidayReviewer, runID, positionID int64) (BillingRunDetail, error)
+	ChangeCarriedCorrection(ctx context.Context, reviewer HolidayReviewer, runID, positionID int64, change BillingCarriedCorrectionChange) (BillingRunDetail, error)
 	// ExportBillingRun renders the overview of a released run for the
 	// Kämmerei as a PDF, an Excel or a CSV file (#4672, ADR 0122).
 	ExportBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64, format string) (ExportFile, error)

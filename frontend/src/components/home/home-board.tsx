@@ -39,6 +39,7 @@ import {
   type HomeMoveTarget,
 } from "~/lib/home-blocks";
 import { useMediaQuery } from "~/lib/hooks/use-media-query";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 /**
  * Das Brett der Startseite (#2180): die Bausteine an ihren Plätzen.
@@ -942,9 +943,11 @@ function AddBlockModal({
                 onClick={() => onAdd(block.key)}
                 className="flex items-start gap-3 p-3 text-left"
               >
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50">
-                  <MotoConceptIcon concept={block.concept} size={18} />
-                </span>
+                <ConceptIconTile
+                  concept={block.concept}
+                  size="xs"
+                  className="mt-0.5"
+                />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-gray-900">
                     {block.label}

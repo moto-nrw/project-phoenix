@@ -6,6 +6,10 @@
   "api/traeger/billing-runs/[id]": [
     "GET traeger /traeger/billing-runs/id%2F1"
   ],
+  "api/traeger/billing-runs/[id]/carried-corrections/[positionId]": [
+    "DELETE traeger /traeger/billing-runs/id%2F1/carried-corrections/positionId%2F1",
+    "PUT traeger /traeger/billing-runs/id%2F1/carried-corrections/positionId%2F1"
+  ],
   "api/traeger/billing-runs/[id]/corrections": [
     "POST traeger /traeger/billing-runs/id%2F1/corrections"
   ],

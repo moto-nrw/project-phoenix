@@ -1,3 +1,4 @@
+DELETE /traeger/billing-runs/{id}/carried-corrections/{positionID} -> basis
 GET /traeger/billing-runs/ -> basis
 GET /traeger/billing-runs/periods -> basis
 GET /traeger/billing-runs/{id} -> basis
@@ -15,3 +16,4 @@ POST /traeger/billing-runs/{id}/letters -> basis
 POST /traeger/billing-runs/{id}/letters/preview -> basis
 POST /traeger/billing-runs/{id}/mailings -> basis
 POST /traeger/billing-runs/{id}/release -> basis
+PUT /traeger/billing-runs/{id}/carried-corrections/{positionID} -> basis

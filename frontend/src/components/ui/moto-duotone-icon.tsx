@@ -8,8 +8,11 @@ export { MOTO_DUOTONE_TONES } from "~/components/ui/moto-duotone-tones";
 export interface MotoDuotoneIconProps {
   readonly icon: PhosphorIcon;
   readonly tone: MotoDuotoneTone;
-  /** Use the surrounding foreground color for both icon layers. */
-  readonly colorMode?: "tone" | "inherit";
+  /**
+   * `tone` applies the configured pair, `inherit` uses the surrounding
+   * foreground color for both layers, and `class` leaves both colors to CSS.
+   */
+  readonly colorMode?: "tone" | "inherit" | "class";
   readonly size?: IconProps["size"];
   readonly weight?: IconProps["weight"];
   readonly className?: string;
@@ -26,13 +29,17 @@ export function MotoDuotoneIcon({
   label,
 }: MotoDuotoneIconProps) {
   const colors = MOTO_DUOTONE_TONES[tone];
-  const iconStyle: CSSProperties & { "--moto-icon-secondary": string } =
+  const iconStyle =
     colorMode === "inherit"
-      ? { "--moto-icon-secondary": "currentColor" }
-      : {
-          color: colors.primary,
-          "--moto-icon-secondary": colors.secondary,
-        };
+      ? ({ "--moto-icon-secondary": "currentColor" } satisfies CSSProperties & {
+          "--moto-icon-secondary": string;
+        })
+      : colorMode === "class"
+        ? undefined
+        : ({
+            color: colors.primary,
+            "--moto-icon-secondary": colors.secondary,
+          } satisfies CSSProperties & { "--moto-icon-secondary": string });
 
   return (
     <Icon

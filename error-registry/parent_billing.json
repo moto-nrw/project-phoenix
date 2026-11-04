@@ -241,6 +241,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.sibling_group_not_found"
+    },
+    {
+      "code": "parent_billing.carried_correction_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.carried_correction_not_found"
     }
   ]
 }
