@@ -187,7 +187,9 @@ export function useBulkCheckinActions(
               size="md"
               onClick={() => confirmBulkCheckout("class")}
             >
-              Gehen zum Unterricht
+              {pendingBulkCheckout?.students.length === 1
+                ? "Geht zum Unterricht"
+                : "Alle zum Unterricht"}
             </Button>
             <Button
               type="button"
@@ -195,7 +197,9 @@ export function useBulkCheckinActions(
               size="md"
               onClick={() => confirmBulkCheckout()}
             >
-              Gehen nach Hause
+              {pendingBulkCheckout?.students.length === 1
+                ? "Geht nach Hause"
+                : "Alle nach Hause"}
             </Button>
           </>
         }
@@ -213,6 +217,9 @@ export function useBulkCheckinActions(
           </span>{" "}
           davon {pendingBulkCheckout?.roomCount === 1 ? "ist" : "sind"} gerade
           in einem Raum. Beim Abmelden werden laufende Raumbesuche beendet.
+          {(pendingBulkCheckout?.students.length ?? 0) > 1
+            ? " Ihre Wahl gilt für alle ausgewählten Kinder, auch ohne Raum."
+            : null}
         </p>
       </Modal>
 

@@ -495,8 +495,15 @@ describe("StudentSearchPage — check-in mode on detailed-mode tenants", () => {
     });
     rerender(<StudentSearchPage />);
 
+    // Die Wahl gilt für alle, auch ohne Raum, und der Dialog sagt das.
+    expect(
+      within(dialog).getByText(/Ihre Wahl gilt für alle ausgewählten Kinder/),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Alle zum Unterricht" }),
+    ).toBeInTheDocument();
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Gehen nach Hause" }),
+      within(dialog).getByRole("button", { name: "Alle nach Hause" }),
     );
 
     // The executed batch is the snapshot the dialog displayed — both

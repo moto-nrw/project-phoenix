@@ -31,7 +31,10 @@ import {
   schoolCheckinStudent,
   type SchoolCheckoutReason,
 } from "~/lib/student-api";
-import { isNotCheckedInLocation } from "~/lib/location-helper";
+import {
+  isInClassLocation,
+  isNotCheckedInLocation,
+} from "~/lib/location-helper";
 import {
   useStudentData,
   type ExtendedStudent,
@@ -1105,7 +1108,7 @@ function StudentDetailPageContent() {
     setCheckingOut(reason ?? "home");
     dialogErrors.clear();
     try {
-      await (reason
+      const recorded = await (reason
         ? schoolCheckinStudent(studentId, "out", undefined, reason)
         : schoolCheckinStudent(
             studentId,
@@ -1114,8 +1117,10 @@ function StudentDetailPageContent() {
           ));
       refreshData();
       setShowConfirmCheckout(false);
+      // Die Antwort nennt, was erfasst ist; eine gleichzeitige Abmeldung bleibt
+      // bestehen, auch wenn hier etwas anderes gewählt wurde (#5656).
       toast.success(
-        reason
+        isInClassLocation(recorded.location)
           ? `${student.name} ist im Unterricht.`
           : `${student.name} ist abgemeldet.`,
       );

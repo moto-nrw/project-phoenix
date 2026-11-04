@@ -38,7 +38,9 @@ Hause am NFC-Gerät. Für diese gelten eigene Abmelderegeln.
 **Im Unterricht** heißt: Das Kind wurde mit „Geht zum Unterricht“ abgemeldet und
 ist noch nicht zurück. Das ist eine erfasste Abmeldung, kein Heimgang. **Schule**
 heißt dagegen: Der Plan erwartet das Kind, es war heute noch nicht angemeldet.
-Kommt das Kind nicht zurück, zählt es mit dem Ende des Betreuungstags als „Zuhause“.
+Kommt das Kind nicht zurück, zählt es in den Ansichten des Personals mit dem Ende
+des Betreuungstags als „Zuhause“. Das Elternportal behält die Zeile, dass es zum
+Unterricht gegangen ist.
 
 Die Freigabe ist eine Entscheidung der Schule. Kein Raum ist wegen seines
 Namens offen, auch der Schulhof nicht. Ein offener Raum kann zugleich Ort

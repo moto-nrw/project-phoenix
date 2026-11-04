@@ -1372,7 +1372,7 @@ describe("StudentDetailPage", () => {
 
     // #5656: der dritte Weg neben „Geht nach Hause“ und „Abbrechen“.
     it("checks out to class from the third button", async () => {
-      mockSchoolCheckinStudent.mockResolvedValue({});
+      mockSchoolCheckinStudent.mockResolvedValue({ location: "Im Unterricht" });
 
       render(<StudentDetailPage />);
       fireEvent.click(screen.getByTestId("checkout-button"));
@@ -1403,6 +1403,30 @@ describe("StudentDetailPage", () => {
           expect.stringContaining("ist im Unterricht"),
         );
       });
+    });
+
+    // Eine gleichzeitige Abmeldung bleibt bestehen: Die Meldung folgt der
+    // Antwort, nicht dem gewählten Ziel.
+    it("names the recorded checkout, not the requested one", async () => {
+      mockSchoolCheckinStudent.mockResolvedValue({ location: "Abwesend" });
+
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("checkout-button"));
+      const dialog = await screen.findByTestId("modal-kind-abmelden");
+      await act(async () => {
+        fireEvent.click(
+          within(dialog).getByRole("button", { name: "Geht zum Unterricht" }),
+        );
+      });
+
+      await waitFor(() => {
+        expect(mockToastSuccess).toHaveBeenCalledWith(
+          expect.stringContaining("ist abgemeldet"),
+        );
+      });
+      expect(mockToastSuccess).not.toHaveBeenCalledWith(
+        expect.stringContaining("ist im Unterricht"),
+      );
     });
 
     it("shows the error in the dialog when checkout fails", async () => {

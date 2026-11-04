@@ -336,7 +336,7 @@ export interface SchoolCheckinResponse {
   checkInTime?: string;
   checkOutTime?: string;
   yardSince?: string;
-  location: "Anwesend" | "Schulhof" | "Abwesend";
+  location: "Anwesend" | "Schulhof" | "Abwesend" | "Im Unterricht";
   /** false when the call was a no-op because the student was already in the target state. */
   changed: boolean;
 }
@@ -347,7 +347,7 @@ interface BackendSchoolCheckinResponse {
   check_in_time?: string;
   check_out_time?: string;
   yard_since?: string;
-  location: "Anwesend" | "Schulhof" | "Abwesend";
+  location: "Anwesend" | "Schulhof" | "Abwesend" | "Im Unterricht";
   changed: boolean;
 }
 
