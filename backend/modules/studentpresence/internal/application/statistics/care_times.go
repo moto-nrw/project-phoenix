@@ -292,26 +292,30 @@ func addClassTimes(spans map[dayKey]attendanceSpan, rows []*ports.Attendance) {
 			continue
 		}
 		key := dayKey{row.StudentID, row.Date}
-		var back *time.Time
-		for _, checkIn := range checkIns[key] {
-			if checkIn.After(*row.CheckOutTime) && (back == nil || checkIn.Before(*back)) {
-				back = &checkIn
-			}
-		}
-		classTime := studentpresence.CareTimeClassTime{Start: *wallClock(*row.CheckOutTime)}
-		if back != nil {
-			classTime.End = wallClock(*back)
-		}
 		span := spans[key]
-		span.classTimes = append(span.classTimes, classTime)
+		span.classTimes = append(span.classTimes, classTimeFrom(*row.CheckOutTime, checkIns[key]))
 		spans[key] = span
 	}
-	for key, span := range spans {
+	for _, span := range spans {
 		sort.Slice(span.classTimes, func(i, j int) bool {
 			return clockMinutes(span.classTimes[i].Start) < clockMinutes(span.classTimes[j].Start)
 		})
-		spans[key] = span
 	}
+}
+
+// classTimeFrom is the stretch in class from a checkout to the next check-in.
+func classTimeFrom(checkOut time.Time, checkIns []time.Time) studentpresence.CareTimeClassTime {
+	var back *time.Time
+	for _, checkIn := range checkIns {
+		if checkIn.After(checkOut) && (back == nil || checkIn.Before(*back)) {
+			back = &checkIn
+		}
+	}
+	classTime := studentpresence.CareTimeClassTime{Start: *wallClock(checkOut)}
+	if back != nil {
+		classTime.End = wallClock(*back)
+	}
+	return classTime
 }
 
 // classifyCareTimeDay applies the definitions to one child-day. It reports
