@@ -64,7 +64,13 @@ export default function EmergencyPage() {
             hinterlegten Gesundheitsinfos.
           </>
         }
-        leading={<ConceptIconTile concept={emergencyConcept} iconTone="red" />}
+        leading={
+          <ConceptIconTile
+            concept={emergencyConcept}
+            tone="red"
+            iconTone="red"
+          />
+        }
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <Button
