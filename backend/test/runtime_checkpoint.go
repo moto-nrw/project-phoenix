@@ -77,7 +77,7 @@ func MeasureDeliveryCheckpoint(t *testing.T, db, fixtureDB *bun.DB, worker Check
 	t.Helper()
 	require.Equal(t, "test", os.Getenv("APP_ENV"))
 	require.Empty(t, os.Getenv("EMAIL_SMTP_HOST"))
-	ctx := tenant.WithUnitOfWork(context.Background(), uow)
+	ctx := counter.Context(tenant.WithUnitOfWork(context.Background(), uow))
 	var results []RuntimeCheckpointWorkerResult
 	for _, name := range []string{"delivery.provider-unavailable", "delivery.render-failure", "delivery.idle"} {
 		result := RuntimeCheckpointWorkerResult{Name: name}
@@ -238,7 +238,7 @@ func CreateRuntimeCheckpointTimetable(t *testing.T, db *bun.DB, roomID int64) in
 // as the scheduler. Fixture resets are outside the timed production operation.
 func MeasureTimetableCheckpoint(t *testing.T, db, fixtureDB *bun.DB, uow tenant.UnitOfWork, counter *QueryCounter, templateID int64, run func(context.Context) (int, int, error), metrics func() string) []RuntimeCheckpointWorkerResult {
 	t.Helper()
-	ctx := tenant.WithUnitOfWork(Ctx(t), uow)
+	ctx := counter.Context(tenant.WithUnitOfWork(Ctx(t), uow))
 	reset := func() {
 		_, err := fixtureDB.NewRaw("DELETE FROM schedule.activity_instances WHERE tenant_id = ? AND activity_group_id = ?", Tenant(t), templateID).Exec(ctx)
 		require.NoError(t, err)
