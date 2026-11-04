@@ -263,6 +263,12 @@
 @keyframes ns-pulse{0%,100%{transform:none}35%{transform:scale(1.1)}70%{transform:scale(.97)}}
 .ns-play[data-nav-scene="ShieldCheckIcon"] .ns-draw{animation:ns-draw 300ms var(--ns-o) 100ms both}
 
+/* ArrowLeftIcon: der Pfeil holt aus und zeigt zurück */
+.ns-play[data-nav-scene="ArrowLeftIcon"] .ns-tip{animation:ns-back-tip 460ms var(--ns-o) both}
+@keyframes ns-back-tip{0%,100%{transform:none}25%{transform:translateX(14px)}65%{transform:translateX(-26px)}}
+.ns-play[data-nav-scene="ArrowLeftIcon"] .ns-shaft{animation:ns-back-shaft 460ms var(--ns-o) 55ms both}
+@keyframes ns-back-shaft{0%,100%{transform:none}25%{transform:translateX(10px)}65%{transform:translateX(-18px)}}
+
 /* SignOutIcon: der Pfeil schießt hinaus */
 .ns-play[data-nav-scene="SignOutIcon"] .ns-shoot{animation:ns-shoot 460ms var(--ns-o) both}
 @keyframes ns-shoot{0%{transform:none;opacity:1}35%{transform:translateX(56px);opacity:0}36%{transform:translateX(-30px);opacity:0}100%{transform:none;opacity:1}}

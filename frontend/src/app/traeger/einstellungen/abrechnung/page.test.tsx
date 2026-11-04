@@ -400,6 +400,38 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
     expect(await screen.findByText("FE-2026-0001")).toBeInTheDocument();
   });
 
+  it("keeps the bank accounts when reading them again fails (#5685)", async () => {
+    masterApi.createTraegerBankAccount.mockResolvedValue({
+      ...MASTER_DATA.bankAccounts[0],
+      id: "9",
+    });
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Bankverbindung hinzufügen" }),
+    );
+    fireEvent.change(screen.getByLabelText(/Bezeichnung/), {
+      target: { value: "Mensa" },
+    });
+    fireEvent.change(screen.getByLabelText(/Kontoinhaber/), {
+      target: { value: "Träger e.V." },
+    });
+    fireEvent.change(screen.getByLabelText(/^IBAN/), {
+      target: { value: "GB82 WEST 1234 5698 7654 32" },
+    });
+    masterApi.fetchTraegerMasterData.mockRejectedValueOnce(
+      new ApiError("unavailable", 503, { code: "general.unavailable" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Bankverbindungen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Elternbeiträge")[0]).toBeInTheDocument();
+  });
+
   it("asks for a pattern before the first release and saves it", async () => {
     billingApi.fetchHolidayNumberRange.mockResolvedValue({
       service: "holiday",

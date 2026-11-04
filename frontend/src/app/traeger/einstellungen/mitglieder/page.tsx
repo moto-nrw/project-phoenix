@@ -226,7 +226,7 @@ export default function TraegerAccountsPage() {
 
   return (
     <TenantPage
-      title="Personen"
+      title="Mitglieder und Rollen"
       info="Wer im Träger-Büro arbeitet und welche Rolle die Person hat."
       stats={
         memberCount > 0 ? (

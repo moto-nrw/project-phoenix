@@ -10,6 +10,7 @@ import { formatBerlinDate } from "~/lib/date-helpers";
 import type { HolidayContribution } from "~/lib/traeger-contributions-api";
 import type { HolidayRegistrationDetail } from "~/lib/traeger-holiday-registrations-api";
 import { contributionLineLabel, formatEuro } from "./contribution-format";
+import { ContributionRulesLink } from "./contribution-rules-link";
 
 function description(
   contribution: HolidayContribution,
@@ -55,6 +56,11 @@ export function HolidayContributionCard({
         childTotalLabel="Summe"
         totalLabel="Gesamt"
         total={formatEuro(contribution.totalCents)}
+      />
+      <ContributionRulesLink
+        kinds={contribution.children.flatMap((child) =>
+          child.lines.map((line) => line.kind),
+        )}
       />
     </SectionCard>
   );

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { ContributionRulesCard } from "~/components/traeger/contribution-rules-card";
 import { CostBearersCard } from "~/components/traeger/cost-bearers-card";
+import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { NumberRangeCard } from "~/components/traeger/number-range-card";
 import { TraegerBankAccountsCard } from "~/components/traeger/traeger-bank-accounts-card";
 import { useTraegerMasterData } from "~/components/traeger/use-traeger-master-data";
@@ -33,8 +34,7 @@ const logger = createLogger({ component: "TraegerAbrechnungsvorgabenPage" });
 const BILLING_RIGHT = "traeger_billing:manage";
 const SETTINGS_RIGHT = "traeger_settings:manage";
 
-const INFO =
-  "Hier stehen die Vorgaben für Ihre Abrechnung. Sie gelten für jeden neuen Abrechnungslauf.";
+const INFO = "Hier stehen die Vorgaben für Ihre Abrechnung.";
 const CONTRIBUTION_INFO =
   "So entsteht der Ferienbeitrag: Jede gebuchte Woche kostet den Preis ihres Zeitmodells. Den Preis legen Sie im Ferienzeitraum fest. Danach gelten die Regeln auf dieser Seite, in dieser Reihenfolge. Beim Bestätigen einer Anmeldung wird der Beitrag festgehalten. Spätere Änderungen gelten nur für neue Bestätigungen.";
 
@@ -46,6 +46,7 @@ interface BillingDefaults {
 
 function useBillingDefaults(enabled: boolean) {
   const [data, setData] = useState<BillingDefaults | null>(null);
+  const [failure, setFailure] = useState<unknown>();
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
 
@@ -57,8 +58,10 @@ function useBillingDefaults(enabled: boolean) {
         fetchHolidayNumberRange(),
       ]);
       setData({ rules, bearers, numberRange });
+      setFailure(undefined);
       clearLoadError();
     } catch (err) {
+      setFailure(err);
       logger.error("traeger_billing_defaults_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -73,7 +76,7 @@ function useBillingDefaults(enabled: boolean) {
     if (enabled) void load();
   }, [enabled, load]);
 
-  return { data, error: pageLoad.error, load };
+  return { data, failure, error: pageLoad.error, load };
 }
 
 export default function TraegerAbrechnungsvorgabenPage() {
@@ -82,7 +85,13 @@ export default function TraegerAbrechnungsvorgabenPage() {
   const canEditBank = hasPermission(session ?? null, SETTINGS_RIGHT);
   const master = useTraegerMasterData("die Bankverbindungen");
   const billing = useBillingDefaults(canBill);
-  const error = master.error ?? billing.error;
+  // Was schon geladen ist, bleibt stehen; die Meldung steht dann darüber.
+  const error = metadataLoadError(
+    master.error ?? billing.error,
+    master.loaded || billing.data !== null,
+    master.failure,
+    billing.failure,
+  );
 
   return (
     <TenantPage

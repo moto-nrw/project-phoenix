@@ -5,6 +5,7 @@ import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { hasPermission } from "~/lib/auth-utils";
+import { metadataLoadError } from "./metadata-load-error";
 import { TraegerContactCard } from "./traeger-contact-card";
 import { useTraegerMasterData } from "./use-traeger-master-data";
 
@@ -19,15 +20,20 @@ const SETTINGS_RIGHT = "traeger_settings:manage";
 export function TraegerContactSection() {
   const { data: session } = useSession();
   const canEdit = hasPermission(session ?? null, SETTINGS_RIGHT);
-  const { masterData, loaded, loading, error, refresh } =
+  const { masterData, loaded, loading, failure, error, refresh } =
     useTraegerMasterData("die Kontaktdaten");
+  // Ein fehlgeschlagenes Nachladen lässt die Karte stehen, außer bei einer Ablehnung.
+  const shown = metadataLoadError(error, loaded, failure);
+  const keepCard =
+    shown !== null && "keepContent" in shown && shown.keepContent === true;
 
-  if (error) return <LoadErrorAlert error={error} />;
+  if (error && !keepCard) return <LoadErrorAlert error={error} />;
   if (loading && !loaded)
     return <Skeleton className="h-48 w-full rounded-2xl" />;
   if (!loaded) return null;
   return (
     <>
+      {error ? <LoadErrorAlert error={error} /> : null}
       {canEdit ? null : (
         <Alert
           type="info"

@@ -94,6 +94,7 @@ export function traegerHolidayContributionTopic(): HelpTopic {
       "Die Regel lässt sich nicht speichern, weil schon eine andere gilt? Von jeder Art gilt an einem Tag nur eine Regel. Setzen Sie bei der alten Regel `Gilt bis` auf den Tag davor.",
     ],
     related: [
+      HELP_TOPICS.traegerBriefkopf,
       HELP_TOPICS.traegerHolidayPeriod,
       HELP_TOPICS.traegerHolidayRegistrationReview,
       HELP_TOPICS.traegerBillingRun,
