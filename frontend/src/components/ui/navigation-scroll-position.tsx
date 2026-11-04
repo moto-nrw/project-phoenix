@@ -80,7 +80,7 @@ function currentUrl() {
 export function NavigationScrollPosition() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const search = searchParams.toString();
+  const search = searchParams?.toString() ?? "";
   const committedPathname = useRef(pathname);
   const committedUrl = useRef<string | undefined>(undefined);
   const awaitingPathTraversal = useRef(false);
