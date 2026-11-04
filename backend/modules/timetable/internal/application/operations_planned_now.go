@@ -61,12 +61,7 @@ func (s *operations) PlannedNow(ctx context.Context, accountID int64, isAdmin bo
 		if err != nil {
 			return nil, err
 		}
-		if opts.Scope == timetable.PlannedNowScopePast {
-			if plannedReopenable(candidate, accountID, isAdmin, now) {
-				mapped.CanReopen = true
-				mapped.ReopenUntil = candidate.instance.ReopenUntil.Format(time.RFC3339)
-			}
-		}
+		applyPlannedReopen(&mapped, candidate, opts, accountID, isAdmin, now)
 		out = append(out, mapped)
 	}
 	if opts.Scope == timetable.PlannedNowScopeDay {
@@ -75,6 +70,16 @@ func (s *operations) PlannedNow(ctx context.Context, accountID int64, isAdmin bo
 		}
 	}
 	return out, nil
+}
+
+// applyPlannedReopen announces on the past scope whether the caller may
+// reopen the finished block, and until when (#5676).
+func applyPlannedReopen(mapped *timetable.OperationPlannedInstance, candidate plannedNowCandidate, opts timetable.PlannedNowOptions, accountID int64, isAdmin bool, now time.Time) {
+	if opts.Scope != timetable.PlannedNowScopePast || !plannedReopenable(candidate, accountID, isAdmin, now) {
+		return
+	}
+	mapped.CanReopen = true
+	mapped.ReopenUntil = candidate.instance.ReopenUntil.Format(time.RFC3339)
 }
 
 // plannedReopenable reports whether the caller may reopen a finished block
