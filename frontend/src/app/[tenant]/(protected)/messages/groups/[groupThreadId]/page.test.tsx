@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render as rtlRender,
   screen,
@@ -8,6 +9,7 @@ import {
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { releaseFakeTimers } from "~/test/clock";
 
 function render(ui: ReactElement) {
   return rtlRender(ui, { wrapper: ToastProvider });
@@ -164,7 +166,12 @@ describe("Gruppennachricht: Objektseite", () => {
     ).toBeInTheDocument();
     mutate.mockClear();
 
+    // Fake timers skip the 500-ms debounce of the activity event; the real
+    // event loop then sees the refetch through.
+    vi.useFakeTimers();
     window.dispatchEvent(new CustomEvent("messages-activity"));
+    await act(() => vi.advanceTimersByTimeAsync(500));
+    releaseFakeTimers();
 
     await waitFor(() => expect(mutate).toHaveBeenCalledTimes(1));
   });

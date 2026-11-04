@@ -4738,7 +4738,8 @@ describe("TimetableEventModal", () => {
   });
 
   it("checks every selected series weekday instead of the arbitrary anchor date", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
+    // Fake timers skip the coverage debounce below instead of waiting it out.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-05-02T10:00:00"));
     const shortPeriod: CalendarPeriod = {
       ...periods[0]!,
@@ -4761,6 +4762,7 @@ describe("TimetableEventModal", () => {
     });
 
     await waitFor(() => expect(screen.getByLabelText("Raum")).toBeEnabled());
+    await act(() => vi.advanceTimersByTimeAsync(500));
     await waitFor(
       () =>
         expect(mockCheckShiftCoverage).toHaveBeenCalledWith({

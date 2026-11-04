@@ -2,7 +2,7 @@ import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
 import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
 restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { setTestClock } from "~/test/clock";
+import { releaseFakeTimers, setTestClock } from "~/test/clock";
 import {
   act,
   render as rtlRender,
@@ -252,7 +252,12 @@ describe("ClassDayClass", () => {
     expect(await screen.findByText("Klassentag, Klara")).toBeInTheDocument();
     expect(fetchClassDay).toHaveBeenCalledTimes(1);
 
+    // Fake timers skip the debounce wait; the real event loop then sees the
+    // reload through.
+    vi.useFakeTimers();
     window.dispatchEvent(new CustomEvent(CLASS_DAY_REFRESH_EVENT));
+    await act(() => vi.advanceTimersByTimeAsync(CLASS_DAY_REFRESH_DEBOUNCE_MS));
+    releaseFakeTimers();
 
     await waitFor(() => expect(fetchClassDay).toHaveBeenCalledTimes(2), {
       timeout: CLASS_DAY_REFRESH_DEBOUNCE_MS + 1000,
