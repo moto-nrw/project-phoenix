@@ -182,10 +182,14 @@ describe("TraegerSchoolsPage", () => {
     );
     expect(
       screen.getByRole("dialog", { name: "Erklärung zu Schulen" }),
-    ).toHaveTextContent(/„Öffnen“ zeigt die Schule in einem neuen Tab/);
+    ).toHaveTextContent(
+      /„Schul-App öffnen“ zeigt die Schule in einem neuen Tab/,
+    );
     expect(screen.queryByText(/nur mit der Rolle/)).not.toBeInTheDocument();
     fireEvent.click(
-      within(table).getByRole("button", { name: "OGS Am Bach öffnen" }),
+      within(table).getByRole("button", {
+        name: "Schul-App öffnen: OGS Am Bach, neuer Tab",
+      }),
     );
 
     await waitFor(() =>
@@ -215,7 +219,9 @@ describe("TraegerSchoolsPage", () => {
 
     const table = await screen.findByRole("table");
     fireEvent.click(
-      within(table).getByRole("button", { name: "OGS Am Bach öffnen" }),
+      within(table).getByRole("button", {
+        name: "Schul-App öffnen: OGS Am Bach, neuer Tab",
+      }),
     );
 
     expect(
