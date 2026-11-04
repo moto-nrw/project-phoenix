@@ -2,7 +2,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
 
-type IconTileSize = "xs" | "sm" | "section" | "page" | "display";
+type IconTileSize = "xs" | "sm" | "section" | "page" | "hero" | "display";
 type IconTileShape = "square" | "round";
 type IconTileTone =
   "neutral" | "inverse" | "blue" | "green" | "greenFill" | "orange" | "red";
@@ -29,6 +29,12 @@ const SIZES: Record<
     box: "h-11 w-11 sm:h-12 sm:w-12",
     square: "rounded-xl",
     icon: "[&>svg]:size-6.5",
+  },
+  // 48 bis 56 px: prominente Statusanzeige in einem Seitenkopf.
+  hero: {
+    box: "h-12 w-12 sm:h-14 sm:w-14",
+    square: "rounded-xl",
+    icon: "[&>svg]:size-7",
   },
   // 56 px: Info-Displays und große Statusanzeigen.
   display: { box: "h-14 w-14", square: "rounded-xl", icon: "[&>svg]:size-7.5" },

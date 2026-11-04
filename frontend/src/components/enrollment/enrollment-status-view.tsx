@@ -795,7 +795,7 @@ function EnrollmentStatusHero({
             />
           ) : null}
           <IconTile
-            size="display"
+            size="hero"
             tone={statusIconTone}
             icon={
               justSubmitted ? (

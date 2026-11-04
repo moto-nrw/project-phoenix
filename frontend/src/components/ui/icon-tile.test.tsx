@@ -24,6 +24,24 @@ describe("IconTile", () => {
 
     expect(screen.getByTestId("kachel")).toHaveAttribute("aria-hidden", "true");
   });
+
+  it("passt die Statusanzeige am Seitenkopf an die verfügbare Breite an", () => {
+    render(
+      <IconTile
+        icon={<svg aria-hidden="true" />}
+        size="hero"
+        data-testid="statusanzeige"
+      />,
+    );
+
+    expect(screen.getByTestId("statusanzeige")).toHaveClass(
+      "h-12",
+      "w-12",
+      "sm:h-14",
+      "sm:w-14",
+      "[&>svg]:size-7",
+    );
+  });
 });
 
 describe("ConceptIconTile", () => {
