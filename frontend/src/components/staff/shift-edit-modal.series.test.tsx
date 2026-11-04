@@ -99,6 +99,16 @@ const seriesShift: StaffShift = {
   originShiftId: null,
 };
 
+// The series rule loads asynchronously and the button stays disabled until
+// it has; a click before that is ignored.
+async function openSeriesEditor() {
+  const editSeries = await screen.findByRole("button", {
+    name: "Serie bearbeiten",
+  });
+  await waitFor(() => expect(editSeries).toBeEnabled());
+  fireEvent.click(editSeries);
+}
+
 function renderModal(props: Partial<Parameters<typeof ShiftEditModal>[0]>) {
   return render(
     <ShiftEditModal
@@ -458,9 +468,7 @@ describe("ShiftEditModal series rule editing", () => {
     const onClose = vi.fn();
     renderModal({ mode: "edit", shift: seriesShift, onSaved, onClose });
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
+    await openSeriesEditor();
     fireEvent.click(await screen.findByLabelText("Fr"));
     fireEvent.change(screen.getByLabelText("Ende"), {
       target: { value: "14:00" },
@@ -503,9 +511,7 @@ describe("ShiftEditModal series rule editing", () => {
       },
     });
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
+    await openSeriesEditor();
     expect(
       screen.getByText(/Die Änderungen gelten ab 14\.09\.2026/),
     ).toBeInTheDocument();
@@ -538,9 +544,7 @@ describe("ShiftEditModal series rule editing", () => {
     });
     renderModal({ mode: "edit", shift: seriesShift });
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
+    await openSeriesEditor();
     fireEvent.click(await screen.findByLabelText("Fr"));
     fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
 
@@ -591,9 +595,7 @@ describe("ShiftEditModal series rule editing", () => {
     });
     renderModal({ mode: "edit", shift: seriesShift });
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
+    await openSeriesEditor();
     // The stubbed DatePicker reports 2026-12-31.
     fireEvent.click(await screen.findByText("DatePicker Auswahl"));
     fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
@@ -638,9 +640,7 @@ describe("ShiftEditModal series rule editing", () => {
     });
     renderModal({ mode: "edit", shift: seriesShift });
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
+    await openSeriesEditor();
     const box = screen.getByLabelText(
       /Auch in den Ferien und an Schließtagen planen/,
     );
@@ -675,9 +675,7 @@ describe("ShiftEditModal series rule editing at the end of a segment", () => {
     getSeries.mockResolvedValue({ ...seriesRule, validUntil: "2026-09-08" });
     renderModal({ mode: "edit", shift: seriesShift });
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
+    await openSeriesEditor();
 
     // The effective date is the clamped one, not the opened occurrence.
     expect(
@@ -700,9 +698,7 @@ describe("ShiftEditModal series rule editing at the end of a segment", () => {
     });
     renderModal({ mode: "edit", shift: seriesShift });
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
+    await openSeriesEditor();
     // The stubbed DatePicker picks 2026-12-31.
     fireEvent.click(await screen.findByText("DatePicker Auswahl"));
     fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
@@ -731,9 +727,7 @@ describe("ShiftEditModal series rule editing at the end of a segment", () => {
     getSeries.mockResolvedValue({ ...seriesRule, validUntil: "2026-09-08" });
     renderModal({ mode: "edit", shift: seriesShift });
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
+    await openSeriesEditor();
     fireEvent.click(await screen.findByText("DatePicker Auswahl"));
 
     expect(
@@ -877,9 +871,7 @@ describe("ShiftEditModal error display", () => {
     getSeries.mockResolvedValue({ ...seriesRule, validUntil: "2026-09-08" });
     renderModal({ mode: "edit", shift: seriesShift });
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Serie bearbeiten" }),
-    );
+    await openSeriesEditor();
     fireEvent.click(screen.getByRole("button", { name: "Serie speichern" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(

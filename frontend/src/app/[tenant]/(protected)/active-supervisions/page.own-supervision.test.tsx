@@ -428,7 +428,8 @@ describe("MeinRaumPage without groups:read (#4573)", () => {
     render(<MeinRaumPage />);
 
     expect(await screen.findByText("Marie Muster")).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toBeInTheDocument();
+    // The load error renders after the roster.
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() => expect(retry).toHaveBeenCalledOnce());
   });
