@@ -54,7 +54,7 @@ function TimeModelRow({
         error={fieldError(`${field}.name`) ?? undefined}
         onChange={(event) => onChange({ ...model, name: event.target.value })}
       />
-      <div>
+      <div className="sm:pt-1">
         <TimeField
           name={`${field}.starts_at`}
           label="Beginn"
@@ -67,7 +67,7 @@ function TimeModelRow({
         />
         <FieldErrorHint id={`${field}.starts_at-error`} message={startsError} />
       </div>
-      <div>
+      <div className="sm:pt-1">
         <TimeField
           name={`${field}.ends_at`}
           label="Ende"
