@@ -137,6 +137,15 @@ func (s *service) confirmDailyCheckout(ctx context.Context, studentID, deviceID 
 		return nil, err
 	}
 
+	// A concurrent checkout may have closed the stay while we waited for
+	// its lock. Read the recorded reason under that same transaction's lock
+	// instead of announcing the destination from our stale initial status.
+	if currentStatus.Status == "checked_in" && (destination == "zuhause" || destination == "unterricht") {
+		currentStatus, err = s.GetStudentAttendanceStatus(ctx, studentID)
+		if err != nil {
+			return nil, err
+		}
+	}
 	action := dailyCheckoutAction(currentStatus, destination)
 
 	s.getLogger().InfoContext(ctx, "daily checkout confirmed",
