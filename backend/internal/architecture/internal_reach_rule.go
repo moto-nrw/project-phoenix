@@ -122,15 +122,3 @@ func baseGrantsOwnerEdge(base *Policy, sourceOwner, targetOwner string) bool {
 	}
 	return false
 }
-
-// firstPartyAllowedByReviewedInternalReach reports whether the single rule
-// that admits this first-party import in the candidate policy lies inside the
-// reviewed reach of a domain owner's implementation.
-func firstPartyAllowedByReviewedInternalReach(base, candidate *Policy, scope Scope, source, target Package) bool {
-	if candidate.PolicyEpoch <= base.PolicyEpoch {
-		return false
-	}
-	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
-	return decision.Allowed != nil && len(decision.Overlaps) == 0 &&
-		reviewedInternalReachRule(*decision.Allowed, base, ownersByID(candidate))
-}
