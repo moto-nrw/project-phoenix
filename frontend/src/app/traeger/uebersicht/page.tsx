@@ -69,6 +69,17 @@ function matchesSearch(school: TraegerSchoolToday, search: string): boolean {
     .includes(needle);
 }
 
+/**
+ * Die Gesamtzahl ist der Bestand, nicht die Anwesenheit: ohne „gerade", das
+ * die Kachel daneben für die anwesenden Kinder braucht.
+ */
+function childrenTotalHint(schoolCount: number): string {
+  if (schoolCount === 1) return "Alle Kinder, die Ihre Schule betreut.";
+  if (schoolCount > 1)
+    return `Alle Kinder, die Ihre ${schoolCount} Schulen betreuen.`;
+  return "Alle Kinder, die Ihre Schulen betreuen.";
+}
+
 function TotalFigures({
   total,
   schoolCount,
@@ -85,13 +96,7 @@ function TotalFigures({
         <StatCard
           label="Kinder gesamt"
           value={total?.childrenTotal ?? 0}
-          hint={
-            loading
-              ? undefined
-              : schoolCount === 1
-                ? "Alle Kinder, die Ihre Schule gerade betreut."
-                : `Alle Kinder, die Ihre ${schoolCount} Schulen gerade betreuen.`
-          }
+          hint={loading ? undefined : childrenTotalHint(schoolCount)}
           icon={<MotoConceptIcon concept={childrenConcept} />}
           loading={loading}
           tone="neutral"
@@ -318,10 +323,6 @@ export default function TraegerDashboardPage() {
         today ? (
           <TenantPageStats
             items={[
-              {
-                value: schools.length,
-                label: schools.length === 1 ? "Schule" : "Schulen",
-              },
               {
                 value: `Stand ${formatBerlinTime(today.total.asOf)} Uhr`,
                 label: "",

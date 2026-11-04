@@ -4,6 +4,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { TEST_CLOCK_INSTANT } from "~/test/clock";
 import type { TraegerSchoolsToday } from "~/lib/traeger-api";
 
 const { mockFetchToday, mockStartSession, mockUseSession, mockPush } =
@@ -37,7 +38,7 @@ vi.mock("~/env.client", () => ({
 
 import TraegerDashboardPage from "./page";
 
-const AS_OF = "2026-09-09T10:00:00Z";
+const AS_OF = TEST_CLOCK_INSTANT.toISOString();
 
 function figures(
   childrenTotal: number,
@@ -111,7 +112,7 @@ describe("TraegerDashboardPage", () => {
     expect(await screen.findByText("1 : 13,3")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Dashboard" })).toBeVisible();
     for (const [label, sentence] of [
-      ["Kinder gesamt", "Alle Kinder, die Ihre 2 Schulen gerade betreuen."],
+      ["Kinder gesamt", "Alle Kinder, die Ihre 2 Schulen betreuen."],
       ["Jetzt anwesend", /^40\s%\saller Kinder sind gerade in der Schule\.$/],
       ["Heute krank", "Kinder mit einer Krankmeldung für heute."],
       [

@@ -125,14 +125,14 @@ func (o *Overview) SchoolsToday(ctx context.Context, organizationID int64) (trae
 func schoolsToday(schools []traegerview.School, figures map[int64]traegerview.SchoolFigures, now time.Time) traegerview.SchoolsToday {
 	today := traegerview.SchoolsToday{Schools: make([]traegerview.SchoolToday, 0, len(schools)), Total: traegerview.SchoolFigures{AsOf: now}}
 	for _, school := range schools {
-		school := traegerview.SchoolToday{School: school, Figures: figures[school.ID]}
-		school.Figures.AsOf = now
-		today.Schools = append(today.Schools, school)
-		today.Total.ChildrenTotal += school.Figures.ChildrenTotal
-		today.Total.ChildrenPresent += school.Figures.ChildrenPresent
-		today.Total.ChildrenSick += school.Figures.ChildrenSick
-		today.Total.StaffTotal += school.Figures.StaffTotal
-		today.Total.StaffPresent += school.Figures.StaffPresent
+		row := traegerview.SchoolToday{School: school, Figures: figures[school.ID]}
+		row.Figures.AsOf = now
+		today.Schools = append(today.Schools, row)
+		today.Total.ChildrenTotal += row.Figures.ChildrenTotal
+		today.Total.ChildrenPresent += row.Figures.ChildrenPresent
+		today.Total.ChildrenSick += row.Figures.ChildrenSick
+		today.Total.StaffTotal += row.Figures.StaffTotal
+		today.Total.StaffPresent += row.Figures.StaffPresent
 	}
 	today.Total.CareRatio = careRatio(today.Total.ChildrenPresent, today.Total.StaffPresent)
 	return today
