@@ -38,11 +38,20 @@ import {
 // did not approve.
 
 const ROOT = process.cwd();
+// The checkout does not change during the run: every file is stripped once,
+// not once per pattern searched across all files.
+const stripped = new Map<string, string>();
 /** Source without comments: a comment that names Set-Cookie writes nothing. */
-const code = (file: string) =>
-  readFileSync(path.join(ROOT, file), "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+const code = (file: string) => {
+  let source = stripped.get(file);
+  if (source === undefined) {
+    source = readFileSync(path.join(ROOT, file), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    stripped.set(file, source);
+  }
+  return source;
+};
 const ALL = inventoryFiles(ROOT, INVENTORY_ROOTS);
 const matching = (pattern: RegExp) =>
   ALL.filter((file) => pattern.test(code(file))).sort();

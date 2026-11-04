@@ -308,8 +308,21 @@ function isCookieLibrary(specifier: string): boolean {
   return isExternalModule(specifier) && /cookie/i.test(specifier);
 }
 
+// Every name lookup walks all enclosing scopes; a syntax tree never changes,
+// so each scope's names are collected once.
+const declaredNamesOf = new WeakMap<ts.Node, ts.Identifier[]>();
+
 /** The value names a scope node declares itself. */
 function declaredNames(node: ts.Node): ts.Identifier[] {
+  let names = declaredNamesOf.get(node);
+  if (!names) {
+    names = collectDeclaredNames(node);
+    declaredNamesOf.set(node, names);
+  }
+  return names;
+}
+
+function collectDeclaredNames(node: ts.Node): ts.Identifier[] {
   const names: ts.Identifier[] = [];
   const add = (name: ts.BindingName) => {
     if (ts.isIdentifier(name)) names.push(name);
