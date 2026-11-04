@@ -251,6 +251,7 @@ export function LocationBadge({
     formattedTime &&
     (parsed.status === LOCATION_STATUSES.PRESENT ||
       parsed.status === LOCATION_STATUSES.HOME ||
+      parsed.status === LOCATION_STATUSES.IN_CLASS ||
       sickMode === "replace" ||
       classTripMode === "replace" ||
       excusedMode === "replace");

@@ -8266,7 +8266,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/grouplive.Query.CountAtSchoolToday",
-      "binding_digest": "8e17967c37270c9998e3853f89772a9c",
+      "binding_digest": "aed416ecd66439fd7ae274b6fef2af94",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.AtSchoolCounter.CountAtSchoolToday",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/grouplive.Query.CountAtSchoolToday",

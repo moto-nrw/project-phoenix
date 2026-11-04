@@ -129,7 +129,9 @@ describe("TimetableRosterContent search (#3889)", () => {
       within(section(/^Entschuldigt \/ Abwesend/)).getByText("Anna Emmerich"),
     ).toBeInTheDocument();
     expect(screen.queryByText("Paul Becker")).not.toBeInTheDocument();
-    expect(screen.queryByText(/^Nicht mehr im Raum/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/^Nicht mehr im Raum \(/),
+    ).not.toBeInTheDocument();
   });
 
   it("finds a child who already left the room", () => {
@@ -146,7 +148,15 @@ describe("TimetableRosterContent search (#3889)", () => {
 
     // The section title reads „Anwesend (0)“; the head figure alone „Anwesend“.
     expect(screen.getByText("Anwesend").previousSibling).toHaveTextContent("1");
-    expect(screen.getByText("Gegangen").previousSibling).toHaveTextContent("1");
+    // Dieselbe Zahl heißt wie die Liste darunter: Kinder im Unterricht oder in
+    // einem anderen Raum sind nicht „gegangen“.
+    expect(
+      screen.getByText("Nicht mehr im Raum", { selector: "span" })
+        .previousSibling,
+    ).toHaveTextContent("1");
+    expect(
+      screen.queryByText("Gegangen", { selector: "span" }),
+    ).not.toBeInTheDocument();
   });
 
   it("says so when the search finds nobody in the block", () => {

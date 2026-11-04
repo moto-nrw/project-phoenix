@@ -195,7 +195,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/home/home-block-content.tsx",
-    lines: [202, 274],
+    lines: [203, 275],
     reason: "Listenzeilen der Startseite, verlinken weiter",
   },
   {
@@ -207,7 +207,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/home/my-group-block.tsx",
-    lines: [253, 284, 316],
+    lines: [257, 288, 320],
     reason: "Listenzeilen der Startseite, verlinken weiter",
   },
   {

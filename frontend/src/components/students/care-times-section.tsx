@@ -20,6 +20,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import {
   CARE_TIME_DAY_LABELS,
+  classTimesHint,
   fetchStudentCareTimes,
   formatClockSpan,
   formatDeviation,
@@ -100,11 +101,15 @@ const COLUMNS: DataTableColumn<CareTimeDay>[] = [
     render: (day) => {
       const { label, tone } = CARE_TIME_DAY_LABELS[day.kind];
       const reason = overrunReason(day);
+      const inClass = classTimesHint(day);
       return (
         <div className="flex flex-col items-start gap-1">
           <StatusBadge label={label} tone={tone} compact />
           {reason ? (
             <span className="text-xs text-gray-600">{reason}</span>
+          ) : null}
+          {inClass ? (
+            <span className="text-xs text-gray-600">{inClass}</span>
           ) : null}
         </div>
       );
@@ -176,7 +181,7 @@ export function StudentCareTimesSection({
   return (
     <SectionCard
       title="Soll und Ist"
-      description={`Gebucht ist die hinterlegte Betreuungszeit. Tatsächlich ist die Zeit von der ersten Anmeldung bis zur letzten Abmeldung. Mehr als ${tolerance} Minuten früher oder später zählt als Überschreitung, ebenso ein Tag ohne Buchung.`}
+      description={`Gebucht ist die hinterlegte Betreuungszeit. Tatsächlich ist die Zeit von der ersten Anmeldung bis zur letzten Abmeldung. Zeit im Unterricht steht als Hinweis in der Zeile und wird nicht abgezogen. Mehr als ${tolerance} Minuten früher oder später zählt als Überschreitung, ebenso ein Tag ohne Buchung.`}
       actions={
         <DateRangePicker
           value={range}

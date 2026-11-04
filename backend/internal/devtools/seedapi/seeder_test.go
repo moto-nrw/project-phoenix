@@ -1350,6 +1350,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if manualAuth && r.Method == seedHTTPMethodPost && strings.HasSuffix(r.URL.Path, "/school-checkin") {
 			var body struct {
 				Action string `json:"action"`
+				Reason string `json:"reason"`
 			}
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 			studentPart := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/students/"), "/school-checkin")
@@ -1361,6 +1362,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				status = "checked_out"
 			}
 			manualAttendance[studentID] = status
+			if body.Reason == "class" {
+				manualAttendance[studentID] = "in_class"
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"status": status, "changed": true},
 			})
@@ -1391,6 +1395,8 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 					row["current_location"] = "Anwesend"
 				case "checked_out":
 					row["actual_pickup_time"] = "15:30"
+				case "in_class":
+					row["current_location"] = "Im Unterricht"
 				}
 				students = append(students, row)
 			}

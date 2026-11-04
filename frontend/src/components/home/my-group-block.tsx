@@ -21,7 +21,11 @@ import {
   type HomePickup,
 } from "~/lib/hooks/use-home-group";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { isAtSchoolLocation, LOCATION_COLORS } from "~/lib/location-helper";
+import {
+  isAtSchoolLocation,
+  isInClassLocation,
+  LOCATION_COLORS,
+} from "~/lib/location-helper";
 import type { OgsLiveWireStudent } from "~/lib/ogs-group-live-api";
 import { ONLY_IF_LESSON_CANCELLED_LABEL } from "~/lib/student-time-status";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -363,6 +367,14 @@ function AwayBadge({
   if (isAtSchoolLocation(student.current_location)) {
     return (
       <StatusColorBadge label="Schule" color={LOCATION_COLORS.AT_SCHOOL} />
+    );
+  }
+  if (isInClassLocation(student.current_location)) {
+    return (
+      <StatusColorBadge
+        label="Im Unterricht"
+        color={LOCATION_COLORS.IN_CLASS}
+      />
     );
   }
   return <StatusBadge tone="gray" label="Zuhause" />;

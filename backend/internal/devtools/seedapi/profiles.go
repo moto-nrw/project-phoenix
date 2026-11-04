@@ -263,7 +263,7 @@ func manualProfileDefinition() demoProfileDefinition {
 		Expected: SeedExpectedState{
 			Students: 12, Groups: 2, Staff: 2, Contacts: 12,
 			PhysicalDevices: 0, HasAttendance: true, HasHistory: true,
-			PresentStudents: 4, CheckedOutStudents: 4, WeeklyPlans: 12,
+			PresentStudents: 4, CheckedOutStudents: 3, WeeklyPlans: 12,
 		},
 	}
 }

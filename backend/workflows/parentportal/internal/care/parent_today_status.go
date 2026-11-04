@@ -15,6 +15,7 @@ const (
 	DayStateNotArrived DayState = "not_arrived"
 	DayStatePresent    DayState = "present"
 	DayStateLeft       DayState = "left"
+	DayStateInClass    DayState = "in_class"
 	DayStateAbsent     DayState = "absent"
 	DayStateNoCare     DayState = "no_care"
 	DayStateUnknown    DayState = "unknown"
@@ -58,6 +59,7 @@ type todayStatusFacts struct {
 	HasAttendanceToday bool
 	CheckIn            string
 	CheckOut           string
+	LeftForClass       bool
 	ExpectedArrival    string
 	PickupTime         string
 	NowHHMM            string
@@ -81,6 +83,9 @@ func deriveTodayStatus(f todayStatusFacts) TodayStatus {
 				Since:      f.CheckIn,
 				PickupTime: f.PickupTime,
 			}
+		}
+		if f.LeftForClass {
+			return TodayStatus{AtOgs: atOgsFlag(false), State: DayStateInClass, Until: f.CheckOut}
 		}
 		return TodayStatus{AtOgs: atOgsFlag(false), State: DayStateLeft, Until: f.CheckOut}
 	}
@@ -108,9 +113,11 @@ func deriveTodayStatus(f todayStatusFacts) TodayStatus {
 // applyAttendanceRows verdichtet die Anwesenheitszeilen eines Tages auf die
 // beiden Fakten, die Eltern sehen duerfen: seit wann das Kind da ist und wann
 // es gegangen ist. Eine offene Zeile gewinnt immer, auch wenn davor am selben
-// Tag schon eine geschlossene steht.
+// Tag schon eine geschlossene steht. Unter den geschlossenen entscheidet die mit
+// der spaetesten Anmeldung, wie im Status der Schule: Eine korrigierte fruehere
+// Zeile kann nach einer spaeteren enden.
 func applyAttendanceRows(facts *todayStatusFacts, rows []Attendance) {
-	var latestCheckOut *time.Time
+	var latestCheckIn, checkOut *time.Time
 	for _, row := range rows {
 		facts.HasAttendanceToday = true
 		if row.CheckOutTime == nil {
@@ -118,22 +125,24 @@ func applyAttendanceRows(facts *todayStatusFacts, rows []Attendance) {
 			facts.CheckOut = ""
 			return
 		}
-		if latestCheckOut == nil || row.CheckOutTime.After(*latestCheckOut) {
-			latestCheckOut = row.CheckOutTime
+		if latestCheckIn == nil || row.CheckInTime.After(*latestCheckIn) {
+			latestCheckIn, checkOut = &row.CheckInTime, row.CheckOutTime
 			facts.CheckIn = berlinHHMM(row.CheckInTime)
+			facts.LeftForClass = row.LeftForClass
 		}
 	}
-	if latestCheckOut != nil {
-		facts.CheckOut = berlinHHMM(*latestCheckOut)
+	if checkOut != nil {
+		facts.CheckOut = berlinHHMM(*checkOut)
 	}
 }
 
 // AttendanceRowsShowLeft reports whether one day's attendance rows show the
-// child checked in and already checked out again, with no open row left.
+// child checked in and already checked out again, with no open row left. A
+// child who went to class has not left for the day (#5656).
 func AttendanceRowsShowLeft(rows []Attendance) bool {
 	facts := todayStatusFacts{}
 	applyAttendanceRows(&facts, rows)
-	return facts.HasAttendanceToday && facts.CheckOut != ""
+	return facts.HasAttendanceToday && facts.CheckOut != "" && !facts.LeftForClass
 }
 
 func berlinHHMM(t time.Time) string {
