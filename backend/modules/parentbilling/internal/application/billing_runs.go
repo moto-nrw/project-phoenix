@@ -45,6 +45,12 @@ type RunStore interface {
 	// ReferencingDocuments reads the cancellations, credits and replacing
 	// invoices of the given documents (#4690).
 	ReferencingDocuments(ctx context.Context, organizationID int64, documentIDs []int64) ([]parentbilling.BillingDocument, error)
+	// InvoiceCorrections reads the correction positions of the invoices,
+	// RunCorrectionDismissals the proposals of them a run no longer makes and
+	// InsertRunCorrectionDismissal adds one (#5663).
+	InvoiceCorrections(ctx context.Context, organizationID int64, invoiceIDs []int64) ([]parentbilling.BillingCarriedCorrection, error)
+	RunCorrectionDismissals(ctx context.Context, organizationID, runID int64) (map[int64]bool, error)
+	InsertRunCorrectionDismissal(ctx context.Context, organizationID, runID, positionID, accountID int64) error
 	// LockPeriodBilling holds the invoices of the service and period until
 	// the transaction ends (#5621).
 	LockPeriodBilling(ctx context.Context, organizationID int64, service string, periodID int64) error
@@ -277,8 +283,12 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: release billing run: %w", err)
 	}
+	carried, err := b.recordCarriedCorrections(ctx, reviewer, run, documents)
+	if err != nil {
+		return parentbilling.BillingRunDetail{}, err
+	}
 	if err := b.store.InsertRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventRelease,
-		map[string]any{"document_count": len(documents), "total_cents": current.total()}); err != nil {
+		map[string]any{"document_count": len(documents), "total_cents": current.total(), "carried_corrections": carried}); err != nil {
 		return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: record release: %w", err)
 	}
 	return b.detail(ctx, reviewer, released)
@@ -394,9 +404,13 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 	if err != nil {
 		return preview{}, fmt.Errorf("parent billing: read cancelled invoices: %w", err)
 	}
+	replaced, err := b.replacedInvoices(ctx, reviewer.OrganizationID, run.ID, replaces)
+	if err != nil {
+		return preview{}, err
+	}
 	return buildPreview(previewInput{
 		run: run, registrations: registrations, contributions: contributions, issued: issued, corrections: corrections,
-		replaces: replaces,
+		replaces: replaces, replaced: replaced,
 	}), nil
 }
 
@@ -484,26 +498,33 @@ func withHistory(documents []parentbilling.BillingDocument, corrections []parent
 // negative and a reason.
 func normalizeCorrection(input parentbilling.BillingCorrectionInput) (parentbilling.BillingCorrectionInput, error) {
 	input.Reason = strings.TrimSpace(input.Reason)
-	errs := validation.Errors{}
+	errs := correctionAmountErrors(input.TotalCents, input.Reason)
 	if input.RegistrationID <= 0 {
 		errs["registration_id"] = errors.New("is required")
 	}
 	if input.ChildID <= 0 {
 		errs["child_id"] = errors.New("is required")
 	}
-	if input.TotalCents < 0 || input.TotalCents > parentbilling.MaxDiscountCents {
-		errs["total_cents"] = errors.New("must be an amount in cent, not negative")
-	}
-	switch {
-	case input.Reason == "":
-		errs["reason"] = errors.New("is required")
-	case len([]rune(input.Reason)) > parentbilling.MaxCorrectionReasonLength:
-		errs["reason"] = errors.New("is too long")
-	}
 	if len(errs) > 0 {
 		return input, errs
 	}
 	return input, nil
+}
+
+// correctionAmountErrors checks the new amount and the trimmed reason of a
+// correction.
+func correctionAmountErrors(totalCents int64, reason string) validation.Errors {
+	errs := validation.Errors{}
+	if totalCents < 0 || totalCents > parentbilling.MaxDiscountCents {
+		errs["total_cents"] = errors.New("must be an amount in cent, not negative")
+	}
+	switch {
+	case reason == "":
+		errs["reason"] = errors.New("is required")
+	case len([]rune(reason)) > parentbilling.MaxCorrectionReasonLength:
+		errs["reason"] = errors.New("is too long")
+	}
+	return errs
 }
 
 // missingDebtorNumbers counts the draft invoices without a debtor number

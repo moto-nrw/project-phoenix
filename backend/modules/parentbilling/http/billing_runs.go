@@ -52,6 +52,8 @@ func (rs *BillingRunResource) RunRouter(protectedTraegerRoutes func(chi.Router, 
 		billing.Get("/{id}", rs.detail)
 		billing.Post("/{id}/corrections", rs.correct)
 		billing.Post("/{id}/release", rs.release)
+		billing.Put("/{id}/carried-corrections/{positionID}", rs.changeCarried)
+		billing.Delete("/{id}/carried-corrections/{positionID}", rs.removeCarried)
 		billing.Get("/{id}/export", rs.export)
 		billing.Get("/{id}/cost-takeovers/{costBearerId}/export", rs.exportCostTakeovers)
 		billing.Post("/{id}/letters", rs.createLetters)

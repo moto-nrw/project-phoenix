@@ -173,8 +173,8 @@ Eindeutigkeit ein:
   Rechnung je Anmeldung und Leistung“ gilt weiter für die erste Rechnung
   (`uq_documents_first_invoice`). Die neue Rechnung kopiert Empfänger,
   Anschrift und Debitorennummer zur Freigabe neu; die Debitorennummer lässt
-  sich nach dem Storno wieder ändern. Korrekturen des alten Laufs gehen
-  nicht mit; die Vorschau zeigt die festgehaltenen Beträge.
+  sich nach dem Storno wieder ändern. Korrekturen des alten Laufs übernimmt
+  die Vorschau als Vorschlag (Nachtrag 2026-11-04, #5663).
 - **Schreiben, Mail, Postfach.** Hat der Lauf seine Schreiben, bekommt
   Storno oder Gutschrift sein Schreiben sofort, sonst mit den Schreiben des
   Laufs. Das Schreiben nennt Nummer, Rechnung mit Datum, Grund und jede
@@ -194,3 +194,45 @@ Eindeutigkeit ein:
   werden. Kein neuer Owner, keine neue Regel, kein neues `data_object`.
 - **Migration** `1.15.743` (nach `1.15.740`; 741 und 742 sind von offenen
   Pull Requests belegt).
+
+## Nachtrag 2026-11-04: Neue Rechnung übernimmt die Korrekturen (#5663)
+
+Löst den Satz „Korrekturen des alten Laufs gehen nicht mit“ ab: Vergaß das
+Büro die Korrektur im neuen Lauf, bekam die Familie wieder den unkorrigierten
+Betrag.
+
+- **Vorschlag ohne eigene Zeile.** Die Vorschau bleibt ohne gespeicherte
+  Entwürfe (Punkt 2). Sie liest die Positionen `correction` der stornierten
+  Rechnung und wendet sie nach den festgehaltenen Zeilen und vor den
+  Korrekturen des Laufs an. Quelle ist die Position, nicht
+  `run_corrections`: Die Korrektur geht mit dem Kind, die Rechnung behält ihre
+  Kopie (Punkt 11). Ein Storno während eines offenen Laufs zeigt den Vorschlag
+  damit sofort, und eine Kette (`C` ersetzt `B` ersetzt `A`) bringt alle mit.
+- **Grenze null.** Ist der Beitrag jetzt niedriger als auf der stornierten
+  Rechnung, senkt ein Vorschlag den Betrag nur bis 0 €, weil eine Rechnung nie
+  negativ ist. `amount_cents` ist dann, was der Entwurf anwendet,
+  `source_amount_cents`, was die stornierte Rechnung hatte; die Seite nennt
+  beides.
+- **Entfernen und ändern.** `parent_billing.run_correction_dismissals` hält je
+  Lauf die Vorschläge, die er nicht mehr macht; es wird nur angefügt.
+  `DELETE /traeger/billing-runs/{id}/carried-corrections/{positionID}` entfernt
+  einen Vorschlag und lehnt ab, wenn Korrekturen des Laufs das Kind sonst unter
+  null brächten. `PUT` auf denselben Pfad ersetzt ihn durch eine Korrektur des
+  Laufs mit neuem Betrag und Grund. Beide sperren den Lauf, schreiben `correct`
+  in die Spur und liegen hinter dem Recht „Abrechnung“; ein fremder Lauf ist
+  404, eine Position ohne Vorschlag 404
+  `parent_billing.carried_correction_not_found`.
+- **Historie.** Die Freigabe schreibt jeden angewendeten Vorschlag nach
+  `run_corrections` mit `carried_from_number`, damit die ausgestellte Rechnung
+  ihre Korrekturen mit Herkunft nennt.
+- **Gutschriften.** Sie bleiben eigene Dokumente: Die Vorschau nennt sie in
+  `replaced_credits` als Hinweis und zieht sie nicht ab. Nach den Regeln dieses
+  Nachtrags von 2026-11-03 hat eine stornierte Rechnung heute keine Gutschrift,
+  weil eine Rechnung mit Gutschrift nicht storniert wird und eine stornierte
+  keine Gutschrift bekommt. Der Hinweis greift erst, wenn sich diese Regel
+  ändert; bis dahin deckt ihn ein Test mit direkt geschriebenem Zustand ab.
+- **Register.** `policy.json`: ein `data_object`
+  `parent_billing.run_correction_dismissals`, keine neue Regel. Datenlebenszyklus
+  und Aufbewahrung je ein Eintrag; die Zeile geht mit ihrem Lauf oder der
+  Position. Zwei schreibende Routen im Route-Golden und in der Nutzungsanalyse
+  als `notCaptured` (Träger, keine Schule). Migration `1.15.748`.
