@@ -9,6 +9,12 @@
   "api/traeger/billing-runs/[id]/corrections": [
     "POST traeger /traeger/billing-runs/id%2F1/corrections"
   ],
+  "api/traeger/billing-runs/[id]/documents/[documentId]/cancellation": [
+    "POST traeger /traeger/billing-runs/id%2F1/documents/documentId%2F1/cancellation"
+  ],
+  "api/traeger/billing-runs/[id]/documents/[documentId]/credits": [
+    "POST traeger /traeger/billing-runs/id%2F1/documents/documentId%2F1/credits"
+  ],
   "api/traeger/billing-runs/[id]/documents/[documentId]/mailings": [
     "POST traeger /traeger/billing-runs/id%2F1/documents/documentId%2F1/mailings"
   ],

@@ -225,14 +225,14 @@ func OwnTraegerHolidayPeriods(tb testing.TB, db *bun.DB, organizationID int64) {
 }
 
 // OwnTraegerContributionRules removes the contribution rules, the billing
-// runs with their invoices and the number ranges a test creates for the
-// Träger (#4664, #4668) when the test ends. The frozen contributions go with
+// runs with their invoices, the cost bearers and the number ranges a test
+// creates for the Träger (#4664, #4668, #5627) when the test ends. The frozen contributions go with
 // the children of their registrations.
 func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64) {
 	tb.Helper()
 	tb.Cleanup(func() {
 		for _, table := range []string{
-			"parent_billing.contribution_rules", "parent_billing.runs",
+			"parent_billing.contribution_rules", "parent_billing.runs", "parent_billing.cost_bearers",
 			"parent_billing.number_range_counters", "parent_billing.number_ranges",
 		} {
 			_, err := db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)

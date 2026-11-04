@@ -14,6 +14,7 @@ export type BillingRunStatus = "calculated" | "released";
 
 export interface BillingRun {
   readonly id: string;
+  readonly holidayPeriodId: string;
   readonly periodName: string;
   /** Calendar dates "YYYY-MM-DD". */
   readonly serviceFrom: string;
@@ -27,7 +28,29 @@ export interface BillingRun {
 }
 
 type BillingPositionKind =
-  "base" | "sibling" | "benefits_exemption" | "correction";
+  | "base"
+  | "sibling"
+  | "benefits_exemption"
+  | "cost_takeover"
+  | "correction"
+  | "credit";
+
+/** An invoice, its Storno or its Gutschrift (#4690). */
+export type BillingDocumentKind = "invoice" | "cancellation" | "credit";
+
+/**
+ * A document of the history of an invoice: its Storno, its Gutschriften and
+ * the invoice that replaces it, which may belong to another run.
+ */
+interface BillingDocumentLink {
+  readonly id: string;
+  readonly runId: string;
+  readonly kind: BillingDocumentKind;
+  readonly number: string;
+  readonly issuedOn: string;
+  readonly totalCents: number;
+  readonly reason: string;
+}
 
 export interface BillingPosition {
   readonly kind: BillingPositionKind;
@@ -41,6 +64,9 @@ export interface BillingPosition {
   readonly discountCents: number | null;
   /** The note of an exemption or the reason of a correction. */
   readonly note: string;
+  /** Cost takeover (#5627): the cost bearer and the name the invoice copied. */
+  readonly costBearerId?: string | null;
+  readonly costBearerName?: string;
 }
 
 interface BillingCorrection {
@@ -64,6 +90,16 @@ export interface BillingChild {
 export interface BillingDocument {
   /** Empty for a draft; the invoice once issued. */
   readonly id: string;
+  readonly kind: BillingDocumentKind;
+  /**
+   * The number of the invoice a Storno or Gutschrift belongs to, or of the
+   * cancelled invoice an invoice replaces; empty otherwise (#4690).
+   */
+  readonly referenceNumber: string;
+  /** The reason of a Storno or Gutschrift. */
+  readonly reason: string;
+  /** Storno, Gutschriften and the replacing invoice of an issued invoice. */
+  readonly history: readonly BillingDocumentLink[];
   /** Empty for a draft. */
   readonly number: string;
   readonly issuedOn: string | null;
@@ -136,6 +172,7 @@ export interface NumberRange {
 
 interface BackendRun {
   id: number;
+  holiday_period_id?: number;
   period_name: string;
   service_from: string;
   service_until: string;
@@ -157,10 +194,26 @@ interface BackendPosition {
   discount_basis_points: number | null;
   discount_cents: number | null;
   note: string;
+  cost_bearer_id?: number | null;
+  cost_bearer_name?: string;
+}
+
+interface BackendDocumentLink {
+  id: number;
+  run_id: number;
+  kind: BillingDocumentKind;
+  number: string;
+  issued_on: string;
+  total_cents: number;
+  reason: string;
 }
 
 interface BackendDocument {
   id: number;
+  kind?: BillingDocumentKind;
+  reference_number?: string;
+  reason?: string;
+  history?: BackendDocumentLink[] | null;
   number: string;
   issued_on: string | null;
   registration_id: number;
@@ -226,6 +279,7 @@ function lettersFromBackend(letters: BackendLetters): BillingLetters {
 function runFromBackend(run: BackendRun): BillingRun {
   return {
     id: String(run.id),
+    holidayPeriodId: String(run.holiday_period_id ?? ""),
     periodName: run.period_name,
     serviceFrom: run.service_from,
     serviceUntil: run.service_until,
@@ -249,12 +303,28 @@ function positionFromBackend(position: BackendPosition): BillingPosition {
     discountBasisPoints: position.discount_basis_points,
     discountCents: position.discount_cents,
     note: position.note,
+    costBearerId: position.cost_bearer_id
+      ? String(position.cost_bearer_id)
+      : null,
+    costBearerName: position.cost_bearer_name ?? "",
   };
 }
 
 function documentFromBackend(document: BackendDocument): BillingDocument {
   return {
     id: document.id ? String(document.id) : "",
+    kind: document.kind ?? "invoice",
+    referenceNumber: document.reference_number ?? "",
+    reason: document.reason ?? "",
+    history: (document.history ?? []).map((link) => ({
+      id: String(link.id),
+      runId: String(link.run_id),
+      kind: link.kind,
+      number: link.number,
+      issuedOn: link.issued_on,
+      totalCents: link.total_cents,
+      reason: link.reason,
+    })),
     number: document.number,
     issuedOn: document.issued_on,
     registrationId: String(document.registration_id),
@@ -355,6 +425,49 @@ export async function correctBillingRun(
         reason: correction.reason,
       },
     }),
+  );
+}
+
+/**
+ * Cancels an issued invoice with a Storno of its own (#4690). The Storno
+ * gets the next number of the range; the registration comes back into the
+ * next run of the period.
+ */
+export async function cancelBillingDocument(
+  runId: string,
+  documentId: string,
+  reason: string,
+): Promise<BillingDocument> {
+  return documentFromBackend(
+    await traegerRequest<BackendDocument>(
+      `${runPath(runId)}/documents/${encodeURIComponent(documentId)}/cancellation`,
+      { method: "POST", body: { reason } },
+    ),
+  );
+}
+
+/** Credits amountCents of one child of an issued invoice (#4690). */
+export async function creditBillingDocument(
+  runId: string,
+  documentId: string,
+  credit: {
+    readonly childId: string;
+    readonly amountCents: number;
+    readonly reason: string;
+  },
+): Promise<BillingDocument> {
+  return documentFromBackend(
+    await traegerRequest<BackendDocument>(
+      `${runPath(runId)}/documents/${encodeURIComponent(documentId)}/credits`,
+      {
+        method: "POST",
+        body: {
+          child_id: Number(credit.childId),
+          amount_cents: credit.amountCents,
+          reason: credit.reason,
+        },
+      },
+    ),
   );
 }
 
@@ -483,6 +596,8 @@ export type LetterMailStatus =
 /** The mail of the letter of one family. */
 export interface LetterMailing {
   readonly documentId: string;
+  /** An invoice, a Storno or a Gutschrift (#4690). */
+  readonly kind: BillingDocumentKind;
   readonly number: string;
   readonly recipientFirstName: string;
   readonly recipientLastName: string;
@@ -502,6 +617,7 @@ export interface LetterSeries {
 
 interface BackendLetterMailing {
   document_id: number;
+  kind?: BillingDocumentKind;
   number: string;
   recipient_first_name: string;
   recipient_last_name: string;
@@ -515,6 +631,7 @@ interface BackendLetterMailing {
 function mailingFromBackend(mailing: BackendLetterMailing): LetterMailing {
   return {
     documentId: String(mailing.document_id),
+    kind: mailing.kind ?? "invoice",
     number: mailing.number,
     recipientFirstName: mailing.recipient_first_name,
     recipientLastName: mailing.recipient_last_name,
@@ -580,6 +697,22 @@ export async function downloadBillingRunOverview(
     `${runPath(id)}/export?format=${format}`,
     {},
     `abrechnungsanordnung.${format}`,
+  );
+}
+
+/**
+ * The list of a released run for the reimbursement by one cost bearer
+ * (#5627): every child the cost bearer pays for, with the sum.
+ */
+export async function downloadCostTakeoverList(
+  id: string,
+  costBearerId: string,
+  format: BillingRunExportFormat,
+): Promise<BillingFile> {
+  return billingFile(
+    `${runPath(id)}/cost-takeovers/${encodeURIComponent(costBearerId)}/export?format=${format}`,
+    {},
+    `kostenuebernahme.${format}`,
   );
 }
 

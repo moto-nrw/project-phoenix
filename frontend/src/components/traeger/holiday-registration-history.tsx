@@ -2,7 +2,9 @@
 
 // Verlauf einer Ferienanmeldung (#4663): jede Änderung des Träger-Büros mit
 // Zeitpunkt, beim Umbuchen die Wochen vorher und nachher, bei der
-// Debitorennummer die Nummer vorher und nachher (#5621). Nur zum Lesen.
+// Debitorennummer die Nummer vorher und nachher (#5621), beim Ändern der
+// Angaben die geänderten Felder ohne ihre Werte (#5629), bei Geschwistern
+// die anderen Anmeldungen (#5628). Nur zum Lesen.
 
 import { SectionCard } from "~/components/ui/section-card";
 import { formatBerlinDate } from "~/lib/date-helpers";
@@ -12,6 +14,7 @@ import type {
   HolidayRegistrationDetail,
   HolidayRegistrationEvent,
 } from "~/lib/traeger-holiday-registrations-api";
+import { editedFieldsText } from "./holiday-registration-edit-fields";
 import { formatHolidayWeek } from "./holiday-registration-format";
 
 const ACTION_LABELS: Readonly<
@@ -23,6 +26,10 @@ const ACTION_LABELS: Readonly<
   reopen: "Wieder geöffnet",
   rebook: "Umgebucht",
   debtor_number: "Debitorennummer geändert",
+  edit: "Angaben geändert",
+  proof_upload: "Nachweis hochgeladen",
+  sibling_merge: "Als Geschwister zusammengeführt",
+  sibling_split: "Von Geschwistern getrennt",
 };
 
 const BERLIN_TIME = new Intl.DateTimeFormat("de-DE", {
@@ -63,7 +70,13 @@ function eventDetail(
   period: HolidayPeriod,
   registration: HolidayRegistrationDetail,
 ): string | null {
+  if (event.action === "edit") {
+    return editedFieldsText(event.fields, registration.form.fields) || null;
+  }
   if (event.debtorNumber) return debtorNumberText(event.debtorNumber);
+  if (event.siblings.length > 0) {
+    return `Anmeldung Nr. ${event.siblings.join(", ")}`;
+  }
   if (event.action !== "rebook") return null;
   const child = registration.children.find(
     (entry) => entry.id === event.childId,
@@ -100,7 +113,12 @@ export function HolidayRegistrationHistory({
                 <span className="font-medium text-gray-900">
                   {ACTION_LABELS[event.action]}
                 </span>
-                {detail ? <span>. {detail}</span> : null}
+                {detail ? (
+                  <span>
+                    {event.action === "edit" ? ": " : ". "}
+                    {detail}
+                  </span>
+                ) : null}
               </li>
             );
           })}

@@ -110,6 +110,80 @@ export async function deleteContributionRule(id: string): Promise<void> {
   });
 }
 
+/**
+ * A body that pays the contribution of a family in its place (#5627). One
+ * that a frozen contribution or an invoice names is in use and can only be
+ * switched off.
+ */
+export interface CostBearer {
+  readonly id: string;
+  readonly name: string;
+  readonly address: string;
+  readonly fileReference: string;
+  readonly active: boolean;
+  readonly inUse: boolean;
+}
+
+export type CostBearerInput = Omit<CostBearer, "id" | "inUse">;
+
+interface BackendCostBearer {
+  id: number;
+  name: string;
+  address: string;
+  file_reference: string;
+  active: boolean;
+  in_use?: boolean;
+}
+
+function costBearerFromBackend(bearer: BackendCostBearer): CostBearer {
+  return {
+    id: String(bearer.id),
+    name: bearer.name,
+    address: bearer.address,
+    fileReference: bearer.file_reference,
+    active: bearer.active,
+    inUse: bearer.in_use ?? false,
+  };
+}
+
+const COST_BEARERS_PATH = "/api/traeger/cost-bearers";
+
+/** The cost bearers of the Träger by name. */
+export async function fetchCostBearers(): Promise<CostBearer[]> {
+  const bearers = await traegerRequest<BackendCostBearer[] | null>(
+    COST_BEARERS_PATH,
+  );
+  return (bearers ?? []).map(costBearerFromBackend);
+}
+
+/** Creates a cost bearer, or changes the one id names. */
+export async function saveCostBearer(
+  id: string | null,
+  bearer: CostBearerInput,
+): Promise<CostBearer> {
+  return costBearerFromBackend(
+    await traegerRequest<BackendCostBearer>(
+      id ? `${COST_BEARERS_PATH}/${encodeURIComponent(id)}` : COST_BEARERS_PATH,
+      {
+        method: id ? "PUT" : "POST",
+        body: {
+          name: bearer.name,
+          address: bearer.address,
+          file_reference: bearer.fileReference,
+          active: bearer.active,
+        },
+      },
+    ),
+  );
+}
+
+export async function deleteCostBearer(id: string): Promise<void> {
+  await traegerRequest<unknown>(
+    `${COST_BEARERS_PATH}/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+}
+
 const registrationPath = (periodId: string, registrationId: string) =>
   `/api/traeger/holiday-periods/${encodeURIComponent(periodId)}/registrations/${encodeURIComponent(registrationId)}`;
 
@@ -122,11 +196,14 @@ export async function fetchHolidayContribution(
   periodId: string,
   registrationId: string,
   benefitsExemption?: boolean,
+  costBearerId?: string,
 ): Promise<HolidayContribution> {
-  const query =
-    benefitsExemption === undefined
-      ? ""
-      : `?benefits_exemption=${String(benefitsExemption)}`;
+  const params = new URLSearchParams();
+  if (benefitsExemption !== undefined) {
+    params.set("benefits_exemption", String(benefitsExemption));
+  }
+  if (costBearerId) params.set("cost_bearer_id", costBearerId);
+  const query = params.size > 0 ? `?${params.toString()}` : "";
   return contributionFromBackend(
     await traegerRequest<BackendContribution>(
       `${registrationPath(periodId, registrationId)}/contribution${query}`,
@@ -136,13 +213,15 @@ export async function fetchHolidayContribution(
 
 /**
  * Confirms the registration and freezes its contribution, with the debtor
- * number of the family (#5621); an empty one confirms without.
+ * number of the family (#5621); an empty one confirms without. A cost
+ * bearer pays instead of the family (#5627).
  */
 export async function confirmHolidayRegistration(
   periodId: string,
   registrationId: string,
   benefitsExemption: boolean,
   debtorNumber = "",
+  costBearerId?: string,
 ): Promise<HolidayContribution> {
   const confirmation = await traegerRequest<{
     contribution: BackendContribution;
@@ -151,6 +230,7 @@ export async function confirmHolidayRegistration(
     body: {
       benefits_exemption: benefitsExemption,
       debtor_number: debtorNumber,
+      ...(costBearerId ? { cost_bearer_id: Number(costBearerId) } : {}),
     },
   });
   return contributionFromBackend(confirmation.contribution);

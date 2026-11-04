@@ -78,6 +78,7 @@
   "pickup_permission_contact_gone": "{object} could not be changed. Please check the current state.",
   "pickup_proof_not_found": "{object} could not be changed. Please check the current state.",
   "pickup_reset_requires_offering": "{object} could not be changed. Please check its current status.",
+  "pickup_reset_still_needed": "{object} could not be changed. Please check its current status.",
   "reason_required": "A reason is missing for {object}. Please enter one.",
   "request_not_decided": "{object} could not be changed. Please check its current status.",
   "request_not_past": "{object} could not be changed. Please check its current status.",

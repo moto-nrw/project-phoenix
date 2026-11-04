@@ -17,7 +17,8 @@ import (
 //
 // The chain runs per registration in a fixed order: the base price of every
 // booked week from the price of its time model, the sibling rule, then the
-// exemption for families receiving benefits. Each rule rounds half up to
+// exemption for families receiving benefits or the cost takeover by a cost
+// bearer (#5627), never both. Each rule rounds half up to
 // whole cent and writes its own line; a contribution is the sum of its
 // lines and never negative. The rules valid on the first booked day of the
 // registration apply.
@@ -27,11 +28,14 @@ const (
 	LineBase              = "base"
 	LineSibling           = RuleSibling
 	LineBenefitsExemption = RuleBenefitsExemption
+	// LineCostTakeover (cost_bearers.go) is what a cost bearer pays.
 )
 
-// HolidayRegistrationConfirmed is the state of a confirmed registration as
-// the Holiday registrations port reports it.
-const HolidayRegistrationConfirmed = "confirmed"
+// States of a registration as the Holiday registrations port reports them.
+const (
+	HolidayRegistrationConfirmed = "confirmed"
+	HolidayRegistrationCancelled = "cancelled"
+)
 
 var (
 	// ErrHolidayLinkNotFound reports a public link without a published
@@ -60,7 +64,9 @@ var (
 
 // HolidayContributionLine is one position of a contribution. A base line
 // names its week and time model; a sibling line the rank of the child and
-// its discount; an exemption line its note. Discounts are negative.
+// its discount; an exemption line its note; a cost takeover the cost bearer
+// by its ID and a copy of its name (#5627). Discounts and takeovers are
+// negative.
 type HolidayContributionLine struct {
 	Kind                string         `json:"kind"`
 	AmountCents         int64          `json:"amount_cents"`
@@ -71,6 +77,8 @@ type HolidayContributionLine struct {
 	DiscountBasisPoints *int           `json:"discount_basis_points"`
 	DiscountCents       *int64         `json:"discount_cents"`
 	Note                string         `json:"note"`
+	CostBearerID        *int64         `json:"cost_bearer_id"`
+	CostBearerName      string         `json:"cost_bearer_name"`
 }
 
 // HolidayChildContribution is the contribution of one child. ChildID names
@@ -85,7 +93,8 @@ type HolidayChildContribution struct {
 
 // HolidayContribution is the contribution of a registration or a quote.
 // ExemptionAvailable reports a valid exemption rule, BenefitsExemption that
-// the exemption applies. A frozen contribution carries the time and the
+// the exemption applies, CostBearerID and CostBearerName the cost bearer
+// that pays (#5627). A frozen contribution carries the time and the
 // account of its confirmation; Invoiced reports that an issued invoice
 // bills the registration, which then keeps its debtor number (#5621).
 type HolidayContribution struct {
@@ -93,9 +102,20 @@ type HolidayContribution struct {
 	TotalCents         int64                      `json:"total_cents"`
 	ExemptionAvailable bool                       `json:"exemption_available"`
 	BenefitsExemption  bool                       `json:"benefits_exemption"`
+	CostBearerID       *int64                     `json:"cost_bearer_id"`
+	CostBearerName     string                     `json:"cost_bearer_name"`
 	Frozen             bool                       `json:"frozen"`
 	ConfirmedAt        *time.Time                 `json:"confirmed_at"`
 	Invoiced           bool                       `json:"invoiced"`
+	// Siblings are the other registrations of the sibling group of a
+	// registration (#5628); none outside a group and in a quote.
+	Siblings []HolidaySibling `json:"siblings,omitempty"`
+	// SiblingDebtorNumber is the debtor number the group already has, which
+	// a confirmation without a number takes (#5628).
+	SiblingDebtorNumber string `json:"sibling_debtor_number,omitempty"`
+	// SiblingsInvoiced reports that an issued invoice bills a registration
+	// of the group, which then neither merges nor splits (#5628).
+	SiblingsInvoiced bool `json:"siblings_invoiced,omitempty"`
 }
 
 // HolidayConfirmation is a confirmed registration with the contribution its
@@ -118,19 +138,23 @@ type HolidayBooking struct {
 }
 
 // HolidayChild is a child of a registration with its bookings. Position is
-// its place in the form.
+// its place in the form; the names show only in the Träger-Büro (#5628).
 type HolidayChild struct {
-	ID       int64
-	Position int
-	Bookings []HolidayBooking
+	ID        int64
+	Position  int
+	FirstName string
+	LastName  string
+	Bookings  []HolidayBooking
 }
 
 // HolidayRegistration is a holiday registration as the contribution needs
-// it: its state, the parents' statement on benefits, the debtor number of
-// the family (#5621) and the children.
+// it: its state, when the parents sent it, which ranks siblings of equal
+// contribution (#5628), the parents' statement on benefits, the debtor
+// number of the family (#5621) and the children.
 type HolidayRegistration struct {
 	ID               int64
 	Status           string
+	SubmittedAt      time.Time
 	BenefitsDeclared bool
 	DebtorNumber     string
 	Children         []HolidayChild
@@ -172,7 +196,8 @@ type HolidayReviewer struct {
 // the registration's audit trail and refuse a period or registration of
 // another Träger. Enrollment trims the debtor number and refuses one that
 // is too long or has a line break as a validation error on debtor_number
-// (#5621).
+// (#5621). RecordHolidaySiblings writes a merge or split of siblings into
+// the registration's audit trail (#5628).
 type HolidayRegistrations interface {
 	ResolveHolidayLink(ctx context.Context, token string) (HolidayLink, error)
 	HolidayWeeks(ctx context.Context, link HolidayLink) ([]HolidayWeek, error)
@@ -183,6 +208,13 @@ type HolidayRegistrations interface {
 	// SetHolidayDebtorNumber changes the debtor number of a confirmed
 	// registration; a blank one removes it.
 	SetHolidayDebtorNumber(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, debtorNumber string) (HolidayRegistration, error)
+	// HoldHolidayPeriod locks the period until the transaction ends, so no
+	// registration of it changes while a sibling group is read and decided
+	// on (#5628). A period of another Träger is ErrHolidayPeriodNotFound.
+	HoldHolidayPeriod(ctx context.Context, reviewer HolidayReviewer, periodID int64) error
+	// RecordHolidaySiblings records action, HolidaySiblingsMerged or
+	// HolidaySiblingsSplit, with the other registrations it names.
+	RecordHolidaySiblings(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, action string, siblingIDs []int64) error
 }
 
 // HolidayBillingSettings is the Träger level of the settings system as the
@@ -205,6 +237,16 @@ type HolidayConfirmationSettings struct {
 	// DebtorNumberRequired reports that a confirmation needs the debtor
 	// number of the family.
 	DebtorNumberRequired bool `json:"debtor_number_required"`
+	// CostBearers are the active cost bearers the Träger-Büro may choose
+	// (#5627), by name; the Träger-Büro needs no right "Abrechnung" for
+	// them.
+	CostBearers []CostBearerChoice `json:"cost_bearers"`
+}
+
+// CostBearerChoice is a cost bearer as the confirmation offers it (#5627).
+type CostBearerChoice struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
 // HolidayDebtorNumber is the debtor number of a registration after a
@@ -225,11 +267,13 @@ type HolidayQuoteChild struct {
 	Bookings []HolidayQuoteBooking
 }
 
-// HolidayContributions computes, shows and freezes the holiday contribution.
-// ResolveHolidayLink runs in the administrative transaction, every other
-// operation in the Träger transaction of the link's or the session's
-// Träger, which the caller opens.
+// HolidayContributions computes, shows and freezes the holiday contribution
+// and keeps the sibling groups it ranks across (#5628). ResolveHolidayLink
+// runs in the administrative transaction, every other operation in the
+// Träger transaction of the link's or the session's Träger, which the
+// caller opens.
 type HolidayContributions interface {
+	HolidaySiblingGroups
 	ResolveHolidayLink(ctx context.Context, token string) (HolidayLink, error)
 	// QuoteHolidayContribution computes the contribution of the public form
 	// before it is sent, with the current prices and rules. It stores
@@ -238,14 +282,19 @@ type HolidayContributions interface {
 	// HolidayContribution shows the frozen contribution of a confirmed
 	// registration, or else what a confirmation would freeze now: with the
 	// exemption benefitsExemption names, or the parents' statement when it
-	// is nil.
-	HolidayContribution(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, benefitsExemption *bool) (HolidayContribution, error)
+	// is nil, or with the cost takeover by the active cost bearer
+	// costBearerID names when it is not zero (#5627).
+	HolidayContribution(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, benefitsExemption *bool, costBearerID int64) (HolidayContribution, error)
 	// ConfirmHolidayRegistration confirms the registration and freezes its
 	// contribution in the same transaction. benefitsExemption applies the
-	// exemption rule. debtorNumber is the number of the family; when the
+	// exemption rule; a costBearerID other than zero lets that active cost
+	// bearer of the Träger pay instead (#5627): both together are
+	// ErrCostTakeoverWithExemption, an unknown cost bearer
+	// ErrCostBearerNotFound, a switched-off one ErrCostBearerInactive, each
+	// before anything is written. debtorNumber is the number of the family; when the
 	// Träger asks for it, a blank one is a validation error on
 	// debtor_number before anything is written (#5621).
-	ConfirmHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, debtorNumber string) (HolidayConfirmation, error)
+	ConfirmHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, costBearerID int64, debtorNumber string) (HolidayConfirmation, error)
 	// HolidayConfirmationSettings reports what a confirmation of the
 	// session's Träger needs (#5621).
 	HolidayConfirmationSettings(ctx context.Context, reviewer HolidayReviewer) (HolidayConfirmationSettings, error)

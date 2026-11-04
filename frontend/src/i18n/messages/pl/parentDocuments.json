@@ -4,6 +4,8 @@
   "emptyTitle": "Brak dokumentów",
   "emptyDescription": "Gdy organizator wyśle Państwu pismo, znajdą je Państwo tutaj. Otrzymają je Państwo również e-mailem.",
   "confirmationLetter": "Potwierdzenie: {period}",
+  "cancellationLetter": "Anulowanie: {period}",
+  "creditLetter": "Nota uznaniowa: {period}",
   "sender": "Od: {traeger}",
   "children": "Dla",
   "amount": "Kwota",

@@ -49,6 +49,9 @@ type HolidayReviewStore interface {
 	// ReadHolidayProof reads one claimed proof of a registration of the
 	// period with its bytes.
 	ReadHolidayProof(ctx context.Context, organizationID, periodID, registrationID, proofID int64) (enrollment.HolidayProofFile, bool, error)
+	// InsertClaimedHolidayProof stores a proof of the registration the
+	// Träger-Büro uploads and returns its ID (#5627).
+	InsertClaimedHolidayProof(ctx context.Context, organizationID, periodID, registrationID int64, proof enrollment.HolidayProofUpload) (int64, error)
 	// LockHolidayRegistration reads the status, the freeze override and the
 	// debtor number of a registration and holds its row.
 	LockHolidayRegistration(ctx context.Context, organizationID, periodID, registrationID int64) (status, override, debtorNumber string, found bool, err error)
@@ -58,6 +61,15 @@ type HolidayReviewStore interface {
 	SetHolidayDebtorNumber(ctx context.Context, organizationID, registrationID int64, debtorNumber string) error
 	SetHolidayRegistrationFreeze(ctx context.Context, organizationID, registrationID int64, override string) error
 	ReplaceHolidayChildBookings(ctx context.Context, organizationID, periodID, childID int64, bookings []enrollment.HolidayBookingInput) error
+	// WriteHolidayRegistrationDetails writes the details of a locked
+	// registration (#5629): both guardians with the address, the family's
+	// answers, the contacts, and the details and answers of the changed
+	// children only: details.Children, with childIDs and schoolChanged in
+	// the same order. A school is written only when it changed, so a child
+	// keeps a school the Träger has deleted since. The answers carry no
+	// health information; the bookings, the consents and the sealed health
+	// information stay as they are.
+	WriteHolidayRegistrationDetails(ctx context.Context, organizationID, registrationID int64, details enrollment.HolidayRegistrationInput, childIDs []int64, schoolChanged []bool) error
 	// AppendHolidayAudit writes one entry; details travel as JSON.
 	AppendHolidayAudit(ctx context.Context, organizationID, periodID, registrationID int64, action string, details any, actorAccountID int64) error
 }
@@ -121,6 +133,7 @@ func (h *HolidayRegistrationReview) ListHolidayRegistrationRecipients(ctx contex
 	for i, registration := range matching {
 		recipients[i] = enrollment.HolidayRegistrationRecipient{
 			HolidayRegistrationSummary: registration.HolidayRegistrationSummary, GuardianAddress: registration.GuardianAddress,
+			HasBenefitsProof: registration.BenefitsProofAttached,
 		}
 	}
 	return recipients, nil
@@ -381,8 +394,10 @@ func holidayChild(read []enrollment.HolidayRegistrationDetail, childID int64) (e
 }
 
 // change locks the period and the registration, runs apply and records the
-// change it names. The period lock orders the change after a running change
-// of the period's weeks.
+// change it names; an empty action records nothing, for an edit that
+// changed nothing (#5629). The period lock orders the change after a running
+// change of the period's weeks, the registration lock one change of a
+// registration after the other.
 func (h *HolidayRegistrationReview) change(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID int64,
 	apply func(enrollment.HolidayPeriod, holidayRegistrationState) (string, any, error),
 ) (enrollment.HolidayRegistrationDetail, error) {
@@ -406,8 +421,10 @@ func (h *HolidayRegistrationReview) change(ctx context.Context, reviewer enrollm
 	if err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
-	if err := h.audit(ctx, reviewer, periodID, registrationID, action, details); err != nil {
-		return enrollment.HolidayRegistrationDetail{}, err
+	if action != "" {
+		if err := h.audit(ctx, reviewer, periodID, registrationID, action, details); err != nil {
+			return enrollment.HolidayRegistrationDetail{}, err
+		}
 	}
 	return h.detail(ctx, reviewer, period, registrationID)
 }

@@ -440,6 +440,15 @@
       "legacy": "pickup_reset_requires_offering"
     },
     {
+      "code": "students.pickup_reset_still_needed",
+      "class": "business_rejection",
+      "parameters": [
+        "needed_until",
+        "possible_from"
+      ],
+      "legacy": "students.pickup_reset_still_needed"
+    },
+    {
       "code": "students.reason_required",
       "class": "input",
       "parameters": [],

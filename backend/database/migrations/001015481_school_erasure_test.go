@@ -119,6 +119,9 @@ func TestSchoolErasurePlanCoversCatalogAndDeleteTriggers(t *testing.T) {
 		// the plan deletes after active.visits ("after" edge).
 		"active.visits:active.record_visit_revision",
 		"enrollment.request_uploads:enrollment.queue_request_upload_cleanup",
+		// #5628: drops a sibling group of a Träger left with one holiday
+		// registration; Träger data, outside the plan of a school.
+		"parent_billing.holiday_sibling_group_members:parent_billing.drop_lone_holiday_sibling_group",
 		"schedule.activity_instances:calendar.capture_activity_instance_feed_tombstones",
 		"schedule.instance_staff:calendar.capture_instance_staff_feed_tombstone",
 		"schedule.staff_shifts:calendar.capture_staff_shift_feed_tombstone",

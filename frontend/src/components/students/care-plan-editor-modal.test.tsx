@@ -662,10 +662,11 @@ describe("CarePlanEditorModal", () => {
       .mockResolvedValueOnce(undefined);
     renderEditor({ onResetPickupToOffering });
 
-    // Der Dialog heißt „Ausnahme“; das Übernehmen ändert aber jeden Montag.
+    // Der Dialog heißt „Ausnahme“; das Übernehmen ändert aber ab sofort
+    // jeden Montag, auch vor diesem Tag (#5643).
     expect(
       screen.getByText(
-        /Übernehmen gilt jeden Montag, nicht nur an diesem Tag\./,
+        /Übernehmen gilt ab sofort jeden Montag, nicht nur an diesem Tag\./,
       ),
     ).toBeInTheDocument();
     fireEvent.click(
@@ -684,6 +685,26 @@ describe("CarePlanEditorModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() =>
       expect(onResetPickupToOffering).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  it("names the day from which the booked pickup time can be taken over", async () => {
+    const onResetPickupToOffering = vi.fn().mockRejectedValueOnce(
+      new ApiError("request failed", 409, {
+        code: "students.pickup_reset_still_needed",
+        details: { needed_until: "09.11.2026", possible_from: "10.11.2026" },
+      }),
+    );
+    renderEditor({ onResetPickupToOffering });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Gebuchte Abholzeit übernehmen",
+      }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Die gebuchte Abholzeit können Sie erst ab 10.11.2026 übernehmen. Bis 09.11.2026 gilt an diesem Wochentag noch die eingetragene Zeit.",
     );
   });
 

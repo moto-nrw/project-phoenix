@@ -417,6 +417,8 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die markierten Felder.",
       "enrollment.holiday_period_not_found":
         "Diesen Ferienzeitraum gibt es nicht. Bitte öffnen Sie ihn aus der Liste der Ferien.",
+      "enrollment.holiday_proof_limit":
+        "Diese Anmeldung hat schon {max_files} Nachweise. Mehr Dateien gehen nicht.",
       "enrollment.holiday_registration_closed":
         "Die Anmeldung für diese Ferien ist nicht offen. Bitte achten Sie auf Anmeldebeginn und Anmeldeschluss.",
       "enrollment.holiday_registration_entry_not_found":
@@ -731,6 +733,10 @@ export const ERROR_CATALOG = {
         "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Ermäßigungen“. Bitte fragen Sie die Abrechnung.",
       "parent_billing.billing_correction_invalid":
         "Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.billing_document_correction_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.billing_document_not_found":
+        "Diese Rechnung gibt es in diesem Lauf nicht. Bitte laden Sie die Seite neu.",
       "parent_billing.billing_family_not_found":
         "Dieses Kind ist nicht mehr im Lauf. Bitte laden Sie die Seite neu.",
       "parent_billing.billing_letter_not_found":
@@ -759,12 +765,26 @@ export const ERROR_CATALOG = {
         "Diese Regel gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.contribution_rule_overlap":
         "In dieser Zeit gilt schon eine Regel dieser Art. Bitte ändern Sie zuerst „Gilt bis“ der anderen Regel.",
+      "parent_billing.cost_bearer_in_use":
+        "Dieser Kostenträger wurde schon gewählt. Sie können ihn nur ausschalten.",
+      "parent_billing.cost_bearer_inactive":
+        "Dieser Kostenträger ist ausgeschaltet. Bitte wählen Sie einen anderen.",
+      "parent_billing.cost_bearer_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.cost_bearer_not_found":
+        "Diesen Kostenträger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.cost_takeover_with_exemption":
+        "Bitte wählen Sie entweder die Befreiung oder einen Kostenträger.",
       "parent_billing.debtor_number_invalid":
         "Bitte prüfen Sie die Debitorennummer.",
       "parent_billing.debtor_number_locked":
         "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
       "parent_billing.holiday_quote_invalid":
         "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
+      "parent_billing.invoice_cancelled":
+        "Diese Rechnung ist schon storniert. Sie lässt sich nicht mehr ändern.",
+      "parent_billing.invoice_credited":
+        "Diese Rechnung hat schon eine Gutschrift. Schreiben Sie den Rest gut, statt zu stornieren.",
       "parent_billing.invoice_number_taken":
         "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnung“.",
       "parent_billing.letter_mail_pending":
@@ -781,6 +801,12 @@ export const ERROR_CATALOG = {
         "Rechnungen ohne Debitorennummer: {count}. Ihr Zahlungstext nennt aber die Debitorennummer. Löschen Sie den eigenen Zahlungstext unter „Einstellungen“ im Bereich „Ferienbetreuung“ oder nehmen Sie dort den Platzhalter für die Debitorennummer heraus.",
       "parent_billing.recipient_email_missing":
         "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
+      "parent_billing.sibling_group_invalid":
+        "Bitte wählen Sie mindestens zwei Anmeldungen aus, die nicht storniert sind.",
+      "parent_billing.sibling_group_invoiced":
+        "Für diese Anmeldung gibt es schon eine Rechnung. Geschwister können Sie jetzt nicht mehr ändern.",
+      "parent_billing.sibling_group_not_found":
+        "Diese Anmeldung gehört nicht mehr zu Geschwistern. Bitte laden Sie die Seite neu.",
       "pickup.bulk_exception_confirmation_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "pickup.invalid":
@@ -1063,6 +1089,8 @@ export const ERROR_CATALOG = {
         "Die Person ist nicht mehr als Kontakt des Kindes eingetragen. Bitte lehnen Sie die Anfrage ab.",
       "students.pickup_proof_not_found":
         "Zu dieser Anfrage gibt es keine Unterschrift.",
+      "students.pickup_reset_still_needed":
+        "Die gebuchte Abholzeit können Sie erst ab {possible_from} übernehmen. Bis {needed_until} gilt an diesem Wochentag noch die eingetragene Zeit.",
       "students.reason_required":
         "Für {object} fehlt eine Begründung. Bitte tragen Sie eine ein.",
       "students.request_not_decided":
