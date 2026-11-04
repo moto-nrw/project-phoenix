@@ -136,6 +136,8 @@ describe.concurrent("ui-kit/no-hand-rolled-icon-tile", () => {
         return <>
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs">{initials}</div>
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">3</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100"><span>3</span></span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100"><span>{initials}</span></span>
           <button type="button" className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100"><BellIcon /></button>
           <span className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-gray-100"><BellIcon /></span>
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100"><BellIcon /></span>
@@ -149,6 +151,24 @@ describe.concurrent("ui-kit/no-hand-rolled-icon-tile", () => {
     );
 
     expect(count, output).toBe(0);
+  });
+
+  it("reports an icon wrapped in a presentational element", async () => {
+    const { count, output } = await ruleHits(
+      `
+      declare const BellIcon: () => JSX.Element;
+      function Probe() {
+        return <>
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100"><span><BellIcon /></span></span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100"><span>{<BellIcon />}</span></span>
+        </>;
+      }
+      void Probe;
+    `,
+      "no-hand-rolled-icon-tile",
+    );
+
+    expect(count, output).toBe(2);
   });
 });
 

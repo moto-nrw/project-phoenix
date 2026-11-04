@@ -2160,8 +2160,10 @@ function expressionNamesIcon(expression) {
       /icon/i.test(expression.property.name)
     );
   }
-  if (expression.type === "JSXElement" || expression.type === "JSXFragment")
-    return true;
+  if (expression.type === "JSXElement")
+    return elementNamesIcon(expression) || hasIconChild(expression);
+  if (expression.type === "JSXFragment")
+    return hasIconChild(expression);
   if (expression.type === "ConditionalExpression") {
     return (
       expressionNamesIcon(expression.consequent) ||
@@ -2174,6 +2176,13 @@ function expressionNamesIcon(expression) {
   return false;
 }
 
+function elementNamesIcon(element) {
+  const name = element.openingElement?.name;
+  if (name?.type !== "JSXIdentifier") return false;
+  if (name.name === "svg" || /icon/i.test(name.name)) return true;
+  return /^[A-Z]/.test(name.name) && (element.children?.length ?? 0) === 0;
+}
+
 /** Ein Symbol als Kind, kein Text: Initialen und Schrittnummern sind keine Kachel. */
 function hasIconChild(element) {
   let icon = false;
@@ -2183,7 +2192,9 @@ function hasIconChild(element) {
       continue;
     }
     if (child.type === "JSXElement") {
-      icon = true;
+      if (elementNamesIcon(child)) icon = true;
+      else if (hasIconChild(child)) icon = true;
+      else return false;
       continue;
     }
     if (child.type === "JSXExpressionContainer") {
