@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { availableParallelism } from "node:os";
 import { nodeLogicTestFiles } from "./src/test/node-test-files.ts";
+import { leanModuleGraphs } from "./src/test/lean-module-graphs.ts";
 import { phosphorPerIconImports } from "./src/test/phosphor-imports-plugin.ts";
 import {
   collectMainProcessGarbage,
@@ -100,7 +101,12 @@ process.env.TZ = "Europe/Berlin";
 export default defineConfig({
   // Per-icon phosphor imports instead of the 3,000-module barrels; mirrors
   // optimizePackageImports in next.config.js. See the plugin file.
-  plugins: [phosphorPerIconImports(), react()],
+  plugins: [phosphorPerIconImports(), react(), leanModuleGraphs()],
+  // Vitest empties every CSS import before Vite's CSS plugin sees it
+  // (test.css is off), yet Vite would still load postcss.config.mjs and with
+  // it Tailwind's native scanner and lightningcss into the main process.
+  // The inline config with no plugins skips that lookup.
+  css: { postcss: {} },
   test: {
     globals: true,
     silent: "passed-only",
