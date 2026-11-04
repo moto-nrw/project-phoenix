@@ -15,6 +15,9 @@ type ownerTestTransaction struct{}
 func (ownerTestTransaction) RunAdmin(ctx context.Context, fn func(context.Context) error) error {
 	return fn(ctx)
 }
+func (ownerTestTransaction) RunAdminRetry(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}
 func (ownerTestTransaction) RunRead(ctx context.Context, fn func(context.Context) error) error {
 	return fn(ctx)
 }

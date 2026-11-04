@@ -91,6 +91,10 @@ func (tx *fakeTx) RunAdmin(ctx context.Context, fn func(context.Context) error) 
 	return err
 }
 
+func (tx *fakeTx) RunAdminRetry(ctx context.Context, fn func(context.Context) error) error {
+	return tx.RunAdmin(ctx, fn)
+}
+
 func (tx *fakeTx) RunTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
 	if active, inTenant := tenantOf(ctx); isAdmin(ctx) || (inTenant && active != tenantID) {
 		return errors.New("ambient transaction has no matching tenant")
