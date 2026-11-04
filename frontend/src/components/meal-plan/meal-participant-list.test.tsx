@@ -379,9 +379,12 @@ describe("MealParticipantList", () => {
         />,
       );
 
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Anmeldung ändern" }),
-      );
+      const changeRegistration = await screen.findByRole("button", {
+        name: "Anmeldung ändern",
+      });
+      // The action stays disabled until the participants have loaded.
+      await waitFor(() => expect(changeRegistration).toBeEnabled());
+      fireEvent.click(changeRegistration);
       const dialog = await screen.findByRole("dialog");
       fireEvent.click(within(dialog).getByRole("combobox", { name: "Kind" }));
       fireEvent.click(

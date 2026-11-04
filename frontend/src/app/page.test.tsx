@@ -137,7 +137,8 @@ describe("RootPage", () => {
     });
 
     fireEvent.click(screen.getByRole("combobox"));
-    fireEvent.click(screen.getByRole("option", { name: "School A" }));
+    // The options render once the tenant list has loaded.
+    fireEvent.click(await screen.findByRole("option", { name: "School A" }));
 
     const button = screen.getByRole("button", { name: "Weiter" });
     expect(button).toBeEnabled();
@@ -166,7 +167,8 @@ describe("RootPage", () => {
     });
 
     fireEvent.click(screen.getByRole("combobox"));
-    fireEvent.click(screen.getByRole("option", { name: "School A" }));
+    // The options render once the tenant list has loaded.
+    fireEvent.click(await screen.findByRole("option", { name: "School A" }));
 
     // Mock window.location.href setter
     const hrefSpy = vi.spyOn(window.location, "href", "set");
