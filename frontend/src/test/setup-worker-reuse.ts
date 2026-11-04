@@ -98,6 +98,8 @@ interface ModuleNode {
 
 interface WorkerGlobals {
   __vitest_worker__?: {
+    /** Module ids the runner is still resolving. */
+    resolvingModules: Set<string>;
     evaluatedModules: {
       idToModuleMap: Map<string, ModuleNode>;
       invalidateModule(node: ModuleNode): void;
@@ -515,6 +517,26 @@ function resetModules() {
   });
 }
 
+/**
+ * Waits until no import of the file is still being fetched or evaluated, as
+ * Vitest's own waitForImportsToResolve does before a worker ends. An import
+ * still in flight at the reset would otherwise finish inside the next file,
+ * against that file's mocks.
+ */
+async function settleImports(nextMacrotask: typeof setImmediate) {
+  const worker = (globalThis as WorkerGlobals).__vitest_worker__;
+  if (!worker) return;
+  for (;;) {
+    await new Promise((resolve) => nextMacrotask(resolve));
+    const pending: unknown[] = [];
+    for (const node of worker.evaluatedModules.idToModuleMap.values()) {
+      if (node.promise && !node.evaluated) pending.push(node.promise);
+    }
+    if (!pending.length && !worker.resolvingModules.size) return;
+    await Promise.allSettled(pending);
+  }
+}
+
 function resetWorker(baseline: WorkerBaseline) {
   baseline.clearTimers?.();
   for (const [target, type, listener, options] of baseline.listeners.splice(
@@ -560,7 +582,8 @@ afterAll(async () => {
   // A file's fake timers end with it; the next file's setup freezes the clock
   // again.
   vi.useRealTimers();
-  // Let promise chains the file already resolved finish in its own context.
-  await new Promise((resolve) => baseline.untrackedImmediate(resolve));
+  // Let promise chains and imports the file started finish in its own
+  // context.
+  await settleImports(baseline.untrackedImmediate);
   resetWorker(baseline);
 });
