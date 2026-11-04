@@ -372,13 +372,11 @@ func (h *HolidayContributions) refreeze(ctx context.Context, reviewer parentbill
 			member.registration.Status != parentbilling.HolidayRegistrationConfirmed {
 			continue
 		}
-		if member.frozen.BenefitsExemption && !next.BenefitsExemption {
-			if keepExemptions {
-				continue
-			}
-			return parentbilling.ErrBenefitsExemptionUnavailable
+		changed, err := refrozen(*member.frozen, next, keepExemptions)
+		if err != nil {
+			return err
 		}
-		if sameContribution(*member.frozen, next) && member.frozen.Chain == next.Chain {
+		if !changed {
 			continue
 		}
 		if err := h.store.InsertHolidayContributions(ctx, reviewer.OrganizationID, periodID, member.id(), reviewer.AccountID, next); err != nil {
@@ -386,6 +384,19 @@ func (h *HolidayContributions) refreeze(ctx context.Context, reviewer parentbill
 		}
 	}
 	return nil
+}
+
+// refrozen reports whether next is a new version of the frozen
+// contribution: other amounts or other chain settings (#5664). A frozen exemption no rule allows any more refuses, or with
+// keepExemptions keeps the frozen contribution.
+func refrozen(frozen, next parentbilling.HolidayContribution, keepExemptions bool) (bool, error) {
+	if frozen.BenefitsExemption && !next.BenefitsExemption {
+		if keepExemptions {
+			return false, nil
+		}
+		return false, parentbilling.ErrBenefitsExemptionUnavailable
+	}
+	return !sameContribution(frozen, next) || frozen.Chain != next.Chain, nil
 }
 
 // shareDebtorNumber gives every confirmed registration of the group that no
