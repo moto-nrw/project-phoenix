@@ -23,6 +23,7 @@ const source = `http://school-a.mfa.localhost:${ports.frontend}`;
 const target = `http://school-b.mfa.localhost:${ports.frontend}`;
 const cookieName = "mfa-localhost.session-token";
 const fixtureState = `http://127.0.0.1:${ports.api}/__fixture/switch-state`;
+const sessionCookieDeletionTimeout = 30_000;
 
 async function isolate(context: BrowserContext) {
   await context.route("**/*", async (route) => {
@@ -69,6 +70,7 @@ async function waitForSessionCookieDeletion(page: Page) {
     (response) =>
       response.request().method() === "POST" &&
       new URL(response.url()).pathname === "/api/auth/signout",
+    { timeout: sessionCookieDeletionTimeout },
   );
   return (
     response.status() === 200 &&
