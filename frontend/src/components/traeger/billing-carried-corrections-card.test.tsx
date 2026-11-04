@@ -105,7 +105,7 @@ function renderCard(run: BillingRunDetail) {
 function openMenu() {
   fireEvent.click(
     screen.getByRole("button", {
-      name: "Aktionen für die Korrektur von Lia",
+      name: /^Aktionen für die Korrektur von Lia über /,
     }),
   );
 }

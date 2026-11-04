@@ -295,7 +295,7 @@ describe("TraegerBillingRunPage", () => {
     renderPage();
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "Aktionen für die Korrektur von Lia",
+        name: /^Aktionen für die Korrektur von Lia über /,
       }),
     );
     fireEvent.click(await screen.findByRole("menuitem", { name: "Ändern" }));

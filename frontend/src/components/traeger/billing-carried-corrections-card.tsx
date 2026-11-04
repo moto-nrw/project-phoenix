@@ -120,7 +120,7 @@ export function BillingCarriedCorrectionsCard({
                   <p className="text-gray-700">{row.carried.reason}</p>
                 </div>
                 <OverflowMenu
-                  ariaLabel={`Aktionen für die Korrektur von ${row.child.firstName}`}
+                  ariaLabel={`Aktionen für die Korrektur von ${row.child.firstName} über ${formatEuro(row.carried.amountCents)}`}
                   triggerSize="sm"
                   items={[
                     {
