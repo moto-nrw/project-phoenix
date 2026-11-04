@@ -321,6 +321,68 @@ describe("TraegerBillingRunPage", () => {
     );
   });
 
+  it("uses the recalculated amount without a carried correction (#5663)", async () => {
+    const child = PREVIEW.documents[0]!.children[0]!;
+    const carried = [
+      {
+        positionId: "61",
+        sourceNumber: "FE-0001",
+        amountCents: -8000,
+        sourceAmountCents: -8000,
+        reason: "Erster Tag krank",
+      },
+      {
+        positionId: "62",
+        sourceNumber: "FE-0001",
+        amountCents: -2000,
+        sourceAmountCents: -8000,
+        reason: "Zweiter Tag krank",
+      },
+    ];
+    api.fetchBillingRun.mockResolvedValue({
+      ...PREVIEW,
+      documents: [
+        {
+          ...PREVIEW.documents[0]!,
+          referenceNumber: "FE-0001",
+          children: [
+            {
+              ...child,
+              totalCents: 0,
+              positions: [{ ...child.positions[0]!, amountCents: 10000 }],
+              carriedCorrections: carried,
+            },
+            PREVIEW.documents[0]!.children[1]!,
+          ],
+        },
+      ],
+    });
+    api.changeCarriedCorrection.mockResolvedValue(CORRECTED);
+    renderPage();
+    const [menu] = await screen.findAllByRole("button", {
+      name: /^Aktionen für die Korrektur von Lia über /,
+    });
+    fireEvent.click(menu!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Ändern" }));
+    const amount = await screen.findByLabelText("Neuer Betrag in Euro");
+
+    fireEvent.change(amount, { target: { value: "20,00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ändern" }));
+    expect(
+      await screen.findByText(/Das ist der Betrag ohne Korrektur/),
+    ).toBeInTheDocument();
+    expect(api.changeCarriedCorrection).not.toHaveBeenCalled();
+
+    fireEvent.change(amount, { target: { value: "80,00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ändern" }));
+    await waitFor(() =>
+      expect(api.changeCarriedCorrection).toHaveBeenCalledWith("9", "61", {
+        totalCents: 8000,
+        reason: "Erster Tag krank",
+      }),
+    );
+  });
+
   it("releases with the checked preview and reports a changed run", async () => {
     api.releaseBillingRun.mockRejectedValue(
       new ApiError("changed", 409, {

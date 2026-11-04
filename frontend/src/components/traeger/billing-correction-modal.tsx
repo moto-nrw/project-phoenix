@@ -27,6 +27,7 @@ import {
   correctBillingRun,
   creditBillingDocument,
 } from "~/lib/traeger-billing-api";
+import { totalAfterRemovingCarriedCorrection } from "./billing-carried-correction-model";
 import { formatEuro } from "./contribution-format";
 import { centsToEuroInput, euroInputToCents } from "./holiday-period-model";
 
@@ -149,7 +150,11 @@ function amountError(
   }
   if (cents === null) return "Bitte geben Sie einen Betrag wie 45,00 an.";
   if (target.kind === "carried") {
-    return cents === target.child.totalCents - target.carried.amountCents
+    return cents ===
+      totalAfterRemovingCarriedCorrection(
+        target.child,
+        target.carried.positionId,
+      )
       ? "Das ist der Betrag ohne Korrektur. Wählen Sie dafür im Menü „Entfernen“."
       : null;
   }

@@ -20,6 +20,7 @@ import {
   type BillingRunDetail,
   removeCarriedCorrection,
 } from "~/lib/traeger-billing-api";
+import { totalAfterRemovingCarriedCorrection } from "./billing-carried-correction-model";
 import { recipientName } from "./billing-document-card";
 import { formatEuro } from "./contribution-format";
 
@@ -37,25 +38,6 @@ function amountText(carried: BillingCarriedCorrection): string {
   return carried.amountCents === carried.sourceAmountCents
     ? source
     : `${source}. Hier ${formatEuro(carried.amountCents)}, weil der Betrag nicht unter 0 € fällt`;
-}
-
-// Proposals apply in order and each may lower the amount only to zero. Rebuild
-// that sequence without the removed proposal so the confirmation matches the
-// resulting backend preview.
-function totalAfterRemovingCarriedCorrection(
-  child: BillingChild,
-  removedPositionID: string,
-): number {
-  let totalCents = child.totalCents;
-  for (const carried of child.carriedCorrections) {
-    totalCents -= carried.amountCents;
-  }
-  for (const carried of child.carriedCorrections) {
-    if (carried.positionId !== removedPositionID) {
-      totalCents += Math.max(carried.sourceAmountCents, -totalCents);
-    }
-  }
-  return totalCents;
 }
 
 export function BillingCarriedCorrectionsCard({
