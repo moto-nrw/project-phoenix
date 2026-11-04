@@ -268,7 +268,15 @@ export function ConnectOfferingModal({
                 {segmentSentence ? (
                   <p className="text-sm text-gray-700">{segmentSentence}</p>
                 ) : null}
-                <OfferingPreviewList preview={preview} />
+                <OfferingPreviewList
+                  preview={preview}
+                  onAddOfferings={(ids) =>
+                    setOfferingIds((current) => [
+                      ...current,
+                      ...ids.filter((id) => !current.includes(id)),
+                    ])
+                  }
+                />
               </>
             ) : null}
           </div>

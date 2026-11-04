@@ -161,9 +161,10 @@ func (rs *Resource) draftOfferingPreview(
 		return offeringPreviewResponse{}, err
 	}
 	return offeringPreviewResponse{
-		From:     from.String(),
-		Weekdays: offeringPreviewWeekdays(changes, names),
-		Segments: []offeringPreviewSegmentResponse{},
+		From:           from.String(),
+		Weekdays:       offeringPreviewWeekdays(changes, names),
+		Segments:       []offeringPreviewSegmentResponse{},
+		OtherOfferings: offeringPreviewAlternatives(filter, bookings, changes),
 	}, nil
 }
 

@@ -178,6 +178,41 @@ func TestDraftOfferingPreview(t *testing.T) {
 	assert.Empty(t, wednesday.Added)
 }
 
+// TestDraftOfferingPreviewNamesOtherOfferings: Schule am Berg chose only
+// Randstunde for class 1a; the children booked in Ganztag dropped from the
+// preview without a reason. The preview now names Ganztag with the number of
+// dropped children it books, so the school can add it to the selection.
+func TestDraftOfferingPreviewNamesOtherOfferings(t *testing.T) {
+	t.Parallel()
+	const ganztagID = rosterReviewOfferingID + 1
+	sources := &rosterMaintenanceSources{}
+	s := buildRosterReviewModule(t, sources)
+	router := s.draftRouter()
+	period := createTemplateTestPeriodRange(t, s.db, "Draft-Alternatives", rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(120), 1, nil)
+	class := createClassStudents(t, s.db, "1a", 3)
+	sources.bookings = append(
+		rosterReviewBookings(rosterReviewOfferingID, "Randstunde", "1a", class[:1], 1),
+		rosterReviewBookings(ganztagID, "Ganztag", "1a", class[1:], 1, 3)...,
+	)
+	query := url.Values{
+		"period_id":      {fmt.Sprint(period.ID)},
+		"offering_ids":   {fmt.Sprint(rosterReviewOfferingID)},
+		"school_classes": {"1a"},
+		"roster":         {draftRosterParam(1, class), draftRosterParam(3, class[1:])},
+		"from":           {rosterReviewMonday.String()},
+	}
+
+	w := doTemplateJSON(t, router, http.MethodGet, "/offering-sources/preview?"+query.Encode(), nil)
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	preview := decodeTemplateData[offeringPreviewResponse](t, w)
+
+	require.Len(t, preview.Weekdays, 2)
+	assert.Len(t, preview.Weekdays[0].Removed, 2)
+	assert.Equal(t, []offeringPreviewAlternativeResponse{
+		{OfferingID: ganztagID, Name: "Ganztag", ChildCount: 2},
+	}, preview.OtherOfferings, "each dropped child counts once over both days")
+}
+
 // TestDraftOfferingSourceRejectsBadInput: a malformed roster, a weekday
 // outside the week, a missing period or a past from are refused.
 func TestDraftOfferingSourceRejectsBadInput(t *testing.T) {
