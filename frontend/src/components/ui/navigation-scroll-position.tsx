@@ -50,6 +50,10 @@ function restoreScrollPosition(top: number): () => void {
   return stop;
 }
 
+function currentUrl() {
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
+
 /**
  * Eine neu angesteuerte Seite beginnt oben (#5681).
  *
@@ -62,10 +66,10 @@ function restoreScrollPosition(top: number): () => void {
  * Zurück und Vor stellt der Browser wieder her, aber nicht zuverlässig: Steht
  * das Dokument auf einer kurzen Seite oben, begrenzt er die Position auf deren
  * Höhe und versucht es nicht erneut. Deshalb merkt sich die Hülle die Position
- * je Pfad und holt sie nach. Vor dem Bestätigen eines Wechsels lässt sich ein
- * Verlaufsschritt nicht erkennen: Im Browser kommt `popstate` meist erst danach.
- * Dann setzt der Bestätigungsschritt kurz nach oben, und `popstate` holt die
- * Position noch vor dem Zeichnen zurück.
+ * je Pfad und holt sie nach. Ein Verlaufsschritt kann den Pfad bestätigen,
+ * bevor `popstate` ankommt. Deshalb wartet der normale Reset bis zum nächsten
+ * Frame; `popstate` ersetzt ihn dann noch ohne sichtbaren Sprung durch die
+ * Wiederherstellung.
  *
  * Die Komponente steht in der Hülle vor dem Seiteninhalt. So laufen ihre Effekte
  * vor denen der Seite, und eine Seite oder Next darf danach gezielt woanders
@@ -74,56 +78,103 @@ function restoreScrollPosition(top: number): () => void {
 export function NavigationScrollPosition() {
   const pathname = usePathname();
   const committedPathname = useRef(pathname);
+  const committedUrl = useRef<string | undefined>(undefined);
   const lastCommitAt = useRef(Number.NEGATIVE_INFINITY);
   const traversalBeforeCommit = useRef(false);
   // Aus dem Scroll-Ereignis, nicht aus `window.scrollY` beim Wechsel: Dort hat
   // der Browser die Position schon auf die Höhe der neuen Seite begrenzt.
   const lastScrollY = useRef(0);
   const scrollPositions = useRef(new Map<string, number>());
+  const resetFrame = useRef<number | undefined>(undefined);
+  const stopRestore = useRef<(() => void) | undefined>(undefined);
 
   useEffect(() => {
-    let stopRestore: (() => void) | undefined;
+    committedUrl.current = currentUrl();
     const handleScroll = () => {
       lastScrollY.current = window.scrollY;
     };
     const handleHistoryTraversal = () => {
       const target = window.location.pathname;
+      const targetUrl = currentUrl();
       const beforeCommit = target !== committedPathname.current;
       const afterCommit =
         !beforeCommit &&
+        targetUrl === committedUrl.current &&
         performance.now() - lastCommitAt.current < TRAVERSAL_COMMIT_WINDOW_MS;
       traversalBeforeCommit.current = beforeCommit;
-      // Ohne Pfadwechsel (nur Query oder der Wächter ungespeicherter Änderungen)
-      // bleibt die Position, wo sie ist.
-      if (!beforeCommit && !afterCommit) return;
+      // Query- und Sprungmarkenwechsel sind kein Pfadwechsel. Nur eine genau
+      // passende, gerade bestätigte Adresse kann dessen spätes `popstate` sein.
+      if (!beforeCommit && !afterCommit) {
+        if (resetFrame.current !== undefined) {
+          cancelAnimationFrame(resetFrame.current);
+          resetFrame.current = undefined;
+        }
+        return;
+      }
 
+      if (resetFrame.current !== undefined) {
+        cancelAnimationFrame(resetFrame.current);
+        resetFrame.current = undefined;
+      }
       const position = scrollPositions.current.get(target);
-      stopRestore?.();
-      stopRestore = position ? restoreScrollPosition(position) : undefined;
+      stopRestore.current?.();
+      // Sprungmarken sind eine ausdrückliche Zielposition und gewinnen gegen
+      // die gemerkte Position des Pfads.
+      stopRestore.current =
+        window.location.hash === "" && position !== undefined
+          ? restoreScrollPosition(position)
+          : undefined;
     };
     handleScroll();
     window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("popstate", handleHistoryTraversal);
+    window.addEventListener("popstate", handleHistoryTraversal, {
+      capture: true,
+    });
     return () => {
       window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("popstate", handleHistoryTraversal);
-      stopRestore?.();
+      window.removeEventListener("popstate", handleHistoryTraversal, {
+        capture: true,
+      });
+      if (resetFrame.current !== undefined) {
+        cancelAnimationFrame(resetFrame.current);
+      }
+      stopRestore.current?.();
     };
   }, []);
 
   useLayoutEffect(() => {
     if (committedPathname.current === pathname) return;
-    scrollPositions.current.set(committedPathname.current, lastScrollY.current);
+    if (resetFrame.current !== undefined) {
+      cancelAnimationFrame(resetFrame.current);
+      resetFrame.current = undefined;
+    }
+    const isTraversal = traversalBeforeCommit.current;
+    if (!isTraversal) {
+      scrollPositions.current.set(
+        committedPathname.current,
+        lastScrollY.current,
+      );
+    }
     committedPathname.current = pathname;
+    committedUrl.current = currentUrl();
     lastCommitAt.current = performance.now();
 
-    if (traversalBeforeCommit.current) {
+    if (isTraversal) {
       // Bei schnellem Zurück-Zurück kann ein Zwischenziel bestätigt werden; die
       // Markierung gilt, bis der Router das letzte Ziel erreicht hat.
       traversalBeforeCommit.current = pathname !== window.location.pathname;
       return;
     }
-    window.scrollTo({ top: 0, behavior: "instant" });
+
+    stopRestore.current?.();
+    if (window.location.hash !== "") return;
+    // Ein Verlaufsschritt kann den Pfad vor `popstate` bestätigen. Bis zum
+    // nächsten Frame kann der Handler den Reset noch ohne sichtbaren Sprung
+    // durch die Wiederherstellung ersetzen.
+    resetFrame.current = requestAnimationFrame(() => {
+      resetFrame.current = undefined;
+      window.scrollTo({ top: 0, behavior: "instant" });
+    });
   }, [pathname]);
 
   return null;

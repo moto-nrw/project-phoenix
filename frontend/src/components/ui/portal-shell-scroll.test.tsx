@@ -94,15 +94,16 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
     vi.restoreAllMocks();
   });
 
-  it("beginnt eine neu angesteuerte Seite oben", () => {
+  it("beginnt eine neu angesteuerte Seite oben", async () => {
     const view = renderShellAt("/access-log");
 
     commitRoute(view, "/ferien");
+    await nextFrame();
 
     expect(scrollTo).toHaveBeenCalledExactlyOnceWith(TO_TOP);
   });
 
-  it("lässt die Position beim ersten Aufruf und bei gleichem Pfad stehen", () => {
+  it("lässt die Position beim ersten Aufruf und bei gleichem Pfad stehen", async () => {
     const view = renderShellAt("/access-log");
 
     commitRoute(view, "/access-log");
@@ -110,10 +111,11 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
 
     // Anker: Die Hülle reagiert auf denselben Weg, sobald der Pfad wechselt.
     commitRoute(view, "/ferien");
+    await nextFrame();
     expect(scrollTo).toHaveBeenCalledOnce();
   });
 
-  it("setzt nicht an den Anfang, wenn `popstate` vor dem Commit kommt", () => {
+  it("setzt nicht an den Anfang, wenn `popstate` vor dem Commit kommt", async () => {
     const view = renderShellAt("/ferien");
 
     window.history.replaceState(null, "", "/access-log");
@@ -125,6 +127,7 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
 
     // Anker: Der nächste Link-Wechsel setzt wieder an den Anfang.
     commitRoute(view, "/ferien");
+    await nextFrame();
     expect(scrollTo).toHaveBeenCalledExactlyOnceWith(TO_TOP);
   });
 
@@ -143,6 +146,7 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
     });
     route.pathname = "/access-log";
     view.rerender(shell());
+    await nextFrame();
     expect(scrollTo).not.toHaveBeenCalledWith(TO_TOP);
   });
 
@@ -169,7 +173,7 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
     await nextFrame();
     await nextFrame();
 
-    expect(scrollTo).toHaveBeenCalledExactlyOnceWith(TO_TOP);
+    expect(scrollTo).not.toHaveBeenCalled();
   });
 
   it("gibt das Nachholen auf, sobald die Person selbst scrollt", async () => {
@@ -183,15 +187,16 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
     await nextFrame();
     await nextFrame();
 
-    expect(scrollTo).toHaveBeenCalledExactlyOnceWith(TO_TOP);
+    expect(scrollTo).not.toHaveBeenCalled();
   });
 
-  it("setzt nach einem Zurück den nächsten Link-Wechsel wieder an den Anfang", () => {
+  it("setzt nach einem Zurück den nächsten Link-Wechsel wieder an den Anfang", async () => {
     const view = renderShellAt("/ferien");
     traverseHistory(view, "/access-log");
     scrollTo.mockClear();
 
     commitRoute(view, "/abrechnung");
+    await nextFrame();
 
     expect(scrollTo).toHaveBeenCalledExactlyOnceWith(TO_TOP);
   });
@@ -211,16 +216,80 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
 
     // Anker: Der nächste Link-Wechsel setzt wieder an den Anfang.
     commitRoute(view, "/abrechnung");
+    await nextFrame();
     expect(scrollTo).toHaveBeenCalledExactlyOnceWith(TO_TOP);
   });
 
-  it("zählt ein Zurück innerhalb derselben Seite nicht für den nächsten Link-Wechsel", () => {
+  it("zählt ein Zurück innerhalb derselben Seite nicht für den nächsten Link-Wechsel", async () => {
     const view = renderShellAt("/ferien");
     firePopState();
 
     commitRoute(view, "/abrechnung");
+    await nextFrame();
 
     expect(scrollTo).toHaveBeenCalledExactlyOnceWith(TO_TOP);
+  });
+
+  it("überschreibt die Position eines Zwischenziels beim schnellen Zurück nicht", async () => {
+    const view = renderShellAt("/activities");
+    userScrollsTo(200);
+    commitRoute(view, "/overview");
+    await nextFrame();
+    userScrollsTo(100);
+    commitRoute(view, "/calendar");
+    await nextFrame();
+    scrollTo.mockClear();
+
+    traverseHistory(view, "/overview", 0);
+    window.history.replaceState(null, "", "/activities");
+    userScrollsTo(0);
+    firePopState();
+    route.pathname = "/activities";
+    view.rerender(shell());
+    scrollTo.mockClear();
+
+    window.history.replaceState(null, "", "/overview");
+    firePopState();
+    route.pathname = "/overview";
+    view.rerender(shell());
+
+    await waitFor(() => {
+      expect(scrollTo).toHaveBeenCalledWith({ top: 100, behavior: "instant" });
+    });
+  });
+
+  it("überlässt eine Sprungmarke beim Zurück dem Browser", async () => {
+    const view = renderShellAt("/access-log");
+    userScrollsTo(1483);
+    commitRoute(view, "/ferien");
+    await nextFrame();
+    scrollTo.mockClear();
+
+    window.history.replaceState(null, "", "/access-log#details");
+    route.pathname = "/access-log";
+    view.rerender(shell());
+    firePopState();
+    setScrollY(65);
+    await nextFrame();
+
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("stellt bei einem zeitnahen Zurück zu einer Query nicht die Pfadposition wieder her", async () => {
+    const view = renderShellAt("/access-log");
+    userScrollsTo(1483);
+    commitRoute(view, "/ferien");
+    await nextFrame();
+    commitRoute(view, "/access-log");
+    await nextFrame();
+    scrollTo.mockClear();
+
+    window.history.replaceState(null, "", "/access-log?tab=archiv");
+    setScrollY(400);
+    firePopState();
+    await nextFrame();
+
+    expect(scrollTo).not.toHaveBeenCalled();
   });
 
   it("rendert im Leerlauf nicht von selbst neu", async () => {
