@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
@@ -20,11 +21,14 @@ import (
 	organizationTenancyTraeger "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/traeger"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
+	studentPresenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/traegerportal"
 	"github.com/moto-nrw/project-phoenix/modules/traegerview"
 	traegerViewCompose "github.com/moto-nrw/project-phoenix/modules/traegerview/compose"
 	traegerViewHTTP "github.com/moto-nrw/project-phoenix/modules/traegerview/http"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -90,7 +94,9 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	overview, err := traegerViewCompose.New(traegerview.Ports{
 		SchoolIDs: traegerSchoolIDs{organizations: organizations}, Trail: traegerAccessTrail{trail: audit.Trail},
 		Recorder: traegerAccessRecorder{log: audit.Log}, Holiday: traegerHolidayTrail{trail: enrollmentCompose.NewHolidayAccessTrail()}, Persons: traegerPersonDirectory{persons: persons}, Staff: traegerStaffDirectory{staff: staff},
-		Bureau: traegerBureauAddresses{roles: identity},
+		Bureau:  traegerBureauAddresses{roles: identity},
+		Rosters: schoolMembershipCompose.NewSchoolRosters(), Present: studentPresenceCompose.NewPresentStudentCounts(),
+		Sick: carePlanCompose.NewSickStudents(), OnSite: workforceCompose.NewOnSiteStaff(),
 	})
 	if err != nil {
 		return nil, err

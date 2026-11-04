@@ -11,7 +11,7 @@ import { clientEnv } from "~/env.client";
 const TRAEGER_HANDOFF_PATH = "/traeger-uebergabe";
 
 /** Texts of the Absprung, shared by the Träger portal and the entry page. */
-export const TRAEGER_HANDOFF_OPEN = "Öffnen";
+export const TRAEGER_HANDOFF_OPEN = "Schul-App öffnen";
 export const TRAEGER_HANDOFF_OPENING = "Schule wird geöffnet …";
 export const TRAEGER_HANDOFF_FAILED_TITLE =
   "Die Schule konnte nicht geöffnet werden.";

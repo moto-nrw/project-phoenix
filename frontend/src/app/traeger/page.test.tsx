@@ -12,18 +12,31 @@ import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
-const { mockFetchSchools, mockStartSchoolSession, mockUseSession } = vi.hoisted(
-  () => ({
-    mockFetchSchools: vi.fn(),
-    mockStartSchoolSession: vi.fn(),
-    mockUseSession: vi.fn(),
-  }),
-);
+const {
+  mockFetchSchools,
+  mockRouterPush,
+  mockStartSchoolSession,
+  mockUseSession,
+} = vi.hoisted(() => ({
+  mockFetchSchools: vi.fn(),
+  mockRouterPush: vi.fn(),
+  mockStartSchoolSession: vi.fn(),
+  mockUseSession: vi.fn(),
+}));
+
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: mockRouterPush }),
+}));
 
 vi.mock("~/lib/traeger-api", () => ({
   fetchTraegerSchools: () => mockFetchSchools(),
   startTraegerSchoolSession: (schoolId: string) =>
     mockStartSchoolSession(schoolId),
+}));
+
+vi.mock("~/lib/traeger-url", () => ({
+  traegerPath: (path: string) => path,
 }));
 
 vi.mock("next-auth/react", () => ({ useSession: () => mockUseSession() }));
@@ -101,9 +114,16 @@ describe("TraegerSchoolsPage", () => {
     ).toHaveTextContent(
       "Alle Schulen Ihres Trägers. Neue Schulen ordnet das moto-Team zu.",
     );
-    // Anker: die Tabelle ist geladen; Zeilen sind reine Anzeige.
     expect(within(table).getByText("OGS Lindenweg")).toBeInTheDocument();
-    expect(within(table).queryAllByRole("button", { name: /OGS/ })).toEqual([]);
+  });
+
+  it("leads a row into the view of the school (#5686)", async () => {
+    mockFetchSchools.mockResolvedValue([AM_BACH]);
+    renderPage();
+
+    const table = await screen.findByRole("table");
+    fireEvent.click(within(table).getByText("OGS Am Bach"));
+    expect(mockRouterPush).toHaveBeenCalledWith("/traeger/schulen/2");
   });
 
   it("says who adds schools when the Träger has none yet", async () => {
@@ -156,7 +176,7 @@ describe("TraegerSchoolsPage", () => {
     const table = await screen.findByRole("table");
     expect(
       screen.getByText(
-        "Eine Schule öffnen Sie nur mit der Rolle „Schulzugang“. Diese Rolle gibt Ihnen eine Person mit der Rolle „Leitung“.",
+        "Die Schul-App öffnen Sie nur mit der Rolle „Schulzugang“. Diese Rolle gibt Ihnen eine Person mit der Rolle „Leitung“.",
       ),
     ).toBeInTheDocument();
     expect(within(table).queryAllByRole("button", { name: /öffnen/ })).toEqual(
@@ -182,10 +202,14 @@ describe("TraegerSchoolsPage", () => {
     );
     expect(
       screen.getByRole("dialog", { name: "Erklärung zu Schulen" }),
-    ).toHaveTextContent(/„Öffnen“ zeigt die Schule in einem neuen Tab/);
+    ).toHaveTextContent(
+      /„Schul-App öffnen“ zeigt die Schule in einem neuen Tab/,
+    );
     expect(screen.queryByText(/nur mit der Rolle/)).not.toBeInTheDocument();
     fireEvent.click(
-      within(table).getByRole("button", { name: "OGS Am Bach öffnen" }),
+      within(table).getByRole("button", {
+        name: "Schul-App öffnen: OGS Am Bach",
+      }),
     );
 
     await waitFor(() =>
@@ -215,7 +239,9 @@ describe("TraegerSchoolsPage", () => {
 
     const table = await screen.findByRole("table");
     fireEvent.click(
-      within(table).getByRole("button", { name: "OGS Am Bach öffnen" }),
+      within(table).getByRole("button", {
+        name: "Schul-App öffnen: OGS Am Bach",
+      }),
     );
 
     expect(

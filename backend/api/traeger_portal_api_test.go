@@ -26,6 +26,7 @@ import (
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/traegerview"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -399,6 +400,80 @@ func TestTraegerSessionRefreshesAndEndsWithTheMembership(t *testing.T) {
 	require.NoError(t, err)
 	_, _, err = identity.RefreshTokenWithAudit(ctx, refresh, "", "", "")
 	assert.ErrorIs(t, err, identityaccess.ErrNoTraegerMembership, "refresh re-checks the membership")
+}
+
+// traegerSchoolView reads GET /traeger/schools/{id} with the session's token.
+func traegerSchoolView(t *testing.T, router http.Handler, token string, schoolID int64) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/traeger/schools/%d", schoolID), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestTraegerSchoolViewAnswersMasterDataAndFigures(t *testing.T) {
+	t.Parallel()
+	db, router, _, _ := newTraegerPortal(t)
+	password := testpkg.NewTestPassword()
+	organization := traegerOrganization(t, db, "Träger Ansicht", true)
+	schoolID := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Ansicht")
+	_, err := db.ExecContext(context.Background(), `UPDATE platform.schools
+		SET address = 'Lindenweg 3', zip = '49143', city = 'Bissendorf', phone = '05402 1234', email = 'ogs@example.com' WHERE id = ?`, schoolID)
+	require.NoError(t, err)
+	testpkg.CreateTestStudentForTenant(t, db, schoolID, "Erika", "Muster", "1a")
+	testpkg.CreateTestStudentForTenant(t, db, schoolID, "Max", "Muster", "1a")
+	testpkg.CreateTestStaffForTenant(t, db, schoolID, "Bea", "Betreuung")
+	account := traegerAccount(t, db, password)
+	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleReadOnly)
+	code, answer := traegerSignIn(t, router, account.Email, password, 0)
+	require.Equal(t, http.StatusOK, code)
+
+	rec := traegerSchoolView(t, router, answer.AccessToken, schoolID)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.NotContains(t, rec.Body.String(), "Erika", "the view carries figures, no names")
+	assert.NotContains(t, rec.Body.String(), "Muster", "the view carries figures, no names")
+
+	view := decodeSchoolPortalData[traegerview.SchoolView](t, rec.Body.Bytes())
+	assert.Equal(t, "OGS Ansicht", view.Name)
+	assert.Equal(t, "Lindenweg 3", view.Address)
+	assert.Equal(t, "49143", view.Zip)
+	assert.Equal(t, "Bissendorf", view.City)
+	assert.Equal(t, "05402 1234", view.Phone)
+	assert.Equal(t, "ogs@example.com", view.Email)
+	assert.Equal(t, 2, view.Figures.ChildrenTotal)
+	assert.Equal(t, 1, view.Figures.StaffTotal)
+	assert.Equal(t, 0, view.Figures.StaffPresent)
+	assert.Nil(t, view.Figures.CareRatio, "without present staff there is no ratio")
+	assert.False(t, view.Figures.AsOf.IsZero())
+}
+
+func TestTraegerSchoolViewRefusesAnotherTraegersSchoolAndAMissingRight(t *testing.T) {
+	t.Parallel()
+	db, router, _, _ := newTraegerPortal(t)
+	password := testpkg.NewTestPassword()
+	own := traegerOrganization(t, db, "Träger Eigen", true)
+	ownSchool := testpkg.CreateTestSchoolInOrganization(t, db, own, "OGS Eigen")
+	foreign := traegerOrganization(t, db, "Träger Fremd", true)
+	foreignSchool := testpkg.CreateTestSchoolInOrganization(t, db, foreign, "OGS Fremd")
+	account := traegerAccount(t, db, password)
+	testpkg.CreateTestTraegerMember(t, db, own, account.ID, identityaccess.TraegerRoleReadOnly)
+	code, answer := traegerSignIn(t, router, account.Email, password, 0)
+	require.Equal(t, http.StatusOK, code)
+
+	foreignAnswer := traegerSchoolView(t, router, answer.AccessToken, foreignSchool)
+	assert.Equal(t, http.StatusForbidden, foreignAnswer.Code, foreignAnswer.Body.String())
+	assert.NotContains(t, foreignAnswer.Body.String(), "OGS Fremd")
+
+	missing := traegerSchoolView(t, router, answer.AccessToken, foreignSchool+1_000_000)
+	assert.Equal(t, http.StatusForbidden, missing.Code, "an unknown school answers like a foreign one, so the route reveals no school")
+
+	withoutRole := traegerAccount(t, db, password)
+	testpkg.CreateTestTraegerMember(t, db, own, withoutRole.ID)
+	code, answer = traegerSignIn(t, router, withoutRole.Email, password, 0)
+	require.Equal(t, http.StatusOK, code)
+	withoutRight := traegerSchoolView(t, router, answer.AccessToken, ownSchool)
+	assert.Equal(t, http.StatusForbidden, withoutRight.Code, withoutRight.Body.String())
 }
 
 func TestTraegerSchoolListQueryBudgetIsFlat(t *testing.T) {
