@@ -4,8 +4,8 @@
 // die Eltern mit der Anmeldung hochgeladen haben. Bringt die Familie den
 // Nachweis auf Papier, lädt das Träger-Büro ihn hier hoch (#5627). Nur die
 // Einzelansicht zeigt die Nachweise, nie die Liste oder der Export. Jede
-// Datei öffnet sich in einem neuen Tab; das Backend protokolliert jedes
-// Öffnen und jedes Hochladen.
+// Datei lässt sich in einem neuen Tab öffnen und herunterladen; das Backend
+// protokolliert jeden Abruf und jedes Hochladen.
 
 import { Upload } from "lucide-react";
 import { useRef, useState } from "react";

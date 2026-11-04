@@ -51,9 +51,10 @@ const FILE_ACTION_CLASS = buttonClassName({
  * (#2890) so a parent sees the same file, named and sized the same way, that
  * the person who attached it saw.
  *
- * The filename is the link, and the row carries no other click target: a row
- * that looks pressable but only reacts on one word is exactly the kind of
- * read-wrong this codebase keeps paying for.
+ * The filename is the link, and by default the row carries no other click
+ * target: a row that looks pressable but only reacts on one word is exactly
+ * the kind of read-wrong this codebase keeps paying for. `fileActions` adds
+ * named actions, for a list of read-only files; it replaces the remove button.
  */
 export function AttachmentList({
   attachments,

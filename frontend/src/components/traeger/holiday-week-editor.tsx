@@ -150,7 +150,7 @@ export function HolidayWeekEditor({
 
   const title = weekTitle(index, week);
   return (
-    // Eine Zeile der Karte „Wochen“, keine eigene Karte (#5146): die Wochen
+    // Eine Zeile der Formularkarte, keine eigene Karte (#5146): die Wochen
     // trennt eine Linie wie die Zeitmodelle darunter.
     <section className="space-y-4 border-t border-gray-200 pt-6 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -219,7 +219,7 @@ export function HolidayWeekEditor({
 
         <div className="space-y-3">
           <div>
-            <h3 className="text-sm font-semibold text-gray-900">Zeitmodelle</h3>
+            <h5 className="text-sm font-semibold text-gray-900">Zeitmodelle</h5>
             <p className="text-sm text-gray-500">
               Zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“, jedes mit eigenem
               Preis.

@@ -226,6 +226,7 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).toBeInTheDocument();
     // Export and duplicate hint refer to „Anmeldung Nr. 7“, so the number
     // stays visible next to the status.
+    // Anker: die Angaben der Statuszeile stehen einzeln, ohne Trennpunkte (#5684).
     expect(await screen.findByText("Nr. 7")).toBeInTheDocument();
     expect(screen.getByText("Winterferien 2027")).toBeInTheDocument();
     expect(screen.getByText(/^Eingegangen am/)).toBeInTheDocument();

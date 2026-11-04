@@ -93,7 +93,7 @@ describe("TraegerHolidayRegistrationsPage", () => {
   it("lists the registrations with status, schools, weeks and the duplicate hint", async () => {
     renderPage();
 
-    // Die Zahlen stehen einzeln, ohne Trennpunkte dazwischen (#5684).
+    // Anker: die Zahlen stehen einzeln, ohne Trennpunkte dazwischen (#5684).
     expect(await screen.findByText("2 Anmeldungen")).toBeInTheDocument();
     expect(screen.getByText("1 eingegangen")).toBeInTheDocument();
     expect(screen.getByText("0 bestätigt")).toBeInTheDocument();

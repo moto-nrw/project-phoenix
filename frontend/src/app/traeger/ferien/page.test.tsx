@@ -67,6 +67,7 @@ describe("TraegerHolidayPeriodsPage", () => {
 
     const table = await screen.findByRole("table");
     expect(within(table).getByText("Osterferien 2027")).toBeInTheDocument();
+    // Anker: die Zahl der Zeiträume steht in der Statuszeile.
     expect(screen.getByText("1 Ferienzeitraum")).toBeInTheDocument();
     expect(screen.queryByText("·")).not.toBeInTheDocument();
     expect(

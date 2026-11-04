@@ -261,46 +261,50 @@ export function HolidayPeriodForm({
 
           <div className="space-y-4 border-t border-gray-200 pt-6">
             <div>
-              <h3 className="text-base font-semibold text-gray-900">Wochen</h3>
+              <h3 className="text-sm font-semibold text-gray-600">Wochen</h3>
               <p className="text-sm text-gray-600">
                 Jede Woche findet an einer Schule Ihres Trägers statt.
               </p>
             </div>
-            {draft.weeks.length === 0 ? (
-              <p className="text-sm text-gray-600">
-                Noch keine Woche. Zum Veröffentlichen braucht der Ferienzeitraum
-                mindestens eine Woche.
-              </p>
-            ) : (
-              draft.weeks.map((week, index) => (
-                <HolidayWeekEditor
-                  key={week.key}
-                  index={index}
-                  week={week}
-                  schools={schools}
-                  fieldError={fieldError}
-                  onChange={(next) => setWeek(index, next)}
-                  onDateValidity={weekDateValidity}
-                  onRemove={() => {
-                    // The week's date flags go with it, so a later invalid
-                    // date of another week reports again.
-                    setInvalidDates((current) => {
-                      const prefix = `${week.key}:`;
-                      if (![...current].some((key) => key.startsWith(prefix))) {
-                        return current;
-                      }
-                      return new Set(
-                        [...current].filter((key) => !key.startsWith(prefix)),
-                      );
-                    });
-                    setDraft({
-                      ...draft,
-                      weeks: draft.weeks.filter((_, i) => i !== index),
-                    });
-                  }}
-                />
-              ))
-            )}
+            <div className="space-y-4">
+              {draft.weeks.length === 0 ? (
+                <p className="text-sm text-gray-600">
+                  Noch keine Woche. Zum Veröffentlichen braucht der
+                  Ferienzeitraum mindestens eine Woche.
+                </p>
+              ) : (
+                draft.weeks.map((week, index) => (
+                  <HolidayWeekEditor
+                    key={week.key}
+                    index={index}
+                    week={week}
+                    schools={schools}
+                    fieldError={fieldError}
+                    onChange={(next) => setWeek(index, next)}
+                    onDateValidity={weekDateValidity}
+                    onRemove={() => {
+                      // The week's date flags go with it, so a later invalid
+                      // date of another week reports again.
+                      setInvalidDates((current) => {
+                        const prefix = `${week.key}:`;
+                        if (
+                          ![...current].some((key) => key.startsWith(prefix))
+                        ) {
+                          return current;
+                        }
+                        return new Set(
+                          [...current].filter((key) => !key.startsWith(prefix)),
+                        );
+                      });
+                      setDraft({
+                        ...draft,
+                        weeks: draft.weeks.filter((_, i) => i !== index),
+                      });
+                    }}
+                  />
+                ))
+              )}
+            </div>
             {draft.weeks.length < MAX_HOLIDAY_WEEKS ? (
               <Button
                 type="button"
