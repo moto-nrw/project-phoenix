@@ -403,6 +403,66 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
     });
   });
 
+  it("setzt nach einem abgebrochenen Verlaufsschritt den nächsten Link-Wechsel oben an", async () => {
+    const view = renderShellAt("/ferien");
+
+    window.history.replaceState(null, "", "/access-log");
+    firePopState();
+    commitRoute(view, "/abrechnung");
+    await nextFrame();
+
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith(TO_TOP);
+  });
+
+  it("beendet das Nachholen bei einem Query-Wechsel", async () => {
+    const view = renderShellAt("/access-log");
+    userScrollsTo(1483);
+    commitRoute(view, "/ferien");
+    await nextFrame();
+    scrollTo.mockClear();
+
+    traverseHistory(view, "/access-log", 65);
+    window.history.replaceState(null, "", "/access-log?tab=archiv");
+    route.search = "?tab=archiv";
+    firePopState();
+    view.rerender(shell());
+    setScrollY(65);
+    await nextFrame();
+    await nextFrame();
+
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("beendet das Nachholen bei einem Sprungmarken-Wechsel", async () => {
+    const view = renderShellAt("/access-log");
+    userScrollsTo(1483);
+    commitRoute(view, "/ferien");
+    await nextFrame();
+    scrollTo.mockClear();
+
+    traverseHistory(view, "/access-log", 65);
+    window.history.replaceState(null, "", "/access-log#details");
+    window.dispatchEvent(new Event("hashchange"));
+    setScrollY(65);
+    await nextFrame();
+    await nextFrame();
+
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("stellt einen gespeicherten Seitenanfang wieder her", async () => {
+    const view = renderShellAt("/access-log");
+    commitRoute(view, "/ferien");
+    await nextFrame();
+    scrollTo.mockClear();
+
+    traverseHistory(view, "/access-log", 65);
+
+    await waitFor(() => {
+      expect(scrollTo).toHaveBeenCalledWith(TO_TOP);
+    });
+  });
+
   it("rendert im Leerlauf nicht von selbst neu", async () => {
     vi.useFakeTimers();
     try {

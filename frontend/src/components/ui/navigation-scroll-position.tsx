@@ -40,7 +40,7 @@ function restoreScrollPosition(top: number, onStop: () => void): () => void {
       stop();
       return;
     }
-    if (window.scrollY < top) {
+    if (top === 0 ? window.scrollY !== 0 : window.scrollY < top) {
       window.scrollTo({ top, behavior: "instant" });
     }
     frame = requestAnimationFrame(step);
@@ -85,6 +85,7 @@ export function NavigationScrollPosition() {
   const committedUrl = useRef<string | undefined>(undefined);
   const awaitingPathTraversal = useRef(false);
   const traversalBeforeCommit = useRef(false);
+  const traversalTargetPathname = useRef<string | undefined>(undefined);
   // Aus dem Scroll-Ereignis, nicht aus `window.scrollY` beim Wechsel: Dort hat
   // der Browser die Position schon auf die Höhe der neuen Seite begrenzt. Ein
   // geplanter Reset setzt ihn vor dem nächsten Frame bewusst auf 0.
@@ -120,6 +121,9 @@ export function NavigationScrollPosition() {
         );
       }
       traversalBeforeCommit.current = beforeCommit;
+      if (beforeCommit) {
+        traversalTargetPathname.current = target;
+      }
       // Query- und Sprungmarkenwechsel sind kein Pfadwechsel. Nur eine genau
       // passende, gerade bestätigte Adresse kann dessen spätes `popstate` sein.
       if (!beforeCommit && !afterCommit) {
@@ -128,6 +132,9 @@ export function NavigationScrollPosition() {
           cancelAnimationFrame(resetFrame.current);
           resetFrame.current = undefined;
         }
+        stopRestore.current?.();
+        stopRestore.current = undefined;
+        isRestoring.current = false;
         return;
       }
 
@@ -153,6 +160,9 @@ export function NavigationScrollPosition() {
     };
     const handleHashChange = () => {
       committedUrl.current = currentUrl();
+      stopRestore.current?.();
+      stopRestore.current = undefined;
+      isRestoring.current = false;
     };
     const handleUserInput = () => {
       if (resetFrame.current === undefined) return;
@@ -187,7 +197,17 @@ export function NavigationScrollPosition() {
   }, []);
 
   useEffect(() => {
-    committedUrl.current = currentUrl();
+    const url = currentUrl();
+    if (
+      committedPathname.current === pathname &&
+      committedUrl.current !== undefined &&
+      committedUrl.current !== url
+    ) {
+      stopRestore.current?.();
+      stopRestore.current = undefined;
+      isRestoring.current = false;
+    }
+    committedUrl.current = url;
   }, [pathname, search]);
 
   useLayoutEffect(() => {
@@ -196,7 +216,10 @@ export function NavigationScrollPosition() {
       cancelAnimationFrame(resetFrame.current);
       resetFrame.current = undefined;
     }
-    const isTraversal = traversalBeforeCommit.current;
+    const isTraversal =
+      traversalBeforeCommit.current &&
+      (pathname !== window.location.pathname ||
+        pathname === traversalTargetPathname.current);
     if (!isTraversal) {
       scrollPositions.current.set(
         committedPathname.current,
@@ -214,6 +237,8 @@ export function NavigationScrollPosition() {
       return;
     }
 
+    traversalBeforeCommit.current = false;
+    traversalTargetPathname.current = undefined;
     stopRestore.current?.();
     isRestoring.current = false;
     if (window.location.hash !== "") return;
