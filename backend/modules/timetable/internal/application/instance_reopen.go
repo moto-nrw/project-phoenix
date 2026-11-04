@@ -156,7 +156,10 @@ func (s *InstanceLifecycleService) validateReopenStudentsStillAtSchool(ctx conte
 		return nil
 	}
 	day := calendar.Date(instance.Date).String()
-	stays, err := s.deps.Presence.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: studentIDs, FromDate: day, UntilDate: day})
+	// Checkout does not take the student row locks in detailed mode. Hold
+	// school attendance rows through restoration so it cannot commit between
+	// this check and the visit restore.
+	stays, err := s.deps.Presence.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: studentIDs, FromDate: day, UntilDate: day, ForUpdate: true})
 	if err != nil {
 		return &ports.ScheduleError{Op: "reopen instance: load school attendance", Err: err}
 	}
