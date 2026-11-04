@@ -439,7 +439,15 @@ describe("TraegerBillingRunPage", () => {
       await screen.findByRole("button", { name: "Schreiben erstellen" }),
     );
     fireEvent.change(
-      await screen.findByLabelText("Hinweise für die Eltern (freiwillig)"),
+      await screen.findByLabelText(
+        "Hinweise für die Eltern (freiwillig)",
+        {},
+        {
+          // The form is lazy-loaded after the click. Its first import can take
+          // longer than Testing Library's one-second default in the full suite.
+          timeout: 5_000,
+        },
+      ),
       { target: { value: "Hausschuhe mitbringen." } },
     );
     fireEvent.change(screen.getByLabelText("Betreuung"), {
