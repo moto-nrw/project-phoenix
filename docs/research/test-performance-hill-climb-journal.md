@@ -968,3 +968,16 @@ Auftrag: [test-performance-hill-climb-prompt.md](test-performance-hill-climb-pro
 - Backend `backend-full`: B 457,7/444,5 s (Median 451,1) → C 320,1/323,2 s (Median 321,65); Paare 1,430×/1,375×, Median 1,402×. CPU 915,3 → 686,0 s, RSS 6413 → 6189 MB. Inventar: 0 fehlend, +29 (in B-arch benannte Tabellenfälle), 30 Skips beidseitig; `compare` lehnt deshalb ab, Differenz einzeln geprüft (`tmp/hc4/inv.mjs`).
 - 4×-Ziel verfehlt: Frontend bräuchte 44,3 s (weitere 3,6×), Backend 112,8 s (weitere 2,85×). Frontend-Rest ist Overhead pro Datei (happy-dom-Import, React-Dev-Render), Backend-Rest Paketsumme bei 2 Paketen parallel plus Build.
 - Ein erster C-Backend-Warmlauf war rot (Funktionslängen-Ratchet nach Umbenennung im Import-Testhelfer); behoben in `61545feba3`, Backend-Block vollständig neu gemessen.
+
+## Neuer Lauf: CPU und Peak-RAM halbieren, 4. November 2026
+
+Ziel: CPU-Sekunden und Peak-RAM von `full` und `backend-full` (inklusive Postgres-Testserver) halbieren, Wandzeit höchstens +25 %, Fehlererkennung unverändert. Frontend-Delegate Opus 5.5, Backend-Delegate GPT 6.1 Sol, jeweils eigener Worktree.
+
+### Messplatz-Erweiterung
+- `test-perf.mjs` misst bei Backendprofilen den Postgres-Testcontainer mit: CPU-Delta aus `cpu.stat` (`pgCpuSeconds`), alle 0,5 s abgetastet `memory.current` (`pgPeakMB`, inkl. Page Cache) und `anon+shmem` (`pgPeakAnonShmemMB`). `cpuTotalSeconds` = Prozessbaum + Container; `peakTotalMB` = Summe der getrennten Peaks (obere Schranke). Ohne laufenden Container fehlen die Felder, `compare` lässt sie dann für alle Seiten weg.
+- Messung nur auf privatem Port (5541), Container vor jedem Backendtrial neu gestartet; der geteilte Server 5433 würde fremde Last mitzählen.
+
+### Baseline, Revision 27596d40fb (Richtwert, Delegates liefen parallel)
+- Frontend `full` n=2: Wand 214,3 / 200,2 s, CPU 912,9 / 913,9 s, RSS 3507 / 3533 MB. Summierte Testdauer 215 s von 1547 Dateien: rund ¾ der CPU ist Overhead pro Datei.
+- Backend `backend-full` n=2: Wand 349,0 / 329,1 s; CPU Prozessbaum 741 / 705 s + Postgres 406 / 386 s = 1147 / 1090 s; RSS Baum 6343 / 6387 MB + Postgres 1053 / 794 MB = 7396 / 7181 MB. Paketsumme 521 s bei `-p 2`.
+- Warmlauf Frontend brach mit SIGSEGV ab (Node 26.13.0, V8 `KeyedLoadIC_Megamorphic` in `MessagePort::OnMessage`; vier Crashreports seit 3.11.). Bestehende Instabilität, Lauf ungültig und nicht gewertet.
