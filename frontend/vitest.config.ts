@@ -110,6 +110,7 @@ export default defineConfig({
   test: {
     globals: true,
     silent: "passed-only",
+    experimental: { fsModuleCache: true },
     // threads statt des Default-Pools "forks": gemessen auf der vollen Suite
     // (1027 Dateien / 14160 Tests, 16-Core-MacBook) 124s → 76s Wandzeit und
     // -24% CPU — der Unterschied ist reiner Prozess-Spawn-/IPC-Overhead.
