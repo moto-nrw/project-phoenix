@@ -903,12 +903,12 @@ export function DataTable<T>({
                   const active =
                     activeRowKey != null && rowKey === activeRowKey;
                   const selected =
-                    active ||
-                    (selection?.selectedKeys.has(String(rowKey)) ?? false);
+                    selection?.selectedKeys.has(String(rowKey)) ?? false;
+                  const tinted = selected || active;
                   const rowClasses = [
                     `${bodyRowClass} transition-colors`,
                     clickable ? "group cursor-pointer hover:bg-gray-50" : "",
-                    selected ? "bg-gray-50" : "",
+                    tinted ? "bg-gray-50" : "",
                     active ? ACTIVE_ROW_CLASS : "",
                     rowClassName ? rowClassName(row) : "",
                   ]
@@ -961,7 +961,7 @@ export function DataTable<T>({
                         const align = alignClass[col.align ?? "left"];
                         const pinned =
                           col.key === PINNED_COLUMN_KEY
-                            ? pinnedBodyCellClass(selected, clickable)
+                            ? pinnedBodyCellClass(tinted, clickable)
                             : "";
                         return (
                           <td
