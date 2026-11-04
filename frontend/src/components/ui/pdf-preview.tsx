@@ -71,9 +71,10 @@ export function PdfPreview({
           <Skeleton className="mt-8 h-24 w-full" />
         </div>
       ) : viewer ? (
+        // oxlint-disable-next-line react/iframe-missing-sandbox -- Chrome blocks its PDF viewer in any sandboxed frame (checked locally, #5692); the frame shows only an object URL of a PDF this page loaded itself, and the CSP allows no other frame origin.
         <iframe
           key={url}
-          src={`${url}#view=FitH`}
+          src={`${url}#view=FitH&navpanes=0`}
           title={title}
           className="absolute inset-0 h-full w-full bg-white"
         />
@@ -81,8 +82,8 @@ export function PdfPreview({
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
           <FileText className="h-10 w-10 text-gray-400" aria-hidden="true" />
           <p className="max-w-xs text-sm text-gray-600">
-            Dieser Browser zeigt PDFs nicht in der Seite. Öffnen Sie die Datei
-            in einem neuen Tab oder laden Sie sie herunter.
+            Auf diesem Gerät lässt sich die Datei hier nicht zeigen. Öffnen Sie
+            sie in einem neuen Tab oder laden Sie sie herunter.
           </p>
         </div>
       )}

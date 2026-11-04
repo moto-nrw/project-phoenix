@@ -259,6 +259,11 @@ export function BillingRunOverviewCard({
       render: (document) =>
         document.children.map((child) => child.firstName).join(", "),
       stacked: "field",
+      // Beside the letter the names stand in the letter itself; the list
+      // keeps its room for recipient, number and amount.
+      ...(canPreview
+        ? { className: "xl:hidden", headerClassName: "xl:hidden" }
+        : {}),
     },
     {
       key: "total",
@@ -365,11 +370,11 @@ export function BillingRunOverviewCard({
       }
     >
       {canPreview && run.documents.length > 0 ? (
-        <div className="xl:grid xl:grid-cols-2 xl:items-start xl:gap-6">
+        <div className="xl:grid xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] xl:items-start xl:gap-6">
           <div className={previewed ? "max-xl:hidden" : undefined}>{table}</div>
           <div
             ref={previewRef}
-            className={`scroll-mt-4 xl:sticky xl:top-4 ${previewed ? "" : "max-xl:hidden"}`}
+            className={`scroll-mt-24 xl:sticky xl:top-20 ${previewed ? "" : "max-xl:hidden"}`}
           >
             {previewed ? (
               <BillingLetterPreview

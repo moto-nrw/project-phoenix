@@ -9777,6 +9777,17 @@ export const traegerBillingRunTopic =
           ],
         },
         {
+          title: "Schreiben einer Rechnung ansehen",
+          description:
+            "Das geht, sobald die Schreiben erstellt sind. Sie sehen genau das Schreiben, das die Familie bekommt.",
+          steps: [
+            "Öffnen Sie den freigegebenen Lauf.",
+            "Wählen Sie in der Karte `Rechnungen` eine Zeile. Rechts neben der Liste steht das Schreiben dieser Rechnung als PDF. Über dem Schreiben stehen Nummer, Empfänger und Betrag.",
+            "Wählen Sie eine andere Zeile, um deren Schreiben zu sehen.",
+            "Mit `Herunterladen` speichern Sie genau dieses Schreiben. Mit `In neuem Tab öffnen` sehen Sie es groß.",
+          ],
+        },
+        {
           title: "Schreiben per Mail senden und drucken",
           description:
             "Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Hat die Familie ein Konto in der Eltern-App mit derselben Mail-Adresse, liegt es auch dort unter `Dokumente`. Familien ohne E-Mail geben Sie das gedruckte Schreiben.",
@@ -9858,6 +9869,9 @@ export const traegerBillingRunTopic =
         "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
         "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",
         "Sie sehen oben in der Karte `Rechnungen` kein Menü mit den drei Punkten? Der Lauf ist noch nicht freigegeben.",
+        "Ein Klick auf eine Rechnung zeigt kein Schreiben? Die Schreiben des Laufs sind noch nicht erstellt. Erstellen Sie sie bei `Bestätigungsschreiben`.",
+        "Auf dem Handy oder einem schmalen Bildschirm steht das Schreiben an der Stelle der Liste. Mit `Zurück zu den Rechnungen` kommen Sie zur Liste.",
+        "Statt des Schreibens steht, dass sich die Datei auf diesem Gerät hier nicht zeigen lässt? Wählen Sie `In neuem Tab öffnen` oder `Herunterladen`.",
         "Im Menü einer Rechnung fehlt `Rechnung stornieren`? Die Rechnung hat schon eine Gutschrift oder ist schon storniert. Schreiben Sie dann den Rest gut.",
         "Vor der Freigabe steht, dass Anmeldungen noch keine Debitorennummer haben? Ihr Träger fragt die Nummer ab, und diese Anmeldungen wurden ohne Nummer bestätigt. Tragen Sie die Nummer in der Anmeldung ein. Freigeben können Sie trotzdem. Nennt Ihr eigener Zahlungstext die Debitorennummer, lassen sich die Schreiben ohne Nummer aber nicht erstellen.",
         "Vor der Freigabe steht `Schreiben brauchen die Debitorennummer`? Ihr eigener Zahlungstext nennt die Debitorennummer, und Rechnungen mit Betrag haben keine. Tragen Sie die Nummern vor dem Freigeben in den Anmeldungen ein. Das Feld dafür erscheint, wenn unter `Einstellungen` im Bereich `Ferienbetreuung` `Debitorennummer beim Bestätigen abfragen` an ist. Freigeben geht trotzdem, der Knopf heißt dann `Trotzdem freigeben`. Die Schreiben lassen sich danach nur ohne den Platzhalter erstellen.",
