@@ -121,7 +121,11 @@ func (rs *Resource) dismiss(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.Failure(w, r, http.StatusBadRequest, err)
 		return
 	}
-	if err := rs.service.SetDismissed(r.Context(), tenantID, accountID, req.Dismissed); err != nil {
+	dismiss := rs.service.SetDismissed
+	if rs.runtime.ViaTraeger(r.Context()) {
+		dismiss = rs.service.SetDismissedViaTraeger
+	}
+	if err := dismiss(r.Context(), tenantID, accountID, req.Dismissed); err != nil {
 		rs.fail(w, r, err)
 		return
 	}

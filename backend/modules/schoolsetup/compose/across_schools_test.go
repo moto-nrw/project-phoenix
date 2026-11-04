@@ -60,6 +60,12 @@ func TestWizardDismissalFollowsTheAbsprungAcrossTheTraeger(t *testing.T) {
 	_, status = h.doIn(t, viaTraeger(schoolB), office.ID, http.MethodGet, "/", nil)
 	assert.True(t, status.Dismissed, "the sibling school follows")
 
+	response, status = h.doIn(t, viaTraeger(schoolB), office.ID, http.MethodPut, "/dismissal", map[string]any{"dismissed": false})
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	assert.False(t, status.Dismissed, "restoring through the Absprung reaches the dismissal in the sibling school")
+	_, status = h.doIn(t, viaTraeger(schoolA), office.ID, http.MethodGet, "/", nil)
+	assert.False(t, status.Dismissed, "no dismissal remains in the Träger")
+
 	_, status = h.doIn(t, viaTraeger(schoolB), colleague.ID, http.MethodGet, "/", nil)
 	assert.False(t, status.Dismissed, "a colleague keeps the checklist")
 
@@ -87,6 +93,25 @@ func TestWizardDismissalInTheTraegerNeedsAnActiveMembership(t *testing.T) {
 	ctx := context.WithValue(inTenant(t, schoolB), viaTraegerKey{}, true)
 	_, status := h.doIn(t, ctx, former.ID, http.MethodGet, "/", nil)
 	assert.False(t, status.Dismissed)
+}
+
+func TestWizardDismissalIgnoresDeletedSchools(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	traeger, deletedSchool, activeSchool := createTraeger(t)
+	office := testpkg.CreateTestAccount(t, h.db, "traeger-deleted-school")
+	testpkg.CreateTestTraegerMember(t, h.db, traeger, office.ID)
+
+	viaTraeger := func(tenantID int64) context.Context {
+		return context.WithValue(inTenant(t, tenantID), viaTraegerKey{}, true)
+	}
+	response, _ := h.doIn(t, viaTraeger(deletedSchool), office.ID, http.MethodPut, "/dismissal", map[string]any{"dismissed": true})
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	_, err := h.db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, deletedSchool).Exec(context.Background())
+	require.NoError(t, err)
+
+	_, status := h.doIn(t, viaTraeger(activeSchool), office.ID, http.MethodGet, "/", nil)
+	assert.False(t, status.Dismissed, "a deleted school's dismissal no longer hides onboarding")
 }
 
 // The first steps are general handling (#5659): progress and hiding follow the
@@ -120,6 +145,23 @@ func TestStaffFirstStepsFollowThePersonAcrossSchools(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	_, status = staff.doIn(t, inTenant(t, schoolA), worker.ID, http.MethodGet, "/", nil)
 	assert.True(t, status.Dismissed, "hidden once is hidden in every school of the person")
+}
+
+func TestStaffFirstStepsFollowThePersonThroughTheTraegerSession(t *testing.T) {
+	t.Parallel()
+	staff, h := newStaffHarness(t)
+	traeger, schoolA, schoolB := createTraeger(t)
+	worker := testpkg.CreateTestAccount(t, h.db, "first-steps-traeger-session")
+	testpkg.CreateTestTraegerMember(t, h.db, traeger, worker.ID)
+
+	var mappings int
+	require.NoError(t, h.db.NewRaw(`SELECT COUNT(*) FROM auth.account_tenants WHERE account_id = ?`, worker.ID).Scan(context.Background(), &mappings))
+	require.Zero(t, mappings, "a Träger session has no school membership mapping")
+
+	response, _ := staff.doIn(t, inTenant(t, schoolA), worker.ID, http.MethodPut, "/steps/students", map[string]any{"state": "done"})
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	_, status := staff.doIn(t, inTenant(t, schoolB), worker.ID, http.MethodGet, "/", nil)
+	assert.Equal(t, []string{"students"}, status.DoneSteps)
 }
 
 // A session of a school reads nothing about a person without active access to

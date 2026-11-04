@@ -83,6 +83,15 @@ func (s *Service) StatusViaTraeger(ctx context.Context, tenantID, accountID int6
 	return status, nil
 }
 
+// SetDismissedViaTraeger hides the wizard in the current school, or restores
+// it in every school of the Träger after an Absprung.
+func (s *Service) SetDismissedViaTraeger(ctx context.Context, tenantID, accountID int64, dismissed bool) error {
+	if dismissed {
+		return s.SetDismissed(ctx, tenantID, accountID, true)
+	}
+	return s.RestoreDismissedInTraeger(ctx, accountID)
+}
+
 // SetStepSkipped skips a step or takes the skip back.
 func (s *Service) SetStepSkipped(ctx context.Context, tenantID, accountID int64, key string, skipped bool) error {
 	step, ok := schoolsetup.ParseStepKey(key)

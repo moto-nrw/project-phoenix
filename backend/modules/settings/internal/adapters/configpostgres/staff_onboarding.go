@@ -62,6 +62,23 @@ type StaffOnboardingRepository[S StaffOnboardingState] struct {
 	runtime Runtime
 }
 
+// LockStaffOnboarding serializes cross-school read-modify-write updates for
+// an account until the ambient tenant transaction ends (#5659).
+func (r *StaffOnboardingRepository[S]) LockStaffOnboarding(ctx context.Context, accountID int64) error {
+	if accountID <= 0 {
+		return errors.New("account ID is required")
+	}
+	db, err := r.runtime.DB(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, fmt.Sprintf("staff-onboarding:%d", accountID)).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("lock staff onboarding: %w", err)
+	}
+	return nil
+}
+
 // NewStaffOnboardingRepository creates a new StaffOnboardingRepository.
 func NewStaffOnboardingRepository[S StaffOnboardingState](runtime Runtime) *StaffOnboardingRepository[S] {
 	return &StaffOnboardingRepository[S]{runtime: runtime}

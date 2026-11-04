@@ -130,6 +130,9 @@ func ValidStaffStepState(state string) bool {
 // StaffStore keeps the first-steps progress of each person in the ambient
 // tenant transaction.
 type StaffStore interface {
+	// LockStaffOnboarding serializes a person's cross-school updates for the
+	// ambient transaction.
+	LockStaffOnboarding(ctx context.Context, accountID int64) error
 	// StaffOnboardingOf returns the person's state across their schools, or
 	// (nil, nil) if the person has not started. Its TenantID is not set.
 	StaffOnboardingOf(ctx context.Context, accountID int64) (*StaffState, error)

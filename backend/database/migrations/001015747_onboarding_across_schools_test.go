@@ -90,6 +90,7 @@ func TestOnboardingAcrossSchoolsFunctionsAreForTheRequestRoleOnly(t *testing.T) 
 	for _, function := range []string{
 		"config.staff_onboarding_across_schools(bigint)",
 		"config.school_setup_dismissed_in_traeger(bigint)",
+		"config.restore_school_setup_dismissals_in_traeger(bigint)",
 	} {
 		var tenantRole, authRole, definer bool
 		require.NoError(t, db.NewRaw(`SELECT

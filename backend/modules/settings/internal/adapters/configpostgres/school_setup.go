@@ -198,3 +198,21 @@ func (r *SchoolSetupRepository[S]) SetDismissed(ctx context.Context, tenantID, a
 	}
 	return nil
 }
+
+// RestoreDismissedInTraeger restores the wizard in every school of the
+// ambient school's Träger. The SECURITY DEFINER function verifies the active
+// Träger membership before reaching sibling-school rows (#5659).
+func (r *SchoolSetupRepository[S]) RestoreDismissedInTraeger(ctx context.Context, accountID int64) error {
+	if accountID <= 0 {
+		return errors.New("account ID is required")
+	}
+	db, err := r.runtime.DB(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = db.NewRaw(`SELECT config.restore_school_setup_dismissals_in_traeger(?)`, accountID).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("restore school setup in Träger: %w", err)
+	}
+	return nil
+}

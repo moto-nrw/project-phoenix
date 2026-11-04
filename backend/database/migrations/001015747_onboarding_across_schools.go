@@ -32,7 +32,8 @@ func init() {
 //     write carries the person's whole state into the school it happens in, so
 //     the newest row is the person's state.
 //   - config.staff_onboarding_across_schools returns that newest row. It answers
-//     only for an account with active access to the session's school.
+//     only for an account with active access to the session's school, either
+//     directly or through the Träger session that selected it.
 //   - config.school_setup_dismissed_in_traeger reports whether the account hid
 //     the school wizard in any school of the session school's Träger. It answers
 //     only for an active member of that Träger.
@@ -86,10 +87,24 @@ CREATE FUNCTION config.staff_onboarding_across_schools(p_account_id BIGINT)
 	FROM config.staff_onboardings AS progress
 	WHERE progress.account_id = p_account_id
 		AND EXISTS (
-			SELECT FROM auth.account_tenants AS access
-			WHERE access.account_id = p_account_id
-				AND access.tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
-				AND access.status = 'active'
+				SELECT FROM platform.schools AS session_school
+				WHERE session_school.id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
+					AND session_school.active
+					AND session_school.deleted_at IS NULL
+					AND (
+						EXISTS (
+							SELECT FROM auth.account_tenants AS access
+							WHERE access.account_id = p_account_id
+								AND access.tenant_id = session_school.id
+								AND access.status = 'active'
+						)
+						OR EXISTS (
+							SELECT FROM platform.organization_accounts AS membership
+							WHERE membership.organization_id = session_school.organization_id
+								AND membership.account_id = p_account_id
+								AND membership.status = 'active'
+						)
+					)
 		)
 	ORDER BY progress.updated_at DESC, progress.id DESC
 	LIMIT 1
@@ -112,19 +127,48 @@ CREATE FUNCTION config.school_setup_dismissed_in_traeger(p_account_id BIGINT)
 			AND membership.status = 'active'
 		JOIN platform.schools AS sibling
 			ON sibling.organization_id = session_school.organization_id
+			AND sibling.active
+			AND sibling.deleted_at IS NULL
 		JOIN config.school_setup_dismissals AS dismissal
 			ON dismissal.tenant_id = sibling.id
 			AND dismissal.account_id = p_account_id
 		WHERE session_school.id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
+			AND session_school.active
+			AND session_school.deleted_at IS NULL
 	)
 	$$;
 REVOKE ALL ON FUNCTION config.school_setup_dismissed_in_traeger(BIGINT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION config.school_setup_dismissed_in_traeger(BIGINT) TO phoenix_tenant;
+
+CREATE FUNCTION config.restore_school_setup_dismissals_in_traeger(p_account_id BIGINT)
+	RETURNS VOID
+	LANGUAGE sql
+	VOLATILE
+	SECURITY DEFINER
+	SET search_path = pg_catalog, pg_temp
+	AS $$
+	DELETE FROM config.school_setup_dismissals AS dismissal
+	USING platform.schools AS session_school
+	JOIN platform.organization_accounts AS membership
+		ON membership.organization_id = session_school.organization_id
+		AND membership.account_id = p_account_id
+		AND membership.status = 'active'
+	JOIN platform.schools AS sibling
+		ON sibling.organization_id = session_school.organization_id
+	WHERE session_school.id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
+		AND session_school.active
+		AND session_school.deleted_at IS NULL
+		AND dismissal.tenant_id = sibling.id
+		AND dismissal.account_id = p_account_id
+	$$;
+REVOKE ALL ON FUNCTION config.restore_school_setup_dismissals_in_traeger(BIGINT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION config.restore_school_setup_dismissals_in_traeger(BIGINT) TO phoenix_tenant;
 `
 
 // The merge of the staff rows has no way back and needs none: the rows keep
 // their shape and per-school reads stay valid.
 const onboardingAcrossSchoolsDownSQL = `
+DROP FUNCTION IF EXISTS config.restore_school_setup_dismissals_in_traeger(BIGINT);
 DROP FUNCTION IF EXISTS config.school_setup_dismissed_in_traeger(BIGINT);
 DROP FUNCTION IF EXISTS config.staff_onboarding_across_schools(BIGINT);
 `

@@ -85,6 +85,9 @@ func (s *StaffOnboarding) SetStaffDismissed(ctx context.Context, tenantID, accou
 // update applies change to the person's state and stores it. A person gets
 // the state on the first write.
 func (s *StaffOnboarding) update(ctx context.Context, tenantID, accountID int64, change func(*schoolsetup.StaffState)) error {
+	if err := s.store.LockStaffOnboarding(ctx, accountID); err != nil {
+		return err
+	}
 	state, err := s.store.StaffOnboardingOf(ctx, accountID)
 	if err != nil {
 		return err

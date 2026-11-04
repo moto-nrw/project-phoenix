@@ -60,6 +60,12 @@ func (f *fakeSchoolSetupStore) SetDismissed(_ context.Context, _, accountID int6
 	return nil
 }
 
+func (f *fakeSchoolSetupStore) RestoreDismissedInTraeger(_ context.Context, accountID int64) error {
+	f.dismissed[accountID] = false
+	f.dismissedInTraeger[accountID] = false
+	return nil
+}
+
 type fakeSetupProgress struct {
 	facts schoolsetup.Facts
 	reads int
@@ -259,6 +265,18 @@ func TestSchoolSetupDismissalIsPersonal(t *testing.T) {
 
 	require.NoError(t, f.service.SetDismissed(ctx, setupTenant, setupAdmin, false))
 	assert.False(t, f.status(t).Dismissed)
+}
+
+func TestSchoolSetupRestoresDismissalAcrossTheTraeger(t *testing.T) {
+	t.Parallel()
+	f := newSetupFixture(t)
+	f.store.dismissed[setupAdmin] = true
+	f.store.dismissedInTraeger[setupAdmin] = true
+
+	require.NoError(t, f.service.SetDismissedViaTraeger(context.Background(), setupTenant, setupAdmin, false))
+
+	assert.False(t, f.store.dismissed[setupAdmin])
+	assert.False(t, f.store.dismissedInTraeger[setupAdmin])
 }
 
 func TestSchoolSetupPropagatesProgressErrors(t *testing.T) {
