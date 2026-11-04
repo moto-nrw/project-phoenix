@@ -28,13 +28,14 @@ const CARRIED: BillingCarriedCorrection = {
 function child(
   carried: BillingCarriedCorrection[],
   totalCents = 4750,
+  corrections: BillingChild["corrections"] = [],
 ): BillingChild {
   return {
     childId: "7",
     firstName: "Lia",
     lastName: "Muster",
     totalCents,
-    corrections: [],
+    corrections,
     carriedCorrections: carried,
     positions: [],
   };
@@ -44,6 +45,7 @@ function documentOf(
   carried: BillingCarriedCorrection[],
   replacedCredits: BillingDocument["replacedCredits"] = [],
   childTotalCents = 4750,
+  corrections: BillingChild["corrections"] = [],
 ): BillingDocument {
   return {
     id: "",
@@ -61,7 +63,7 @@ function documentOf(
     debtorNumber: "",
     serviceFrom: "2027-07-05",
     serviceUntil: "2027-07-16",
-    children: [child(carried, childTotalCents)],
+    children: [child(carried, childTotalCents, corrections)],
     totalCents: 4750,
   };
 }
@@ -166,7 +168,7 @@ describe("BillingCarriedCorrectionsCard", () => {
     await waitFor(() => expect(onRemoved).toHaveBeenCalledWith(updated));
   });
 
-  it("recalculates a later proposal that was limited at zero", async () => {
+  it("recalculates proposals before regular corrections", async () => {
     renderCard(
       runOf([
         documentOf(
@@ -180,12 +182,23 @@ describe("BillingCarriedCorrectionsCard", () => {
             {
               ...CARRIED,
               positionId: "62",
-              amountCents: 0,
-              sourceAmountCents: -5000,
+              amountCents: -2000,
+              sourceAmountCents: -12000,
             },
           ],
           [],
-          0,
+          5000,
+          [
+            {
+              id: "1",
+              amountCents: 5000,
+              totalBeforeCents: 0,
+              totalAfterCents: 5000,
+              reason: "Nachberechnung",
+              createdAt: "2026-09-01T08:00:00Z",
+              carriedFromNumber: "",
+            },
+          ],
         ),
       ]),
     );

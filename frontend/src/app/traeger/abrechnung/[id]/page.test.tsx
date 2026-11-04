@@ -335,7 +335,7 @@ describe("TraegerBillingRunPage", () => {
         positionId: "62",
         sourceNumber: "FE-0001",
         amountCents: -2000,
-        sourceAmountCents: -8000,
+        sourceAmountCents: -12000,
         reason: "Zweiter Tag krank",
       },
     ];
@@ -348,8 +348,19 @@ describe("TraegerBillingRunPage", () => {
           children: [
             {
               ...child,
-              totalCents: 0,
+              totalCents: 5000,
               positions: [{ ...child.positions[0]!, amountCents: 10000 }],
+              corrections: [
+                {
+                  id: "1",
+                  amountCents: 5000,
+                  totalBeforeCents: 0,
+                  totalAfterCents: 5000,
+                  reason: "Nachberechnung",
+                  createdAt: "2026-09-01T08:00:00Z",
+                  carriedFromNumber: "",
+                },
+              ],
               carriedCorrections: carried,
             },
             PREVIEW.documents[0]!.children[1]!,
@@ -366,7 +377,7 @@ describe("TraegerBillingRunPage", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Ändern" }));
     const amount = await screen.findByLabelText("Neuer Betrag in Euro");
 
-    fireEvent.change(amount, { target: { value: "20,00" } });
+    fireEvent.change(amount, { target: { value: "50,00" } });
     fireEvent.click(screen.getByRole("button", { name: "Ändern" }));
     expect(
       await screen.findByText(/Das ist der Betrag ohne Korrektur/),

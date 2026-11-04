@@ -65,7 +65,6 @@ GRANT ALL ON parent_billing.run_correction_dismissals TO phoenix_admin;
 
 const parentBillingCarriedCorrectionsDownSQL = `
 DROP TABLE IF EXISTS parent_billing.run_correction_dismissals;
-DELETE FROM parent_billing.run_corrections WHERE carried_from_number <> '';
 ALTER TABLE parent_billing.run_corrections DROP COLUMN carried_from_number;
 `
 
