@@ -197,6 +197,16 @@ func (s *Store) ListByAccounts(ctx context.Context, accountIDs []int64) ([]peopl
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
+	if len(accountIDs) == 0 {
+		err := scope.Validate()
+		if err == nil {
+			err = ctx.Err()
+		}
+		if err != nil {
+			return nil, domain.OperationStats{}, fmt.Errorf("people directory postgres: list persons by account: %w", err)
+		}
+		return []peopledirectory.Person{}, domain.OperationStats{}, nil
+	}
 	rows := []personRow{}
 	query := withTenant(personSelect(db, &rows).
 		Where(`"person".account_id IN (?)`, bun.List(accountIDs)).
