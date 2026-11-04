@@ -45,7 +45,7 @@ func TestBatchAttendanceCommandsRollbackEveryRowAndRetry(t *testing.T) {
 	for _, action := range []string{activeService.SchoolCheckinActionIn, activeService.SchoolCheckinActionOut} {
 		broadcaster.Reset()
 		presence.afterWrite = injected
-		_, err := svc.ProcessSchoolCheckinBatch(ctx, ids, staff.ID, action)
+		_, err := svc.ProcessSchoolCheckinBatch(ctx, ids, staff.ID, action, "")
 		require.ErrorIs(t, err, injected)
 		require.Equal(t, len(ids), presence.changedRows, "failure must follow both authoritative row changes")
 		assert.Empty(t, broadcaster.Calls(), "failed batch must not publish a refresh")
@@ -60,14 +60,14 @@ func TestBatchAttendanceCommandsRollbackEveryRowAndRetry(t *testing.T) {
 			}
 		}
 		presence.afterWrite = nil
-		result, err := svc.ProcessSchoolCheckinBatch(ctx, ids, staff.ID, action)
+		result, err := svc.ProcessSchoolCheckinBatch(ctx, ids, staff.ID, action, "")
 		require.NoError(t, err)
 		require.Equal(t, len(ids), result.Succeeded)
 		require.Len(t, result.Results, len(ids))
 		for _, item := range result.Results {
 			assert.True(t, item.Changed)
 		}
-		repeated, err := svc.ProcessSchoolCheckinBatch(ctx, ids, staff.ID, action)
+		repeated, err := svc.ProcessSchoolCheckinBatch(ctx, ids, staff.ID, action, "")
 		require.NoError(t, err)
 		require.Len(t, repeated.Results, len(ids))
 		for _, item := range repeated.Results {

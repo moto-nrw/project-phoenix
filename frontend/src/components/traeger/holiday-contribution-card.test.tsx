@@ -25,6 +25,10 @@ describe("HolidayContributionCard", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Lia Muster")).toBeInTheDocument();
+    // Woche und Zeitmodell ohne Trennpunkt (#5684).
+    expect(
+      screen.getAllByText("04.01.2027 bis 08.01.2027: bis 16 Uhr").length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText("Ben Muster")).toBeInTheDocument();
     expect(
       screen.getByText("Geschwister: 2. Kind, 50 % weniger"),

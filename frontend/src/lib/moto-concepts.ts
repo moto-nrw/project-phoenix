@@ -29,6 +29,7 @@ import { sickConcept } from "~/lib/concepts/sick";
 import { excusedConcept } from "~/lib/concepts/excused";
 import { homeConcept } from "~/lib/concepts/home";
 import { atSchoolConcept } from "~/lib/concepts/atSchool";
+import { inClassConcept } from "~/lib/concepts/inClass";
 import { classTripConcept } from "~/lib/concepts/classTrip";
 import { freeRoomsConcept } from "~/lib/concepts/freeRooms";
 import { utilizationConcept } from "~/lib/concepts/utilization";
@@ -112,6 +113,7 @@ const registry = {
   excused: excusedConcept,
   home: homeConcept,
   atSchool: atSchoolConcept,
+  inClass: inClassConcept,
   classTrip: classTripConcept,
   freeRooms: freeRoomsConcept,
   utilization: utilizationConcept,

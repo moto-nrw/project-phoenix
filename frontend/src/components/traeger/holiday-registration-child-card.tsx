@@ -39,7 +39,6 @@ import {
   answeredQuestions,
   HolidayRegistrationAnswers,
 } from "./holiday-registration-answers";
-import { EDIT_TITLE } from "./holiday-registration-edit-fields";
 import {
   childSchoolLabel,
   formatHolidayWeek,
@@ -128,26 +127,32 @@ export function HolidayRegistrationChildCard({
       </Button>
     );
 
-  if (editor) {
-    return (
-      <SectionCard
-        title={EDIT_TITLE}
-        description={`${child.firstName} ${child.lastName}`}
-      >
-        {editor}
-      </SectionCard>
-    );
-  }
+  if (editor) return editor;
 
   return (
     <SectionCard
       title={`${child.firstName} ${child.lastName}`}
-      description={`Geboren am ${formatDate(child.birthDate)} · ${childSchoolLabel(child, names)}`}
+      description={`Geboren am ${formatDate(child.birthDate)}, ${childSchoolLabel(child, names)}`}
+      footer={
+        draft ? (
+          <EditActions
+            onCancel={() => {
+              saveErrors.clear();
+              setDraft(null);
+            }}
+            onSave={() => void save()}
+            saving={saving}
+            disabled={
+              bookings.length === 0 || !rebookingChanged(child, bookings)
+            }
+          />
+        ) : undefined
+      }
       action={
         edit || rebook ? (
           <span className="flex flex-wrap gap-2">
-            {edit}
             {rebook}
+            {edit}
           </span>
         ) : undefined
       }
@@ -183,19 +188,6 @@ export function HolidayRegistrationChildCard({
             names={names}
             onChange={setDraft}
             error={saveErrors.error}
-            footer={
-              <EditActions
-                onCancel={() => {
-                  saveErrors.clear();
-                  setDraft(null);
-                }}
-                onSave={() => void save()}
-                saving={saving}
-                disabled={
-                  bookings.length === 0 || !rebookingChanged(child, bookings)
-                }
-              />
-            }
           />
         ) : (
           <InfoSection title="Gebuchte Wochen">
@@ -275,14 +267,12 @@ function RebookingEditor({
   names,
   onChange,
   error,
-  footer,
 }: Readonly<{
   period: HolidayPeriod;
   draft: HolidayRebookingDraft;
   names: ReadonlyMap<string, string>;
   onChange: (draft: HolidayRebookingDraft) => void;
   error: Parameters<typeof FormErrorAlert>[0]["message"];
-  footer: React.ReactNode;
 }>) {
   return (
     <div className="space-y-3">
@@ -318,7 +308,6 @@ function RebookingEditor({
           );
         })}
       </ul>
-      {footer}
     </div>
   );
 }

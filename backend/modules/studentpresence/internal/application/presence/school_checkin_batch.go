@@ -52,11 +52,11 @@ import (
 // would never commit, and reporting them per-student as OK would lie. Only
 // conditions detected without poisoning the transaction (unknown/foreign id,
 // graduation, both revalidated under the row lock) become OK=false items.
-func (s *service) ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action string) (*SchoolCheckinBatchResult, error) {
+func (s *service) ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action, reason string) (*SchoolCheckinBatchResult, error) {
 	var result *SchoolCheckinBatchResult
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		var err error
-		result, err = s.processSchoolCheckinBatch(txCtx, studentIDs, staffID, action)
+		result, err = s.processSchoolCheckinBatch(txCtx, studentIDs, staffID, action, reason)
 		return err
 	})
 	if err != nil {
@@ -69,7 +69,7 @@ func (s *service) processSchoolCheckinBatch(
 	ctx context.Context,
 	studentIDs []int64,
 	staffID int64,
-	action string,
+	action, reason string,
 ) (*SchoolCheckinBatchResult, error) {
 	if action != SchoolCheckinActionIn && action != SchoolCheckinActionOut {
 		return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: fmt.Errorf("unknown action %q", action)}
@@ -95,7 +95,7 @@ func (s *service) processSchoolCheckinBatch(
 
 	writes := schoolCheckinWrites{changed: make(map[int64]bool, len(actionable))}
 	if len(actionable) > 0 {
-		if err := s.applySchoolCheckinAction(ctx, action, actionable, actionableStudents, staffID, now, day, &writes); err != nil {
+		if err := s.applySchoolCheckinAction(ctx, action, reason, actionable, actionableStudents, staffID, now, day, &writes); err != nil {
 			return nil, err
 		}
 	}
@@ -125,7 +125,7 @@ func (s *service) processSchoolCheckinBatch(
 	}
 
 	s.registerSchoolCheckinBatchBroadcast(ctx, action, locked, writes.changed, writes.endedVisits)
-	s.trackSchoolCheckinBatchEvent(ctx, action, len(writes.changed))
+	s.trackSchoolCheckinBatchEvent(ctx, action, reason, len(writes.changed))
 
 	return schoolCheckinBatchResult(studentIDs, outcomes), nil
 }
@@ -185,6 +185,7 @@ type schoolCheckinWrites struct {
 func (s *service) applySchoolCheckinAction(
 	ctx context.Context,
 	action string,
+	reason string,
 	actionable []int64,
 	actionableStudents []*StudentRecord,
 	staffID int64,
@@ -206,7 +207,7 @@ func (s *service) applySchoolCheckinAction(
 		writes.stampPresence = true
 		return nil
 	}
-	closedRows, ended, err := s.applyBatchCheckOut(ctx, actionable, staffID, now, day)
+	closedRows, ended, err := s.applyBatchCheckOut(ctx, actionable, staffID, reason, now, day)
 	if err != nil {
 		return err
 	}
@@ -230,6 +231,7 @@ func (s *service) refreshSchoolCheckinStatuses(ctx context.Context, actionable [
 	for _, row := range rows {
 		item := outcomes[row.StudentID]
 		item.Status = row.Status
+		item.InClass = row.IsInClass()
 		outcomes[row.StudentID] = item
 	}
 	return nil
@@ -331,6 +333,7 @@ func (s *service) applyBatchCheckOut(
 	ctx context.Context,
 	actionable []int64,
 	staffID int64,
+	reason string,
 	now time.Time,
 	day calendar.Date,
 ) ([]studentpresence.Attendance, []*studentpresence.Visit, error) {
@@ -338,7 +341,7 @@ func (s *service) applyBatchCheckOut(
 	if err != nil {
 		return nil, nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: errors.Join(ErrDatabaseOperation, err)}
 	}
-	closedRows, err := s.SchoolPresence.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: actionable, Date: day.String(), At: now, StaffID: staffID})
+	closedRows, err := s.SchoolPresence.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: actionable, Date: day.String(), At: now, StaffID: staffID, Reason: reason})
 	if err != nil {
 		return nil, nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
 	}
@@ -596,7 +599,7 @@ func endedVisitsByActiveGroup(endedVisits []*studentpresence.Visit) map[int64][]
 // instead of one per changed student (review #2372) — the count travels as a
 // property, and "batch: true" separates the shape from single check-ins in
 // analytics.
-func (s *service) trackSchoolCheckinBatchEvent(ctx context.Context, action string, changedCount int) {
+func (s *service) trackSchoolCheckinBatchEvent(ctx context.Context, action, reason string, changedCount int) {
 	if changedCount == 0 {
 		return
 	}
@@ -608,10 +611,10 @@ func (s *service) trackSchoolCheckinBatchEvent(ctx context.Context, action strin
 		})
 		return
 	}
-	s.trackProductEvent(ctx, "student_checked_out", map[string]any{
+	s.trackProductEvent(ctx, "student_checked_out", withCheckoutReason(map[string]any{
 		"method":        s.attendanceMethod(ctx),
 		"checkout_type": checkoutTypeWeb,
 		"batch":         true,
 		"count":         changedCount,
-	})
+	}, reason))
 }

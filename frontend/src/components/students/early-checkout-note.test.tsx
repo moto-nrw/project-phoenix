@@ -89,14 +89,16 @@ describe("useEarlyCheckoutDialog (#3324)", () => {
     expect(screen.getByText("Kind früher abmelden")).toBeInTheDocument();
     expect(screen.getByText("15:00 Uhr")).toBeInTheDocument();
     expect(
-      screen.getByText("Der Grund steht danach beim Kind."),
+      screen.getByText(
+        "Der Grund steht danach beim Kind. Er gilt nur für „Geht nach Hause“.",
+      ),
     ).toBeInTheDocument();
     fireEvent.change(
       screen.getByLabelText("Grund für das frühe Gehen (freiwillig)"),
       { target: { value: "Arzttermin" } },
     );
     act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
+      fireEvent.click(screen.getByRole("button", { name: "Geht nach Hause" }));
     });
 
     expect(onConfirm).toHaveBeenCalledWith("7", "Arzttermin");
@@ -107,9 +109,27 @@ describe("useEarlyCheckoutDialog (#3324)", () => {
     render(<DialogHarness onConfirm={onConfirm} plannedPickup="15:00" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Tippen" }));
-    fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Geht nach Hause" }));
 
     expect(onConfirm).toHaveBeenCalledWith("7", "");
+  });
+
+  // #5656: ein Kind, das lange vor der Abholzeit geht, kann auch zum Unterricht
+  // gehen. Der Grund gehört zum Heimgehen und bleibt dabei draußen.
+  it("offers going to class and leaves the note out of it", () => {
+    const onConfirm = vi.fn();
+    render(<DialogHarness onConfirm={onConfirm} plannedPickup="15:00" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Tippen" }));
+    fireEvent.change(
+      screen.getByLabelText("Grund für das frühe Gehen (freiwillig)"),
+      { target: { value: "Arzttermin" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Geht zum Unterricht" }),
+    );
+
+    expect(onConfirm).toHaveBeenCalledWith("7", "", "class");
   });
 
   it("names the room whose visit the checkout ends", () => {

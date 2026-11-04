@@ -20,6 +20,7 @@ import {
   schoolCheckinStudentsBatch,
   type SchoolCheckinAction,
   type SchoolCheckinBatchOutcome,
+  type SchoolCheckoutReason,
 } from "~/lib/student-api";
 
 /**
@@ -40,7 +41,7 @@ const logger = createLogger({ component: "useSchoolCheckinMode" });
  *
  * Mirrors PresenceBadge.derivePresenceState so the card tint always agrees
  * with the badge on the same card:
- *   - empty / null / "Zuhause" / "Schule" → abwesend (red)
+ *   - empty / null / "Zuhause" / "Schule" / "Im Unterricht" → abwesend (red)
  *   - "Schulhof"              → schulhof (orange)
  *   - anything else incl.
  *     "Anwesend", "Unterwegs",
@@ -165,12 +166,14 @@ interface UseSchoolCheckinModeResult {
    * Toggle a student's attendance. Resolves the next action from their
    * current StudentCheckinState, calls the school-checkin endpoint, and
    * invalidates the SWR caches that surface presence data. `checkoutNote`
-   * is the optional reason for an early checkout (#3324), sent only with "out".
+   * is the optional reason for an early checkout (#3324) and `checkoutReason`
+   * marks a child going to class (#5656); both are sent only with "out".
    */
   toggle: (
     studentId: string,
     currentState: StudentCheckinState,
     checkoutNote?: string,
+    checkoutReason?: SchoolCheckoutReason,
   ) => Promise<void>;
   /**
    * Selection sub-mode (#2359). While ON, tapping a card is expected to call
@@ -224,6 +227,7 @@ interface UseSchoolCheckinModeResult {
   runBulk: (
     action: SchoolCheckinAction,
     onlyIds?: readonly string[],
+    checkoutReason?: SchoolCheckoutReason,
   ) => Promise<SchoolCheckinBatchOutcome | null>;
 }
 
@@ -263,6 +267,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
       studentId: string,
       currentState: StudentCheckinState,
       checkoutNote?: string,
+      checkoutReason?: SchoolCheckoutReason,
     ) => Promise<void>
   >(async () => undefined);
 
@@ -342,6 +347,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
       studentId: string,
       currentState: StudentCheckinState,
       checkoutNote?: string,
+      checkoutReason?: SchoolCheckoutReason,
     ) => {
       if (pendingIds.has(studentId)) return;
 
@@ -354,7 +360,14 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
       const action = actionForState(currentState);
 
       try {
-        await schoolCheckinStudent(studentId, action, checkoutNote);
+        await (checkoutReason
+          ? schoolCheckinStudent(
+              studentId,
+              action,
+              checkoutNote,
+              checkoutReason,
+            )
+          : schoolCheckinStudent(studentId, action, checkoutNote));
 
         await globalMutate(
           (key) =>
@@ -380,7 +393,12 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
         void showError(error, {
           object: CHECKIN_OBJECT,
           retry: () =>
-            void latestToggleRef.current(studentId, currentState, checkoutNote),
+            void latestToggleRef.current(
+              studentId,
+              currentState,
+              checkoutNote,
+              checkoutReason,
+            ),
         });
       } finally {
         setPendingIds((prev) => {
@@ -400,6 +418,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
     async (
       action: SchoolCheckinAction,
       onlyIds?: readonly string[],
+      checkoutReason?: SchoolCheckoutReason,
     ): Promise<SchoolCheckinBatchOutcome | null> => {
       if (isBulkRunningRef.current) return null;
 
@@ -423,7 +442,9 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
       let failedRunIds: ReadonlySet<string> = new Set(ids);
 
       try {
-        const outcome = await schoolCheckinStudentsBatch(ids, action);
+        const outcome = await (checkoutReason
+          ? schoolCheckinStudentsBatch(ids, action, checkoutReason)
+          : schoolCheckinStudentsBatch(ids, action));
 
         await invalidatePresenceCachesBulk();
         dispatchSession({ type: "addSuccesses", count: outcome.succeeded });

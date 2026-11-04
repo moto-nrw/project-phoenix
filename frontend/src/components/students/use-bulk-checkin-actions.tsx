@@ -3,13 +3,16 @@
 import { useCallback, useState, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
-import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { Modal } from "~/components/ui/modal";
 import type { Student } from "~/lib/api";
 import {
   checkoutConfirmationRoom,
   type useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
-import type { SchoolCheckinAction } from "~/lib/student-api";
+import type {
+  SchoolCheckinAction,
+  SchoolCheckoutReason,
+} from "~/lib/student-api";
 
 /**
  * Snapshot of one student a bulk action operates on (#2359): the id for the
@@ -74,6 +77,7 @@ export function useBulkCheckinActions(
   // (review #2372).
   const [bulkFailures, setBulkFailures] = useState<{
     action: SchoolCheckinAction;
+    reason?: SchoolCheckoutReason;
     succeeded: number;
     students: BulkStudentRef[];
   } | null>(null);
@@ -84,7 +88,11 @@ export function useBulkCheckinActions(
   // snapshot exactly as given — deliberately NOT intersected with the live
   // selection, so a dialog always executes what it displayed (review #2372).
   const executeBulk = useCallback(
-    async (action: SchoolCheckinAction, targets: readonly BulkStudentRef[]) => {
+    async (
+      action: SchoolCheckinAction,
+      targets: readonly BulkStudentRef[],
+      reason?: SchoolCheckoutReason,
+    ) => {
       // The snapshot names travel with the ids: after the run the hook
       // shrinks the selection to the failed students, and the failure
       // dialog must still name (and be able to retry) them.
@@ -94,10 +102,10 @@ export function useBulkCheckinActions(
 
       setRunningBulkAction(action);
       try {
-        const outcome = await schoolCheckin.runBulk(
-          action,
-          targets.map((target) => target.id),
-        );
+        const ids = targets.map((target) => target.id);
+        const outcome = await (reason
+          ? schoolCheckin.runBulk(action, ids, reason)
+          : schoolCheckin.runBulk(action, ids));
         // null: nothing selected or whole request failed (hook toasted the
         // error). failed === 0: the hook toasted the success summary.
         if (!outcome) return;
@@ -109,6 +117,7 @@ export function useBulkCheckinActions(
 
         setBulkFailures({
           action,
+          reason,
           succeeded: outcome.succeeded,
           students: outcome.results
             .filter((result) => !result.ok)
@@ -148,20 +157,52 @@ export function useBulkCheckinActions(
     [selectedStudents, executeBulk],
   );
 
+  const confirmBulkCheckout = (reason?: SchoolCheckoutReason) => {
+    if (!pendingBulkCheckout) return;
+    const snapshot = pendingBulkCheckout.students;
+    setPendingBulkCheckout(null);
+    void executeBulk("out", snapshot, reason);
+  };
+
   const dialogs = (
     <>
-      <ConfirmationModal
+      <Modal
         isOpen={pendingBulkCheckout !== null}
         onClose={() => setPendingBulkCheckout(null)}
-        onConfirm={() => {
-          if (!pendingBulkCheckout) return;
-          const snapshot = pendingBulkCheckout.students;
-          setPendingBulkCheckout(null);
-          void executeBulk("out", snapshot);
-        }}
         title="Ausgewählte Kinder abmelden?"
-        confirmText="Abmelden"
-        confirmVariant="danger"
+        mobileSheet
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setPendingBulkCheckout(null)}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="button"
+              variant="surface"
+              size="md"
+              onClick={() => confirmBulkCheckout("class")}
+            >
+              {pendingBulkCheckout?.students.length === 1
+                ? "Geht zum Unterricht"
+                : "Alle zum Unterricht"}
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="md"
+              onClick={() => confirmBulkCheckout()}
+            >
+              {pendingBulkCheckout?.students.length === 1
+                ? "Geht nach Hause"
+                : "Alle nach Hause"}
+            </Button>
+          </>
+        }
       >
         <p className="text-sm text-gray-600">
           <span className="font-medium text-gray-900">
@@ -175,10 +216,12 @@ export function useBulkCheckinActions(
             {pendingBulkCheckout?.roomCount}
           </span>{" "}
           davon {pendingBulkCheckout?.roomCount === 1 ? "ist" : "sind"} gerade
-          in einem Raum. Beim Abmelden werden laufende Raumbesuche beendet und
-          die Kinder gelten für heute als gegangen.
+          in einem Raum. Beim Abmelden werden laufende Raumbesuche beendet.
+          {(pendingBulkCheckout?.students.length ?? 0) > 1
+            ? " Ihre Wahl gilt für alle ausgewählten Kinder, auch ohne Raum."
+            : null}
         </p>
-      </ConfirmationModal>
+      </Modal>
 
       {/* Per-child failures of a bulk action, named (#2359). The retry button
           executes the dialog's OWN snapshot — the named children on screen
@@ -229,9 +272,13 @@ export function useBulkCheckinActions(
               size="md"
               onClick={() => {
                 if (!bulkFailures) return;
-                const { action, students: failedStudents } = bulkFailures;
+                const {
+                  action,
+                  reason,
+                  students: failedStudents,
+                } = bulkFailures;
                 setBulkFailures(null);
-                void executeBulk(action, failedStudents);
+                void executeBulk(action, failedStudents, reason);
               }}
             >
               Erneut versuchen

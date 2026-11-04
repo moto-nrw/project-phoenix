@@ -870,3 +870,30 @@ func TestDefaultMode_EmptyModeBehavesAsDetailed(t *testing.T) {
 
 	assert.Equal(t, "Unterwegs", info.Location, "empty Mode must default to detailed-mode rendering")
 }
+
+// A child who left for class reads "Im Unterricht" in both presence modes, but
+// only with full access; anyone else sees the plain "Abwesend" (#5656).
+func TestResolveStudentLocation_InClass(t *testing.T) {
+	t.Parallel()
+
+	checkedOut := time.Now().Add(-time.Hour)
+	reason := studentpresence.CheckoutReasonClass
+	inClass := &studentpresence.DailyAttendanceStatus{StudentID: 1, Status: "checked_out", CheckOutTime: &checkedOut, CheckOutReason: &reason}
+	wentHome := &studentpresence.DailyAttendanceStatus{StudentID: 2, Status: "checked_out", CheckOutTime: &checkedOut}
+
+	for _, mode := range []string{studentpresence.PresenceModeBinary, studentpresence.PresenceModeDetailed} {
+		snapshot := studentpresence.NewStudentLocationSnapshot(mode)
+		snapshot.Attendances[1] = inClass
+		snapshot.Attendances[2] = wentHome
+
+		info := snapshot.ResolveStudentLocationWithTime(1, true)
+		assert.Equal(t, studentpresence.InClassLocationLabel, info.Location, mode)
+		assert.Equal(t, &checkedOut, info.Since, mode)
+
+		restricted := snapshot.ResolveStudentLocationWithTime(1, false)
+		assert.Equal(t, studentpresence.AbsentLocationLabel, restricted.Location, mode)
+		assert.Nil(t, restricted.Since, mode)
+
+		assert.Equal(t, studentpresence.AbsentLocationLabel, snapshot.ResolveStudentLocationWithTime(2, true).Location, mode)
+	}
+}

@@ -204,9 +204,33 @@ type AttendanceStatus struct {
 	Date         string
 	CheckInTime  *time.Time
 	CheckOutTime *time.Time
+	// ArrivalTime is when the child arrived: CheckInTime, except that a return
+	// from class keeps the arrival before it (#5656). Read it through Arrival.
+	ArrivalTime  *time.Time
 	YardSince    *time.Time
 	CheckedInBy  string
 	CheckedOutBy string
+	// CheckOutReason is CheckoutReasonClass when the child went to class (#5656).
+	CheckOutReason *string
+}
+
+// Arrival is when the child arrived today, across a return from class (#5656).
+func (s *AttendanceStatus) Arrival() *time.Time {
+	if s == nil {
+		return nil
+	}
+	if s.ArrivalTime != nil {
+		return s.ArrivalTime
+	}
+	return s.CheckInTime
+}
+
+// PickupTime is when the child left for the day. Leaving for class is no pickup.
+func (s *AttendanceStatus) PickupTime() *time.Time {
+	if s == nil || isClassReason(s.CheckOutReason) {
+		return nil
+	}
+	return s.CheckOutTime
 }
 
 // CheckoutOutcome is the outcome of an explicit school checkout.
@@ -345,6 +369,9 @@ type DashboardAnalytics struct {
 	// StudentsAtSchool are expected children before their first check-in
 	// (#3260); StudentsHome no longer counts them.
 	StudentsAtSchool int
+	// StudentsInClass were checked out with "Geht zum Unterricht" and have not
+	// come back yet (#5656); StudentsHome no longer counts them either.
+	StudentsInClass int
 
 	ActiveActivities    int
 	FreeRooms           int

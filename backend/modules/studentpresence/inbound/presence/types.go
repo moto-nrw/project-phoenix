@@ -156,8 +156,9 @@ type DashboardAnalyticsResponse struct {
 	StudentsInRooms      int `json:"students_in_rooms"`  // Students in indoor rooms (excluding playground)
 	StudentsSick         int `json:"students_sick"`      // Students currently flagged as sick
 	StudentsExcused      int `json:"students_excused"`   // Students currently flagged as excused
-	StudentsHome         int `json:"students_home"`      // Active students neither present nor sick/excused, nor at school
+	StudentsHome         int `json:"students_home"`      // Active students neither present nor sick/excused, nor at school or in class
 	StudentsAtSchool     int `json:"students_at_school"` // Expected students before their first check-in (#3260)
+	StudentsInClass      int `json:"students_in_class"`  // Students checked out to class who have not come back (#5656)
 
 	// Activities & Rooms
 	ActiveActivities    int     `json:"active_activities"`
