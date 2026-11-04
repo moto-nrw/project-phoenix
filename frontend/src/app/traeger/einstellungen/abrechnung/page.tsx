@@ -5,7 +5,7 @@
 // sie, wer „Einstellungen“ hat. Rechnungsnummern (#4668), Ermäßigungen (#4664)
 // und Kostenträger (#5627) gehören zum Recht „Abrechnung“.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { ContributionRulesCard } from "~/components/traeger/contribution-rules-card";
 import { CostBearersCard } from "~/components/traeger/cost-bearers-card";
@@ -47,20 +47,27 @@ interface BillingDefaults {
 function useBillingDefaults(enabled: boolean) {
   const [data, setData] = useState<BillingDefaults | null>(null);
   const [failure, setFailure] = useState<unknown>();
+  const enabledRef = useRef(enabled);
+  const loadGeneration = useRef(0);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
+  enabledRef.current = enabled;
 
   const load = useCallback(async () => {
+    if (!enabledRef.current) return;
+    const generation = ++loadGeneration.current;
     try {
       const [rules, bearers, numberRange] = await Promise.all([
         fetchContributionRules(),
         fetchCostBearers(),
         fetchHolidayNumberRange(),
       ]);
+      if (!enabledRef.current || generation !== loadGeneration.current) return;
       setData({ rules, bearers, numberRange });
       setFailure(undefined);
       clearLoadError();
     } catch (err) {
+      if (!enabledRef.current || generation !== loadGeneration.current) return;
       setFailure(err);
       logger.error("traeger_billing_defaults_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -73,8 +80,17 @@ function useBillingDefaults(enabled: boolean) {
   }, [clearLoadError, showLoadError]);
 
   useEffect(() => {
-    if (enabled) void load();
-  }, [enabled, load]);
+    if (enabled) {
+      void load();
+      return;
+    }
+    // A permission update can arrive after the data did. Invalidate both the
+    // cache and requests already in flight before rendering the restricted view.
+    loadGeneration.current++;
+    setData(null);
+    setFailure(undefined);
+    clearLoadError();
+  }, [enabled, load, clearLoadError]);
 
   return { data, failure, error: pageLoad.error, load };
 }
@@ -85,12 +101,11 @@ export default function TraegerAbrechnungsvorgabenPage() {
   const canEditBank = hasPermission(session ?? null, SETTINGS_RIGHT);
   const master = useTraegerMasterData("die Bankverbindungen");
   const billing = useBillingDefaults(canBill);
-  // Was schon geladen ist, bleibt stehen; die Meldung steht dann darüber.
   const error = metadataLoadError(
-    master.error ?? billing.error,
-    master.loaded || billing.data !== null,
+    master.error ?? (canBill ? billing.error : null) ?? null,
+    master.loaded || (canBill && billing.data !== null),
     master.failure,
-    billing.failure,
+    canBill ? billing.failure : undefined,
   );
 
   return (
@@ -124,7 +139,7 @@ export default function TraegerAbrechnungsvorgabenPage() {
           />
         </>
       ) : null}
-      {billing.data ? (
+      {canBill && billing.data ? (
         <>
           <NumberRangeCard
             numberRange={billing.data.numberRange}

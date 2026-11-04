@@ -1,7 +1,14 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import type { NumberRange } from "~/lib/traeger-billing-api";
 import type {
   ContributionRule,
   CostBearer,
@@ -86,11 +93,19 @@ const MASTER_DATA = {
 };
 
 function renderPage() {
-  render(
+  return render(
     <ToastProvider>
       <TraegerAbrechnungsvorgabenPage />
     </ToastProvider>,
   );
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
 }
 
 describe("TraegerAbrechnungsvorgabenPage", () => {
@@ -373,6 +388,60 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
     expect(api.fetchContributionRules).not.toHaveBeenCalled();
     expect(api.fetchCostBearers).not.toHaveBeenCalled();
     expect(billingApi.fetchHolidayNumberRange).not.toHaveBeenCalled();
+  });
+
+  it("hides billing defaults when the billing permission ends", async () => {
+    const page = renderPage();
+    expect(await screen.findByText("FE-2026-0001")).toBeInTheDocument();
+
+    session.permissions = ["traeger_overview:read"];
+    page.rerender(
+      <ToastProvider>
+        <TraegerAbrechnungsvorgabenPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      screen.getByText(/pflegt die Rolle „Abrechnung“/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("FE-2026-0001")).not.toBeInTheDocument();
+    expect(screen.queryByText("Geschwister")).not.toBeInTheDocument();
+  });
+
+  it("ignores billing defaults that arrive after the billing permission ends", async () => {
+    const rules = deferred<ContributionRule[]>();
+    const bearers = deferred<CostBearer[]>();
+    const numberRange = deferred<NumberRange>();
+    api.fetchContributionRules.mockReturnValueOnce(rules.promise);
+    api.fetchCostBearers.mockReturnValueOnce(bearers.promise);
+    billingApi.fetchHolidayNumberRange.mockReturnValueOnce(numberRange.promise);
+    const page = renderPage();
+
+    await waitFor(() =>
+      expect(api.fetchContributionRules).toHaveBeenCalledOnce(),
+    );
+    session.permissions = ["traeger_overview:read"];
+    page.rerender(
+      <ToastProvider>
+        <TraegerAbrechnungsvorgabenPage />
+      </ToastProvider>,
+    );
+    expect(
+      screen.getByText(/pflegt die Rolle „Abrechnung“/),
+    ).toBeInTheDocument();
+    await act(async () => {
+      rules.resolve([SIBLING]);
+      bearers.resolve([]);
+      numberRange.resolve({
+        service: "holiday",
+        pattern: "FE-{JJJJ}-{NNNN}",
+        example: "FE-2026-0001",
+      });
+      await Promise.all([rules.promise, bearers.promise, numberRange.promise]);
+    });
+
+    expect(screen.queryByText("FE-2026-0001")).not.toBeInTheDocument();
+    expect(screen.queryByText("Geschwister")).not.toBeInTheDocument();
   });
 
   it("lets the Verwaltung change bank accounts without the right Abrechnung (#5685)", async () => {
