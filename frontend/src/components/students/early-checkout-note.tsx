@@ -66,7 +66,9 @@ export function EarlyCheckoutNoteField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
-      <p className="text-xs text-gray-500">Der Grund steht danach beim Kind.</p>
+      <p className="text-xs text-gray-500">
+        Der Grund steht danach beim Kind. Er gilt nur für „Geht nach Hause“.
+      </p>
     </div>
   );
 }

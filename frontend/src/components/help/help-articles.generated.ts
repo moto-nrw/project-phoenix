@@ -920,7 +920,7 @@ export const appOverviewTopic = function appOverviewTopic(): HelpTopic {
       "Steht am Computer oben links unter dem Namen Ihrer Schule `Träger:` und ein Name? Das ist der Träger Ihrer Schule. Die Zeile gibt es nur, wenn Ihr Träger mehrere Schulen hat.",
     ],
     notes: [
-      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen.",
+      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Im Unterricht`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen.",
       "Zu viel verändert? Wählen Sie in `Anpassen` den Knopf `Standardansicht wiederherstellen`.",
     ],
     related: [
@@ -1220,6 +1220,7 @@ export const careTimeComparisonTopic =
       notes: [
         "`Gebucht` ist die Betreuungszeit, die in moto hinterlegt ist: Ankunft bis Abholung laut Wochenplan, mit Ausnahmen für einzelne Tage.",
         "`Tatsächlich` reicht von der ersten Anmeldung bis zur letzten Abmeldung des Tages.",
+        "Zeit im Unterricht zählt weder bei `Gebucht` noch bei `Tatsächlich`. Kommt das Kind nicht zurück, gilt das bis zum Ende des Tages.",
         "Eine Überschreitung ist mehr als 15 Minuten früher oder später als gebucht, oder ein Tag ohne Buchung.",
         "Krank, entschuldigt, abgemeldet, Schließtage und Feiertage zählen nicht als zu kurz.",
         "War das Kind an einem abgemeldeten Tag doch da, steht dort `Da ohne Buchung`.",
@@ -10787,7 +10788,8 @@ export const webAttendanceTopic = function webAttendanceTopic(
       // Live geprueft: in `Direkt` schreibt jeder Tipp sofort, ohne Rueckfrage.
       // Ausnahme seit #3324: frühes Gehen öffnet vorher ein Fenster.
       "In `Direkt` meldet jeder Tipp sofort an oder ab. Auf der Karte steht `Tippen zum Anmelden`.",
-      "Geht ein Kind zum Unterricht und kommt danach wieder? Wählen Sie `Geht zum Unterricht`. Das Kind steht dann auf `Im Unterricht`, nicht auf `Zuhause`.",
+      "Geht ein Kind zum Unterricht und kommt danach wieder? Öffnen Sie die Kindakte und wählen Sie `Abmelden`. Wählen Sie dann `Geht zum Unterricht`. Das Kind steht danach auf `Im Unterricht`, nicht auf `Zuhause`.",
+      "Ein Tipp in `Direkt` und die Abmeldung über `Mehrere` zählen sonst als `Geht nach Hause`. Nur wenn ein Kind in einem Raum ist, fragt moto auch dort nach dem Ziel.",
       "Kommt das Kind zurück, melden Sie es ganz normal an. Kommt es heute nicht zurück, steht es am Ende des Betreuungstags wieder auf `Zuhause`.",
       "Geht ein Kind früher als seine Abholzeit, fragt moto nach dem Grund. Der Grund ist freiwillig. Das Fenster bietet auch `Geht zum Unterricht` an.",
       "Den Grund sehen Sie danach beim Kind unter `Heutige Abholung`. Mit Anwesenheitsprotokoll steht er auch in der `Tagesauswertung` und im Verlauf.",

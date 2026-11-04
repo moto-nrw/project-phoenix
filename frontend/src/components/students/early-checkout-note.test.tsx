@@ -89,7 +89,9 @@ describe("useEarlyCheckoutDialog (#3324)", () => {
     expect(screen.getByText("Kind früher abmelden")).toBeInTheDocument();
     expect(screen.getByText("15:00 Uhr")).toBeInTheDocument();
     expect(
-      screen.getByText("Der Grund steht danach beim Kind."),
+      screen.getByText(
+        "Der Grund steht danach beim Kind. Er gilt nur für „Geht nach Hause“.",
+      ),
     ).toBeInTheDocument();
     fireEvent.change(
       screen.getByLabelText("Grund für das frühe Gehen (freiwillig)"),

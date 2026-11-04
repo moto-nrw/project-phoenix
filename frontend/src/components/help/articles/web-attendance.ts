@@ -65,7 +65,8 @@ export function webAttendanceTopic(presenceMode: HelpPresenceMode): HelpTopic {
       // Live geprueft: in `Direkt` schreibt jeder Tipp sofort, ohne Rueckfrage.
       // Ausnahme seit #3324: frühes Gehen öffnet vorher ein Fenster.
       "In `Direkt` meldet jeder Tipp sofort an oder ab. Auf der Karte steht `Tippen zum Anmelden`.",
-      "Geht ein Kind zum Unterricht und kommt danach wieder? Wählen Sie `Geht zum Unterricht`. Das Kind steht dann auf `Im Unterricht`, nicht auf `Zuhause`.",
+      "Geht ein Kind zum Unterricht und kommt danach wieder? Öffnen Sie die Kindakte und wählen Sie `Abmelden`. Wählen Sie dann `Geht zum Unterricht`. Das Kind steht danach auf `Im Unterricht`, nicht auf `Zuhause`.",
+      "Ein Tipp in `Direkt` und die Abmeldung über `Mehrere` zählen sonst als `Geht nach Hause`. Nur wenn ein Kind in einem Raum ist, fragt moto auch dort nach dem Ziel.",
       "Kommt das Kind zurück, melden Sie es ganz normal an. Kommt es heute nicht zurück, steht es am Ende des Betreuungstags wieder auf `Zuhause`.",
       "Geht ein Kind früher als seine Abholzeit, fragt moto nach dem Grund. Der Grund ist freiwillig. Das Fenster bietet auch `Geht zum Unterricht` an.",
       "Den Grund sehen Sie danach beim Kind unter `Heutige Abholung`. Mit Anwesenheitsprotokoll steht er auch in der `Tagesauswertung` und im Verlauf.",
