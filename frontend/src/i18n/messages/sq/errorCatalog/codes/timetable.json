@@ -81,6 +81,7 @@
   "reopen_attendance_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "reopen_staff_busy": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "reopen_student_active": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "reopen_student_left": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "reopen_supervision_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "room_occupied": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "school_vacation_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

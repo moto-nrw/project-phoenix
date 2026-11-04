@@ -14873,6 +14873,14 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
+      "binding_digest": "e1986537db3a0ccc7ace2965a0c46e18",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.LifecyclePresence.ListAttendance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
+      "target_owner": "student-presence"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
       "binding_digest": "9e0685b0200adc2a5876940743a55ab1",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.LifecyclePresence.ListVisits",

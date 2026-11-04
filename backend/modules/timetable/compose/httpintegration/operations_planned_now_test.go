@@ -370,8 +370,94 @@ func TestTimetableOperationsPlannedNowPastScopeSelectsFinishedBlocks(t *testing.
 	}
 }
 
-// Past-scope visibility mirrors the default scope: unassigned staff see
-// nothing, the admin overview sees everything (#2335).
+// A block ended by mistake can be reopened from the end-of-day review
+// (#5676): the past scope announces it for the account that ended it while
+// the reopen window lasts, and not for another account or after the window.
+func TestTimetableOperationsPlannedNowPastScopeAnnouncesReopen(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 15, 0, 0, 0, calendar.Berlin)
+	completedAt := now.Add(-20 * time.Minute)
+	completer := int64(637)
+	completedBlock := func(id int64, reopenUntil time.Time) *fixtures.ActivityInstance {
+		inst := instanceWithTimes(id, fixtures.InstanceStatusCompleted(), now.Add(-time.Hour), now.Add(-30*time.Minute))
+		inst.CompletedAt, inst.CompletedBy, inst.ReopenUntil = &completedAt, &completer, &reopenUntil
+		inst.CompletionSnapshot = []byte(`{"active_group_id":1}`)
+		return inst
+	}
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, completer, 440, 233, 380)
+	deps.instanceRepo.byDate = []*fixtures.ActivityInstance{
+		completedBlock(380, now.Add(30*time.Minute)),
+		completedBlock(381, now.Add(-time.Minute)),
+	}
+	for _, inst := range deps.instanceRepo.byDate {
+		deps.staffRepo.byInstance[inst.ID] = []*fixtures.InstanceStaff{fixtures.NewInstanceStaff(func(fixtureRow *fixtures.InstanceStaff) {
+			fixtureRow.StaffID = 233
+		})}
+	}
+	past := timetable.PlannedNowOptions{Scope: timetable.PlannedNowScopePast}
+
+	result, err := deps.service.PlannedNow(context.Background(), completer, false, calendar.DateFromTime(now), now, past)
+	require.NoError(t, err)
+	reopenable := map[int64]bool{}
+	for _, inst := range result {
+		reopenable[inst.ID] = inst.CanReopen
+		if inst.ID == 380 {
+			assert.Equal(t, now.Add(30*time.Minute).Format(time.RFC3339), inst.ReopenUntil)
+		} else {
+			assert.Empty(t, inst.ReopenUntil)
+		}
+	}
+	assert.Equal(t, map[int64]bool{380: true, 381: false}, reopenable)
+
+	other, err := deps.service.PlannedNow(context.Background(), completer+1, true, calendar.DateFromTime(now), now, past)
+	require.NoError(t, err)
+	for _, inst := range other {
+		if inst.ID == 380 {
+			assert.True(t, inst.CanReopen, "an admin may reopen a block another account ended")
+		}
+	}
+}
+
+func TestTimetableOperationsPlannedNowPastScopeIncludesUnassignedCompleter(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 10, 15, 0, 0, 0, calendar.Berlin)
+	completedAt, reopenUntil := now.Add(-20*time.Minute), now.Add(30*time.Minute)
+	completer := int64(637)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, completer, 440, 233, 999)
+	for _, id := range []int64{380, 381} {
+		inst := instanceWithTimes(id, fixtures.InstanceStatusCompleted(), now.Add(-time.Hour), now.Add(time.Hour))
+		inst.CompletedAt, inst.CompletedBy, inst.ReopenUntil = &completedAt, &completer, &reopenUntil
+		inst.CompletionSnapshot = []byte(`{"active_group_id":1}`)
+		deps.instanceRepo.byDate = append(deps.instanceRepo.byDate, inst)
+	}
+	// An edited block is not reopenable and must not consume the limit.
+	deps.studentRepo.byInstance[380] = []*fixtures.InstanceStudent{fixtures.NewInstanceStudent(func(row *fixtures.InstanceStudent) {
+		row.UpdatedAt = now
+	})}
+	past := timetable.PlannedNowOptions{Scope: timetable.PlannedNowScopePast, Limit: 1}
+	list := func(accountID int64, at time.Time, opts timetable.PlannedNowOptions) []timetable.OperationPlannedInstance {
+		result, err := deps.service.PlannedNow(context.Background(), accountID, false, calendar.DateFromTime(now), at, opts)
+		require.NoError(t, err)
+		return result
+	}
+
+	result := list(completer, now, past)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(381), result[0].ID)
+	assert.True(t, result[0].CanReopen)
+	assert.Equal(t, reopenUntil.Format(time.RFC3339), result[0].ReopenUntil)
+	assert.Empty(t, list(completer+1, now, past), "another unassigned account cannot see the block")
+	assert.Empty(t, list(completer, reopenUntil.Add(time.Second), past), "access ends with the reopen window")
+	assert.Empty(t, list(completer, now, timetable.PlannedNowOptions{Scope: timetable.PlannedNowScopeDay}))
+	assert.Empty(t, list(completer, now, timetable.PlannedNowOptions{}))
+}
+
+// Apart from reopenable blocks completed by the caller, past-scope visibility
+// follows assignments and the operational overview (#2335).
 func TestTimetableOperationsPlannedNowPastScopeKeepsVisibilityRules(t *testing.T) {
 	t.Parallel()
 

@@ -784,7 +784,8 @@ describe("MeinRaumPage roster actions", () => {
       render(<MeinRaumPage />);
       expect(
         await screen.findByText(
-          "„Sport AG“ wurde beendet. Sie können das fünf Minuten lang rückgängig machen.",
+          // Frist aus dem Speicher: Testuhr 12:00 plus eine Minute (#5676).
+          "„Sport AG“ wurde beendet. Sie können das bis 12:01 Uhr rückgängig machen.",
         ),
       ).toBeInTheDocument();
 

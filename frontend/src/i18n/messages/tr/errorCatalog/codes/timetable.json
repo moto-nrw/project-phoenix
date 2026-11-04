@@ -81,6 +81,7 @@
   "reopen_attendance_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "reopen_staff_busy": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "reopen_student_active": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "reopen_student_left": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "reopen_supervision_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "room_occupied": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "school_vacation_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
