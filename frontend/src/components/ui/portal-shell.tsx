@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { Z_LAYER } from "./overlay-styles";
 import {
   NavigationProgressBar,
@@ -50,7 +50,9 @@ export function PortalShell({
 }: PortalShellProps) {
   return (
     <NavigationProgressProvider>
-      <NavigationScrollPosition />
+      <Suspense fallback={null}>
+        <NavigationScrollPosition />
+      </Suspense>
       {/*
        * Eine Flex-Spalte von der Wurzel bis zur Inhaltshülle: so reicht die
        * Zeile aus Seitenleiste und <main> immer bis zur Unterkante des

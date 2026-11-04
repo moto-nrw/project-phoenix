@@ -7,11 +7,11 @@ import { expectIdleRenderBudget } from "~/test/render-budget";
 import { NavigationScrollPosition } from "./navigation-scroll-position";
 import { PortalShell } from "./portal-shell";
 
-const route = vi.hoisted(() => ({ pathname: "/ferien" }));
+const route = vi.hoisted(() => ({ pathname: "/ferien", search: "" }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => route.pathname,
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(route.search),
 }));
 
 function shell() {
@@ -24,16 +24,22 @@ function shell() {
 
 type View = ReturnType<typeof render>;
 
-function renderShellAt(pathname: string) {
-  route.pathname = pathname;
-  window.history.replaceState(null, "", pathname);
+function setRoute(href: string) {
+  const url = new URL(href, window.location.origin);
+  route.pathname = url.pathname;
+  route.search = url.search;
+}
+
+function renderShellAt(href: string) {
+  setRoute(href);
+  window.history.replaceState(null, "", href);
   return render(shell());
 }
 
 /** Der Router bestätigt einen Link-Wechsel: Die Hülle rendert mit neuem Pfad. */
-function commitRoute(view: View, pathname: string) {
-  route.pathname = pathname;
-  window.history.replaceState(null, "", pathname);
+function commitRoute(view: View, href: string) {
+  setRoute(href);
+  window.history.replaceState(null, "", href);
   view.rerender(shell());
 }
 
@@ -48,13 +54,9 @@ function firePopState() {
  * Adresse und Commit, dann `popstate`, dann stellt der Browser die Position
  * wieder her (`browserScrollY`).
  */
-function traverseHistory(
-  view: View,
-  pathname: string,
-  browserScrollY?: number,
-) {
-  window.history.replaceState(null, "", pathname);
-  route.pathname = pathname;
+function traverseHistory(view: View, href: string, browserScrollY?: number) {
+  window.history.replaceState(null, "", href);
+  setRoute(href);
   view.rerender(shell());
   firePopState();
   if (browserScrollY !== undefined) setScrollY(browserScrollY);
@@ -290,6 +292,72 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
     await nextFrame();
 
     expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("holt die Position auch nach einem verspäteten `popstate`", async () => {
+    const view = renderShellAt("/access-log");
+    userScrollsTo(1483);
+    commitRoute(view, "/ferien");
+    await nextFrame();
+    scrollTo.mockClear();
+
+    window.history.replaceState(null, "", "/access-log");
+    setRoute("/access-log");
+    view.rerender(shell());
+    await nextFrame();
+    setScrollY(65);
+    vi.spyOn(performance, "now").mockReturnValue(performance.now() + 60_000);
+    firePopState();
+
+    await waitFor(() => {
+      expect(scrollTo).toHaveBeenCalledWith({ top: 1483, behavior: "instant" });
+    });
+  });
+
+  it("lässt einen Query-Verlaufseintrag bei ausstehendem Pfadwechsel in Ruhe", async () => {
+    const view = renderShellAt("/access-log");
+    commitRoute(view, "/ferien");
+    await nextFrame();
+    userScrollsTo(500);
+    commitRoute(view, "/ferien?tab=archiv");
+    scrollTo.mockClear();
+
+    window.history.replaceState(null, "", "/ferien");
+    route.search = "";
+    setScrollY(200);
+    firePopState();
+    view.rerender(shell());
+    await nextFrame();
+
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("lässt einen Sprungmarken-Verlaufseintrag bei ausstehendem Pfadwechsel in Ruhe", async () => {
+    const view = renderShellAt("/access-log");
+    commitRoute(view, "/ferien");
+    await nextFrame();
+    userScrollsTo(500);
+    window.history.replaceState(null, "", "/ferien#details");
+    window.dispatchEvent(new Event("hashchange"));
+    scrollTo.mockClear();
+
+    window.history.replaceState(null, "", "/ferien");
+    setScrollY(200);
+    firePopState();
+    await nextFrame();
+
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("bricht den geplanten Reset beim Scrollen ab", async () => {
+    const view = renderShellAt("/access-log");
+    userScrollsTo(1000);
+    commitRoute(view, "/ferien");
+    window.dispatchEvent(new Event("wheel"));
+    userScrollsTo(300);
+    await nextFrame();
+
+    expect(scrollTo).not.toHaveBeenCalledWith(TO_TOP);
   });
 
   it("merkt die Position nach dem Zurück, wenn die Person weiter scrollt", async () => {
