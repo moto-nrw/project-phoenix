@@ -38,7 +38,7 @@ func insertOpenVisit(t *testing.T, db *bun.DB, school, studentID int64, entry ti
 	return group
 }
 
-func TestPresentStudentCountsCountOpenStaysOnce(t *testing.T) {
+func TestPresentStudentsListOpenStaysOnce(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	school, _ := testpkg.CreateTestTenant(t, db)
@@ -69,12 +69,12 @@ func TestPresentStudentCountsCountOpenStaysOnce(t *testing.T) {
 	insertOpenVisit(t, db, other, foreign.ID, earlier)
 
 	require.NoError(t, testpkg.WithinAdminContext(t, context.Background(), db, func(adminCtx context.Context) error {
-		counts, err := studentPresenceCompose.NewPresentStudentCounts().CountPresentStudentsByTenant(adminCtx, []int64{school}, noon)
+		present, err := studentPresenceCompose.NewPresentStudents().PresentStudentIDsByTenant(adminCtx, []int64{school}, noon)
 		require.NoError(t, err)
-		assert.Equal(t, map[int64]int{school: 2}, counts, "attendance and visit of one child count once; only open stays of the day; only the given school")
+		assert.ElementsMatch(t, []int64{both.ID, inRoom.ID}, present[school], "attendance and visit of one child appear once; only open stays of the day; only the given school")
 		return nil
 	}))
-	_, err = studentPresenceCompose.NewPresentStudentCounts().CountPresentStudentsByTenant(testpkg.TenantContext(school), []int64{school}, noon)
+	_, err = studentPresenceCompose.NewPresentStudents().PresentStudentIDsByTenant(testpkg.TenantContext(school), []int64{school}, noon)
 	assert.Error(t, err, "outside the administrative transaction it refuses")
 }
 

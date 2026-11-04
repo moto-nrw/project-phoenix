@@ -6,8 +6,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// NewPresentStudentCounts composes the count of the Träger's school view
+// NewPresentStudents composes the current children of the Träger's school view
 // (#5686, ADR 0151) on the caller's administrative transaction.
-func NewPresentStudentCounts() studentpresence.PresentStudentCounts {
-	return postgres.NewPresentStudentCounts(tenant.TransactionFromContext, tenant.IsAdminTx)
+func NewPresentStudents() studentpresence.PresentStudents {
+	return postgres.NewPresentStudents(tenant.TransactionFromContext, tenant.IsAdminTx)
 }

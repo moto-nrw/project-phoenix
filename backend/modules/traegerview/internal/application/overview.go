@@ -29,7 +29,7 @@ type Overview struct {
 	recorder    traegerview.AccessRecorder
 	holiday     traegerview.HolidayTrail
 	rosters     traegerview.SchoolRosters
-	present     traegerview.PresentStudentCounts
+	present     traegerview.PresentStudents
 	sick        traegerview.SickStudents
 	onSite      traegerview.OnSiteStaff
 	now         func() time.Time
@@ -124,7 +124,7 @@ func (o *Overview) schoolFigures(ctx context.Context, schoolID int64) (traegervi
 	if err != nil {
 		return traegerview.SchoolFigures{}, err
 	}
-	present, err := o.present.CountPresentStudentsByTenant(ctx, scope, now)
+	present, err := o.present.PresentStudentIDsByTenant(ctx, scope, now)
 	if err != nil {
 		return traegerview.SchoolFigures{}, err
 	}
@@ -141,7 +141,7 @@ func (o *Overview) schoolFigures(ctx context.Context, schoolID int64) (traegervi
 		return traegerview.SchoolFigures{}, err
 	}
 	figures := traegerview.SchoolFigures{
-		ChildrenTotal: len(students[schoolID]), ChildrenPresent: present[schoolID],
+		ChildrenTotal: len(students[schoolID]), ChildrenPresent: countStudents(students[schoolID], present[schoolID]),
 		ChildrenSick: countSick(students[schoolID], sickDays[schoolID], sickFlags[schoolID]),
 		StaffTotal:   len(staff[schoolID]), StaffPresent: countMembers(staff[schoolID], onSite[schoolID]),
 		AsOf: now,
@@ -151,6 +151,17 @@ func (o *Overview) schoolFigures(ctx context.Context, schoolID int64) (traegervi
 		figures.CareRatio = &ratio
 	}
 	return figures, nil
+}
+
+// countStudents counts the present children who belong to the active roster.
+func countStudents(roster map[int64]int64, ids []int64) int {
+	count := 0
+	for _, id := range ids {
+		if _, ok := roster[id]; ok {
+			count++
+		}
+	}
+	return count
 }
 
 // countSick counts the children of the roster (student ID to membership ID)

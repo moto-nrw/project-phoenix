@@ -28,6 +28,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/traegerview"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
@@ -421,9 +422,14 @@ func TestTraegerSchoolViewAnswersMasterDataAndFigures(t *testing.T) {
 	_, err := db.ExecContext(context.Background(), `UPDATE platform.schools
 		SET address = 'Lindenweg 3', zip = '49143', city = 'Bissendorf', phone = '05402 1234', email = 'ogs@example.com' WHERE id = ?`, schoolID)
 	require.NoError(t, err)
-	testpkg.CreateTestStudentForTenant(t, db, schoolID, "Erika", "Muster", "1a")
-	testpkg.CreateTestStudentForTenant(t, db, schoolID, "Max", "Muster", "1a")
-	testpkg.CreateTestStaffForTenant(t, db, schoolID, "Bea", "Betreuung")
+	present := testpkg.CreateTestStudentForTenant(t, db, schoolID, "Erika", "Muster", "1a")
+	ended := testpkg.CreateTestStudentForTenant(t, db, schoolID, "Max", "Muster", "1a")
+	_, err = db.ExecContext(context.Background(), `UPDATE users.student_school_memberships SET status = 'inactive' WHERE tenant_id = ? AND student_profile_id = ?`, schoolID, ended.ID)
+	require.NoError(t, err)
+	staff := testpkg.CreateTestStaffForTenant(t, db, schoolID, "Bea", "Betreuung")
+	device := testpkg.CreateTestDeviceForTenant(t, db, schoolID, "Ansicht")
+	testpkg.CreateTestAttendanceForTenant(t, db, schoolID, present.ID, staff.ID, device.ID, calendar.TodayDate(), figuresNoon(), nil)
+	testpkg.CreateTestAttendanceForTenant(t, db, schoolID, ended.ID, staff.ID, device.ID, calendar.TodayDate(), figuresNoon(), nil)
 	account := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleReadOnly)
 	code, answer := traegerSignIn(t, router, account.Email, password, 0)
@@ -441,7 +447,8 @@ func TestTraegerSchoolViewAnswersMasterDataAndFigures(t *testing.T) {
 	assert.Equal(t, "Bissendorf", view.City)
 	assert.Equal(t, "05402 1234", view.Phone)
 	assert.Equal(t, "ogs@example.com", view.Email)
-	assert.Equal(t, 2, view.Figures.ChildrenTotal)
+	assert.Equal(t, 1, view.Figures.ChildrenTotal)
+	assert.Equal(t, 1, view.Figures.ChildrenPresent, "open presence outside the active roster does not count")
 	assert.Equal(t, 1, view.Figures.StaffTotal)
 	assert.Equal(t, 0, view.Figures.StaffPresent)
 	assert.Nil(t, view.Figures.CareRatio, "without present staff there is no ratio")

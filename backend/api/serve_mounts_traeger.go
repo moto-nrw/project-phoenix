@@ -95,7 +95,7 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 		SchoolIDs: traegerSchoolIDs{organizations: organizations}, Trail: traegerAccessTrail{trail: audit.Trail},
 		Recorder: traegerAccessRecorder{log: audit.Log}, Holiday: traegerHolidayTrail{trail: enrollmentCompose.NewHolidayAccessTrail()}, Persons: traegerPersonDirectory{persons: persons}, Staff: traegerStaffDirectory{staff: staff},
 		Bureau:  traegerBureauAddresses{roles: identity},
-		Rosters: schoolMembershipCompose.NewSchoolRosters(), Present: studentPresenceCompose.NewPresentStudentCounts(),
+		Rosters: schoolMembershipCompose.NewSchoolRosters(), Present: studentPresenceCompose.NewPresentStudents(),
 		Sick: carePlanCompose.NewSickStudents(), OnSite: workforceCompose.NewOnSiteStaff(),
 	})
 	if err != nil {
