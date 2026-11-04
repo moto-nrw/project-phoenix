@@ -1,8 +1,9 @@
+import type { ErrorCode } from "../error-codes.generated";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { traegerAuth } from "~/server/auth/traeger";
 import { withTraegerAuth } from "~/server/auth/traeger-route";
-import { incomingAnalyticsSessionHeaders } from "../analytics-session-header.server";
+import { incomingClientForwardHeaders } from "../client-headers.server";
 import { handleApiError } from "../api-helpers.server";
 import { forwardBackendResponse } from "../backend-proxy-response.server";
 import {
@@ -41,7 +42,7 @@ async function traegerServerFetch<T>(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      ...(await incomingAnalyticsSessionHeaders()),
+      ...(await incomingClientForwardHeaders()),
     },
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
@@ -187,7 +188,7 @@ async function traegerServerFile(
     headers: {
       Authorization: `Bearer ${token}`,
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      ...(await incomingAnalyticsSessionHeaders()),
+      ...(await incomingClientForwardHeaders()),
     },
     body,
     cache: "no-store",
@@ -202,10 +203,15 @@ function fileResponse(backend: Response, request: NextRequest): Response {
     return response;
   }
   const headers = new Headers({ "Cache-Control": "no-store" });
+  // An inline file a parent uploaded, like a proof of benefits (#5238),
+  // keeps the backend's sandbox and nosniff: this proxy is all the browser
+  // talks to.
   for (const name of [
     "Content-Type",
     "Content-Disposition",
     "Content-Length",
+    "Content-Security-Policy",
+    "X-Content-Type-Options",
   ]) {
     const value = backend.headers.get(name);
     if (value) headers.set(name, value);
@@ -270,14 +276,15 @@ async function traegerServerUpload(
   token: string,
   contentType: string,
   body: ArrayBuffer,
+  method: "PUT" | "POST" = "PUT",
 ): Promise<Response> {
   const { getServerApiUrl } = await import("~/lib/server-api-url");
   return fetch(`${getServerApiUrl()}${endpoint}`, {
-    method: "PUT",
+    method,
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": contentType,
-      ...(await incomingAnalyticsSessionHeaders()),
+      ...(await incomingClientForwardHeaders()),
     },
     body,
     cache: "no-store",
@@ -321,8 +328,17 @@ async function readBounded(
  * it can be sent again after a refresh; the backend checks type, size and
  * content. A backend refusal keeps its problem body.
  */
-export function proxyUpload(endpoint: string, maxFileBytes: number) {
-  return withTraegerAuth(async (request: NextRequest) => {
+export function proxyUpload(
+  endpoint: string | ((params: Record<string, unknown>) => string),
+  maxFileBytes: number,
+  options: {
+    method?: "PUT" | "POST";
+    tooLargeCode?: ErrorCode;
+    /** Values the catalog text of tooLargeCode names, like max_mb. */
+    tooLargeDetails?: Record<string, unknown>;
+  } = {},
+) {
+  return withTraegerAuth(async (request: NextRequest, context) => {
     try {
       const session = await traegerAuth();
       const token = session?.user?.token;
@@ -336,21 +352,28 @@ export function proxyUpload(endpoint: string, maxFileBytes: number) {
       const declared = Number(request.headers.get("content-length") ?? "0");
       if (declared > limit) {
         throw bffError(400, "Upload too large", {
-          code: "traeger.logo_too_large",
+          code: options.tooLargeCode ?? "traeger.logo_too_large",
+          details: options.tooLargeDetails,
         });
       }
       const body = await readBounded(request, limit);
       if (body === null) {
         throw bffError(400, "Upload too large", {
-          code: "traeger.logo_too_large",
+          code: options.tooLargeCode ?? "traeger.logo_too_large",
+          details: options.tooLargeDetails,
         });
       }
 
+      const path =
+        typeof endpoint === "string"
+          ? endpoint
+          : endpoint(await extractParams(request, context));
       const first = await traegerServerUpload(
-        endpoint,
+        path,
         token,
         contentType,
         body,
+        options.method,
       );
       if (first.status !== 401) return forwardBackendResponse(first, request);
 
@@ -360,10 +383,11 @@ export function proxyUpload(endpoint: string, maxFileBytes: number) {
         return createTokenExpiredResponse(request);
       }
       const retried = await traegerServerUpload(
-        endpoint,
+        path,
         updated.user.token,
         contentType,
         body,
+        options.method,
       );
       if (retried.status === 401) return createTokenExpiredResponse(request);
       return forwardBackendResponse(retried, request);

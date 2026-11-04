@@ -1,0 +1,6 @@
+GET /api/absence-types/
+GET /api/absence-types/{id}/allowances/{staffId}
+GET /api/absence-types/{id}/allowances/{staffId}/preview
+POST /api/absence-types/
+PUT /api/absence-types/{id}
+PUT /api/absence-types/{id}/allowances/{staffId}

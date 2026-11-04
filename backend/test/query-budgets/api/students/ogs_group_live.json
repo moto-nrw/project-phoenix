@@ -1,0 +1,6 @@
+{
+  "scenario": "api.students.ogs_group_live",
+  "max": 41,
+  "exact": false,
+  "description": "api/students — #2056: aggregated OGS group view, 10 students."
+}

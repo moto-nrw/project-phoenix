@@ -1,0 +1,224 @@
+{
+  "packages": [
+    {
+      "path": "modules/settings/http",
+      "owner": "settings-platform",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/settings/internal/adapters/configpostgres",
+      "owner": "settings-platform",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/settings/internal/application",
+      "owner": "settings-platform",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/settings/settingstest",
+      "owner": "settings-platform",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/settings/internal/defaults",
+      "owner": "settings-platform",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/settings/internal/application/sideeffects",
+      "owner": "settings-platform",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/settings/review",
+      "owner": "settings-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/settings/inbound/operator",
+      "owner": "settings-platform",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/settings",
+      "owner": "settings-platform",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/settings/compose",
+      "owner": "settings-platform",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/settings/records",
+      "owner": "settings-platform",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "config.home_block_policies",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.home_layouts",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.setting_audit",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.setting_values",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.traeger_setting_audit",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.traeger_setting_values",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.settings",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.school_setup_dismissals",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.school_setups",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.staff_onboardings",
+      "write_owner": "settings-platform"
+    }
+  ],
+  "rules": [
+    {
+      "id": "settings-platform.http.tenant-runtime.common",
+      "description": "The operator school settings routes use the shared HTTP helpers and the operator error bodies (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "settings-platform.compose.tenant-runtime",
+      "description": "Settings Platform composition opens a school's tenant transaction through the shared runtime (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "settings-platform.compose.orm-sql",
+      "description": "Settings Platform composition supplies the concrete Bun database dependency (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "settings-platform.http.public",
+      "description": "The operator school settings routes call the public Settings Platform capability (#2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "settings-platform.internal-test.security-runtime-public",
+      "description": "The settings suite proves the overview scope stays in its tenant through the Security Runtime's overview decision (ADR 0047).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "module-internal-test",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "settings-platform.test-support.records-port",
+      "description": "The settings test support scripts tenant values against the registry keys of the owner's records port (#4085).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "test-support",
+      "target_owner": "settings-platform",
+      "target_role": "port"
+    },
+    {
+      "id": "settings-platform.postgres.records-port",
+      "description": "The Settings Platform stores persist the owner's own records, which the owner publishes as its port for the root (#4085).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "postgres",
+      "target_owner": "settings-platform",
+      "target_role": "port"
+    },
+    {
+      "id": "settings-platform.records-port.review-contract",
+      "description": "The Settings Platform records bind the native request-review identity and tenant-setting contracts (#3179); the records moved from models/config into the owner's port (#4085).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "port",
+      "target_owner": "settings-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "settings-platform.public.records-port",
+      "description": "The Settings Platform public contract names the setting keys and values other owners read (#2736), from the owner's records port (#4085).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "public",
+      "target_owner": "settings-platform",
+      "target_role": "port"
+    }
+  ]
+}

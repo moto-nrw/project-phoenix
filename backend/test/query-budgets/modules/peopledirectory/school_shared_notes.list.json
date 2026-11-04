@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.peopledirectory.school_shared_notes.list",
+  "max": 2,
+  "exact": true,
+  "description": "The notes the OGS released for the school (#4797): the released notes\nof one child and one bulk read of the authors' names."
+}

@@ -23,10 +23,13 @@ export function TenantPasswordChangeModal({
   isOpen,
   onClose,
   onSuccess,
+  apiEndpoint,
 }: {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onSuccess?: () => void;
+  /** The portal's route; the caterer portal has its own (#4496). */
+  readonly apiEndpoint?: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const errorPath = useApiFormError(formRef);
@@ -35,6 +38,7 @@ export function TenantPasswordChangeModal({
       isOpen={isOpen}
       onClose={onClose}
       onSuccess={onSuccess}
+      apiEndpoint={apiEndpoint}
       errorPath={errorPath}
       formRef={formRef}
       mapError={refusedCurrentPassword}

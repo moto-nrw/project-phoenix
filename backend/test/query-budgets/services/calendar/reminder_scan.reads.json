@@ -1,0 +1,6 @@
+{
+  "scenario": "services.calendar.reminder_scan.reads",
+  "max": 11,
+  "exact": true,
+  "description": "modules/schoolcalendar/portal — reminder scan, 8 due appointments; writes scale with\nrecipients, while every read relation remains a fixed-size batch (#2941)."
+}

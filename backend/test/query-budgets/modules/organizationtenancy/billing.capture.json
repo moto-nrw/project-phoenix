@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.organizationtenancy.billing.capture",
+  "max": 3,
+  "exact": true,
+  "description": "modules — the operator billing report (#2791), organizationtenancy\nBillingReport. The listing is one read of the captured rows. A capture\nis the key day, the schools still missing, and one insert for all of\nthem; the owners' counts are stubbed in the scenario and add one read\neach in production. Both stay flat in the number of schools."
+}

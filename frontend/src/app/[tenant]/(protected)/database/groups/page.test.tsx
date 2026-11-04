@@ -43,7 +43,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   mutate: vi.fn(),
-  useTenantMutate: vi.fn(() => vi.fn()),
+  useTenantMutateMatching: vi.fn(() => vi.fn()),
 }));
 
 const mockGetOne = vi.fn();

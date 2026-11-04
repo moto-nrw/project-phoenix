@@ -1,0 +1,16 @@
+{
+  "button": "Talebi paylaş",
+  "title": "Talebi başkalarıyla paylaş",
+  "privacyHint": "Talebinizi ve OGS'nin yanıtını sadece seçtiğiniz veliler görür.",
+  "recipientLegend": "Talebi paylaş (isteğe bağlı)",
+  "protected": "Bu talep gizli kalır. OGS aile korumasını açtı.",
+  "noRecipients": "Veli uygulamasına erişimi olan başka veli yok.",
+  "loading": "Alıcılar yükleniyor …",
+  "save": "Seçimi kaydet",
+  "saving": "Kaydediliyor …",
+  "cancel": "İptal",
+  "close": "Pencereyi kapat",
+  "errorObjectRecipients": "alıcı listesi",
+  "errorObjectSelection": "seçim",
+  "optionsHint": "Talebi yine de gönderebilir ve daha sonra paylaşabilirsiniz."
+}

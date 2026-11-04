@@ -20,7 +20,8 @@ import (
 // implementation: users.PersonAccount for GET /api/me, the profile map built
 // by the legacy user-context service for GET /api/me/profile, the embedded
 // education.Group plus via_substitution for GET /api/me/groups, and
-// usercontext.NavigationContext for GET /api/me/navigation.
+// usercontext.NavigationContext for GET /api/me/navigation, which since #4996
+// also carries the school switches of the signed-in app shell.
 
 func sortedKeys(object map[string]any) []string {
 	keys := make([]string, 0, len(object))
@@ -173,6 +174,7 @@ func TestWireShape_GroupsAndNavigation(t *testing.T) {
 		require.True(t, ok, "data must be an object")
 		assert.Equal(t, sorted(
 			"educational_groups", "supervised_groups", "current_staff", "incomplete", "unavailable_sections",
+			"school_switches",
 		), sortedKeys(data))
 		assert.Equal(t, false, data["incomplete"])
 		assert.Equal(t, []any{}, data["unavailable_sections"], "an empty section list renders as [], not null")
@@ -209,6 +211,7 @@ func TestWireShape_NavigationWithoutStaff(t *testing.T) {
 	require.True(t, ok, "data must be an object")
 	assert.Equal(t, sorted(
 		"educational_groups", "supervised_groups", "current_staff", "incomplete", "unavailable_sections",
+		"school_switches",
 	), sortedKeys(data))
 	assert.Equal(t, []any{}, data["educational_groups"])
 	assert.Equal(t, []any{}, data["supervised_groups"])

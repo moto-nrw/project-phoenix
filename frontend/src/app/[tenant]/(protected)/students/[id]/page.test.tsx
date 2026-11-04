@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   render,
   screen,
@@ -14,43 +17,46 @@ import { catalogText } from "~/test/error-catalog-text";
 import { SWRConfig } from "swr";
 import { useSession } from "next-auth/react";
 import { getDayData as getArrivalDayData } from "~/lib/arrival-schedule-helpers";
+import { getDayData as getPickupDayData } from "~/lib/pickup-schedule-helpers";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { setTestClock } from "~/test/clock";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 
-const { mockSWRMutate, MockStudentStatusDayConflictError } = vi.hoisted(() => ({
-  mockSWRMutate: vi.fn(),
-  MockStudentStatusDayConflictError: class extends Error {
-    conflicts: unknown[];
-    totalCount: number;
+const { mockSWRMutate, mockScopedMutate, MockStudentStatusDayConflictError } =
+  vi.hoisted(() => ({
+    mockSWRMutate: vi.fn(),
+    mockScopedMutate: vi.fn(),
+    MockStudentStatusDayConflictError: class extends Error {
+      conflicts: unknown[];
+      totalCount: number;
 
-    constructor(conflicts: unknown[], totalCount?: number) {
-      super("conflict");
-      this.name = "StudentStatusDayConflictError";
-      this.conflicts = conflicts;
-      this.totalCount = totalCount ?? conflicts.length;
-    }
-  },
-}));
+      constructor(conflicts: unknown[], totalCount?: number) {
+        super("conflict");
+        this.name = "StudentStatusDayConflictError";
+        this.conflicts = conflicts;
+        this.totalCount = totalCount ?? conflicts.length;
+      }
+    },
+  }));
 vi.mock("swr", async (importOriginal) => {
   const actual = await importOriginal<typeof import("swr")>();
   return {
     ...actual,
-    useSWRConfig: () => ({ mutate: mockSWRMutate }),
+    mutate: mockScopedMutate,
+    useSWRConfig: () => ({ ...actual.useSWRConfig(), mutate: mockSWRMutate }),
   };
 });
 
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
+  getSession: vi.fn(() =>
+    Promise.resolve({ user: { id: "1", token: "test-token" } }),
+  ),
   // Staff reads parent data with users:read; the role „Gast“ holds only
   // students:read (ADR 0091, see „students:read only“ below).
   useSession: vi.fn(() => ({
     data: {
-      user: {
-        token: "test-token",
-        permissions: ["config:manage", "users:read"],
-      },
+      user: { id: "1", permissions: ["config:manage", "users:read"] },
     },
     status: "authenticated",
   })),
@@ -211,6 +217,20 @@ vi.mock("~/components/students/student-detail-components", () => ({
 }));
 
 // Mock des Bearbeiten-Zustands im Stammdaten-Reiter (kein Modal mehr).
+vi.mock("~/components/students/holiday-guest-section", () => ({
+  HolidayGuestSection: ({
+    studentId,
+    canRead,
+  }: {
+    studentId: string;
+    canRead: boolean;
+  }) => (
+    <div data-testid="holiday-guest-section">
+      {studentId}:{String(canRead)}
+    </div>
+  ),
+}));
+
 vi.mock("~/components/students/personal-info-edit-panel", () => ({
   PersonalInfoEditPanel: ({
     onCancel,
@@ -256,12 +276,20 @@ vi.mock("~/components/students/planned-status-days-modal", () => ({
     onClose,
     onSubmit,
     canPlanPartialExcusal,
+    onSubmitPartialAbsence,
+    onDeletePartialAbsence,
   }: {
     isOpen: boolean;
     status: "sick" | "excused" | "class_trip";
     onClose: () => void;
     onSubmit: (dates: string[]) => Promise<void>;
     canPlanPartialExcusal?: boolean;
+    onSubmitPartialAbsence?: (
+      id: string | null,
+      date: string,
+      fromTime: string,
+    ) => Promise<void>;
+    onDeletePartialAbsence?: (id: string) => Promise<void>;
   }) =>
     isOpen ? (
       <div
@@ -274,6 +302,22 @@ vi.mock("~/components/students/planned-status-days-modal", () => ({
           onClick={() => void onSubmit(["2026-05-25"]).catch(() => undefined)}
         >
           Speichern
+        </button>
+        <button
+          type="button"
+          data-testid="planned-partial-save"
+          onClick={() =>
+            void onSubmitPartialAbsence?.(null, "2026-05-25", "12:00")
+          }
+        >
+          Teilentschuldigung speichern
+        </button>
+        <button
+          type="button"
+          data-testid="planned-partial-delete"
+          onClick={() => void onDeletePartialAbsence?.("p1")}
+        >
+          Teilentschuldigung entfernen
         </button>
         <button
           type="button"
@@ -425,6 +469,19 @@ vi.mock("~/components/students/care-schedule-manager", () => ({
 
 vi.mock("~/components/students/student-enrollments-tab", () => ({
   StudentEnrollmentsTab: () => <div data-testid="student-enrollments-tab" />,
+}));
+
+vi.mock("~/components/students/dokumente-tab", () => ({
+  StudentDokumenteTab: ({
+    canRecordAccidents,
+  }: {
+    canRecordAccidents: boolean;
+  }) => (
+    <div
+      data-testid="student-dokumente-tab"
+      data-can-record-accidents={String(canRecordAccidents)}
+    />
+  ),
 }));
 
 // These child panels are real here; isolate their read APIs as well. Otherwise
@@ -622,12 +679,13 @@ const mockStudentAtHome = {
 describe("StudentDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState(null, "", "/students/1");
     mockSearchParams.delete("from");
     mockSearchParams.delete("tab");
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
-          token: "test-token",
+          id: "1",
           // Staff with absence rights; the route of every absence write
           // checks users:update or users:absence (ADR 0091 gate).
           permissions: [
@@ -665,6 +723,7 @@ describe("StudentDetailPage", () => {
     mockCreateStudentStatusDays.mockResolvedValue([]);
     mockFetchStudentStatusDays.mockResolvedValue([]);
     mockSWRMutate.mockResolvedValue(undefined);
+    mockScopedMutate.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -804,7 +863,26 @@ describe("StudentDetailPage", () => {
   });
 
   describe("Full Access View", () => {
-    it("uses Friday's arrival plan in the header when the weekend follows Friday", async () => {
+    it.each(schoolDateCases("2026-05-27"))(
+      "fetches the Berlin status-day range in %s",
+      async (zone, instant) => {
+        setSchoolDateClock(zone, instant, "2026-05-27");
+        render(
+          <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+            <StudentDetailPage />
+          </SWRConfig>,
+        );
+        await waitFor(() =>
+          expect(mockFetchStudentStatusDays).toHaveBeenCalledWith(
+            "1",
+            "2026-05-13",
+            "2026-08-25",
+          ),
+        );
+      },
+    );
+
+    it("uses Berlin's calendar day for the header plans", async () => {
       setTestClock("2026-09-12T12:00:00+02:00");
       vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
 
@@ -816,7 +894,7 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(getArrivalDayData).toHaveBeenLastCalledWith(
-          expect.any(Date),
+          new Date(2026, 8, 12),
           [],
           [],
           [],
@@ -824,6 +902,20 @@ describe("StudentDetailPage", () => {
           false,
           null,
           true,
+          "2026-09-12",
+        );
+        expect(getPickupDayData).toHaveBeenLastCalledWith(
+          new Date(2026, 8, 12),
+          [],
+          [],
+          false,
+          undefined,
+          false,
+          null,
+          undefined,
+          true,
+          [],
+          "2026-09-12",
         );
       });
       expect(screen.getByTestId("care-schedule-manager")).toHaveAttribute(
@@ -1012,6 +1104,26 @@ describe("StudentDetailPage", () => {
 
       expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
     });
+
+    it("renders documents for accident report readers", () => {
+      mockSearchParams.set("tab", "dokumente");
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { id: "1", permissions: ["student_accidents:read"] },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Dokumente" }),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("student-dokumente-tab")).toHaveAttribute(
+        "data-can-record-accidents",
+        "false",
+      );
+    });
   });
 
   describe("Edit Personal Information", () => {
@@ -1101,8 +1213,8 @@ describe("StudentDetailPage", () => {
       });
 
       await waitFor(() => {
-        expect(mockSWRMutate).toHaveBeenCalledWith(
-          "/api/students/1/change-history",
+        expect(mockScopedMutate).toHaveBeenCalledWith(
+          "test-tenant:1:student-change-history-1",
         );
       });
     });
@@ -1413,8 +1525,8 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(mockRefreshData).toHaveBeenCalled();
-        expect(mockSWRMutate).toHaveBeenCalledWith(
-          "/api/students/1/change-history",
+        expect(mockScopedMutate).toHaveBeenCalledWith(
+          "test-tenant:1:student-change-history-1",
         );
       });
     });
@@ -1820,7 +1932,7 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
+            id: "1",
             permissions: ["config:manage", "users:update", "users:read"],
           },
         },
@@ -1879,6 +1991,36 @@ describe("StudentDetailPage", () => {
         expect(mockToastSuccess).toHaveBeenCalled();
       });
     });
+
+    it.each(["save", "delete"] as const)(
+      "reloads the scoped pickup header after a partial absence %s",
+      async (action) => {
+        // Partial excusals need Stammdaten write access.
+        vi.mocked(useSession).mockReturnValue({
+          data: {
+            user: {
+              id: "1",
+              permissions: ["config:manage", "users:update", "users:read"],
+            },
+          },
+          status: "authenticated",
+        } as ReturnType<typeof useSession>);
+        render(<StudentDetailPage />);
+        fireEvent.click(screen.getByTestId("excused-toggle-button"));
+        await screen.findByTestId("planned-status-modal-excused");
+        await act(async () => {
+          fireEvent.click(screen.getByTestId(`planned-partial-${action}`));
+        });
+        // The reader behind useSWRAuth holds the key of the session's scope;
+        // an unscoped revalidation never reached it.
+        await waitFor(() => {
+          expect(mockScopedMutate).toHaveBeenCalledWith(
+            "test-tenant:1:pickup-data-1",
+          );
+        });
+        expect(mockSWRMutate).not.toHaveBeenCalledWith("pickup-data-1");
+      },
+    );
 
     it("does not emit a toast when planned excusal saving fails", async () => {
       mockCreateStudentStatusDays.mockRejectedValue(new Error("fail"));
@@ -2222,7 +2364,7 @@ describe("StudentDetailPage", () => {
   describe("Action Card Visibility", () => {
     it("hides check-in actions without users:checkin", () => {
       vi.mocked(useSession).mockReturnValue({
-        data: { user: { token: "test-token", permissions: ["config:manage"] } },
+        data: { user: { id: "1", permissions: ["config:manage"] } },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
 
@@ -2343,7 +2485,7 @@ describe("StudentDetailPage", () => {
       (_view, hasFullAccess) => {
         vi.mocked(useSession).mockReturnValue({
           data: {
-            user: { token: "test-token", permissions: ["students:read"] },
+            user: { id: "1", permissions: ["students:read"] },
           },
           status: "authenticated",
         } as ReturnType<typeof useSession>);
@@ -2377,7 +2519,7 @@ describe("StudentDetailPage", () => {
     it("loads and offers nothing a students:read session cannot use", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
-          user: { token: "test-token", permissions: ["students:read"] },
+          user: { id: "1", permissions: ["students:read"] },
         },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
@@ -2408,7 +2550,7 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
+            id: "1",
             permissions: ["config:manage", "users:update", "users:read"],
           },
         },
@@ -2425,10 +2567,7 @@ describe("StudentDetailPage", () => {
       // 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
       vi.mocked(useSession).mockReturnValue({
         data: {
-          user: {
-            token: "test-token",
-            permissions: ["config:manage", "users:read"],
-          },
+          user: { id: "1", permissions: ["config:manage", "users:read"] },
         },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
@@ -2441,13 +2580,197 @@ describe("StudentDetailPage", () => {
       expect(queryTab("Änderungsprotokoll")).not.toBeInTheDocument();
     });
 
+    // #5025: eine Betreuungskraft hat users:absence, aber kein users:delete.
+    // Die Liste aller Abmeldungen der Schule verlangt users:delete und
+    // antwortet ihr mit 403; das Änderungsprotokoll liest deshalb nur die
+    // abgeschlossenen Abmeldungen dieses Kindes über die Kind-Route.
+    describe("Änderungsprotokoll ohne users:delete (#5025)", () => {
+      const json = (status: number, body: unknown) =>
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { "Content-Type": "application/json" },
+        });
+      const requestedPaths = () =>
+        vi
+          .mocked(globalThis.fetch)
+          .mock.calls.map(([input]) =>
+            new URL(String(input), "http://localhost").pathname.toString(),
+          );
+
+      beforeEach(() => {
+        const original = globalThis.fetch;
+        vi.spyOn(globalThis, "fetch").mockImplementation(
+          async (input, init) => {
+            const path = new URL(String(input), "http://localhost").pathname;
+            if (path === "/api/students/change-requests") {
+              return json(200, { data: { items: [] } });
+            }
+            if (path === "/api/students/1/care-withdrawals") {
+              return json(200, {
+                data: {
+                  items: [
+                    {
+                      id: "withdrawal-done",
+                      student_id: "1",
+                      first_name: "Max",
+                      last_name: "Mustermann",
+                      school_class: "3a",
+                      first_bookingless_day: "2026-09-01",
+                      urgency: "overdue",
+                      state: "resolved",
+                      outcome: "care_ended",
+                      resolved_at: "2026-09-02T10:00:00+02:00",
+                    },
+                  ],
+                  total: 1,
+                  page: 1,
+                  page_size: 25,
+                },
+              });
+            }
+            if (path.startsWith("/api/students/care-withdrawals")) {
+              return json(403, {
+                status: 403,
+                code: "general.permission",
+                detail: "forbidden",
+              });
+            }
+            return original(input, init);
+          },
+        );
+        vi.mocked(useSession).mockReturnValue({
+          data: {
+            user: { id: "7", permissions: ["users:read", "users:absence"] },
+          },
+          status: "authenticated",
+        } as ReturnType<typeof useSession>);
+        mockSearchParams.set("tab", "aenderungsprotokoll");
+      });
+
+      afterEach(() => {
+        vi.mocked(globalThis.fetch).mockRestore();
+      });
+
+      it("loads the child's completed withdrawals in the full view", async () => {
+        render(<StudentDetailPage />);
+
+        // Anker: die abgeschlossene Abmeldung aus der Kind-Route steht im
+        // Protokoll; ein 403 der Schul-Liste hätte stattdessen den Ladefehler
+        // „die Liste der Abmeldungen“ gezeigt (siehe Test darunter).
+        expect(await screen.findByText("Betreuung beendet")).toBeVisible();
+        expect(requestedPaths()).toContain("/api/students/1/care-withdrawals");
+        expect(
+          requestedPaths().some((path) =>
+            path.startsWith("/api/students/care-withdrawals"),
+          ),
+        ).toBe(false);
+        expect(
+          screen.queryByText(/Liste der Abmeldungen/),
+        ).not.toBeInTheDocument();
+      });
+
+      // Mit users:delete oder als Admin bleibt es beim Protokoll mit den
+      // Abmeldungen des Kindes (#5030); auch hier fragt die Kindakte nur die
+      // Kind-Route.
+      it.each([
+        ["users:delete", ["users:read", "users:update", "users:delete"]],
+        ["admin", ["admin:*"]],
+      ])(
+        "keeps the child's withdrawals with %s",
+        async (account, permissions) => {
+          vi.mocked(useSession).mockReturnValue({
+            data: { user: { id: `delete-${account}`, permissions } },
+            status: "authenticated",
+          } as ReturnType<typeof useSession>);
+
+          render(<StudentDetailPage />);
+
+          // Anker: die abgeschlossene Abmeldung steht im Protokoll.
+          expect(await screen.findByText("Betreuung beendet")).toBeVisible();
+          expect(requestedPaths()).toContain(
+            "/api/students/1/care-withdrawals",
+          );
+          // Die Kopfkarte fragt mit users:delete die offene Abmeldung über
+          // die Schul-Liste ab; der Verlauf des Protokolls nicht mehr.
+          const resolvedFromSchoolList = vi
+            .mocked(globalThis.fetch)
+            .mock.calls.map(
+              ([input]) => new URL(String(input), "http://localhost"),
+            )
+            .filter(
+              (url) =>
+                url.pathname === "/api/students/care-withdrawals" &&
+                url.searchParams.get("state") === "resolved",
+            );
+          expect(resolvedFromSchoolList).toEqual([]);
+        },
+      );
+
+      // users:absence ist ein Schreibrecht und darf ohne users:read weder das
+      // Änderungsprotokoll noch dessen Datenquellen öffnen.
+      it("hides the request log for absence-only staff", async () => {
+        vi.mocked(useSession).mockReturnValue({
+          data: { user: { id: "7", permissions: ["users:absence"] } },
+          status: "authenticated",
+        } as ReturnType<typeof useSession>);
+        mockUseStudentData.mockReturnValue({
+          ...limitedAccess,
+          hasFullAccess: true,
+        });
+
+        render(<StudentDetailPage />);
+
+        // Anker: die eingeschränkte Ansicht hat keine Betreuungszeiten.
+        expect(await screen.findByTestId("readonly-name")).toHaveTextContent(
+          "Max Mustermann",
+        );
+        expect(
+          screen.queryByTestId("care-schedule-manager"),
+        ).not.toBeInTheDocument();
+        expect(queryTab("Änderungsprotokoll")).not.toBeInTheDocument();
+        expect(
+          requestedPaths().some((path) =>
+            path.startsWith("/api/students/care-withdrawals"),
+          ),
+        ).toBe(false);
+        expect(requestedPaths()).not.toContain(
+          "/api/students/1/care-withdrawals",
+        );
+      });
+
+      it("loads the request log without withdrawals in the limited view", async () => {
+        // Ein eigenes Konto: der SWR-Cache der Liste gilt je Konto, sonst
+        // käme die Seite aus dem Cache des vorigen Tests ohne Abruf.
+        vi.mocked(useSession).mockReturnValue({
+          data: {
+            user: { id: "8", permissions: ["users:read", "users:absence"] },
+          },
+          status: "authenticated",
+        } as ReturnType<typeof useSession>);
+        mockUseStudentData.mockReturnValue(limitedAccess);
+
+        render(<StudentDetailPage />);
+
+        await waitFor(() =>
+          expect(requestedPaths()).toContain("/api/students/change-requests"),
+        );
+        // Anker: das Protokoll ist geladen und zeigt seinen Leerzustand.
+        expect(
+          await screen.findByText("Noch keine entschiedenen Anfragen."),
+        ).toBeInTheDocument();
+        expect(
+          requestedPaths().some((path) => path.includes("care-withdrawals")),
+        ).toBe(false);
+        expect(
+          screen.queryByText(/Liste der Abmeldungen/),
+        ).not.toBeInTheDocument();
+      });
+    });
+
     it("hides the enrollment tab without config:manage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
-          user: {
-            token: "test-token",
-            permissions: ["config:read", "users:read"],
-          },
+          user: { id: "1", permissions: ["config:read", "users:read"] },
         },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
@@ -2470,11 +2793,26 @@ describe("StudentDetailPage", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("shows the Dokumente tab with student_accidents:manage", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { id: "1", permissions: ["student_accidents:manage"] },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Dokumente" }),
+      ).toBeInTheDocument();
+    });
+
     it("shows the Betreuungsplan tab with schedules:read", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
+            id: "1",
             permissions: ["config:manage", "schedules:read", "users:read"],
           },
         },
@@ -2499,7 +2837,7 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
+            id: "1",
             permissions: ["config:manage", "schedules:read", "users:read"],
           },
         },
@@ -2532,10 +2870,7 @@ describe("StudentDetailPage", () => {
       });
       vi.mocked(useSession).mockReturnValue({
         data: {
-          user: {
-            token: "test-token",
-            permissions: ["schedules:read", "users:read"],
-          },
+          user: { id: "1", permissions: ["schedules:read", "users:read"] },
         },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
@@ -2593,33 +2928,37 @@ describe("StudentDetailPage", () => {
 
       selectTab("Historie");
 
-      expect(mockReplace).toHaveBeenCalledWith("/students/1?tab=historie", {
-        scroll: false,
-      });
+      expect(window.location.pathname + window.location.search).toBe(
+        "/students/1?tab=historie",
+      );
+      expect(mockReplace).not.toHaveBeenCalled();
     });
 
     it("drops the tab param when returning to the default tab", () => {
       mockSearchParams.set("tab", "historie");
 
+      window.history.replaceState(null, "", "/students/1?tab=historie");
+
       render(<StudentDetailPage />);
 
       selectTab("Stammdaten");
 
-      expect(mockReplace).toHaveBeenCalledWith("/students/1", {
-        scroll: false,
-      });
+      expect(window.location.pathname + window.location.search).toBe(
+        "/students/1",
+      );
     });
 
     it("preserves the from referrer when switching tabs", () => {
       mockSearchParams.set("from", "/my-room");
 
+      window.history.replaceState(null, "", "/students/1?from=%2Fmy-room");
+
       render(<StudentDetailPage />);
 
       selectTab("Historie");
 
-      expect(mockReplace).toHaveBeenCalledWith(
+      expect(window.location.pathname + window.location.search).toBe(
         "/students/1?from=%2Fmy-room&tab=historie",
-        { scroll: false },
       );
     });
 
@@ -2649,23 +2988,27 @@ describe("StudentDetailPage", () => {
       mockSearchParams.set("tab", "betreuungszeiten");
       mockUseStudentData.mockReturnValue(limitedAccess);
 
+      window.history.replaceState(null, "", "/students/1?tab=betreuungszeiten");
+
       render(<StudentDetailPage />);
 
       // Clamped to the default tab, so the bogus param is stripped from the URL
       // rather than left advertising a tab the user can't open.
-      expect(mockReplace).toHaveBeenCalledWith("/students/1", {
-        scroll: false,
-      });
+      expect(window.location.pathname + window.location.search).toBe(
+        "/students/1",
+      );
     });
 
     it("rewrites the URL to drop an unknown tab value", () => {
       mockSearchParams.set("tab", "nonsense");
 
+      window.history.replaceState(null, "", "/students/1?tab=nonsense");
+
       render(<StudentDetailPage />);
 
-      expect(mockReplace).toHaveBeenCalledWith("/students/1", {
-        scroll: false,
-      });
+      expect(window.location.pathname + window.location.search).toBe(
+        "/students/1",
+      );
     });
 
     // Regression guard for the Rules-of-Hooks ordering bug: the tab self-heal
@@ -2713,6 +3056,35 @@ describe("StudentDetailPage", () => {
       expect(
         screen.getByRole("tab", { name: "Stammdaten" }),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("Holiday guest (#4666)", () => {
+    it("shows only the holiday guest sheet instead of the sections of the record", () => {
+      mockUseStudentData.mockReturnValue({
+        ...mockUseStudentData(),
+        student: { ...mockStudent, school_class: "Feriengast" },
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByTestId("holiday-guest-section")).toHaveTextContent(
+        "1:true",
+      );
+      expect(
+        screen.queryByRole("tablist", { name: "Bereiche der Kindakte" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps the sections of the record for a child of the school", () => {
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tablist", { name: "Bereiche der Kindakte" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("holiday-guest-section"),
+      ).not.toBeInTheDocument();
     });
   });
 });

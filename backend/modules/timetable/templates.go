@@ -375,4 +375,8 @@ type OfferingRosterResyncInput struct {
 	// TolerateDriftedSources loads the source offerings without the active
 	// and phase checks. Detach fallback only; never set on a save path.
 	TolerateDriftedSources bool
+	// StoredOfferingIDs are the template's source ids before the save. A
+	// stored source that turned inactive contributes nothing while another
+	// stays valid; a newly selected inactive one is refused (#5313).
+	StoredOfferingIDs []int64
 }

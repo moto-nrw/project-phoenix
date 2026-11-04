@@ -1,8 +1,15 @@
 import { dirname, normalize } from "node:path/posix";
 
+import {
+  buttonRatchetAllowlist,
+  buttonRatchetBaseline,
+} from "./ui-kit-button-baseline.mjs";
+import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
+
 // UI-kit drift ratchet (issue #1629).
 //
-// Five hard-zero rules that stop drift away from the shared UI kit. The
+// Hard-zero rules that stop drift away from the shared UI kit (plus the
+// shrink-only button ratchet at the end of this file, #5531). The
 // hand-rolled surface rule started with a shrink-only baseline (#2934) that
 // was brought to zero and deleted in #2933; the first production match of
 // any rule now fails `pnpm run check`:
@@ -21,8 +28,9 @@ import { dirname, normalize } from "node:path/posix";
 //                                     moto-popover-surface (floating menus),
 //                                     ChoiceTile (selectable rows) or a kit
 //                                     surface component (issue #2933)
-//   ui-kit/no-rounded-3xl           — off-scale surface radius; cards are
-//                                     rounded-2xl (moto-content-surface)
+//   ui-kit/no-rounded-3xl           — off-scale surface radius, also per
+//                                     side/corner; cards are rounded-2xl
+//                                     (moto-content-surface)
 //   ui-kit/require-checkbox-label   — every shared Checkbox is wrapped by a
 //                                     label so its visible box is clickable
 //
@@ -38,6 +46,44 @@ import { dirname, normalize } from "node:path/posix";
 //                                     plain-Tailwind card chain everywhere)
 //   ui-kit/no-tabs-as-value-switcher — ui/Tabs is for content panels; values
 //                                     go on SegmentedControl
+//
+// One more guards text on green fills (#5141):
+//
+//   ui-kit/green-fill-white-text    — opaque green surfaces carry white text,
+//                                     only on the dark bg-moto-green-fill steps
+//
+// Three more catch classes that never render or miss contrast (#5577):
+//
+//   ui-kit/no-dead-surface-utility  — no colour/bg/shadow/ring/backdrop
+//                                     utility beside the unlayered
+//                                     moto-content-surface / -popover-surface
+//   ui-kit/no-dynamic-color-class   — no `text-${…}` style colour classes;
+//                                     Tailwind never generates them
+//   ui-kit/no-white-on-warm-fill    — no white text on orange (SCHOOLYARD) or
+//                                     amber (WARNING) fills
+//
+// One more keeps form fields on the kit (#5217):
+//
+//   ui-kit/no-raw-input             — no hand-built <input> outside
+//                                     src/components/ui/; use Input,
+//                                     Checkbox, Radio, TimeField,
+//                                     ConsentCheckbox or ColorSwatchInput.
+//                                     Hidden and file inputs stay native.
+//
+// Two more keep the kit on one overlay system (#5579):
+//
+//   ui-kit/no-shadcn-tokens         — no shadcn theme tokens (bg-background,
+//                                     text-muted-foreground …); bg-white/gray-*
+//   ui-kit/no-raw-z-index           — no `z-[n]` inside src/components/ui/;
+//                                     levels come from Z_LAYER
+//
+// Two more keep SectionCard the only card head (#5581):
+//
+//   ui-kit/no-important-override   — no `!` utility on a kit component; the
+//                                     missing prop goes into the kit
+//                                     (shrink-only baseline per file)
+//   ui-kit/no-section-card-bleed   — no negative margin in a SectionCard
+//                                     bodyClassName; use flush or footer
 //
 // The tiny-text baseline below is SHRINK-ONLY: matches may be removed when
 // a file is migrated, but never added.
@@ -57,7 +103,19 @@ const INSET_0_RE = /\binset-0\b/;
 const SURFACE_ROUNDED_RE = /(?:^|\s)rounded-(?:xl|2xl)(?=\s|$)/;
 const SURFACE_BORDER_RE = /(?:^|\s)border(?:-[1-9]\d*)?(?=\s|$)/;
 const SURFACE_BG_RE = /(?:^|\s)bg-white(?=\s|$)/;
-const ROUNDED_3XL_RE = /\brounded-3xl\b/g;
+// Also the per-side and per-corner forms (`rounded-t-3xl`, `rounded-br-3xl`,
+// logical `rounded-s-3xl` / `rounded-ss-3xl` …): the Drawer used them (#5579).
+const ROUNDED_3XL_RE =
+  /\brounded-(?:(?:t|b|l|r|tl|tr|bl|br|s|e|ss|se|es|ee)-)?3xl(?![\w-])/g;
+// shadcn semantic colour tokens (`bg-background`, `text-muted-foreground`,
+// `ring-ring` …). They resolve to slate tints from the old shadcn theme, not
+// to the kit's white and gray scale; `bg-background` is not white (#5579).
+const SHADCN_TOKEN_RE =
+  /(?<![\w-])(?:bg|text|border(?:-[trblxyse])?|ring|ring-offset|outline|fill|stroke|divide|placeholder|from|via|to|caret|accent|decoration|shadow)-(?:background|foreground|muted(?:-foreground)?|accent(?:-foreground)?|popover(?:-foreground)?|card(?:-foreground)?|primary(?:-foreground)?|secondary(?:-foreground)?|destructive(?:-foreground)?|input|ring|border)(?![\w-])/g;
+// Arbitrary stacking numbers (`z-[9999]`) inside the kit; the levels live in
+// `Z_LAYER` (overlay-styles.ts), the one file this rule skips (#5579).
+const RAW_Z_INDEX_RE = /(?<![\w-])z-\[[^\]\s]+\](?![\w-])/g;
+const Z_LAYER_FILE = "src/components/ui/overlay-styles.ts";
 
 const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
 const UI_KIT_DIR = "src/components/ui/";
@@ -121,6 +179,149 @@ function collectStaticStrings(node, chunks, seen = new WeakSet()) {
   }
 }
 
+function findVariable(sourceCode, identifier) {
+  let scope = sourceCode.getScope(identifier);
+  while (scope) {
+    const variable = scope.set.get(identifier.name);
+    if (variable) return variable;
+    scope = scope.upper;
+  }
+  return undefined;
+}
+
+function collectClassTemplateLiterals(
+  node,
+  templates,
+  sourceCode,
+  seen = new WeakSet(),
+  seenVariables = new Set(),
+) {
+  if (!node || typeof node !== "object" || seen.has(node)) return;
+  seen.add(node);
+
+  if (node.type === "TemplateLiteral") {
+    templates.push(node);
+    return;
+  }
+
+  if (
+    node.type === "JSXExpressionContainer" ||
+    node.type === "ChainExpression" ||
+    node.type === "TSAsExpression" ||
+    node.type === "TSTypeAssertion" ||
+    node.type === "TypeCastExpression"
+  ) {
+    collectClassTemplateLiterals(
+      node.expression,
+      templates,
+      sourceCode,
+      seen,
+      seenVariables,
+    );
+    return;
+  }
+
+  if (node.type === "Identifier") {
+    const variable = findVariable(sourceCode, node);
+    if (!variable || seenVariables.has(variable)) return;
+    seenVariables.add(variable);
+    for (const definition of variable.defs) {
+      if (
+        definition.type !== "Variable" ||
+        definition.node.type !== "VariableDeclarator" ||
+        !definition.node.init
+      )
+        continue;
+      collectClassTemplateLiterals(
+        definition.node.init,
+        templates,
+        sourceCode,
+        seen,
+        seenVariables,
+      );
+    }
+    return;
+  }
+
+  if (node.type === "ConditionalExpression") {
+    collectClassTemplateLiterals(
+      node.consequent,
+      templates,
+      sourceCode,
+      seen,
+      seenVariables,
+    );
+    collectClassTemplateLiterals(
+      node.alternate,
+      templates,
+      sourceCode,
+      seen,
+      seenVariables,
+    );
+    return;
+  }
+
+  if (node.type === "LogicalExpression") {
+    if (node.operator !== "&&") {
+      collectClassTemplateLiterals(
+        node.left,
+        templates,
+        sourceCode,
+        seen,
+        seenVariables,
+      );
+    }
+    collectClassTemplateLiterals(
+      node.right,
+      templates,
+      sourceCode,
+      seen,
+      seenVariables,
+    );
+    return;
+  }
+
+  if (node.type === "CallExpression") {
+    for (const argument of node.arguments) {
+      collectClassTemplateLiterals(
+        argument,
+        templates,
+        sourceCode,
+        seen,
+        seenVariables,
+      );
+    }
+    return;
+  }
+
+  if (node.type === "ArrayExpression") {
+    for (const element of node.elements) {
+      collectClassTemplateLiterals(
+        element,
+        templates,
+        sourceCode,
+        seen,
+        seenVariables,
+      );
+    }
+    return;
+  }
+
+  if (node.type === "ObjectExpression") {
+    for (const property of node.properties) {
+      if (property.type === "Property" && property.computed) {
+        collectClassTemplateLiterals(
+          property.key,
+          templates,
+          sourceCode,
+          seen,
+          seenVariables,
+        );
+      }
+    }
+  }
+}
+
 const MAX_CLASS_COMBINATIONS = 64;
 
 function crossJoin(left, right) {
@@ -143,7 +344,12 @@ function crossJoin(left, right) {
  * when the combination count overflows; callers fall back to the joined
  * over-approximation.
  */
-function classCombinations(node, seen = new WeakSet()) {
+function classCombinations(
+  node,
+  seen = new WeakSet(),
+  sourceCode,
+  seenVariables = new Set(),
+) {
   if (!node || typeof node !== "object" || seen.has(node)) return [""];
   seen.add(node);
 
@@ -151,18 +357,58 @@ function classCombinations(node, seen = new WeakSet()) {
     return [typeof node.value === "string" ? node.value : ""];
   }
   if (node.type === "TemplateElement") return [node.value.raw];
+  if (node.type === "Identifier" && sourceCode) {
+    const variable = findVariable(sourceCode, node);
+    if (!variable || seenVariables.has(variable)) return [""];
+    seenVariables.add(variable);
+    const combinations = [];
+    for (const definition of variable.defs) {
+      if (
+        definition.type !== "Variable" ||
+        definition.node.type !== "VariableDeclarator" ||
+        definition.parent?.kind !== "const" ||
+        !definition.node.init
+      )
+        continue;
+      const resolved = classCombinations(
+        definition.node.init,
+        seen,
+        sourceCode,
+        seenVariables,
+      );
+      if (!resolved) return null;
+      combinations.push(...resolved);
+      if (combinations.length > MAX_CLASS_COMBINATIONS) return null;
+    }
+    return combinations.length > 0 ? combinations : [""];
+  }
   if (node.type === "ConditionalExpression") {
-    const consequent = classCombinations(node.consequent, seen);
-    const alternate = classCombinations(node.alternate, seen);
+    const consequent = classCombinations(
+      node.consequent,
+      seen,
+      sourceCode,
+      seenVariables,
+    );
+    const alternate = classCombinations(
+      node.alternate,
+      seen,
+      sourceCode,
+      seenVariables,
+    );
     if (!consequent || !alternate) return null;
     const merged = [...consequent, ...alternate];
     return merged.length > MAX_CLASS_COMBINATIONS ? null : merged;
   }
   if (node.type === "LogicalExpression") {
-    const right = classCombinations(node.right, seen);
+    const right = classCombinations(
+      node.right,
+      seen,
+      sourceCode,
+      seenVariables,
+    );
     if (!right) return null;
     if (node.operator === "&&") return ["", ...right];
-    const left = classCombinations(node.left, seen);
+    const left = classCombinations(node.left, seen, sourceCode, seenVariables);
     if (!left) return null;
     const merged = [...left, ...right];
     return merged.length > MAX_CLASS_COMBINATIONS ? null : merged;
@@ -174,7 +420,12 @@ function classCombinations(node, seen = new WeakSet()) {
     const children = Array.isArray(value) ? value : [value];
     for (const child of children) {
       if (!child || typeof child !== "object") continue;
-      const childCombos = classCombinations(child, seen);
+      const childCombos = classCombinations(
+        child,
+        seen,
+        sourceCode,
+        seenVariables,
+      );
       if (!childCombos) return null;
       combos = crossJoin(combos, childCombos);
       if (!combos) return null;
@@ -192,6 +443,8 @@ function makeClassStringRule({
   regex,
   baseline = new Map(),
   skipUiKit,
+  onlyUiKit = false,
+  skipFiles = [],
   docs,
   messageId,
   message,
@@ -208,6 +461,8 @@ function makeClassStringRule({
       if (!key.startsWith("src/")) return {};
       if (EXEMPT_FILE_RE.test(key)) return {};
       if (skipUiKit && key.startsWith(UI_KIT_DIR)) return {};
+      if (onlyUiKit && !key.startsWith(UI_KIT_DIR)) return {};
+      if (skipFiles.includes(key)) return {};
       const seenBaselineOccurrences = new Map();
       const check = (node, text) => {
         regex.lastIndex = 0;
@@ -330,11 +585,11 @@ const noHandRolledSurface = {
     type: "problem",
     docs: {
       description:
-        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`) outside the UI kit; use moto-content-surface, moto-popover-surface, ChoiceTile or a kit surface component (InfoCard, SectionCard).",
+        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`) outside the UI kit; use moto-content-surface, moto-popover-surface, ChoiceTile or a kit surface component (SectionCard).",
     },
     messages: {
       handRolledSurface:
-        "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), moto-popover-surface (floating menus), ChoiceTile (selectable rows and tiles) or a kit surface component (InfoCard, SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933).",
+        "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), moto-popover-surface (floating menus), ChoiceTile (selectable rows and tiles) or a kit surface component (SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933).",
     },
     schema: [],
   },
@@ -391,6 +646,405 @@ const noRounded3xl = makeClassStringRule({
     "rounded-3xl is off the brand radius scale. Cards/panels use rounded-2xl via moto-content-surface (see .claude/rules/frontend-ui-kit.md).",
 });
 
+const noShadcnTokens = makeClassStringRule({
+  regex: SHADCN_TOKEN_RE,
+  skipUiKit: false,
+  docs: "Disallow shadcn semantic colour tokens; the kit uses bg-white and the gray scale.",
+  messageId: "shadcnToken",
+  message:
+    "{{match}} is a shadcn theme token (slate, not the kit palette). Use bg-white / gray-* or a moto-* utility (see .claude/rules/frontend-ui-kit.md).",
+});
+
+const noRawZIndex = makeClassStringRule({
+  regex: RAW_Z_INDEX_RE,
+  skipUiKit: false,
+  onlyUiKit: true,
+  skipFiles: [Z_LAYER_FILE],
+  docs: "Disallow arbitrary z-index numbers in the UI kit; overlays take their level from Z_LAYER.",
+  messageId: "rawZIndex",
+  message:
+    "{{match}} is a stacking number of its own. Take the level from Z_LAYER / Z_INDEX in overlay-styles.ts, or add a named level there.",
+});
+
+// ui-kit/green-fill-white-text — auf einer deckend grünen Fläche steht weiße
+// Schrift, und zwar nur auf den dunklen Füllstufen (#5141). Zwei Fehlerbilder:
+// dunkle Schrift (gray-900/950, black) auf irgendeinem deckenden Grün, und
+// Weiß auf den hellen Grundtönen (moto-green 1,96:1, -hover 2,43:1, -light
+// 1,76:1, -active, -vivid 3,25:1), die WCAG AA verfehlen. Getönte Flächen
+// (bg-moto-green/10, -soft, -muted) tragen weiter dunkle oder grüne Schrift
+// und fallen nicht unter die Regel. Geprüft wird je Element: ein String und
+// jede gerenderte Kombination eines className-Ausdrucks.
+const CLASS_VARIANT = String.raw`(?:[^\s:]+:)*!?`;
+const classToken = (body) =>
+  new RegExp(String.raw`(?:^|\s)${CLASS_VARIANT}${body}!?(?=\s|$)`);
+const GREEN_OPAQUE_FILL_RE = classToken(
+  String.raw`bg-moto-green(?:-(?:hover|active|light|vivid|strong|fill|fill-hover|fill-active))?`,
+);
+const GREEN_LIGHT_FILL_RE = classToken(
+  String.raw`bg-moto-green(?:-(?:hover|active|light|vivid))?`,
+);
+const DARK_TEXT_RE = classToken(String.raw`text-(?:gray-(?:900|950)|black)`);
+const WHITE_TEXT_RE = classToken("text-white");
+
+function greenFillViolation(text) {
+  if (GREEN_OPAQUE_FILL_RE.test(text) && DARK_TEXT_RE.test(text)) {
+    return "darkText";
+  }
+  if (GREEN_LIGHT_FILL_RE.test(text) && WHITE_TEXT_RE.test(text)) {
+    return "whiteOnLightGreen";
+  }
+  return null;
+}
+
+const greenFillWhiteText = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Green fills carry white text on the dark fill steps (bg-moto-green-fill, -fill-hover, -fill-active); no dark text on opaque green, no white text on the light brand greens.",
+    },
+    messages: {
+      darkText:
+        'Dark text on an opaque green fill. Green surfaces carry white text: use bg-moto-green-fill text-white (hover:bg-moto-green-fill-hover, active:bg-moto-green-fill-active), or Button variant="success" (#5141).',
+      whiteOnLightGreen:
+        "White text on a light brand green misses WCAG AA (moto-green 1.96:1). Use bg-moto-green-fill (4.84:1) with hover:bg-moto-green-fill-hover and active:bg-moto-green-fill-active (#5141).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key)) return {};
+
+    const check = (node, text) => {
+      const messageId = greenFillViolation(text);
+      if (messageId) context.report({ node, messageId });
+    };
+
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        for (const quasi of node.quasis) {
+          check(node, quasi.value.raw);
+        }
+      },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some((chunk) => greenFillViolation(chunk))) {
+          return; // already reported by the Literal/TemplateLiteral visitors
+        }
+        const combos = classCombinations(node.value) ?? [chunks.join(" ")];
+        const rendered = combos.find((combo) => greenFillViolation(combo));
+        if (rendered !== undefined) check(node, rendered);
+      },
+    };
+  },
+};
+
+// ui-kit/no-dead-surface-utility — moto-content-surface und
+// moto-popover-surface stehen unlayered in globals.css und setzen
+// border-color, background und box-shadow (die Inhaltsfläche zusätzlich
+// backdrop-filter). Unlayered schlägt jede Tailwind-Utility aus
+// @layer utilities, egal mit welcher Spezifität oder Variante. Eine
+// Farb-, Hintergrund-, Schatten-, Ring- oder (nur Inhaltsfläche)
+// Backdrop-Utility am selben Element ist deshalb tot: Die Fehlerkarte „Link
+// ungültig“ blieb weiß statt rot, die verlinkte StatCard hob sich beim
+// Überfahren nicht (#5577). Eine bewusst stärkere Utility (`shadow-md!`)
+// gewinnt als !important und bleibt erlaubt. Hard-zero.
+const CONTENT_SURFACE_RE = /(?:^|\s)moto-content-surface(?=\s|$)/;
+const POPOVER_SURFACE_RE = /(?:^|\s)moto-popover-surface(?=\s|$)/;
+// Varianten vorne abtrennen; Klammergruppen (`has-[:focus-visible]:`) dürfen
+// selbst Doppelpunkte enthalten.
+const VARIANT_PREFIX_RE = /^(?:(?:\[[^\]]*\]|[^:[])+:)*/;
+const SURFACE_PAINT_RE =
+  /^(?:bg-.+|border(?:-[trblxyse])?-(?!(?:[trblxyse](?:-|$)|\d|\[\d|px$|solid$|dashed$|dotted$|double$|hidden$|none$|collapse$|separate$|spacing-)).+|(?:inset-)?shadow(?:-.+)?|(?:inset-)?ring(?:-.+)?)$/;
+const SURFACE_BACKDROP_RE = /^backdrop-.+$/;
+
+function deadSurfaceTokens(text) {
+  const content = CONTENT_SURFACE_RE.test(text);
+  if (!content && !POPOVER_SURFACE_RE.test(text)) return [];
+  return text.split(/\s+/).filter((token) => {
+    if (token === "" || token.endsWith("!")) return false;
+    const body = token.replace(VARIANT_PREFIX_RE, "");
+    if (body.startsWith("!")) return false;
+    return (
+      SURFACE_PAINT_RE.test(body) || (content && SURFACE_BACKDROP_RE.test(body))
+    );
+  });
+}
+
+const noDeadSurfaceUtility = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow colour, background, shadow, ring and backdrop utilities on the same element as moto-content-surface / moto-popover-surface; the unlayered surface class overrides them.",
+    },
+    messages: {
+      deadSurfaceUtility:
+        "'{{tokens}}' wirkt neben {{surface}} nicht: Die Fläche steht unlayered in globals.css und schlägt Rahmenfarbe, Hintergrund, Schatten, Ring und (Inhaltsfläche) Backdrop jeder Utility. Utility streichen, die Fläche weglassen, wenn das Element anders aussehen soll, oder bewusst mit `!` erzwingen (#5577).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key)) return {};
+    const sourceCode = context.sourceCode ?? context.getSourceCode();
+
+    const check = (node, text) => {
+      const tokens = deadSurfaceTokens(text);
+      if (tokens.length === 0) return;
+      context.report({
+        node,
+        messageId: "deadSurfaceUtility",
+        data: {
+          tokens: tokens.join(" "),
+          surface: CONTENT_SURFACE_RE.test(text)
+            ? "moto-content-surface"
+            : "moto-popover-surface",
+        },
+      });
+    };
+
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        for (const quasi of node.quasis) {
+          check(node, quasi.value.raw);
+        }
+      },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some((chunk) => deadSurfaceTokens(chunk).length > 0)) {
+          return; // already reported by the Literal/TemplateLiteral visitors
+        }
+        const combos = classCombinations(
+          node.value,
+          new WeakSet(),
+          sourceCode,
+        ) ?? [chunks.join(" ")];
+        const rendered = combos.find(
+          (combo) => deadSurfaceTokens(combo).length > 0,
+        );
+        if (rendered !== undefined) check(node, rendered);
+      },
+    };
+  },
+};
+
+// ui-kit/no-dynamic-color-class — Tailwind erzeugt nur Klassen, die als
+// ganzes Wort im Quelltext stehen. `text-${iconColor}` mit "blue-600" ergab
+// keine Klasse, das Symbol blieb in der Textfarbe (#5577). Farbklassen stehen
+// vollständig im Quelltext; ein Prop trägt die ganze Klasse oder einen Ton,
+// den eine statische Tabelle auf Klassen abbildet. Hard-zero.
+const DYNAMIC_COLOR_PREFIX_RE =
+  /(?:^|[\s"'])(?:(?:\[[^\]]*\]|[^\s:[])+:)*!?(?:text|bg|border(?:-[trblxyse])?|ring)-$/;
+
+const noDynamicColorClass = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow colour utilities assembled from a template expression (`text-${color}`); Tailwind only generates class names that appear whole in the source.",
+    },
+    messages: {
+      dynamicColorClass:
+        "'{{prefix}}${…}' wird zur Laufzeit zusammengesetzt; Tailwind erzeugt diese Klasse nicht. Die ganze Klasse in den Quelltext schreiben, z. B. über eine statische Tabelle Ton → Klasse (#5577).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key)) return {};
+    const sourceCode = context.sourceCode ?? context.getSourceCode();
+    const checkedTemplates = new WeakSet();
+
+    const check = (node) => {
+      if (checkedTemplates.has(node)) return;
+      checkedTemplates.add(node);
+      // Die letzte Quasi folgt auf keinen Ausdruck mehr.
+      for (const quasi of node.quasis.slice(0, -1)) {
+        const match = DYNAMIC_COLOR_PREFIX_RE.exec(quasi.value.raw);
+        if (!match) continue;
+        context.report({
+          node: quasi,
+          messageId: "dynamicColorClass",
+          data: { prefix: match[0].trim() },
+        });
+      }
+    };
+
+    return {
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const templates = [];
+        collectClassTemplateLiterals(node.value, templates, sourceCode);
+        for (const template of templates) check(template);
+      },
+    };
+  },
+};
+
+// ui-kit/no-white-on-warm-fill — Orange (SCHOOLYARD, #F78C10: 2,4:1) und
+// Amber (WARNING, #EAB308: 1,9:1) tragen keine weiße Schrift; WCAG AA
+// verlangt 4,5:1. Geprüft werden die Klassen bg-moto-orange(-hover) und
+// bg-moto-amber(-light) neben text-white sowie ein Inline-Hintergrund aus
+// LOCATION_COLORS.SCHOOLYARD / .WARNING oder MOTO_COLOR_PALETTE.orange /
+// .amber (base, hover, light) an einem Element mit text-white.
+// Weiße Schrift steht auf dem -strong-Ton (orange-strong 5,6:1), sonst
+// dunkle Schrift auf -soft (#5577). Hard-zero.
+const WARM_FILL_RE = classToken(
+  String.raw`bg-moto-(?:orange(?:-hover)?|amber(?:-light)?)`,
+);
+const WARM_LOCATION_KEYS = new Set(["SCHOOLYARD", "WARNING"]);
+
+const WARM_PALETTE_TONES = new Set(["orange", "amber"]);
+const WARM_PALETTE_STEPS = new Set(["base", "hover", "light"]);
+
+const memberName = (node) =>
+  node?.type === "MemberExpression" &&
+  !node.computed &&
+  node.property?.type === "Identifier"
+    ? node.property.name
+    : null;
+
+/** MOTO_COLOR_PALETTE.orange.base / .amber.light … */
+function isWarmPaletteColor(node) {
+  const tone = node?.object;
+  return (
+    WARM_PALETTE_STEPS.has(memberName(node)) &&
+    WARM_PALETTE_TONES.has(memberName(tone)) &&
+    tone.object?.type === "Identifier" &&
+    tone.object.name === "MOTO_COLOR_PALETTE"
+  );
+}
+
+function isWarmLocationColor(node) {
+  if (isWarmPaletteColor(node)) return true;
+  return (
+    node?.type === "MemberExpression" &&
+    !node.computed &&
+    node.object?.type === "Identifier" &&
+    node.object.name === "LOCATION_COLORS" &&
+    node.property?.type === "Identifier" &&
+    WARM_LOCATION_KEYS.has(node.property.name)
+  );
+}
+
+function hasWarmInlineBackground(openingElement) {
+  const style = jsxAttribute(openingElement, "style");
+  const expression =
+    style?.value?.type === "JSXExpressionContainer"
+      ? style.value.expression
+      : null;
+  if (expression?.type !== "ObjectExpression") return false;
+  return expression.properties.some((property) => {
+    if (property.type !== "Property") return false;
+    const name =
+      property.key.type === "Identifier"
+        ? property.key.name
+        : property.key.value;
+    return (
+      (name === "backgroundColor" || name === "background") &&
+      isWarmLocationColor(property.value)
+    );
+  });
+}
+
+const whiteOnWarmFill = (text) =>
+  WARM_FILL_RE.test(text) && WHITE_TEXT_RE.test(text);
+
+const noWhiteOnWarmFill = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow white text on the orange (SCHOOLYARD) and amber (WARNING) fills; both miss WCAG AA against white.",
+    },
+    messages: {
+      whiteOnWarmFill:
+        "Weiße Schrift auf Orange/Amber verfehlt WCAG AA (Orange 2,4:1, Amber 1,9:1). Weiß nur auf dem -strong-Ton (bg-moto-orange-strong 5,6:1), sonst dunkle -strong-Schrift auf -soft (#5577).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key)) return {};
+    const sourceCode = context.sourceCode ?? context.getSourceCode();
+
+    const check = (node, text) => {
+      if (whiteOnWarmFill(text)) {
+        context.report({ node, messageId: "whiteOnWarmFill" });
+      }
+    };
+
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        for (const quasi of node.quasis) {
+          check(node, quasi.value.raw);
+        }
+      },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some((chunk) => whiteOnWarmFill(chunk))) return;
+        const combos = classCombinations(
+          node.value,
+          new WeakSet(),
+          sourceCode,
+        ) ?? [chunks.join(" ")];
+        const rendered = combos.find((combo) => whiteOnWarmFill(combo));
+        if (rendered !== undefined) check(node, rendered);
+      },
+      JSXOpeningElement(node) {
+        if (!hasWarmInlineBackground(node)) return;
+        const className = jsxAttribute(node, "className");
+        if (!className?.value) return;
+        const chunks = [];
+        collectStaticStrings(className.value, chunks);
+        if (chunks.some((chunk) => WHITE_TEXT_RE.test(chunk))) {
+          context.report({ node, messageId: "whiteOnWarmFill" });
+        }
+      },
+    };
+  },
+};
+
 // ui-kit/no-tiny-text — Schrift unter 12 px (text-[9px], text-[10px],
 // text-[11px]) ist unter dem Typo-Boden des Portals: text-xs (12 px) ist die
 // Untergrenze und selbst die ist Versalien-Labels vorbehalten, nie Werten,
@@ -407,7 +1061,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/app/help/nfc/erste-schritte/page.tsx",
   "src/app/operator/provisioning/soft-delete-shared.tsx",
   "src/components/active-supervisions/planned-now-section.tsx",
-  "src/components/activities/activity-management-modal.tsx",
   "src/components/auth/role-permission-management-modal.tsx",
   "src/components/calendar/personal-calendar.tsx",
   "src/components/dashboard/header/reminders-bell.tsx",
@@ -464,45 +1117,44 @@ const TINY_TEXT_BASELINE = parseLocationBaseline(`
 src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@193
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1335 text-[11px]@1335 text-[10px]@1339 text-[10px]@1348 text-[11px]@1348
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
-src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@231 text-[11px]@271
-src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@230
+src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@232 text-[11px]@276
+src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@431
-src/components/activities/activity-management-modal.tsx|text-[10px]@313 text-[10px]@343 text-[10px]@381
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
-src/components/calendar/personal-calendar.tsx|text-[11px]@893 text-[11px]@921 text-[11px]@1008 text-[11px]@1069 text-[11px]@1073 text-[11px]@1079 text-[11px]@1126 text-[11px]@1132 text-[10px]@1152 text-[11px]@1205 text-[11px]@1285 text-[11px]@1296 text-[11px]@1301
-src/components/dashboard/header/reminders-bell.tsx|text-[11px]@42 text-[10px]@96
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@968 text-[11px]@987
-src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1465
+src/components/calendar/personal-calendar.tsx|text-[11px]@905 text-[11px]@933 text-[11px]@1020 text-[11px]@1081 text-[11px]@1089 text-[11px]@1095 text-[11px]@1142 text-[11px]@1148 text-[10px]@1168 text-[11px]@1221 text-[11px]@1301 text-[11px]@1312 text-[11px]@1317
+src/components/dashboard/header/reminders-bell.tsx|text-[11px]@43 text-[10px]@99
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@969 text-[11px]@988
+src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1469
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
-src/components/enrollment/phases-editor.tsx|text-[11px]@758 text-[11px]@763
-src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@293
+src/components/enrollment/phases-editor.tsx|text-[11px]@768 text-[11px]@773
+src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
-src/components/guardians/guardian-list.tsx|text-[10px]@376
-src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@741 text-[11px]@806
-src/components/parent/parent-enroll-picker.tsx|text-[11px]@227 text-[11px]@231
+src/components/guardians/guardian-list.tsx|text-[10px]@377
+src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@742 text-[11px]@807
+src/components/parent/parent-enroll-picker.tsx|text-[11px]@229 text-[11px]@233
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
-src/components/planning/closing-day-marker.tsx|text-[10px]@53
+src/components/planning/closing-day-marker.tsx|text-[10px]@54
 src/components/staff/absence-request-row.tsx|text-[11px]@107
-src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@480 text-[11px]@576 text-[11px]@585 text-[11px]@592 text-[10px]@726
+src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@484 text-[11px]@580 text-[11px]@589 text-[11px]@596 text-[10px]@730
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
-src/components/students/care-schedule-manager.tsx|text-[10px]@1223 text-[11px]@1384 text-[11px]@1473 text-[11px]@1483 text-[11px]@1513
-src/components/students/planned-status-days-modal.tsx|text-[10px]@927 text-[11px]@927
-src/components/students/school-checkin-fab.tsx|text-[10px]@198
+src/components/students/care-schedule-manager.tsx|text-[10px]@1231 text-[11px]@1392 text-[11px]@1481 text-[11px]@1491 text-[11px]@1521
+src/components/students/planned-status-days-modal.tsx|text-[10px]@937 text-[11px]@937
+src/components/students/school-checkin-fab.tsx|text-[10px]@199
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
-src/components/time-tracking/leave-requests-card.tsx|text-[10px]@542
-src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@372
+src/components/time-tracking/leave-requests-card.tsx|text-[10px]@543
+src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@373
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@481 text-[11px]@525
-src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
-src/components/timetable/event-form/step-termin.tsx|text-[10px]@163 text-[11px]@233 text-[11px]@266 text-[11px]@343 text-[11px]@349 text-[11px]@397
+src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@299 text-[11px]@305
+src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@299 text-[10px]@338 text-[10px]@345 text-[10px]@355
-src/components/timetable/instance-detail-modal.tsx|text-[10px]@294 text-[9px]@414 text-[9px]@1025 text-[11px]@1325 text-[11px]@1351 text-[11px]@1527 text-[10px]@1636 text-[11px]@1659
-src/components/timetable/month-planner-grid.tsx|text-[11px]@65 text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[9px]@203 text-[10px]@237
-src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@200 text-[10px]@216 text-[11px]@225 text-[10px]@267 text-[10px]@291 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
-src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@396 text-[11px]@461
+src/components/timetable/instance-detail-modal.tsx|text-[10px]@325 text-[9px]@445 text-[9px]@1079 text-[11px]@1393 text-[11px]@1419 text-[11px]@1595 text-[10px]@1704 text-[11px]@1727
+src/components/timetable/month-planner-grid.tsx|text-[11px]@66 text-[11px]@142 text-[11px]@151 text-[11px]@172 text-[9px]@204 text-[10px]@238
+src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@201 text-[10px]@217 text-[11px]@226 text-[10px]@268 text-[10px]@292 text-[10px]@365 text-[10px]@379 text-[10px]@391 text-[11px]@399 text-[11px]@406
+src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@404 text-[11px]@471
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
-src/components/timetable/substitution-slide-over.tsx|text-[10px]@578 text-[9px]@583 text-[11px]@742 text-[11px]@746 text-[10px]@786 text-[10px]@790 text-[10px]@794 text-[10px]@798 text-[11px]@1240
-src/components/timetable/template-card.tsx|text-[11px]@119 text-[11px]@131 text-[10px]@174
+src/components/timetable/substitution-slide-over.tsx|text-[10px]@579 text-[9px]@584 text-[11px]@743 text-[11px]@747 text-[10px]@787 text-[10px]@791 text-[10px]@795 text-[10px]@799 text-[11px]@1241
+src/components/timetable/template-card.tsx|text-[11px]@129 text-[11px]@143 text-[10px]@207
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@400 text-[9px]@416 text-[10px]@479 text-[11px]@479 text-[11px]@484 text-[10px]@507 text-[10px]@542 text-[11px]@542
@@ -566,10 +1218,11 @@ const noTenantKicker = {
 // einer eigenen Klassenkette. Für jede Form gibt es ein Kit-Bauteil:
 // SectionCard (Fläche mit oder ohne Kopf), TileCard (anklickbare Kachel),
 // StatCard (Kennzahl), TenantPageHeaderSkeleton (Ladezustand). Die Regel
-// greift nur in Seitendateien des Tenant-Portals — Kit- und
-// Komponentendateien dürfen die Fläche definieren, sie sind die Quelle.
+// greift nur in Seitendateien des Tenant- und des Träger-Portals (#5146) —
+// Kit- und Komponentendateien dürfen die Fläche definieren, sie sind die
+// Quelle.
 const TENANT_PAGE_FILE_RE =
-  /app\/\[tenant\]\/\(protected\)\/(?:.*\/)?(page|loading)\.tsx$/;
+  /app\/(?:\[tenant\]\/\(protected\)|traeger)\/(?:.*\/)?(page|loading)\.tsx$/;
 // Nur die KARTE ist gemeint: `moto-content-surface` zusammen mit dem
 // Kartenradius. Dieselbe Klasse an einer Pille oder einem Auswahlfeld
 // (rounded-full, h-9) ist eine Bedienfläche und bleibt erlaubt.
@@ -933,17 +1586,702 @@ const requireCheckboxLabel = {
   },
 };
 
+// --- ui-kit/no-raw-input ----------------------------------------------------
+
+// A native input that has no kit counterpart: a value carried in the form
+// (`hidden`) and the file dialog a kit button opens (`file`).
+const NATIVE_INPUT_TYPES = new Set(["hidden", "file"]);
+
+function staticInputType(openingElement) {
+  const attribute = openingElement.attributes.find(
+    (candidate) =>
+      candidate.type === "JSXAttribute" &&
+      candidate.name.type === "JSXIdentifier" &&
+      candidate.name.name === "type",
+  );
+  const value = attribute?.value;
+  if (value?.type === "Literal") return String(value.value);
+  if (
+    value?.type === "JSXExpressionContainer" &&
+    value.expression.type === "Literal"
+  ) {
+    return String(value.expression.value);
+  }
+  return null;
+}
+
+const noRawInput = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Build form fields from the kit instead of a hand-styled <input>.",
+    },
+    messages: {
+      rawInput:
+        'Kein eigenes <input>. Input, Checkbox, Radio, TimeField, ConsentCheckbox oder ColorSwatchInput aus ~/components/ui nehmen (#5217, .claude/rules/frontend-ui-kit.md). Nur type="hidden" und type="file" bleiben nativ.',
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    // Test mocks stand in for a kit control and render its native input.
+    if (
+      EXEMPT_FILE_RE.test(key) ||
+      key.includes(UI_KIT_DIR) ||
+      key.includes("src/test/")
+    ) {
+      return {};
+    }
+    return {
+      JSXOpeningElement(node) {
+        if (jsxName(node.name) !== "input") return;
+        if (NATIVE_INPUT_TYPES.has(staticInputType(node) ?? "")) return;
+        context.report({ node, messageId: "rawInput" });
+      },
+    };
+  },
+};
+
+// --- ui-kit/no-hand-rolled-button + ui-kit/no-button-override (#5531) ------
+//
+// Jede Aktion nutzt Button, ButtonLink oder buttonClassName aus dem Kit.
+//
+//   no-hand-rolled-button — natives <button>, <a>, <Link>, <NavLink>,
+//     <NavigationLink> oder ein Element mit role="button", das wie ein Knopf
+//     aussieht: Hintergrund- oder Ring-/Rahmenfarbe plus Radius plus Polster
+//     oder Höhe, jeweils ohne Zustandspräfix.
+//   no-button-override — className an Button/ButtonLink oder in
+//     buttonClassName({ className }) mit Maß- oder Optik-Klassen (Höhe,
+//     Mindesthöhe, Polster, Radius, Schriftgröße/-gewicht, Hintergrund, Text-,
+//     Ring- und Schattenfarbe, scale). Reine Layout-Klassen bleiben erlaubt.
+//
+// Ein Fund je Element. Die Zahl je Datei steht in ui-kit-button-baseline.json
+// (Ist-Stand, shrink-only: mehr Funde schlagen hier fehl; dass die Baseline
+// nach einem Abbau gesenkt wird, prüft oxlint-plugin-ui-kit.test.ts über
+// `ui-kit-button-baseline-update.mjs --check`). Bewusste Ausnahmen stehen mit Begründung in der
+// Allowlist in ui-kit-button-baseline.mjs. Neu erzeugen:
+// `pnpm run ui-kit:button-baseline`.
+
+const BUTTON_KIT_FILE = "src/components/ui/button.tsx";
+const NATIVE_ACTION_ELEMENTS = new Set([
+  "button",
+  "a",
+  "Link",
+  "NavLink",
+  "NavigationLink",
+]);
+const KIT_BUTTONS = new Set(["Button", "ButtonLink"]);
+const KIT_BUTTON_EXPORTS = new Set(["Button", "ButtonLink", "buttonClassName"]);
+const ACTION_COMPONENTS = new Set(["Link", "NavLink", "NavigationLink"]);
+const DEFAULT_ACTION_COMPONENTS = new Map([
+  ["next/link", "Link"],
+  ["~/components/ui/nav-link", "NavLink"],
+  ["~/components/ui/navigation-link", "NavigationLink"],
+]);
+
+// A colour value: a palette step (`gray-200`, `moto-red/20`), a named colour or
+// an arbitrary colour. Positive on purpose: `border-b-2`, `border-l-4` and
+// `bg-opacity-50` name a side, a width or an opacity, not a colour.
+const COLOUR_VALUE = String.raw`(?:(?!opacity-)[a-z]+(?:-[a-z]+)*-\d{2,3}|moto-[\w-]+|white|black|current|\[(?:#|rgb|hsl|oklch|color)[^\]]*\])(?:\/[\w.[\]]+)?$`;
+const BG_COLOR_RE = new RegExp(String.raw`^bg-${COLOUR_VALUE}`);
+const FRAME_COLOR_RE = new RegExp(
+  String.raw`^(?:ring|border(?:-[xytblrse])?)-${COLOUR_VALUE}`,
+);
+const RADIUS_RE = /^rounded(?:-(?!none$)[\w[\]./-]+)?$/;
+const BOX_RE = /^(?:p|px|py|pt|pb|pl|pr|ps|pe|h|min-h|size)-/;
+
+const OVERRIDE_RES = [
+  /^-?(?:p|px|py|pt|pb|pl|pr|ps|pe|h|min-h|max-h|size)-/,
+  /^rounded/,
+  /^text-(?:xs|sm|base|lg|xl|\d+xl|\[\d)/,
+  /^text-(?!(?:left|center|right|justify|start|end|wrap|nowrap|balance|pretty|ellipsis|clip)$)[a-z]/,
+  /^font-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black)$/,
+  /^bg-(?!none$)/,
+  /^ring(?:$|-)/,
+  /^shadow(?:$|-)/,
+  /^-?scale-/,
+];
+
+/** `md:hover:!bg-x` → `bg-x` */
+function bareToken(token) {
+  return token.replace(/^(?:[^\s:]+:)+/, "").replace(/^!/, "");
+}
+
+function unprefixedTokens(text) {
+  return text.split(/\s+/).filter((token) => token && !token.includes(":"));
+}
+
+function hasButtonOptics(text) {
+  const tokens = unprefixedTokens(text).map((token) => token.replace(/^!/, ""));
+  const colour = tokens.some(
+    (token) => BG_COLOR_RE.test(token) || FRAME_COLOR_RE.test(token),
+  );
+  return (
+    colour &&
+    tokens.some((token) => RADIUS_RE.test(token)) &&
+    tokens.some((token) => BOX_RE.test(token))
+  );
+}
+
+function overrideTokens(text) {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) => OVERRIDE_RES.some((re) => re.test(bareToken(token))));
+}
+
+function jsxAttribute(openingElement, name) {
+  return openingElement.attributes.find(
+    (attribute) =>
+      attribute.type === "JSXAttribute" &&
+      attribute.name.type === "JSXIdentifier" &&
+      attribute.name.name === name,
+  );
+}
+
+function staticAttributeValue(attribute) {
+  const value = attribute?.value;
+  if (value?.type === "Literal") return String(value.value);
+  if (
+    value?.type === "JSXExpressionContainer" &&
+    value.expression.type === "Literal"
+  ) {
+    return String(value.expression.value);
+  }
+  return null;
+}
+
+/**
+ * Static class text of an expression. Same-file constants (`const chip =
+ * "…"`) are followed one level, so a class chain moved into a variable still
+ * counts. `buttonClassName(…)` is the kit itself and contributes nothing here;
+ * its className goes through no-button-override.
+ */
+function classText(node, constants) {
+  const chunks = [];
+  const visit = (current, depth) => {
+    if (!current || typeof current !== "object") return;
+    if (
+      current.type === "CallExpression" &&
+      current.callee?.type === "Identifier" &&
+      current.callee.name === "buttonClassName"
+    ) {
+      return;
+    }
+    if (current.type === "Identifier" && depth < 2) {
+      const init = constants.get(current.name);
+      if (init) visit(init, depth + 1);
+      return;
+    }
+    if (current.type === "Literal") {
+      if (typeof current.value === "string") chunks.push(current.value);
+      return;
+    }
+    if (current.type === "TemplateElement") {
+      chunks.push(current.value.raw);
+      return;
+    }
+    for (const [key, value] of Object.entries(current)) {
+      if (key === "parent" || key === "loc" || key === "range") continue;
+      if (Array.isArray(value)) {
+        for (const child of value) visit(child, depth);
+      } else if (value && typeof value === "object") {
+        visit(value, depth);
+      }
+    }
+  };
+  visit(node, 0);
+  return chunks.join(" ");
+}
+
+function classNameProperty(objectExpression) {
+  if (objectExpression?.type !== "ObjectExpression") return null;
+  return (
+    objectExpression.properties.find(
+      (property) =>
+        property.type === "Property" &&
+        ((property.key.type === "Identifier" &&
+          property.key.name === "className") ||
+          (property.key.type === "Literal" &&
+            property.key.value === "className")),
+    )?.value ?? null
+  );
+}
+
+function buttonRatchetImports(node, bindings) {
+  const source =
+    node.source.type === "Literal" ? String(node.source.value) : "";
+  const defaultAction = DEFAULT_ACTION_COMPONENTS.get(source);
+  for (const specifier of node.specifiers) {
+    if (specifier.type === "ImportDefaultSpecifier" && defaultAction) {
+      bindings.actionComponents.add(specifier.local.name);
+      if (NAVIGATION_ROWS.has(defaultAction)) {
+        bindings.navigationRows.add(specifier.local.name);
+      }
+      continue;
+    }
+    if (specifier.type !== "ImportSpecifier") continue;
+    const imported =
+      specifier.imported.type === "Identifier"
+        ? specifier.imported.name
+        : String(specifier.imported.value);
+    if (ACTION_COMPONENTS.has(imported)) {
+      bindings.actionComponents.add(specifier.local.name);
+    }
+    if (NAVIGATION_ROWS.has(imported)) {
+      bindings.navigationRows.add(specifier.local.name);
+    }
+    if (KIT_BUTTON_EXPORTS.has(imported)) {
+      if (imported === "buttonClassName") {
+        bindings.buttonClassNames.add(specifier.local.name);
+      } else {
+        bindings.kitButtons.add(specifier.local.name);
+      }
+    }
+  }
+}
+
+function splitAllowlistedFindings(rule, key, findings) {
+  const allowances = new Map();
+  for (const entry of buttonRatchetAllowlist) {
+    if (entry.rule !== rule || entry.file !== key) continue;
+    for (const line of entry.lines) {
+      allowances.set(line, (allowances.get(line) ?? 0) + 1);
+    }
+  }
+  const remaining = [];
+  let allowlisted = 0;
+  for (const node of findings) {
+    const line = node.loc?.start.line;
+    const count = allowances.get(line) ?? 0;
+    if (count > 0) {
+      allowances.set(line, count - 1);
+      allowlisted += 1;
+    } else {
+      remaining.push(node);
+    }
+  }
+  return { allowlisted, remaining };
+}
+
+/**
+ * Collects findings per file and compares the total with allowlist plus
+ * baseline at Program:exit. With UI_KIT_BUTTON_RATCHET=count every finding
+ * is reported on its own; the baseline generator subtracts the allowlist.
+ */
+function makeButtonRatchetRule({ ruleName, description, message, detect }) {
+  return {
+    meta: {
+      type: "problem",
+      docs: { description },
+      messages: {
+        finding: message,
+        overBaseline: `${message} Diese Datei hat {{found}} Funde, erlaubt sind {{allowed}} (Allowlist {{allowlisted}} + Baseline {{baseline}}).`,
+      },
+      schema: [],
+    },
+    create(context) {
+      const key = fileKey(context);
+      if (
+        EXEMPT_FILE_RE.test(key) ||
+        key.endsWith(BUTTON_KIT_FILE) ||
+        key.includes("src/test/")
+      ) {
+        return {};
+      }
+      const constants = new Map();
+      const bindings = {
+        actionComponents: new Set(ACTION_COMPONENTS),
+        buttonClassNames: new Set(["buttonClassName"]),
+        kitButtons: new Set(KIT_BUTTONS),
+        navigationRows: new Set(NAVIGATION_ROWS),
+      };
+      const findings = [];
+      const countMode = process.env.UI_KIT_BUTTON_RATCHET === "count";
+      return {
+        Program(node) {
+          for (const statement of node.body) {
+            if (statement.type === "ImportDeclaration") {
+              buttonRatchetImports(statement, bindings);
+            }
+          }
+        },
+        VariableDeclarator(node) {
+          if (node.id?.type === "Identifier" && node.init) {
+            constants.set(node.id.name, node.init);
+          }
+        },
+        ...detect({
+          classText: (node) => classText(node, constants),
+          found: (node) => findings.push(node),
+          bindings,
+        }),
+        "Program:exit"() {
+          const { allowlisted, remaining } = splitAllowlistedFindings(
+            ruleName,
+            key,
+            findings,
+          );
+          const baseline = buttonRatchetBaseline[ruleName]?.[key] ?? 0;
+          const allowed = allowlisted + baseline;
+          if (countMode) {
+            for (const node of findings) {
+              context.report({ node, messageId: "finding" });
+            }
+            return;
+          }
+          if (remaining.length > baseline) {
+            for (const node of remaining) {
+              context.report({
+                node,
+                messageId: allowed === 0 ? "finding" : "overBaseline",
+                data: {
+                  found: String(remaining.length + allowlisted),
+                  allowed: String(allowed),
+                  allowlisted: String(allowlisted),
+                  baseline: String(baseline),
+                },
+              });
+            }
+          }
+        },
+      };
+    },
+  };
+}
+
+const noHandRolledButton = makeButtonRatchetRule({
+  ruleName: "no-hand-rolled-button",
+  description:
+    "Build actions from Button, ButtonLink or buttonClassName instead of a hand-styled native element.",
+  message:
+    "Kein eigener Knopf: Button, ButtonLink oder buttonClassName aus ~/components/ui/button nehmen (#5531, .claude/rules/frontend-ui-kit.md).",
+  detect: ({ classText: textOf, found, bindings }) => ({
+    JSXOpeningElement(node) {
+      const name = jsxName(node.name);
+      const isAction =
+        NATIVE_ACTION_ELEMENTS.has(name ?? "") ||
+        bindings.actionComponents.has(name ?? "") ||
+        staticAttributeValue(jsxAttribute(node, "role")) === "button";
+      if (!isAction) return;
+      const className = jsxAttribute(node, "className");
+      if (!className?.value) return;
+      if (hasButtonOptics(textOf(className.value))) found(node);
+    },
+  }),
+});
+
+const noButtonOverride = makeButtonRatchetRule({
+  ruleName: "no-button-override",
+  description:
+    "Keep size and look of kit buttons in the kit; className carries layout only.",
+  message:
+    "Kein Maß oder Aussehen am Kit-Knopf: Größe und Variante wählen, className nur für Layout (w-full, flex-1, gap-*, mt-*, shrink-0, self-*, hidden md:flex …) (#5531, .claude/rules/frontend-ui-kit.md).",
+  detect: ({ classText: textOf, found, bindings }) => ({
+    JSXOpeningElement(node) {
+      if (!bindings.kitButtons.has(jsxName(node.name) ?? "")) return;
+      const className = jsxAttribute(node, "className");
+      if (!className?.value) return;
+      if (overrideTokens(textOf(className.value)).length > 0) found(node);
+    },
+    CallExpression(node) {
+      if (
+        node.callee?.type !== "Identifier" ||
+        !bindings.buttonClassNames.has(node.callee.name)
+      ) {
+        return;
+      }
+      const value = classNameProperty(node.arguments[0]);
+      if (value && overrideTokens(textOf(value)).length > 0) found(node);
+    },
+  }),
+});
+
+// --- ui-kit/no-grey-button-fill (#5574) -------------------------------------
+//
+// Knöpfe sind weiß (outline, surface, ghost), schwarz (primary) oder farbig.
+// Ein hellgrau gefüllter Ruhezustand (bg-gray-100 bis -300) passt in keine
+// Rangstufe und stand oft in zweitem Grauton neben einem anderen. Die Regel
+// prüft jedes Element, das no-hand-rolled-button oder no-button-override
+// prüft, auch in Ternär-Zweigen und Konstanten derselben Datei. Zustände
+// (hover:, active:, aria-pressed:) dürfen grau tönen. Keine Knöpfe in diesem
+// Sinn (frontend-ui-kit.md, Buttons): Schalter, Reiter, Menü- und
+// Auswahleinträge (role), Navigationszeilen (aria-current, NavLink,
+// NavigationLink) und die Spur eines SegmentedControl. Hart null: keine
+// Baseline; begründete Ausnahmen in der Allowlist (ui-kit-button-baseline.mjs).
+
+const GREY_REST_FILL_RE = /^bg-gray-[123]00(?:\/[\w.[\]]+)?$/;
+const NOT_BUTTON_ROLES = new Set([
+  "switch",
+  "tab",
+  "menuitem",
+  "menuitemradio",
+  "menuitemcheckbox",
+  "option",
+  "radio",
+]);
+const NAVIGATION_ROWS = new Set(["NavLink", "NavigationLink"]);
+
+function isNavigationOrControl(node, name, bindings) {
+  const role = staticAttributeValue(jsxAttribute(node, "role"));
+  if (role && NOT_BUTTON_ROLES.has(role)) return true;
+  if (
+    jsxAttribute(node, "aria-pressed") ||
+    jsxAttribute(node, "aria-selected")
+  ) {
+    return true;
+  }
+  if (jsxAttribute(node, "aria-current")) return true;
+  return bindings.navigationRows.has(name);
+}
+
+const INTERACTION_STATE_VARIANTS = new Set([
+  "active",
+  "autofill",
+  "checked",
+  "disabled",
+  "enabled",
+  "focus",
+  "focus-visible",
+  "focus-within",
+  "hover",
+  "indeterminate",
+  "invalid",
+  "open",
+  "placeholder-shown",
+  "read-only",
+  "required",
+  "target",
+  "user-invalid",
+  "user-valid",
+  "valid",
+  "visited",
+]);
+
+function isInteractionStateVariant(variant) {
+  return (
+    INTERACTION_STATE_VARIANTS.has(variant) ||
+    /^(?:aria|data|group|has|peer)-/.test(variant)
+  );
+}
+
+function hasGreyRestFill(text) {
+  return text.split(/\s+/).some((token) => {
+    const variants = token.split(":");
+    const hasInteractionState = variants
+      .slice(0, -1)
+      .some(isInteractionStateVariant);
+    return (
+      token && !hasInteractionState && GREY_REST_FILL_RE.test(bareToken(token))
+    );
+  });
+}
+
+const noGreyButtonFill = makeButtonRatchetRule({
+  ruleName: "no-grey-button-fill",
+  description:
+    "Disallow a light-grey resting fill on buttons; neutral actions are outline, surface or ghost.",
+  message:
+    "Kein hellgrauer Knopf: neutrale Aktionen sind outline, surface oder ghost, die Hauptaktion primary, Löschen outline_danger oder danger (#5574, .claude/rules/frontend-ui-kit.md).",
+  detect: ({ classText: textOf, found, bindings }) => ({
+    JSXOpeningElement(node) {
+      const name = jsxName(node.name) ?? "";
+      const isAction =
+        NATIVE_ACTION_ELEMENTS.has(name) ||
+        bindings.actionComponents.has(name) ||
+        bindings.kitButtons.has(name) ||
+        staticAttributeValue(jsxAttribute(node, "role")) === "button";
+      if (!isAction || isNavigationOrControl(node, name, bindings)) return;
+      const className = jsxAttribute(node, "className");
+      if (!className?.value) return;
+      if (hasGreyRestFill(textOf(className.value))) found(node);
+    },
+    CallExpression(node) {
+      if (
+        node.callee?.type !== "Identifier" ||
+        !bindings.buttonClassNames.has(node.callee.name)
+      ) {
+        return;
+      }
+      const value = classNameProperty(node.arguments[0]);
+      if (value && hasGreyRestFill(textOf(value))) found(node);
+    },
+  }),
+});
+
+// --- ui-kit/no-important-override + ui-kit/no-section-card-bleed (#5581) ---
+//
+// Fehlt einer Kit-Komponente eine Prop, wird sie im Kit ergänzt, nicht von
+// außen mit `!` überstimmt (`<SectionCard className="!p-0">`). Die Regel
+// prüft jedes className-Attribut (auch bodyClassName, titleClassName …) an
+// Elementen, die aus ~/components/ui/ importiert sind. Button und ButtonLink
+// gehören der Button-Ratsche (no-button-override) mit ihrer Baseline.
+//
+// no-section-card-bleed fällt auf einen Negativrand im bodyClassName einer
+// SectionCard: `-mx-5 -mb-5` hob das Kartenpolster für einen randlosen Rumpf
+// wieder auf und stimmte auf dem Telefon (16 px Polster) schon nicht mehr.
+// Dafür gibt es `flush` und `footer`. Hart null.
+//
+// no-important-override startet mit einer shrink-only Baseline je Datei
+// (ui-kit-important-override-baseline.mjs).
+
+const KIT_IMPORT_RE = /^(?:~|@)\/components\/ui\//;
+const IMPORTANT_OWNED_ELSEWHERE = new Set(["Button", "ButtonLink"]);
+const NEGATIVE_MARGIN_RE = /^-m[xytrblse]?-/;
+
+function kitComponentNames(program) {
+  const names = new Set();
+  for (const statement of program.body) {
+    if (statement.type !== "ImportDeclaration") continue;
+    const source =
+      statement.source.type === "Literal" ? String(statement.source.value) : "";
+    if (!KIT_IMPORT_RE.test(source)) continue;
+    for (const specifier of statement.specifiers) {
+      if (specifier.type === "ImportNamespaceSpecifier") continue;
+      const imported =
+        specifier.type === "ImportSpecifier"
+          ? specifier.imported.type === "Identifier"
+            ? specifier.imported.name
+            : String(specifier.imported.value)
+          : "default";
+      if (IMPORTANT_OWNED_ELSEWHERE.has(imported)) continue;
+      names.add(specifier.local.name);
+    }
+  }
+  return names;
+}
+
+/** Utility without its variant prefixes (`md:hover:!p-0` → `!p-0`). */
+function bareUtility(token) {
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < token.length; index += 1) {
+    const char = token[index];
+    if (char === "[") depth += 1;
+    else if (char === "]") depth -= 1;
+    else if (char === ":" && depth === 0) start = index + 1;
+  }
+  return token.slice(start);
+}
+
+function isImportantUtility(token) {
+  const utility = bareUtility(token);
+  if (utility.length < 2) return false;
+  return (
+    (utility.startsWith("!") && /^[-a-z[]/.test(utility.slice(1))) ||
+    (utility.endsWith("!") && /^-?[a-z]/.test(utility))
+  );
+}
+
+function classAttributes(node) {
+  return node.attributes.filter(
+    (attribute) =>
+      attribute.type === "JSXAttribute" &&
+      attribute.name.type === "JSXIdentifier" &&
+      /^(?:className|[a-z]\w*ClassName)$/.test(attribute.name.name) &&
+      attribute.value,
+  );
+}
+
+function makeKitClassRule({
+  description,
+  messageId,
+  message,
+  detect,
+  baseline = {},
+}) {
+  return {
+    meta: {
+      type: "problem",
+      docs: { description },
+      messages: { [messageId]: message },
+      schema: [],
+    },
+    create(context) {
+      const key = fileKey(context);
+      if (EXEMPT_FILE_RE.test(key) || key.includes("src/test/")) return {};
+      const constants = new Map();
+      const findings = [];
+      let kitNames = new Set();
+      return {
+        Program(node) {
+          kitNames = kitComponentNames(node);
+        },
+        "Program:exit"() {
+          // count: jeden Fund melden, damit der Test die Baseline gegen den
+          // Ist-Stand prüfen kann (shrink-only, wie bei der Button-Ratsche).
+          const countMode = process.env.UI_KIT_IMPORTANT_OVERRIDE === "count";
+          if (!countMode && findings.length <= (baseline[key] ?? 0)) return;
+          for (const node of findings) context.report({ node, messageId });
+        },
+        VariableDeclarator(node) {
+          if (node.id?.type === "Identifier" && node.init) {
+            constants.set(node.id.name, node.init);
+          }
+        },
+        JSXOpeningElement(node) {
+          const name = jsxName(node.name);
+          if (!name || !kitNames.has(name)) return;
+          for (const attribute of classAttributes(node)) {
+            const tokens = classText(attribute.value, constants)
+              .split(/\s+/)
+              .filter(Boolean);
+            if (detect({ name, attribute: attribute.name.name, tokens })) {
+              findings.push(attribute);
+            }
+          }
+        },
+      };
+    },
+  };
+}
+
+const noImportantOverride = makeKitClassRule({
+  description:
+    "Do not override a kit component with important utilities; add the missing prop to the kit.",
+  messageId: "important",
+  message:
+    'Kein `!` an einer Kit-Komponente: die fehlende Prop im Kit ergänzen (SectionCard: padding="none", flush, footer) statt sie von außen zu überstimmen (#5581, .claude/rules/frontend-ui-kit.md).',
+  detect: ({ tokens }) => tokens.some(isImportantUtility),
+  baseline: importantOverrideBaseline,
+});
+
+const noSectionCardBleed = makeKitClassRule({
+  description:
+    "Do not undo the SectionCard padding with negative margins; use flush or footer.",
+  messageId: "bleed",
+  message:
+    "Kein Negativrand im Rumpf einer SectionCard: `flush` lässt den Rumpf bis an die Kante laufen, `footer` ergibt eine randlose Fußzone (#5581).",
+  detect: ({ name, attribute, tokens }) =>
+    name === "SectionCard" &&
+    attribute === "bodyClassName" &&
+    tokens.some((token) => NEGATIVE_MARGIN_RE.test(bareUtility(token))),
+});
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
+    "green-fill-white-text": greenFillWhiteText,
+    "no-button-override": noButtonOverride,
+    "no-dead-surface-utility": noDeadSurfaceUtility,
+    "no-dynamic-color-class": noDynamicColorClass,
     "no-generic-brand-colors": noGenericBrandColors,
+    "no-grey-button-fill": noGreyButtonFill,
+    "no-hand-rolled-button": noHandRolledButton,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
     "no-hand-rolled-surface": noHandRolledSurface,
+    "no-important-override": noImportantOverride,
+    "no-raw-input": noRawInput,
+    "no-raw-z-index": noRawZIndex,
     "no-rounded-3xl": noRounded3xl,
+    "no-section-card-bleed": noSectionCardBleed,
+    "no-shadcn-tokens": noShadcnTokens,
     "no-tenant-kicker": noTenantKicker,
     "no-tabs-as-value-switcher": noTabsAsValueSwitcher,
     "no-tiny-text": noTinyText,
+    "no-white-on-warm-fill": noWhiteOnWarmFill,
     "require-checkbox-label": requireCheckboxLabel,
   },
 };

@@ -21,10 +21,10 @@ import {
   prepareStudentForBackend,
 } from "~/lib/student-helpers";
 import {
+  DEFAULT_PRIVACY_CONSENT,
   fetchPrivacyConsent,
   updatePrivacyConsent,
 } from "~/lib/student-privacy-helpers";
-
 /**
  * Detail key the student PUT sets when it failed AFTER the consent write of the
  * same request had already committed. The two writes are separate backend
@@ -109,7 +109,7 @@ interface StudentResponseFromBackend {
  */
 export const GET = createGetHandler(
   async (
-    _request: NextRequest,
+    request: NextRequest,
     token: string,
     params: Record<string, unknown>,
   ) => {
@@ -120,9 +120,13 @@ export const GET = createGetHandler(
     }
 
     try {
-      // Fetch student from backend API
-      // Using unknown type and will validate structure
-      const response = await apiGet<unknown>(`/api/students/${id}`, token);
+      // Aggregate at the tenant-scoped backend projection: one read-budget
+      // unit, including failed child lookups, and no BFF consent waterfall.
+      const response = await apiGet<unknown>(
+        `/api/students/${id}?include_privacy_consent=true`,
+        token,
+        { signal: request.signal },
+      );
 
       // Type guard to check response structure
       if (!response || typeof response !== "object" || !("data" in response)) {
@@ -151,6 +155,7 @@ export const GET = createGetHandler(
           email?: string;
           role: string;
         }>;
+        privacy_consent?: { accepted: boolean; data_retention_days: number };
         [key: string]: unknown;
       }
 
@@ -194,8 +199,13 @@ export const GET = createGetHandler(
         studentData as unknown as BackendStudent,
       );
 
-      // Fetch privacy consent data using helper
-      const consentData = await fetchPrivacyConsent(id, apiGet, token);
+      const consentData = studentData.privacy_consent
+        ? {
+            privacy_consent_accepted: studentData.privacy_consent.accepted,
+            data_retention_days:
+              studentData.privacy_consent.data_retention_days,
+          }
+        : DEFAULT_PRIVACY_CONSENT;
 
       return {
         ...mappedStudent,

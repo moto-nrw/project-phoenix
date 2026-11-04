@@ -7,6 +7,7 @@
 // dieselbe Zeile; die Zeile ist der einzige Ort, an dem eine Abweichung vom
 // üblichen Plan sichtbar wird.
 
+import NavigationLink from "~/components/ui/navigation-link";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
@@ -60,18 +61,27 @@ export interface StudentRowMorning {
   readonly disabled?: boolean;
 }
 
+/**
+ * Adresse der Beobachtungen der OGS zu einem Kind (#4797), nur für die
+ * Lehrkraft der Klasse. Ohne Adresse zeigt die Zeile keinen Link.
+ */
+export type SharedNotesHref = (row: ClassDayRow) => string | undefined;
+
 export function StudentRow({
   row,
   enrollmentKnown,
   now,
   morning,
+  sharedNotesHref,
 }: {
   readonly row: ClassDayRow;
   readonly enrollmentKnown: boolean;
   readonly now: Date;
   readonly morning?: StudentRowMorning;
+  readonly sharedNotesHref?: SharedNotesHref;
 }) {
   const detail = rowDetailLine(row, enrollmentKnown);
+  const notesHref = sharedNotesHref?.(row);
   const attendance = morning ? morningStatus(row, morning.draft) : null;
   // Fehlt ohne Meldung: das Kennzeichen, das sofort auffallen soll.
   const unreported = missingWithoutReport(row, attendance);
@@ -86,7 +96,7 @@ export function StudentRow({
     // min-w-0: die Zeile ist ein Grid-Item, und Grid-Items haben
     // min-width:auto — ohne das schiebt ein langer Name die ganze Liste
     // auf schmalen Bildschirmen über den Rand.
-    <li className="moto-content-surface flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 shadow-sm">
+    <li className="moto-content-surface flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5">
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-gray-900">
           {row.last_name}, {row.first_name}
@@ -97,6 +107,12 @@ export function StudentRow({
         {reported ? (
           <p className="truncate text-xs font-medium text-gray-700">
             {reported}
+          </p>
+        ) : null}
+        {/* Die Schulverwaltung hat die Meldung nachgetragen (#4791). */}
+        {row.status && row.status_by_school ? (
+          <p className="truncate text-xs text-gray-500">
+            Von der Schulverwaltung nachgetragen
           </p>
         ) : null}
         {/* Hinweise an die OGS für dieses Kind (#4795). Ganzer Text statt
@@ -110,6 +126,15 @@ export function StudentRow({
             {dayHintAuthorSuffix(hint)}
           </p>
         ))}
+        {/* Was die OGS über das Kind für die Schule freigegeben hat (#4797). */}
+        {notesHref ? (
+          <NavigationLink
+            href={notesHref}
+            className="text-xs font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            Beobachtungen der OGS
+          </NavigationLink>
+        ) : null}
         {/* Die Notiz der OGS zu den Hausaufgaben (#4796), unter dem Namen. */}
         {row.homework_feedback?.note ? (
           <p className="text-xs break-words text-gray-600">
@@ -219,6 +244,7 @@ export function Section({
   enrollmentKnown = true,
   now,
   morning,
+  sharedNotesHref,
 }: Readonly<{
   title: string;
   count: number;
@@ -227,6 +253,7 @@ export function Section({
   enrollmentKnown?: boolean;
   now: Date;
   morning?: StudentRowMorning;
+  sharedNotesHref?: SharedNotesHref;
 }>) {
   if (rows.length === 0) return null;
   return (
@@ -247,6 +274,7 @@ export function Section({
             enrollmentKnown={enrollmentKnown}
             now={now}
             morning={morning}
+            sharedNotesHref={sharedNotesHref}
           />
         ))}
       </ul>

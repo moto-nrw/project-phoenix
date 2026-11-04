@@ -1,0 +1,11 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (s *studentDataSnapshot) ResolveLocationWithTime(studentID int64, hasFullAccess bool) studentpresence.StudentLocationInfo {\n\tif s == nil || s.LocationSnapshot == nil {\n\t\treturn studentpresence.StudentLocationInfo{Location: \"Abwesend\"}\n\t}\n\treturn s.LocationSnapshot.ResolveStudentLocationWithTime(studentID, hasFullAccess)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/presenceprojection/http/studentDataSnapshot.ResolveLocationWithTime",
+      "owner": "modules/presenceprojection"
+    }
+  ]
+}

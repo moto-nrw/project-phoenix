@@ -9,7 +9,9 @@ import (
 // (#3632). A card that is empty on every dev machine is a screen nobody
 // reviews, and this one has more to show than a list: the durable hints that
 // replaced the Betreuernotizen field, dated entries, a note about a child in
-// one activity, and all three audiences next to each other.
+// one activity, and all three audiences next to each other. Two notes of index
+// 0 are released for the school (#4797), so moto schule shows the Lehrkraft of
+// its class a filled view, while the other notes stay with the OGS.
 type seedStudentNotesStep struct{}
 
 func (seedStudentNotesStep) Name() string { return "Seeding student notes" }
@@ -24,22 +26,66 @@ func (seedStudentNotesStep) Run(_ context.Context, rt *Runtime) error {
 	// Index 0 carries the full card: a durable hint, two dated entries and one
 	// note that only the group leadership reads. The others get a single note
 	// each, so a reviewer sees both a rich and a sparse card.
-	notes := []struct {
-		studentIndex int
-		note         map[string]any
-	}{
+	notes := baseSeedStudentNotes(today)
+	if groupID != 0 {
+		notes = append(notes, seedStudentNoteEntry{0, map[string]any{
+			"kind":               "journal",
+			"visibility":         "group_leads",
+			"category":           "incident",
+			"body":               "Bitte in der Gruppenleitung besprechen: wiederholte Konflikte in der Freispielzeit.",
+			"subject_date":       today.String(),
+			"education_group_id": fmt.Sprintf("%d", groupID),
+		}})
+	}
+
+	activityNote, err := seedActivityNote(rt, today.String())
+	if err != nil {
+		return err
+	}
+	if activityNote != nil {
+		notes = append(notes, seedStudentNoteEntry{0, activityNote})
+	}
+
+	created := 0
+	for _, entry := range notes {
+		studentID, ok := rt.FixedSeeder.studentIDByIndex[entry.studentIndex]
+		if !ok {
+			return fmt.Errorf("student note demo index %d not available", entry.studentIndex)
+		}
+		if _, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/notes", studentID), entry.note); err != nil {
+			return fmt.Errorf("create student note for index %d: %w", entry.studentIndex, err)
+		}
+		created++
+	}
+
+	fmt.Printf("  %d student notes created\n", created)
+	return nil
+}
+
+// seedStudentNoteEntry is one note the seeder writes about a demo child.
+type seedStudentNoteEntry struct {
+	studentIndex int
+	note         map[string]any
+}
+
+// baseSeedStudentNotes are the notes that need no group or activity.
+func baseSeedStudentNotes(today seedDate) []seedStudentNoteEntry {
+	return []seedStudentNoteEntry{
 		{0, map[string]any{
 			"kind":       "permanent",
 			"visibility": "all_staff",
 			"category":   "general",
 			"body":       "Braucht morgens etwas Zeit zum Ankommen. Ein ruhiger Platz hilft.",
+			// Released for the Lehrkraft of the class (#4797).
+			"shared_with_school": true,
 		}},
 		{0, map[string]any{
-			"kind":         "journal",
-			"visibility":   "all_staff",
-			"category":     "positive",
-			"body":         "Hat heute in der Hausaufgabenzeit einem anderen Kind geholfen.",
-			"subject_date": today.String(),
+			"kind":               "journal",
+			"visibility":         "all_staff",
+			"category":           "positive",
+			"body":               "Hat heute in der Hausaufgabenzeit einem anderen Kind geholfen.",
+			"subject_date":       today.String(),
+			"shared_with_school": true,
 		}},
 		{0, map[string]any{
 			"kind":         "journal",
@@ -62,45 +108,6 @@ func (seedStudentNotesStep) Run(_ context.Context, rt *Runtime) error {
 			"subject_date": today.String(),
 		}},
 	}
-	if groupID != 0 {
-		notes = append(notes, struct {
-			studentIndex int
-			note         map[string]any
-		}{0, map[string]any{
-			"kind":               "journal",
-			"visibility":         "group_leads",
-			"category":           "incident",
-			"body":               "Bitte in der Gruppenleitung besprechen: wiederholte Konflikte in der Freispielzeit.",
-			"subject_date":       today.String(),
-			"education_group_id": fmt.Sprintf("%d", groupID),
-		}})
-	}
-
-	activityNote, err := seedActivityNote(rt, today.String())
-	if err != nil {
-		return err
-	}
-	if activityNote != nil {
-		notes = append(notes, struct {
-			studentIndex int
-			note         map[string]any
-		}{0, activityNote})
-	}
-
-	created := 0
-	for _, entry := range notes {
-		studentID, ok := rt.FixedSeeder.studentIDByIndex[entry.studentIndex]
-		if !ok {
-			return fmt.Errorf("student note demo index %d not available", entry.studentIndex)
-		}
-		if _, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/notes", studentID), entry.note); err != nil {
-			return fmt.Errorf("create student note for index %d: %w", entry.studentIndex, err)
-		}
-		created++
-	}
-
-	fmt.Printf("  %d student notes created\n", created)
-	return nil
 }
 
 // seedActivityNote writes an entry about index 0 in one of its activities

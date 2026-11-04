@@ -58,8 +58,8 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({
+vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
+  PageHeaderSearchLayout: ({
     search,
     filters,
     onClearAllFilters,
@@ -537,9 +537,11 @@ describe("ActivitiesPage", () => {
     });
   });
 
+  // The browser session carries no token (#5005); a session without one
+  // carries an error.
   it("redirects when authenticated session has no token", async () => {
     vi.mocked(useSession).mockReturnValue({
-      data: { user: {} },
+      data: { user: {}, error: "RefreshTokenError" },
       status: "authenticated",
       update: vi.fn(),
     } as never);

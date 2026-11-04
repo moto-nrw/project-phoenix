@@ -47,4 +47,12 @@ type CatererStore interface {
 	LockLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error)
 	// InsertAccount creates the account for a new caterer address.
 	InsertAccount(ctx context.Context, email, passwordHash string) (domain.LoginAccount, domain.OperationStats, error)
+	// SetAccountPassword replaces the caterer's own credential (#4496);
+	// RevokePasswordResetTokens spends the links mailed before it.
+	SetAccountPassword(ctx context.Context, accountID int64, hash string) (bool, domain.OperationStats, error)
+	RevokePasswordResetTokens(ctx context.Context, accountID int64) (domain.OperationStats, error)
+	// ListCatererAccountSecurity lists every caterer account and whether its
+	// second factor is on, for the operator (#4497). It runs in an
+	// administrative transaction only.
+	ListCatererAccountSecurity(ctx context.Context) ([]domain.CatererAccountSecurity, domain.OperationStats, error)
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import {
   bindPersonalStorage,
   clearPersonalStorage,
@@ -40,7 +41,9 @@ export function PersonalStorageGuard({
 }) {
   const { data: session, status } = useSession();
   const owner =
-    status === "authenticated" ? personalStorageOwner(session?.user) : null;
+    status === "authenticated" && hasSessionAccess(session)
+      ? personalStorageOwner(session.user)
+      : null;
   const account = personalStorageAccount(owner);
   // Das Konto, das diese Seite zeigt: das erste, das sie angemeldet sieht.
   const pageAccountRef = useRef<string | null>(null);

@@ -23,14 +23,23 @@ const { state, mutate, api } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("swr", () => ({
-  default: () => ({
+vi.mock("~/lib/swr", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/swr")>()),
+  useSWRAuth: () => ({
     data: state.detail,
     error: undefined,
     isLoading: false,
     mutate,
   }),
 }));
+// The send overlay (#5011) is bound to the signed-in session's scope.
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "1", tenantId: 1 }, expires: "2099-01-01" },
+    status: "authenticated",
+  }),
+}));
+
 vi.mock("next/navigation", () => ({
   useParams: () => ({ groupThreadId: "4" }),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),

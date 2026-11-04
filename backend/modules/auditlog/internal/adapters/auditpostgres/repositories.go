@@ -47,6 +47,9 @@ type Repositories struct {
 	// AccessTrail reads who read or changed personal data at a school set
 	// (#4655), for the Träger-Portal's access log.
 	AccessTrail auditlog.AccessTrailQuery
+	// TraegerAccountChanges reads the Träger-Büro account ledger (#5474),
+	// for the history on the Träger-Portal's account page.
+	TraegerAccountChanges auditlog.TraegerAccountChangeQuery
 	// RetentionSummaries is the cleanup read over the deletion ledger, kept
 	// apart so the producer-facing DataDeletionRepository stays narrow.
 	RetentionSummaries RetentionSummaries
@@ -71,6 +74,7 @@ func NewRepositories(reads, appends Runtime) *Repositories {
 		EnrollmentRestorationAudit:   NewEnrollmentRestorationRepository(reads),
 		DataAccessLog:                NewDataAccessLogRepository(reads),
 		AccessTrail:                  NewAccessTrail(reads),
+		TraegerAccountChanges:        NewTraegerAccountChanges(reads),
 		EnrollmentOfferingAdjustment: NewEnrollmentOfferingAdjustmentRepository(reads),
 		GuardianChange:               NewGuardianChangeRepository(reads),
 		StudentConsentChange:         NewStudentConsentChangeRepository(reads),

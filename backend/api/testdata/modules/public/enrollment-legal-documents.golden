@@ -1,0 +1,1 @@
+GET /public/enrollment-legal-documents/{filename} -> online_anmeldung  (Anmeldung: Rechtstexte der Schule, keine Personendaten)

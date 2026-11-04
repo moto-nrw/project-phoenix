@@ -58,7 +58,7 @@ describe("describeRosterMaintenance", () => {
 
     expect(result.label).toBe("Manuell");
     expect(result.explanation).toBe(
-      "Neue Kinder müssen Sie selbst ergänzen. Klasse, Jahrgang oder Gruppe gelten nur für neu erzeugte Termine.",
+      "An- und Abmeldungen werden hier nicht übernommen. Kinder pflegen Sie selbst. Klasse, Jahrgang oder Gruppe gelten nur für neu erzeugte Termine.",
     );
     expect(result.explanation).not.toContain("automatisch übernommen");
   });
@@ -84,7 +84,7 @@ describe("describeRosterMaintenance", () => {
     );
 
     expect(result.explanation).toBe(
-      "Neue Kinder müssen Sie selbst ergänzen. Das Betreuungsangebot „Musik“ ist ausgeschaltet.",
+      "An- und Abmeldungen werden hier nicht übernommen. Kinder pflegen Sie selbst. Das Betreuungsangebot „Musik“ ist ausgeschaltet.",
     );
   });
 
@@ -94,7 +94,7 @@ describe("describeRosterMaintenance", () => {
     );
 
     expect(result.explanation).toBe(
-      "Neue Kinder müssen Sie selbst ergänzen. Das Betreuungsangebot „Musik“ passt nicht zu diesem Regeltermin.",
+      "An- und Abmeldungen werden hier nicht übernommen. Kinder pflegen Sie selbst. Das Betreuungsangebot „Musik“ passt nicht zu diesem Regeltermin.",
     );
   });
 
@@ -104,7 +104,7 @@ describe("describeRosterMaintenance", () => {
     );
 
     expect(result.explanation).toBe(
-      "Neue Kinder müssen Sie selbst ergänzen. Betreuungsangebote sind an Ihrer Schule ausgeschaltet.",
+      "An- und Abmeldungen werden hier nicht übernommen. Kinder pflegen Sie selbst. Betreuungsangebote sind an Ihrer Schule ausgeschaltet.",
     );
   });
 });

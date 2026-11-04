@@ -51,7 +51,7 @@ func TestNativeStaffRecordsUseTheSameParticipantScopedStoresAndClock(t *testing.
 		newInbox, err := repos.Read.ListStaffInbox(tx, second.ID, false)
 		require.NoError(t, err)
 		require.Len(t, newInbox, 1)
-		assert.Equal(t, communication.StaffInboxRecord{ThreadID: native.ID, TenantID: testpkg.Tenant(t), CounterpartAccountID: first.ID, CounterpartName: "Anna Berg", LastMessageAt: &row.CreatedAt, LastMessageBody: row.Body, LastSenderAccountID: &first.ID, UnreadCount: 1}, *newInbox[0])
+		assert.Equal(t, communication.StaffInboxRecord{ThreadID: native.ID, TenantID: testpkg.Tenant(t), CounterpartAccountID: first.ID, CounterpartName: "Anna Berg", LastMessageAt: &row.CreatedAt, LastMessageBody: row.Body, LastSenderAccountID: &first.ID, UnreadCount: 1, Kind: "direct", MemberCount: 2}, *newInbox[0])
 		require.NoError(t, repos.Read.MarkStaffReadUpTo(tx, native.ID, second.ID, row.CreatedAt, row.ID))
 		unread, err := repos.Read.StaffUnreadCount(tx, second.ID)
 		require.NoError(t, err)

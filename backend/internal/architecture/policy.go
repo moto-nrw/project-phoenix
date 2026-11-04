@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"go/token"
 	"io"
-	"os"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
 )
 
 type Policy struct {
@@ -162,12 +163,11 @@ var (
 )
 
 func LoadPolicy(path string) (*Policy, error) {
-	file, err := os.Open(path) // #nosec G304 -- path is an explicit CLI input
+	data, err := artifacts.ReadPolicy(path)
 	if err != nil {
 		return nil, fmt.Errorf("open policy: %w", err)
 	}
-	defer func() { _ = file.Close() }()
-	return DecodePolicy(file)
+	return DecodePolicy(bytes.NewReader(data))
 }
 
 func DecodePolicy(reader io.Reader) (*Policy, error) {

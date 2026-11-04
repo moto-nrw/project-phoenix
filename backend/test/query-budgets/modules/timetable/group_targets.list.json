@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.timetable.group_targets.list",
+  "max": 1,
+  "exact": true,
+  "description": "modules/timetable — group and target lookups stay one bulk query as IDs grow."
+}

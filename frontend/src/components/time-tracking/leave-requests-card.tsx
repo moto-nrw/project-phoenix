@@ -1,4 +1,5 @@
 "use client";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import {
   useCallback,
@@ -89,7 +90,8 @@ export function LeaveRequestsCard() {
   const cancelErrors = useApiFormError();
   const loadAllRef = useRef<() => Promise<void>>(async () => undefined);
 
-  const year = useMemo(() => new Date().getFullYear(), []);
+  const today = useBerlinToday();
+  const year = Number(today.slice(0, 4));
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -137,11 +139,11 @@ export function LeaveRequestsCard() {
     const approved = vacations.filter(
       (v) =>
         (v.status === "approved" || v.status === "reported") &&
-        new Date(v.dateEnd) >= new Date(),
+        v.dateEnd >= today,
     ).length;
     const declined = vacations.filter((v) => v.status === "declined").length;
     return { reserved, question, approved, declined };
-  }, [questionedVacations.length, vacations]);
+  }, [questionedVacations.length, vacations, today]);
 
   const recentVacations = useMemo(
     () =>
@@ -390,7 +392,7 @@ function AbsenceRequestItem({
       new Date(absence.dateStart).getTime() > currentTimestamp);
 
   return (
-    <li className="moto-content-surface rounded-xl border px-4 py-3 shadow-sm">
+    <li className="moto-content-surface rounded-xl border px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-medium text-gray-800">
@@ -418,10 +420,9 @@ function AbsenceRequestItem({
           {cancelable && (
             <Button
               type="button"
-              variant="ghost"
+              variant="ghost_danger"
               size="compact"
               onClick={() => onCancel(absence)}
-              className="text-moto-red hover:text-moto-red-hover px-0 hover:bg-transparent"
             >
               Stornieren
             </Button>
@@ -533,7 +534,7 @@ function Tile({
   // its darkened Alert foreground) — never generic Tailwind hues.
   const valueClass = {
     primary: "text-gray-900",
-    success: "text-moto-green-hover",
+    success: "text-moto-green-strong",
     amber: "text-moto-amber-strong",
     muted: "text-gray-400",
   }[tone];

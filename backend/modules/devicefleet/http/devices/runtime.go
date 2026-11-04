@@ -23,7 +23,7 @@ type Runtime struct {
 }
 
 // codeDeviceIDTaken is the registered code of a device ID that another
-// device already uses (error-registry.json). This package does not import
+// device already uses (error-registry/). This package does not import
 // api/common, so it names the code once here.
 const codeDeviceIDTaken = "iot.device_id_taken"
 

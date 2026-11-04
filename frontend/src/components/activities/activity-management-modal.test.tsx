@@ -16,6 +16,11 @@ import { catalogText } from "~/test/error-catalog-text";
 // =============================================================================
 
 // Mock all dependencies
+// Plätze und Warteliste haben eigene Tests; das Formular hier braucht sie nicht.
+vi.mock("./activity-waitlist-section", () => ({
+  ActivityWaitlistSection: () => null,
+}));
+
 vi.mock("~/lib/activity-api", () => ({
   updateActivity: vi.fn(),
   deleteActivity: vi.fn(),

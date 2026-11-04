@@ -1,0 +1,6 @@
+{
+  "scenario": "services.schedule.staff_overview.shift_only_week",
+  "max": 5,
+  "exact": true,
+  "description": "A shift-only week (no timetable assignments) early-returns the\nassignment-dependent reads; series_id/detached add ZERO reads."
+}

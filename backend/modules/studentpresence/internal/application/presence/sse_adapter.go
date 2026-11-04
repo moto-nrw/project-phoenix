@@ -18,6 +18,18 @@ func (s *service) broadcastSupervisionRefresh(ctx context.Context, activeGroupID
 	s.Broadcaster.SupervisionRefresh(ctx, activeGroupID, reason, eduGroupIDs)
 }
 
+// queueSupervisionRefresh announces a change to a session, its supervisors or
+// its visits once the surrounding transaction commits (#5017): „Aktuelle
+// Aufsicht", the own supervision and the room views show them, and without
+// the event they would wait for the five-minute reconcile. No child identity
+// travels.
+func (s *service) queueSupervisionRefresh(ctx context.Context, activeGroupID int64, reason string) {
+	if s.Broadcaster == nil || activeGroupID <= 0 {
+		return
+	}
+	s.Broadcaster.SupervisionChanged(ctx, activeGroupID, reason)
+}
+
 // broadcastDashboardCountsChanged sends the tenant-wide dashboard refresh
 // signal (#2057). eduGroupIDs are the affected educational (OGS) group ids —
 // group ids only, never student identity — so clients can scope their

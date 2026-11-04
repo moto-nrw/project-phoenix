@@ -43,13 +43,15 @@ import {
 } from "~/lib/pwa-install-prompt";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { setupStorageKey } from "./notification-setup-decision";
+import { notificationsConcept } from "~/lib/concepts/notifications";
+import { devicesConcept } from "~/lib/concepts/devices";
 
 export { setupStorageKey } from "./notification-setup-decision";
 
 const logger = createLogger({ component: "NotificationSetupDialog" });
 const INSTALL_GUIDE_REMIND_MS = 24 * 60 * 60 * 1000;
 const REMIND_LATER_MS = 7 * 24 * 60 * 60 * 1000;
-const ACTION_CLASS = "w-full max-sm:min-h-11 sm:w-auto";
+const ACTION_CLASS = "w-full sm:w-auto";
 
 type SetupMode = "enable" | "install-ios" | "install-android" | "denied";
 
@@ -388,7 +390,9 @@ export function NotificationSetupDialog({
             <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gray-100">
               <MotoConceptIcon
                 concept={
-                  mode.startsWith("install-") ? "devices" : "notifications"
+                  mode.startsWith("install-")
+                    ? devicesConcept
+                    : notificationsConcept
                 }
                 size={22}
               />

@@ -151,3 +151,11 @@ func (s *CareLifecycle) ReconcileAuthoritativeBookingChange(ctx context.Context,
 	})
 	return
 }
+
+func (s *CareLifecycle) HistoricalParticipatingStudentIDsByDate(ctx context.Context, studentIDs []int64, from, to calendar.Date) (value0 map[calendar.Date]map[int64]bool, err error) {
+	err = s.unit(ctx, func(txCtx context.Context) error {
+		value0, err = s.inUnitHistoricalParticipatingStudentIDsByDate(txCtx, studentIDs, from, to)
+		return err
+	})
+	return
+}

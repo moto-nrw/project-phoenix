@@ -23,7 +23,7 @@ func checkClassListEntryAdministration(t *testing.T, graph *goldenRuntime) {
 
 	db := testpkg.SetupTestDB(t)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("cle-root-%d@test.local", time.Now().UnixNano()))
-	token := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(account.ID), testpkg.Tenant(t)))
+	token := testpkg.MintLiveSessionJWT(t, db, testutil.AdminTestClaimsForTenant(int(account.ID), testpkg.Tenant(t)))
 	className := fmt.Sprintf("cler%d", time.Now().UnixNano()%100000)
 
 	created := checkpointRequest(graph, checkpointScenario{

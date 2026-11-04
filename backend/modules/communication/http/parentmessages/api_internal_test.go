@@ -55,6 +55,31 @@ func TestParentMessageHTTPErrorContract(t *testing.T) {
 	}
 }
 
+// Switching messaging off preserves read access, unlike an access refusal.
+func TestParentMessagingDisabledCode(t *testing.T) {
+	t.Parallel()
+	for _, renderError := range []func(http.ResponseWriter, *http.Request, error){renderMessagingError, renderGroupThreadError} {
+		for _, test := range []struct {
+			err  error
+			code string
+		}{
+			{communication.ErrParentMessagingDisabled, "communication.parent_messaging_disabled"},
+			{communication.ErrParentMessagingForbidden, "general.permission"},
+		} {
+			recorder := httptest.NewRecorder()
+			renderError(recorder, httptest.NewRequest(http.MethodPost, "/", nil), test.err)
+			require.Equal(t, http.StatusForbidden, recorder.Code)
+			var problem struct {
+				Code   string `json:"code"`
+				Status int    `json:"status"`
+			}
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &problem))
+			assert.Equal(t, test.code, problem.Code)
+			assert.Equal(t, http.StatusForbidden, problem.Status)
+		}
+	}
+}
+
 // countScopeService records the scope the handler passes on and answers with
 // a fixed one.
 type countScopeService struct {
@@ -139,4 +164,54 @@ func TestListReachableStudentsHandler(t *testing.T) {
 	recorder = httptest.NewRecorder()
 	rs.listReachableStudents(recorder, httptest.NewRequest(http.MethodGet, "/reachable-students", nil))
 	assert.Equal(t, http.StatusForbidden, recorder.Code)
+}
+
+// TestReadersWireContract pins the readers object of #5200 on the staff API:
+// the one guardian and the school side, leadership names as a JSON array that
+// is never null.
+func TestReadersWireContract(t *testing.T) {
+	t.Parallel()
+	detail := toThreadDetail(&communication.ParentMessageThread{
+		ThreadID: 7, StudentID: 8, Audience: communication.ParentMessageAudienceLeadership,
+		Readers: communication.ParentMessageReaders{
+			Guardian: communication.ParentMessageGuardianReader{AccountID: 9, Name: "Sabine Schneider", RelationshipType: "parent"},
+			School:   communication.ParentMessageSchoolReaders{Kind: communication.ParentMessageReadersLeadership, Names: []string{"Swantje M.", ""}},
+		},
+	})
+	body, err := json.Marshal(struct {
+		Audience string          `json:"audience"`
+		Readers  ReadersResponse `json:"readers"`
+	}{detail.Audience, detail.Readers})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"audience":"leadership","readers":{
+		"guardian":{"account_id":"9","name":"Sabine Schneider","relationship_type":"parent"},
+		"school":{"kind":"leadership","names":["Swantje M."],"unnamed_count":1}}}`, string(body))
+
+	team, err := json.Marshal(toReadersResponse(communication.ParentMessageReaders{
+		School: communication.ParentMessageSchoolReaders{Kind: communication.ParentMessageReadersAllStaff},
+	}))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"guardian":{"account_id":"","name":""},"school":{"kind":"all_staff","names":[],"unnamed_count":0}}`, string(team))
+}
+
+func TestGroupThreadReadersWireContract(t *testing.T) {
+	t.Parallel()
+	detail := toGroupThreadDetail(&communication.ParentGroupThreadDetail{
+		Thread:      communication.ParentGroupThread{Target: communication.ParentGroupTarget{Type: communication.ParentGroupTargetClass, Label: "Klasse 3a"}},
+		FamilyCount: 17,
+	})
+	body, err := json.Marshal(detail.Readers)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"target_type":"class","target_label":"Klasse 3a","recipient_count":17}`, string(body))
+}
+
+func TestParentMessageCorrelationOnlyBelongsToItsAuthor(t *testing.T) {
+	t.Parallel()
+	messages := []communication.ParentMessage{{ID: 7, SenderAccountID: 12, ClientMessageID: "same-key"}}
+	require.Equal(t, "same-key", toMessageResponses(messages, 12)[0].ClientMessageID)
+	require.Empty(t, toMessageResponses(messages, 34)[0].ClientMessageID)
+	require.Empty(t, toMessageResponses(messages)[0].ClientMessageID)
+	group := &communication.ParentGroupThreadDetail{Messages: []communication.ParentGroupMessage{{ID: 7, SenderAccountID: 12, ClientMessageID: "same-key"}}}
+	require.Equal(t, "same-key", toGroupThreadDetail(group, 12).Messages[0].ClientMessageID)
+	require.Empty(t, toGroupThreadDetail(group, 34).Messages[0].ClientMessageID)
 }

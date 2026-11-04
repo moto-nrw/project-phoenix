@@ -3,8 +3,10 @@
 import { defineEntityConfig } from "@/lib/database/types";
 import type { Activity, ActivitySupervisor } from "@/lib/activity-helpers";
 import { apiErrorFromResponse } from "~/lib/api-error";
-import { getCachedSession, sessionFetch } from "~/lib/session-cache";
+import { sessionFetch } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
+import { activitiesConcept } from "~/lib/concepts/activities";
+import { staffConcept } from "~/lib/concepts/staff";
 
 const logger = createLogger({ component: "ActivitiesConfig" });
 
@@ -95,7 +97,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
     plural: "Aktivitäten",
   },
 
-  concept: "activities",
+  concept: activitiesConcept,
 
   backUrl: "/database",
 
@@ -110,7 +112,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
     sections: [
       {
         title: "Grundinformationen",
-        concept: "activities",
+        concept: activitiesConcept,
         columns: 2,
         fields: [
           {
@@ -171,7 +173,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       },
       {
         title: "Betreuer",
-        concept: "staff",
+        concept: staffConcept,
         fields: [
           {
             name: "supervisor_id",
@@ -313,13 +315,9 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         type: "select",
         loadOptions: async () => {
           try {
-            // Fetch supervisors from API
-            const session = await getCachedSession();
-            const response = await fetch("/api/activities/supervisors", {
-              headers: {
-                Authorization: `Bearer ${session?.user?.token}`,
-              },
-            });
+            // Fetch supervisors from API; the route reads the session
+            // cookie (#5005).
+            const response = await fetch("/api/activities/supervisors");
 
             if (!response.ok) {
               logger.error("failed to fetch supervisors", {

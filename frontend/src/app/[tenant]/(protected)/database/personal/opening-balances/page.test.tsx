@@ -22,7 +22,7 @@ function render(ui: ReactElement) {
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
+    data: { user: { id: "1" } },
     status: "authenticated",
   })),
 }));
@@ -198,9 +198,8 @@ describe("OpeningBalanceImportPage", () => {
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/import/opening-balances/template?format=xlsx",
-        expect.objectContaining({
-          headers: { Authorization: "Bearer test-token" },
-        }),
+        // The route reads the session cookie (#5005).
+        { credentials: "include" },
       );
     });
   });

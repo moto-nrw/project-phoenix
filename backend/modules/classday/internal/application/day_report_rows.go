@@ -75,6 +75,17 @@ func buildClassDayReportFor(schoolClass string, date calendar.Date, weekday, pha
 	return report
 }
 
+// applyEnrollmentKnown records whether an enrollment phase covers the day.
+// Without one the stays/leaves split is unknowable — zero the counters so no
+// consumer can print "alle gehen nach Hause".
+func applyEnrollmentKnown(report *classday.DayReport, known bool) {
+	report.EnrollmentKnown = known
+	if !known {
+		report.Totals.Staying = 0
+		report.Totals.Leaving = 0
+	}
+}
+
 // classDayRow projects one roster row onto the day.
 func classDayRow(row DayRosterRow, weekday string, facts classDayFacts) classday.DayRow {
 	offerings := []string{}
@@ -113,6 +124,8 @@ func classDayRow(row DayRosterRow, weekday string, facts classDayFacts) classday
 		PickupChanged: pickupChanged,
 		PickupRegular: pickupRegular,
 		ReportedAt:    classDayReportedAt(facts, row.StudentID, status, pickupChanged),
+		// A class-list-only entry has no status day at all.
+		StatusBySchool: !row.ListEntry && status != "" && facts.statusBySchool[row.StudentID],
 	}
 }
 

@@ -14,12 +14,13 @@ import (
 type recordingWorkerEngine struct {
 	batchSize, maxAttempts int
 	deadLettered           int
+	deadLetters            []string
 	err                    error
 }
 
 func (e *recordingWorkerEngine) RunOnce(_ context.Context, batchSize, maxAttempts int) (deliveryContract.WorkerStats, error) {
 	e.batchSize, e.maxAttempts = batchSize, maxAttempts
-	return deliveryContract.WorkerStats{Claimed: 4, DeadLettered: e.deadLettered}, e.err
+	return deliveryContract.WorkerStats{Claimed: 4, DeadLettered: e.deadLettered, DeadLetters: e.deadLetters}, e.err
 }
 
 func (*recordingWorkerEngine) Backlog(context.Context) (int, error) { return 0, nil }
@@ -65,4 +66,19 @@ func TestWorkerFailsRunWithDeadLetteredDeliveries(t *testing.T) {
 
 	_, err = NewWorker(&recordingWorkerEngine{}).RunOnce(context.Background(), 25, 3)
 	assert.NoError(t, err)
+}
+
+// Sentry BACKEND-Y: the event of a dead-lettered run named only a count, so
+// nobody could tell which delivery failed or why. The run's error carries
+// transport, template, delivery id and last error of each dead letter.
+func TestWorkerNamesWhyDeliveriesFailedForGood(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewWorker(&recordingWorkerEngine{deadLettered: 1, deadLetters: []string{
+		"email password_reset delivery 41: smtp: 554 relay denied",
+	}}).RunOnce(context.Background(), 25, 3)
+
+	require.ErrorIs(t, err, deliveryContract.ErrDeadLettered)
+	assert.EqualError(t, err, "delivery worker: deliveries failed for good after all attempts: 1 "+
+		"(email password_reset delivery 41: smtp: 554 relay denied)")
 }

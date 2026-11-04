@@ -66,6 +66,8 @@ func (rs *Resource) correctInstanceStudent(w http.ResponseWriter, r *http.Reques
 		rs.renderCorrectionError(w, r, err)
 		return
 	}
+	// The completed block's counts changed (#5017).
+	rs.broadcastStaffingDeviationChanged(ctx, "attendance_correction")
 
 	common.Respond(w, r, http.StatusOK, attendanceResponse(updated.ID, updated.InstanceID, updated.StudentID, updated.Status, updated.Substatus, updated.Note, updated.CheckedInAt), "Attendance corrected")
 }

@@ -13,7 +13,7 @@ import { AlertTriangle, BellRing, CheckCircle2, RefreshCw } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { InfoCard } from "~/components/ui/info-card";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -29,6 +29,7 @@ import {
   fetchLetterStatus,
   remindUnanswered,
   resendFailedEmails,
+  withApiBase,
 } from "~/lib/parent-announcements-api";
 import type {
   AnnouncementEmailAudience,
@@ -99,8 +100,11 @@ export function LetterStatusPanel({
   announcementId,
   canAct,
   emailAudience,
+  apiBase,
 }: {
   readonly announcementId: string;
+  /** The routes of the portal that shows the letter; default the OGS's. */
+  readonly apiBase?: string;
   /** Reminders and resends are only offered while the letter is live. */
   readonly canAct: boolean;
   readonly emailAudience: AnnouncementEmailAudience;
@@ -122,7 +126,7 @@ export function LetterStatusPanel({
 
   const load = useCallback(async () => {
     try {
-      setStatus(await fetchLetterStatus(announcementId));
+      setStatus(await withApiBase(fetchLetterStatus, announcementId, apiBase));
       setLoadFailed(false);
       clearLoadError();
     } catch (error) {
@@ -135,7 +139,7 @@ export function LetterStatusPanel({
         retry: () => latestLoadRef.current(),
       });
     }
-  }, [announcementId, showLoadError, clearLoadError]);
+  }, [announcementId, apiBase, showLoadError, clearLoadError]);
   useLayoutEffect(() => {
     latestLoadRef.current = () => void load();
   });
@@ -158,8 +162,8 @@ export function LetterStatusPanel({
     try {
       const count =
         action === "remind"
-          ? await remindUnanswered(announcementId)
-          : await resendFailedEmails(announcementId);
+          ? await withApiBase(remindUnanswered, announcementId, apiBase)
+          : await withApiBase(resendFailedEmails, announcementId, apiBase);
       toastSuccess(
         action === "remind"
           ? count === 0
@@ -209,9 +213,10 @@ export function LetterStatusPanel({
     <div className="space-y-4">
       {/* The number a school acts on is "wie viele Kinder fehlen noch", so it
           leads. Everything else is supporting detail. */}
-      <InfoCard
+      <SectionCard
         title="Bestätigungen"
-        icon={<CheckCircle2 className="h-5 w-5" aria-hidden />}
+        icon={CheckCircle2}
+        bodyClassName="compact:mt-3 mt-4 space-y-3"
       >
         <div className="flex flex-wrap items-baseline gap-x-2">
           <span className="text-3xl font-semibold text-gray-900 tabular-nums">
@@ -297,7 +302,7 @@ export function LetterStatusPanel({
             </span>
           </p>
         )}
-      </InfoCard>
+      </SectionCard>
 
       {canAct && (
         <div className="flex flex-wrap gap-2">

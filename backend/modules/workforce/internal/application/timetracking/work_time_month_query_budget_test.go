@@ -11,6 +11,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,7 +62,7 @@ func TestFutureCompTimeCommitmentQueryBudget(t *testing.T) {
 		add(3, 8)
 		large := run()
 		assert.Equal(t, len(small), len(large))
-		testpkg.AssertQueryBudget(t, "services.active.future_comp_time_commitment.reads", large)
+		querybudgets.AssertQueryBudget(t, "services.active.future_comp_time_commitment.reads", large)
 		return nil
 	}))
 }

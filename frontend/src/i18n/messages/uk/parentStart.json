@@ -1,0 +1,39 @@
+{
+  "kicker": "Батьківський портал",
+  "greeting": {
+    "morning": "Доброго ранку, {name}",
+    "morningPlain": "Доброго ранку",
+    "day": "Добрий день, {name}",
+    "dayPlain": "Добрий день",
+    "evening": "Добрий вечір, {name}",
+    "eveningPlain": "Добрий вечір"
+  },
+  "subtitle": "Найважливіше на сьогодні одним поглядом.",
+  "todo": {
+    "title": "Потрібно зробити",
+    "description": "Непрочитані повідомлення, події та відповіді одним поглядом.",
+    "openCount": "Відкрито: {count}",
+    "unread": "Непрочитано",
+    "today": "Сьогодні",
+    "allDay": "Увесь день",
+    "emptyTitle": "Усе зроблено",
+    "emptyDescription": "Зараз нічого робити не потрібно.",
+    "messageTitleOne": "Нове повідомлення",
+    "messageTitleMany": "Нові повідомлення: {count}",
+    "messageContext": "OGS · Про {name}",
+    "pollContext": "Опитування · {school}",
+    "declarationContext": "Згода · {school}",
+    "newsContext": "Лист батькам · {school}",
+    "ackContext": "Потрібне підтвердження · {school}",
+    "appointmentContext": "Подія для {name}",
+    "appointmentContextPlain": "Подія",
+    "showMoreOne": "Показати ще один пункт",
+    "showMoreMany": "Показати ще {count}",
+    "showLess": "Показати менше",
+    "loading": "Завантаження завдань",
+    "errorObject": "повний список справ"
+  },
+  "childrenLoading": "Завантаження дітей",
+  "noChildren": "З вашим обліковим записом ще не пов'язано жодної дитини. Це може зробити OGS вашої школи.",
+  "errorObject": "огляд ваших дітей"
+}

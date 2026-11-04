@@ -140,7 +140,7 @@ func TestLockClassCollectionPairFlushesGradeLevelMax(t *testing.T) {
 	db, tenantID, service, registry := setupRequestCacheDBTest(t)
 	registerTestSetting(registry, config.KeyEnrollmentGradeLevelMax, config.FieldNumber, 4)
 
-	selectCount := testpkg.CaptureSettingValueSelects(db)
+	selectCount := testpkg.CaptureSettingValueSelects(t, db)
 
 	requestCtx := config.WithSettingsRequestCache(
 		testpkg.ContextForTenant(context.Background(), tenantID),

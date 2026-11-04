@@ -440,17 +440,20 @@ test('expiry includes the exact UTC cutoff and retains a newer snapshot', t => {
 // Only a healthy, recorded release frees the disk: the prune must neither run
 // before the snapshot nor on any rollback path, and its failure is not a failed
 // release.
-test('successful deployment prunes unused images last', t => {
+test('successful deployment removes only images no container uses, last', t => {
   const f = fixture(t);
   const result = f.run('deploy-remote.sh');
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.equal(f.calls().trim().split('\n').at(-1), 'image prune -af');
+  const calls = f.calls().trim().split('\n');
+  assert.equal(calls.at(-1), `rmi -f sha256:${'3'.repeat(64)}`);
+  assert.doesNotMatch(f.calls(), /image prune/, 'containerd prunes images a container still runs');
+  assert.doesNotMatch(f.calls(), new RegExp(`rmi .*sha256:${'1'.repeat(64)}`), 'the running image stays');
 });
 test('aborted and rolled back deployments keep every image', t => {
   for (const [step, status] of [['preflight', 1], ['stop', 1], ['roles', 1], ['migrate', 10], ['health', 11]]) {
     const f = fixture(t);
     assert.equal(f.run('deploy-remote.sh', [], { RELEASE_TEST_FAIL: step }).status, status, step);
-    assert.doesNotMatch(f.calls(), /prune/, step);
+    assert.doesNotMatch(f.calls(), /prune|rmi/, step);
   }
 });
 test('a failing prune does not fail the healthy release', t => {

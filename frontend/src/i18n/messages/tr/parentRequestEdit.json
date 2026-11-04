@@ -1,0 +1,19 @@
+{
+  "title": "Talebi düzenle",
+  "intro": "OGS henüz karar vermediyse talebinizi değiştirebilirsiniz.",
+  "editedAt": "{date} tarihinde değiştirildi",
+  "firstDay": "İlk gün",
+  "lastDay": "Son gün",
+  "day": "Gün",
+  "pickupTime": "Teslim alma saati",
+  "timeFormatHint": "Saat, 15:30 biçiminde",
+  "timeExample": "örn. 15:30",
+  "reasonLabel": "Neden / OGS'ye not",
+  "reasonRequired": "Lütfen OGS için kısa bir not yazın.",
+  "valueRequired": "Lütfen bir değer girin.",
+  "submit": "Değişikliği kaydet",
+  "saving": "Kaydediliyor …",
+  "cancel": "İptal",
+  "close": "Pencereyi kapat",
+  "errorObject": "talep"
+}

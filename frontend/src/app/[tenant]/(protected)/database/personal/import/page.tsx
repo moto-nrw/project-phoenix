@@ -205,7 +205,7 @@ export default function StaffImportPage() {
     try {
       await downloadImportTemplate(
         `/api/import/teachers/template?format=${templateFormat}`,
-        session?.user?.token,
+        session,
         templateFormat === "xlsx"
           ? "mitarbeiter-import-vorlage.xlsx"
           : "mitarbeiter-import-vorlage.csv",
@@ -241,7 +241,7 @@ export default function StaffImportPage() {
 
         const response = await postImportFile(
           "/api/import/teachers/preview",
-          session?.user?.token,
+          session,
           formData,
         );
         const result = response.body;
@@ -315,7 +315,7 @@ export default function StaffImportPage() {
 
       const response = await postImportFile(
         "/api/import/teachers/import",
-        session?.user?.token,
+        session,
         formData,
       );
       const result = response.body;
@@ -549,9 +549,9 @@ export default function StaffImportPage() {
             <Button
               type="button"
               variant="primary"
-              size="sm"
+              size="field"
               onClick={() => void handleDownloadTemplate()}
-              className="h-10 w-full gap-2"
+              className="w-full gap-2"
             >
               <Download className="h-5 w-5" aria-hidden="true" />
               Vorlage herunterladen

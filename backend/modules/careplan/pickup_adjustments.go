@@ -91,6 +91,9 @@ type PickupAdjustmentApplyInput struct {
 // PickupAdjustmentResult names the resolution an apply took.
 type PickupAdjustmentResult struct {
 	Resolution string `json:"resolution"`
+	// RosterImpact is set when the adjustment switched the child's offering
+	// (#5102); the HTTP adapter renders it.
+	RosterImpact *RosterImpact `json:"-"`
 }
 
 // PickupAdjustmentBulkInput is a lasting pickup exception for several

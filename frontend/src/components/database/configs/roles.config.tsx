@@ -12,6 +12,7 @@ import {
   BASE_ROLE_LABELS,
 } from "@/lib/auth-helpers";
 import { ROLE_TEMPLATES, baseRoleOptions } from "@/lib/role-labels";
+import { rolesConcept } from "~/lib/concepts/roles";
 
 const nameField = {
   name: "name",
@@ -38,7 +39,7 @@ const descriptionField = {
 export const roleEditSections: SectionConfig[] = [
   {
     title: "Rolleninformationen",
-    concept: "roles",
+    concept: rolesConcept,
     columns: 1,
     fields: [
       nameField,
@@ -63,7 +64,7 @@ export const rolesConfig = defineEntityConfig<Role>({
     plural: "Rollen",
   },
 
-  concept: "roles",
+  concept: rolesConcept,
 
   backUrl: "/database",
 
@@ -76,7 +77,7 @@ export const rolesConfig = defineEntityConfig<Role>({
     sections: [
       {
         title: "Rolleninformationen",
-        concept: "roles",
+        concept: rolesConcept,
         columns: 1,
         fields: [
           nameField,

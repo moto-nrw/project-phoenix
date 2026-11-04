@@ -10,6 +10,9 @@
  * BasePath: "/api/operator/auth"
  */
 
+import "server-only";
+import { PORTAL_SESSION_COOKIE_NAMES } from "~/lib/session-cookie-exit.server";
+import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -41,6 +44,10 @@ export const operatorAuthConfig = {
       },
       async authorize(credentials, request) {
         const creds = credentials as Record<string, string> | undefined;
+        // HTTP credentials cannot create a session from caller-supplied tokens.
+        // Only the BFF's in-process mutation context may use this seed path.
+        if (creds?.internalRefresh === "true" && !isServerSessionMutation())
+          return null;
         const isDev = process.env.NODE_ENV === "development";
 
         // Handle internal token refresh
@@ -130,7 +137,7 @@ export const operatorAuthConfig = {
     // the exact hostname (operator.moto-app.de). They are invisible to
     // tenant subdomains (school-a.moto-app.de), preventing session leaks.
     sessionToken: {
-      name: "operator.session-token",
+      name: PORTAL_SESSION_COOKIE_NAMES.operator,
       options: {
         httpOnly: true,
         sameSite: "lax" as const,

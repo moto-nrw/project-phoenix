@@ -1,0 +1,7 @@
+{
+  "graduates_checked_in": "Es sind noch Kinder mit Abgang eingecheckt. Bitte buchen Sie diese Kinder zuerst nach Hause. Wenden Sie den Schuljahreswechsel danach erneut an.",
+  "not_applied": "Der Schuljahreswechsel ist inzwischen schon zurückgesetzt. Die Liste ist neu geladen.",
+  "not_draft": "Der Schuljahreswechsel wurde inzwischen von einer anderen Person angewendet oder geändert. Bitte prüfen Sie die Liste.",
+  "not_latest_transition": "Inzwischen gibt es einen neueren Schuljahreswechsel. Er muss zuerst zurückgesetzt werden.",
+  "preview_stale": "Klassen oder Zuordnungen haben sich seit dem Öffnen geändert. Die Vorschau ist neu geladen. Bitte prüfen Sie sie noch einmal."
+}

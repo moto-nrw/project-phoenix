@@ -495,6 +495,18 @@ Eine Kindnotiz korrigiert nur, wer sie geschrieben hat. Entfernen darf sie
 die Leitung der bezogenen Gruppe, bei einer Notiz ohne Bezug die Leitung der
 Gruppe des Kindes. Eltern sehen Kindnotizen nicht.
 
+Die **Freigabe für die Schule** ist ein Merkmal einer einzelnen Kindnotiz,
+standardmäßig aus (#4797). Ist sie gesetzt, liest die **Lehrkraft der
+Klasse** des Kindes die Notiz in moto schule als **Beobachtung der OGS**:
+nur wer der Klasse in den Klassenzuweisungen zugeordnet ist, nicht die
+Schulverwaltung, auch nicht mit dem Zugriff auf alle Klassen. Die Freigabe
+setzt und nimmt nur die OGS zurück, über die Notiz selbst; die Lehrkraft
+liest nur und kann weder ändern noch kommentieren. Jeder Abruf wird mit
+Person, Zeitpunkt und Kind protokolliert. Die Freigabe ergänzt die
+Reichweite, ersetzt sie nicht: im OGS-Team gilt weiter die Reichweite.
+Tageshinweise der Lehrkraft und übernommene Betreuernotizen lassen sich nicht
+freigeben.
+
 Gesundheitsinformationen sind keine Kindnotiz und bleiben ein eigenes Feld.
 
 ## Regelmäßiger Wochenplan
@@ -771,6 +783,15 @@ Ein **Beitragsdokument** ist das, was ein Abrechnungslauf an einen Zahler
 richtet: eine Rechnung, ein Gebührenbescheid oder ein Bestätigungsschreiben.
 Welche Art es ist, legt der Träger je Leistung fest.
 _Vermeiden_: Rechnung als Oberbegriff (ein Bescheid ist keine Rechnung).
+
+## Storno und Gutschrift
+
+Ein ausgestelltes Beitragsdokument ändert sich nie. Ein **Storno** nimmt es
+ganz zurück, eine **Gutschrift** erlässt einen Teil davon. Beide sind eigene
+Dokumente mit eigener Nummer aus demselben Nummernkreis, Begründung und Bezug
+auf das Dokument. Nach einem Storno stellt der nächste Lauf eine neue
+Rechnung aus, die die stornierte ersetzt (**Neuausstellung**).
+_Vermeiden_: Rechnung ändern, Rechnung löschen.
 
 ## Rechnungssteller
 

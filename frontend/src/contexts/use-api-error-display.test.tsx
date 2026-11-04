@@ -80,8 +80,12 @@ describe("useApiErrorDisplay", () => {
       </ToastProvider>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Anzeigen" }));
+    // The first failed field on the page gets the focus, not the first one
+    // the server lists (#5217).
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "Name" })).toHaveFocus(),
+    );
     const age = screen.getByRole("textbox", { name: "Alter" });
-    await waitFor(() => expect(age).toHaveFocus());
     expect(age).toHaveAttribute("aria-invalid", "true");
     const describedBy = age.getAttribute("aria-describedby");
     expect(describedBy).toBe("age-error");

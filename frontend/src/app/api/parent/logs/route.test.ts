@@ -3,12 +3,12 @@ vi.mock("~/server/auth/token-validation", () => ({
   validateSessionToken: vi.fn(),
 }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Session } from "next-auth";
+import type { ServerSession } from "~/server/auth/shared";
 import { NextRequest } from "next/server";
 
 const { mockParentAuth, mockTenantAuth } = vi.hoisted(() => ({
-  mockParentAuth: vi.fn<() => Promise<Session | null>>(),
-  mockTenantAuth: vi.fn<() => Promise<Session | null>>(),
+  mockParentAuth: vi.fn<() => Promise<ServerSession | null>>(),
+  mockTenantAuth: vi.fn<() => Promise<ServerSession | null>>(),
 }));
 
 vi.mock("~/server/auth/parent", () => ({ parentAuth: mockParentAuth }));

@@ -72,21 +72,23 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import {
-  berlinTodayISO,
+  careWeekDayCount,
   isValidISODate,
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
-import { getSettingValue } from "~/lib/settings-api";
 import { staffShiftService } from "~/lib/shift-api";
 import { substitutionService } from "~/lib/substitution-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import {
+  useTimetableEnabled,
+  useWeekendFollowsFriday,
+} from "~/lib/tenant-context";
 import { staffNamesFromOverview } from "~/components/timetable/block-staff-names";
 import { timetableService } from "~/lib/timetable-api";
 import {
@@ -177,6 +179,7 @@ function VertretungContent() {
   const tenantMutate = useTenantMutate();
   const { dayStartHour, dayEndHour } = useTimetableDayHours();
   const weekendOpen = useWeekendFollowsFriday();
+  const today = useBerlinToday();
 
   // Lesen braucht `schedules:read` (die Listen-Endpunkte), jeder Save braucht
   // `schedules:manage`. Ohne canManage werden alle Editier-Kontrollen
@@ -209,8 +212,9 @@ function VertretungContent() {
   // in die Fetch-Fenster zu speisen.
   const rawDay = params.d;
   const dayISO = careDayISO(
-    rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO(),
+    rawDay !== null && isValidISODate(rawDay) ? rawDay : today,
     weekendOpen,
+    today,
   );
   const selectedInstanceId = params.block;
   const historyOpen = params.verlauf === "1";
@@ -220,11 +224,10 @@ function VertretungContent() {
   const view: VertretungViewMode = params.view === "woche" ? "woche" : "tag";
   const isWeekView = view === "woche";
 
-  const today = berlinTodayISO();
   // Ziel des Heute-Buttons: am Wochenende der nächste Montag, außer die
   // Schule betreut dort nach dem Freitagsplan. `today` selbst bleibt überall
   // sonst der echte Kalendertag (isPast, Gaps-Klemmung).
-  const todayTarget = careDayISO(today, weekendOpen);
+  const todayTarget = careDayISO(today, weekendOpen, today);
 
   // Woche, die `d` enthält. Immer über den Montag ankern, nie
   // getWeekdays(parseISODate(d)) direkt: getWeekdays validiert nicht, dass
@@ -232,9 +235,14 @@ function VertretungContent() {
   const range = useMemo(() => getWeekRange(parseISODate(dayISO), 0), [dayISO]);
   const fromISO = toISODate(range.from);
   const toISO = toISODate(range.to);
+  // Sa/So nur in der Woche mit dem heutigen Wochenende (#5028).
   const weekDays = useMemo(
-    () => getWeekdays(range.from).slice(0, weekendOpen ? 7 : 5),
-    [range.from, weekendOpen],
+    () =>
+      getWeekdays(range.from).slice(
+        0,
+        careWeekDayCount(fromISO, weekendOpen, today),
+      ),
+    [range.from, fromISO, today, weekendOpen],
   );
   // Das Label endet am letzten sichtbaren Betreuungstag.
   const weekLabel = useMemo(
@@ -289,16 +297,9 @@ function VertretungContent() {
     () => staffShiftService.getOverview(coverageFromISO, coverageToISO),
   );
 
-  // Route-Gate wie in der alten View: Settings-Schema -> timetable.enabled.
-  // fetchSettingsSchema liefert null, wenn der Nutzer keine Settings lesen darf;
-  // die Seite rendert dann normal (bewusster Default, wie /timetables).
-  const { data: settingsSchema, isLoading: settingsSchemaLoading } =
-    useSettingsSchema(status === "authenticated", {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-    });
-  const timetableDisabled =
-    getSettingValue(settingsSchema, "timetable.enabled") === false;
+  // Route-Gate wie im Betreuungsplan: timetable.enabled aus der
+  // Tenant-Auflösung (#4996), ohne das Settings-Schema zu laden.
+  const timetableDisabled = !useTimetableEnabled();
 
   // Fetch-Fehler erhalten, damit "Keine Termine"/Null-Lücken nie so gerendert
   // werden, als hätte ein fehlgeschlagener Request Erfolg gehabt.
@@ -636,11 +637,11 @@ function VertretungContent() {
     [selectedInstance, revalidate, staffNames, toast, updateUrlParams],
   );
 
-  // Solange die Session oder das Settings-Schema lädt, ist noch nicht
-  // entscheidbar, ob das Feature aktiv ist und welche Aktionen erlaubt sind.
+  // Solange die Session lädt, ist noch nicht entscheidbar, welche Aktionen
+  // erlaubt sind.
   // Wie im Dienstplan rendert die PlanningContextBar (Titel, Navigation)
   // trotzdem sofort; nur der Inhaltsbereich fällt auf das Skelett zurück.
-  const showSkeleton = status === "loading" || settingsSchemaLoading;
+  const showSkeleton = status === "loading";
   // Erstes Laden der Woche gehört in denselben Zustand: der Inhalt kann noch
   // nichts zeigen. Eine Revalidierung mit vorhandenen Daten nicht — die würde
   // sonst bei jedem Wochenwechsel die ganze Fläche gegen ein Skelett tauschen.

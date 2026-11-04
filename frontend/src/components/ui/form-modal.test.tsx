@@ -268,6 +268,32 @@ describe("FormModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  // #5531: Ein Schließen-X für alle Overlays, der Kit-Knopf `ghost` `icon`.
+  it("renders the close X as the kit ghost icon button", async () => {
+    render(
+      <TestWrapper>
+        <FormModal isOpen={true} onClose={vi.fn()} title="Test">
+          <p>Content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const close = screen.getByRole("button", { name: "Modal schließen" });
+    expect(close).toHaveClass(
+      "h-8",
+      "aspect-square",
+      "pointer-coarse:min-h-11",
+      "pointer-coarse:min-w-11",
+      "hover:bg-gray-100",
+    );
+    expect(close).toHaveAttribute("type", "button");
+    expect(close.className).not.toMatch(/scale-/);
+  });
+
   it("blocks close icon, backdrop, and Escape while closeDisabled", async () => {
     const onClose = vi.fn();
     render(

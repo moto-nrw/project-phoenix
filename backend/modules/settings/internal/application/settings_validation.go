@@ -7,6 +7,7 @@ import (
 	"math"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
@@ -30,7 +31,7 @@ func validateValue(def *config.Definition, value any) error {
 			return fmt.Errorf("expected a date string")
 		}
 		return validateDateFormat(str)
-	case config.FieldText, config.FieldTextarea, config.FieldPassword:
+	case config.FieldText, config.FieldTextarea, config.FieldColor, config.FieldPassword:
 		return validateTextValue(def, value)
 	case config.FieldSelect:
 		if def.Options == nil || len(def.Options.Static) == 0 {
@@ -116,6 +117,9 @@ func validateTextValue(def *config.Definition, value any) error {
 	str, ok := value.(string)
 	if !ok {
 		return fmt.Errorf("expected a string")
+	}
+	if def.Validation != nil && def.Validation.MaxLength != nil && utf8.RuneCountInString(str) > *def.Validation.MaxLength {
+		return fmt.Errorf("value is longer than %d characters", *def.Validation.MaxLength)
 	}
 	if def.Validation != nil &&
 		def.Validation.CompiledPattern != nil &&

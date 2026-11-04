@@ -454,7 +454,7 @@ func verifyManualProfile(ctx context.Context, rt *Runtime, definition demoProfil
 	if err := verifyProfileSettings(rt, definition); err != nil {
 		return SeedDevice{}, err
 	}
-	virtual, err := verifyManualDevices(rt)
+	virtual, err := verifyDeviceAdministrationLocked(rt)
 	if err != nil {
 		return SeedDevice{}, err
 	}
@@ -475,54 +475,6 @@ func verifyManualProfile(ctx context.Context, rt *Runtime, definition demoProfil
 	}
 	fmt.Printf("Verified API contract for profile %s\n", definition.Key)
 	return virtual, nil
-}
-
-func verifyManualDevices(rt *Runtime) (SeedDevice, error) {
-	physical, err := listSeedDevices(rt, "terminal")
-	if err != nil {
-		return SeedDevice{}, fmt.Errorf("read manual profile physical devices: %w", err)
-	}
-	if len(physical) != 0 {
-		return SeedDevice{}, fmt.Errorf("manual profile physical devices: expected 0, got %d", len(physical))
-	}
-	virtual, err := listSeedDevices(rt, "virtual")
-	if err != nil {
-		return SeedDevice{}, fmt.Errorf("read manual profile virtual devices: %w", err)
-	}
-	for _, device := range virtual {
-		if device.DeviceID != webManualDeviceID || device.DeviceType != "virtual" {
-			continue
-		}
-		if err := verifyProtectedDevice(rt, device.ID); err != nil {
-			return SeedDevice{}, err
-		}
-		device.Protected = true
-		return device, nil
-	}
-	return SeedDevice{}, fmt.Errorf("virtual web device %s missing", webManualDeviceID)
-}
-
-func verifyProtectedDevice(rt *Runtime, deviceID int64) error {
-	if deviceID <= 0 {
-		return fmt.Errorf("virtual web device has no id")
-	}
-	path := fmt.Sprintf("/operator/devices/%d/transfer-status", deviceID)
-	raw, err := rt.Client.GetWithAuth(rt.OperatorAuth, path)
-	if err != nil {
-		return fmt.Errorf("read virtual web device protection: %w", err)
-	}
-	var envelope struct {
-		Data struct {
-			IsProtected bool `json:"is_protected"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return fmt.Errorf("decode virtual web device protection: %w", err)
-	}
-	if !envelope.Data.IsProtected {
-		return fmt.Errorf("virtual web device %s is not protected", webManualDeviceID)
-	}
-	return nil
 }
 
 // verifyManualStudents checks the children of a web-attendance profile. With

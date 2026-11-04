@@ -6,6 +6,7 @@ import { Loader2, Plus, Search, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { Input } from "~/components/ui/input";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { fetchStudents } from "~/lib/student-api";
 import {
@@ -378,14 +379,15 @@ export function CompanionPicker({
               className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400"
               aria-hidden
             />
-            <input
+            <Input
               type="text"
+              controlSize="compact"
               autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Kind suchen (Name)"
               aria-label="Kind für die Laufgemeinschaft suchen"
-              className="block w-full rounded-lg border border-gray-200 py-2 pr-3 pl-9 text-sm transition-colors focus:border-gray-400 focus:ring-1 focus:ring-gray-400"
+              className="pl-9"
             />
           </div>
           {query.trim().length < MIN_QUERY_LENGTH ? (

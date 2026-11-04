@@ -46,6 +46,8 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/database/personal/import",
   "/database/personal/opening-balances",
   "/database/planning-tracks",
+  "/database/qualification-types",
+  "/database/qualifications",
   "/database/roles",
   "/database/rooms",
   "/database/shift-types",
@@ -66,7 +68,6 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/enrollment-phases/:id/rollover",
   "/home",
   "/info-displays",
-  "/invitations",
   "/lists",
   "/meal-plan",
   "/mein-dienstplan",
@@ -81,7 +82,6 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   // Titel — die Kennung bleibt als :id stehen.
   "/parent-announcements/:id",
   "/payroll",
-  "/planung",
   "/profile",
   "/reminders",
   "/rooms",
@@ -91,10 +91,10 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/settings",
   "/staff",
   "/staff/:id",
-  "/staff/dienstplan",
   "/statistics",
   "/students/:id",
   "/students/:id/change-history",
+  "/students/:id/unfallanzeigen/:reportId",
   "/students/:id/feedback-history",
   "/students/:id/room-history",
   "/students/search",
@@ -106,12 +106,12 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/tagesinformationen",
   "/tagesplan",
   "/time-tracking",
-  "/timetables",
   // Umfragen (#4781): nur die Route, nie ein Titel oder eine Antwort.
   "/umfragen",
   "/umfragen/:id",
   "/vertretung",
-  "/vertretungsplan",
+  "/wochenprotokolle",
+  "/wochenprotokolle/:protocolId",
 ] as const;
 
 /** Tenant-host pages outside `(protected)`: login, enrollment, display. */
@@ -143,7 +143,10 @@ export const TRACKED_PARENT_ROUTE_TEMPLATES = [
   "/calendar",
   "/children",
   "/children/:id",
+  "/children/:id/elternsprechtag",
   "/demo",
+  // Dokumente des Trägers (#4671).
+  "/documents",
   // Öffentliche Ferienanmeldung eines Trägers (#4661), ohne Konto.
   "/ferienanmeldung/:token",
   "/invite",
@@ -164,9 +167,14 @@ export const TRACKED_SCHOOL_ROUTE_TEMPLATES = [
   "/",
   "/aufsichten",
   "/einstellungen",
+  "/elternbriefe",
+  "/elternbriefe/:id",
+  "/elternsprechtag",
+  "/fehlzeiten",
   "/invite",
   "/kalender",
   "/klasse",
+  "/klasse/kind",
   "/login",
   "/nachrichten",
   "/nachrichten/:threadID",
@@ -178,6 +186,7 @@ export const TRACKED_SCHOOL_ROUTE_TEMPLATES = [
 export const TRACKED_CATERER_ROUTE_TEMPLATES = [
   "/",
   "/einladung/:schoolId/:token",
+  "/konto",
   "/login",
   "/reset-password",
 ] as const;
@@ -195,9 +204,11 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/ferien/:id",
   "/ferien/:id/anmeldungen",
   "/ferien/:id/anmeldungen/:registrationId",
+  "/ferien/:id/formular",
   "/ferien/neu",
   "/invite",
   "/login",
+  "/reset-password",
 ] as const;
 
 /** Public pages of the bare domain: school choice, start, demo, help. */
@@ -209,6 +220,8 @@ export const TRACKED_PUBLIC_ROUTE_TEMPLATES = [
   "/help/:topic*",
   "/help/nfc/erste-schritte",
   "/invite",
+  // Download link of the payroll office (#4805); the link is a credential.
+  "/lohnbuero/:link",
   "/onboarding",
   "/reset-password",
   "/start",

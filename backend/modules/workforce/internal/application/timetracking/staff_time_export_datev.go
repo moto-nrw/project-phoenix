@@ -65,9 +65,11 @@ type DatevExportReport struct {
 type datevLine struct {
 	personnelNumber string
 	lohnart         string
-	// exactly one of hoursMinutes / days is set, mirroring the configured unit
+	// exactly one of hoursMinutes / days / amountCents is set, mirroring the
+	// configured unit; amounts come from the school's own wage types (#4807)
 	hoursMinutes *int
 	days         *float64
+	amountCents  *int
 }
 
 // datevCategoryValue picks the ONE MonthExportRow field a category exports.
@@ -137,7 +139,9 @@ func buildDatevLines(rows []MonthExportRow, status *PayrollExportConfiguration) 
 			report.OpenMonth = true
 		}
 		lines = appendDatevRowLines(lines, configured, row)
+		lines = appendDatevWageTypeLines(lines, row)
 	}
+	report.UnconfiguredCategories = append(report.UnconfiguredCategories, unnumberedWageTypes(rows)...)
 	report.LineCount = len(lines)
 	report.StaffExported = len(exported)
 	return lines, report
@@ -148,13 +152,82 @@ func buildDatevLines(rows []MonthExportRow, status *PayrollExportConfiguration) 
 func configuredDatevCategories(categories []PayrollExportCategory, report *DatevExportReport) []PayrollExportCategory {
 	var configured []PayrollExportCategory
 	for _, category := range categories {
-		if category.Number == "" || (category.UnitRequired && category.Unit == "") {
+		if !isDatevCategoryConfigured(category) {
 			report.UnconfiguredCategories = append(report.UnconfiguredCategories, category.Label)
 			continue
 		}
 		configured = append(configured, category)
 	}
 	return configured
+}
+
+func isDatevCategoryConfigured(category PayrollExportCategory) bool {
+	return category.Number != "" && (!category.UnitRequired || category.Unit != "")
+}
+
+type datevWageTypeDefinition struct {
+	id     int64
+	name   string
+	number string
+}
+
+func fixedDatevWageTypeNumbers(categories []PayrollExportCategory) map[string]string {
+	used := make(map[string]string)
+	for _, category := range categories {
+		if !isDatevCategoryConfigured(category) {
+			continue
+		}
+		// Fixed categories predate own wage types and may deliberately share a
+		// number. Own wage types must not join that existing booking.
+		if _, exists := used[category.Number]; !exists {
+			used[category.Number] = category.Label
+		}
+	}
+	return used
+}
+
+func definedDatevWageTypes(rows []MonthExportRow) []datevWageTypeDefinition {
+	type definitionKey struct {
+		id     int64
+		number string
+		unit   string
+	}
+	seen := make(map[definitionKey]bool)
+	var definitions []datevWageTypeDefinition
+	for _, row := range rows {
+		if row.PayrollRules == nil {
+			continue
+		}
+		for _, wageType := range row.PayrollRules.WageTypes {
+			if wageType.Number == "" {
+				continue
+			}
+			definition := datevWageTypeDefinition{id: wageType.ID, name: wageType.Name, number: wageType.Number}
+			key := definitionKey{id: definition.id, number: definition.number, unit: wageType.Unit}
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			definitions = append(definitions, definition)
+		}
+	}
+	return definitions
+}
+
+// validateDatevWageTypeNumbers keeps each own wage type distinct from the
+// fixed categories and from every other own wage type the requested export
+// can carry. Closed rows use their frozen definition, so this check belongs
+// here rather than in the current-rule maintenance path.
+func validateDatevWageTypeNumbers(rows []MonthExportRow, status *PayrollExportConfiguration) error {
+	used := fixedDatevWageTypeNumbers(status.Categories)
+	for _, wageType := range definedDatevWageTypes(rows) {
+		if name, exists := used[wageType.number]; exists {
+			return fmt.Errorf("%w: DATEV-Lohnartnummer %s ist sowohl für %s als auch für %s eingerichtet",
+				ErrPayrollConfigIncomplete, wageType.number, name, wageType.name)
+		}
+		used[wageType.number] = wageType.name
+	}
+	return nil
 }
 
 // appendDatevRowLines appends one line per configured category with a value
@@ -196,6 +269,12 @@ func datevDays(days float64) string {
 const (
 	lodasRecordHours = "1"
 	lodasRecordDays  = "2"
+	// lodasRecordAmount books an amount of the school's own wage types
+	// (#4807) into the standard table with Bearbeitungsschlüssel 02
+	// (Bruttowerte). Declared only when the file carries an amount, so a file
+	// without one stays byte-identical.
+	lodasRecordAmount   = "3"
+	lodasAmountBSNumber = "02"
 )
 
 func writeDatevLodas(lines []datevLine, status *PayrollExportConfiguration, year, month int) []byte {
@@ -212,8 +291,15 @@ func writeDatevLodas(lines []datevLine, status *PayrollExportConfiguration, year
 	b.WriteString("\n[Satzbeschreibung]\n")
 	b.WriteString(lodasRecordHours + ";u_lod_bwd_buchung_stunden;pnr#bwd;abrechnung_zeitraum#bwd;stunden#bwd;la_eigene#bwd;\n")
 	b.WriteString(lodasRecordDays + ";u_lod_bwd_buchung_tage;pnr#bwd;abrechnung_zeitraum#bwd;tage#bwd;la_eigene#bwd;\n")
+	if datevLinesCarryAmounts(lines) {
+		b.WriteString(lodasRecordAmount + ";u_lod_bwd_buchung_standard;pnr#bwd;abrechnung_zeitraum#bwd;bs_wert_butab#bwd;bs_nr#bwd;la_eigene#bwd;\n")
+	}
 	b.WriteString("\n[Bewegungsdaten]\n")
 	for _, line := range lines {
+		if line.amountCents != nil {
+			b.WriteString(strings.Join([]string{lodasRecordAmount, line.personnelNumber, period, formatExportCents(*line.amountCents), lodasAmountBSNumber, line.lohnart}, ";") + ";\n")
+			continue
+		}
 		if line.days != nil {
 			b.WriteString(strings.Join([]string{lodasRecordDays, line.personnelNumber, period, datevDays(*line.days), line.lohnart}, ";") + ";\n")
 			continue
@@ -239,13 +325,16 @@ func writeDatevLug(lines []datevLine) []byte {
 	var b strings.Builder
 	b.WriteString(strings.Join(datevLugHeader, ";") + "\n")
 	for _, line := range lines {
-		hours, days := "", ""
-		if line.days != nil {
+		hours, days, value := "", "", ""
+		switch {
+		case line.amountCents != nil:
+			value = formatExportCents(*line.amountCents)
+		case line.days != nil:
 			days = datevDays(*line.days)
-		} else {
+		default:
 			hours = datevHours(*line.hoursMinutes)
 		}
-		fields := []string{line.personnelNumber, "", "", line.lohnart, hours, days, "", "", "", "", ""}
+		fields := []string{line.personnelNumber, "", "", line.lohnart, hours, days, value, "", "", "", ""}
 		b.WriteString(strings.Join(fields, ";") + "\n")
 	}
 	return encodeDatevANSI(b.String())
@@ -299,10 +388,24 @@ func (s *staffTimeExportService) payrollStatusForDatev(ctx context.Context, form
 	if format == ExportFormatDatevLodas && !status.LodasHeaderComplete {
 		return nil, fmt.Errorf("%w: Berater- und Mandantennummer fehlen", ErrPayrollConfigIncomplete)
 	}
-	if status.ConfiguredCategories == 0 {
-		return nil, fmt.Errorf("%w: keine Lohnart konfiguriert", ErrPayrollConfigIncomplete)
-	}
 	return status, nil
+}
+
+// rowsHaveNumberedWageType reports whether the requested export period has an
+// own wage type with a DATEV number. Closed rows carry the rules frozen at
+// their close, so reading current rules here would validate a different file.
+func rowsHaveNumberedWageType(rows []MonthExportRow) bool {
+	for _, row := range rows {
+		if row.PayrollRules == nil {
+			continue
+		}
+		for _, wageType := range row.PayrollRules.WageTypes {
+			if wageType.Number != "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // buildDatev computes lines + report for both the download and the report
@@ -315,8 +418,17 @@ func (s *staffTimeExportService) buildDatev(ctx context.Context, req TimeExportR
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	if status.ConfiguredCategories == 0 && s.payrollRules == nil {
+		return nil, nil, nil, fmt.Errorf("%w: keine Lohnart konfiguriert", ErrPayrollConfigIncomplete)
+	}
 	rows, err := s.overview.GetMonthExportRows(ctx, req.Year, req.Month)
 	if err != nil {
+		return nil, nil, nil, err
+	}
+	if status.ConfiguredCategories == 0 && !rowsHaveNumberedWageType(rows) {
+		return nil, nil, nil, fmt.Errorf("%w: keine Lohnart konfiguriert", ErrPayrollConfigIncomplete)
+	}
+	if err := validateDatevWageTypeNumbers(rows, status); err != nil {
 		return nil, nil, nil, err
 	}
 	lines, report := buildDatevLines(rows, status)

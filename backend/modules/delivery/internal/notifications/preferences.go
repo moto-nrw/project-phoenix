@@ -138,6 +138,9 @@ type preferenceService struct {
 	accountTenants GuardianSchools
 	permissions    PermissionMatch
 	tenantRuntime  *tenant.UnitOfWork
+	// accountPermissions answers which push types with a Permission an
+	// account is offered (#4791); without it none of them is.
+	accountPermissions AccountPermissions
 }
 
 func (s *preferenceService) withTenantRuntime(ctx context.Context) context.Context {
@@ -157,13 +160,17 @@ func NewPreferenceService(
 	accountTenants GuardianSchools,
 	permissions PermissionMatch,
 ) PreferenceService {
-	return &preferenceService{
+	service := &preferenceService{
 		consent:        consent,
 		settings:       settings,
 		db:             db,
 		accountTenants: accountTenants,
 		permissions:    permissions,
 	}
+	// Identity & Access answers the guardian schools and the account
+	// permissions alike: push types with a Permission need the latter (#4791).
+	service.accountPermissions, _ = accountTenants.(AccountPermissions)
+	return service
 }
 
 func (s *preferenceService) GetForAccount(ctx context.Context, accountID int64, portal string) (*PreferenceOverview, error) {
@@ -181,7 +188,10 @@ func (s *preferenceService) GetForAccount(ctx context.Context, accountID int64, 
 		return nil, err
 	}
 
-	defs := TypesForPortal(portal)
+	defs, err := s.offeredTypes(ctx, accountID, portal)
+	if err != nil {
+		return nil, err
+	}
 	overview := &PreferenceOverview{
 		TenantEnabled: tenantEnabled,
 		Types:         make([]PreferenceState, 0, len(defs)),
@@ -209,7 +219,7 @@ func (s *preferenceService) GetForAccount(ctx context.Context, accountID int64, 
 			Label:       def.Label,
 			Description: def.Description,
 			Group:       def.Group,
-			Enabled:     enabledByType[def.Key],
+			Enabled:     storedOrDefault(enabledByType, def),
 			Available:   available,
 		})
 	}
@@ -235,6 +245,13 @@ func (s *preferenceService) SetForPortalAccount(ctx context.Context, accountID i
 	}
 	def, known := GetType(notificationType)
 	if !known || !OfferedInPortal(def, portal) {
+		return fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
+	}
+	offered, err := s.offeredToAccount(ctx, accountID, def)
+	if err != nil {
+		return err
+	}
+	if !offered {
 		return fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
 	}
 
@@ -295,7 +312,7 @@ func (s *preferenceService) DisableAllForPortalAccount(ctx context.Context, acco
 	if err := s.consent.DisableConsent(ctx, accountID, typeKeysForPortal(portal)); err != nil {
 		return fmt.Errorf("disable notification preferences: %w", err)
 	}
-	return nil
+	return s.declineDefaultOnTypes(ctx, accountID, portal)
 }
 
 func (s *preferenceService) FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error) {

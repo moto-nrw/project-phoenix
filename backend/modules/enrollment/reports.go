@@ -22,10 +22,19 @@ var (
 // this phase).
 const ClassListEntryNoCareLabel = "Keine Betreuung"
 
+// ClassReportChild is a named child in the current class assignment. Callers
+// apply dated participation separately when building historical reports.
+type ClassReportChild struct {
+	StudentID int64
+	FirstName string
+	LastName  string
+}
+
 // Reports are Enrollment's staff reports over one phase — the care usage and
 // the class roster, each with its audited export — and the class roster of
 // one calendar day that the class-day view reads.
 type Reports interface {
+	ClassReportChildren(ctx context.Context, schoolClass string) ([]ClassReportChild, error)
 	CareUsage(ctx context.Context, filters CareUsageFilters) (*CareUsageReport, error)
 	// ExportCareUsage builds the care usage report and records the export in
 	// the GDPR access log.
@@ -37,6 +46,10 @@ type Reports interface {
 	// across every covering phase. It writes no access log: the consumer
 	// serves the day view and audits it.
 	ClassRosterDay(ctx context.Context, schoolClass string, date calendar.Date) (*ClassRosterDay, error)
+	// SchoolRosterDay is the roster of every class on one calendar day
+	// (#4802), built once for the whole school; each row names its class.
+	// Children without a class are not on it. It writes no access log.
+	SchoolRosterDay(ctx context.Context, date calendar.Date) (*ClassRosterDay, error)
 }
 
 // ReportOfferingDate selects the current point within a phase. Reports for a

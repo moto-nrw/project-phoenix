@@ -24,7 +24,7 @@ const (
 	fullDaySickTo    = 100 // four fall ill: with the seed's, under one child in ten
 )
 
-// Registered error codes of a full room or activity (error-registry.json).
+// Registered error codes of a full room or activity (error-registry/).
 const codeActivityCapacityExceeded = "iot.activity_capacity_exceeded"
 
 // roomPlan tracks the open rooms and where each child of the day is.

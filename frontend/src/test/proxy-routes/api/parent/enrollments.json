@@ -1,0 +1,11 @@
+{
+  "api/parent/enrollments/[tenantSlug]/bootstrap/[phaseId]": [
+    "GET parent /parent/enrollments/tenantSlug%2F1/bootstrap/phaseId%2F1"
+  ],
+  "api/parent/enrollments/[tenantSlug]/profile": [
+    "GET parent /parent/enrollments/tenantSlug%2F1/profile"
+  ],
+  "api/parent/enrollments/[tenantSlug]/submit": [
+    "POST parent /parent/enrollments/tenantSlug%2F1/submit"
+  ]
+}

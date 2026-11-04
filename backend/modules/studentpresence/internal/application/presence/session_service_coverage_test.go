@@ -255,6 +255,51 @@ func TestEndDailySessions_NoActiveSessions(t *testing.T) {
 	assert.Equal(t, 0, result.VisitsEnded)
 }
 
+// Manually ended and deleted sessions still need nightly revision maintenance.
+func TestEndDailySessions_CompactsRevisionsWithoutOpenSessions(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	service := setupSessionService(t, db)
+	ended := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
+	deleted := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
+	for _, groupID := range []int64{ended.ID, deleted.ID} {
+		student := testpkg.CreateTestStudent(t, db, "Revision", "Cleanup", "1a")
+		visit := testpkg.CreateTestVisit(t, db, student.ID, groupID, time.Now(), nil)
+		_, err := db.NewRaw("UPDATE active.visits SET exit_time = entry_time WHERE id = ?", visit.ID).Exec(ctx)
+		require.NoError(t, err)
+	}
+	_, err := db.NewRaw("UPDATE active.groups SET end_time = NOW() WHERE id = ?", ended.ID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewRaw("DELETE FROM active.groups WHERE id = ?", deleted.ID).Exec(ctx)
+	require.NoError(t, err)
+	countEvents := func(groupID int64) (int, int64) {
+		t.Helper()
+		var rows int
+		var revision int64
+		require.NoError(t, db.NewRaw(`SELECT count(*), COALESCE(sum(changes), 0)
+			FROM active.visit_revision_events WHERE tenant_id = ? AND active_group_id = ?`,
+			testpkg.Tenant(t), groupID).Scan(ctx, &rows, &revision))
+		return rows, revision
+	}
+	rows, revision := countEvents(ended.ID)
+	require.Equal(t, 2, rows)
+	require.EqualValues(t, 2, revision)
+	rows, _ = countEvents(deleted.ID)
+	require.Equal(t, 2, rows)
+
+	result, err := testpkg.TenantQuery0(t, ctx, db, service.EndDailySessions)
+	require.NoError(t, err)
+	require.True(t, result.Success)
+	assert.Zero(t, result.SessionsEnded)
+	assert.Zero(t, result.VisitsEnded)
+	rows, revision = countEvents(ended.ID)
+	assert.Equal(t, 1, rows, "manual close must not bypass compaction")
+	assert.EqualValues(t, 2, revision, "compaction must preserve the revision")
+	rows, _ = countEvents(deleted.ID)
+	assert.Zero(t, rows, "deleted sessions must not leave revision events")
+}
+
 // TestEndDailySessions_WithOrphanedSupervisors verifies orphaned supervisor cleanup
 func TestEndDailySessions_WithOrphanedSupervisors(t *testing.T) {
 	t.Parallel()

@@ -1,6 +1,14 @@
 import type { Page } from "@playwright/test";
 import { loginToLocalTenant } from "../../e2e/local-tenant-login";
-import { loadSeedAccess, type SeedAccess } from "../seed-state";
+import {
+  loadSeedAccess,
+  readSeedAccess,
+  type SeedAccess,
+  type SeedRole,
+} from "../seed-state";
+
+/** Einzelne Aktionen sollen vor dem Gesamtbudget mit ihrem Call-Log scheitern. */
+export const PERF_ACTION_TIMEOUT = 15_000;
 
 /**
  * Tenant-Slug und Admin-Login aus backend/.seed-state.json; E2E_TENANT_SLUG /
@@ -13,6 +21,19 @@ export function loadAccess(profile?: string): SeedAccess {
     throw new Error(
       "Perf harness needs backend/.seed-state.json or E2E_TENANT_SLUG/E2E_TEST_EMAIL/E2E_TEST_PASSWORD.",
     );
+  }
+  return access;
+}
+
+/**
+ * Zugang eines Kontos aus dem Seed-Profil. `admin` folgt loadAccess (mit den
+ * E2E-Überschreibungen), jede andere Rolle kommt nur aus der Seed-Datei.
+ */
+export function loadRoleAccess(role: SeedRole): SeedAccess {
+  if (role === "admin") return loadAccess();
+  const access = readSeedAccess({ role });
+  if (!access) {
+    throw new Error(`Perf harness needs backend/.seed-state.json for ${role}.`);
   }
   return access;
 }
@@ -65,4 +86,15 @@ export async function gotoTolerant(page: Page, url: string): Promise<void> {
  */
 export async function login(page: Page, access: SeedAccess): Promise<void> {
   await loginToLocalTenant(page, tenantBaseUrl(access), access);
+}
+
+/** Den Browser-Hinweis vor der Messung schließen; storageState merkt die Wahl. */
+export async function dismissNotificationHint(
+  page: Page,
+  baseUrl: string,
+): Promise<void> {
+  await gotoTolerant(page, `${baseUrl}/home`);
+  const dismiss = page.getByRole("button", { name: "Verstanden" });
+  await dismiss.waitFor({ timeout: 10_000 }).catch(() => undefined);
+  if (await dismiss.isVisible()) await dismiss.click();
 }

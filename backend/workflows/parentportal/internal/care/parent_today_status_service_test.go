@@ -320,7 +320,7 @@ func TestGetChildTodayStatusPickupOnlyDoesNotClaimNoCare(t *testing.T) {
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	if !seedPickupScheduleForToday(t, db, chain.TenantID, chain.StudentID, calendar.NormalizeWallClock(time.Date(2026, 1, 1, 15, 30, 0, 0, time.UTC))) {
-		t.Skip("Wochenplaene gelten nur montags bis freitags")
+		t.Fatal("fixture date must be a weekday: Wochenplaene gelten nur montags bis freitags")
 	}
 	seedClosedAttendanceOn(t, db, chain.TenantID, chain.StudentID, calendar.NewDate(2026, 8, 24).AddDays(-3))
 
@@ -343,7 +343,7 @@ func TestGetChildTodayStatusTracksAttendanceSchoolWide(t *testing.T) {
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	if !seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, calendar.NormalizeWallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))) {
-		t.Skip("Wochenplaene gelten nur montags bis freitags")
+		t.Fatal("fixture date must be a weekday: Wochenplaene gelten nur montags bis freitags")
 	}
 
 	// Die Historie gehoert einem MITSCHUELER, das angefragte Kind hat keine.
@@ -364,7 +364,7 @@ func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	if !seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, calendar.NormalizeWallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))) {
-		t.Skip("Wochenplaene gelten nur montags bis freitags")
+		t.Fatal("fixture date must be a weekday: Wochenplaene gelten nur montags bis freitags")
 	}
 	staff := testpkg.CreateTestStaffForTenant(t, db, chain.TenantID, "Abwesenheit", "Autor")
 	exception := &careplan.ArrivalException{

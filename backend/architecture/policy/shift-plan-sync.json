@@ -1,0 +1,198 @@
+{
+  "packages": [
+    {
+      "path": "workflows/shiftplansync",
+      "owner": "shift-plan-sync",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/shiftplansync/ports",
+      "owner": "shift-plan-sync",
+      "role": "port",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/shiftplansync/internal/application",
+      "owner": "shift-plan-sync",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/shiftplansync/compose",
+      "owner": "shift-plan-sync",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "shift-plan-sync.application.timetable-activities.public",
+      "description": "The sick cascade and the Terminvertretung write through the Timetable owner's public deviation commands (timetable planning dissolution, ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.public.workforce",
+      "description": "The shift-plan-sync contract is the port Workforce declares for the sick cascade (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "public",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.port.workforce",
+      "description": "The shift-plan-sync ports carry the public Workforce planning types (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "port",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.application.ports",
+      "description": "The shift-plan-sync application depends on its own ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "shift-plan-sync",
+      "target_role": "port"
+    },
+    {
+      "id": "shift-plan-sync.application.workforce",
+      "description": "The sick cascade cancels and releases shifts through the public Workforce planning contracts (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.application.delivery-public",
+      "description": "The shift-plan-sync application queues the staffing broadcast after commit (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.application.tenant-runtime",
+      "description": "The shift-plan-sync application reads the tenant id and registers after-commit work (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.application.test",
+      "description": "The shift-plan-sync application keeps the cmp.Or logger fallback the helper-consolidation ratchet requires (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_class": "test"
+    },
+    {
+      "id": "shift-plan-sync.compose.workforce",
+      "description": "Shift-plan-sync composition binds the public Workforce planning contracts to its shift port (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "compose",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.compose.delivery-public",
+      "description": "Shift-plan-sync composition binds the SSE broadcaster (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.decision-test.delivery-public",
+      "description": "The shift-plan-sync application suites record the staffing broadcast.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "workflow-decision-test",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.decision-test.tenant-runtime",
+      "description": "The shift-plan-sync application suites run inside a tenant context.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "workflow-decision-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "shift-plan-sync.adapter-test.workforce-compose",
+      "description": "The shift-plan-sync behaviour suites compose the Workforce planning side the workflow runs over.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "adapter-test",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "shift-plan-sync.public.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "public",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "shift-plan-sync.application.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "shift-plan-sync",
+      "source_role": "application",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    }
+  ]
+}

@@ -77,6 +77,9 @@ type Resource struct {
 	// Calendar is the calendar of moto schule (#4798); nil leaves it
 	// unmounted.
 	Calendar SchoolRouter
+	// ParentLetters are the class letters of a Lehrkraft to the parents of
+	// her classes (#4800); nil leaves them unmounted.
+	ParentLetters SchoolRouter
 }
 
 // NewResource builds the school-portal resource. An incomplete resets
@@ -155,6 +158,13 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	// calendar:school. Same calendar service as /api/calendar.
 	if rs.Calendar != nil {
 		r.Mount("/calendar", rs.Calendar.SchoolRouter(protectedSchoolRoutes))
+	}
+
+	// Parent letters of a Lehrkraft to her classes (#4800): the parent
+	// announcements of the OGS, behind class_day:parent_letter_write, one
+	// class target in the caller's reach and only her own letters.
+	if rs.ParentLetters != nil {
+		r.Mount("/parent-letters", rs.ParentLetters.SchoolRouter(protectedSchoolRoutes))
 	}
 
 	return r

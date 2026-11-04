@@ -113,6 +113,7 @@ func (s *CareLifecycle) applyDueEffects(ctx context.Context, ids []int64, asOf c
 	if err := s.discardRemovals(ctx, current); err != nil {
 		return effects, err
 	}
+	s.announcePlanningChange(ctx)
 	effects.applied = len(current)
 	return effects, nil
 }
@@ -134,7 +135,14 @@ func (s *CareLifecycle) reconcileExpiredCareBookings(ctx context.Context, asOf c
 		if err != nil {
 			return err
 		}
-		return s.reconcileBookingEvaluations(txCtx, evaluations, asOf)
+		changed, err := s.reconcileBookingEvaluations(txCtx, evaluations, asOf)
+		if err != nil {
+			return err
+		}
+		if changed {
+			s.announcePlanningChange(txCtx)
+		}
+		return nil
 	})
 }
 

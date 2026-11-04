@@ -1,0 +1,7 @@
+DELETE /auth/invitations/{id}/
+GET /auth/invitations/
+GET /auth/invitations/{token}
+POST /auth/invitations/
+POST /auth/invitations/former-employment
+POST /auth/invitations/{id}/resend
+POST /auth/invitations/{token}/accept

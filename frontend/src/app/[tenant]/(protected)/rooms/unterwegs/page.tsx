@@ -8,9 +8,27 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { TransitStudentsSection } from "~/components/rooms/transit-students-section";
 import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { RoomsGridSkeleton } from "../page-skeleton";
+import { transitConcept } from "~/lib/concepts/transit";
 
 /** Der Rückweg der Kindakte aus dieser Liste. */
 const TRANSIT_PATH = "/rooms/unterwegs";
+
+/**
+ * Der Einstieg „Unterwegs“ auf „Alle Kinder“ (#5026) führt dorthin zurück;
+ * jeder andere Rückweg geht zu den Räumen.
+ */
+const CHILD_OVERVIEW_PATH = "/students/search";
+
+function transitDayStatusFromReferrer(
+  referrer: string,
+): "comes_today" | "not_coming_today" | undefined {
+  const dayStatus = new URL(referrer, "https://moto.invalid").searchParams.get(
+    "day_status",
+  );
+  return dayStatus === "comes_today" || dayStatus === "not_coming_today"
+    ? dayStatus
+    : undefined;
+}
 
 /**
  * Kinder ohne Raumzuweisung (#3115). Bis dahin ein Slide-over auf /rooms
@@ -32,7 +50,14 @@ function TransitPageContent() {
   const searchParams = useSearchParams();
   const referrer = resolveDetailReferrer(searchParams.get("from"), "/rooms", [
     "/rooms",
+    CHILD_OVERVIEW_PATH,
   ]);
+  const backLabel = referrer.startsWith(CHILD_OVERVIEW_PATH)
+    ? "Zurück zur Kinderübersicht"
+    : "Zurück zu den Räumen";
+  const transitDayStatus = referrer.startsWith(CHILD_OVERVIEW_PATH)
+    ? transitDayStatusFromReferrer(referrer)
+    : undefined;
   const transitReferrer = `${TRANSIT_PATH}?from=${encodeURIComponent(referrer)}`;
 
   return (
@@ -46,10 +71,11 @@ function TransitPageContent() {
       statsLoading={totalCount === null}
       back
       backHref={referrer}
-      backLabel="Zurück zu den Räumen"
-      leading={<MotoConceptIcon concept="transit" size={40} />}
+      backLabel={backLabel}
+      leading={<MotoConceptIcon concept={transitConcept} size={40} />}
     >
       <TransitStudentsSection
+        dayStatus={transitDayStatus}
         fromReferrer={transitReferrer}
         onTotalCountChange={setTotalCount}
       />

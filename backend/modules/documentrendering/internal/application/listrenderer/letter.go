@@ -139,7 +139,7 @@ func newLetterLayout(chrome *pageChrome, letter listrecords.Letter) (*letterLayo
 		if _, _, ok := imageSize(letter.Logo); !ok {
 			return nil, errors.New("letter logo: not a PNG or JPEG image")
 		}
-		holder, err := gopdf.ImageHolderByBytes(letter.Logo)
+		holder, err := pdfImage(letter.Logo)
 		if err != nil {
 			return nil, fmt.Errorf("letter logo: %w", err)
 		}

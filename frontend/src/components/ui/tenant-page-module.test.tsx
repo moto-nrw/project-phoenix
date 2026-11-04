@@ -115,16 +115,19 @@ describe("TenantPage bei nicht gebuchtem Modul", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("trifft auch Unterseiten und alte Adressen eines Moduls", () => {
-    vi.mocked(useBookedModules).mockReturnValue(
-      MODULE_KEYS.filter((key) => key !== "dienstplan"),
-    );
-    navigation.pathname = "/staff/dienstplan";
+  it.each(["/dienstplan", "/dienstplan/details"])(
+    "schützt die kanonische Modulseite %s",
+    (pathname) => {
+      vi.mocked(useBookedModules).mockReturnValue(
+        MODULE_KEYS.filter((key) => key !== "dienstplan"),
+      );
+      navigation.pathname = pathname;
 
-    renderGate("Dienstplan");
+      renderGate("Dienstplan");
 
-    expect(screen.getByText("Dienstplan ist nicht gebucht")).toBeVisible();
-  });
+      expect(screen.getByText("Dienstplan ist nicht gebucht")).toBeVisible();
+    },
+  );
 
   it("rendert die Seite, solange die Schuldaten fehlen", () => {
     vi.mocked(useTenantSafe).mockReturnValue({

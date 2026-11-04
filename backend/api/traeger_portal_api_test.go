@@ -29,6 +29,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // traegerPortalHandler is the /traeger router with the mailbox its second
@@ -51,10 +52,10 @@ func newTraegerPortal(t *testing.T) (*bun.DB, *traegerPortalHandler, identityacc
 
 // traegerPortalOn composes Identity & Access over db with a capturing
 // mailbox and mounts /traeger over it.
-func traegerPortalOn(t *testing.T, db *bun.DB, unit tenant.UnitOfWork) (*traegerPortalHandler, identityaccess.Owner) {
+func traegerPortalOn(t *testing.T, db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOption) (*traegerPortalHandler, identityaccess.Owner) {
 	t.Helper()
 	mail := testpkg.NewCapturingMailer()
-	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, db), unit, WithAuthTestMailer(mail))
+	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, db), unit, append([]AuthTestOption{WithAuthTestMailer(mail)}, options...)...)
 	require.NoError(t, err)
 	return &traegerPortalHandler{Handler: traegerPortalRouter(t, db, auth.Auth, unit), mail: mail}, auth.Auth
 }
@@ -73,7 +74,7 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 	settings, err := owners.BuildTraegerSettings(database, unit, slog.Default(), organizations, nil)
 	require.NoError(t, err)
 	portal, err := NewTraegerPortalHTTP(identity, organizations, owners.MustNewPeopleDirectory(database), membership,
-		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog}, settings)
+		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog}, settings, testHealthCipher())
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
@@ -86,7 +87,7 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
 	})
 	require.NoError(t, err)
-	mountParentBillingRoutes(router, organizations, settings, delivery.Module, slog.Default())
+	mountParentBillingRoutes(router, organizations, settings, delivery.Module, testHealthCipher(), slog.Default())
 	return testpkg.SessionVerifier(router)
 }
 
@@ -140,6 +141,21 @@ func traegerLogin(t *testing.T, router http.Handler, email, password string, org
 // when one is given, and reads either answer shape.
 func traegerPost(t *testing.T, router http.Handler, path, bearer string, body any) (int, traegerLoginAnswer) {
 	t.Helper()
+	rec := traegerRequestWithBearer(t, router, path, bearer, body)
+	var answer traegerLoginAnswer
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &answer), rec.Body.String())
+	return rec.Code, answer
+}
+
+// traegerRequest sends a public JSON POST to the Träger router and hands
+// back the whole response, headers included.
+func traegerRequest(t *testing.T, router http.Handler, path string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	return traegerRequestWithBearer(t, router, path, "", body)
+}
+
+func traegerRequestWithBearer(t *testing.T, router http.Handler, path, bearer string, body any) *httptest.ResponseRecorder {
+	t.Helper()
 	payload, err := json.Marshal(body)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(payload))
@@ -149,9 +165,7 @@ func traegerPost(t *testing.T, router http.Handler, path, bearer string, body an
 	}
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	var answer traegerLoginAnswer
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &answer), rec.Body.String())
-	return rec.Code, answer
+	return rec
 }
 
 // lastTraegerCode reads the code of the newest MFA mail to address.
@@ -412,5 +426,5 @@ func TestTraegerSchoolListQueryBudgetIsFlat(t *testing.T) {
 	testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Vier")
 	testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Fünf")
 	assert.Len(t, list(), len(three), "the school list reads the same statements for any number of schools")
-	testpkg.AssertQueryBudget(t, "api.traeger.schools", three)
+	querybudgets.AssertQueryBudget(t, "api.traeger.schools", three)
 }

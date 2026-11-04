@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { SECURE_CHROME_SETUP, secureChromeUse } from "./scripts/secure-chrome";
 
 // Produkt-Screenshots (#3759): fotografiert den laufenden lokalen Stack und
 // rahmt die Bilder. Eigene Config, damit der Lauf nie Teil der normalen
@@ -12,12 +13,16 @@ import { defineConfig } from "@playwright/test";
 // Runner, weil er TypeScript ohne eigenen Build lädt. Die Dateien heißen
 // `.pw.ts`, damit vitest sie nicht aufgreift.
 export default defineConfig({
+  globalSetup: SECURE_CHROME_SETUP,
+  use: secureChromeUse(),
   testDir: "./scripts/product-screenshots",
   testMatch: "*.pw.ts",
   // Dev-Server kompilieren Routen beim ersten Aufruf; ein Lauf fotografiert
   // mehrere Seiten auf mehreren Geräten.
   timeout: 900_000,
-  workers: 1,
+  // generate.pw.ts also uses this budget for its internal capture pool.
+  // `--workers=1` provides a genuinely serial comparison run.
+  workers: 4,
   retries: 0,
   reporter: "list",
   outputDir: "test-results/product-screenshots",

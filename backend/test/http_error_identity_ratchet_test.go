@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
 )
 
 // HTTP error classification has no text-matching exceptions. Use the policy's
@@ -21,7 +23,7 @@ func TestHTTPErrorIdentityRatchet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := os.ReadFile(filepath.Join(root, "architecture", "policy.json"))
+	raw, err := artifacts.ReadPolicy(filepath.Join(root, "architecture", "policy.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

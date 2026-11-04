@@ -100,6 +100,17 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Zustand mit Symbol (ForbiddenPage, FeatureOffPage). Eine Bühne für einen
    Sachverhalt, an dem niemand etwas tun kann, ist eine Aufgabe, die keine
    ist.
+   **`empty.action` wiederholt keine Kopfaktion** (#5034). Die Anlegen-Aktion
+   steht im Kopf, an derselben Stelle wie bei gefüllter Liste; der
+   Leerzustand zeigt Titel und Beschreibung ohne zweiten Knopf und darf per
+   Text auf den Kopf verweisen („über „Neue Notiz“ oben"). Auf den
+   Datenbank-Seiten gilt das auch für den mobilen FAB. Eine
+   Leerzustand-Aktion gibt es nur für eine andere Handlung, etwa „Filter
+   zurücksetzen" bei aktiver Suche oder aktivem Filter. Dieselbe Regel gilt
+   für `SectionCard` `action` neben einem `EmptyState` in der Karte.
+   Außerhalb der Produktion meldet `TenantPage` einen Leerzustand-Knopf mit
+   demselben Namen wie ein Knopf im Kopf
+   (`tenant_page_empty_action_repeats_head_action`).
    **Der Rumpf füllt die Höhe.** Die Karte mit dem Leersatz, die Tabelle mit
    einem Eintrag und die Liste mit dreißig haben denselben Umriss: die
    letzte Fläche wächst bis zur Unterkante des Bildschirms
@@ -179,9 +190,10 @@ lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
     Eltern-Portal-Muster). `text-[9px]`…`text-[11px]` sind per Ratchet
     gesperrt (`ui-kit/no-tiny-text`, Baseline shrink-only).
 17. **Eine Bedienhöhe: 40 px, unter sm 44 px.** `CONTROL_HEIGHT` im Gerüst
-    zieht Knöpfe, Felder und Auswahllisten der Kopfkarte auf 40 px
-    (Telefon: 44 px, die Touch-Untergrenze — dieselbe Begründung wie
-    `Button size="touch"` der Eltern-App). `SegmentedControl` (Spur 40 px),
+    zieht Knöpfe, Links in Button-Optik (`ButtonLink`), Felder und
+    Auswahllisten der Kopfkarte auf 40 px (Telefon: 44 px, die
+    Touch-Untergrenze — dieselbe wie die Fingerregel des Button-Kits).
+    `SegmentedControl` (Spur 40 px),
     `ToggleChip` (`h-10`) und die Navigationsgruppe der
     `PlanningContextBar` teilen dieses Maß. Kein 32-px-Bedienelement mehr
     neben einem 40er in derselben Zeile.
@@ -240,16 +252,16 @@ Desktop-Wert unvariiert als Grundwert (`p-5`, nicht `sm:p-5`) — sonst
 stehen zwei Varianten-Regeln für dieselbe Eigenschaft nebeneinander und
 welche gewinnt, hängt an der internen Sortierung von Tailwind.
 
-| Mass                                 | Desktop            | `compact`       | Telefon  |
-| ------------------------------------ | ------------------ | --------------- | -------- |
-| Seitenrand der Hülle                 | 32 px              | 20 px           | 16 px    |
-| Kopfkarte, `SectionCard`, `InfoCard` | 20/24 px           | 16 px           | 16 px    |
-| `StatCard`, `TileCard`               | 20 px              | 16 px           | 12/16 px |
-| Titel (`prominent`)                  | 28 px              | 24 px           | 24 px    |
-| Titel (Standard)                     | 24 px              | 20 px           | 20 px    |
-| Rumpf-Rhythmus                       | 24 px              | 16 px           | 12 px    |
-| Reiterband                           | 12 px, `text-base` | 8 px, `text-sm` | Pillen   |
-| Tabellenzelle senkrecht              | 12 px              | 8 px            | 12 px    |
+| Mass                     | Desktop            | `compact`       | Telefon  |
+| ------------------------ | ------------------ | --------------- | -------- |
+| Seitenrand der Hülle     | 32 px              | 20 px           | 16 px    |
+| Kopfkarte, `SectionCard` | 20/24 px           | 16 px           | 16 px    |
+| `StatCard`, `TileCard`   | 20 px              | 16 px           | 12/16 px |
+| Titel (`prominent`)      | 28 px              | 24 px           | 24 px    |
+| Titel (Standard)         | 24 px              | 20 px           | 20 px    |
+| Rumpf-Rhythmus           | 24 px              | 16 px           | 12 px    |
+| Reiterband               | 12 px, `text-base` | 8 px, `text-sm` | Pillen   |
+| Tabellenzelle senkrecht  | 12 px              | 8 px            | 12 px    |
 
 Nicht in der Stufe: die Bedienhöhe. 768–1023 px ist genau der Tablet-
 Bereich, und ein 36-px-Knopf unterschreitet dort das Touch-Mass. Regel 17

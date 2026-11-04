@@ -4,6 +4,12 @@ import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { ParentPortalAnalyticsSession } from "~/components/analytics/parent-portal-analytics-session";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
+import {
+  SessionAccountBinding,
+  useSessionPollInterval,
+} from "~/components/auth/session-account-binding";
+import { SessionEndBarrier } from "~/components/auth/session-end-barrier";
+import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { parentPath } from "~/lib/parent-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
@@ -36,14 +42,18 @@ export function ParentProviders({
   children,
   session,
 }: Readonly<{ children: React.ReactNode; session?: Session | null }>) {
+  const pollSeconds = useSessionPollInterval(4 * 60);
   return (
     <SessionProvider
       basePath="/api/parent/auth"
       session={session ?? undefined}
-      refetchInterval={4 * 60}
+      refetchInterval={pollSeconds}
       refetchOnWindowFocus={false}
     >
+      <SessionAccountBinding />
+      <SessionEndBarrier />
       <PersonalStorageGuard homeHref={parentsHome} />
+      <SWRScopeBoundary />
       <PushSubscriptionSync portal="parent" />
       <ParentPortalAnalyticsSession />
       <SentrySessionContext portal="parent" />

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -93,6 +94,15 @@ type MonthExportRow struct {
 	DriftMinutes int
 	IsClosed     bool
 	ClosedAt     *time.Time
+
+	// The school's own wage types (#4807). PayrollRules is the rule set the
+	// row books with: frozen at the close for a closed month, current
+	// otherwise; nil when the school has none. AbsenceTypeCredits splits the
+	// credit of the school's own absence types, SurchargeMinutes holds the
+	// net minutes per surcharge rule.
+	PayrollRules       *workforce.PayrollRuleSet
+	AbsenceTypeCredits map[int64]AbsenceTypeCredit
+	SurchargeMinutes   map[int64]int
 }
 
 // ExportFile is a rendered download.
@@ -126,11 +136,15 @@ type TimeExportStaffQuery interface {
 }
 
 type staffTimeExportService struct {
-	overview       StaffOverviewService
-	sessions       WorkSessionService
-	staffRepo      TimeExportStaffQuery
-	auditRepo      DataAccessAudit
-	payrollStatus  PayrollConfigurationReader
+	overview      StaffOverviewService
+	sessions      WorkSessionService
+	staffRepo     TimeExportStaffQuery
+	auditRepo     DataAccessAudit
+	payrollStatus PayrollConfigurationReader
+	// payrollRules tells whether the overview can attach own wage types to
+	// export rows. Without it, no row can make an otherwise unconfigured DATEV
+	// export valid.
+	payrollRules   workforce.PayrollRuleSetReader
 	logger         *slog.Logger
 	renderWorkbook TimeTrackingWorkbookRenderer
 

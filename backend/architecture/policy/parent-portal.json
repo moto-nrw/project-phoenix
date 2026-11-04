@@ -1,0 +1,427 @@
+{
+  "packages": [
+    {
+      "path": "workflows/parentportal/http",
+      "owner": "parent-portal",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "workflows/parentportal/internal/care",
+      "owner": "parent-portal",
+      "role": "application",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/parentportal/internal/messaging",
+      "owner": "parent-portal",
+      "role": "application",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/parentportal",
+      "owner": "parent-portal",
+      "role": "port",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-decision-test"
+    },
+    {
+      "path": "workflows/parentportal/compose",
+      "owner": "parent-portal",
+      "role": "compose",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-decision-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "parent-portal.workflow-integration-test.care-plan.compose.test-construction",
+      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "parent-portal.workflow-integration-test.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.workflow-integration-test.care-plan.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "parent-portal.application.care-plan.contract",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "parent-portal.to.care-plan",
+      "description": "Parent Portal HTTP calls the Care Plan public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.http.tenant-runtime.common",
+      "description": "The guardian portal routes render, gate and bind requests through the shared HTTP runtime of api/common, as every other HTTP adapter does (ADR 0051, #3421).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "parent-portal.http.identity-adapter",
+      "description": "The guardian portal routes authenticate the parent-scope session through the Identity & Access session adapter (ADR 0031, ADR 0051, #3421).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "parent-portal.http.tenant-runtime",
+      "description": "The guardian portal enrollment routes open their tenant and administrative transactions through the tenant runtime the request carries (ADR 0051, #3421).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.adapter-test.identity-adapter",
+      "description": "The guardian portal handler suites put parent-scope claims on requests and mint session tokens through the Identity & Access session adapter (ADR 0051, #3421).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "parent-portal.integration-test.support",
+      "description": "The relocated parent-portal in-package tests use hermetic database support (#3227).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "parent-portal.application.care",
+      "description": "The parent-portal messaging flows return the care package's guardian-child and note sentinels, so errors.Is keeps matching one value (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "same_owner": true,
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.http.parent-portal-port",
+      "description": "Wire the guardian portal workflow (#3420): the guardian portal HTTP composition consumes the workflow vocabulary and the composed portal through its own port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "http",
+      "target_owner": "parent-portal",
+      "target_role": "port"
+    },
+    {
+      "id": "parent-portal.port.flows",
+      "description": "Wire the guardian portal workflow (#3420): the workflow port names the vocabulary of the child and messaging flows and composes both.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "port",
+      "same_owner": true,
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.compose.people-directory.public",
+      "description": "Wire the guardian portal workflow (#3420): bind People Directory's guardian and photo-consent commands to the flows' ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.compose.care-plan.public",
+      "description": "Wire the guardian portal workflow (#3420): bind the Care Plan owner commands and queries to the flows' ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.compose.care-plan.contract",
+      "description": "Wire the guardian portal workflow (#3420): bind the Care Plan request contract to the flows' ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "parent-portal.compose.audit-platform.public",
+      "description": "Wire the guardian portal workflow (#3420): bind the Audit Platform guardian change trail to the flows' ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.compose.meal-plan.public",
+      "description": "Wire the guardian portal workflow (#3420): bind the Meal Plan capability of the child's school to the flows' ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.decision-test.orm-sql",
+      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "parent-portal.decision-test.people-directory.public",
+      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.decision-test.care-plan.public",
+      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.decision-test.care-plan.contract",
+      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "parent-portal.decision-test.care-plan.compose",
+      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "care-plan",
+      "target_role": "compose"
+    },
+    {
+      "id": "parent-portal.decision-test.timetable-activities.public",
+      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.decision-test.communication.test-support",
+      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
+    },
+    {
+      "id": "parent-portal.decision-test.delivery-platform.public",
+      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.decision-test.identity-access.public",
+      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.decision-test.identity-access.adapter",
+      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "parent-portal.decision-test.meal-plan.public",
+      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.decision-test.student-presence.compose",
+      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "parent-portal.decision-test.tenant-runtime.public",
+      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.decision-test.test-support.test-support",
+      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "calendar-portal.production.parent-portal.http.school-calendar.contract",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "http",
+      "target_owner": "school-calendar",
+      "target_role": "contract"
+    },
+    {
+      "id": "parent-portal.http.care-plan-absence-records",
+      "description": "The parent routes return the child's status days as the Care Plan absence records of modules/careplan/absencerecords (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "parent-portal.decision-test.student-presence-public",
+      "description": "workflows/parentportal/parent_write_service_test.go writes status days through the public status-day write context and conflict error (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    }
+  ]
+}

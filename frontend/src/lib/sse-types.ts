@@ -88,6 +88,11 @@ type SSEEventType =
   // Carries only student_id; must NOT touch any unread badge or thread list. See
   // backend/realtime/events.go EventParentChildUpdated.
   | "parent_child_updated"
+  // moto schule only (#4792): the hub derives it from every student_updated at
+  // the school, so an open class view refetches after a new sick note. Carries
+  // only the source, never a child. See backend/realtime/events.go
+  // EventClassDayChanged.
+  | "class_day_changed"
   // A user-facing notification from the notification abstraction (#1624).
   // Unlike every other event this is NOT a cache-invalidation trigger: the
   // payload carries display-safe title/body/deep_link that clients render

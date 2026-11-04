@@ -16,11 +16,11 @@ import {
 } from "react";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import { getCachedSession } from "~/lib/session-cache";
 
 const logger = createLogger({ component: "AttendanceCorrectionModal" });
 
@@ -85,16 +85,10 @@ function describeValue(value: string | null | undefined): string {
   return value;
 }
 
-async function authorizedHeaders(): Promise<Record<string, string>> {
-  const session = await getCachedSession();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (session?.user?.token) {
-    headers.Authorization = `Bearer ${session.user.token}`;
-  }
-  return headers;
-}
+// BFF routes read the session cookie; the browser holds no token (#5005).
+const JSON_HEADERS: Record<string, string> = {
+  "Content-Type": "application/json",
+};
 
 export function AttendanceCorrectionModal({
   isOpen,
@@ -129,7 +123,7 @@ export function AttendanceCorrectionModal({
     try {
       const response = await transportFetch(
         `/api/timetable/instances/${slot.instanceId}/students/${studentId}/corrections`,
-        { credentials: "include", headers: await authorizedHeaders() },
+        { credentials: "include", headers: JSON_HEADERS },
       );
       // Ohne Verlauf bleibt die Korrektur möglich; die Liste fehlt dann nur.
       if (!response.ok) return;
@@ -189,7 +183,7 @@ export function AttendanceCorrectionModal({
         {
           method: "POST",
           credentials: "include",
-          headers: await authorizedHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify(correction),
         },
       );
@@ -271,7 +265,7 @@ export function AttendanceCorrectionModal({
               setStatus(nextStatus);
               if (nextStatus === "expected") setSubstatus("");
             }}
-            labelId="correction-status-label"
+            ariaLabelledBy="correction-status-label"
           />
         </div>
 
@@ -288,7 +282,7 @@ export function AttendanceCorrectionModal({
             value={substatus}
             options={[...SUBSTATUS_OPTIONS]}
             onChange={setSubstatus}
-            labelId="correction-substatus-label"
+            ariaLabelledBy="correction-substatus-label"
             ariaDescribedBy={
               status === "expected" ? "correction-substatus-help" : undefined
             }
@@ -323,12 +317,14 @@ export function AttendanceCorrectionModal({
         </div>
 
         <div>
-          <label
+          <FieldLabel
             htmlFor="correction-reason"
-            className="mb-1 block text-sm font-medium text-gray-700"
+            required
+            invalid={Boolean(reasonError)}
+            className="mb-1"
           >
-            Grund der Korrektur <span aria-hidden="true">*</span>
-          </label>
+            Grund der Korrektur
+          </FieldLabel>
           <textarea
             id="correction-reason"
             name="reason"

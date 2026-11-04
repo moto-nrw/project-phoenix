@@ -115,7 +115,13 @@ func TestSchoolErasurePlanCoversCatalogAndDeleteTriggers(t *testing.T) {
   WHERE NOT tr.tgisinternal AND (tr.tgtype::int & 8) <> 0 ORDER BY 1`).Scan(t.Context(), &triggers))
 	assert.Equal(t, []string{
 		"active.student_status_days:schedule.record_meal_sickness_status",
+		// #5128: records change events in active.visit_revision_events, which
+		// the plan deletes after active.visits ("after" edge).
+		"active.visits:active.record_visit_revision",
 		"enrollment.request_uploads:enrollment.queue_request_upload_cleanup",
+		// #5628: drops a sibling group of a Träger left with one holiday
+		// registration; Träger data, outside the plan of a school.
+		"parent_billing.holiday_sibling_group_members:parent_billing.drop_lone_holiday_sibling_group",
 		"schedule.activity_instances:calendar.capture_activity_instance_feed_tombstones",
 		"schedule.instance_staff:calendar.capture_instance_staff_feed_tombstone",
 		"schedule.staff_shifts:calendar.capture_staff_shift_feed_tombstone",
@@ -469,6 +475,9 @@ func TestEveryTenantTableHasASchoolErasureWriteFence(t *testing.T) {
 func TestSchoolErasureMigrationRoundTripPreservesEvidence(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	// Roll back the holiday guests first (#4666): their tables and foreign
+	// keys extend the erasure functions the older migrations restore.
+	rollBackHolidayGuests(t, db)
 	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	schoolID := testpkg.Tenant(t)
 	require.NoError(t, schoolErasureDown(t.Context(), db))

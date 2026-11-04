@@ -171,6 +171,10 @@ func listDatabasesByPrefix(ctx context.Context, maint sqlExecutor, prefix string
 var tenantIdentityTables = map[string]string{
 	"platform.schools":       "id",
 	"platform.organizations": "id",
+	// The demo file erasure (#5544) keys its rows by the school, without
+	// tenant_id: the school ID is the tenant identity.
+	"platform.demo_school_file_erasures": "school_id",
+	"platform.demo_school_origins":       "school_id",
 }
 
 // mappedTenantTables reach their tenant through a join table.

@@ -1,0 +1,6 @@
+{
+  "scenario": "workflows.parentportal.billing_documents.list",
+  "max": 16,
+  "exact": false,
+  "description": "workflows/parentportal — GET /parent/me/documents (#4671, ADR 0126):\nthe account's children with their relationships, the Träger of their\nschools and the account's address in one administrative transaction,\nthen per Träger its binding, the sent documents of the address and one\ntrail entry per run. Flat in the number of documents."
+}

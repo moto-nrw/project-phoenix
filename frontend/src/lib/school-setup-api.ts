@@ -31,13 +31,6 @@ export interface SchoolSetupState {
   steps: SchoolSetupStep[];
 }
 
-export function schoolSetupSWRKey(
-  tenantSlug: string,
-  accountID: string,
-): string {
-  return `school-setup:${tenantSlug}:${accountID}`;
-}
-
 const STEP_KEYS: readonly SchoolSetupStepKey[] = [
   "team",
   "rooms",

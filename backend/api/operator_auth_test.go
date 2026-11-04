@@ -26,6 +26,7 @@ import (
 type mockOperatorAuthService struct {
 	loginFn                          func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *identityaccess.Operator, error)
 	refreshTokenFn                   func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error)
+	logoutFn                         func(ctx context.Context, operatorID int64, familyID string) error
 	getOperatorFn                    func(ctx context.Context, id int64) (*identityaccess.Operator, error)
 	latestOperatorSessionFn          func(ctx context.Context, familyID string) (identityaccess.OperatorSession, error)
 	updateProfileFn                  func(ctx context.Context, operatorID int64, displayName string) (*identityaccess.Operator, error)
@@ -67,6 +68,13 @@ func (m *mockOperatorAuthService) RefreshOperatorToken(ctx context.Context, oper
 		return m.refreshTokenFn(ctx, operatorID, refreshTokenValue)
 	}
 	return "", "", nil
+}
+
+func (m *mockOperatorAuthService) LogoutOperator(ctx context.Context, operatorID int64, familyID string) error {
+	if m.logoutFn != nil {
+		return m.logoutFn(ctx, operatorID, familyID)
+	}
+	return nil
 }
 
 func (m *mockOperatorAuthService) FindOperator(ctx context.Context, id int64) (identityaccess.Operator, error) {

@@ -21,20 +21,23 @@ import (
 // Träger right "Abrechnung" and runs in the Träger transaction of the
 // session's Träger. The Träger comes from the session, never from the
 // request. The confirmation letters of a released run sit below the run
-// (#4669, ADR 0121).
+// (#4669, ADR 0121), with their mail and their print (#4670, ADR 0123), and
+// so do the Storno and the Gutschrift of an issued invoice (#4690).
 type BillingRunResource struct {
 	runs           capability.BillingRuns
 	letters        capability.BillingLetterService
+	mail           capability.BillingLetterMailService
 	requireBilling common.Middleware
 }
 
 // NewBillingRunResource builds the resource. requireBilling admits only a
 // session with the Träger right "Abrechnung".
-func NewBillingRunResource(runs capability.BillingRuns, letters capability.BillingLetterService, requireBilling common.Middleware) *BillingRunResource {
-	if runs == nil || letters == nil || requireBilling == nil {
-		panic("parent billing http: the billing runs, the letters and the right check are required")
+func NewBillingRunResource(runs capability.BillingRuns, letters capability.BillingLetterService, mail capability.BillingLetterMailService,
+	requireBilling common.Middleware) *BillingRunResource {
+	if runs == nil || letters == nil || mail == nil || requireBilling == nil {
+		panic("parent billing http: the billing runs, the letters, their mail and the right check are required")
 	}
-	return &BillingRunResource{runs: runs, letters: letters, requireBilling: requireBilling}
+	return &BillingRunResource{runs: runs, letters: letters, mail: mail, requireBilling: requireBilling}
 }
 
 // RunRouter returns the routes mounted at /traeger/billing-runs.
@@ -50,9 +53,16 @@ func (rs *BillingRunResource) RunRouter(protectedTraegerRoutes func(chi.Router, 
 		billing.Post("/{id}/corrections", rs.correct)
 		billing.Post("/{id}/release", rs.release)
 		billing.Get("/{id}/export", rs.export)
+		billing.Get("/{id}/cost-takeovers/{costBearerId}/export", rs.exportCostTakeovers)
 		billing.Post("/{id}/letters", rs.createLetters)
 		billing.Post("/{id}/letters/preview", rs.previewLetter)
 		billing.Get("/{id}/documents/{documentID}/letter", rs.letter)
+		billing.Get("/{id}/letters/print", rs.printLetters)
+		billing.Get("/{id}/mailings", rs.mailings)
+		billing.Post("/{id}/mailings", rs.mailAll)
+		billing.Post("/{id}/documents/{documentID}/mailings", rs.mailOne)
+		billing.Post("/{id}/documents/{documentID}/cancellation", rs.cancel)
+		billing.Post("/{id}/documents/{documentID}/credits", rs.credit)
 	})
 	return r
 }
@@ -231,6 +241,32 @@ func (rs *BillingRunResource) export(w http.ResponseWriter, r *http.Request) {
 	}
 	format := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format")))
 	file, err := rs.runs.ExportBillingRun(r.Context(), reviewer, runID, format)
+	writeExportFile(w, r, file, err)
+}
+
+// exportCostTakeovers answers GET
+// /traeger/billing-runs/{id}/cost-takeovers/{costBearerId}/export?format=pdf|xlsx|csv
+// with the list of a released run for the reimbursement by one cost bearer
+// (#5627). The download is recorded in the run's trail; a failed record
+// rolls back and sends no file.
+func (rs *BillingRunResource) exportCostTakeovers(w http.ResponseWriter, r *http.Request) {
+	reviewer, runID, ok := runKey(w, r)
+	if !ok {
+		return
+	}
+	costBearerID, err := common.ParseIDParam(r, "costBearerId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	format := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format")))
+	file, err := rs.runs.ExportCostTakeovers(r.Context(), reviewer, runID, costBearerID, format)
+	writeExportFile(w, r, file, err)
+}
+
+// writeExportFile sends a rendered list as a download, or rolls the Träger
+// transaction back and answers the refusal.
+func writeExportFile(w http.ResponseWriter, r *http.Request, file capability.ExportFile, err error) {
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		renderBillingError(w, r, err)
@@ -278,7 +314,11 @@ func (rs *BillingRunResource) setNumberRange(w http.ResponseWriter, r *http.Requ
 // refusals keep the codes of the holiday periods.
 func renderBillingError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
+	var missingDebtor *capability.PaymentTextDebtorNumberMissingError
 	switch {
+	case errors.As(err, &missingDebtor):
+		common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeParentBillingPaymentTextDebtorNumberMissing,
+			map[string]any{"count": len(missingDebtor.InvoiceNumbers), "invoice_numbers": missingDebtor.InvoiceNumbers}))
 	case errors.As(err, &fields) && fields["format"] != nil:
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.As(err, &fields):
@@ -291,6 +331,8 @@ func renderBillingError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingBillingFamilyNotFound))
 	case errors.Is(err, capability.ErrBillingLetterNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingBillingLetterNotFound))
+	case errors.Is(err, capability.ErrCostBearerNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingCostBearerNotFound))
 	default:
 		renderBillingConflict(w, r, err)
 	}
@@ -328,6 +370,9 @@ func renderBillingConflict(w http.ResponseWriter, r *http.Request, err error) {
 		{capability.ErrBillingLettersExist, common.CodeParentBillingBillingLettersExist},
 		{capability.ErrBankAccountMissing, common.CodeParentBillingBankAccountMissing},
 		{capability.ErrLetterheadTooLong, common.CodeParentBillingLetterheadTooLong},
+		{capability.ErrBillingLettersMissing, common.CodeParentBillingBillingLettersMissing},
+		{capability.ErrLetterMailPending, common.CodeParentBillingLetterMailPending},
+		{capability.ErrRecipientEmailMissing, common.CodeParentBillingRecipientEmailMissing},
 	} {
 		if errors.Is(err, conflict.err) {
 			common.RenderError(w, r, common.ErrorConflictWithCode(err, conflict.code))

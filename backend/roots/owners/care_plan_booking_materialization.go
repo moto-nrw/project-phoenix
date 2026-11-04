@@ -27,21 +27,57 @@ func BookingMaterializationOwners(
 	timetables bookingTimetableOwner, rosters bookingRosterMaintenance, students bookingStudentOwner,
 	periods bookingPeriodReads, enrollment bookingEnrollmentReads, approved bookingApprovedChildren,
 	adjustments bookingAdjustmentTrail, persons bookingActorPersons, accounts bookingActorAccounts,
-	pickup bookingPickupReads, pickupRows bookingPickupRecords,
+	pickup bookingPickupReads, pickupRows bookingPickupRecords, studentDays timetable.StudentTemplateDays,
 ) (careplanCompose.BookingMaterializationDependencies, error) {
 	if timetables == nil || rosters == nil || students == nil || enrollment == nil ||
-		approved == nil || adjustments == nil || pickup == nil || pickupRows == nil {
-		return careplanCompose.BookingMaterializationDependencies{}, errors.New("booking materialization: timetable, rosters, students, enrollment, approved bookings, adjustment audit and pickup are required")
+		approved == nil || adjustments == nil || pickup == nil || pickupRows == nil || studentDays == nil {
+		return careplanCompose.BookingMaterializationDependencies{}, errors.New("booking materialization: timetable, rosters, students, enrollment, approved bookings, adjustment audit, pickup and student template days are required")
 	}
 	return careplanCompose.BookingMaterializationDependencies{
-		Rosters:    bookingRosters{timetable: timetables, students: students, rosters: rosters},
-		Templates:  bookingTemplates{timetable: timetables},
-		Periods:    bookingPeriods{calendar: periods},
-		Enrollment: bookingEnrollment{owner: enrollment, approved: approved},
-		Students:   bookingStudents{people: students},
-		Audit:      bookingAdjustmentAudit{repo: adjustments, persons: persons, accounts: accounts},
-		Pickup:     bookingPickup{baselines: pickup, rows: pickupRows},
+		Rosters:     bookingRosters{timetable: timetables, students: students, rosters: rosters},
+		Templates:   bookingTemplates{timetable: timetables},
+		Periods:     bookingPeriods{calendar: periods},
+		Enrollment:  bookingEnrollment{owner: enrollment, approved: approved},
+		Students:    bookingStudents{people: students},
+		Audit:       bookingAdjustmentAudit{repo: adjustments, persons: persons, accounts: accounts},
+		Pickup:      bookingPickup{baselines: pickup, rows: pickupRows},
+		ManualPlans: bookingManualPlans{days: studentDays}, PlanningStaffing: studentDays,
 	}, nil
+}
+
+// bookingManualPlans asks the Timetable owner where a student stays planned
+// by hand after a booking change (#5102).
+type bookingManualPlans struct{ days timetable.StudentTemplateDays }
+
+func (p bookingManualPlans) ManualStudentPlan(
+	ctx context.Context, studentID int64, from calendar.Date, change careplan.BookingDayChange,
+) ([]careplan.ManualRosterTemplate, error) {
+	plans, err := p.days.ManualStudentPlan(ctx, timetable.ManualStudentPlanQuery{
+		StudentID: studentID, From: from, Weekdays: change.DroppedWeekdays,
+		NetLossWeekdays: change.NetLossWeekdays, Bookings: studentDayBookings(change.Remaining),
+		OtherBookings: studentDayBookings(change.OtherEnrollments),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]careplan.ManualRosterTemplate, 0, len(plans))
+	for _, plan := range plans {
+		result = append(result, careplan.ManualRosterTemplate{
+			TemplateID: plan.TemplateID, Name: plan.Name, Weekdays: plan.Weekdays, ViaTarget: plan.ViaTarget, Until: plan.Until,
+		})
+	}
+	return result, nil
+}
+
+func studentDayBookings(remaining []careplan.RemainingDayBooking) []timetable.StudentDayBooking {
+	bookings := make([]timetable.StudentDayBooking, 0, len(remaining))
+	for _, booking := range remaining {
+		bookings = append(bookings, timetable.StudentDayBooking{
+			Weekday: booking.Weekday, CountsAsCare: booking.CountsAsCare, IncludesLunch: booking.IncludesLunch,
+			PickupTime: booking.PickupTime, From: booking.From, Until: booking.Until,
+		})
+	}
+	return bookings
 }
 
 type bookingTimetableOwner interface {
@@ -252,6 +288,7 @@ type bookingEnrollmentReads interface {
 	PhasesByID(context.Context, []int64) ([]*enrollmentOwner.Phase, error)
 	RequestChildOfferingsAtDate(context.Context, int64, enrollmentOwner.Date) ([]*enrollmentOwner.RequestChildOffering, error)
 	RequestChildOfferingHistory(context.Context, int64) ([]*enrollmentOwner.RequestChildOffering, error)
+	ApprovedSelectionsForStudents(context.Context, []int64, enrollmentOwner.Date, enrollmentOwner.Date) ([]*enrollmentOwner.ApprovedOfferingSelection, error)
 }
 
 // bookingApprovedChildren resolves approved offering selections to their
@@ -331,6 +368,8 @@ func BookingOfferingPhase(phase *enrollmentOwner.Phase) careplan.OfferingPhase {
 	return careplan.OfferingPhase{
 		ID: phase.ID, Name: phase.Name,
 		ServiceStart: calendar.Date(phase.ServiceStartDate), ServiceEnd: calendar.Date(phase.ServiceEndDate),
+		SchoolYear: phase.Kind == enrollmentOwner.PhaseKindSchoolYear,
+		Holiday:    phase.Kind == enrollmentOwner.PhaseKindHoliday,
 	}
 }
 
@@ -342,6 +381,22 @@ func (e bookingEnrollment) SelectionsAt(ctx context.Context, childID int64, on c
 func (e bookingEnrollment) SelectionHistory(ctx context.Context, childID int64) ([]careplan.BookedOffering, error) {
 	values, err := e.owner.RequestChildOfferingHistory(ctx, childID)
 	return BookedOfferings(values), err
+}
+
+// StudentSelectionsBetween reads the approved selections of the student that
+// overlap the inclusive range, across all the student's request children.
+func (e bookingEnrollment) StudentSelectionsBetween(ctx context.Context, studentID int64, from, to calendar.Date) ([]careplan.BookedOffering, error) {
+	selections, err := e.owner.ApprovedSelectionsForStudents(ctx, []int64{studentID}, enrollmentOwner.Date(from), enrollmentOwner.Date(to))
+	if err != nil {
+		return nil, err
+	}
+	values := make([]*enrollmentOwner.RequestChildOffering, 0, len(selections))
+	for _, selection := range selections {
+		if selection != nil && selection.StudentID == studentID {
+			values = append(values, selection.Selection)
+		}
+	}
+	return BookedOfferings(values), nil
 }
 
 // BookedOfferings are Enrollment's selections as Care Plan's booked
@@ -503,7 +558,7 @@ func (a bookingAdjustmentAudit) ActorSnapshot(ctx context.Context, accountID int
 }
 
 type bookingPickupReads interface {
-	OfferingPickupForDate(ctx context.Context, studentID int64, date calendar.Date) (*careplan.PickupSchedule, error)
+	Project(ctx context.Context, studentIDs []int64, from, to calendar.Date) (*careplan.PickupBaselineProjection, error)
 }
 
 type bookingPickupRecords interface {
@@ -518,8 +573,8 @@ type bookingPickup struct {
 	rows      bookingPickupRecords
 }
 
-func (p bookingPickup) OfferingPickupForDate(ctx context.Context, studentID int64, date calendar.Date) (*careplan.PickupSchedule, error) {
-	return p.baselines.OfferingPickupForDate(ctx, studentID, date)
+func (p bookingPickup) OfferingPickupsBetween(ctx context.Context, studentID int64, from, to calendar.Date) (*careplan.PickupBaselineProjection, error) {
+	return p.baselines.Project(ctx, []int64{studentID}, from, to)
 }
 
 func (p bookingPickup) WeekdayRows(ctx context.Context, studentID int64) ([]careplanCompose.PickupWeekdayRow, error) {
@@ -529,7 +584,10 @@ func (p bookingPickup) WeekdayRows(ctx context.Context, studentID int64) ([]care
 	}
 	result := make([]careplanCompose.PickupWeekdayRow, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, careplanCompose.PickupWeekdayRow{ID: row.ID, Weekday: row.Weekday})
+		result = append(result, careplanCompose.PickupWeekdayRow{
+			ID: row.ID, Weekday: row.Weekday, PickupTime: row.PickupTime.Format("15:04"),
+			Manual: row.Source != careplan.ScheduleSourceCareOffering,
+		})
 	}
 	return result, nil
 }

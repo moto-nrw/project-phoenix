@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import { Button, ButtonLink } from "./button";
+import { Button, ButtonLink, buttonClassName } from "./button";
+import type { ButtonVariant } from "./button-styles";
 
 describe("Button", () => {
   it("renders children correctly", () => {
@@ -57,14 +58,6 @@ describe("Button", () => {
     expect(button.className).toContain("text-white");
   });
 
-  it("applies secondary variant styles", () => {
-    render(<Button variant="secondary">Secondary</Button>);
-
-    const button = screen.getByRole("button");
-    expect(button.className).toContain("bg-gray-200");
-    expect(button.className).toContain("text-gray-800");
-  });
-
   it("applies outline variant styles", () => {
     render(<Button variant="outline">Outline</Button>);
 
@@ -97,7 +90,7 @@ describe("Button", () => {
 
     const button = screen.getByRole("button");
     expect(button.className).toContain("bg-moto-orange");
-    // Dunkler Text wie bei success: Weiss auf moto-orange erreicht nur 2,4:1.
+    // Dunkler Text: Weiss auf moto-orange erreicht nur 2,4:1.
     expect(button.className).toContain("text-gray-950");
     expect(button.className).toContain("hover:bg-moto-orange-hover");
   });
@@ -106,8 +99,13 @@ describe("Button", () => {
     render(<Button variant="success">Success</Button>);
 
     const button = screen.getByRole("button");
-    expect(button.className).toContain("bg-moto-green");
-    expect(button.className).toContain("text-gray-950");
+    // #5141: weiße Schrift auf dem dunklen Füllton (4,84:1), nicht mehr
+    // dunkle Schrift auf moto-green. Hover und Active bleiben über AA.
+    expect(button.className).toContain("bg-moto-green-fill");
+    expect(button.className).toContain("text-white");
+    expect(button.className).toContain("hover:bg-moto-green-fill-hover");
+    expect(button.className).toContain("active:bg-moto-green-fill-active");
+    expect(button.className).not.toContain("text-gray-950");
   });
 
   it("applies login-style surface variant styles", () => {
@@ -119,6 +117,148 @@ describe("Button", () => {
     expect(button.className).toContain("shadow-sm");
     expect(button.className).toContain("hover:ring-gray-300");
     expect(button.className).toContain("hover:bg-gray-50");
+  });
+
+  it("renders the link variant as a text button with a visible focus ring", () => {
+    render(
+      <Button variant="link" size="md">
+        Passwort vergessen?
+      </Button>,
+    );
+
+    const classes = screen.getByRole("button").className.split(" ");
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "bg-transparent",
+        "hover:underline",
+        "focus-visible:ring-2",
+        "focus-visible:ring-gray-400",
+      ]),
+    );
+    // Ein Textknopf hat kein Polster und keinen Schatten der Größe.
+    expect(classes).toEqual(expect.arrayContaining(["px-0", "py-0"]));
+    expect(classes).not.toContain("px-4");
+    expect(classes.some((c) => /^shadow-(?:sm|md|lg)$/.test(c))).toBe(false);
+  });
+
+  it("renders ghost_tone in the text colour of the surface it sits on", () => {
+    render(<Button variant="ghost_tone">Wiederholen</Button>);
+
+    const classes = screen.getByRole("button").className.split(" ");
+    // Auf einer roten Fehlerfläche rot, auf einer grünen grün (#5531).
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "bg-transparent",
+        "text-current",
+        "hover:bg-black/5",
+        "focus-visible:ring-2",
+      ]),
+    );
+    expect(classes).not.toContain("text-gray-600");
+  });
+
+  it("renders ghost_danger as a quiet red button", () => {
+    render(<Button variant="ghost_danger">Entfernen</Button>);
+
+    const classes = screen.getByRole("button").className.split(" ");
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "bg-transparent",
+        "text-moto-red-strong",
+        "hover:bg-moto-red-soft",
+      ]),
+    );
+    expect(classes).not.toContain("shadow-md");
+  });
+
+  it("renders fab as a round green floating button, whatever the size", () => {
+    render(
+      <Button variant="fab" size="icon" aria-label="Aktivität erstellen">
+        +
+      </Button>,
+    );
+
+    const classes = screen
+      .getByRole("button", { name: "Aktivität erstellen" })
+      .className.split(" ");
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "size-14",
+        "rounded-full",
+        "bg-moto-green-fill",
+        "text-white",
+        "shadow-lg",
+      ]),
+    );
+    expect(classes).not.toContain("h-8");
+    expect(classes).not.toContain("rounded-md");
+  });
+
+  it("renders dashed as the add surface", () => {
+    render(<Button variant="dashed">Weitere Nummer hinzufügen</Button>);
+
+    const classes = screen.getByRole("button").className.split(" ");
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "border",
+        "border-dashed",
+        "border-gray-300",
+        "bg-transparent",
+        "hover:bg-gray-50",
+      ]),
+    );
+  });
+
+  // #5574: Knöpfe sind weiß, schwarz oder farbig. Ein hellgrau gefüllter
+  // Ruhezustand passt in keine Rangstufe; Zustände (hover:, active:) dürfen
+  // grau tönen.
+  it("rests no variant on a grey fill", () => {
+    // Record statt Liste: eine neue Variante fehlt hier sonst still.
+    const allVariants: Record<ButtonVariant, true> = {
+      primary: true,
+      outline: true,
+      outline_danger: true,
+      danger: true,
+      warning: true,
+      success: true,
+      surface: true,
+      surface_success: true,
+      ghost: true,
+      ghost_danger: true,
+      ghost_tone: true,
+      link: true,
+      fab: true,
+      dashed: true,
+    };
+    for (const variant of Object.keys(allVariants) as ButtonVariant[]) {
+      const greyRest = buttonClassName({ variant, size: "md", className: "" })
+        .split(" ")
+        .filter((token) => /^bg-gray-[1-4]00$/.test(token));
+      expect({ variant, greyRest }).toEqual({ variant, greyRest: [] });
+    }
+  });
+
+  it("drops every scale animation from the kit", () => {
+    const variants = [
+      "primary",
+      "outline",
+      "outline_danger",
+      "danger",
+      "warning",
+      "success",
+      "surface",
+      "ghost",
+      "ghost_danger",
+      "ghost_tone",
+      "link",
+      "fab",
+      "dashed",
+    ] as const;
+    for (const variant of variants) {
+      expect(
+        buttonClassName({ variant, size: "md", className: "" }),
+      ).not.toMatch(/scale-/);
+    }
   });
 
   it("applies sm size styles", () => {
@@ -158,14 +298,92 @@ describe("Button", () => {
     expect(button.className).toContain("text-xl");
   });
 
-  it("applies touch size styles", () => {
-    render(<Button size="touch">Krank melden</Button>);
+  it("applies the 40 px field size, flush with Input controlSize compact", () => {
+    render(<Button size="field">Code senden</Button>);
 
-    const button = screen.getByRole("button");
-    // Eltern-App: 48px Mindesthoehe (Apple HIG 44pt, Material 48dp) und
-    // 17px Schrift als Untergrenze fuer alles Bedienbare.
-    expect(button.className).toContain("min-h-12");
-    expect(button.className).toContain("text-[17px]");
+    const classes = screen.getByRole("button").className.split(" ");
+    // Input controlSize="compact" ist `h-10 rounded-lg … text-sm`.
+    expect(classes).toEqual(
+      expect.arrayContaining(["h-10", "rounded-lg", "px-4", "text-sm"]),
+    );
+    expect(classes).toContain("font-medium");
+    expect(classes.some((c) => /^py-/.test(c))).toBe(false);
+  });
+
+  it("provides an explicit 44 px target when a viewport requires it", () => {
+    render(
+      <Button type="button" size="icon" touchTarget aria-label="Schließen">
+        ×
+      </Button>,
+    );
+
+    expect(screen.getByRole("button", { name: "Schließen" })).toHaveClass(
+      "h-11",
+      "w-11",
+    );
+  });
+
+  describe("finger rule (pointer: coarse)", () => {
+    const sizes = [
+      "sm",
+      "md",
+      "field",
+      "base",
+      "lg",
+      "xl",
+      "compact",
+      "icon",
+      "card",
+    ] as const;
+
+    it.each(sizes)(
+      "keeps size %s at least 44 px high under a finger",
+      (size) => {
+        const classes = buttonClassName({
+          variant: "primary",
+          size,
+          className: "",
+        }).split(" ");
+        expect(classes).toContain("pointer-coarse:min-h-11");
+      },
+    );
+
+    it("keeps the icon button at least 44 x 44 px under a finger", () => {
+      const classes = buttonClassName({
+        variant: "ghost",
+        size: "icon",
+        className: "",
+      }).split(" ");
+      expect(classes).toEqual(
+        expect.arrayContaining([
+          "pointer-coarse:min-h-11",
+          "pointer-coarse:min-w-11",
+        ]),
+      );
+    });
+
+    it("leaves the mouse sizes untouched: every new class is pointer-coarse", () => {
+      // Mausmaße der Bestandsgrößen (vor #5531) — unabhängige Quelle ist die
+      // alte Klassenkette, nicht die Implementierung.
+      const mouse: Record<string, string> = {
+        md: "rounded-lg px-4 py-2 text-sm",
+        compact: "h-8 gap-1.5 rounded-md px-2.5 text-xs",
+        icon: "aspect-square h-8 rounded-md text-xs",
+        base: "rounded-lg px-5 py-3 text-base",
+      };
+      for (const [size, expected] of Object.entries(mouse)) {
+        const classes = buttonClassName({
+          variant: "primary",
+          size: size as (typeof sizes)[number],
+          className: "",
+        }).split(" ");
+        expect(classes).toEqual(expect.arrayContaining(expected.split(" ")));
+        const sizing = classes.filter((c) =>
+          /^(?:min-)?[hw]-|^size-|^p[xy]?-/.test(c),
+        );
+        expect(sizing.every((c) => expected.split(" ").includes(c))).toBe(true);
+      }
+    });
   });
 
   it("applies card size styles", () => {

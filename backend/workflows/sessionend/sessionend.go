@@ -12,6 +12,8 @@ import (
 )
 
 var (
+	// ErrSessionConflict requires a fresh command after the prepared visit cohort changes.
+	ErrSessionConflict = errors.New("session changed while ending")
 	// ErrSessionNotFound reports that the tenant has no such live group. The
 	// texts keep the strings the kiosk endpoint rendered before the cutover.
 	ErrSessionNotFound = errors.New("active group not found")

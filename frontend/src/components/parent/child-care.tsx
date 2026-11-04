@@ -9,12 +9,14 @@ import {
   useRef,
   useState,
 } from "react";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { ApiError } from "~/lib/api-error";
 import { useLocale, useTranslations } from "next-intl";
 import { Loader2, Trash2 } from "lucide-react";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import { RequiredMark } from "~/components/ui/field-label";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
   RequestSharingControl,
@@ -37,8 +39,6 @@ import {
   type StudentStatusKind,
   deleteCareException,
   downloadPickupRequestProofPdf,
-  getChildCareSchedule,
-  getChildFeatures,
   listCareExceptions,
   listChildGuardians,
   listPickupChangeRequests,
@@ -52,17 +52,16 @@ import {
   RequestEditModal,
   useRequestVersion,
 } from "~/components/parent/request-edit-modal";
+import {
+  useChildRequests,
+  useSharedParentFeatures,
+} from "~/components/parent/child-requests-context";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
-import {
-  berlinTodayISO,
-  parseISODate,
-  toISODate,
-  todayISO,
-} from "~/lib/date-helpers";
+import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import type { SignatureValue } from "~/lib/signature";
 import {
@@ -70,6 +69,8 @@ import {
   PickupSignatureStatementLoadError,
   usePickupSignatureStatement,
 } from "~/components/parent/pickup-permission-fields";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { sickConcept } from "~/lib/concepts/sick";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -306,6 +307,20 @@ export interface ChildCare {
 }
 
 export function useChildCare(studentId: string): ChildCare {
+  const childRequests = useChildRequests();
+  const sharedFeatures = useSharedParentFeatures();
+  const hasSharedFeatures = sharedFeatures !== null;
+  const sharedFailure =
+    sharedFeatures?.errorsByChild[studentId] ??
+    (sharedFeatures && !sharedFeatures.data?.[studentId]
+      ? sharedFeatures.error
+      : undefined);
+  const tChild = useTranslations("parentChild");
+  const { failure: sharedFeatureError } = useSwrResourceLoadError(
+    [{ data: sharedFeatures?.data?.[studentId], error: sharedFailure }],
+    tChild("errorObjectCare"),
+    () => sharedFeatures?.mutate(),
+  );
   const [sickDays, setSickDays] = useState<StatusDay[]>([]);
   const [excusedRequests, setExcusedRequests] = useState<ExcusedRequest[]>([]);
   const [careExceptions, setCareExceptions] = useState<CareException[]>([]);
@@ -445,13 +460,16 @@ export function useChildCare(studentId: string): ChildCare {
           // Not part of loadError: the Heute card says the pickup time is
           // unavailable, and the care-schedule section shows its own load
           // error with retry. A third box would repeat the same outage.
-          getChildCareSchedule(studentId).catch(() => {
+          childRequests.careSchedule(studentId).catch(() => {
             weekPlanOk = false;
             return null;
           }),
           // Approval settings have no safe fallback: keep them unknown when
           // the feature request fails so the modal uses neutral wording.
-          getChildFeatures(studentId).catch((err: unknown) => {
+          (hasSharedFeatures
+            ? Promise.resolve(DEFAULT_FEATURES)
+            : childRequests.features(studentId)
+          ).catch((err: unknown) => {
             failures.push(err);
             return DEFAULT_FEATURES;
           }),
@@ -495,7 +513,7 @@ export function useChildCare(studentId: string): ChildCare {
       // after a newer one can't flip it back off prematurely.
       if (mountedRef.current && seq === loadSeqRef.current) setLoading(false);
     }
-  }, [studentId]);
+  }, [childRequests, hasSharedFeatures, studentId]);
 
   // Reload on mount, on a studentId change (load identity), AND when the Berlin
   // calendar day rolls over while the tab stays open — the windowed lists and
@@ -532,6 +550,11 @@ export function useChildCare(studentId: string): ChildCare {
   // so it fires even in a background tab. refetchOnFocus:true stays as the fallback
   // for a tab whose SSE stream had dropped entirely (no event ever arrives), mirroring
   // the conversation views' focus healing.
+  const reloadSharedFeatures = sharedFeatures?.mutate;
+  const retryChildCare = useCallback(() => {
+    void reloadSharedFeatures?.();
+    void load();
+  }, [load, reloadSharedFeatures]);
   const refreshChildCare = useCallback(() => void load(), [load]);
   useMessagesActivity({
     eventName: "parent-conversation-refresh",
@@ -673,13 +696,20 @@ export function useChildCare(studentId: string): ChildCare {
     pickupChangeRequestsLoaded:
       hasCurrentStudentData && pickupChangeRequestsLoaded,
     todayPickup,
-    features: hasCurrentStudentData ? features : DEFAULT_FEATURES,
-    loading: !hasCurrentStudentData || loading,
-    loadError: hasCurrentStudentData ? loadError : null,
+    features: hasCurrentStudentData
+      ? sharedFeatures
+        ? (sharedFeatures.data?.[studentId] ?? DEFAULT_FEATURES)
+        : features
+      : DEFAULT_FEATURES,
+    loading:
+      !hasCurrentStudentData ||
+      loading ||
+      (!!sharedFeatures && !sharedFeatures.data && !sharedFeatures.error),
+    loadError: hasCurrentStudentData ? (sharedFeatureError ?? loadError) : null,
     reportSick,
     saveCareException,
     removeCareException,
-    refresh: refreshChildCare,
+    refresh: retryChildCare,
   };
 }
 
@@ -729,7 +759,7 @@ export function SickNoteModal({
 }>) {
   const t = useTranslations("parentChildCare");
   const datePicker = useLocalizedDatePicker();
-  const initial = todayISO();
+  const initial = berlinTodayISO();
   const [from, setFrom] = useState(initial);
   const [to, setTo] = useState(initial);
   const [selectedStatus, setStatus] = useState<StudentStatusKind>("sick");
@@ -916,7 +946,7 @@ export function SickNoteModal({
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-gray-700">
               {t("sick.reasonLabelRequired")}
-              {reasonRequired && <span aria-hidden="true"> *</span>}
+              {reasonRequired && <RequiredMark />}
             </span>
             <textarea
               value={reason}
@@ -1424,7 +1454,7 @@ export function PickupTimeModal({
             type="button"
             variant="outline"
             size="md"
-            className="hidden whitespace-nowrap shadow-sm sm:inline-flex"
+            className="hidden whitespace-nowrap sm:inline-flex"
             onClick={onClose}
           >
             {t("cancel")}
@@ -1433,7 +1463,7 @@ export function PickupTimeModal({
             <Button
               type="button"
               size="md"
-              className="w-full gap-2 whitespace-nowrap shadow-sm max-sm:min-h-11 sm:w-auto"
+              className="w-full gap-2 whitespace-nowrap sm:w-auto"
               onClick={() => void handleSaveEdit()}
               disabled={submitting || todayLocked}
             >
@@ -1446,7 +1476,7 @@ export function PickupTimeModal({
             <Button
               type="button"
               size="md"
-              className="w-full gap-2 whitespace-nowrap shadow-sm sm:w-auto"
+              className="w-full gap-2 whitespace-nowrap sm:w-auto"
               onClick={() => void handleSubmit()}
               disabled={
                 submitting ||
@@ -1553,7 +1583,6 @@ export function PickupTimeModal({
                 type="button"
                 variant="outline"
                 size="md"
-                className="max-sm:min-h-11"
                 onClick={() => setEditing(true)}
               >
                 {t("pickup.edit")}
@@ -1704,7 +1733,7 @@ export function PickupTimeModal({
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-gray-700">
                 {t("pickup.reasonLabel")}
-                {reasonRequired && <span aria-hidden="true"> *</span>}
+                {reasonRequired && <RequiredMark />}
               </span>
               <textarea
                 ref={reasonRef}
@@ -1880,7 +1909,7 @@ export function SickStatusSummary({
   // A within-window date with no matching status day was NOT dropped for being
   // out of range — it was superseded or cleared. Inside the window the status
   // days are authoritative; approved requests only fill gaps outside it.
-  const windowStart = todayISO();
+  const windowStart = berlinTodayISO();
   const windowEnd = (() => {
     const d = parseISODate(windowStart);
     d.setMonth(d.getMonth() + 2);
@@ -1949,7 +1978,6 @@ export function SickStatusSummary({
                 type="button"
                 variant="outline"
                 size="md"
-                className="max-sm:min-h-11"
                 onClick={() => setEditing(r)}
               >
                 {t("summary.edit")}
@@ -2023,7 +2051,7 @@ export type OgsActionKey = "sick" | "pickup";
 // the school's settings.
 export interface OgsAction {
   readonly key: OgsActionKey;
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   readonly enabled: boolean;
 }
 
@@ -2039,14 +2067,14 @@ export function getOgsActions(features: ChildFeatures): OgsAction[] {
   return [
     {
       key: "sick",
-      concept: "sick",
+      concept: sickConcept,
       enabled:
         features.sick_note_enabled ||
         (features.excused_note_enabled ?? features.sick_note_enabled),
     },
     {
       key: "pickup",
-      concept: "pickup",
+      concept: pickupConcept,
       enabled: features.pickup_change_enabled,
     },
   ];

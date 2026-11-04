@@ -28,6 +28,7 @@ import type { ShiftType } from "~/lib/shift-type-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useModuleBooked } from "~/lib/tenant-context";
+import { staffPlanConcept } from "~/lib/concepts/staffPlan";
 
 const logger = createLogger({ component: "DatabaseShiftTypesPage" });
 
@@ -181,7 +182,7 @@ function ShiftTypesPageContent() {
     });
 
     return {
-      concept: "staffPlan",
+      concept: staffPlanConcept,
       title: "Dienstarten",
       singular: "Dienstart",
       purpose:

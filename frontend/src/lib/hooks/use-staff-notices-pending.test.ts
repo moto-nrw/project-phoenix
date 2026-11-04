@@ -1,21 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 
-import type { UseUnreadCountOptions } from "./use-unread-count";
+import type { StaffNotice } from "~/lib/staff-notices-api";
 
-const {
-  mockUseSession,
-  mockUseShellAuth,
-  mockHasPermission,
-  mockUseUnreadCount,
-  mockUseTenantSlugSafe,
-} = vi.hoisted(() => ({
-  mockUseSession: vi.fn(),
-  mockUseShellAuth: vi.fn(),
-  mockHasPermission: vi.fn(),
-  mockUseUnreadCount: vi.fn(),
-  mockUseTenantSlugSafe: vi.fn(),
-}));
+const { mockUseSession, mockUseShellAuth, mockHasPermission, mockUseSWRAuth } =
+  vi.hoisted(() => ({
+    mockUseSession: vi.fn(),
+    mockUseShellAuth: vi.fn(),
+    mockHasPermission: vi.fn(),
+    mockUseSWRAuth: vi.fn(),
+  }));
 
 vi.mock("next-auth/react", () => ({
   useSession: (): ReturnType<typeof mockUseSession> => mockUseSession(),
@@ -30,29 +24,44 @@ vi.mock("~/lib/shell-auth-context", () => ({
   useShellAuth: (): ReturnType<typeof mockUseShellAuth> => mockUseShellAuth(),
 }));
 
-vi.mock("~/lib/tenant-context", () => ({
-  useTenantSlugSafe: (): ReturnType<typeof mockUseTenantSlugSafe> =>
-    mockUseTenantSlugSafe(),
-}));
-
-vi.mock("./use-unread-count", () => ({
-  useUnreadCount: (opts: UseUnreadCountOptions): unknown =>
-    mockUseUnreadCount(opts) as unknown,
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: (...args: unknown[]): unknown =>
+    mockUseSWRAuth(...args) as unknown,
 }));
 
 import { useStaffNoticesPending } from "./use-staff-notices-pending";
 
-function capturedOptions(): UseUnreadCountOptions {
+function notice(overrides: Partial<StaffNotice>): StaffNotice {
+  return {
+    id: "1",
+    title: "Hinweis",
+    body: "",
+    priority: "info",
+    audience: "all",
+    valid_from: "2026-09-09",
+    weekdays: [],
+    week_pattern: 0,
+    requires_acknowledgement: false,
+    active: true,
+    ...overrides,
+  };
+}
+
+/** The key the badge asks SWR for; null when it asks nothing. */
+function requestedKey(): unknown {
   renderHook(() => useStaffNoticesPending());
-  expect(mockUseUnreadCount).toHaveBeenCalledTimes(1);
-  return mockUseUnreadCount.mock.calls[0]![0] as UseUnreadCountOptions;
+  expect(mockUseSWRAuth).toHaveBeenCalled();
+  return mockUseSWRAuth.mock.calls.at(-1)?.[0];
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockUseUnreadCount.mockReturnValue({ unreadCount: 0, isLoading: false });
+  mockUseSWRAuth.mockReturnValue({
+    data: undefined,
+    isLoading: false,
+    mutate: vi.fn(),
+  });
   mockUseShellAuth.mockReturnValue({ mode: "teacher" });
-  mockUseTenantSlugSafe.mockReturnValue("testschool");
   mockUseSession.mockReturnValue({
     data: { user: { id: "7" } },
     status: "authenticated",
@@ -61,25 +70,48 @@ beforeEach(() => {
 });
 
 describe("useStaffNoticesPending", () => {
-  it("enables the badge for teacher-mode users with users:read", () => {
-    const opts = capturedOptions();
-
-    expect(opts.enabled).toBe(true);
+  it("reads the shared entry of today's notices for teacher-mode users with users:read", () => {
+    expect(requestedKey()).toBe("staff-notices-today:7");
     expect(mockHasPermission).toHaveBeenCalledWith(
       { user: { id: "7" } },
       "users:read",
     );
+    // A page change shows the entry the shell seeded; focus reloads it.
+    expect(mockUseSWRAuth.mock.calls.at(-1)?.[2]).toMatchObject({
+      revalidateIfStale: false,
+      revalidateOnFocus: true,
+    });
   });
 
   it("does not request notices without users:read", () => {
     mockHasPermission.mockReturnValue(false);
 
-    expect(capturedOptions().enabled).toBe(false);
+    expect(requestedKey()).toBeNull();
   });
 
   it("disables the badge outside teacher mode", () => {
     mockUseShellAuth.mockReturnValue({ mode: "operator" });
 
-    expect(capturedOptions().enabled).toBe(false);
+    expect(requestedKey()).toBeNull();
+  });
+
+  it("counts only notices whose acknowledgement is required and missing", () => {
+    mockUseSWRAuth.mockReturnValue({
+      data: [
+        notice({ id: "1", requires_acknowledgement: true }),
+        notice({
+          id: "2",
+          requires_acknowledgement: true,
+          acknowledged_at: "2026-09-09T08:00:00Z",
+        }),
+        notice({ id: "3", requires_acknowledgement: false }),
+      ],
+      isLoading: false,
+      mutate: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useStaffNoticesPending());
+
+    expect(result.current.unreadCount).toBe(1);
   });
 });

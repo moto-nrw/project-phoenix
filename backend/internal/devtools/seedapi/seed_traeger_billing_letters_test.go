@@ -29,6 +29,11 @@ func TestSeedBillingLettersConfirmTheReleasedRun(t *testing.T) {
 			return
 		}
 		assert.Equal(t, "Bearer traeger-token", r.Header.Get("Authorization"))
+		if r.URL.Path == "/traeger/billing-runs/41/mailings" {
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{"status":"success","data":{"queued":2}}`))
+			return
+		}
 		assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte(`{"status":"success"}`))
@@ -41,7 +46,8 @@ func TestSeedBillingLettersConfirmTheReleasedRun(t *testing.T) {
 		Values:    map[string]any{seedBillingRunKey: int64(41)},
 	}
 	require.NoError(t, (seedTraegerBillingLettersStep{}).Run(context.Background(), runtime))
-	assert.Equal(t, []string{"POST /traeger/auth/login", "POST /traeger/billing-runs/41/letters"}, calls)
+	assert.Equal(t, []string{"POST /traeger/auth/login", "POST /traeger/billing-runs/41/letters", "POST /traeger/billing-runs/41/mailings"}, calls,
+		"the letters are created, then mailed to every family")
 	assert.NotEmpty(t, body["payment_due_on"])
 	assert.Contains(t, body["notes"], "Hausschuhe")
 	assert.Len(t, body["emergency_contacts"], 1)

@@ -19,6 +19,8 @@ import {
 } from "~/lib/enrollment-admin-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
+import { mapRosterImpact } from "~/lib/roster-impact";
+import { CarePlanImpact } from "~/components/students/care-plan-impact";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
@@ -36,6 +38,8 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Textarea } from "~/components/ui/textarea";
 import { formatChatDateTime } from "~/lib/date-helpers";
 import { changedEnrollmentChangeRequestLabels } from "~/lib/enrollment-change-request-diff";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 
 const logger = createLogger({ component: "AdminEnrollmentChangeRequests" });
 
@@ -123,8 +127,9 @@ export function AdminEnrollmentChangeRequestDetail({
 
   const handleReview = async (approved: boolean) => {
     const note = reviewNote.trim();
-    if (!note) {
-      reviewErrors.invalid("Bitte tragen Sie eine kurze Begründung ein.", {
+    // Freigeben geht ohne Begründung, Ablehnen nicht (#5024).
+    if (!approved && !note) {
+      reviewErrors.invalid("Bitte begründen Sie die Ablehnung.", {
         note: "Bitte tragen Sie eine Begründung ein.",
       });
       return;
@@ -218,7 +223,7 @@ export function AdminEnrollmentChangeRequestDetail({
       backHref="/anfragen"
       backLabel="Zurück zu Anfragen"
       stats={statusLine}
-      leading={<ConceptIconTile concept="enrollments" variant="page" />}
+      leading={<ConceptIconTile concept={enrollmentsConcept} variant="page" />}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <ChangeRequestStatusBadge status={data.status} />
@@ -228,7 +233,7 @@ export function AdminEnrollmentChangeRequestDetail({
         </div>
       }
     >
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      <section className="moto-content-surface overflow-hidden rounded-2xl border">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-5 p-5 sm:p-6">
             <p className="text-sm leading-6 text-gray-600">
@@ -238,12 +243,23 @@ export function AdminEnrollmentChangeRequestDetail({
             </p>
 
             <ChangeSummary request={data} />
+            {(data.roster_impacts ?? []).map((entry) => {
+              const impact = mapRosterImpact(entry.roster_impact);
+              return impact ? (
+                <CarePlanImpact
+                  key={entry.child_id}
+                  impact={impact}
+                  studentId={entry.student_id}
+                  childName={entry.first_name}
+                />
+              ) : null;
+            })}
             {data.origin === "parent" ? <MessageThread request={data} /> : null}
           </div>
 
           <aside className="border-t border-gray-100 bg-gray-50/70 p-5 sm:p-6 lg:border-t-0 lg:border-l">
             <div className="space-y-4 lg:sticky lg:top-6">
-              <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+              <section className="moto-content-surface rounded-2xl border p-4">
                 <h2 className="text-base font-semibold text-gray-900">
                   Anmeldung
                 </h2>
@@ -286,7 +302,7 @@ export function AdminEnrollmentChangeRequestDetail({
               </section>
 
               {data.origin === "parent" ? (
-                <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+                <section className="moto-content-surface rounded-2xl border p-4">
                   <h2 className="text-base font-semibold text-gray-900">
                     Rückfrage
                   </h2>
@@ -314,14 +330,17 @@ export function AdminEnrollmentChangeRequestDetail({
                     disabled={!canReview || busy !== null || !question.trim()}
                     className="mt-3 inline-flex w-full items-center justify-center gap-2"
                   >
-                    <MotoConceptIcon concept="parentConversations" size={16} />
+                    <MotoConceptIcon
+                      concept={parentConversationsConcept}
+                      size={16}
+                    />
                     {busy === "question" ? "Sendet…" : "Rückfrage senden"}
                   </Button>
                 </section>
               ) : null}
 
               {data.origin === "parent" ? (
-                <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+                <section className="moto-content-surface rounded-2xl border p-4">
                   <h2 className="text-base font-semibold text-gray-900">
                     Entscheidung
                   </h2>
@@ -334,12 +353,12 @@ export function AdminEnrollmentChangeRequestDetail({
                       id="change-request-review-note"
                       name="note"
                       error={reviewErrors.fieldError("note")}
-                      label="Begründung"
+                      label="Begründung (freiwillig, Pflicht bei Ablehnung)"
                       value={reviewNote}
                       onChange={(event) => setReviewNote(event.target.value)}
                       rows={4}
                       disabled={!canReview || busy !== null}
-                      placeholder="Kurz begründen, warum die Änderung übernommen oder abgelehnt wird."
+                      placeholder="Die Familie sieht den Text."
                     />
                   </div>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -348,9 +367,7 @@ export function AdminEnrollmentChangeRequestDetail({
                       variant="outline"
                       size="md"
                       onClick={() => void handleReview(true)}
-                      disabled={
-                        !canReview || busy !== null || !reviewNote.trim()
-                      }
+                      disabled={!canReview || busy !== null}
                       className="inline-flex items-center justify-center gap-2"
                     >
                       <Check className="h-4 w-4" aria-hidden="true" />
@@ -361,9 +378,7 @@ export function AdminEnrollmentChangeRequestDetail({
                       variant="outline_danger"
                       size="md"
                       onClick={() => void handleReview(false)}
-                      disabled={
-                        !canReview || busy !== null || !reviewNote.trim()
-                      }
+                      disabled={!canReview || busy !== null}
                       className="inline-flex items-center justify-center gap-2"
                     >
                       <X className="h-4 w-4" aria-hidden="true" />
@@ -392,7 +407,7 @@ function ChangeSummary({
   readonly request: AdminEnrollmentChangeRequest;
 }) {
   return (
-    <section className="moto-content-surface space-y-4 rounded-2xl border p-4 shadow-sm sm:p-6">
+    <section className="moto-content-surface space-y-4 rounded-2xl border p-4 sm:p-6">
       <div>
         <h2 className="text-base font-semibold text-gray-900">
           {request.origin === "admin"
@@ -432,7 +447,7 @@ function MessageThread({
   const messages = request.messages ?? [];
 
   return (
-    <section className="moto-content-surface space-y-4 rounded-2xl border p-4 shadow-sm sm:p-6">
+    <section className="moto-content-surface space-y-4 rounded-2xl border p-4 sm:p-6">
       <div>
         <h2 className="text-base font-semibold text-gray-900">Nachrichten</h2>
       </div>

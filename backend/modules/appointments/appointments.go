@@ -55,6 +55,10 @@ const (
 	SchoolEventTypePedagogicDay = "paedagogischer_tag"
 	SchoolEventTypeLessonsEnd   = "unterrichtsende"
 	SchoolEventTypeOther        = "sonstiges"
+	// SchoolEventTypeParentConference marks the appointment of a booked
+	// Elternsprechtag slot (#4801). Only a booking writes it; nobody enters
+	// it by hand, so ValidSchoolEventType does not offer it.
+	SchoolEventTypeParentConference = "elternsprechtag"
 
 	// MaxRecurrenceOccurrenceCount keeps count-bounded expansion finite. Longer
 	// series use EndsOn instead.

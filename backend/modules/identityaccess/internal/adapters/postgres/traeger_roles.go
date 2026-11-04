@@ -103,15 +103,17 @@ type traegerAccountRow struct {
 	AccountID int64    `bun:"account_id"`
 	Email     string   `bun:"email"`
 	Roles     []string `bun:"roles,array"`
+	Erased    bool     `bun:"erased"`
 }
 
 const listTraegerAccountsQuery = `SELECT "account".id AS account_id, "account".email,
+		"account".personal_data_erased_at IS NOT NULL AS erased,
 		COALESCE(array_agg("role".role ORDER BY "role".role) FILTER (WHERE "role".role IS NOT NULL), '{}') AS roles
 	FROM auth.accounts AS "account"
 	LEFT JOIN auth.organization_account_roles AS "role"
 		ON "role".account_id = "account".id AND "role".organization_id = ?
 	WHERE "account".id IN (?)
-	GROUP BY "account".id, "account".email
+	GROUP BY "account".id, "account".email, "account".personal_data_erased_at
 	ORDER BY "account".email, "account".id`
 
 // ListTraegerAccounts returns e-mail and Träger roles of the given accounts.
@@ -132,7 +134,7 @@ func (s *Store) ListTraegerAccounts(ctx context.Context, organizationID int64, a
 	}
 	accounts := make([]domain.TraegerAccount, 0, len(rows))
 	for _, row := range rows {
-		accounts = append(accounts, domain.TraegerAccount{AccountID: row.AccountID, Email: row.Email, Roles: row.Roles})
+		accounts = append(accounts, domain.TraegerAccount{AccountID: row.AccountID, Email: row.Email, Roles: row.Roles, Erased: row.Erased})
 	}
 	return accounts, stats, nil
 }

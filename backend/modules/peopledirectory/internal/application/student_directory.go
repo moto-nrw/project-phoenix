@@ -67,14 +67,11 @@ func (s *StudentService) FindRecord(ctx context.Context, id int64, lock string) 
 		// queueing behind a grade transition that waits for exactly that row
 		// is the deadlock this order exists to prevent. The gate is
 		// re-entrant, so a caller that already took it pays nothing.
+		find := s.store.FindRecord
 		if lock != "" {
-			lockStats, err := s.store.LockEnrollmentClassWrites(txCtx)
-			stats.Add(lockStats)
-			if err != nil {
-				return err
-			}
+			find = s.store.LockRecord
 		}
-		record, found, queryStats, err := s.store.FindRecord(txCtx, id, lock)
+		record, found, queryStats, err := find(txCtx, id, lock)
 		stats.Add(queryStats)
 		if err != nil {
 			return err

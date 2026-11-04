@@ -107,6 +107,9 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 		"/api/timetable/templates",
 		"/api/timetable/templates",
 		"/api/timetable/templates",
+		// #5103: the AG keeps its children by hand on purpose.
+		"/api/timetable/templates/41/manual-roster",
+		"/api/timetable/templates",
 		"/api/timetable/templates",
 		"/api/timetable/templates",
 		"/api/timetable/templates",
@@ -119,7 +122,7 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 		"/api/students/35/pickup-exceptions",
 		"/api/students/37/pickup-schedules",
 	}, paths)
-	require.Len(t, templates, 8)
+	require.Len(t, templates, 9)
 	monday := seedDate{Time: mostRecentWeekday(todaySeedDate().UTCMidnight(), time.Monday)}.String()
 	assert.Equal(t, "care", templates[0]["type"])
 	assert.Equal(t, "gruppe", templates[0]["target_group_type"])
@@ -138,7 +141,7 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 	assert.Equal(t, "klasse", templates[2]["target_group_type"])
 	assert.Equal(t, "activity", templates[2]["list_kind"])
 	// The week's blocks start on Monday, so the whole week shows them.
-	for _, index := range []int{0, 1, 2, 4, 5} {
+	for _, index := range []int{0, 1, 2, 4, 5, 6} {
 		assert.Equal(t, monday, templates[index]["start_date"], templates[index]["name"])
 		assert.Equal(t, monday, templates[index]["materialize_from"], templates[index]["name"])
 	}
@@ -150,26 +153,33 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 	assert.Equal(t, start.String(), templates[3]["start_date"])
 	assert.Equal(t, end.String(), templates[3]["end_date"])
 	assert.Nil(t, templates[3]["materialize_from"])
+	// #5103: the Randstunde of Klasse 1b holds the whole class by hand, so the
+	// Serien view shows that it deviates from the bookings.
+	assert.Equal(t, "Randstunde Klasse 1b", templates[4]["name"])
+	assert.Equal(t, "klasse", templates[4]["target_group_type"])
+	assert.Equal(t, "Klasse 1b", templates[4]["target_school_class"])
+	assert.Equal(t, "edge_hours", templates[4]["list_kind"])
+	assert.Equal(t, []any{float64(31), float64(32), float64(33), float64(35), float64(37), float64(38), float64(41)}, templates[4]["student_ids"])
 	// #3822: duties without children; the Busaufsicht waits with the bus
 	// children in the Aula and lies in the fourth staff member's Spätdienst.
-	assert.Equal(t, "Essensausgabe", templates[4]["name"])
-	assert.Equal(t, "duty", templates[4]["type"])
-	assert.EqualValues(t, 44, templates[4]["room_id"])
-	assert.EqualValues(t, 2, templates[4]["required_staff"])
-	assert.Equal(t, "Busaufsicht", templates[5]["name"])
+	assert.Equal(t, "Essensausgabe", templates[5]["name"])
 	assert.Equal(t, "duty", templates[5]["type"])
-	assert.EqualValues(t, 46, templates[5]["room_id"], "a Dienst shown without a place reads as unplanned")
-	assert.Nil(t, templates[5]["student_ids"])
-	assert.Equal(t, []any{float64(29)}, templates[5]["staff_ids"])
+	assert.EqualValues(t, 44, templates[5]["room_id"])
+	assert.EqualValues(t, 2, templates[5]["required_staff"])
+	assert.Equal(t, "Busaufsicht", templates[6]["name"])
+	assert.Equal(t, "duty", templates[6]["type"])
+	assert.EqualValues(t, 46, templates[6]["room_id"], "a Dienst shown without a place reads as unplanned")
+	assert.Nil(t, templates[6]["student_ids"])
+	assert.Equal(t, []any{float64(29)}, templates[6]["staff_ids"])
 	// #3261: an afternoon block with children and an office appointment
 	// without children, which the later-pickup choice must leave out.
-	assert.Equal(t, "Freies Spiel", templates[6]["name"])
-	assert.Equal(t, "none", templates[6]["target_group_type"])
-	assert.Equal(t, []any{float64(38), float64(39), float64(40), float64(41), float64(42), float64(43)}, templates[6]["student_ids"])
-	assert.Equal(t, []any{float64(1), float64(2), float64(3), float64(4), float64(5)}, templates[6]["weekdays"])
-	assert.Equal(t, "Teamsitzung", templates[7]["name"])
-	assert.Nil(t, templates[7]["student_ids"])
-	assert.Equal(t, []any{float64(3)}, templates[7]["weekdays"], "the team meets on Wednesdays only")
+	assert.Equal(t, "Freies Spiel", templates[7]["name"])
+	assert.Equal(t, "none", templates[7]["target_group_type"])
+	assert.Equal(t, []any{float64(38), float64(39), float64(40), float64(41), float64(42), float64(43)}, templates[7]["student_ids"])
+	assert.Equal(t, []any{float64(1), float64(2), float64(3), float64(4), float64(5)}, templates[7]["weekdays"])
+	assert.Equal(t, "Teamsitzung", templates[8]["name"])
+	assert.Nil(t, templates[8]["student_ids"])
+	assert.Equal(t, []any{float64(3)}, templates[8]["weekdays"], "the team meets on Wednesdays only")
 	// The coming days: the last Frühbetreuung is cancelled, and the second
 	// staff member is at a Fortbildung on the first one he leads, covered by
 	// the colleague in the Frühdienst for the same reason.

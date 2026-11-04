@@ -6,6 +6,7 @@ import { SETTINGS_SCHEMA_SWR_KEY } from "~/lib/settings-api";
 import { subscribeSettingsChanged } from "~/lib/settings-broadcast";
 import { useTenantMutate, useTenantMutateMatching } from "~/lib/swr";
 import { CHANGE_REQUEST_ACCESS_SWR_KEY } from "./use-change-request-access";
+import { USER_CONTEXT_SWR_KEY } from "./use-user-context";
 
 /**
  * Bridges cross-tab/cross-origin settings-change broadcasts to the active
@@ -35,6 +36,9 @@ export function useSettingsCacheBridge(): void {
   useEffect(() => {
     const invalidate = () => {
       void tenantMutate(SETTINGS_SCHEMA_SWR_KEY);
+      // The navigation context carries the school switches the app shell
+      // reads outside the settings page (#4996).
+      void tenantMutate(USER_CONTEXT_SWR_KEY);
       void refreshActionAccess();
       window.dispatchEvent(new CustomEvent("change-requests-refresh"));
       if (accountId) {

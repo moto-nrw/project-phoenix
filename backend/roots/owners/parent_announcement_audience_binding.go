@@ -133,6 +133,7 @@ func (r communicationAnnouncementAudience) HistoricalDeclarationFeed(ctx context
 			PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt, ResponseType: row.ResponseType,
 			DeliveryMode: row.DeliveryMode, ResponseDeadline: row.ResponseDeadline, SystemKind: row.SystemKind,
 			ReminderSentAt: row.ReminderSentAt, ReminderText: row.ReminderText, ReadAt: row.ReadAt, AcknowledgedAt: row.AcknowledgedAt,
+			SenderName: row.SenderName, SenderSchoolClass: row.SenderSchoolClass,
 		}
 	}), err
 }
@@ -181,6 +182,7 @@ func (r communicationAnnouncementAudience) ListFeedForAccount(ctx context.Contex
 			PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt, ResponseType: row.ResponseType,
 			DeliveryMode: row.DeliveryMode, ResponseDeadline: row.ResponseDeadline, SystemKind: row.SystemKind,
 			ReminderSentAt: row.ReminderSentAt, ReminderText: row.ReminderText, ReadAt: row.ReadAt, AcknowledgedAt: row.AcknowledgedAt,
+			SenderName: row.SenderName, SenderSchoolClass: row.SenderSchoolClass,
 		}
 	}), err
 }

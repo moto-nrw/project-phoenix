@@ -1,13 +1,19 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import { useMemo } from "react";
 
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { SegmentedControl } from "~/components/ui/segmented-control";
+import type { RosterDeviation } from "~/lib/roster-deviation";
 import { TemplateCard } from "./template-card";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import { timetableSurface, timetableSurfacePadded } from "./timetable-style";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+
+type ReviewFilter = "all" | "review";
 
 interface TemplateListProps {
   templates: TimetableTemplate[];
@@ -17,6 +23,14 @@ interface TemplateListProps {
   onArchive: (template: TimetableTemplate) => void;
   /** Leseansicht (#2283): false blendet Anlegen und Karten-Aktionen aus. */
   canManage?: boolean;
+  /** Abweichungen von den Anmeldungen je Regeltermin-ID (#5103). */
+  deviations?: ReadonlyMap<string, RosterDeviation>;
+  onConnect?: (template: TimetableTemplate, deviation: RosterDeviation) => void;
+  /** „Liste so lassen“ setzen oder zurücknehmen. */
+  onSetManualRoster?: (template: TimetableTemplate, confirmed: boolean) => void;
+  /** „Zu prüfen“: nur Regeltermine mit erkannter Abweichung. */
+  reviewOnly?: boolean;
+  onReviewOnlyChange?: (reviewOnly: boolean) => void;
 }
 
 export function TemplateList({
@@ -26,14 +40,35 @@ export function TemplateList({
   onApply,
   onArchive,
   canManage = true,
+  deviations,
+  onConnect,
+  onSetManualRoster,
+  reviewOnly = false,
+  onReviewOnlyChange,
 }: TemplateListProps) {
+  const reviewCount = useMemo(
+    () => templates.filter((template) => deviations?.has(template.id)).length,
+    [templates, deviations],
+  );
+  // Zu prüfende Regeltermine stehen vorn; sonst bleibt die Reihenfolge.
+  const visible = useMemo(() => {
+    const flagged = templates.filter((template) =>
+      deviations?.has(template.id),
+    );
+    if (reviewOnly) return flagged;
+    return [
+      ...flagged,
+      ...templates.filter((template) => !deviations?.has(template.id)),
+    ];
+  }, [templates, deviations, reviewOnly]);
+
   if (templates.length === 0) {
     return (
       <div className={`${timetableSurface} border-dashed px-6`}>
         <EmptyState
           icon={
             <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-              <MotoConceptIcon concept="carePlan" size={28} />
+              <MotoConceptIcon concept={carePlanConcept} size={28} />
             </span>
           }
           title="Keine Regeltermine in diesem Zeitraum"
@@ -59,18 +94,40 @@ export function TemplateList({
 
   return (
     <div className={timetableSurfacePadded}>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {templates.map((template) => (
-          <TemplateCard
-            key={template.id}
-            template={template}
-            onEdit={onEdit}
-            onApply={onApply}
-            onArchive={onArchive}
-            canManage={canManage}
-          />
-        ))}
-      </div>
+      {onReviewOnlyChange && (reviewCount > 0 || reviewOnly) ? (
+        <SegmentedControl<ReviewFilter>
+          ariaLabel="Regeltermine zeigen"
+          className="mb-4"
+          value={reviewOnly ? "review" : "all"}
+          onChange={(next) => onReviewOnlyChange(next === "review")}
+          items={[
+            { value: "all", label: "Alle" },
+            { value: "review", label: `Zu prüfen (${reviewCount})` },
+          ]}
+        />
+      ) : null}
+      {visible.length === 0 ? (
+        <EmptyState
+          title="Keine Regeltermine zu prüfen"
+          description="Alle Kinderlisten passen zu den Anmeldungen oder bleiben bewusst so."
+        />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {visible.map((template) => (
+            <TemplateCard
+              key={template.id}
+              template={template}
+              onEdit={onEdit}
+              onApply={onApply}
+              onArchive={onArchive}
+              canManage={canManage}
+              deviation={deviations?.get(template.id)}
+              onConnect={onConnect}
+              onSetManualRoster={onSetManualRoster}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

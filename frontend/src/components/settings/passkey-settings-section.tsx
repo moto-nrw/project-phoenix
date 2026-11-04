@@ -13,7 +13,7 @@ import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Input } from "~/components/ui/input";
 import { EmptyState } from "~/components/ui/empty-state";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -37,6 +37,7 @@ import {
   type PasskeyCredentialSummary,
   type PasskeyScope,
 } from "~/lib/passkey-api";
+import { passkeysConcept } from "~/lib/concepts/passkeys";
 
 const logger = createLogger({ component: "PasskeySettingsSection" });
 
@@ -197,36 +198,33 @@ export function PasskeySettingsSection({
   });
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
-      <ConceptSectionHeader
-        className="mb-4"
-        // Geschwisterkarten auf /profile und /operator/settings sind h3;
-        // als h2 wuerde TrustedDevicesSection darunter einsortiert.
-        level={3}
-        title="Passkeys"
-        concept="passkeys"
-        actions={
-          supported &&
-          !confirmingEnrollment &&
-          !enrolling && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              disabled={busy}
-              onClick={() => {
-                enrollErrors.clear();
-                setConfirmingEnrollment(true);
-              }}
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Hinzufügen
-            </Button>
-          )
-        }
-      />
-
+    <SectionCard
+      // Geschwisterkarten auf /profile und /operator/settings sind h3;
+      // als h2 wuerde TrustedDevicesSection darunter einsortiert.
+      headingLevel={3}
+      title="Passkeys"
+      concept={passkeysConcept}
+      actions={
+        supported &&
+        !confirmingEnrollment &&
+        !enrolling && (
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            className="gap-2"
+            disabled={busy}
+            onClick={() => {
+              enrollErrors.clear();
+              setConfirmingEnrollment(true);
+            }}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Hinzufügen
+          </Button>
+        )
+      }
+    >
       {!supported && (
         <div className="mb-3">
           <Alert
@@ -317,7 +315,7 @@ export function PasskeySettingsSection({
             <Button
               type="button"
               variant="primary"
-              size="sm"
+              size="md"
               disabled={busy || code.trim().length === 0}
               onClick={() => void finishEnrollment()}
             >
@@ -326,7 +324,7 @@ export function PasskeySettingsSection({
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="md"
               disabled={busy}
               onClick={() => {
                 setConfirmingEnrollment(false);
@@ -417,7 +415,7 @@ export function PasskeySettingsSection({
           revokeErrors.clear();
         }}
       />
-    </div>
+    </SectionCard>
   );
 }
 

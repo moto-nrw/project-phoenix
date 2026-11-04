@@ -36,6 +36,7 @@ func (r *messageRepository) Create(ctx context.Context, message *communication.P
 	}
 	// The thread preview is advanced off the row's own DB-stamped created_at, so
 	// the identity and timestamps have to travel back to the caller.
+	message.ClientMessageID, message.SendReplayed = value.ClientMessageID, value.SendReplayed
 	message.ID = value.ID
 	message.CreatedAt = value.CreatedAt
 	message.UpdatedAt = value.UpdatedAt
@@ -106,7 +107,7 @@ func messageValue(message *communication.PortalParentMessage) (*domain.ParentMes
 		ID: message.ID, TenantID: message.TenantID, ThreadID: message.ThreadID,
 		StudentID: message.StudentID, SenderAccountID: message.SenderAccountID,
 		SenderKind: message.SenderKind, SenderName: message.SenderName,
-		StaffNameVisible: message.StaffNameVisible, Body: message.Body, Kind: message.Kind,
+		StaffNameVisible: message.StaffNameVisible, ClientMessageID: message.ClientMessageID, SendReplayed: message.SendReplayed, Body: message.Body, Kind: message.Kind,
 		EventType: message.EventType, EventActorKind: message.EventActorKind,
 		RequestType: message.RequestType, RequestStatus: message.RequestStatus,
 		Payload: payload, RefTable: message.RefTable, RefID: message.RefID,
@@ -128,12 +129,13 @@ func messageModel(value *domain.ParentMessage) (*communication.PortalParentMessa
 		ThreadID: value.ThreadID, StudentID: value.StudentID,
 		SenderAccountID: value.SenderAccountID, SenderKind: value.SenderKind,
 		SenderName: value.SenderName, StaffNameVisible: value.StaffNameVisible,
-		Body: value.Body, Kind: value.Kind, EventType: value.EventType,
+		ClientMessageID: value.ClientMessageID, SendReplayed: value.SendReplayed, Body: value.Body, Kind: value.Kind, EventType: value.EventType,
 		EventActorKind: value.EventActorKind, RequestType: value.RequestType,
 		RequestStatus: value.RequestStatus, Payload: payload,
 		RefTable: value.RefTable, RefID: value.RefID, AppliedAt: value.AppliedAt,
 		AppliedBy: value.AppliedBy, DecisionReason: value.DecisionReason, GroupThreadID: value.GroupThreadID,
 	}
+	message.ClientMessageID, message.SendReplayed = value.ClientMessageID, value.SendReplayed
 	message.ID = value.ID
 	message.CreatedAt = value.CreatedAt
 	message.UpdatedAt = value.UpdatedAt
@@ -181,13 +183,13 @@ func (r *threadRepository) FindByID(ctx context.Context, id int64) (*communicati
 	return threadModel(value), err
 }
 
-func (r *threadRepository) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*communication.PortalParentMessageThread, error) {
-	value, err := r.store.FindByStudentGuardian(ctx, studentID, guardianAccountID)
+func (r *threadRepository) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64, audience string) (*communication.PortalParentMessageThread, error) {
+	value, err := r.store.FindByStudentGuardian(ctx, studentID, guardianAccountID, audience)
 	return threadModel(value), err
 }
 
-func (r *threadRepository) GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*communication.PortalParentMessageThread, error) {
-	value, err := r.store.GetOrCreate(ctx, tenantID, studentID, guardianAccountID)
+func (r *threadRepository) GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64, audience string) (*communication.PortalParentMessageThread, error) {
+	value, err := r.store.GetOrCreate(ctx, tenantID, studentID, guardianAccountID, audience)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +222,7 @@ func threadValue(thread *communication.PortalParentMessageThread) *domain.Parent
 	}
 	return &domain.ParentMessageThread{
 		ID: thread.ID, TenantID: thread.TenantID, StudentID: thread.StudentID,
-		GuardianAccountID: thread.GuardianAccountID, LastMessageAt: thread.LastMessageAt,
+		GuardianAccountID: thread.GuardianAccountID, Audience: thread.Audience, LastMessageAt: thread.LastMessageAt,
 		LastMessageID: thread.LastMessageID, LastSenderKind: thread.LastSenderKind,
 		LastMessageBody: thread.LastMessageBody, StaffHandledUpToAt: thread.StaffHandledUpToAt,
 		StaffHandledUpToMessageID:      thread.StaffHandledUpToMessageID,
@@ -236,7 +238,7 @@ func threadModel(value *domain.ParentMessageThread) *communication.PortalParentM
 		return nil
 	}
 	thread := &communication.PortalParentMessageThread{
-		StudentID: value.StudentID, GuardianAccountID: value.GuardianAccountID,
+		StudentID: value.StudentID, GuardianAccountID: value.GuardianAccountID, Audience: value.Audience,
 		LastMessageAt: value.LastMessageAt, LastMessageID: value.LastMessageID,
 		LastSenderKind: value.LastSenderKind, LastMessageBody: value.LastMessageBody,
 		StaffHandledUpToAt:             value.StaffHandledUpToAt,

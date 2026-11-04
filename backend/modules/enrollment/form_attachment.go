@@ -8,6 +8,7 @@ import (
 // FormAttachment is a named PDF in an immutable form version. Replacing a
 // document creates a new URL; saved versions retain their original reference.
 type FormAttachment struct {
+	DocumentID  string `json:"document_id,omitempty"`
 	Label       string `json:"label"`
 	DocumentURL string `json:"document_url"`
 }

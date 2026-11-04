@@ -12,6 +12,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const areas = ['', 'backend', 'frontend'];
+const budgetFile = 'scripts/check-agent-context.budget.json';
+const codexCap = 32768;
 const ignored = new Set(['worktrees', 'node_modules', '.git']);
 const placeholders = /[<>*{}$]|\.{3}|\[[^\]]*\]/;
 const rootPrefix = /^(?:\.agents|\.claude|\.codex|backend|frontend|docs|scripts)\//i;
@@ -184,7 +186,112 @@ function checkAdrNumbers(root, errors) {
   }
 }
 
-export function checkContext(root) {
+// Keep logical paths for surface keys, but resolve symlinks for bytes and
+// canonical skill identity. Ancestors stop directory cycles without hiding mirrors.
+function* contextFiles(target, ancestors = new Set()) {
+  if (!fs.existsSync(target)) return;
+  const real = fs.realpathSync(target);
+  if (ancestors.has(real)) return;
+  if (fs.statSync(real).isDirectory()) {
+    ancestors.add(real);
+    for (const name of fs.readdirSync(target).sort()) {
+      if (!ignored.has(name)) yield* contextFiles(path.join(target, name), ancestors);
+    }
+    ancestors.delete(real);
+  } else yield target;
+}
+
+// Close enough for the 1024-character cap: joins a plain, quoted or block
+// scalar with its indented continuation lines and collapses whitespace.
+function skillDescription(frontmatter) {
+  const field = frontmatter.match(/^description:[ \t]*(.*)((?:\r?\n[ \t]+.*)*)/m);
+  if (!field) return '';
+  const text = `${field[1].replace(/^[>|][+-]?\s*$/, '')} ${field[2]}`.replace(/\s+/g, ' ').trim();
+  return /^(["']).*\1$/.test(text) ? text.slice(1, -1) : text;
+}
+
+function measureContext(root, errors) {
+  const sizes = {};
+  for (const name of ['CLAUDE.md', 'backend/CLAUDE.md', 'frontend/CLAUDE.md', 'frontend/AGENTS.md']) {
+    const target = path.join(root, name);
+    if (fs.existsSync(target)) sizes[name] = fs.statSync(fs.realpathSync(target)).size;
+  }
+  for (const target of contextFiles(path.join(root, '.claude/rules'))) {
+    if (target.endsWith('.md')) sizes[path.relative(root, target)] = fs.statSync(fs.realpathSync(target)).size;
+  }
+  const skills = new Set();
+  sizes['skill-catalog'] = 0;
+  for (const area of areas) {
+    for (const directory of ['.agents/skills', '.claude/skills']) {
+      for (const target of contextFiles(path.join(root, area, directory))) {
+        if (path.basename(target) !== 'SKILL.md') continue;
+        const real = fs.realpathSync(target);
+        if (skills.has(real)) continue;
+        skills.add(real);
+        const frontmatter = fs.readFileSync(real, 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/);
+        if (!frontmatter) continue;
+        sizes['skill-catalog'] += Buffer.byteLength(frontmatter[0]);
+        const length = [...skillDescription(frontmatter[1])].length;
+        if (length > 1024) errors.push(`${path.relative(root, target)}: skill description is ${length} characters; spec limit is 1024 characters`);
+      }
+    }
+  }
+  const codex = {};
+  const agents = path.join(root, 'AGENTS.md');
+  if (fs.existsSync(agents)) {
+    const rootBytes = fs.statSync(fs.realpathSync(agents)).size;
+    for (const area of areas) {
+      const target = path.join(root, area, 'AGENTS.md');
+      if (!fs.existsSync(target)) continue;
+      const total = rootBytes + (area ? fs.statSync(fs.realpathSync(target)).size : 0);
+      codex[area || 'root'] = total;
+      if (total > codexCap) errors.push(`${area || 'root'} AGENTS.md chain: ${total} bytes exceeds the ${codexCap}-byte cap; Codex would silently drop the rest`);
+    }
+  }
+  return { sizes, codex };
+}
+
+// Budgets sit a little above the measured size, so a one-line edit needs no
+// budget change and PRs that merge without rebasing onto this check (branch
+// protection does not require an up-to-date branch) do not turn development red.
+const slack = bytes => Math.max(256, Math.ceil(bytes * 0.05));
+
+function checkBudgets(root, sizes, errors, updateBudget) {
+  const target = path.join(root, budgetFile);
+  let budgets = {};
+  if (fs.existsSync(target)) {
+    try {
+      budgets = JSON.parse(fs.readFileSync(target, 'utf8'));
+      if (!budgets || Array.isArray(budgets) || typeof budgets !== 'object'
+        || Object.values(budgets).some(value => !Number.isSafeInteger(value) || value < 0)) throw new Error();
+    } catch {
+      errors.push(`${budgetFile}: expected an object of non-negative integer byte budgets`);
+      return [];
+    }
+  } else if (!updateBudget) {
+    errors.push(`${budgetFile}: missing budget file; run node scripts/check-agent-context.mjs --update-budget`);
+    return [];
+  }
+  if (updateBudget) {
+    const updated = Object.fromEntries(Object.entries(sizes).sort(([a], [b]) => a.localeCompare(b))
+      .map(([surface, current]) => [surface, Object.hasOwn(budgets, surface) ? Math.min(current + slack(current), budgets[surface]) : current + slack(current)]));
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, `${JSON.stringify(updated, null, 2)}\n`);
+    budgets = updated;
+  }
+  const hints = [];
+  for (const [surface, current] of Object.entries(sizes)) {
+    if (!Object.hasOwn(budgets, surface)) errors.push(`${surface}: new surface has no budget; run node scripts/check-agent-context.mjs --update-budget`);
+    else if (current > budgets[surface]) errors.push(`${surface}: current ${current} bytes, budget ${budgets[surface]} bytes, delta +${current - budgets[surface]} bytes; cut it, or raise the budget in this PR with a reason in the PR body`);
+    else if (current + slack(current) < budgets[surface]) hints.push(`${surface}: current ${current} bytes leaves budget ${budgets[surface]} more than the slack; run node scripts/check-agent-context.mjs --update-budget to lock in the cut`);
+  }
+  for (const surface of Object.keys(budgets)) {
+    if (!Object.hasOwn(sizes, surface)) errors.push(`${surface}: budgeted surface no longer exists; run node scripts/check-agent-context.mjs --update-budget`);
+  }
+  return hints;
+}
+
+export function checkContext(root, { updateBudget = false } = {}) {
   root = fs.realpathSync(root);
   const state = { root, errors: [], documents: [], visited: new Set(), anchors: new Map() };
   for (const area of areas) {
@@ -196,12 +303,20 @@ export function checkContext(root) {
   for (const document of state.documents) checkDocument(document, state);
   checkMirrors(root, state.errors);
   checkAdrNumbers(root, state.errors);
-  return { documents: state.documents.length, errors: [...new Set(state.errors)].sort() };
+  const { sizes, codex } = measureContext(root, state.errors);
+  const hints = checkBudgets(root, sizes, state.errors, updateBudget);
+  return { documents: state.documents.length, errors: [...new Set(state.errors)].sort(), sizes, codex, hints };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const result = checkContext(process.argv[2] ?? process.cwd());
+  const args = process.argv.slice(2);
+  const result = checkContext(args.find(arg => arg !== '--update-budget') ?? process.cwd(), { updateBudget: args.includes('--update-budget') });
   for (const error of result.errors) console.error(error);
-  console.log(`Agent context: ${result.documents} documents, ${result.errors.length} errors.`);
+  for (const hint of result.hints) console.error(`Hint: ${hint}`);
+  if (!result.errors.length) {
+    const entries = Object.entries(result.sizes).filter(([surface]) => !surface.startsWith('.claude/rules/') && surface !== 'skill-catalog');
+    const rules = Object.entries(result.sizes).filter(([surface]) => surface.startsWith('.claude/rules/')).reduce((total, [, bytes]) => total + bytes, 0);
+    console.log(`Agent context: ${result.documents} documents, 0 errors; ${entries.map(([surface, bytes]) => `${surface} ${bytes} B`).join(', ')}; rules ${rules} B; skill-catalog ${result.sizes['skill-catalog']} B; Codex ${Object.entries(result.codex).map(([area, bytes]) => `${area} ${bytes}/${codexCap} B`).join(', ')}.`);
+  }
   process.exitCode = result.errors.length ? 1 : 0;
 }

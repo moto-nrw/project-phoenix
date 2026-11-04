@@ -1,0 +1,387 @@
+{
+  "packages": [
+    {
+      "path": "modules/schoolstructure/internal/adapters/postgres/groups",
+      "owner": "school-structure",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/schoolclass",
+      "owner": "school-structure",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/internal/application/groups",
+      "owner": "school-structure",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure",
+      "owner": "school-structure",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/compose",
+      "owner": "school-structure",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/http",
+      "owner": "school-structure",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/schoolstructure/internal/application",
+      "owner": "school-structure",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/internal/domain",
+      "owner": "school-structure",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/internal/ports",
+      "owner": "school-structure",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/internal/adapters/postgres",
+      "owner": "school-structure",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/internal/adapters/staffgroups",
+      "owner": "school-structure",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/schoolstructure/contract",
+      "owner": "school-structure",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolstructure/internal/adapters/postgres/runtime",
+      "owner": "school-structure",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "education.grade_transition_class_list_entries",
+      "write_owner": "school-structure"
+    },
+    {
+      "name": "education.grade_transition_class_teachers",
+      "write_owner": "school-structure"
+    },
+    {
+      "name": "education.grade_transition_history",
+      "write_owner": "school-structure"
+    },
+    {
+      "name": "education.grade_transition_mappings",
+      "write_owner": "school-structure"
+    },
+    {
+      "name": "education.grade_transitions",
+      "write_owner": "school-structure"
+    },
+    {
+      "name": "education.groups",
+      "write_owner": "school-structure"
+    }
+  ],
+  "rules": [
+    {
+      "id": "school-structure.application.tenant-runtime",
+      "description": "School Structure application code reads the caller's tenant from context for the group, transition and ledger commands (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.application.student-presence-public",
+      "description": "Grade-transition guards consume Student Presence facts before graduating students (#2691).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.port-domain",
+      "description": "School Structure ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "school-structure.compose.orm-sql",
+      "description": "School Structure composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "school-structure.compose.tenant-runtime",
+      "description": "School Structure composition resolves the ambient tenant transaction through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.staff-groups.public",
+      "description": "The staff-keyed group reads implement the School Structure contract and load groups through its query (#3499).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "adapter",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.staff-groups.membership-public",
+      "description": "The staff-keyed group reads resolve teacher and class assignments through the public School Membership capability (#3499).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "adapter",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.staff-groups.workforce-public",
+      "description": "The staff-keyed group reads resolve active substitutions through the public Workforce capability (#3499).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "adapter",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.integration-test.support",
+      "description": "School Structure integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "school-structure.adapter-test.membership-compose",
+      "description": "Staff-keyed group read tests construct the real School Membership owner for teacher and class assignments (#3499).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "adapter-test",
+      "target_owner": "school-membership",
+      "target_role": "compose"
+    },
+    {
+      "id": "school-structure.adapter-test.workforce-compose",
+      "description": "Staff-keyed group read tests construct the real Workforce owner for substitutions (#3499).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "adapter-test",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "school-structure.module-behavior-test.transition.grade-transition.public",
+      "description": "Grade Transition integration tests use real owner composition and the outer tenant UnitOfWork (#2711).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "module-behavior-test",
+      "target_owner": "grade-transition",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.module-behavior-test.transition.grade-transition.compose",
+      "description": "Grade Transition integration tests use real owner composition and the outer tenant UnitOfWork (#2711).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "module-behavior-test",
+      "target_owner": "grade-transition",
+      "target_role": "compose"
+    },
+    {
+      "id": "school-structure.http.student-presence-public",
+      "description": "The group routes read room sessions and attendance through the public presence facades (#3422, #2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.http.domain",
+      "description": "The group routes read and write the owner's group rows and list query (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "school-structure",
+      "target_role": "domain"
+    },
+    {
+      "id": "school-structure.http.people-directory-public",
+      "description": "The group routes read the children of a group and the persons behind them in the People Directory's public types, through a port the root binds (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.http.tenant-runtime.common",
+      "description": "The group routes reuse the shared HTTP runtime of api/common: the tenant route group, the permission gates, request parsing, response rendering and the student location snapshot, like the other owners' HTTP adapters (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "school-structure.http.identity-adapter",
+      "description": "The group routes read the authenticated permissions from the session token adapter (ADR 0031, #2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "school-structure.http.security-contract",
+      "description": "The group routes gate on the permission registry (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "school-structure.http.security-public",
+      "description": "The group routes decide the admin wildcard through the Security Runtime capability (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.http.tenant-runtime",
+      "description": "The group routes run a write and its teacher assignment in one tenant transaction and mark rollbacks through the tenant runtime (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.public.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "public",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "school-structure.application.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "application",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "school-structure.http.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "http",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    }
+  ]
+}

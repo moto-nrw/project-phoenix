@@ -1,0 +1,9 @@
+{
+  "deadline_required": "Bitte geben Sie eine Frist für die Rückmeldung ein.",
+  "duplicate_name": "Es gibt schon eine Phase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
+  "invalid_request": "Die Angaben sind unvollständig. Bitte prüfen Sie alle Pflichtfelder.",
+  "review_invalid": "Diese Aktion ist bei diesem Eintrag gerade nicht möglich.",
+  "review_not_found": "Diesen Eintrag in der Prüfliste gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "source_already_rolled": "Aus dieser Phase gibt es schon eine Anschlussphase. Bitte löschen Sie zuerst die bestehende Anschlussphase.",
+  "source_not_found": "Die Ausgangsphase gibt es nicht mehr. Bitte laden Sie die Seite neu."
+}

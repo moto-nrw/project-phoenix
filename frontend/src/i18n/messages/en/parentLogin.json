@@ -1,0 +1,20 @@
+{
+  "eyebrow": "Parent portal",
+  "title": "Welcome to the parent portal",
+  "subtitle": "Sign in to keep track of everything important about your child's care.",
+  "emailLabel": "Email address",
+  "passwordLabel": "Password",
+  "showPassword": "Show password",
+  "hidePassword": "Hide password",
+  "loading": "Loading...",
+  "submitting": "Signing in...",
+  "submit": "Sign in",
+  "forgotPassword": "Forgot your password?",
+  "fromStaffBanner": "Parent accounts sign in here. Please enter your password once more.",
+  "staffLoginLink": "Go to the school login",
+  "errors": {
+    "rateLimited": "Too many login attempts. Please try again later.",
+    "notAGuardian": "This account belongs to school staff. Please sign in through the school login."
+  },
+  "errorObject": "signing in"
+}

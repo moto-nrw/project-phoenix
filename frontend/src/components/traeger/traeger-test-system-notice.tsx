@@ -1,48 +1,26 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { Alert } from "~/components/ui/alert";
-import { createLogger } from "~/lib/logger";
-import { fetchTraegerOrganization } from "~/lib/traeger-api";
-
-const logger = createLogger({ component: "TraegerTestSystemNotice" });
+import { StatusBadge } from "~/components/ui/status-badge";
 
 /**
  * Marks a test Träger (#4658) on every page of the Träger portal, so nobody
  * mistakes the invented sample data for real children or enters real data.
- * A real Träger shows nothing. A failed read shows nothing either: the pages
- * report their own load errors, and the session guard handles a session the
- * backend ended.
+ *
+ * A strip above the shared header (#5145), like the demo strip of the staff
+ * portal; it scrolls away with the page and the header stays sticky. The
+ * shell shows it only for a test Träger.
  */
 export function TraegerTestSystemNotice() {
-  const [testSystem, setTestSystem] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    fetchTraegerOrganization()
-      .then((organization) => {
-        if (active) setTestSystem(organization.testSystem);
-      })
-      .catch((err: unknown) => {
-        // Silent on purpose: the notice is an extra on top of every page,
-        // and each page shows its own load error.
-        logger.warn("traeger_organization_load_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  if (!testSystem) return null;
   return (
-    <Alert
-      type="info"
-      title="Testsystem"
-      announce="off"
-      message="Hier probieren Sie moto aus. Alle Kinder sind erfunden. Tragen Sie hier keine echten Daten ein."
-      className="mb-6"
-    />
+    <div
+      data-traeger-test-system
+      className="relative z-10 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2 sm:px-6 lg:px-8"
+    >
+      <span className="shrink-0">
+        <StatusBadge label="Testsystem" tone="orange" />
+      </span>
+      <p className="min-w-0 text-sm text-gray-700">
+        Hier probieren Sie moto aus. Alle Kinder sind erfunden. Tragen Sie hier
+        keine echten Daten ein.
+      </p>
+    </div>
   );
 }

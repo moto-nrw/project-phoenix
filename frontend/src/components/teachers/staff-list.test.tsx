@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Teacher } from "~/lib/teacher-api";
 import { StaffList } from "./staff-list";
 
@@ -37,6 +37,10 @@ function makeTeacher(id: string, overrides: Partial<Teacher> = {}): Teacher {
 }
 
 describe("StaffList", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("links every person to the staff record", () => {
     render(
       <StaffList
@@ -117,6 +121,33 @@ describe("StaffList", () => {
     );
     expect(screen.getByRole("link", { name: /Person 4/ })).toHaveTextContent(
       "–",
+    );
+  });
+
+  it("hides a demo seed address from the second line", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_ENV", "demo");
+    render(
+      <StaffList
+        groupDefinitions={[
+          {
+            id: "__no_role__",
+            title: "Ohne Rolle",
+            items: [
+              makeTeacher("3", {
+                account_role: null,
+                email: "julia.klein@demo-ogs-nord.moto-ogs.de",
+              }),
+            ],
+          },
+        ]}
+        objectHref={(teacher) => `/staff/${teacher.id}`}
+      />,
+    );
+
+    const row = screen.getByRole("link", { name: /Person 3/ });
+    expect(row).toHaveTextContent("–");
+    expect(row).not.toHaveTextContent(
+      "julia.klein@demo-ogs-nord.moto-ogs.de",
     );
   });
 

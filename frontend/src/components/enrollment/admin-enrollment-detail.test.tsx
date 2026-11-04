@@ -36,6 +36,14 @@ const mocks = vi.hoisted(() => ({
   fetchCareOfferingBookingStats: vi.fn(),
 }));
 
+// Die Auswirkung auf den Betreuungsplan (#5102) liest die Berechtigungen.
+vi.mock("next-auth/react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next-auth/react")>()),
+  useSession: () => ({
+    data: { user: { id: "1", token: "t", permissions: ["schedules:manage"] } },
+    status: "authenticated",
+  }),
+}));
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mocks.routerPush }),
 }));
@@ -1011,6 +1019,73 @@ describe("ChildOfferingAdjustment", () => {
         }),
       );
     });
+  });
+
+  // #5102: nach dem Speichern steht da, was im Betreuungsplan passiert ist,
+  // auch welcher von Hand gepflegte Regeltermin das Kind weiter einplant.
+  it("shows the effect on the Betreuungsplan after saving", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({
+        id: "offering-1",
+        name: "Kurzbetreuung",
+        days_of_week_mode: "parent_choice",
+        available_days: ["mon", "fri"],
+      }),
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({
+      roster_impact: {
+        effective_from: "2026-09-14",
+        adjusted: [
+          {
+            template_id: "7",
+            name: "Kurzbetreuung Block",
+            removed_weekdays: [5],
+            added_weekdays: [],
+          },
+        ],
+        not_adjusted: [
+          {
+            template_id: "9",
+            name: "RDST 1b",
+            weekdays: [5],
+            via_target: true,
+          },
+        ],
+      },
+    });
+    renderAdjustment(
+      adjustmentChild({
+        created_student_id: "42",
+        offerings: [
+          {
+            offering_id: "offering-1",
+            offering_name: "Kurzbetreuung",
+            days_of_week_mode: "parent_choice",
+            selected_days: ["mon", "fri"],
+            manual_selected_days: ["mon", "fri"],
+            available_days: ["mon", "fri"],
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Fr", pressed: true }),
+    );
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Freitag abgemeldet" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        "Auswirkung auf den Betreuungsplan ab 14.09.2026",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/freitags entfernt/)).toBeInTheDocument();
+    expect(screen.getByText("RDST 1b")).toBeInTheDocument();
+    expect(screen.getByText(/Kind bleibt eingeplant/)).toBeInTheDocument();
   });
 
   // Bauart 2 Regel 5: der Fehler steht oben im Bearbeiten-Bereich, die

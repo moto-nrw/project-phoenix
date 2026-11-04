@@ -41,6 +41,15 @@ case "${1:-}" in
     fi
     run_with_default_baseline check "$@"
     ;;
+  policy-export|passthrough-snapshot|passthrough-import)
+    command=$1
+    shift
+    if [[ "$command" == passthrough-import && "$#" -eq 1 && "$1" != /* ]]; then
+      set -- "$repo_root/$1"
+    fi
+    cd "$repo_root/scripts/backend-architecture"
+    exec go run . "$command" "$@"
+    ;;
   effects)
     shift
     cd "$repo_root/scripts/backend-architecture"
@@ -68,12 +77,16 @@ case "${1:-}" in
     shift
     run_with_default_baseline dependencies "$@"
     ;;
+  projections)
+    shift
+    run_with_default_baseline projections "$@"
+    ;;
   cycles)
     shift
     run_with_default_baseline cycles "$@"
     ;;
   *)
-    echo "Usage: $0 {check [--project path] [--policy path] [--baseline path] [--base-ref sha]|effects [--project path] [--policy path]|explain|audit-issues --api-url url|diagram [--output dir]|dependencies --focus module-or-package [--output dir]|cycles [--graph target|migration|both] [--json]|relocations --base-ref sha}" >&2
+    echo "Usage: $0 {policy-export|passthrough-snapshot [--decision NNNN]|passthrough-import <reviewed.json>|check [--project path] [--policy path] [--baseline path] [--base-ref sha]|effects [--project path] [--policy path]|explain|audit-issues --api-url url|diagram [--output dir]|dependencies --focus module-or-package [--output dir]|projections --focus module-or-package [--output dir]|cycles [--graph target|migration|both] [--json]|relocations --base-ref sha}" >&2
     exit 2
     ;;
 esac

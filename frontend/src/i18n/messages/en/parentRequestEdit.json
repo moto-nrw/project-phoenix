@@ -1,0 +1,19 @@
+{
+  "title": "Edit request",
+  "intro": "Change your request as long as the school has not decided yet.",
+  "editedAt": "Changed on {date}",
+  "firstDay": "First day",
+  "lastDay": "Last day",
+  "day": "Day",
+  "pickupTime": "Pick-up time",
+  "timeFormatHint": "Time in the format 15:30",
+  "timeExample": "e.g. 15:30",
+  "reasonLabel": "Reason / note for the school",
+  "reasonRequired": "Please enter a short note for the school.",
+  "valueRequired": "Please enter a value.",
+  "submit": "Save change",
+  "saving": "Saving …",
+  "cancel": "Cancel",
+  "close": "Close window",
+  "errorObject": "the request"
+}

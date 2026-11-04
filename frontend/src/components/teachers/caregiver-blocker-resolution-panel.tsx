@@ -35,7 +35,10 @@ import {
   type StaffGroupLeaderCandidate,
 } from "~/lib/staff-role-api";
 import { createLogger } from "~/lib/logger";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
+import { activitiesConcept } from "~/lib/concepts/activities";
+import { groupAccessConcept } from "~/lib/concepts/groupAccess";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { supervisionConcept } from "~/lib/concepts/supervision";
 
 const logger = createLogger({ component: "CaregiverBlockerResolution" });
 
@@ -448,8 +451,8 @@ export function CaregiverBlockerResolutionPanel({
           title={`Aktive Gruppenaufsichten (${supervisions.length})`}
           icon={
             <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.supervision.icon}
-              tone={MOTO_CONCEPTS.supervision.tone}
+              icon={supervisionConcept.icon}
+              tone={supervisionConcept.tone}
               size={18}
             />
           }
@@ -496,8 +499,8 @@ export function CaregiverBlockerResolutionPanel({
           title={`Aktive Gruppenübergaben (${substitutions.length})`}
           icon={
             <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.groupAccess.icon}
-              tone={MOTO_CONCEPTS.groupAccess.tone}
+              icon={groupAccessConcept.icon}
+              tone={groupAccessConcept.tone}
               size={18}
             />
           }
@@ -544,8 +547,8 @@ export function CaregiverBlockerResolutionPanel({
           title={`Aktivitätsleitungen (${activities.length})`}
           icon={
             <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.activities.icon}
-              tone={MOTO_CONCEPTS.activities.tone}
+              icon={activitiesConcept.icon}
+              tone={activitiesConcept.tone}
               size={18}
             />
           }
@@ -610,8 +613,8 @@ export function CaregiverBlockerResolutionPanel({
           title={`Stammgruppen-Zuordnungen (${groups.length})`}
           icon={
             <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.groups.icon}
-              tone={MOTO_CONCEPTS.groups.tone}
+              icon={groupsConcept.icon}
+              tone={groupsConcept.tone}
               size={18}
             />
           }

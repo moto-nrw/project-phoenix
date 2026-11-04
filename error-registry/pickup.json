@@ -1,0 +1,46 @@
+{
+  "codes": [
+    {
+      "code": "pickup.bulk_exception_confirmation_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "pickup.bulk_exception_confirmation_required"
+    },
+    {
+      "code": "pickup.future_manual_reset",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "pickup.future_manual_reset"
+    },
+    {
+      "code": "pickup.invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "pickup.invalid"
+    },
+    {
+      "code": "pickup.offering_capacity_full",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "pickup.offering_capacity_full"
+    },
+    {
+      "code": "pickup.offerings_disabled",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "pickup.offerings_disabled"
+    },
+    {
+      "code": "pickup.preview_stale",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "pickup.preview_stale"
+    },
+    {
+      "code": "pickup.resolution_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "pickup.resolution_required"
+    }
+  ]
+}

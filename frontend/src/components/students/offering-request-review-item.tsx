@@ -3,9 +3,9 @@
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { useLayoutEffect, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import {
   RequestReviewCard,
   ReviewDiffPanel,
@@ -13,6 +13,21 @@ import {
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { formatDate, isoWeekNumber } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import {
+  describeAdjustment,
+  mapRosterImpact,
+  type RosterImpact,
+  type RosterImpactWire,
+} from "~/lib/roster-impact";
+import {
+  CarePlanImpact,
+  type CarePlanImpactProgress,
+} from "~/components/students/care-plan-impact";
+import {
+  RequestWaitlistPlaces,
+  useCourseWaitlistRefresh,
+  useOpenedFromWaitlist,
+} from "~/components/students/course-waitlist";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -108,6 +123,16 @@ function conflictDays(days: readonly string[]): string {
 }
 
 /**
+ * Eine freigegebene Anfrage, deren Karte noch ihre Auswirkung zeigt. Die
+ * Liste hält sie, damit die Karte nach einem Wechsel so wiederkommt.
+ */
+export interface HeldOfferingDecision {
+  readonly notice: string;
+  readonly impact: RosterImpact;
+  readonly progress?: CarePlanImpactProgress;
+}
+
+/**
  * Eine offene Angebots-Anfrage als entscheidbare Karte, inklusive der
  * Mitbuchungs-Abwahl mit Vorschau-Kaskade (#2370). Ablehnen verlangt eine
  * Begründung; nach der Entscheidung meldet onDecided den Hinweistext und der
@@ -120,9 +145,18 @@ export function OfferingRequestReviewItem({
   expectedVersion,
   decisionDisabledReason,
   approveReasonRequired = false,
+  held,
+  onHold,
 }: Readonly<{
   row: StaffOfferingRequest;
   onDecided: (notice: string) => void;
+  /**
+   * Die Freigabe ist gespeichert, die Karte zeigt aber noch ihre Auswirkung.
+   * Die Liste behält die Anfrage dann, auch wenn sie im Hintergrund neu lädt.
+   */
+  onHold?: (decision: HeldOfferingDecision) => void;
+  /** Schon gehaltene Freigabe: die Karte zeigt sofort ihre Auswirkung. */
+  held?: HeldOfferingDecision;
   grouped?: boolean;
   /** Fassung, die entschieden werden soll — verhindert Überschreiben (#2267). */
   expectedVersion?: string;
@@ -130,7 +164,9 @@ export function OfferingRequestReviewItem({
   decisionDisabledReason?: string;
   approveReasonRequired?: boolean;
 }>) {
-  const t = useTranslations("parentMasterData");
+  // Eine Entscheidung verschiebt die Warteliste der AG (#4767).
+  const refreshWaitlists = useCourseWaitlistRefresh();
+  const openedFromWaitlist = useOpenedFromWaitlist(row.id);
   const { show: showError } = useApiErrorDisplay();
   // Scheitert die Freigabe im offenen Bestätigungsdialog, steht der Fehler
   // dort: ein Toast läge hinter dem Hintergrund des Dialogs.
@@ -162,6 +198,24 @@ export function OfferingRequestReviewItem({
   // greift (#2484).
   const [editingDate, setEditingDate] = useState(false);
   const [confirmationRequired, setConfirmationRequired] = useState(false);
+  // Die Freigabe ist gespeichert, aber von Hand gepflegte Regeltermine
+  // planen das Kind weiter ein (#5102).
+  const [applied, setApplied] = useState<HeldOfferingDecision | null>(
+    held ?? null,
+  );
+
+  const approvalNotice = (impact: RosterImpact | null) => {
+    const base = `Die Änderung ist übernommen und gilt ab ${formatDate(effectiveFrom)}.`;
+    if (impact) {
+      return impact.adjusted.length > 0
+        ? `${base} Automatisch angepasst: ${impact.adjusted.map((template) => `${template.name} (${describeAdjustment(template)})`).join(", ")}.`
+        : `${base} Die angezeigten Folgeänderungen sind auch übernommen.`;
+    }
+    return approvalPreview &&
+      approvalPreview.manual_planning_conflicts.length > 0
+      ? `${base} Bitte prüfen Sie jetzt im Betreuungsplan: ${joinNames(approvalPreview.manual_planning_conflicts.map((conflict) => conflict.activity_group_name))}.`
+      : `${base} Die angezeigten Folgeänderungen sind auch übernommen.`;
+  };
 
   const decide = async (approve: boolean, confirmWithdrawal = false) => {
     const trimmed = reason.trim();
@@ -183,25 +237,37 @@ export function OfferingRequestReviewItem({
       // Die hinteren Argumente nur anhängen, wenn es sie gibt: eine Anfrage
       // ohne Komplett-Abmeldung und ohne bekannte Fassung schickt denselben
       // Aufruf wie vorher.
+      let impactWire: RosterImpactWire | undefined;
       if (expectedVersion) {
-        await decideOfferingChangeRequest(
+        impactWire = await decideOfferingChangeRequest(
           ...args,
           confirmWithdrawal,
           expectedVersion,
         );
       } else if (confirmWithdrawal) {
-        await decideOfferingChangeRequest(...args, true);
+        impactWire = await decideOfferingChangeRequest(...args, true);
       } else {
-        await decideOfferingChangeRequest(...args);
+        impactWire = await decideOfferingChangeRequest(...args);
       }
-      onDecided(
-        approve
-          ? approvalPreview &&
-            approvalPreview.manual_planning_conflicts.length > 0
-            ? `Die Änderung ist übernommen und gilt ab ${formatDate(effectiveFrom)}. Bitte prüfen Sie jetzt im Betreuungsplan: ${joinNames(approvalPreview.manual_planning_conflicts.map((conflict) => conflict.activity_group_name))}.`
-            : `Die Änderung ist übernommen und gilt ab ${formatDate(effectiveFrom)}. Die angezeigten Folgeänderungen sind auch übernommen.`
-          : "Die Anfrage zum Angebot ist abgelehnt.",
-      );
+      refreshWaitlists();
+      const impact = approve ? mapRosterImpact(impactWire) : null;
+      const notice = approve
+        ? approvalNotice(impact)
+        : "Die Anfrage zum Angebot ist abgelehnt.";
+      if (
+        impact &&
+        (impact.notAdjusted.length > 0 || impact.pickupOverrides.length > 0)
+      ) {
+        // Von Hand gepflegte Regeltermine behalten das Kind (#5102), von
+        // Hand eingetragene Abholzeiten überdecken die Buchung: die Karte
+        // bleibt stehen, bis die OGS sie geprüft hat.
+        setApprovalPreview(null);
+        setBusy(false);
+        setApplied({ notice, impact });
+        onHold?.({ notice, impact });
+        return;
+      }
+      onDecided(notice);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const code = err instanceof ApiError ? err.code : undefined;
@@ -364,6 +430,30 @@ export function OfferingRequestReviewItem({
     return "So haben es die Eltern eingetragen.";
   })();
 
+  if (applied) {
+    return (
+      <div className="flex flex-col gap-3 px-4 py-3 sm:px-5">
+        <Alert type="success" message={applied.notice} />
+        <CarePlanImpact
+          impact={applied.impact}
+          studentId={row.student_id}
+          progress={applied.progress}
+          onProgress={(progress) => onHold?.({ ...applied, progress })}
+        />
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => onDecided(applied.notice)}
+          >
+            Fertig
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const selectableRange =
     row.earliest_effective_from && row.latest_effective_from
       ? `Wählbar von ${formatDate(row.earliest_effective_from)} bis ${formatDate(row.latest_effective_from)}.`
@@ -374,6 +464,7 @@ export function OfferingRequestReviewItem({
       type="offering"
       childName={row.student_name}
       grouped={grouped}
+      defaultOpen={openedFromWaitlist}
       summary={`ab ${formatDate(effectiveFrom)}`}
       badge={
         fullWithdrawal ? (
@@ -428,10 +519,10 @@ export function OfferingRequestReviewItem({
               >
                 <span className="text-xs text-gray-500">{entry.label}: </span>
                 {/* Eine Kursanfrage sieht sonst aus wie jede andere
-                    Angebotsänderung (#3075). */}
-                {entry.is_course && (
-                  <StatusBadge tone="green" label={t("courses.title")} />
-                )}
+                    Angebotsänderung (#3075). Das Mitarbeiterportal ist
+                    deutsch und lädt die Eltern-Texte nicht: der Schlüssel
+                    stand dort roh im Badge (#4767). */}
+                {entry.is_course && <StatusBadge tone="green" label="Kurs" />}
                 {entry.automatic && (
                   <StatusBadge tone="blue" label="Automatisch mitgebucht" />
                 )}
@@ -492,6 +583,7 @@ export function OfferingRequestReviewItem({
               </div>
             );
           })}
+          <RequestWaitlistPlaces requestId={row.id} />
           {unchanged.length > 0 && (
             <div className="mt-3 border-t border-gray-200 pt-2">
               <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">

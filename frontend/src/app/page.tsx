@@ -9,16 +9,13 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import {
-  AuthShell,
-  MotoIconBrand,
-  authPrimaryButtonClassName,
-} from "~/components/auth/auth-shell";
+import { AuthShell, MotoIconBrand } from "~/components/auth/auth-shell";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { listAllTenants } from "~/lib/tenant-api";
 import type { TenantListResult, TenantSummary } from "~/lib/tenant-api";
 import { createLogger } from "~/lib/logger";
 import { clientEnv } from "~/env.client";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "RootPage" });
 
@@ -117,15 +114,17 @@ export default function RootPage() {
               />
             </div>
 
-            <button
+            <Button
               type="button"
               disabled={!selectedSlug || isNavigating}
               onClick={handleNavigate}
-              className={authPrimaryButtonClassName}
+              variant="primary"
+              size="field"
+              className="w-full gap-2"
             >
               {isNavigating ? "OGS wird geladen..." : "Weiter"}
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </button>
+            </Button>
           </>
         )}
       </div>

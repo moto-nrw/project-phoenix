@@ -39,8 +39,9 @@ type ClassDayDependencies struct {
 	StudentArrivals studentArrivals
 	// HintScope opens the day-hint seam (#4795).
 	HintScope DayHintWriteScope
-	// DayHintDependencies are the day-hint seam (#4795).
-	DayHintDependencies
+	// StudentNoteDependencies are the note seams: the day hints (#4795)
+	// and the notes the OGS released for the school (#4797).
+	StudentNoteDependencies
 	// MorningAttendanceDependencies are the morning attendance seam (#4790).
 	MorningAttendanceDependencies
 	// HomeworkDependencies are the homework seam (#4796).
@@ -63,6 +64,9 @@ type classDayService struct {
 	morningAttendance
 	homework
 	classHandover
+	sharedNotes
+	absenceReports
+	absenceList
 }
 
 // NewClassDay creates the school-portal capability. Caller and Rosters are
@@ -72,6 +76,11 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		panic("classday application.NewClassDay: Caller and Rosters dependencies are required")
 	}
 	hints := dayHints{store: deps.DayHints, scope: deps.HintScope, rosters: deps.Rosters, today: deps.Today, announcer: deps.Announcer}
+	// A stored morning mark wakes the class views and tells the
+	// Schulverwaltung about children missing without a report (#4791).
+	absence := newAbsenceReports(deps)
+	morning := newMorningAttendance(deps)
+	morning.after = absence.afterMorningMarks
 	reports := newDayReports(deps)
 	reports.hints = hints
 	return &classDayService{
@@ -87,9 +96,12 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 			arrivals: deps.StudentArrivals, announcer: deps.Announcer,
 		},
 		dayHints:          hints,
-		morningAttendance: newMorningAttendance(deps),
+		morningAttendance: morning,
 		homework:          newHomework(deps),
 		classHandover:     newClassHandover(deps),
+		sharedNotes:       newSharedNotes(deps),
+		absenceReports:    absence,
+		absenceList:       absenceList{deps: deps.AbsenceList, today: morning.today},
 	}
 }
 
@@ -125,7 +137,16 @@ func (s *classDayService) DayReport(ctx context.Context, schoolClass string, dat
 	if err != nil {
 		return nil, err
 	}
-	return s.classDay(ctx, schoolClass, day, actor)
+	report, err := s.classDay(ctx, schoolClass, day, actor)
+	if err != nil || report == nil {
+		return report, err
+	}
+	// The shared notes of the OGS go to the Lehrkraft of the class only
+	// (#4797); class_day:all_classes does not open them.
+	if report.CanReadSharedNotes, err = s.MayReadSharedNotes(ctx, schoolClass); err != nil {
+		return nil, err
+	}
+	return report, nil
 }
 
 // invalidFilterError refuses a report request before anything is read. Its

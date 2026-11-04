@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -313,7 +314,7 @@ func TestClassAssignmentListQueryBudget(t *testing.T) {
 		return counter.Total()
 	}
 	assertFlatTeachingAssignmentListBudget(t, add, list)
-	testpkg.AssertQueryBudget(t, "modules.schoolmembership.list_class_assignments", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.schoolmembership.list_class_assignments", counter.Queries())
 }
 
 // TestGroupAssignmentListQueryBudget guards the list against per-row lookups.
@@ -342,5 +343,5 @@ func TestGroupAssignmentListQueryBudget(t *testing.T) {
 		return counter.Total()
 	}
 	assertFlatTeachingAssignmentListBudget(t, add, list)
-	testpkg.AssertQueryBudget(t, "modules.schoolmembership.list_group_assignments", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.schoolmembership.list_group_assignments", counter.Queries())
 }

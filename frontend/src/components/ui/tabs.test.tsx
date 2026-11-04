@@ -26,7 +26,7 @@ describe("Tabs primitives", () => {
     renderTabs();
     const list = screen.getByRole("tablist");
     expect(list).toHaveAttribute("data-variant", "default");
-    expect(list).toHaveClass("bg-muted");
+    expect(list).toHaveClass("bg-gray-100");
   });
 
   it("renders line variant list", () => {

@@ -5,7 +5,10 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { setTestClock } from "~/test/clock";
+import { todayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
@@ -98,6 +101,90 @@ describe("SickReportModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it.each([
+    ["UTC", "2026-01-15T23:30:00Z", "2026-01-16", "2026-01-15"],
+    ["UTC", "2026-07-15T22:30:00Z", "2026-07-16", "2026-07-15"],
+    ["UTC", "2026-03-28T23:30:00Z", "2026-03-29", "2026-03-28"],
+    ["UTC", "2026-03-29T22:30:00Z", "2026-03-30", "2026-03-29"],
+    ["UTC", "2026-10-24T22:30:00Z", "2026-10-25", "2026-10-24"],
+    ["UTC", "2026-10-25T23:30:00Z", "2026-10-26", "2026-10-25"],
+    ["Asia/Tokyo", "2026-01-15T15:30:00Z", "2026-01-15", "2026-01-16"],
+  ])(
+    "submits the Berlin school day in %s at %s",
+    async (zone, instant, day, localDay) => {
+      vi.stubEnv("TZ", zone);
+      setTestClock(instant);
+      // Prove that the browser day really differs, including in the test worker.
+      expect(todayISO()).toBe(localDay);
+      mocks.createAbsence.mockResolvedValue(createdRow);
+      const props = { staff, onClose: vi.fn(), onCreated: vi.fn() };
+      const { rerender } = render(<SickReportModal {...props} isOpen />);
+
+      for (const input of screen.getAllByLabelText("Datum auswählen")) {
+        expect(input).toHaveValue(day);
+      }
+      fireEvent.click(screen.getByRole("button", { name: "Krank melden" }));
+      await screen.findByRole("button", { name: "Zur Vertretung" });
+      expect(mocks.createAbsence).toHaveBeenLastCalledWith(
+        "7",
+        expect.objectContaining({
+          date_start: day,
+          date_end: day,
+        }),
+      );
+
+      rerender(<SickReportModal {...props} isOpen={false} />);
+      setTestClock(new Date(new Date(instant).getTime() + 26 * 60 * 60 * 1000));
+      const nextDate = parseISODate(day);
+      nextDate.setDate(nextDate.getDate() + 1);
+      const nextDay = toISODate(nextDate);
+      rerender(<SickReportModal {...props} isOpen />);
+      for (const input of screen.getAllByLabelText("Datum auswählen")) {
+        expect(input).toHaveValue(nextDay);
+      }
+      fireEvent.click(screen.getByRole("button", { name: "Krank melden" }));
+      await screen.findByRole("button", { name: "Zur Vertretung" });
+      expect(mocks.createAbsence).toHaveBeenLastCalledWith(
+        "7",
+        expect.objectContaining({
+          date_start: nextDay,
+          date_end: nextDay,
+        }),
+      );
+    },
+  );
+
+  it("preserves an explicit initial date across reopening in a non-Berlin browser", async () => {
+    vi.stubEnv("TZ", "UTC");
+    setTestClock("2026-01-15T23:30:00Z");
+    mocks.createAbsence.mockResolvedValue(createdRow);
+    const props = {
+      staff,
+      initialDate: "2026-01-10",
+      onClose: vi.fn(),
+      onCreated: vi.fn(),
+    };
+    const { rerender } = render(<SickReportModal {...props} isOpen />);
+    rerender(<SickReportModal {...props} isOpen={false} />);
+    setTestClock("2026-01-16T23:30:00Z");
+    rerender(<SickReportModal {...props} isOpen />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Halber Tag" }));
+    fireEvent.click(screen.getByRole("button", { name: "Krank melden" }));
+    await screen.findByRole("button", { name: "Zur Vertretung" });
+    expect(mocks.createAbsence).toHaveBeenCalledWith(
+      "7",
+      expect.objectContaining({
+        date_start: "2026-01-10",
+        date_end: "2026-01-10",
+        half_day: true,
+      }),
+    );
   });
 
   it("submits a sick absence with the entered values", async () => {

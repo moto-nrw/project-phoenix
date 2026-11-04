@@ -1,0 +1,43 @@
+{
+  "kicker": "Randevulara genel bakış",
+  "title": "Takvim",
+  "description": "Çocuklarınızın randevuları ve etkinlikleri tek bakışta.",
+  "empty": "Önümüzdeki 3 ay içinde randevu yok.",
+  "groups": {
+    "thisWeek": "Bu hafta",
+    "nextWeek": "Gelecek hafta",
+    "later": "Daha sonra"
+  },
+  "when": "{date}, saat {time}",
+  "whenAllDay": "{date}, tüm gün",
+  "forChild": "{name} için",
+  "types": {
+    "care": "Bakım saati",
+    "invitation": "Davet",
+    "appointment": "Randevu"
+  },
+  "accept": "Katılıyoruz",
+  "decline": "Katılmıyoruz",
+  "accepted": "Katılım onaylandı.",
+  "declined": "Katılım reddedildi.",
+  "answeredAccepted": "Katılıyoruz",
+  "answeredDeclined": "Katılmıyoruz",
+  "cancelledByOgs": "OGS tarafından iptal edildi",
+  "previousMonth": "Önceki ay",
+  "nextMonth": "Sonraki ay",
+  "close": "Kapat",
+  "allDay": "Tüm gün",
+  "moreEvents": "+ {count} daha",
+  "responseRequired": "Yanıt gerekli",
+  "weekdayShort": {
+    "1": "Pzt",
+    "2": "Sal",
+    "3": "Çar",
+    "4": "Per",
+    "5": "Cum",
+    "6": "Cmt",
+    "7": "Paz"
+  },
+  "errorObjectList": "randevu listesi",
+  "errorObjectResponse": "yanıt"
+}

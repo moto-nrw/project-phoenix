@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // TestListActiveGroupsQueryBudget guards GET /active/groups?active=true (the
@@ -52,5 +53,5 @@ func TestListActiveGroupsQueryBudget(t *testing.T) {
 
 	assert.Equal(t, smallCount, largeCount,
 		"query count must be independent of the active group count (no per-group N+1)")
-	testpkg.AssertQueryBudget(t, "api.active.groups.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.active.groups.list", counter.Queries())
 }

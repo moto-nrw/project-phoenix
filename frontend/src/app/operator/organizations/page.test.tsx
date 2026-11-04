@@ -55,9 +55,10 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: vi.fn(),
 }));
 
-vi.mock("swr", () => ({
-  default: mockUseSWR,
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: mockUseSWR,
   useSWRConfig: () => ({ mutate: vi.fn() }),
+  useTenantMutateMatching: () => vi.fn(async () => []),
 }));
 
 vi.mock("~/lib/operator/provisioning-api", async () => {

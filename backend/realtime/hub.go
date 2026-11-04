@@ -23,6 +23,10 @@ type Client struct {
 	// IsAdmin mirrors the effective admin scope used by tenant handlers:
 	// literal admins plus accounts with admin:* or *:* permissions.
 	IsAdmin bool
+	// ReadsLeadershipMessages marks a staff connection whose account holds
+	// parent_messages:leadership (or admin:*) at connect time. Only these
+	// connections hear about leadership conversations (#5200).
+	ReadsLeadershipMessages bool
 	// IsParent marks a guardian-portal connection. Parent clients are
 	// cross-tenant and routed by their own account id (UserID): they never
 	// match tenant/group broadcasts, only BroadcastParentMessage addressed to
@@ -65,8 +69,13 @@ func removeClient(clients []*Client, target *Client) []*Client {
 
 // Hub manages SSE client connections and broadcasts events
 type Hub struct {
-	clients      map[*Client]bool
-	groupClients map[string][]*Client // composite tenant:group key -> subscribers
+	publish func(string) error
+	origin  string
+	// notificationContent loads relayed notifications (#5504); fixed by
+	// NewRelayedHub, nil for a hub that shows none.
+	notificationContent NotificationContent
+	clients             map[*Client]bool
+	groupClients        map[string][]*Client // composite tenant:group key -> subscribers
 	// guardianClients indexes parent-portal clients by their guardian account id
 	// (Client.UserID) and tenantClients indexes staff clients by tenant id, so
 	// BroadcastParentMessage delivers in O(recipients) instead of scanning every
@@ -81,10 +90,13 @@ type Hub struct {
 	// schoolAccountClients keeps the school portal isolated from the broader
 	// staff notification surface.
 	schoolAccountClients map[int64][]*Client
-	mu                   sync.RWMutex
-	logger               *slog.Logger
-	observeConnection    ConnectionObserver
-	observeBroadcast     BroadcastObserver
+	// schoolTenantClients indexes school-portal clients by school for the one
+	// tenant-wide signal they receive, class_day_changed (#4792).
+	schoolTenantClients map[int64][]*Client
+	mu                  sync.RWMutex
+	logger              *slog.Logger
+	observeConnection   ConnectionObserver
+	observeBroadcast    BroadcastObserver
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -112,6 +124,7 @@ func NewHub(logger *slog.Logger, observers ...Observers) *Hub {
 		tenantClients:        make(map[int64][]*Client),
 		staffAccountClients:  make(map[int64][]*Client),
 		schoolAccountClients: make(map[int64][]*Client),
+		schoolTenantClients:  make(map[int64][]*Client),
 		logger:               logger,
 		observeConnection:    observe.Connection,
 		observeBroadcast:     observe.Broadcast,
@@ -180,10 +193,12 @@ func (h *Hub) RegisterParent(client *Client) {
 }
 
 // RegisterSchool adds a school-portal client (#2208). It is indexed by its
-// login account only, so the one fan-out that can reach it is
-// BroadcastToSchoolAccounts for its own tenant. It is deliberately NOT added
-// to tenantClients or any group: BroadcastToTenant/BroadcastToGroup carry
-// staff-only refresh triggers the Lehrkraft role has no surface for.
+// login account for BroadcastToSchoolAccounts at its own tenant. It is
+// deliberately NOT added to tenantClients or any group:
+// BroadcastToTenant/BroadcastToGroup carry staff-only refresh triggers the
+// Lehrkraft role has no surface for. The only exception is
+// class_day_changed, which BroadcastToTenant derives from student_updated
+// for the school clients of the same tenant (#4792).
 func (h *Hub) RegisterSchool(client *Client, tenantID int64) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -194,6 +209,7 @@ func (h *Hub) RegisterSchool(client *Client, tenantID int64) {
 	if client.AccountID > 0 {
 		h.schoolAccountClients[client.AccountID] = append(h.schoolAccountClients[client.AccountID], client)
 	}
+	h.schoolTenantClients[tenantID] = append(h.schoolTenantClients[tenantID], client)
 
 	h.getLogger().Info("SSE school client connected",
 		slog.Int64("account_id", client.AccountID),
@@ -201,6 +217,21 @@ func (h *Hub) RegisterSchool(client *Client, tenantID int64) {
 		slog.Int("total_clients", len(h.clients)),
 	)
 	h.observe(tenantID, "connected")
+}
+
+// unindexSchool drops a school-portal client from the two indexes
+// RegisterSchool keeps: by account and by school. The caller holds h.mu.
+func (h *Hub) unindexSchool(client *Client) {
+	if client.AccountID > 0 {
+		h.schoolAccountClients[client.AccountID] = removeClient(h.schoolAccountClients[client.AccountID], client)
+		if len(h.schoolAccountClients[client.AccountID]) == 0 {
+			delete(h.schoolAccountClients, client.AccountID)
+		}
+	}
+	h.schoolTenantClients[client.TenantID] = removeClient(h.schoolTenantClients[client.TenantID], client)
+	if len(h.schoolTenantClients[client.TenantID]) == 0 {
+		delete(h.schoolTenantClients, client.TenantID)
+	}
 }
 
 // Unregister removes a client from the hub and all group subscriptions
@@ -223,13 +254,7 @@ func (h *Hub) Unregister(client *Client) {
 			delete(h.guardianClients, client.UserID)
 		}
 	case client.IsSchool:
-		// Only ever indexed by account (RegisterSchool).
-		if client.AccountID > 0 {
-			h.schoolAccountClients[client.AccountID] = removeClient(h.schoolAccountClients[client.AccountID], client)
-			if len(h.schoolAccountClients[client.AccountID]) == 0 {
-				delete(h.schoolAccountClients, client.AccountID)
-			}
-		}
+		h.unindexSchool(client)
 	default:
 		h.tenantClients[client.TenantID] = removeClient(h.tenantClients[client.TenantID], client)
 		if len(h.tenantClients[client.TenantID]) == 0 {
@@ -278,9 +303,9 @@ func (h *Hub) observe(tenantID int64, event string) {
 	}
 }
 
-// BroadcastToGroup sends an event to all clients subscribed to the specified active group
+// localBroadcastToGroup sends an event to all clients subscribed to the specified active group
 // This is a fire-and-forget operation - errors don't affect service execution
-func (h *Hub) BroadcastToGroup(tenantID int64, activeGroupID string, event Event) error {
+func (h *Hub) localBroadcastToGroup(tenantID int64, activeGroupID string, event Event) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -327,10 +352,10 @@ func (h *Hub) BroadcastToGroup(tenantID int64, activeGroupID string, event Event
 	return nil
 }
 
-// BroadcastToGroups sends an identical event once per client across all
+// localBroadcastToGroups sends an identical event once per client across all
 // supplied topics. The recipient set is built while holding the read lock so
 // Register/Unregister cannot close a channel between collection and delivery.
-func (h *Hub) BroadcastToGroups(tenantID int64, topics []string, event Event) error {
+func (h *Hub) localBroadcastToGroups(tenantID int64, topics []string, event Event) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -365,15 +390,14 @@ func (h *Hub) BroadcastToGroups(tenantID int64, topics []string, event Event) er
 	return nil
 }
 
-// BroadcastToTenant sends an event to every staff client whose
+// localBroadcastToTenant sends an event to every staff client whose
 // Client.TenantID matches tenantID. It reads the tenantClients index
 // (maintained in Register/Unregister) for O(recipients) delivery instead
-// of scanning every connection. Parent (guardian-portal) clients carry
-// TenantID 0 and live only in guardianClients, so they are correctly
-// excluded — tenant-wide refreshes (settings invalidations, dashboard
+// of scanning every connection. Parent (guardian-portal) clients live only in
+// guardianClients, not tenantClients, so they are correctly excluded — tenant-wide refreshes (settings invalidations, dashboard
 // counts, arrival schedule) are staff-only data. Fire-and-forget: a full
 // client channel is logged and skipped, not surfaced to the caller.
-func (h *Hub) BroadcastToTenant(tenantID int64, event Event) error {
+func (h *Hub) localBroadcastToTenant(tenantID int64, event Event) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -398,14 +422,42 @@ func (h *Hub) BroadcastToTenant(tenantID int64, event Event) error {
 		slog.Int("recipient_count", recipients),
 	)
 	h.observeDelivery(tenantID, string(event.Type), "tenant", droppedCount)
+	if event.Type == EventStudentUpdated {
+		h.relayClassDayChanged(tenantID, event)
+	}
 	return nil
 }
 
-// BroadcastToTenantAdmins sends an event only to effective admins in one
+// relayClassDayChanged wakes the open class views of moto schule at the same
+// school after a student update (#4792). The caller holds h.mu. Only the
+// source travels on: the school clients of a school include teachers of
+// other classes, so the event names no child.
+func (h *Hub) relayClassDayChanged(tenantID int64, update Event) {
+	clients := h.schoolTenantClients[tenantID]
+	if len(clients) == 0 {
+		return
+	}
+	event := NewEvent(EventClassDayChanged, "", EventData{Source: update.Data.Source})
+	droppedCount := 0
+	for _, client := range clients {
+		select {
+		case client.Channel <- event:
+		default:
+			droppedCount++
+			h.getLogger().Warn("SSE client channel full, skipping class day broadcast",
+				slog.Int64("account_id", client.AccountID),
+				slog.Int64("tenant_id", tenantID),
+			)
+		}
+	}
+	h.observeDelivery(tenantID, string(event.Type), "school_tenant", droppedCount)
+}
+
+// localBroadcastToTenantAdmins sends an event only to effective admins in one
 // tenant. This is for user-visible payloads derived from an admin-wide data
 // view; scoped caregivers must not receive counts or links for data outside
 // their own reminder scope.
-func (h *Hub) BroadcastToTenantAdmins(tenantID int64, event Event) error {
+func (h *Hub) localBroadcastToTenantAdmins(tenantID int64, event Event) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -436,13 +488,13 @@ func (h *Hub) BroadcastToTenantAdmins(tenantID int64, event Event) error {
 	return nil
 }
 
-// BroadcastToStaffAccounts wakes only the addressed staff accounts' clients in
+// localBroadcastToStaffAccounts wakes only the addressed staff accounts' clients in
 // ONE tenant.
 //
 // The tenant check is load-bearing rather than defensive: an account can hold
 // staff sessions at several schools, and without it one school's personal
 // counts would land in another school's tab.
-func (h *Hub) BroadcastToStaffAccounts(tenantID int64, accountIDs []int64, event Event) error {
+func (h *Hub) localBroadcastToStaffAccounts(tenantID int64, accountIDs []int64, event Event) error {
 	if len(accountIDs) == 0 {
 		return nil
 	}
@@ -480,10 +532,10 @@ func (h *Hub) BroadcastToStaffAccounts(tenantID int64, accountIDs []int64, event
 	return nil
 }
 
-// BroadcastToSchoolAccounts wakes only the addressed school-portal clients in
+// localBroadcastToSchoolAccounts wakes only the addressed school-portal clients in
 // one tenant. Its separate index prevents a staff-only notification from
 // leaking into moto schule merely because both portals use the same account.
-func (h *Hub) BroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, event Event) error {
+func (h *Hub) localBroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, event Event) error {
 	if len(accountIDs) == 0 {
 		return nil
 	}
@@ -521,14 +573,31 @@ func (h *Hub) BroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, even
 	return nil
 }
 
-// BroadcastParentMessage routes a parent-OGS messaging trigger by recipient:
+// localBroadcastParentMessage routes a parent-OGS messaging trigger by recipient:
 // the addressed guardian's portal client (matched on account id) is woken so
 // only that one family sees the activity, while staff clients in the tenant are
 // woken so their access-filtered inbox refreshes (staff visibility spans admins
 // / all-staff / supervisors, so a tenant-wide staff wake is the correct,
 // no-miss granularity — the refetch is server-side access-filtered).
 // Fire-and-forget, same drop semantics as the other broadcasts.
-func (h *Hub) BroadcastParentMessage(tenantID, guardianAccountID int64, event Event) error {
+func (h *Hub) localBroadcastParentMessage(tenantID, guardianAccountID int64, event Event) error {
+	h.broadcastParentMessage(tenantID, guardianAccountID, event, false)
+	return nil
+}
+
+// localBroadcastLeadershipParentMessage is BroadcastParentMessage for a
+// conversation only the leadership reads (#5200): the guardian's own tabs get
+// the full event, and of the tenant's staff only the connections marked
+// ReadsLeadershipMessages get the sanitized copy. Every other staff tab hears
+// nothing, so it cannot even learn that a leadership conversation moved.
+func (h *Hub) localBroadcastLeadershipParentMessage(tenantID, guardianAccountID int64, event Event) error {
+	h.broadcastParentMessage(tenantID, guardianAccountID, event, true)
+	return nil
+}
+
+// broadcastParentMessage is the shared fan-out of both parent-message
+// broadcasts; leadershipOnly keeps the staff copy to leadership connections.
+func (h *Hub) broadcastParentMessage(tenantID, guardianAccountID int64, event Event, leadershipOnly bool) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -545,6 +614,7 @@ func (h *Hub) BroadcastParentMessage(tenantID, guardianAccountID int64, event Ev
 				slog.Int64("tenant_id", tenantID),
 				slog.Int64("guardian_account_id", guardianAccountID),
 				slog.String("event_type", string(event.Type)),
+				slog.Bool("leadership_only", leadershipOnly),
 			)
 		}
 	}
@@ -558,19 +628,25 @@ func (h *Hub) BroadcastParentMessage(tenantID, guardianAccountID int64, event Ev
 		deliver(client, event)
 	}
 	for _, client := range h.tenantClients[tenantID] {
-		deliver(client, staffEvent)
+		if !leadershipOnly || client.ReadsLeadershipMessages {
+			deliver(client, staffEvent)
+		}
 	}
 	h.getLogger().Debug("SSE parent-message broadcast",
 		slog.Int64("tenant_id", tenantID),
 		slog.Int64("guardian_account_id", guardianAccountID),
 		slog.String("event_type", string(event.Type)),
+		slog.Bool("leadership_only", leadershipOnly),
 		slog.Int("recipient_count", recipients),
 	)
-	h.observeDelivery(tenantID, string(event.Type), "parent_message", droppedCount)
-	return nil
+	target := "parent_message"
+	if leadershipOnly {
+		target = "parent_message_leadership"
+	}
+	h.observeDelivery(tenantID, string(event.Type), target, droppedCount)
 }
 
-// BroadcastToGuardian wakes ONLY the addressed guardian's own portal clients —
+// localBroadcastToGuardian wakes ONLY the addressed guardian's own portal clients —
 // no staff copy at all. It exists for a message-INDEPENDENT guardian
 // invalidation (EventParentChildUpdated) that staff must never receive: unlike
 // BroadcastParentMessage, which also fans a sanitized copy out to every staff
@@ -579,7 +655,7 @@ func (h *Hub) BroadcastParentMessage(tenantID, guardianAccountID int64, event Ev
 // as the child-update fan-out does — would push one redundant staff event PER
 // GUARDIAN into every staff client's 32-slot channel, displacing real updates
 // under a busy tenant. Fire-and-forget, same drop semantics as the others.
-func (h *Hub) BroadcastToGuardian(tenantID, guardianAccountID int64, event Event) error {
+func (h *Hub) localBroadcastToGuardian(tenantID, guardianAccountID int64, event Event) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 

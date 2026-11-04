@@ -73,9 +73,10 @@ import { EnrollmentRequestUploadList } from "~/components/enrollment/admin-enrol
 import { AdminEnrollmentSignature } from "~/components/enrollment/admin-enrollment-signature";
 import { formatCalendarDate } from "~/lib/localized-date-format";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
-import { Button } from "~/components/ui/button";
+import { Button, buttonClassName } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -94,6 +95,8 @@ import { ToggleChip } from "~/components/ui/toggle-chip";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { createLogger } from "~/lib/logger";
+import { mapRosterImpact, type RosterImpact } from "~/lib/roster-impact";
+import { CarePlanImpact } from "~/components/students/care-plan-impact";
 import {
   useTenant,
   useCareOfferingsEnabled,
@@ -106,6 +109,10 @@ import {
   ChildStatusBadge,
   isHeldForChildQuota,
 } from "~/components/enrollment/child-status-badge";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
+import { childrenConcept } from "~/lib/concepts/children";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { parentsConcept } from "~/lib/concepts/parents";
 
 const logger = createLogger({ component: "AdminEnrollmentDetail" });
 
@@ -165,26 +172,31 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   const [approvalWithoutOfferingChildId, setApprovalWithoutOfferingChildId] =
     useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    clearLoadError();
-    try {
-      const fresh = await getAdminRequest(requestId);
-      setData(fresh);
-      // Das Öffnen hat die Anmeldung für diese Person gelesen (#3778).
-      announceAdminRequestOpened();
-    } catch (err) {
-      logger.error("admin_enrollment_detail_load_failed", {
-        error: err instanceof Error ? err.message : "unknown",
-      });
-      await showLoadError(err, {
-        object: "die Anmeldung",
-        retry: () => void reloadRef.current(),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [requestId, clearLoadError, showLoadError]);
+  // `quiet` refreshes without the page's loading state, so a card that just
+  // saved keeps showing its result (#5102).
+  const load = useCallback(
+    async (options?: { quiet?: boolean }) => {
+      if (!options?.quiet) setLoading(true);
+      clearLoadError();
+      try {
+        const fresh = await getAdminRequest(requestId);
+        setData(fresh);
+        // Das Öffnen hat die Anmeldung für diese Person gelesen (#3778).
+        announceAdminRequestOpened();
+      } catch (err) {
+        logger.error("admin_enrollment_detail_load_failed", {
+          error: err instanceof Error ? err.message : "unknown",
+        });
+        await showLoadError(err, {
+          object: "die Anmeldung",
+          retry: () => void reloadRef.current(),
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [requestId, clearLoadError, showLoadError],
+  );
   useLayoutEffect(() => {
     reloadRef.current = load;
   });
@@ -354,7 +366,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       backHref={`/admin/enrollments/phases/${data.phase_id}`}
       backLabel="Zurück zur Anmeldephase"
       stats={statusLine}
-      leading={<ConceptIconTile concept="enrollments" variant="page" />}
+      leading={<ConceptIconTile concept={enrollmentsConcept} variant="page" />}
       overlays={
         <>
           <ConfirmationModal
@@ -420,7 +432,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
         </>
       }
     >
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      <section className="moto-content-surface overflow-hidden rounded-2xl border">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="space-y-6 p-4 sm:p-6">
             {/* Ein gescheitertes Neuladen nach einer Änderung: die Seite zeigt
@@ -476,7 +488,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                     setReasons((prev) => ({ ...prev, [child.id]: value }))
                   }
                   onDecide={(status) => requestDecision(child, status)}
-                  onOfferingsChanged={() => void load()}
+                  onOfferingsChanged={() => void load({ quiet: true })}
                   onDataCorrected={handleDataCorrected}
                   onDelete={() =>
                     setDeletionTarget({
@@ -519,7 +531,7 @@ function EnrollmentSummary({
     <section className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
-          <MotoConceptIcon concept="parents" size={16} />
+          <MotoConceptIcon concept={parentsConcept} size={16} />
         </span>
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -618,7 +630,7 @@ function ChildInformationCard({
       : "/students",
   );
   return (
-    <article className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+    <article className="moto-content-surface overflow-hidden rounded-2xl border">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-4">
         <div>
           <h3 className="text-base font-semibold text-gray-900">
@@ -630,7 +642,7 @@ function ChildInformationCard({
             </span>
             {child.target_school_class ? (
               <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-                Klasse {child.target_school_class}
+                {schoolClassLabel(child.target_school_class)}
               </span>
             ) : child.target_grade_level ? (
               <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
@@ -646,7 +658,11 @@ function ChildInformationCard({
             <>
               <NavigationLink
                 href={studentHref}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                className={buttonClassName({
+                  variant: "outline",
+                  size: "md",
+                  className: "gap-2",
+                })}
               >
                 Kind &amp; Einladung verwalten
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -773,7 +789,11 @@ function ReviewSidebar({
           href={statusHref}
           target="_blank"
           rel="noreferrer"
-          className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className={buttonClassName({
+            variant: "outline",
+            size: "md",
+            className: "mt-4 w-full gap-2",
+          })}
         >
           Statusseite öffnen
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -806,7 +826,7 @@ function ReviewSidebar({
         return (
           <section
             key={child.id}
-            className="moto-content-surface rounded-2xl border p-4 shadow-sm"
+            className="moto-content-surface rounded-2xl border p-4"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -815,7 +835,7 @@ function ReviewSidebar({
                 </h3>
                 <p className="mt-1 text-xs text-gray-500">
                   {child.target_school_class
-                    ? `Klasse ${child.target_school_class}`
+                    ? schoolClassLabel(child.target_school_class)
                     : child.target_grade_level
                       ? `${child.target_grade_level}. Klasse`
                       : "Keine Klassenstufe"}
@@ -879,7 +899,7 @@ function DecisionPanel({
     <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
-          <MotoConceptIcon concept="enrollments" size={18} />
+          <MotoConceptIcon concept={enrollmentsConcept} size={18} />
         </span>
         <div>
           <h4 className="text-sm font-semibold text-gray-900">
@@ -1024,7 +1044,7 @@ export function RequestExtraSection({
   if (!hasCustom && !hasConsents) return null;
 
   return (
-    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 shadow-sm sm:p-6">
+    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 sm:p-6">
       <h2 className="text-base font-semibold text-gray-900">
         Zusätzliche Angaben
       </h2>
@@ -1061,7 +1081,7 @@ export function RequestExtraSection({
       {hasCustom && (
         <InfoSection
           title="Zusatzfragen (Eltern)"
-          icon={<MotoConceptIcon concept="parents" size={16} />}
+          icon={<MotoConceptIcon concept={parentsConcept} size={16} />}
         >
           <DataGrid>
             {guardianFields.map((f) => {
@@ -1393,6 +1413,8 @@ export function ChildOfferingAdjustment({
     offerings: Array<{ offering_id: string; selected_days?: string[] }>;
   } | null>(null);
   const [withdrawalCreated, setWithdrawalCreated] = useState(false);
+  // Was die letzte Korrektur im Betreuungsplan bewirkt hat (#5102).
+  const [rosterImpact, setRosterImpact] = useState<RosterImpact | null>(null);
   useEffect(() => {
     if (!careOfferingsEnabled) setEditing(false);
   }, [careOfferingsEnabled]);
@@ -1449,6 +1471,7 @@ export function ChildOfferingAdjustment({
   const openEditor = async () => {
     if (!careOfferingsEnabled) return;
     setEditing(true);
+    setRosterImpact(null);
     errors.clear();
     catalogError.clear();
     setDays(initialManualOfferingDays(child.offerings));
@@ -1571,10 +1594,11 @@ export function ChildOfferingAdjustment({
     },
     completeWithdrawalConfirmed: boolean,
   ) => {
-    await updateAdminChildOfferings(requestId, child.id, {
+    const updated = await updateAdminChildOfferings(requestId, child.id, {
       ...input,
       completeWithdrawalConfirmed,
     });
+    setRosterImpact(mapRosterImpact(updated?.roster_impact));
     setWithdrawalCreated(completeWithdrawalConfirmed);
     if (completeWithdrawalConfirmed) {
       window.dispatchEvent(new Event("change-requests-refresh"));
@@ -1820,7 +1844,7 @@ export function ChildOfferingAdjustment({
               {hasSelectedCareDays ? (
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="outline_danger"
                   onClick={removeAllCareDays}
                 >
                   Alle Betreuungstage entfernen
@@ -1848,6 +1872,15 @@ export function ChildOfferingAdjustment({
         </div>
       ) : null}
 
+      {rosterImpact && !editing ? (
+        <div className="mt-3">
+          <CarePlanImpact
+            impact={rosterImpact}
+            studentId={child.created_student_id}
+          />
+        </div>
+      ) : null}
+
       {historyError.error ? (
         <LoadErrorAlert
           error={historyError.error}
@@ -1861,7 +1894,7 @@ export function ChildOfferingAdjustment({
           }
         >
           <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
-            <MotoConceptIcon concept="changeHistory" size={14} />
+            <MotoConceptIcon concept={changeHistoryConcept} size={14} />
             Änderungshistorie
           </div>
           <ul className="mt-2 space-y-2">
@@ -2276,7 +2309,7 @@ export function ChildExtraFields({
     <div className="mt-3">
       <InfoSection
         title="Zusätzliche Angaben zum Kind"
-        icon={<MotoConceptIcon concept="children" size={16} />}
+        icon={<MotoConceptIcon concept={childrenConcept} size={16} />}
       >
         <DataGrid>
           {filled.map(({ field, value }) => (

@@ -104,6 +104,28 @@ func TestClientDoesNotRetryOtherFailures(t *testing.T) {
 	require.Equal(t, 1, calls)
 }
 
+// The public registration limits count per hour and per day; a replay within
+// a minute cannot pass and only counts one more attempt.
+func TestClientDoesNotRetryTheSubmissionRateLimit(t *testing.T) {
+	t.Parallel()
+	calls := 0
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, _ *seedHTTPRequest) {
+		calls++
+		w.Header().Set("Retry-After", "1")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = fmt.Fprint(w, `{"status":429,"code":"enrollment.submission_rate_limited","detail":"too many submission attempts"}`)
+	})
+	defer srv.Close()
+	client := newTestClient(srv.URL, false)
+	client.adapter.(*retryingAdapter).sleep = func(context.Context, time.Duration) error {
+		t.Fatal("unexpected retry")
+		return nil
+	}
+	_, err := client.Post("/traeger/holiday-registrations/link-key", nil)
+	require.Error(t, err)
+	require.Equal(t, 1, calls)
+}
+
 func TestRetryStopsWhenWaitIsCancelled(t *testing.T) {
 	t.Parallel()
 	adapter := &retryingAdapter{sleep: func(context.Context, time.Duration) error { return context.Canceled }}

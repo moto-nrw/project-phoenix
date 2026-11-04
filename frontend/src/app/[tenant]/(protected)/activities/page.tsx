@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Button } from "~/components/ui/button";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -36,6 +37,7 @@ import {
 import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { activitiesConcept } from "~/lib/concepts/activities";
 
 const logger = createLogger({ component: "ActivitiesPage" });
 
@@ -89,13 +91,9 @@ function ActivitiesPageContent() {
 
   // The session callback can keep status "authenticated" while clearing the
   // token and setting session.error (expired refresh token). useSWRAuth never
-  // starts without a token, so redirect instead of showing the skeleton
+  // starts for such a session, so redirect instead of showing the skeleton
   // forever — same pattern as the dashboard.
-  if (
-    status === "authenticated" &&
-    session &&
-    (session.error === "RefreshTokenExpired" || !session.user?.token)
-  ) {
+  if (status === "authenticated" && session && !hasSessionAccess(session)) {
     logger.info("invalid session, redirecting to login");
     redirect(tenantPath("/"));
   }
@@ -343,7 +341,7 @@ function ActivitiesPageContent() {
         empty={
           !showSkeleton && !error && filteredActivities.length === 0
             ? {
-                icon: <MotoConceptIcon concept="activities" size={48} />,
+                icon: <MotoConceptIcon concept={activitiesConcept} size={48} />,
                 title: hasFilters
                   ? "Keine Aktivitäten gefunden"
                   : "Keine Aktivitäten vorhanden",
@@ -424,10 +422,10 @@ function ActivitiesPageContent() {
       {/* Mobile FAB Create Button - z-40 to appear below drawer modal (z-50) */}
       <Button
         type="button"
-        variant="primary"
+        variant="fab"
         size="icon"
         onClick={() => setIsQuickCreateOpen(true)}
-        className="fixed right-4 bottom-24 z-40 h-14 w-14 rounded-full md:hidden"
+        className="fixed right-4 bottom-24 z-40 md:hidden"
         aria-label="Aktivität erstellen"
       >
         <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden="true" />

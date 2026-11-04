@@ -94,11 +94,8 @@ export function TraegerLetterheadPreview({
           <span className="text-gray-400">noch nicht eingetragen</span>
         )}
       </p>
-      <div className="mt-8 space-y-2" aria-hidden="true">
-        <div className="h-2 w-11/12 rounded bg-gray-100" />
-        <div className="h-2 w-10/12 rounded bg-gray-100" />
-        <div className="h-2 w-8/12 rounded bg-gray-100" />
-      </div>
+      {/* Blindtext statt grauer Balken: Balken lasen sich als Ladeskelett. */}
+      <p className="mt-8 text-gray-400">Hier steht der Text des Briefs.</p>
       <figcaption className="mt-10 border-t border-gray-200 pt-3 text-sm wrap-anywhere text-gray-600">
         {footer.map((line, index) => (
           <p key={`${index}-${line}`}>{line}</p>

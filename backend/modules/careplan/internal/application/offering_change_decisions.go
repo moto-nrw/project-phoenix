@@ -13,20 +13,20 @@ import (
 // Decide approves (and applies) or rejects a pending request. Staleness is
 // decided under the row lock and before any authorization or apply work, so
 // a decision taken on an outdated view never lands (#2267).
-func (s *OfferingChanges) Decide(ctx context.Context, input careplan.OfferingChangeDecisionInput) error {
+func (s *OfferingChanges) Decide(ctx context.Context, input careplan.OfferingChangeDecisionInput) (careplan.RosterImpact, error) {
 	reason, err := validateDecisionInput(input)
 	if err != nil {
-		return err
+		return careplan.RosterImpact{}, err
 	}
 	row, err := s.lockPendingRow(ctx, input.RequestID, input.ExpectedVersion)
 	if err != nil {
-		return err
+		return careplan.RosterImpact{}, err
 	}
 	if err := s.authorizeDecision(ctx, row.StudentID); err != nil {
-		return err
+		return careplan.RosterImpact{}, err
 	}
 	if !input.Approve {
-		return s.reject(ctx, row, input, reason)
+		return careplan.RosterImpact{}, s.reject(ctx, row, input, reason)
 	}
 	return s.approve(ctx, &row, input, reason)
 }
@@ -133,29 +133,29 @@ func (s *OfferingChanges) reject(ctx context.Context, row careplan.OfferingChang
 // whose effective date has passed would book offerings into a settled past:
 // staff reject it or mark it done (#2267, story 14), or move the date
 // forward with an explicit EffectiveFrom.
-func (s *OfferingChanges) approve(ctx context.Context, row *careplan.OfferingChangeRequest, input careplan.OfferingChangeDecisionInput, reason string) error {
+func (s *OfferingChanges) approve(ctx context.Context, row *careplan.OfferingChangeRequest, input careplan.OfferingChangeDecisionInput, reason string) (careplan.RosterImpact, error) {
 	if input.EffectiveFrom == nil && parentRequestIsPast(careplan.Date(row.EffectiveFrom), careplan.Date(s.todayDate())) {
-		return careplan.ErrParentRequestPast
+		return careplan.RosterImpact{}, careplan.ErrParentRequestPast
 	}
 	applied, err := s.applyApproved(ctx, row, input)
 	if err != nil {
-		return err
+		return careplan.RosterImpact{}, err
 	}
 	diff, err := materializedDecisionDiff(applied)
 	if err != nil {
-		return err
+		return careplan.RosterImpact{}, err
 	}
 	if err := s.deps.Rows.UpdateApprovedCompleteWithdrawal(ctx, row.ID, applied.CompleteWithdrawal); err != nil {
-		return err
+		return careplan.RosterImpact{}, err
 	}
 	if err := s.deps.Rows.Decide(ctx, row.ID, careplan.OfferingChangeApproved, optionalReason(reason), &input.ReviewedBy, true); err != nil {
-		return err
+		return careplan.RosterImpact{}, err
 	}
 	if err := s.storeDecisionSnapshot(ctx, row.ID, diff); err != nil {
-		return err
+		return careplan.RosterImpact{}, err
 	}
 	if err := s.recordOfferingDecision(ctx, row.ID, input.ReviewedBy, true, reason); err != nil {
-		return err
+		return careplan.RosterImpact{}, err
 	}
 	effectiveFrom := offeringChangeEffectiveFrom(*row)
 	if err := s.emitDecisionPill(ctx, *row, decisionPill{
@@ -163,14 +163,14 @@ func (s *OfferingChanges) approve(ctx context.Context, row *careplan.OfferingCha
 		status: careplan.ParentMessageRequestStatusDone, reason: reason,
 		payload: map[string]any{"effective_from": effectiveFrom.String()},
 	}); err != nil {
-		return err
+		return careplan.RosterImpact{}, err
 	}
 	s.logger().Info("offering change request approved",
 		slog.Int64("request_id", row.ID),
 		slog.Int64("student_id", row.StudentID),
 		slog.String("effective_from", effectiveFrom.String()),
 	)
-	return nil
+	return applied.RosterImpact, nil
 }
 
 // MarkDone closes an offering-change request whose effective date has

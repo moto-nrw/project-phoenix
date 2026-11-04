@@ -123,7 +123,7 @@ type catalogTemplateListing struct {
 
 func (r *catalogTemplateListing) data() timetable.TimetableDataCapability {
 	return &fakeTimetableData{
-		ListTemplateEntriesForPeriodFn: func(context.Context, *int64, int) ([]timetable.TemplateListEntry, error) {
+		ListTemplateEntriesForPeriodFn: func(context.Context, *int64, int, *timetable.TemplateScheduleWindow) ([]timetable.TemplateListEntry, error) {
 			return []timetable.TemplateListEntry{}, nil
 		},
 		ListTemplateWeekdayRosterFn: func(context.Context, *int64, *int64) ([]timetable.TemplateWeekdayRosterRow, error) {

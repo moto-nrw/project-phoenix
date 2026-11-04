@@ -27,23 +27,27 @@ func TestHTTPHostPermissionsRequireReviewedEpoch(t *testing.T) {
 
 func TestHTTPHostEpochGrantsOnlyTheNamedPoints(t *testing.T) {
 	t.Parallel()
-	for _, rule := range []Rule{
+	candidate := repositoryPolicy(t)
+	base := *candidate
+	base.PolicyEpoch--
+	extraRules := []Rule{
 		{ID: "root.scheduler-application", Description: "test", SourceOwner: "root-composition", SourceRole: "compose", TargetOwner: "scheduler-runtime", TargetRole: "application", Scopes: []string{"production"}},
 		{ID: "root.observability-adapter", Description: "test", SourceOwner: "root-composition", SourceRole: "compose", TargetOwner: "observability", TargetRole: "adapter", Scopes: []string{"production"}},
 		{ID: "root.orm", Description: "test", SourceOwner: "root-composition", SourceRole: "compose", TargetClass: "orm-sql", Scopes: []string{"production"}},
 		{ID: "root.cli.router", Description: "test", SourceOwner: "root-composition", SourceRole: "cli", TargetClass: "http-router", Scopes: []string{"production"}},
 		{ID: "root.compose.dev-tools", Description: "test", SourceOwner: "root-composition", SourceRole: "compose", TargetOwner: "dev-tools", TargetRole: "cli", Scopes: []string{"production"}},
 		{ID: "legacy.router", Description: "test", SourceOwner: "legacy-composition", SourceRole: "compose", TargetClass: "http-router", Scopes: []string{"production"}},
-	} {
-		candidate := repositoryPolicy(t)
-		base := *candidate
-		base.PolicyEpoch--
-		widened := *candidate
-		widened.Rules = append(slices.Clone(candidate.Rules), rule)
-		err := comparePolicyStrictness(&base, &widened, noCreated(), noCreated(), noCreated(), noCreated(), nil)
-		if err == nil || !strings.Contains(err.Error(), rule.ID) {
-			t.Fatalf("%s escaped the guard: %v", rule.ID, err)
-		}
+	}
+	batch := *candidate
+	batch.Rules = append(slices.Clone(candidate.Rules), extraRules...)
+	err := comparePolicyStrictness(&base, &batch, noCreated(), noCreated(), noCreated(), noCreated(), nil)
+	for _, rule := range extraRules {
+		t.Run(rule.ID, func(t *testing.T) {
+			if err == nil || !strings.Contains(err.Error(), rule.ID) {
+				t.Fatalf("%s escaped the guard: %v", rule.ID, err)
+			}
+			assertIsolatedRuleLoosening(t, &base, candidate, rule)
+		})
 	}
 }
 

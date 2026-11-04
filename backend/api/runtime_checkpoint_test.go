@@ -271,7 +271,8 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 	// Keep planner maintenance outside warm-ups and every measured counter.
 	_, err = db.ExecContext(context.Background(), "ANALYZE")
 	require.NoError(t, err, "collect checkpoint fixture statistics before warm-ups")
-	counter := testpkg.CaptureQueries(t, api.db.Pool())
+	counter := testpkg.CaptureQueriesForContext(t, api.db.Pool())
+	countedHandler := api.queryBudgetHandler(counter)
 	counter.Stop()
 	var postgresVersion string
 	require.NoError(t, db.NewSelect().ColumnExpr("version()").Scan(context.Background(), &postgresVersion))
@@ -338,7 +339,7 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 		if targetRisks != nil && targetRisks.owns(scenario) {
 			headers = targetRisks.headers(scenario)
 		}
-		response := checkpointHeaderRequest(production.Handler(), scenario, requestToken, sequence, headers)
+		response := checkpointHeaderRequest(countedHandler, scenario, requestToken, sequence, headers)
 		if scenario.ExpectedStatus == http.StatusTooManyRequests {
 			require.Equal(t, "3600", response.Header().Get("Retry-After"))
 		}

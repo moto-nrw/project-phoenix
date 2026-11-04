@@ -40,10 +40,10 @@ type StaffAbsenceFixture struct {
 // (Abwesenheitsart, #2403) with the given wording in the test's tenant.
 func CreateTestStaffAbsenceType(tb testing.TB, db *bun.DB, name string) *StaffAbsenceTypeFixture {
 	tb.Helper()
+	absenceType := &StaffAbsenceTypeFixture{TenantID: fixtureTenantID(tb), Name: name, BaseType: workforce.AbsenceTypeOther, IsActive: true}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	absenceType := &StaffAbsenceTypeFixture{TenantID: fixtureTenantID(tb), Name: name, BaseType: workforce.AbsenceTypeOther, IsActive: true}
 	err := db.NewInsert().Model(absenceType).ModelTableExpr(`active.staff_absence_types`).Scan(ctx)
 	require.NoError(tb, err, "Failed to create test staff absence type")
 	return absenceType
@@ -55,9 +55,6 @@ func CreateTestStaffAbsenceType(tb testing.TB, db *bun.DB, name string) *StaffAb
 func CreateTestStaffAbsenceToday(tb testing.TB, db *bun.DB, staffID int64, absenceTypeID int64) *StaffAbsenceFixture {
 	tb.Helper()
 	day := calendar.TodayDate()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	absence := &StaffAbsenceFixture{
 		TenantID:      fixtureTenantID(tb),
 		StaffID:       staffID,
@@ -68,6 +65,9 @@ func CreateTestStaffAbsenceToday(tb testing.TB, db *bun.DB, staffID int64, absen
 		Status:        workforce.AbsenceStatusApproved,
 		CreatedBy:     staffID,
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	err := db.NewInsert().Model(absence).ModelTableExpr(`active.staff_absences`).Scan(ctx)
 	require.NoError(tb, err, "Failed to create test staff absence")
 	return absence

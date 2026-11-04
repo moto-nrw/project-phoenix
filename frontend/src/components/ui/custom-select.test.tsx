@@ -695,4 +695,31 @@ describe("CustomSelect", () => {
     expect(trigger.className).not.toContain("moto-content-surface");
     expect(trigger.className).toContain("border-moto-red");
   });
+
+  it("wraps long labels in the trigger and the menu with wrapLabels instead of cutting them", () => {
+    const long = "Ganztagsbetreuung mit Mittagessen und Ausflug · 65,00 €";
+    render(
+      <CustomSelect
+        value="long"
+        options={[
+          { value: "", label: "Nicht angemeldet" },
+          { value: "long", label: long },
+        ]}
+        onChange={vi.fn()}
+        ariaLabel="Woche"
+        wrapLabels
+      />,
+    );
+
+    const trigger = screen.getByRole("combobox", { name: "Woche" });
+    const shown = screen.getByText(long);
+    expect(shown.className).toContain("whitespace-normal");
+    expect(shown.className).not.toContain("truncate");
+    expect(trigger.className).toContain("min-h-10");
+
+    fireEvent.click(trigger);
+    const option = screen.getByRole("option", { name: long });
+    expect(option.querySelector(".truncate")).toBeNull();
+    expect(option.querySelector(".whitespace-normal")).toHaveTextContent(long);
+  });
 });

@@ -4035,7 +4035,7 @@ func TestDecisionService_UpdateChildOfferings_ReplacesLinksAndWritesAudit(t *tes
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, enrollmentNative.ChildStatusApproved, updated.Status)
+	require.Equal(t, enrollmentNative.ChildStatusApproved, updated.Child.Status)
 
 	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingHistory, childID)
 	require.NoError(t, err)

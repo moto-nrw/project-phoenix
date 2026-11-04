@@ -93,7 +93,7 @@ type StaffPreviewCandidate struct {
 // StaffPreview is the capability the admin staff-view routes consume. The
 // route layer restricts callers to effective admins.
 type StaffPreview interface {
-	StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (*StaffPreviewSession, error)
+	StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, adminFamilyID, previousToken, ipAddress, userAgent string) (*StaffPreviewSession, error)
 	EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (int64, error)
 	ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]StaffPreviewCandidate, error)
 }

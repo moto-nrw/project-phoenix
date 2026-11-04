@@ -101,6 +101,8 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, common.ErrorInternalServerWrap("update attendance failed", err))
 		return
 	}
+	// The block's roster and child counts changed (#5017).
+	rs.broadcastStaffingDeviationChanged(ctx, "attendance_patch")
 
 	// Re-read so the response body reflects the post-write state (including
 	// the bumped updated_at). One extra SELECT is worth the response fidelity.

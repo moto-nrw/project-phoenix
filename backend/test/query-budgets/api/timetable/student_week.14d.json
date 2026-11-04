@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.student_week.14d",
+  "max": 13,
+  "exact": false,
+  "description": "modules/timetable/http — 14-day /week: FindByID + 7 preloads + class-exception\nlookup (#2962) with headroom for bun metadata reads; was ~98 pre-fix."
+}

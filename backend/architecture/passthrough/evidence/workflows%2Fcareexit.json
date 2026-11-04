@@ -1,0 +1,39 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (r Roster) CloseOpenStudentAssignments(ctx context.Context, studentIDs []int64, at time.Time) (int64, error) {\n\tids, err := r.openParticipantIDs(ctx, studentIDs)\n\tif err != nil || len(ids) == 0 {\n\t\treturn 0, err\n\t}\n\treturn r.presence.CloseOpenParticipants(ctx, ids, at)\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/careexit/Roster.CloseOpenStudentAssignments",
+      "owner": "workflows/careexit"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r Roster) CountPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after calendar.Date, restorable []careplan.CareExitRemoval) (map[int64]int, error) {\n\treturn r.timetable.CountPlannedRosterForCareExit(ctx, studentIDs, after.String(), rosterRows(restorable))\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/careexit/Roster.CountPlannedRosterForCareExit",
+      "owner": "workflows/careexit"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r Roster) LatestStudentAssignmentAttendanceDate(ctx context.Context, studentID int64) (*calendar.Date, error) {\n\tday, err := r.attendance.LatestAttendedBlockDate(ctx, studentID)\n\tif err != nil || day == nil {\n\t\treturn nil, err\n\t}\n\tparsed, err := calendar.ParseDate(day.String())\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"care exit: invalid calendar day %q\", day.String())\n\t}\n\treturn \u0026parsed, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/careexit/Roster.LatestStudentAssignmentAttendanceDate",
+      "owner": "workflows/careexit"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r Roster) LockOpenStudentAssignments(ctx context.Context, studentIDs []int64) error {\n\tids, err := r.openParticipantIDs(ctx, studentIDs)\n\tif err != nil || len(ids) == 0 {\n\t\treturn err\n\t}\n\treturn r.presence.LockSessionAttendance(ctx, ids)\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/careexit/Roster.LockOpenStudentAssignments",
+      "owner": "workflows/careexit"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r Roster) LockPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after calendar.Date) error {\n\treturn r.timetable.LockPlannedRosterForCareExit(ctx, studentIDs, after.String())\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/careexit/Roster.LockPlannedRosterForCareExit",
+      "owner": "workflows/careexit"
+    }
+  ]
+}

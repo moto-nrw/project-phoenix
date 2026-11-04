@@ -25,6 +25,7 @@ import { isAtSchoolLocation, LOCATION_COLORS } from "~/lib/location-helper";
 import type { OgsLiveWireStudent } from "~/lib/ogs-group-live-api";
 import { ONLY_IF_LESSON_CANCELLED_LABEL } from "~/lib/student-time-status";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { groupsConcept } from "~/lib/concepts/groups";
 
 /** So viele Zeilen passen in eine Karte dieser Höhe ganz hinein. */
 const MAX_ROWS = 3;
@@ -93,7 +94,7 @@ export function MyGroupBlock() {
   return (
     <SectionCard
       title="Meine Gruppe heute"
-      leading={<HomeCardIcon concept="groups" />}
+      leading={<HomeCardIcon concept={groupsConcept} />}
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       inlineActions

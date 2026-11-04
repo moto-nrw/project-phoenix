@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func NewStaffMessageThreadRepository(db *bun.DB) communication.StaffThreadRecords {
+func NewStaffMessageThreadRepository(db *bun.DB) communication.StaffConversationRecords {
 	return staffpostgres.NewThreadStore(postgresDatabase(db))
 }
 func NewStaffMessageRepository(db *bun.DB) communication.StaffMessageRecords {

@@ -16,8 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
-
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -406,6 +404,6 @@ func NewUnboundStudentRepository(db transactionruntime.Database) peoplePorts.Stu
 		panic(fmt.Sprintf("student repository: compose membership: %v", err))
 	}
 	return peopleCompose.NewStudentRepository(peopleCompose.StudentRepositoryDependencies{
-		DB: db.Pool(), Students: studentDirectoryView.NewReader(), Directory: owners.MustNewPeopleDirectory(db), Enrollment: enrollment,
+		DB: db.Pool(), Students: owners.StudentDirectoryReader(), Directory: owners.MustNewPeopleDirectory(db), Enrollment: enrollment,
 	})
 }

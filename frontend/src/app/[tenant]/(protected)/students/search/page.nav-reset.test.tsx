@@ -32,8 +32,10 @@ const {
   mockPush: vi.fn(),
   mockMutateStudents: vi.fn(),
   mockUpdateSession: vi.fn(),
+  // The browser session carries no token (#5005); a session without one
+  // carries an error.
   sessionState: {
-    token: "t" as string | undefined,
+    error: undefined as "RefreshTokenError" | undefined,
     status: "authenticated" as "authenticated" | "loading",
   },
 }));
@@ -42,7 +44,7 @@ let currentSearch = new URLSearchParams();
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: { user: { id: "3", tenantId: 2, token: sessionState.token } },
+    data: { user: { id: "3", tenantId: 2 }, error: sessionState.error },
     status: sessionState.status,
     update: mockUpdateSession,
   })),
@@ -143,7 +145,8 @@ vi.mock("~/lib/active-api", () => ({
   },
 }));
 
-vi.mock("~/lib/hooks/use-user-context", () => ({
+vi.mock("~/lib/hooks/use-user-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/hooks/use-user-context")>()),
   useUserContext: () => ({
     userContext: {
       educationalGroupIds: [],
@@ -232,7 +235,7 @@ beforeEach(() => {
   localStorage.clear();
   // The stored filters belong to the signed-in account (#5000).
   localStorage.setItem("moto:personal-storage-owner", "2:3");
-  sessionState.token = "t";
+  sessionState.error = undefined;
   sessionState.status = "authenticated";
   studentKeys = [];
   studentsResponse = {
@@ -284,7 +287,7 @@ describe("StudentSearchPage: click on the navigation entry of this page (#3374)"
     expect(mockMutateStudents).not.toHaveBeenCalled();
   });
 
-  it("clears a name search, which lives outside the URL", async () => {
+  it("clears a name search", async () => {
     const { navLink } = renderOnSearchPage("");
     const unfilteredKey = studentKeys.at(-1);
 
@@ -293,6 +296,9 @@ describe("StudentSearchPage: click on the navigation entry of this page (#3374)"
     await waitFor(() => {
       expect(studentKeys.at(-1)).toContain("Mila");
     });
+    expect(new URLSearchParams(window.location.search).get("search")).toBe(
+      "Mila",
+    );
 
     fireEvent.click(navLink);
 
@@ -303,6 +309,41 @@ describe("StudentSearchPage: click on the navigation entry of this page (#3374)"
       (screen.getAllByPlaceholderText("Name suchen…")[0] as HTMLInputElement)
         .value,
     ).toBe("");
+    expect(window.location.search).toBe("");
+  });
+
+  it("removes a restored name search from the URL", async () => {
+    const { navLink } = renderOnSearchPage("?search=Mila");
+
+    expect(
+      (screen.getAllByPlaceholderText("Name suchen…")[0] as HTMLInputElement)
+        .value,
+    ).toBe("Mila");
+
+    fireEvent.click(navLink);
+
+    await waitFor(() => {
+      expect(window.location.search).toBe("");
+    });
+    expect(
+      (screen.getAllByPlaceholderText("Name suchen…")[0] as HTMLInputElement)
+        .value,
+    ).toBe("");
+  });
+
+  it("does not add stored filters to a shared name-search URL", async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ bus: "yes" }));
+
+    renderOnSearchPage("?search=Mila");
+
+    await waitFor(() => {
+      expect(storedFilters()).toBeNull();
+    });
+    expect(new URLSearchParams(window.location.search).get("bus")).toBeNull();
+    expect(
+      (screen.getAllByPlaceholderText("Name suchen…")[0] as HTMLInputElement)
+        .value,
+    ).toBe("Mila");
   });
 
   it("reloads the list when nothing was filtered", async () => {
@@ -368,7 +409,7 @@ describe("StudentSearchPage: student list that does not finish loading (#3374)",
   });
 
   it("asks for the session again when the token is missing", () => {
-    sessionState.token = undefined;
+    sessionState.error = "RefreshTokenError";
     studentsResponse = { data: undefined, isLoading: false, error: undefined };
     renderOnSearchPage("");
 

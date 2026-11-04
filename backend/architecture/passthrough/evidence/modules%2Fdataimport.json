@@ -1,0 +1,207 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (s staffInviter) InviteStaff(ctx context.Context, invitation dataimport.StaffInvitation) error {\n\t_, err := s.invitations.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{Email: invitation.Email, RoleID: invitation.RoleID, TenantID: invitation.TenantID, FirstName: invitation.FirstName, LastName: invitation.LastName, Position: invitation.Position, PersonID: invitation.PersonID, CreatedBy: invitation.CreatedBy, SchoolName: invitation.SchoolName, ActorPermissions: invitation.ActorPermissions})\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "api/staffInviter.InviteStaff",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c StaffImportModePolicy) AuthorizeImportMode(ctx context.Context, mode ImportMode) error {\n\tif mode == ImportModeCreate {\n\t\treturn nil\n\t}\n\timporterPermissions := ImporterPermissionsFromContext(ctx)\n\tfor _, required := range staffUpdateImportPermissions {\n\t\tif c.authorization == nil || !c.authorization.HasPermission(required, importerPermissions) {\n\t\t\treturn fmt.Errorf(\"%w: mode %q requires %s\", ErrImportModeForbidden, mode, required)\n\t\t}\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/StaffImportModePolicy.AuthorizeImportMode",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedAuditCommand) Append(ctx context.Context, event any) (err error) {\n\tdefer observeCommand(ctx, \"audit-platform\", \"append\", time.Now(), \u0026err)\n\treturn o.AuditCommand.Append(ctx, event)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedAuditCommand.Append",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedClassListMembership) CreateClassListEntry(ctx context.Context, input CreateClassListEntry) (result ClassListEntry, err error) {\n\tdefer observeCommand(ctx, \"school-membership\", \"create_class_list_entry\", time.Now(), \u0026err)\n\treturn o.ClassListMembership.CreateClassListEntry(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedClassListMembership.CreateClassListEntry",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedGuardianDirectory) AddGuardianPhone(ctx context.Context, id int64, input GuardianPhoneInput) (result GuardianPhone, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"add_guardian_phone\", time.Now(), \u0026err)\n\treturn o.GuardianDirectory.AddGuardianPhone(ctx, id, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedGuardianDirectory.AddGuardianPhone",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedGuardianDirectory) CreateGuardian(ctx context.Context, input GuardianInput) (result Guardian, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"create_guardian\", time.Now(), \u0026err)\n\treturn o.GuardianDirectory.CreateGuardian(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedGuardianDirectory.CreateGuardian",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedGuardianDirectory) LinkGuardianToStudent(ctx context.Context, input LinkGuardian) (result GuardianLink, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"link_guardian_to_student\", time.Now(), \u0026err)\n\treturn o.GuardianDirectory.LinkGuardianToStudent(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedGuardianDirectory.LinkGuardianToStudent",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedGuardianDirectory) UpdateGuardian(ctx context.Context, id int64, input GuardianInput) (err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"update_guardian\", time.Now(), \u0026err)\n\treturn o.GuardianDirectory.UpdateGuardian(ctx, id, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedGuardianDirectory.UpdateGuardian",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedGuardianDirectory) UpdateGuardianLink(ctx context.Context, id int64, input GuardianLinkUpdate) (err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"update_guardian_link\", time.Now(), \u0026err)\n\treturn o.GuardianDirectory.UpdateGuardianLink(ctx, id, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedGuardianDirectory.UpdateGuardianLink",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedOpeningBalanceBookings) CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, date string, minutes int, note string) (result *StaffBalanceAdjustment, err error) {\n\tdefer observeCommand(ctx, \"workforce\", \"create_opening_balance\", time.Now(), \u0026err)\n\treturn o.OpeningBalanceBookings.CreateOpeningBalance(ctx, staffID, decidedBy, date, minutes, note)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedOpeningBalanceBookings.CreateOpeningBalance",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedPersonDirectory) CreatePerson(ctx context.Context, input CreatePerson) (result Person, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"create_person\", time.Now(), \u0026err)\n\treturn o.PersonDirectory.CreatePerson(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedPersonDirectory.CreatePerson",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedPersonDirectory) UpdatePerson(ctx context.Context, input UpdatePerson) (result Person, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"update_person\", time.Now(), \u0026err)\n\treturn o.PersonDirectory.UpdatePerson(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedPersonDirectory.UpdatePerson",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedPrivacyConsents) RecordPrivacyConsent(ctx context.Context, input PrivacyConsent) (result PrivacyConsent, err error) {\n\tdefer observeCommand(ctx, \"student-presence\", \"record_privacy_consent\", time.Now(), \u0026err)\n\treturn o.PrivacyConsents.RecordPrivacyConsent(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedPrivacyConsents.RecordPrivacyConsent",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedStaffMembership) CreateStaff(ctx context.Context, input CreateStaff) (result Staff, err error) {\n\tdefer observeCommand(ctx, \"school-membership\", \"create_staff\", time.Now(), \u0026err)\n\treturn o.StaffMembership.CreateStaff(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedStaffMembership.CreateStaff",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedStaffMembership) CreateTeacher(ctx context.Context, input CreateTeacher) (result Teacher, err error) {\n\tdefer observeCommand(ctx, \"school-membership\", \"create_teacher\", time.Now(), \u0026err)\n\treturn o.StaffMembership.CreateTeacher(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedStaffMembership.CreateTeacher",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedStaffMembership) UpdateStaff(ctx context.Context, input UpdateStaff) (result Staff, err error) {\n\tdefer observeCommand(ctx, \"school-membership\", \"update_staff\", time.Now(), \u0026err)\n\treturn o.StaffMembership.UpdateStaff(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedStaffMembership.UpdateStaff",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedStaffMembership) UpdateTeacher(ctx context.Context, input UpdateTeacher) (result Teacher, err error) {\n\tdefer observeCommand(ctx, \"school-membership\", \"update_teacher\", time.Now(), \u0026err)\n\treturn o.StaffMembership.UpdateTeacher(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedStaffMembership.UpdateTeacher",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedStaffRecords) CreateStaffMasterData(ctx context.Context, input StaffMasterData) (result StaffMasterData, err error) {\n\tdefer observeCommand(ctx, \"workforce\", \"create_staff_master_data\", time.Now(), \u0026err)\n\treturn o.StaffRecords.CreateStaffMasterData(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedStaffRecords.CreateStaffMasterData",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedStaffRecords) ReplaceStaffQualifications(ctx context.Context, id int64, qualifications []StaffQualification) (result []StaffQualification, err error) {\n\tdefer observeCommand(ctx, \"workforce\", \"replace_staff_qualifications\", time.Now(), \u0026err)\n\treturn o.StaffRecords.ReplaceStaffQualifications(ctx, id, qualifications)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedStaffRecords.ReplaceStaffQualifications",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedStaffRecords) UpdateStaffMasterData(ctx context.Context, input StaffMasterData) (result StaffMasterData, err error) {\n\tdefer observeCommand(ctx, \"workforce\", \"update_staff_master_data\", time.Now(), \u0026err)\n\treturn o.StaffRecords.UpdateStaffMasterData(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedStaffRecords.UpdateStaffMasterData",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedStudentDirectory) ApplyEnrollmentProfile(ctx context.Context, id int64, input EnrollmentProfilePatch) (err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"apply_enrollment_profile\", time.Now(), \u0026err)\n\treturn o.StudentDirectory.ApplyEnrollmentProfile(ctx, id, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedStudentDirectory.ApplyEnrollmentProfile",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedStudentDirectory) CreateEnrollmentStudent(ctx context.Context, input EnrollmentStudent) (result CreatedEnrollmentStudent, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"create_enrollment_student\", time.Now(), \u0026err)\n\treturn o.StudentDirectory.CreateEnrollmentStudent(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedStudentDirectory.CreateEnrollmentStudent",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedStudentDirectory) RenewEnrollmentStudent(ctx context.Context, id int64, input EnrollmentStudent) (err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"renew_enrollment_student\", time.Now(), \u0026err)\n\treturn o.StudentDirectory.RenewEnrollmentStudent(ctx, id, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedStudentDirectory.RenewEnrollmentStudent",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedStudentSchedules) CreateArrivalSchedule(ctx context.Context, input ArrivalSchedule) (result ArrivalSchedule, err error) {\n\tdefer observeCommand(ctx, \"care-plan\", \"create_arrival_schedule\", time.Now(), \u0026err)\n\treturn o.StudentSchedules.CreateArrivalSchedule(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedStudentSchedules.CreateArrivalSchedule",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedStudentSchedules) CreatePickupSchedule(ctx context.Context, input PickupSchedule) (result PickupSchedule, err error) {\n\tdefer observeCommand(ctx, \"care-plan\", \"create_pickup_schedule\", time.Now(), \u0026err)\n\treturn o.StudentSchedules.CreatePickupSchedule(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedStudentSchedules.CreatePickupSchedule",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedStudentSchedules) UpdateArrivalSchedule(ctx context.Context, input ArrivalSchedule) (err error) {\n\tdefer observeCommand(ctx, \"care-plan\", \"update_arrival_schedule\", time.Now(), \u0026err)\n\treturn o.StudentSchedules.UpdateArrivalSchedule(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedStudentSchedules.UpdateArrivalSchedule",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedStudentSchedules) UpdatePickupSchedule(ctx context.Context, input PickupSchedule) (err error) {\n\tdefer observeCommand(ctx, \"care-plan\", \"update_pickup_schedule\", time.Now(), \u0026err)\n\treturn o.StudentSchedules.UpdatePickupSchedule(ctx, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedStudentSchedules.UpdatePickupSchedule",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedVacationTakeovers) SetVacationOpening(ctx context.Context, staffID, decidedBy int64, input SetVacationOpeningRequest) (result *StaffVacationOpening, err error) {\n\tdefer observeCommand(ctx, \"workforce\", \"set_vacation_opening\", time.Now(), \u0026err)\n\treturn o.VacationTakeovers.SetVacationOpening(ctx, staffID, decidedBy, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedVacationTakeovers.SetVacationOpening",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedVacationTakeovers) UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) (err error) {\n\tdefer observeCommand(ctx, \"workforce\", \"upsert_vacation_quota\", time.Now(), \u0026err)\n\treturn o.VacationTakeovers.UpsertVacationQuota(ctx, staffID, year, entitled, carryover)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedVacationTakeovers.UpsertVacationQuota",
+      "owner": "modules/dataimport"
+    }
+  ]
+}

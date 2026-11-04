@@ -97,7 +97,9 @@ describe("POST /api/auth/token", () => {
     expect(json.detail).toBe("No refresh token found");
   });
 
-  it("successfully returns tokens from session", async () => {
+  // The browser never receives the tokens (#5005): the route only confirms
+  // that the renewed session still holds them.
+  it("confirms a renewed session without returning its tokens", async () => {
     mockAuth.mockResolvedValueOnce({
       user: {
         id: "1",
@@ -111,13 +113,11 @@ describe("POST /api/auth/token", () => {
     const request = createMockRequest("/api/auth/token");
     const response = await POST(request);
 
-    expect(response.status).toBe(200);
-    const json = await parseJsonResponse<{
-      access_token: string;
-      refresh_token: string;
-    }>(response);
-    expect(json.access_token).toBe("current-access-token");
-    expect(json.refresh_token).toBe("current-refresh-token");
+    expect(response.status).toBe(204);
+    const body = await response.text();
+    expect(body).toBe("");
+    expect(body).not.toContain("current-access-token");
+    expect(body).not.toContain("current-refresh-token");
   });
 
   it("returns 500 on unexpected error", async () => {

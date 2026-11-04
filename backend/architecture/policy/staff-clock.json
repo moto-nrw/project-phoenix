@@ -1,0 +1,71 @@
+{
+  "packages": [
+    {
+      "path": "workflows/staffclock/internal/application",
+      "owner": "staff-clock",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/staffclock/compose",
+      "owner": "staff-clock",
+      "role": "compose",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/staffclock",
+      "owner": "staff-clock",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "staff-clock.to.process-device-scan",
+      "description": "staff-clock implements the public device-scan staff clock contract the kiosk boundary consumes (#2690).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "application",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-clock.application.public",
+      "description": "The stamp application consumes the native workflow command, ports and classified error contract instead of retained service declarations.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "application",
+      "target_owner": "staff-clock",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-clock.to.process-device-scan.native-contract",
+      "description": "staff-clock implements the public device-scan staff clock contract the kiosk boundary consumes (#2690).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "public",
+      "target_owner": "process-device-scan",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-clock.to.workforce.native-contract",
+      "description": "staff-clock coordinates the public workforce capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-clock",
+      "source_role": "public",
+      "target_owner": "workforce",
+      "target_role": "public"
+    }
+  ]
+}

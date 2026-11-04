@@ -447,6 +447,7 @@ const feedSQL = pendingApplicantsFeedCTE + `
 			SELECT a.id, a.tenant_id, a.title, a.body, a.priority, a.link_url,
 				a.requires_acknowledgement, a.published_at, a.expires_at,
 				a.response_type, a.response_deadline, a.delivery_mode, a.system_kind,
+				a.sender_name, a.sender_school_class,
 				a.reminder_sent_at,
 				CASE WHEN a.reminder_sent_at IS NOT NULL THEN a.reminder_text END AS reminder_text,
 				par.read_at AS read_at,

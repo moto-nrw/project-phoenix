@@ -64,7 +64,7 @@ import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { Button, ButtonLink } from "~/components/ui/button";
+import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
@@ -91,6 +91,7 @@ import {
   ChildStatusBadge,
   isHeldForChildQuota,
 } from "~/components/enrollment/child-status-badge";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 
 const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
 
@@ -869,7 +870,9 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         back
         backHref={overviewPath}
         backLabel="Zurück zur Anmeldungs-Übersicht"
-        leading={<ConceptIconTile concept="enrollments" variant="page" />}
+        leading={
+          <ConceptIconTile concept={enrollmentsConcept} variant="page" />
+        }
         empty={{
           title: "Anmeldephase nicht gefunden",
           description:
@@ -886,7 +889,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       backHref={overviewPath}
       backLabel="Zurück zur Anmeldungs-Übersicht"
       stats={`${formatDate(phase.service_start_date)} bis ${formatDate(phase.service_end_date)} · ${stats.total} ${stats.total === 1 ? "Eingang" : "Eingänge"} · ${stats.open} offen`}
-      leading={<ConceptIconTile concept="enrollments" variant="page" />}
+      leading={<ConceptIconTile concept={enrollmentsConcept} variant="page" />}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <DataTableStatusBadge active={phase.is_active} />
@@ -1091,7 +1094,7 @@ function ClassRosterExportPanel({
   onExport: (format: EnrollmentReportFormat) => void;
 }>) {
   return (
-    <section className="moto-content-surface relative z-10 rounded-2xl border p-4 shadow-sm backdrop-blur-md">
+    <section className="moto-content-surface relative z-10 rounded-2xl border p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0 md:w-72">
           <SelectField
@@ -1197,7 +1200,7 @@ function DeploymentPlanningStats({
         {CARE_USAGE_WEEKDAYS.map((day) => (
           <div
             key={day}
-            className="moto-content-surface rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md"
+            className="moto-content-surface rounded-xl border px-3 py-2"
           >
             <p className="text-xs font-semibold text-gray-500">
               {DAY_LABELS[day]}
@@ -1272,7 +1275,7 @@ function ReportExportCard({
   return (
     // Unter xl eine eigene Zeile: Der Knopf ist breiter als eine Kachel und
     // ragte sonst über die Seite hinaus, die dann seitlich scrollte (#4975).
-    <div className="moto-content-surface col-span-full flex flex-col gap-1 rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md xl:col-span-1">
+    <div className="moto-content-surface col-span-full flex flex-col gap-1 rounded-xl border px-3 py-2 xl:col-span-1">
       <p className="truncate text-xs font-medium text-gray-500">Auswertung</p>
       <ExportMenu
         label="Auswertung exportieren"
@@ -1444,7 +1447,11 @@ function PhaseChildActions({
       ) : null}
       <NavigationLink
         href={href}
-        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        className={buttonClassName({
+          variant: "outline",
+          size: "compact",
+          className: "",
+        })}
         onClick={(event: React.MouseEvent<HTMLAnchorElement>) =>
           event.stopPropagation()
         }

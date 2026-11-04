@@ -1,0 +1,49 @@
+{
+  "title": "Powiadomienia",
+  "description": "Będą Państwo na bieżąco z wiadomościami i ważnymi zmianami dotyczącymi dziecka.",
+  "allEnabled": "Wszystkie włączone",
+  "enableAll": "Włącz wszystkie",
+  "enablingAll": "Włączanie ...",
+  "disableAll": "Wyłącz wszystkie",
+  "tenantDisabled": "Państwa szkoła wyłączyła obecnie powiadomienia. Państwa wybór zostanie zapisany i zacznie działać, gdy szkoła włączy je ponownie.",
+  "typeUnavailable": "Obecnie wyłączone przez Państwa szkołę.",
+  "groups": {
+    "kinder": "Dzieci",
+    "mitteilungen": "Ogłoszenia",
+    "termine": "Terminy"
+  },
+  "types": {
+    "parent_announcement": {
+      "label": "Nowe ogłoszenie szkoły",
+      "description": "Gdy szkoła opublikuje nowe ogłoszenie w portalu dla rodziców."
+    },
+    "parent_message": {
+      "label": "Nowa wiadomość z OGS",
+      "description": "Gdy OGS napisze do Państwa w sprawie dziecka."
+    },
+    "parent_appointment": {
+      "label": "Nowy lub zmieniony termin",
+      "description": "Gdy termin dla Państwa zostanie utworzony, zmieniony lub odwołany."
+    },
+    "parent_appointment_reminder": {
+      "label": "Przypomnienie o terminie",
+      "description": "Krótko przed terminem, na który są Państwo zaproszeni."
+    },
+    "parent_request_decided": {
+      "label": "Decyzja w sprawie Państwa prośby",
+      "description": "Gdy OGS podejmie decyzję w sprawie jednej z Państwa próśb."
+    },
+    "parent_care_cancelled": {
+      "label": "Opieka odwołana",
+      "description": "Gdy OGS odwoła termin opieki Państwa dziecka."
+    },
+    "parent_billing_document": {
+      "label": "Nowy dokument od organizatora",
+      "description": "Gdy organizator wyśle Państwu dokument, na przykład potwierdzenie."
+    }
+  },
+  "errorObjectList": "lista powiadomień",
+  "errorObjectType": "powiadomienie „{name}”",
+  "errorObjectEnableAll": "włączanie wszystkich powiadomień",
+  "errorObjectDisableAll": "wyłączanie wszystkich powiadomień"
+}

@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -25,6 +26,7 @@ const BIRTHDAYS_STAFF_KEY = "birthday.display_include_staff";
 
 const mockSavePolicies = vi.fn();
 const mockState = {
+  confirmedPolicies: null as HomeBlockPolicies | null,
   value: {
     overrides: {},
     policies: {} as HomeBlockPolicies,
@@ -35,6 +37,7 @@ const mockState = {
 vi.mock("~/lib/hooks/use-home-layout", () => ({
   useHomeLayout: () => ({
     state: mockState.value,
+    confirmedPolicies: mockState.confirmedPolicies ?? mockState.value.policies,
     isLoading: false,
     save: vi.fn(),
     reset: vi.fn(),
@@ -145,6 +148,7 @@ const { HomeBlocksTab } = await import("./home-blocks-tab");
 
 describe("HomeBlocksTab", () => {
   beforeEach(() => {
+    mockState.confirmedPolicies = null;
     mockState.value = {
       overrides: {},
       policies: {},
@@ -224,6 +228,50 @@ describe("HomeBlocksTab", () => {
         catalogText("general.server", "die Startseite für alle"),
       ),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mockSavePolicies).toHaveBeenCalledTimes(2));
+    expect(mockSavePolicies).toHaveBeenLastCalledWith({
+      "section.birthdays": "disabled",
+    });
+  });
+
+  it("keeps the policy draft through an optimistic update and rollback for retry", async () => {
+    mockState.confirmedPolicies = mockState.value.policies;
+    let rejectSave!: (error: Error) => void;
+    mockSavePolicies.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSave = reject;
+        }),
+    );
+    const view = renderWithToast(<HomeBlocksTab />);
+    const group = screen.getByRole("group", {
+      name: "Vorgabe für Geburtstage",
+    });
+    fireEvent.click(within(group).getByRole("button", { name: "Aus" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    mockState.value = {
+      ...mockState.value,
+      policies: { "section.birthdays": "disabled" },
+    };
+    view.rerender(<HomeBlocksTab />);
+    mockState.value = {
+      ...mockState.value,
+      policies: mockState.confirmedPolicies,
+    };
+    view.rerender(<HomeBlocksTab />);
+    await act(async () => {
+      rejectSave(new ApiError("diag", 500));
+    });
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Startseite für alle"),
+      ),
+    ).toBeInTheDocument();
+    expect(within(group).getByRole("button", { name: "Aus" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() => expect(mockSavePolicies).toHaveBeenCalledTimes(2));
     expect(mockSavePolicies).toHaveBeenLastCalledWith({

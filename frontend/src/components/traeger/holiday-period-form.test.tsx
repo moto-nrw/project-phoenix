@@ -68,6 +68,56 @@ describe("HolidayPeriodForm", () => {
     mockUpdate.mockReset();
   });
 
+  it.each([false, true])(
+    "reconciles a refreshed period only when the draft is pristine (edited=%s)",
+    async (edited) => {
+      const onSaved = vi.fn();
+      const view = render(
+        <ToastProvider>
+          <HolidayPeriodForm
+            period={stored}
+            schools={schools}
+            onSaved={onSaved}
+            onCancel={vi.fn()}
+          />
+        </ToastProvider>,
+      );
+      if (edited)
+        fireEvent.change(screen.getByLabelText("Name des Ferienzeitraums"), {
+          target: { value: "Mein Entwurf" },
+        });
+      const refreshed = {
+        ...stored,
+        name: "Aktueller Servername",
+        notes: "Neue Hinweise",
+      };
+      view.rerender(
+        <ToastProvider>
+          <HolidayPeriodForm
+            period={refreshed}
+            schools={schools}
+            onSaved={onSaved}
+            onCancel={vi.fn()}
+          />
+        </ToastProvider>,
+      );
+      expect(screen.getByLabelText("Name des Ferienzeitraums")).toHaveValue(
+        edited ? "Mein Entwurf" : refreshed.name,
+      );
+      mockUpdate.mockResolvedValue(refreshed);
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+      await waitFor(() =>
+        expect(mockUpdate).toHaveBeenCalledWith(
+          stored.id,
+          expect.objectContaining({
+            name: edited ? "Mein Entwurf" : refreshed.name,
+            notes: edited ? stored.notes : refreshed.notes,
+          }),
+        ),
+      );
+    },
+  );
+
   it("marks the missing fields of a new period and sends nothing", async () => {
     render(
       <ToastProvider>

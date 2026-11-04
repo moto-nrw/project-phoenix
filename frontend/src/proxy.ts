@@ -3,6 +3,11 @@ import type { NextRequest } from "next/server";
 import { REQUEST_ID_HEADER } from "~/lib/request-id";
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
+import { berlinTodayISO } from "~/lib/date-helpers";
+import {
+  resolvePlanungRedirect,
+  type PlanungRedirectTarget,
+} from "~/components/timetable/planung-redirect";
 
 /**
  * Combined proxy for:
@@ -153,6 +158,9 @@ function proxyPostHog(request: NextRequest): NextResponse {
 
 const ORIGINAL_HOST_HEADER = "X-Moto-Original-Host";
 const ORIGINAL_PROTO_HEADER = "X-Moto-Original-Proto";
+// Path and query the browser asked for; the tenant layout needs them to send
+// path mode to the school's subdomain (#5130).
+const ORIGINAL_PATH_HEADER = "X-Moto-Original-Path";
 
 function originalHost(request: NextRequest): string {
   return (
@@ -178,6 +186,10 @@ function preserveOriginalRequestTarget(
   const host = originalHost(request);
   if (host) headers.set(ORIGINAL_HOST_HEADER, host);
   headers.set(ORIGINAL_PROTO_HEADER, originalProtocol(request));
+  headers.set(
+    ORIGINAL_PATH_HEADER,
+    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+  );
   // A fresh Vorgangskennung per request, never the client's value: the BFF
   // tags its Sentry events with it and forwards it to the backend.
   headers.set(REQUEST_ID_HEADER, crypto.randomUUID());
@@ -228,11 +240,37 @@ function sanitizedHeaders(request: NextRequest): Headers {
   return preserveOriginalRequestTarget(headers, request);
 }
 
+/**
+ * The sandbox of a file a person uploaded, as the backend sends it with an
+ * inline file (#5275). The CSP set here replaces the route's own, so these
+ * routes get it from the proxy: under the app CSP an embedded script of a PDF
+ * would run on the app's origin.
+ */
+const SANDBOX_CSP_HEADER =
+  "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'";
+
+/** API routes that stream an uploaded file the browser may show inline. */
+const SANDBOXED_FILE_ROUTES: readonly RegExp[] = [
+  // Proofs parents attach to an enrollment request (#4783).
+  /^\/api\/enrollment\/admin\/requests\/[^/]+\/uploads\/[^/]+$/,
+  // Proofs of benefits of a holiday registration (#5238).
+  /^\/api\/traeger\/holiday-periods\/[^/]+\/registrations\/[^/]+\/proofs\/[^/]+$/,
+  // Managed files and announcement attachments, staff and parents.
+  /^\/api\/files\/folders\/[^/]+\/files\/[^/]+\/download$/,
+  /^\/api\/announcement-attachments\/[^/]+\/[^/]+\/download$/,
+  /^\/api\/parent\/me\/news\/[^/]+\/attachments\/[^/]+\/download$/,
+];
+
 /** Like NextResponse.next, but strips any client-forged localize header. */
 function secureNext(request: NextRequest): NextResponse {
-  return withSecurityHeaders(
+  const response = withSecurityHeaders(
     NextResponse.next({ request: { headers: sanitizedHeaders(request) } }),
   );
+  const { pathname } = request.nextUrl;
+  if (SANDBOXED_FILE_ROUTES.some((route) => route.test(pathname))) {
+    response.headers.set("Content-Security-Policy", SANDBOX_CSP_HEADER);
+  }
+  return response;
 }
 
 /** Like NextResponse.rewrite, but strips any client-forged localize header. */
@@ -261,6 +299,7 @@ const OPERATOR_PUBLIC_PATHS = [
   "/unregistered-tags",
   "/billing",
   "/operators",
+  "/caterers",
   "/invite",
 ];
 
@@ -349,6 +388,8 @@ const PARENTS_PUBLIC_PATHS = [
   "/messages",
   "/news",
   "/meal-plan",
+  // Dokumente des Trägers (#4671).
+  "/documents",
   "/calendar",
   "/settings",
   "/anmeldung",
@@ -465,6 +506,12 @@ const SCHOOL_PROTECTED_PATHS = [
   "/tagesinformationen",
   // Kalender der Lehrkraft mit Schulterminen (#4798).
   "/kalender",
+  // Elternbriefe der Lehrkraft an ihre Klasse (#4800).
+  "/elternbriefe",
+  // Elternsprechtag der Lehrkraft für eine ihrer Klassen (#4801).
+  "/elternsprechtag",
+  // Fehlzeiten einer Klasse für Klassenbuch und Zeugnis (#4793).
+  "/fehlzeiten",
   "/einstellungen",
 ];
 const SCHOOL_INVITATION_API_PATHS = [
@@ -553,7 +600,7 @@ if (!TRAEGER_HOSTNAME) {
 // --- Träger subdomain handling ("moto träger", Träger-Büro portal, #4649) ---
 
 /** Paths the Träger subdomain serves (without /traeger prefix): the login,
- * the holiday periods (#4659), the Träger-Büro persons, the invitation
+ * the reset link (#5149), the holiday periods (#4659), the Träger-Büro persons, the invitation
  * link, which opens /invite (#4650), the access log (#4655), the
  * letterhead (#4653), the Träger settings (#4652), the contribution
  * rules (#4664) and the billing runs (#4668). The school list
@@ -562,6 +609,7 @@ if (!TRAEGER_HOSTNAME) {
  * login. */
 const TRAEGER_PUBLIC_PATHS = [
   "/login",
+  "/reset-password",
   "/ferien",
   "/invite",
   "/accounts",
@@ -632,7 +680,7 @@ function handleTraegerSubdomain(request: NextRequest): NextResponse {
 
 /** Paths the caterer host serves (without /caterer prefix); the overview
  * itself lives at the root ("/" → /caterer). */
-const CATERER_PATHS = ["/login", "/reset-password", "/einladung"];
+const CATERER_PATHS = ["/login", "/reset-password", "/einladung", "/konto"];
 
 /** The caterer portal's BFF routes. Only the caterer host serves them; every
  * other host answers 404, so a caterer route never runs beside another
@@ -879,6 +927,70 @@ function redirectLegacySelection(request: NextRequest): NextResponse | null {
   return withSecurityHeaders(NextResponse.redirect(url));
 }
 
+/**
+ * Retired tenant pages that live on in bookmarks and old links. They used to
+ * be client pages that loaded a chunk and an RSC payload only to redirect;
+ * answering here sends the browser on before any page renders (#5001).
+ * `/planung` derives its area from `?tab=`; the other planning routes have a
+ * fixed one.
+ */
+const RETIRED_PLANNING_ROUTES: Readonly<
+  Record<string, PlanungRedirectTarget | undefined>
+> = {
+  "/planung": undefined,
+  "/timetables": "betreuungsplan",
+  "/vertretungsplan": "vertretung",
+  "/staff/dienstplan": "dienstplan",
+};
+
+function retiredTenantRouteTarget(
+  appPath: string,
+  searchParams: URLSearchParams,
+): string | null {
+  if (appPath === "/invitations") return "/database/personal";
+  if (!Object.hasOwn(RETIRED_PLANNING_ROUTES, appPath)) return null;
+  // Berlin calendar day (docs/07 §1), so the `d` anchor matches the
+  // backend's timezone.TodayDate().
+  return resolvePlanungRedirect(
+    searchParams,
+    berlinTodayISO(),
+    RETIRED_PLANNING_ROUTES[appPath],
+  );
+}
+
+/**
+ * Covers a tenant subdomain (bare or slug-prefixed path) and path mode on
+ * the bare domain; the tenant prefix of the request stays on the target.
+ */
+function redirectRetiredTenantRoute(
+  request: NextRequest,
+  tenantSlug: string | null,
+): NextResponse | null {
+  const { pathname, searchParams } = request.nextUrl;
+  let prefix = "";
+  let appPath = pathname;
+  if (tenantSlug) {
+    if (pathname.startsWith(`/${tenantSlug}/`)) {
+      prefix = `/${tenantSlug}`;
+      appPath = pathname.slice(prefix.length);
+    }
+  } else {
+    const bareAppPath = getBareTenantPrefixedPath(pathname);
+    if (!bareAppPath) return null;
+    prefix = `/${pathname.split("/")[1]}`;
+    appPath = bareAppPath;
+  }
+
+  const target = retiredTenantRouteTarget(appPath, searchParams);
+  if (target === null) return null;
+
+  const url = request.nextUrl.clone();
+  const queryStart = target.indexOf("?");
+  url.pathname = `${prefix}${queryStart === -1 ? target : target.slice(0, queryStart)}`;
+  url.search = queryStart === -1 ? "" : target.slice(queryStart);
+  return withSecurityHeaders(NextResponse.redirect(url));
+}
+
 // --- Main proxy ---
 
 export function proxy(request: NextRequest): NextResponse {
@@ -1075,6 +1187,9 @@ function routeRequest(request: NextRequest): NextResponse {
     const redirectUrl = `${protocol}//${SCHOOL_HOSTNAME}/login${search}`;
     return withSecurityHeaders(NextResponse.redirect(redirectUrl));
   }
+
+  const retiredRoute = redirectRetiredTenantRoute(request, tenantSlug);
+  if (retiredRoute) return retiredRoute;
 
   // 4. Tenant subdomain routing
   // No subdomain (bare domain): pass through without rewrite.

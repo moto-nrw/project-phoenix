@@ -1,0 +1,4 @@
+DELETE /traeger/contribution-rules/{id} -> basis
+GET /traeger/contribution-rules/ -> basis
+POST /traeger/contribution-rules/ -> basis
+PUT /traeger/contribution-rules/{id} -> basis

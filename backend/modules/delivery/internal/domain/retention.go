@@ -20,9 +20,12 @@ type RetentionResult struct {
 	ClearedEmails int
 	DeliveryLogs  int
 	PushIntents   int
+	// RealtimeNotifications are in-app notifications stored for other API
+	// processes (#5504).
+	RealtimeNotifications int
 }
 
 // Total is the number of rows the retention deleted or cleared.
 func (r RetentionResult) Total() int {
-	return r.EmailIntents + r.ClearedEmails + r.DeliveryLogs + r.PushIntents
+	return r.EmailIntents + r.ClearedEmails + r.DeliveryLogs + r.PushIntents + r.RealtimeNotifications
 }

@@ -532,8 +532,8 @@ function useApiErrorCore(
   }, []);
 
   useEffect(() => {
-    const firstField = Object.keys(fieldErrors)[0];
-    if (!firstField) return;
+    const failed = new Set(Object.keys(fieldErrors));
+    if (failed.size === 0) return;
     // A closing focus trap restores its trigger during the current effect
     // cycle. Focus immediately for direct form validation, then once more
     // afterwards so an API error from a confirmation dialog still lands on
@@ -542,7 +542,9 @@ function useApiErrorCore(
       const controls = (formRef?.current ?? document).querySelectorAll<
         HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
       >("input[name], textarea[name], select[name]");
-      const control = [...controls].find((item) => item.name === firstField);
+      // The first failed field in page order, the one FormErrorAlert brings
+      // into view, not the first key the server happened to list.
+      const control = [...controls].find((item) => failed.has(item.name));
       // A CustomSelect or DatePicker carries its value in a hidden input next
       // to its trigger (combobox or the date button).
       const target =
@@ -551,7 +553,9 @@ function useApiErrorCore(
               '[role="combobox"], button',
             )
           : control;
-      target?.focus();
+      // FormErrorAlert alone scrolls (#5217): one jump to the first marked
+      // field, not a second instant one from the focus.
+      target?.focus({ preventScroll: true });
     };
     focusFirstField();
     const focusTimer = setTimeout(focusFirstField, 0);

@@ -134,38 +134,38 @@ func (s *service) rejectInactiveMoveStudents(ctx context.Context, studentIDs []i
 	return nil
 }
 
-// lockStudentMovePlan locks the move state: for a restricted caller the target
-// room first, then attendance, the source and target sessions, and a locked
-// re-read of the current visits. A restricted move drops the children whose
-// visit ended meanwhile, so it never acts on access it checked for a place
-// the child already left.
+// lockStudentMovePlan locks attendance, visits, room advisories and sorted
+// sessions after the caller's child locks. A restricted move drops children
+// whose visit ended while it waited, before authorizing the refreshed state.
 func (s *service) lockStudentMovePlan(ctx context.Context, studentIDs []int64, activeGroupID int64, restricted bool) (*studentMovePlan, error) {
+	openAttendance, currentVisits, err := s.loadMoveState(ctx, studentIDs, opMoveStudents)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.SchoolPresence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{StudentIDs: studentIDs, SessionIDs: []int64{activeGroupID}}); err != nil {
+		return nil, &ActiveError{Op: opMoveStudents, Err: err}
+	}
 	var lockedTargetRoomID int64
 	if restricted {
-		var err error
 		lockedTargetRoomID, err = s.lockMoveTargetRoom(ctx, activeGroupID, opMoveStudents)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	openAttendance, currentVisits, err := s.loadMoveState(ctx, studentIDs, opMoveStudents)
-	if err != nil {
-		return nil, err
-	}
-	targetGroup, err := s.lockMoveGroups(ctx, studentIDs, currentVisits, activeGroupID, opMoveStudents)
-	if err != nil {
-		return nil, err
-	}
-	if lockedTargetRoomID > 0 && targetGroup.RoomID != lockedTargetRoomID {
-		return nil, &ActiveError{Op: opMoveStudents, Err: ErrDatabaseOperation}
-	}
-	refreshedVisits, err := s.currentPresenceVisits(ctx, studentIDs, true)
+	refreshedVisits, err := s.currentPresenceVisits(ctx, studentIDs, false)
 	if err != nil {
 		return nil, &ActiveError{Op: opMoveStudents, Err: ErrDatabaseOperation}
 	}
 	if refreshedVisits == nil {
 		refreshedVisits = map[int64]*studentpresence.Visit{}
+	}
+	targetGroup, err := s.lockMoveGroups(ctx, studentIDs, refreshedVisits, activeGroupID, opMoveStudents)
+	if err != nil {
+		return nil, err
+	}
+	if lockedTargetRoomID > 0 && targetGroup.RoomID != lockedTargetRoomID {
+		return nil, &ActiveError{Op: opMoveStudents, Err: ErrDatabaseOperation}
 	}
 
 	plan := &studentMovePlan{
@@ -622,4 +622,27 @@ func (s *service) createVisitWithoutAttendanceMutation(ctx context.Context, visi
 	}
 	s.broadcastVisitCreated(ctx, visit, snapshot)
 	return nil
+}
+
+// PrepareOpenRoomMove is the workflow prefix, before its activity/session
+// INSERTs and room FK/advisory locks. The final move repeats its guards on
+// the same child/attendance/visit cohort under these transaction-held locks.
+func (s *service) PrepareOpenRoomMove(ctx context.Context, studentIDs []int64, roomID int64) error {
+	if err := tenant.RequireTransaction(ctx); err != nil {
+		return err
+	}
+	if roomID <= 0 {
+		return &ActiveError{Op: opMoveStudents, Err: ErrInvalidData}
+	}
+	ids, err := normalizeMoveStudentIDs(studentIDs, opMoveStudents)
+	if err != nil {
+		return err
+	}
+	if err := s.rejectInactiveMoveStudents(ctx, ids); err != nil {
+		return err
+	}
+	if _, err := s.lockOpenAttendance(ctx, ids); err != nil {
+		return err
+	}
+	return s.SchoolPresence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{StudentIDs: ids, RoomID: roomID})
 }

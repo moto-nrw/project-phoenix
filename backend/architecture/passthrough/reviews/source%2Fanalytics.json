@@ -1,0 +1,19 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "analytics/cappedBuffer.Write",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "analytics/httpSender.Post",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "analytics/httpTracker.Close",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

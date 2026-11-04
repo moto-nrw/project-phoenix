@@ -1,0 +1,36 @@
+{
+  "today": "Today",
+  "sectionTitle": "Today",
+  "sectionDescription": "Today's status and important actions at a glance.",
+  "statusLabel": "Current status",
+  "atOgs": "At the OGS",
+  "notAtOgs": "Not at the OGS",
+  "state": {
+    "present": "Here since {time}",
+    "presentNoTime": "Here today",
+    "left": "Went home at {time}",
+    "leftNoTime": "Went home today",
+    "expected": "Arriving today at {time}",
+    "expectedNoTime": "Arriving today",
+    "notArrived": "Expected since {time}",
+    "notArrivedNoTime": "Expected today",
+    "absent": "Reported absent today",
+    "noCare": "No care today",
+    "unknown": "Status not available right now"
+  },
+  "actions": {
+    "profile": "View profile",
+    "sick": "Report {name} absent",
+    "sickCompact": "Report absent",
+    "sickHint": "Report sick or excuse an absence",
+    "pickup": "Change pick-up time for {name}",
+    "pickupCompact": "Change pick-up time",
+    "pickupHint": "Adjust the pick-up time for one day",
+    "message": "Write a message",
+    "messageCompact": "Write a message",
+    "messageHint": "Contact the OGS about {name}",
+    "pickupWithMode": "Change pick-up for {name}",
+    "pickupCompactWithMode": "Change pick-up",
+    "pickupHintWithMode": "Change the pick-up time or way home for one day"
+  }
+}

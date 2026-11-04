@@ -37,10 +37,7 @@ describe("module register (#4894)", () => {
     const pages = [
       ...NAV_PAGE_HREFS,
       ...DATABASE_SUB_PAGES.map((page) => page.href),
-      ...PLANNING_SUB_PAGES.flatMap((page) => [
-        page.href,
-        ...page.legacyPrefixes,
-      ]),
+      ...PLANNING_SUB_PAGES.map((page) => page.href),
     ];
     const missing = pages.filter((href) => PAGE_MODULES[href] === undefined);
     expect(missing).toEqual([]);
@@ -69,16 +66,16 @@ describe("module register (#4894)", () => {
     expect(scopes.filter((scope) => !known.has(scope))).toEqual([]);
   });
 
-  it("findet das Modul einer Adresse samt Unterseiten und alten Pfaden", () => {
+  it("findet das Modul einer kanonischen Adresse samt Unterseiten", () => {
     expect(moduleOfPath("/time-tracking")).toBe("zeiterfassung");
     expect(moduleOfPath("/admin/enrollments/42")).toBe("online_anmeldung");
-    // Der längste Pfad gewinnt: /staff ist Basis, /staff/dienstplan nicht.
-    expect(moduleOfPath("/staff/dienstplan")).toBe("dienstplan");
+    expect(moduleOfPath("/dienstplan")).toBe("dienstplan");
     expect(moduleOfPath("/staff/7")).toBeNull();
     expect(moduleOfPath("/database/devices")).toBe("nfc_anwesenheit");
     expect(moduleOfPath("/database/personal/opening-balances")).toBe(
       "zeiterfassung",
     );
+    expect(moduleOfPath("/database/personal")).toBeNull();
     expect(moduleOfPath("/database/rooms")).toBeNull();
     // Kein blankes startsWith: /dienstplan-alt gehört nicht zu /dienstplan.
     expect(moduleOfPath("/dienstplan-alt")).toBeNull();

@@ -385,7 +385,7 @@ describe("DienstplanView", () => {
     );
     mocks.useSWRAuth.mockImplementation((key: string | null) => {
       keys.push(key);
-      if (key === "dienstplan-staff") {
+      if (key === 'staff-directory-list-{"strict":true}') {
         return {
           data: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
           error: undefined,
@@ -404,7 +404,7 @@ describe("DienstplanView", () => {
     render(<DienstplanView />);
 
     expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
-    expect(keys).toContain("dienstplan-staff");
+    expect(keys).toContain('staff-directory-list-{"strict":true}');
     expect(keys).toContain("dienstplan-shifts-2026-06-29-2026-07-03");
     expect(keys.some((key) => key?.startsWith("dienstplan-overview-"))).toBe(
       false,
@@ -720,7 +720,7 @@ describe("DienstplanView", () => {
     );
     mocks.search.value = "view=halbjahr";
     mocks.useSWRAuth.mockImplementation((key: string | null) => {
-      if (key === "dienstplan-staff") {
+      if (key === 'staff-directory-list-{"strict":true}') {
         return {
           data: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
           error: undefined,
@@ -762,7 +762,7 @@ describe("DienstplanView", () => {
     );
     mocks.search.value = "view=halbjahr";
     mocks.useSWRAuth.mockImplementation((key: string | null) => {
-      if (key === "dienstplan-staff") {
+      if (key === 'staff-directory-list-{"strict":true}') {
         return {
           data: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
           error: undefined,
@@ -1010,7 +1010,7 @@ describe("DienstplanView", () => {
     );
     mocks.search.value = "view=person&staff=7";
     mocks.useSWRAuth.mockImplementation((key: string | null) => {
-      if (key === "dienstplan-staff") {
+      if (key === 'staff-directory-list-{"strict":true}') {
         return {
           data: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
           error: undefined,

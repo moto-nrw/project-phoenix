@@ -28,7 +28,7 @@ permissions: {}
 
 jobs:
   release-please:
-    name: Release-PR und Release
+    name: Release PR and release
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -48,7 +48,7 @@ jobs:
           manifest-file: .release-please-manifest.json
 
   product-screenshots:
-    name: Produkt-Screenshots
+    name: Product screenshots
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
     # write: der Job release-asset hängt die Screenshots an das Release.

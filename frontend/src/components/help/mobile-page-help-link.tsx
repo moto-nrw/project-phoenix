@@ -43,10 +43,9 @@ function ResolvedMobilePageHelpLink({
   return topic ? (
     <ContextHelpLink
       topic={topic}
+      // Die Kopfkarte setzt die Bedienhöhe, die Fingerregel des Kits die
+      // 44 px bei Fingerbedienung.
       containerClassName="inline-flex shrink-0 lg:hidden"
-      // Match the 40/44 px action row. The extra hit area keeps tablet
-      // targets at least 44 px high without shifting the icon's centre.
-      className="relative size-10 after:absolute after:-inset-0.5 after:content-[''] max-sm:size-11 max-sm:after:inset-0"
     />
   ) : null;
 }

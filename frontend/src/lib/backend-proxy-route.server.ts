@@ -6,7 +6,10 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { withPrivateNoStore } from "~/lib/private-no-store";
 import { createLogger } from "~/lib/logger";
 import type { RouteContext } from "~/lib/route-wrapper-utils.server";
-import { getClientForwardHeaders } from "~/lib/client-headers.server";
+import {
+  clientIdentityHeaders,
+  getClientForwardHeaders,
+} from "~/lib/client-headers.server";
 import { operatorAuth, uncachedOperatorAuth } from "~/server/auth/operator";
 import { withOperatorAuth } from "~/server/auth/operator-route";
 import { handleApiError } from "~/lib/api-helpers.server";
@@ -18,7 +21,7 @@ import { captureBffException } from "~/lib/sentry-bff.server";
 
 type JsonMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-interface JsonProxyOptions {
+export interface JsonProxyOptions {
   method: JsonMethod;
   path:
     | string
@@ -35,6 +38,13 @@ interface JsonProxyOptions {
   body?: "json" | "optional-json" | "form" | "none";
   networkErrorMessage?: string;
   networkErrorFromException?: boolean;
+  /**
+   * The browser's client IP, User-Agent and analytics session always travel
+   * (`clientIdentityHeaders`): without them the backend rate-limits and
+   * audits the frontend container, so all visitors share one bucket. `true`
+   * adds the full `getClientForwardHeaders` set (frontend origin, User-Agent
+   * fallback); `false` sends none of them.
+   */
   forwardClientHeaders?: boolean;
   additionalHeaders?: (request: NextRequest) => Record<string, string>;
   mapJsonBody?: (body: unknown) => unknown;
@@ -49,8 +59,11 @@ interface JsonProxyOptions {
 
 const logger = createLogger({ component: "JsonBackendProxy" });
 
-/** Execute transparent JSON proxy routes through one fetch/error-response path. */
-async function proxyJsonRequest(
+/**
+ * Execute transparent JSON proxy routes through one fetch/error-response path.
+ * Exported for the portal wrappers that bind their own session (caterer).
+ */
+export async function proxyJsonRequest(
   request: NextRequest,
   context: RouteContext | undefined,
   options: JsonProxyOptions,
@@ -70,7 +83,7 @@ async function proxyJsonRequest(
     onBackendError,
     networkErrorMessage = "Internal Server Error",
     networkErrorFromException = false,
-    forwardClientHeaders = false,
+    forwardClientHeaders,
     additionalHeaders,
     mapJsonBody,
     invalidJsonMessage,
@@ -115,7 +128,11 @@ async function proxyJsonRequest(
     const headers: Record<string, string> = {
       ...(additionalHeaders ? additionalHeaders(request) : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(forwardClientHeaders ? getClientForwardHeaders(request) : {}),
+      ...(forwardClientHeaders === false
+        ? {}
+        : forwardClientHeaders
+          ? getClientForwardHeaders(request)
+          : clientIdentityHeaders(request.headers)),
       ...((
         body === "form"
           ? false

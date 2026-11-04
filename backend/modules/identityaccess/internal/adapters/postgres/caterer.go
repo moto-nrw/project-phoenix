@@ -235,3 +235,34 @@ func optionalCatererAccount(accountID int64) *int64 {
 	}
 	return &accountID
 }
+
+// ListCatererAccountSecurity lists every caterer account and whether its
+// second factor is switched on, for the operator (#4497). It reads no
+// supply; the read runs in the operator's administrative transaction.
+func (s *Store) ListCatererAccountSecurity(ctx context.Context) ([]domain.CatererAccountSecurity, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var rows []struct {
+		CatererID  int64  `bun:"caterer_id"`
+		AccountID  int64  `bun:"account_id"`
+		Name       string `bun:"name"`
+		Email      string `bun:"email"`
+		MFAEnabled bool   `bun:"mfa_enabled"`
+	}
+	started := time.Now()
+	err = db.NewRaw(`SELECT "caterer".id AS caterer_id, "caterer_account".account_id, "caterer".name, "account".email,
+ EXISTS (SELECT 1 FROM auth.mfa_credentials AS "credential" WHERE "credential".account_id = "caterer_account".account_id) AS mfa_enabled
+ FROM auth.caterers AS "caterer"
+ JOIN auth.caterer_accounts AS "caterer_account" ON "caterer_account".caterer_id = "caterer".id
+ JOIN auth.accounts AS "account" ON "account".id = "caterer_account".account_id
+ ORDER BY lower("caterer".name), "caterer".id, "caterer_account".account_id`).Scan(ctx, &rows)
+	_, stats, err := scanOne("list caterer account security", started, err)
+	result := make([]domain.CatererAccountSecurity, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, domain.CatererAccountSecurity(row))
+	}
+	stats.Rows = int64(len(rows))
+	return result, stats, err
+}

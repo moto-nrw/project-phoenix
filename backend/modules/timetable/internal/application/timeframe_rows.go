@@ -46,7 +46,7 @@ func replaceLegacyTimeframe(result *scheduleModels.Timeframe, value timetable.Ti
 		}
 		end = &parsed
 	}
-	*result = scheduleModels.Timeframe{StartTime: start, EndTime: end, IsActive: value.IsActive, Description: value.Description}
+	*result = scheduleModels.Timeframe{StartTime: start, StartTimeSet: true, EndTime: end, IsActive: value.IsActive, Description: value.Description}
 	result.ID, result.CreatedAt, result.UpdatedAt = value.ID, value.CreatedAt, value.UpdatedAt
 	result.SetTenantID(value.TenantID)
 	return nil

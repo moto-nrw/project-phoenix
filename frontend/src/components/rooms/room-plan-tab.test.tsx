@@ -1,19 +1,23 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RoomPlanBlock } from "~/lib/room-plan";
+import { setTestClock } from "~/test/clock";
 import { RoomPlanControls, RoomPlanTab } from "./room-plan-tab";
 
-const { swrState, fetchBlocksMock } = vi.hoisted(() => ({
-  swrState: {
-    key: null as string | null,
-    fetcher: null as null | (() => unknown),
-    data: undefined as RoomPlanBlock[] | undefined,
-    error: undefined as unknown,
-  },
-  fetchBlocksMock: vi.fn(),
-}));
+const { swrState, fetchBlocksMock, mockWeekendFollowsFriday } = vi.hoisted(
+  () => ({
+    swrState: {
+      key: null as string | null,
+      fetcher: null as null | (() => unknown),
+      data: undefined as RoomPlanBlock[] | undefined,
+      error: undefined as unknown,
+    },
+    fetchBlocksMock: vi.fn(),
+    mockWeekendFollowsFriday: vi.fn(() => false),
+  }),
+);
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (key: string, fetcher: () => unknown) => {
@@ -42,7 +46,7 @@ vi.mock("~/lib/hooks/use-timetable-day-hours", () => ({
 }));
 
 vi.mock("~/lib/tenant-context", () => ({
-  useWeekendFollowsFriday: () => false,
+  useWeekendFollowsFriday: mockWeekendFollowsFriday,
 }));
 
 vi.mock("~/lib/tenant-path", () => ({
@@ -70,6 +74,7 @@ function block(
 describe("RoomPlanTab (#4768)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWeekendFollowsFriday.mockReturnValue(false);
     swrState.data = undefined;
     swrState.error = undefined;
   });
@@ -131,6 +136,24 @@ describe("RoomPlanTab (#4768)", () => {
     render(<RoomPlanTab roomId="3" view="tag" anchorISO="2026-09-12" />);
 
     expect(swrState.key).toBe("room-plan-3-2026-09-14-2026-09-14");
+  });
+
+  it("extends an open week after Berlin midnight", () => {
+    mockWeekendFollowsFriday.mockReturnValue(true);
+    setTestClock("2026-09-11T23:59:00+02:00"); // Friday
+    vi.useFakeTimers();
+    swrState.data = [];
+    render(<RoomPlanTab roomId="3" view="woche" anchorISO="2026-09-11" />);
+
+    expect(swrState.key).toBe("room-plan-3-2026-09-07-2026-09-11");
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    expect(swrState.key).toBe("room-plan-3-2026-09-07-2026-09-13");
+    expect(screen.getByTestId("room-plan-day-2026-09-12")).toBeInTheDocument();
+    expect(screen.getByTestId("room-plan-day-2026-09-13")).toBeInTheDocument();
   });
 
   it("shows a load error instead of an empty plan", async () => {

@@ -1,0 +1,6 @@
+{
+  "scenario": "workflows.studentdeletion.preview.companions_4",
+  "max": 22,
+  "exact": false,
+  "description": "workflows/studentdeletion — the permanent deletion behind DELETE\n/students/{id} and DELETE /students/care-withdrawals/{id} (#3411), over\nthe production composition with one and with four linked children.\nPreview takes no lock and costs the same at both sizes: the tenant\ntransaction (4), the student and person reads and one owner-count block\nof 16 statements (the Feedback counter is a test double here).\nExecute runs deleteConfirmed -> lockedSnapshot: the companion snapshot\ntwice plus the stranding re-read, one locked student-row read (with its\nshared class-writes gate) per child in the graph, K unlocked re-reads,\nthe subject's second locked read, and the owner-count block twice\n(fingerprint, then the recheck before the cascade: 32 statements), then\nthe nine-statement cascade and audit. Each linked child adds three\nstatements; .student_rows pins the 2(K+1) row round trips on\ntheir own so a third pass over the graph cannot hide behind a saving\nelsewhere."
+}

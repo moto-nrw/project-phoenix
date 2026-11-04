@@ -35,9 +35,13 @@ type CatererAccess struct {
 	verifier  ports.PasswordVerifier
 	schools   ports.SchoolDirectory
 	runtime   ports.Runtime
-	attach    func(context.Context) context.Context
-	now       func() time.Time
-	logger    *slog.Logger
+	// mfa and passkeys are the account's second factor the caterer's own
+	// runs on (#4497); a composition without them refuses its flows.
+	mfa      *AccountMFAFlows
+	passkeys *AccountPasskeyFlows
+	attach   func(context.Context) context.Context
+	now      func() time.Time
+	logger   *slog.Logger
 }
 
 // CatererAccessDependencies are the ports the caterer flows consume.
@@ -48,6 +52,10 @@ type CatererAccessDependencies struct {
 	Verifier  ports.PasswordVerifier
 	Schools   ports.SchoolDirectory
 	Runtime   ports.Runtime
+	// MFA and Passkeys are the second factor (#4497); nil leaves its flows
+	// unavailable.
+	MFA      *AccountMFAFlows
+	Passkeys *AccountPasskeyFlows
 	// Attach binds the composed unit of work ahead of every flow; nil keeps
 	// the context.
 	Attach func(context.Context) context.Context
@@ -66,7 +74,11 @@ func NewCatererAccess(auth *AccountAuthentication, deps CatererAccessDependencie
 	if attach == nil {
 		attach = func(ctx context.Context) context.Context { return ctx }
 	}
-	return &CatererAccess{auth: auth, store: deps.Store, delivery: deps.Delivery, passwords: deps.Passwords, verifier: deps.Verifier, schools: deps.Schools, runtime: deps.Runtime, attach: attach, now: time.Now, logger: logger}, nil
+	return &CatererAccess{
+		auth: auth, store: deps.Store, delivery: deps.Delivery, passwords: deps.Passwords, verifier: deps.Verifier,
+		schools: deps.Schools, runtime: deps.Runtime, mfa: deps.MFA, passkeys: deps.Passkeys,
+		attach: attach, now: time.Now, logger: logger,
+	}, nil
 }
 
 // inSchool reports whether the caller opened a school's transaction.
@@ -406,41 +418,6 @@ func (c *CatererAccess) findCaterer(ctx context.Context, accountID int64, into *
 	return found, stats, err
 }
 
-// LoginCatererWithAudit signs a caterer account in to the caterer portal.
-// The session row is pinned to the first school the caterer supplies for its
-// foreign key and RLS; the token itself carries no school. A caterer without
-// a school, and any other account, is refused.
-func (c *CatererAccess) LoginCatererWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
-	access, refresh, err := c.login(c.attach(ctx), email, password, ipAddress, userAgent)
-	return access, refresh, catererError(err)
-}
-
-func (c *CatererAccess) login(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
-	account, err := c.auth.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
-	if err != nil {
-		return "", "", err
-	}
-	_, schools, err := c.catererSchools(ctx, account.ID)
-	if err != nil {
-		c.auth.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Not a caterer")
-		return "", "", err
-	}
-	if len(schools) == 0 {
-		// No school to file the event at: the refusal is logged only.
-		c.logger.Info("caterer login refused: no school", slog.Int64("account_id", account.ID))
-		return "", "", failed("caterer login", domain.ErrCatererWithoutSchool)
-	}
-	// A caterer has no school membership; the login is filed at the school
-	// its session is pinned to.
-	ctx = c.runtime.WithTenantID(ctx, schools[0])
-	session, err := c.auth.createRefreshSession(ctx, account, schools[0], domain.ScopeCaterer)
-	if err != nil {
-		return "", "", err
-	}
-	access, refresh := buildClaims(account, session, buildCatererMetadata(account), email)
-	return c.auth.generateAndLogTokens(ctx, account.ID, access, refresh, ipAddress, userAgent, domain.AuthEventLogin)
-}
-
 // buildCatererMetadata is the claims material of a caterer token: the
 // caterer role name a token needs, no permission, no school. The portal
 // resolves the caterer and its schools on every request.
@@ -476,13 +453,30 @@ var catererSentinels = []struct {
 	{domain.ErrCatererAlreadySupplies, identityaccess.ErrCatererAlreadySupplies},
 }
 
+// catererMFAError translates the caterer sentinels and leaves the
+// credentials and the second factor to the sign-in's mapping (#4497).
+func catererMFAError(err error) error {
+	if translated, ok := translateCatererSentinel(err); ok {
+		return translated
+	}
+	return authenticationError(err)
+}
+
+// translateCatererSentinel exposes the public sentinel of a caterer error.
+func translateCatererSentinel(err error) (error, bool) {
+	for _, sentinel := range catererSentinels {
+		if errors.Is(err, sentinel.internal) {
+			return &translatedError{text: err.Error(), public: sentinel.public, cause: err}, true
+		}
+	}
+	return nil, false
+}
+
 // catererError translates the caterer sentinels and leaves credentials and
 // invitations to the mappings of their flows.
 func catererError(err error) error {
-	for _, sentinel := range catererSentinels {
-		if errors.Is(err, sentinel.internal) {
-			return &translatedError{text: err.Error(), public: sentinel.public, cause: err}
-		}
+	if translated, ok := translateCatererSentinel(err); ok {
+		return translated
 	}
 	if errors.Is(err, identityaccess.ErrInvalidCredentials) || errors.Is(err, domain.ErrAccountNotFound) || errors.Is(err, identityaccess.ErrAccountInactive) {
 		return authenticationError(err)

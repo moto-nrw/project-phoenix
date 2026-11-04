@@ -1,0 +1,62 @@
+{
+  "packages": [
+    {
+      "path": "modules/parentannouncementaudience/internal/adapters/postgres",
+      "owner": "parent-announcement-audience",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentannouncementaudience",
+      "owner": "parent-announcement-audience",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentannouncementaudience/contract",
+      "owner": "parent-announcement-audience",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "parent-announcement-audience.postgres.parentannouncementaudience.native-contract",
+      "description": "Native projection record successor to the retired private adapter reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-announcement-audience",
+      "source_role": "postgres",
+      "source_package": "modules/parentannouncementaudience/internal/adapters/postgres",
+      "target_owner": "parent-announcement-audience",
+      "target_role": "public",
+      "target_package": "modules/parentannouncementaudience/contract"
+    }
+  ],
+  "read_projections": [
+    {
+      "id": "parent-announcement-audience",
+      "package": "modules/parentannouncementaudience/internal/adapters/postgres",
+      "data_objects": [
+        "activities.student_enrollments",
+        "auth.account_tenants",
+        "auth.accounts",
+        "users.guardian_profiles",
+        "users.parent_announcement_options",
+        "users.parent_announcement_reads",
+        "users.parent_announcement_responses",
+        "users.parent_announcement_targets",
+        "users.parent_announcements",
+        "users.persons",
+        "users.student_care_profiles",
+        "users.student_profiles",
+        "users.student_school_memberships"
+      ],
+      "tenant_safe": true
+    }
+  ]
+}

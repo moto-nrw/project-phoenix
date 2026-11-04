@@ -61,6 +61,10 @@
   },
   {
     "resource": "class_day",
+    "action": "absence_report_write"
+  },
+  {
+    "resource": "class_day",
     "action": "all_classes"
   },
   {
@@ -86,6 +90,10 @@
   {
     "resource": "class_day",
     "action": "homework_write"
+  },
+  {
+    "resource": "class_day",
+    "action": "parent_letter_write"
   },
   {
     "resource": "class_day",
@@ -220,6 +228,10 @@
     "action": "register"
   },
   {
+    "resource": "parent_messages",
+    "action": "leadership"
+  },
+  {
     "resource": "permissions",
     "action": "create"
   },
@@ -321,6 +333,14 @@
   },
   {
     "resource": "staff_notices",
+    "action": "read"
+  },
+  {
+    "resource": "student_accidents",
+    "action": "manage"
+  },
+  {
+    "resource": "student_accidents",
     "action": "read"
   },
   {

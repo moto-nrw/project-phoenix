@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { staffMonthSummaryService } from "~/lib/staff-api";
-import { useSWRAuth } from "~/lib/swr";
+import { useLiveRefreshInterval, useSWRAuth } from "~/lib/swr";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import {
   OPEN_MONTH_REFRESH_MS,
@@ -80,6 +80,9 @@ export function useAccountBalance(staffId?: string): AccountBalance {
   const anchor = config?.accountStartDate ?? "";
   const anchorIsInFuture = anchor !== "" && anchor > today;
   const canResolveAccount = !configLoading && !configError && !anchorIsInFuture;
+  // staff_time_tracking_changed invalidates the month; the interval follows
+  // the growing Ist of an open block (#5017).
+  const refreshInterval = useLiveRefreshInterval(OPEN_MONTH_REFRESH_MS);
 
   const { data, isLoading, error, mutate } = useSWRAuth<MonthSummary>(
     !canResolveAccount
@@ -93,7 +96,7 @@ export function useAccountBalance(staffId?: string): AccountBalance {
         : timeTrackingService.getMonthSummary(year, month),
     // The current month is always open: a running session grows Ist
     // server-side, so the Saldo has to keep up.
-    { refreshInterval: OPEN_MONTH_REFRESH_MS },
+    { refreshInterval },
   );
 
   const retry = useCallback(async () => {

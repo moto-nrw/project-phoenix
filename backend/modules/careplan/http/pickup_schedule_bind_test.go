@@ -1,6 +1,7 @@
 package careplanhttp
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -822,4 +823,21 @@ func TestPickupResetErrorRenderer_NoOfferingIsConflict(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.Contains(t, w.Body.String(), `"code":"students.pickup_reset_requires_offering"`)
+}
+
+func TestPickupResetErrorRenderer_StillNeededNamesDates(t *testing.T) {
+	t.Parallel()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/", nil)
+	err := fmt.Errorf("reset: %w", &careplan.PickupResetStillNeededError{
+		NeededUntil: calendar.NewDate(2026, 11, 9), PossibleFrom: calendar.NewDate(2026, 11, 10),
+	})
+	require.NoError(t, render.Render(w, r, pickupResetErrorRenderer(err)))
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	body := w.Body.String()
+	assert.Contains(t, body, `"code":"students.pickup_reset_still_needed"`)
+	assert.Contains(t, body, `"needed_until":"09.11.2026"`)
+	assert.Contains(t, body, `"possible_from":"10.11.2026"`)
 }

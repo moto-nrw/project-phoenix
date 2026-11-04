@@ -42,6 +42,8 @@ export interface BackendStaffResponse {
   external_organization?: string;
   // Kontostand der externen Kraft (#4573); fehlt bei allen anderen.
   external_account_status?: ExternalAccountStatus;
+  // Geplanter letzter Arbeitstag (#4809), "YYYY-MM-DD"; nur mit Personalrecht.
+  planned_exit_date?: string;
 }
 
 /**
@@ -83,5 +85,6 @@ export function mapBackendStaff(staff: BackendStaffResponse) {
     is_external: staff.is_external ?? false,
     external_organization: staff.external_organization ?? null,
     external_account_status: staff.external_account_status ?? null,
+    planned_exit_date: staff.planned_exit_date ?? null,
   };
 }

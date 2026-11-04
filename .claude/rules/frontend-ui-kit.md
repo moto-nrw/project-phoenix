@@ -7,11 +7,11 @@ paths:
 
 **RULE: All new frontend UI MUST be built from the shared kit in `frontend/src/components/ui/` (and `frontend/src/components/ui/page-header/`). Do NOT hand-roll a button, card, tab bar, modal, input, badge, table, or menu when a kit component exists. Do NOT import React components from the `@moto-nrw/design-system` package — that package is consumed for CSS tokens only.**
 
-This kit is the de-facto MOTO design system for project-phoenix — the visual language the team converged on (much of it built by Florian / `fl0r14n28`). It encodes the correct radii, brand colors, shadows, and interaction patterns. Reusing it is how every screen ends up looking the same. Hand-rolling chrome with ad-hoc `rounded-*` and generic Tailwind colors is exactly the drift this rule exists to stop.
+This kit is the de-facto MOTO design system for project-phoenix — the visual language the team converged on (much of it built by Florian / `fl0r14n28`). It encodes the correct radii, brand colors, shadows, and interaction patterns. Hand-rolling chrome with ad-hoc `rounded-*` and generic Tailwind colors is exactly the drift this rule exists to stop.
 
-> The published `@moto-nrw/design-system` npm package ships components too, but project-phoenix is **not** on them yet — it only imports the package's CSS/tokens (`@import "@moto-nrw/design-system/tailwind"` in `globals.css`). Until the team explicitly migrates, the local `ui/` kit is the single source of truth. Don't import the package's components, and don't introduce a third component system.
+> The published `@moto-nrw/design-system` npm package ships components too, but project-phoenix is **not** on them yet — it only imports the package's CSS/tokens (`@import "@moto-nrw/design-system/tailwind"` in `globals.css`). Until the team explicitly migrates, the local `ui/` kit is the single source of truth. No third component system.
 
-Read this rule before frontend UI changes; the root entry point and `frontend/CLAUDE.md` route here.
+Read this rule before frontend UI changes; the root entry point and `frontend/CLAUDE.md` route here. [ADR 0149](../../docs/adr/0149-ui-kit-entscheidet-jede-konkurrierende-variante-einmal.md) decides between competing kit variants, including pieces not built yet; read it before adding or migrating kit pieces.
 
 ## Source of truth
 
@@ -26,7 +26,7 @@ Imports are always by direct file path: `import { Button } from "~/components/ui
 
 ## Page scaffolding — one shell, no per-page layout
 
-**RULE: Every page under `frontend/src/app/[tenant]/(protected)` renders `TenantPage` (`~/components/ui/tenant-page`) as its root. A page supplies data, never layout.** There are no exemptions — the dashboard, the profile page and the emergency list run through the same scaffold as every list. The exemption set in `tenant-page-scaffold.test.ts` is empty and may only be added to with reviewer approval recorded in the PR.
+**RULE: Every page under `frontend/src/app/[tenant]/(protected)` and every signed-in page under `frontend/src/app/traeger` renders `TenantPage` (`~/components/ui/tenant-page`) as its root. A page supplies data, never layout.** There are no exemptions — the dashboard, the profile page and the emergency list run through the same scaffold as every list. The exemption set in `tenant-page-scaffold.test.ts` is empty and may only be added to with reviewer approval recorded in the PR.
 
 `TenantPage` fixes the order of the parts so no page can decide it again:
 
@@ -42,13 +42,15 @@ What that forbids in a page file: `max-w`, `mx-auto`, own root padding, a second
 
 **The body fills the screen.** The last kit surface in the body grows to the bottom edge (`.moto-tenant-body` in `globals.css`; the shell hands a flex column down to the content wrapper), so an empty page, a one-row table and a thirty-row list share one outline instead of ending after 60 px with half a screen of bare dot pattern. Only a `section`/`div` surface grows, directly in the body or up to two wrappers deeper (page wrapper, `DataTable`), and every wrapper in between must itself be a flex column (`flex flex-col`); grids and clickable tiles never grow. Do not fake it per page with `min-h-*` — unwrap the block instead.
 
-**No mini-heading above the title.** The blue uppercase kicker is gone from the tenant portal: it meant six different things at once (sidebar area, entity type, a repeat of the title, wizard step, a date, a status), so it taught the reader nothing. Where the user is comes from the breadcrumbs and the sidebar. `SectionCard`'s `kicker` prop survives for the parents portal only.
+**No mini-heading above the title.** The blue uppercase kicker is gone from the tenant portal: it meant six different things at once (sidebar area, entity type, a repeat of the title, wizard step, a date, a status), so it taught the reader nothing. Where the user is comes from the breadcrumbs and the sidebar. `SectionCard`'s `kicker` prop survives for the parents portal, the NFC print guide and `/start` only.
 
 **Status line, not explanation.** The line under the title carries figures the page already loads — „116 Kinder · 107 zuhause · 9 krank", „29.07.2026 bis 27.08.2026 · 22 Betreuungstage". Use `TenantPageStats` for value/label pairs and `statsLoading` for the skeleton. An explanatory sentence in the head is a rule violation, not a nicety (`moto-einfache-sprache`, rule 8). A figure a tile or card in the body already shows does not repeat in the status line; leave `stats` empty then. Text a person needs only to get to know the page goes into `TenantPage`'s `info` prop: an info button next to the title opens it as a popover (tap, click and keyboard, may carry a link), so it costs no card row in daily use (#4385). Text needed on every visit stays a `SectionCard`.
 
 **One tab component per position.** Page-level tabs go through `TenantPage`'s `tabs` prop. `ui/Tabs` is only for tabs INSIDE a card (the substitution slide-over's Bearbeiten/Verlauf), `SegmentedControl` for every value choice — Monat/Woche/Tag, A/B-Woche, target group, export range, list filter. A value switcher built from `ui/Tabs` is a violation, not a style choice: the ratchet `ui-kit/no-tabs-as-value-switcher` fails on it.
 
 **One card per job, all from the kit.** A content surface in a tenant page is never a hand-written class chain: `SectionCard` (with `title`, or without it for the plain surface), `TileCard` for anything clickable (`containsControls` when the tile carries its own buttons), `StatCard` for every figure (it has `icon`, `href`, `loading`), `TenantPageHeaderSkeleton` for a loading head. `ui-kit/no-hand-rolled-page-card` fails a page that spells the surface out again.
+
+**One create button per surface, also when it is empty.** The create action stays in the head (`TenantPage` `actions`, `SectionCard` `action`), where it also sits when the list is filled. The empty state shows title and description without a second create button and may point to the head in text; on the database pages that includes the mobile FAB. `empty.action` / `EmptyState` `action` is only for a different step, such as „Filter zurücksetzen" while a search or filter is active (#5034). Outside production `TenantPage` logs `tenant_page_empty_action_repeats_head_action` when an empty-state control carries the name of a head control.
 
 **One empty-value glyph.** Where a table cell or a field has no value, it shows „–" (en dash). „—" was in use side by side with it, sometimes in the same table. Where there is room, say why the value is missing instead of printing a glyph.
 
@@ -66,10 +68,10 @@ Prose cannot transfer taste, density, spacing judgment, or restraint. Examples c
 | Detail page       | `frontend/src/app/[tenant]/(protected)/staff/[id]/page.tsx`    | `ui/Tabs` + `detail-modal-components` field layout                                                                                                          |
 | Dense dashboard   | `frontend/src/app/[tenant]/(protected)/time-tracking/page.tsx` | KPI/Saldo cards, charts, tables, modals — how a complex operational screen stays dense, not decorative (big file; study sections, don't read top-to-bottom) |
 | Page scaffold     | `frontend/src/components/ui/tenant-page.tsx`                   | the root every tenant page renders                                                                                                                          |
-| Card primitive    | `frontend/src/components/ui/info-card.tsx`                     | the canonical card surface                                                                                                                                  |
+| Card primitive    | `frontend/src/components/ui/section-card.tsx`                  | the canonical card surface                                                                                                                                  |
 | Table primitive   | `frontend/src/components/ui/data-table.tsx`                    | the canonical table                                                                                                                                         |
 
-Keep this list current: if a reference is deleted or substantially rewritten, replace it with the new canonical example.
+Keep this list current: replace a deleted or rewritten reference.
 
 ## Visual references — look at the real UI
 
@@ -98,27 +100,30 @@ An unexplained bespoke component is a review failure, not a style preference.
 
 | You need… | Use | Import from |
 |---|---|---|
-| Button / CTA | `Button` — variants `primary` `secondary` `outline` `outline_danger` `danger` `warning` (proceed despite a side effect, orange) `success` `ghost`; sizes `sm` `base` `lg` `xl` (page-level), `md` (modal-footer / in-form action height, `px-4 py-2 text-sm`) + `compact` `icon` (flat dense chrome). Pass `type="button"` outside forms. | `~/components/ui/button` |
-| Text input | `Input` | `~/components/ui/input` |
-| Checkbox | `Checkbox` — brand-green (`#83CD2D`) checked state; wrap in your own `<label>` for the row | `~/components/ui/checkbox` |
-| Inline alert / banner | `Alert` (`type`, `message`) | `~/components/ui/alert` |
+| Button / CTA | `Button` (actions), `ButtonLink` (navigation), `buttonClassName` (anything else that must look like a button) — rules in [Buttons](#buttons) below. Pass `type="button"` outside forms. | `~/components/ui/button` |
+| Text input | `Input` — `required` (or `aria-required` on a form with its own check) shows the star itself; `error` renders the hint and `aria-invalid` | `~/components/ui/input` |
+| Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group's `<legend>` ends in `RequiredMark`. Never a star in a label string or translation (#5217) | `~/components/ui/field-label` |
+| Checkbox | `Checkbox` — gray-900 checked state; wrap in your own `<label>` for the row | `~/components/ui/checkbox` |
+| Consent or confirmation a person ticks (Einwilligung, „verbindlich“) | `ConsentCheckbox` — `required`, `error`, `action` for the legal text button; both public Anmeldungen use it | `~/components/ui/consent-checkbox` |
+| Inline alert / banner (one notice) | `Alert` (`type`, `message`); a notice that needs attention is `type="warning"` (orange), never an amber box; several notices of the same kind follow [Several notices of the same kind](#several-notices-of-the-same-kind) | `~/components/ui/alert` |
+| Rows with their own actions in a desktop column | `ResponsiveActionList` | `~/components/ui/responsive-action-list` |
 | Transient feedback | `Toast` — presentational surface only; queue, lifetime, and placement stay in `ToastProvider` | `~/components/ui/toast` |
-| Modal dialog | `Modal`, `ConfirmationModal` | `~/components/ui/modal` |
-| Form inside a modal | `FormModal` | `~/components/ui/form-modal` |
+| Modal dialog | `Modal`, `ConfirmationModal` (header `icon`, `description`) | `~/components/ui/modal` |
+| Form inside a modal | `FormModal` (built on `Modal`) | `~/components/ui/form-modal` |
 | Delete confirmation (every deletion; `bauart/one-delete-confirm` fails a `ConfirmationModal`, hand-built `Modal` or `window.confirm` for Löschen) | `ConfirmDeleteModal` — gate `twoStep`, or `textConfirm` for irreversible data loss; a series/child scope choice goes in its `scope` slot, not in a `ChoiceModal` in front | `~/components/ui/confirm-delete-modal` |
 | Multi-step wizard | `WizardStepper` | `~/components/ui/wizard-stepper` |
 | Footer of an edit state (Abbrechen + Speichern, saving label, disabled while the draft is invalid) | `EditActions` — the only save affordance outside settings; auto-save on blur/change is ratcheted to zero by `bauart/no-autosave`. An object is edited in its tab, never in an overlay titled „… bearbeiten“ / „… verwalten“ (`bauart/no-edit-overlay`, #3116) | `~/components/ui/edit-actions` |
 | Tabs (switching CONTENT panels) | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` — `variant="default"` (pill) or `"line"` (underline) | `~/components/ui/tabs` |
 | Segmented choice that is a VALUE, not a panel (mode picker, Monat/Woche, modal section switcher) | `SegmentedControl` — `variant="joined"` (bordered inline) or `"pills"` (tinted, per-item `tone`), `fullWidth` for modal tab bars | `~/components/ui/segmented-control` |
 | Data / list table | `DataTable`, `DataTableStatusBadge` | `~/components/ui/data-table` |
-| Info / stat card | `InfoCard`, `InfoItem` | `~/components/ui/info-card` |
-| Page section with heading, explanation, actions | `SectionCard` — `moto-content-surface` card with kicker, title, description, action slot, optional `collapsible` | `~/components/ui/section-card` |
-| Any other framed white container (list wrapper, inner card, skeleton) | the `moto-content-surface` utility + `rounded-2xl border shadow-sm` (inner cards keep `rounded-xl`); never `border-gray-200 bg-white` by hand | `globals.css` |
+| Key figure tile | `StatCard` — default `variant="card"` | `~/components/ui/stat-card` |
+| Any card: page section with heading, explanation, actions, or a plain surface | `SectionCard`, the only card head: `concept`/`icon`/`leading`, `collapsible`, `flush`, `footer`, `padding="none"`, `loading`; `kicker`: ADR 0149 | `~/components/ui/section-card` |
+| Any other framed white container (list wrapper, inner card, skeleton) | the `moto-content-surface` utility + `rounded-2xl border` (inner cards keep `rounded-xl`); never `border-gray-200 bg-white` by hand | `globals.css` |
 | Floating menu / dropdown list / anchored popover panel | the `moto-popover-surface` utility + `rounded-xl border` (gray-200 frame, white, shadow-lg, no blur) — what `OverflowMenu`, `CustomSelect`, `DatePicker` use internally | `globals.css` |
 | Selectable row or tile (label around a Checkbox/Radio, mode-picker button, row with a selection state) | `ChoiceTile` — `as` = `label` (default) / `button` / `div`, `selected`, `disabled`, `tone` = `gray` `green` `blue`; padding via `className` | `~/components/ui/choice-tile` |
-| Detail-panel fields | `DataField`, `InfoSection`, `DataGrid`, `InfoText` | `~/components/ui/detail-modal-components` |
+| Label/value fields | `DataField` in a `dl`, `InfoSection`, `DataGrid`, `InfoText` | `~/components/ui/detail-modal-components` |
 | Select dropdown (form value) | `CustomSelect`, `ListboxDropdown` (keyboard/ARIA listbox) | `~/components/ui/custom-select`, `~/components/ui/listbox-dropdown` |
-| Date / range picker | `DatePicker`, date-range picker | `~/components/ui/date-picker`, `~/components/ui/date-range-picker` |
+| Date / range picker | `DatePicker` (selection gray-900, today blue), date-range picker (aligns in #5585) | `~/components/ui/date-picker`, `~/components/ui/date-range-picker` |
 | Loading / skeleton | `Loading`, `Skeleton` | `~/components/ui/loading`, `~/components/ui/skeleton` |
 | Avatar | `Avatar` | `~/components/ui/avatar` |
 | Location / presence badge | `LocationBadge`, `PresenceBadge`, `StudentPresenceBadge` | `~/components/ui/location-badge`, etc. |
@@ -126,10 +131,11 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Data-driven status pill (raw hex) | `StatusColorBadge` | `~/components/ui/status-color-badge` |
 | Empty / no-results state | `EmptyState` — optional icon, title, description, action slot | `~/components/ui/empty-state` |
 | Back navigation (Unterseite → Sammlung) | `TenantPage` mit `back` / `backHref` / `backLabel`; außerhalb des Gerüsts `TenantBackLink` (Tenant) oder `BackLink` (anderes Portal, fertiger Pfad). Ein Link mit Pfeil und Ziel als Text („Zurück zu den Räumen"), auf jeder Breite, über dem Titel; nie ein eigener Knopf im Inhalt (#4364). Eine Ansicht ohne eigene Adresse (Editor → Übersicht derselben Seite) nimmt `BackAction`, denselben Rückweg als Knopf (#4397) | `~/components/ui/tenant-page`, `~/components/ui/back-link` |
+| Icon in a sidebar row (any portal) | `MotoNavIcon` with `scene` / `NavSceneIcon`: the glyph's animated scene; a glyph new to a sidebar needs a scene: `.claude/rules/sidebar-icon-scenes.md` | `~/components/ui/moto-nav-icon`, `~/components/ui/nav-scene-icon/nav-scene-icon` |
 | Link in the app shell (sidebar, bottom nav, breadcrumbs, header menus) | `NavLink` — `next/link` without viewport prefetch; prefetches on hover, focus, or touch start instead (#2976). | `~/components/ui/nav-link` |
 | Interner Link im Seiteninhalt | `NavigationLink` — meldet den Wechsel an die Portalhülle und verwirft die Meldung bei abgebrochenem Klick. `ButtonLink` nutzt dieselbe Meldung bei String-Zielen. Plain `next/link` bleibt richtig für externe Ziele, Downloads, neue Tabs und Bereiche ohne `PortalShell`. | `~/components/ui/navigation-link` |
 | Rückmeldung, dass ein Seitenwechsel läuft | `NavigationProgressBar` / `NavigationProgressProvider` — steckt bereits in `PortalShell`; `NavLink`, `NavigationLink` und `ButtonLink` melden den ausstehenden Wechsel selbst (#2828). Nicht nachbauen und keine eigene Ladehülle über mehrere Seiten legen. | `~/components/ui/navigation-progress` |
-| Overlay / side panel | `Drawer`, slide-over | `~/components/ui/drawer`, `~/components/ui/slide-over` |
+| Overlay / side panel | `Drawer`, slide-over; levels: `Z_LAYER` (`overlay-styles`) | `~/components/ui/drawer`, `~/components/ui/slide-over` |
 | Failed API call shown to the user | `useApiErrorDisplay` (toast), `useApiFormError` + `FormErrorAlert`, `useApiLoadError` + `LoadErrorAlert`; rules in `.claude/rules/error-path.md` | `~/contexts/ToastContext`, `~/components/ui/form-error-alert` |
 | List/search page header | `PageHeaderWithSearch` | `~/components/ui/page-header/PageHeaderWithSearch` |
 | Header nav tabs (sliding indicator, mobile dropdown) | `NavigationTabs` | `~/components/ui/page-header/NavigationTabs` |
@@ -139,15 +145,66 @@ An unexplained bespoke component is a review failure, not a style preference.
 
 If none fits, see **Kit gaps** below — extend the kit, don't inline a one-off.
 
+## Buttons
+
+Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot meet a rule, comment on the ticket instead of deviating.
+
+**Every action uses the kit.** `className` on a kit button carries layout only (`w-full`, `flex-1`, `gap-*`, `mt-*`, `shrink-0`, `self-*`, `hidden md:flex` …), never height, padding, radius, font size/weight, background, text/ring/shadow colour or `scale`. A missing look is a new kit variant.
+
+| Size | Height (mouse) | Use for |
+|---|---|---|
+| `md` | `px-4 py-2 text-sm` | **Default:** `TenantPage` head (sets its own height), `SectionCard` heads, modal/slide-over footers, forms |
+| `field` | 40 px (`h-10`, = `Input controlSize="compact"`) | Auth forms; a button in the same row as a 40-px field |
+| `compact`, `icon` | 32 px | Dense toolbars, table rows, icon actions |
+| `sm`, `base`, `lg`, `xl` | `px-5 py-3` | Only one large action standing alone (submit an enrolment) |
+
+| Variant | Use for |
+|---|---|
+| `primary` (gray-900), `outline`, `surface`, `ghost` | Neutral actions |
+| `ghost_tone` | Quiet action on a coloured notice (toast, alert): takes the notice's text colour |
+| `success` | Green confirm, every import submit |
+| `danger`, `outline_danger`, `ghost_danger` (quiet red) | Destructive |
+| `warning` | Proceed despite a side effect (orange) |
+| `link` | Text button, no padding, visible focus ring |
+| `fab` | Floating create button, round, 56 px, green |
+| `dashed` | Dashed add surface |
+
+**No grey buttons (#5574)**, no light-grey fill at rest. Value choice: `SegmentedControl`; on/off: `ToggleChip`; removal: `outline_danger`.
+
+**Finger rule.** Under `pointer: coarse` every kit button is at least 44 px high, `icon` 44 × 44 px; with a mouse nothing changes. The kit does this for every portal; no `min-h-11` overrides, no `touch` size.
+
+**Defaults.** No `scale` animation. `Alert` actions are `compact`. Equal actions on one surface share size and variant. Every overlay close X is `ghost` `icon`; on a coloured notice (toast) `ghost_tone` `icon`.
+
+**Deliberate exceptions (do not align):** the stamp buttons and the break stepper −/+ of time tracking; `global-error` (inline styles, loads no CSS; only colour, radius and weight follow kit `primary`); event rows and month chips in the parents calendar. **Not buttons in this sense:** list and selection rows, tiles (`TileCard`), tabs, `SegmentedControl`, checkboxes, switches, menu entries, navigation rows, steppers inside fields, dropzones.
+
+**Ratchet.** `ui-kit/no-hand-rolled-button` fails a native `button`/`a`/`Link`/`NavLink`/`NavigationLink`/`role="button"` with background or ring/border colour plus radius plus padding or height; `ui-kit/no-button-override` fails such classes on `Button`/`ButtonLink` or in `buttonClassName({ className })`. Findings in `frontend/scripts/ui-kit-button-baseline.json`; extras fail, removals require lowering it (`pnpm run ui-kit:button-baseline`). Exceptions with reasons: `ui-kit-button-baseline.mjs`. `ui-kit/no-grey-button-fill` (zero) fails resting `bg-gray-100`/`-200`/`-300`; exempt: switches, tabs, menus, `aria-pressed` choices, nav rows.
+
+## Several notices of the same kind
+
+Use when one screen shows two or more notices of the same kind, each about its own object (offerings without a Regeltermin, Regeltermine the system did not adjust). One notice stays an `Alert`; notices of different kinds keep their own block.
+
+Build it from existing kit parts, as Tristan Heitger and Florian (`fl0r14n28`) set them up; add no wrapper component:
+
+1. **One neutral section.** A `SectionCard` holds all entries as rows in `ResponsiveActionList` (`divide-y divide-gray-100`). Colour stays on the icon (`leading`) and on a count that names a fact („3 offen“); the rows are white, never one coloured `Alert` per entry.
+2. **Actions in one flush column.** From `sm` on, every row's actions start at the same place (rows take `sm:col-span-2 sm:grid sm:grid-cols-subgrid`); below `sm` they sit under the text, side by side from 480 px and one per line below. Actions of equal rank look the same: `Button` or, for navigation, `ButtonLink`, both `variant="surface" size="compact"`, with an `aria-label` naming the row's object. A text link next to a button is no equal-rank action.
+3. **Shared text once.** A hint that applies to several rows stands once above the list, also when only one row needs it, never repeated per row.
+4. **Only concrete labels.** Show what OGS staff can act on (name, children, days). Skip markers or badges that carry no concrete information.
+5. **Long lists fold.** More than 5 open rows: show the first 5 and a `ghost` button „N weitere anzeigen“ / „Weniger anzeigen“ with `aria-expanded`. Decided or done entries go into a second `SectionCard` with `collapsible defaultCollapsed`.
+6. **Load error stays small.** `LoadErrorAlert` with `actionLayout="responsive"` puts „Wiederholen“ right of the message from `sm` on and under it on a phone; never an empty list instead of the error. Exceptions in [`form-error-alert.tsx`](../../frontend/src/components/ui/form-error-alert.tsx): an error with a request ID stays `stacked` (retry and ID under the message), a retry shows only when the error carries one, and a module the school did not book shows its explanation without a retry.
+
+Reference implementations: [`offering-gap-hints.tsx`](../../frontend/src/components/timetable/offering-gap-hints.tsx) (#5181, all six points) and [`care-plan-impact.tsx`](../../frontend/src/components/students/care-plan-impact.tsx) (#5298, shared hint above the list, equal `surface compact` buttons).
+
+Review check: with two or more entries that carry actions, the screen shows one card, no `Alert` per entry, a flush action column from `sm` on, actions under the text below `sm`, and no repeated hint text. The before/after pairs for desktop and phone follow [Before/After Screenshots](../../frontend/CLAUDE.md#beforeafter-screenshots-for-ui-changes-mandatory).
+
 ## Canonical values
 
 ### Radius — set by the design-system `@theme`, NOT Tailwind defaults
 
 `rounded-sm`=4px · `rounded-md`=8px · `rounded-lg`=12px · `rounded-xl`=16px · `rounded-2xl`=24px · `rounded-full`=9999px
 
-- **Card / panel / floating surface wrapper** → the `.moto-content-surface` utility class (defined in `globals.css`: white bg, gray-200 border color, shadow-sm, backdrop blur, print-mode resets) combined with `rounded-2xl border p-4 shadow-sm sm:p-6` — this is what `InfoCard` renders and the dominant card surface across the app. The plain-Tailwind equivalent `rounded-2xl border border-gray-200 bg-white shadow-sm` also appears; prefer `moto-content-surface` for new cards. 24px = the design system's `--card-radius`. Do not invent another card shape, and never wrap content in a square `border-b`-only strip.
+- **Card / panel wrapper** → `SectionCard`, which renders the `.moto-content-surface` utility class (defined in `globals.css`: white bg, gray-200 border color, shadow-sm, backdrop blur, print-mode resets) with `rounded-2xl border p-5 max-sm:p-4`. 24px = the design system's `--card-radius`. Do not invent another card shape, and never wrap content in a square `border-b`-only strip.
 - Inner controls (buttons, inputs, pills) get their radius from the kit component. Don't sprinkle bare `rounded` (= 4px Tailwind default, off the brand scale).
-- Component radius tokens: button & input = `--radius-md` (8px), card = `--radius-2xl` (24px), badge/pill = `--radius-full`.
+- The code is the source (ADR 0149): controls (input, select, button) `rounded-lg` (12px; 32-px `compact`/`icon` buttons and the checkbox box `rounded-md`), inner surfaces and popovers `rounded-xl` (16px), cards `rounded-2xl` (24px), badge/pill `rounded-full`.
 
 ### Colors — route every semantic color through `LOCATION_COLORS`
 
@@ -178,13 +235,13 @@ failure this table exists to prevent: a `Record` or `switch` that maps one
 state to `SICK` and another to `DANGER` renders both identically. Check the
 resolved hex, not the constant name.
 
-Green CTA shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74B825`, active `#6DB118`, text `#3F6F12`. Note: the kit `Button` `variant="primary"` is **gray-900**, not green — green CTAs use the corresponding `moto-*` utilities or `LOCATION_COLORS` / `GROUP_ROOM_SHADES`, not copied hex classes.
+Green shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74B825`, active `#6DB118`, text `#3F6F12`, fill `#4A7F14`. **An opaque green surface with text or an icon carries white on the fill steps** (#5141): `bg-moto-green-fill text-white hover:bg-moto-green-fill-hover active:bg-moto-green-fill-active` (4.84 / 6.0 / 7.0 : 1), or `Button variant="success"`, which already does this. Base, hover, active, light and vivid are for indicators without text (dots, bars, borders): white on `#83CD2D` is 1.96:1. Tinted surfaces (`bg-moto-green/10`, `-soft`) keep dark or `text-moto-green-strong` text. The ratchet `ui-kit/green-fill-white-text` fails dark text on any opaque green and white text on the light greens. Note: the kit `Button` `variant="primary"` is **gray-900**, not green — green CTAs use `variant="success"`, the `moto-*` utilities or `LOCATION_COLORS` / `GROUP_ROOM_SHADES`, not copied hex classes.
 
 **Do NOT use the package color palette.** The `@moto-nrw/design-system` `@theme` ships a `steel` / `sage` / `warm` palette and `--color-brand-primary` (= sage `#7ba05b`). That is **not** the app's green. The app's brand green is `#83CD2D` (`LOCATION_COLORS.GROUP_ROOM` / the logo). Use `LOCATION_COLORS` for brand semantics and Tailwind `gray-*` for neutrals; never `bg-sage-*`, `bg-steel-*`, or `--color-brand-primary`, or you introduce a third, wrong green.
 
 ### Concept icons — one symbol per domain concept
 
-`MOTO_CONCEPTS` in `lib/moto-concepts.ts` is the single source for which symbol and tone a concept gets. Render it with `<MotoConceptIcon concept="…" />` (`~/components/ui/moto-concept-icon`); never import the Phosphor glyph and pick a tone by hand. The people concepts:
+Each concept's definition in `lib/concepts/<key>.ts` (collected in `MOTO_CONCEPTS`, `lib/moto-concepts.ts`) is the single source for which symbol and tone it gets. Render it with `<MotoConceptIcon concept={childrenConcept} />` (`~/components/ui/moto-concept-icon`), importing the definition from its own module so a page carries only the glyphs it shows; production code never imports the `MOTO_CONCEPTS` registry at runtime (`moto-concepts.test.ts` fails on it). Never import the Phosphor glyph and pick a tone by hand. The people concepts:
 
 | Concept     | Key        | Phosphor glyph           | Tone         |
 | ----------- | ---------- | ------------------------ | ------------ |
@@ -196,14 +253,14 @@ Green CTA shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD
 
 - One head always means a child, two heads parents, three heads a group, also where the icon is monochrome (sidebar entries, tab triggers, help tiles in `HELP_ICONS`): keep the glyph, drop the tone.
 - Deliberate exceptions: the profile menu (`UserIcon` = the signed-in user) and the neutral gray meta icons on the child card (`tone="neutral"`, same glyph as the concept).
-- Need a new concept? Add it to `MOTO_CONCEPTS`; don't define a one-off glyph/tone pair.
+- Need a new concept? Add a module under `lib/concepts/` and its entry in `MOTO_CONCEPTS`; don't define a one-off glyph/tone pair.
 
 ### Spacing & padding
 
 Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 · `3`=12 · `4`=16 · `5`=20 · `6`=24 · `8`=32 · `10`=40 · `12`=48 · `16`=64 px. Canonical component padding (from the design-system component tokens):
 
-- Card → `p-6` (24px); `p-4` compact, `p-10` large
-- Button → page sizes `px-5 py-3`; `md` (modal/form action) `px-4 py-2 text-sm`; `compact` `h-8 px-2.5`
+- Card → `p-5` (20px), `p-4` on a phone (`SectionCard`)
+- Button → `md` (default action) `px-4 py-2 text-sm`; `field` `h-10 px-4 text-sm`; `compact` `h-8 px-2.5`; single large actions `px-5 py-3`; under a finger at least 44 px (see [Buttons](#buttons))
 - Input → `px-4 py-3`
 
 ### Shadows
@@ -212,14 +269,14 @@ Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 
 
 ## Kit gaps — extend the kit, don't inline a bespoke control
 
-Compact / ghost / icon-only buttons now EXIST on `ui/Button` (`variant="ghost"`, `size="compact"`, `size="icon"`) — use those for dense toolbar/menu/icon chrome instead of hand-rolling. A modal-footer / in-form action height now EXISTS too: `size="md"` (`px-4 py-2 text-sm`) — use it for slide-over / modal footers and dense form actions instead of the oversized page sizes (`sm`/`base`/`lg`/`xl` are all `px-5 py-3`). A shared `Checkbox` (brand-green checked state) now EXISTS at `ui/checkbox` — never hand-roll a raw `<input type="checkbox">` with an ad-hoc accent color. A generic kebab/dropdown menu now EXISTS: `ui/page-header/OverflowMenu` covers action menus fully (portal-rendered, header/radio/checkbox/separator entries, `href` link items incl. `external`, destructive tone, badges) — never hand-roll a `menuOpen` + click-outside menu again. Semantic status pills (`ui/status-badge`, tone-based, with an optional `title` for a hover tooltip) and empty states (`ui/empty-state`) now EXIST too. A segmented single-choice control EXISTS at `ui/segmented-control` — reach for it instead of hand-rolling a `<button>` cluster whenever the choice is a **value** (work mode, Monat/Woche, a modal's section switcher) rather than a content panel; `ui/Tabs` is Radix and stays the answer for real panels. Note the test consequence when picking between them: Radix tabs activate on **mousedown**, so a screen whose existing tests drive the switcher with `fireEvent.click` must use `SegmentedControl` (plain buttons), not `Tabs`. Select dropdowns are covered by `ui/custom-select` and `ui/listbox-dropdown` — the old `moto-select` native-`<select>` convention is gone (no `moto-select` usage remains in the codebase); do not reintroduce styled native selects. When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
+Buttons, `Checkbox`, `OverflowMenu`, `StatusBadge`, `EmptyState`, `SegmentedControl` (a **value** choice; `ui/Tabs` stays for real content panels — Radix tabs activate on **mousedown**, so tests driving a switcher with `fireEvent.click` need `SegmentedControl`) and `CustomSelect`/`ListboxDropdown` (no styled native `<select>`) all EXIST — see the table above. When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
 
 ## Gotchas
 
 - **Kit `Tabs` is Radix-based.** In tests, select a tab with `fireEvent.mouseDown(tab, { button: 0 })`, **not** `fireEvent.click` — Radix activates on mousedown/focus, so a synthetic click does nothing. Mirror `src/components/database/detail-panel.test.tsx`.
-- **`ui/Button` defaults `type="submit"`** — in a non-form context pass `type="button"`. The page-level sizes (`sm` `base` `lg` `xl`) are `rounded-lg px-5 py-3 shadow-md` and oversized for both dense chrome and modal footers; for toolbars, dropdown triggers, and icon actions use `size="compact"` / `size="icon"` (flat `h-8`, `rounded-md`) with `variant="ghost"`, and for **modal / slide-over footers and in-form actions** use `size="md"` (`px-4 py-2 text-sm`) instead of reaching for `size="sm"` (which is the same height as `base`).
+- **`ui/Button` defaults `type="submit"`** — in a non-form context pass `type="button"`. `size="sm"` is the same height as `base` (`px-5 py-3`), not a small button; the normal action size is `md` ([Buttons](#buttons)).
 - **The last surface of a `TenantPage` grows to the bottom of the screen.** The unlayered `.moto-tenant-body` rule in `globals.css` sets `flex: 1 0 auto` on it and its wrappers, which beats any `flex-1 min-h-0` utility. A surface whose height comes from a wrapper and that scrolls inside must carry `moto-scroll-surface`, the documented exit from the rule. Otherwise it grows to its full content height and the fixed-height wrapper clips it or it spills past the wrapper (#3328, #3330). Current users: the chats (`useChatViewportLock`), and `MasterDetailLayout` and `DatabaseListLayout` on desktop (`useFillHeight`). Surfaces nested inside a scroll surface do not count for the rule, so its wrappers keep their own `flex-direction`. On a phone, prefer page scrolling: no fixed height, no exit, the card grows with its list (both database layouts do this below `md`). Do not work around the rule with inline `flex` styles. Browser check: `pnpm run test:layout` (`frontend/e2e/layout/`); add a case there for every new user of the exit.
-- **`NavigationTabs` collapses to a dropdown on mobile** — use it for page-level navigation, not a compact segmented switcher. For a segmented switcher use `ui/Tabs` `variant="default"`.
+- **`NavigationTabs` collapses to a dropdown on mobile**: page navigation only; value switcher: `SegmentedControl`.
 
 ## UI skills: this rule outranks all of them
 
@@ -229,7 +286,7 @@ The three places where following the vendored skill literally produces wrong out
 
 | Skill says | Here instead |
 |---|---|
-| `frontend/.claude/skills/better-ui/surfaces.md`: prefer a `box-shadow` ring over a border for depth | Keep the canonical card surface: `.moto-content-surface` / `rounded-2xl border border-gray-200 bg-white shadow-sm`. Do not strip borders off kit surfaces. |
+| `frontend/.claude/skills/better-ui/surfaces.md`: prefer a `box-shadow` ring over a border for depth | Keep the canonical card surface: `SectionCard`. Do not strip borders off kit surfaces. |
 | `better-colors`: express colors as OKLCH tokens | Brand semantics come from `LOCATION_COLORS` hex only. New chromatic Tailwind utilities trip the `ui-kit/no-generic-brand-colors` ratchet. Convert notation only in an explicit, approved color-system migration. |
 | `better-writing`: title case vs sentence case, English phrasing | All user-facing copy is German, with Umlauten. Take the structural advice (name the action in the label, errors next to the field, one clear action per empty state); match the wording of neighbouring screens. |
 
@@ -237,17 +294,14 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 ## Detection
 
-**CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on five drift patterns — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), `ui-kit/no-hand-rolled-surface` (hand-built card surfaces: unprefixed `rounded-xl/2xl` + `border` + `bg-white` on one element outside `ui/`, also when assembled across conditional branches; use `moto-content-surface`, `moto-popover-surface`, `ChoiceTile` or a kit surface component — #2933), `ui-kit/no-rounded-3xl` (off-scale card radius), and `ui-kit/require-checkbox-label` (unlabeled shared checkboxes; a Checkbox inside a label-shaped `ChoiceTile` counts as labeled). All five are hard-zero: the first production match fails. A deliberate non-card match (a white pill control, for example) may stay behind `{/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- <reason> */}` with the reason repeated in the PR description; there is no baseline to grow. Test/stories files are exempt from the class-string rules.
-The tenant page scaffold (#2619) adds four more rules in the same plugin: `ui-kit/no-tenant-kicker` (no mini-heading in the tenant portal), `ui-kit/no-hand-rolled-page-card` (`moto-content-surface` + `rounded-2xl` spelled out in a tenant page/loading file instead of a kit card), `ui-kit/no-tabs-as-value-switcher` (`ui/Tabs` carrying a value choice), and `ui-kit/no-tiny-text` (sub-12px text utilities; shrink-only per-file baseline).
+**CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on drift patterns, first these five — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), `ui-kit/no-hand-rolled-surface` (unprefixed `rounded-xl/2xl` + `border` + `bg-white` on one element outside `ui/`, also across conditional branches; use `moto-content-surface`, `moto-popover-surface`, `ChoiceTile` or a kit surface component — #2933), `ui-kit/no-rounded-3xl` (off-scale radius, `rounded-t-3xl` too), and `ui-kit/require-checkbox-label` (unlabeled shared checkboxes; a Checkbox inside a label-shaped `ChoiceTile` counts as labeled). These five are hard-zero. A deliberate non-card match (white pill) may stay behind `{/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- <reason> */}` with the reason in the PR description; no baseline. Test/stories files are exempt from the class-string rules.
+The tenant page scaffold (#2619) adds four more rules in the same plugin: `ui-kit/no-tenant-kicker` (no mini-heading in the tenant portal), `ui-kit/no-hand-rolled-page-card` (`moto-content-surface` + `rounded-2xl` spelled out in a tenant or Träger page/loading file instead of a kit card), `ui-kit/no-tabs-as-value-switcher` (`ui/Tabs` carrying a value choice), and `ui-kit/no-tiny-text` (sub-12px text utilities; shrink-only per-file baseline). `ui-kit/green-fill-white-text` (#5141, hard-zero) keeps text on opaque green surfaces white and on the dark fill steps. #5577: `no-dynamic-color-class`, `no-white-on-warm-fill` (white on orange only `-strong`). `ui-kit/no-hand-rolled-button` and `ui-kit/no-button-override` (#5531) are the button ratchet with a shrink-only per-file baseline and a reasoned allowlist ([Buttons](#buttons)). #5579: `no-shadcn-tokens`, `no-raw-z-index` (`z-[n]`). #5581: `no-important-override` (`!` on kit components, baseline), `no-section-card-bleed`. `ui-kit/no-raw-input` (#5217, hard-zero) fails a hand-built `<input>` outside `ui/`; only `type="hidden"` and `type="file"` stay native. A field with no kit counterpart (the OTP digit grid) stays behind `oxlint-disable-next-line ui-kit/no-raw-input -- <reason>`. A form jumps to its first failed field only through `FormErrorAlert`; there is no second scroll hook.
 
-`moto-content-surface` and `moto-popover-surface` are unlayered CSS classes, so they beat every Tailwind utility on the same element for border color, background and shadow: `border-gray-200`, `bg-white`, `bg-white/95`, `backdrop-blur` and `shadow-lg` next to them are dead and get deleted. Never put `moto-content-surface` on an element that needs a tinted branch (`danger ? "border-moto-red/20 bg-moto-red/10" : …`) — put it in the neutral branch only. It also adds `backdrop-filter: blur(8px)`, which turns the element into the containing block for `position: fixed` descendants (kit `Modal` is portal-rendered and unaffected).
+`moto-content-surface` and `moto-popover-surface` are unlayered CSS classes, so they beat every Tailwind utility on the same element for border color, background and shadow and ring; `ui-kit/no-dead-surface-utility` fails such utilities beside them (focus: `outline-2`, override: `!`). Never put `moto-content-surface` on an element that needs a tinted branch (`danger ? "border-moto-red/20 bg-moto-red/10" : …`) — put it in the neutral branch only. It also adds `backdrop-filter: blur(8px)`, which turns the element into the containing block for `position: fixed` descendants (kit `Modal` is portal-rendered and unaffected).
 
 ```bash
 # Components imported from the design-system package — should be ZERO (tokens only)
 rg -n "from ['\"]@moto-nrw/design-system['\"]" frontend/src -g '*.tsx' -g '*.ts'
-
-# Generic Tailwind brand-color utilities — prefer LOCATION_COLORS hex or a kit component
-rg -n "(text|bg|border|ring|outline|fill|stroke|from|via|to|divide|accent|caret|decoration|shadow)-(red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-[0-9]" frontend/src -g '*.tsx'
 ```
 
 ## Mandatory visual check — do not skip
@@ -262,7 +316,7 @@ Apply before marking any UI work complete (and reviewers: before approving):
 - [ ] No mini-heading (kicker) above a page title; status line carries real figures, not an explanation
 - [ ] Reuses kit components; any new component is justified in the PR description
 - [ ] Colors come from `LOCATION_COLORS` / kit components — no generic Tailwind hues
-- [ ] Radius, spacing, and density match the canonical screens (card = `rounded-2xl border border-gray-200 bg-white shadow-sm`)
+- [ ] Radius, spacing, and density match the canonical screens (card = `SectionCard`)
 - [ ] No marketing-style hero / decorative cards — it reads as an operational school tool
 - [ ] Works on mobile
 - [ ] Dense enough for daily operational use (not airy / landing-page)

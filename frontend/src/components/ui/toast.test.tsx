@@ -50,9 +50,20 @@ describe("Toast", () => {
     expect(
       screen.getByRole("button", { name: "Tippen zum Rückgängig" }),
     ).toHaveClass("h-11");
-    expect(screen.getByRole("button", { name: "Schließen" })).toHaveClass(
+    // #5531: Auf schmalen Ansichten bestimmt `touchFriendly` die Zielgröße
+    // unabhängig vom primären Zeiger; der Kit-Knopf behält zusätzlich die
+    // Fingerregel für pointer: coarse.
+    const close = screen.getByRole("button", { name: "Schließen" });
+    expect(close).toHaveClass(
+      "aspect-square",
+      "pointer-coarse:min-h-11",
+      "pointer-coarse:min-w-11",
       "h-11",
+      "w-11",
+      "text-current",
+      "hover:bg-black/5",
     );
+    expect(close).not.toHaveClass("h-8");
 
     fireEvent.click(
       screen.getByRole("button", { name: "Tippen zum Rückgängig" }),

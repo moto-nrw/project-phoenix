@@ -1,0 +1,6 @@
+DELETE /operator/devices/{id}
+GET /operator/devices/
+GET /operator/devices/{id}/transfer-status
+POST /operator/devices/
+POST /operator/devices/{id}/set-api-key
+POST /operator/devices/{id}/transfer

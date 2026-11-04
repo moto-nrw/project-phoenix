@@ -11,6 +11,9 @@ import {
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { presentConcept } from "~/lib/concepts/present";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import type { MotoConcept } from "~/lib/moto-concepts";
 
 export interface HistoryChartPoint {
   readonly date: string;
@@ -200,7 +203,7 @@ function HistoryCard({
   children,
 }: {
   readonly title: string;
-  readonly concept: "present" | "rooms";
+  readonly concept: MotoConcept;
   readonly subtitle: string;
   readonly children: ReactNode;
 }) {
@@ -263,7 +266,7 @@ export default function HistoryCharts({
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
       <HistoryCard
         title="Anwesenheit"
-        concept="present"
+        concept={presentConcept}
         subtitle="Tägliche Aufenthaltsdauer in Stunden"
       >
         <HistoryPlot
@@ -277,7 +280,7 @@ export default function HistoryCharts({
       </HistoryCard>
       <HistoryCard
         title="Aktivität"
-        concept="rooms"
+        concept={roomsConcept}
         subtitle="Raumwechsel pro Tag"
       >
         <ActivityChart data={activityData} tick={activityTick} />

@@ -11,6 +11,7 @@ import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
 import { isScopeBooked, PAGE_MODULES } from "~/lib/module-register";
 import { useBookedModules, useTenantSafe } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { messagesConcept } from "~/lib/concepts/messages";
 
 /**
  * Baustein „Ungelesene Nachrichten" (#2180): was in den Posteingängen noch
@@ -55,7 +56,7 @@ export function MessagesBlock() {
   return (
     <SectionCard
       title="Ungelesene Nachrichten"
-      leading={<HomeCardIcon concept="messages" />}
+      leading={<HomeCardIcon concept={messagesConcept} />}
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       inlineActions

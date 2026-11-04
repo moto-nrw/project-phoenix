@@ -950,12 +950,15 @@ func TestRoleAdministration_CreateRoleFromTemplate(t *testing.T) {
 		// admin reaches these only through admin:*.
 		f.store.addPermission("staff:financial")
 		f.store.addPermission("users:checkin")
+		// A school grants the leadership conversations only on purpose (#5200).
+		f.store.addPermission("parent_messages:leadership")
 
 		role, err := f.admin.CreateRole(raContext(), "Leitung", "", nil, identityaccess.RoleTemplateAdministration)
 		require.NoError(t, err)
 		require.NotNil(t, role.BaseRole)
 		assert.Equal(t, "admin", *role.BaseRole)
 		assert.ElementsMatch(t, []string{"permissions:read", "users:manage", "config:manage", "staff:financial", "users:checkin"}, f.store.permissionNames(role.ID))
+		assert.NotContains(t, f.store.permissionNames(role.ID), "parent_messages:leadership", "the Verwaltung template never copies the leadership permission")
 	})
 
 	t.Run("takes the stored tier of the Lehrkraft template", func(t *testing.T) {

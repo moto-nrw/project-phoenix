@@ -9,8 +9,13 @@ import {
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentsRoute" });
-import type { BackendSlimStudent, Student } from "~/lib/student-helpers";
+import type {
+  BackendNameStudent,
+  BackendSlimStudent,
+  Student,
+} from "~/lib/student-helpers";
 import {
+  mapNameStudentResponse,
   mapSlimStudentResponse,
   mapStudentResponse,
 } from "~/lib/student-helpers";
@@ -61,7 +66,9 @@ interface StudentResponseFromBackend {
  */
 interface ApiStudentsResponse {
   status: string;
-  data: Array<StudentResponseFromBackend | BackendSlimStudent>;
+  data: Array<
+    StudentResponseFromBackend | BackendSlimStudent | BackendNameStudent
+  >;
   pagination: {
     current_page: number;
     page_size: number;
@@ -116,7 +123,7 @@ export const GET = createGetHandler(
         ? Math.min(parsedPageSize, MAX_PAGE_SIZE)
         : DEFAULT_PAGE_SIZE;
     queryParams.set("page_size", String(pageSize));
-    const isSlimView = queryParams.get("view") === "slim";
+    const view = queryParams.get("view");
 
     const endpoint = `/api/students${queryParams.toString() ? "?" + queryParams.toString() : ""}`;
 
@@ -141,11 +148,15 @@ export const GET = createGetHandler(
       // Check for the paginated response structure from backend
       if ("data" in response && Array.isArray(response.data)) {
         // Map the backend response format to the frontend format using the consistent mapping function
-        const mappedStudents = response.data.map((student) =>
-          isSlimView
-            ? mapSlimStudentResponse(student as BackendSlimStudent)
-            : mapStudentResponse(student as StudentResponseFromBackend),
-        );
+        const mappedStudents = response.data.map((student) => {
+          if (view === "slim") {
+            return mapSlimStudentResponse(student as BackendSlimStudent);
+          }
+          if (view === "names") {
+            return mapNameStudentResponse(student as BackendNameStudent);
+          }
+          return mapStudentResponse(student as StudentResponseFromBackend);
+        });
 
         return {
           data: mappedStudents,

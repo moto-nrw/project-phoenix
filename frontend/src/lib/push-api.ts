@@ -233,16 +233,23 @@ export async function syncExistingPushSubscription(
  * Unsubscribes this device: removes the server-side registration and the
  * browser subscription. Best effort — errors surface to the caller.
  */
-export async function unsubscribePush(portal: PushPortal): Promise<void> {
+export async function unsubscribePush(
+  portal: PushPortal,
+  signal?: AbortSignal,
+): Promise<void> {
+  signal?.throwIfAborted();
   const subscription = await getExistingSubscription();
+  signal?.throwIfAborted();
   if (!subscription) return;
   try {
     await requestJson<void>(
       `${basePath(portal)}/subscriptions?endpoint=${encodeURIComponent(subscription.endpoint)}`,
-      { method: "DELETE" },
+      { method: "DELETE", ...(signal ? { signal } : {}) },
     );
   } finally {
-    await subscription.unsubscribe();
+    // Neither a late lookup nor a late response may start device cleanup
+    // after this logout attempt has ended.
+    if (!signal?.aborted) await subscription.unsubscribe();
   }
 }
 
@@ -252,11 +259,33 @@ export async function unsubscribePush(portal: PushPortal): Promise<void> {
  */
 export async function unsubscribePushSilently(
   portal: PushPortal,
+  deadline?: { signal: AbortSignal; timeoutMs: number },
 ): Promise<void> {
+  if (deadline?.signal.aborted) return;
+  const controller = deadline ? new AbortController() : undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let abort: (() => void) | undefined;
   try {
-    await unsubscribePush(portal);
+    if (!deadline || !controller) {
+      await unsubscribePush(portal);
+      return;
+    }
+    const ended = new Promise<void>((resolve) => {
+      abort = () => {
+        controller.abort();
+        resolve();
+      };
+      deadline.signal.addEventListener("abort", abort, { once: true });
+      timer = setTimeout(abort, deadline.timeoutMs);
+    });
+    // Browser Push APIs cannot be aborted. Stop waiting for them too, while
+    // unsubscribePush's signal guards prevent their late continuations.
+    await Promise.race([unsubscribePush(portal, controller.signal), ended]);
   } catch {
     // A server row left behind after browser cleanup is pruned on 404/410.
+  } finally {
+    clearTimeout(timer);
+    if (deadline && abort) deadline.signal.removeEventListener("abort", abort);
   }
 }
 

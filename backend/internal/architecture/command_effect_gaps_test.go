@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
 )
 
 func TestCommandEffectsChangedClosureNeedsFreshApproval(t *testing.T) {
@@ -74,13 +77,16 @@ func reviewGapFixture(t *testing.T, project string, policy *Policy, effect, clas
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Join(project, commandEffectInventory), string(blob))
+	if err := artifacts.WriteInventory(filepath.Join(project, commandEffectInventory), artifacts.CommandEffects, blob); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func commitGapFixture(t *testing.T, project string) string {
 	t.Helper()
+	writeFile(t, filepath.Join(project, "test", "query-budgets", "owner", "list.json"), queryBudgetFragment)
 	writeFile(t, filepath.Join(project, commandEffectDecision), "# Existing ADR 0083\n")
-	runGit(t, project, "init", "--quiet")
+	gitfixture.Init(t, project)
 	runGit(t, project, "add", ".")
 	runGit(t, project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "base")
 	return strings.TrimSpace(runGit(t, project, "rev-parse", "HEAD"))

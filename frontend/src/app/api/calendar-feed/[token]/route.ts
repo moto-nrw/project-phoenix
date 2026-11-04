@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { clientIdentityHeaders } from "~/lib/client-headers.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { withPrivateNoStore } from "~/lib/private-no-store";
 
@@ -15,6 +16,7 @@ async function GETHandler(
   const { token } = await context.params;
   const upstream = await fetch(
     `${getServerApiUrl()}/public/calendar/${encodeURIComponent(token)}`,
+    { headers: clientIdentityHeaders(_request.headers) },
   );
   if (!upstream.ok) {
     return forwardBackendResponse(upstream, _request);

@@ -8,7 +8,7 @@ import {
   useCallback,
 } from "react";
 import Link from "~/components/ui/navigation-link";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import {
   listAvailableTenants,
@@ -59,7 +59,7 @@ interface BrandTenantSwitcherProps {
  *
  * Switch flow:
  * 1. Call switchTenant(slug) to get new JWT tokens
- * 2. Update NextAuth session via signIn("credentials", { internalRefresh: true })
+ * 2. The BFF replaces the NextAuth session cookie
  * 3. Clear SWR cache to prevent stale cross-tenant data
  * 4. Clear session cache for fresh token resolution
  * 5. Hard-navigate to new tenant URL
@@ -135,12 +135,12 @@ export function BrandTenantSwitcher({
         // die Admin-Sitzung wiederherstellen, dann mit deren Token wechseln
         // — das Vorschau-Token selbst darf den Wechsel nicht ausführen.
         if (session?.user?.isPreview) {
-          await performEndStaffPreview(session.user.token, update, mutate);
+          await performEndStaffPreview(update, mutate);
         }
         // The backend resolves the switch target by SUBDOMAIN (same as
         // login), so pass targetTenant.subdomain — the slug column can
         // legitimately differ from it (#1975).
-        await performTenantSwitch(targetTenant.subdomain, signIn, mutate);
+        await performTenantSwitch(targetTenant.subdomain, mutate);
 
         const switchPayload = {
           from_slug: currentSlug ?? "unknown",

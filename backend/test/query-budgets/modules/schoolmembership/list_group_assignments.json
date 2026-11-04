@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.schoolmembership.list_group_assignments",
+  "max": 5,
+  "exact": false,
+  "description": "modules/schoolmembership — assignment lists, 8 rows each."
+}

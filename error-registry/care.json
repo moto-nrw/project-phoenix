@@ -1,0 +1,466 @@
+{
+  "codes": [
+    {
+      "code": "care.announcement_ack_not_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "announcement_ack_not_required"
+    },
+    {
+      "code": "care.announcement_not_a_poll",
+      "class": "input",
+      "parameters": [],
+      "legacy": "announcement_not_a_poll"
+    },
+    {
+      "code": "care.announcement_stale",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "announcement_stale"
+    },
+    {
+      "code": "care.cannot_remove_own_access",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "cannot_remove_own_access"
+    },
+    {
+      "code": "care.care_exception_already_left",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_exception_already_left"
+    },
+    {
+      "code": "care.care_exception_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_exception_conflict"
+    },
+    {
+      "code": "care.care_exception_no_time",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_exception_no_time"
+    },
+    {
+      "code": "care.care_exception_past_date",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_exception_past_date"
+    },
+    {
+      "code": "care.care_exception_reason_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_exception_reason_required"
+    },
+    {
+      "code": "care.care_exception_reason_too_long",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_exception_reason_too_long"
+    },
+    {
+      "code": "care.care_exception_too_far",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_exception_too_far"
+    },
+    {
+      "code": "care.care_request_already_pending",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_request_already_pending"
+    },
+    {
+      "code": "care.care_request_bookings_authoritative",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "care_request_bookings_authoritative"
+    },
+    {
+      "code": "care.care_request_field_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "care_request_field_disabled"
+    },
+    {
+      "code": "care.child_care_ended",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "child_care_ended"
+    },
+    {
+      "code": "care.child_not_linked",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "child_not_linked"
+    },
+    {
+      "code": "care.course_already_booked",
+      "class": "input",
+      "parameters": [],
+      "legacy": "course_already_booked"
+    },
+    {
+      "code": "care.course_request_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "course_request_invalid"
+    },
+    {
+      "code": "care.course_request_not_own",
+      "class": "input",
+      "parameters": [],
+      "legacy": "course_request_not_own"
+    },
+    {
+      "code": "care.course_requests_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "course_requests_disabled"
+    },
+    {
+      "code": "care.declaration_action_not_allowed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "declaration_action_not_allowed"
+    },
+    {
+      "code": "care.declaration_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "declaration_closed"
+    },
+    {
+      "code": "care.declaration_not_permitted",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "declaration_not_permitted"
+    },
+    {
+      "code": "care.declaration_password_incorrect",
+      "class": "input",
+      "parameters": [],
+      "legacy": "declaration_password_incorrect"
+    },
+    {
+      "code": "care.declaration_password_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "declaration_password_required"
+    },
+    {
+      "code": "care.declaration_signature_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care.declaration_signature_invalid"
+    },
+    {
+      "code": "care.declaration_signature_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care.declaration_signature_required"
+    },
+    {
+      "code": "care.pickup_permission_request_required",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care.pickup_permission_request_required"
+    },
+    {
+      "code": "care.pickup_permission_unchanged",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care.pickup_permission_unchanged"
+    },
+    {
+      "code": "care.pickup_person_not_linked",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care.pickup_person_not_linked"
+    },
+    {
+      "code": "care.pickup_proof_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care.pickup_proof_not_found"
+    },
+    {
+      "code": "care.pickup_signature_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care.pickup_signature_invalid"
+    },
+    {
+      "code": "care.pickup_signature_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care.pickup_signature_required"
+    },
+    {
+      "code": "care.declaration_version_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "declaration_version_changed"
+    },
+    {
+      "code": "care.excused_request_not_pending",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "excused_request_not_pending"
+    },
+    {
+      "code": "care.excused_request_overlap",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "excused_request_overlap"
+    },
+    {
+      "code": "care.family_protection",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "family_protection"
+    },
+    {
+      "code": "care.guardian_contact_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "guardian_contact_invalid"
+    },
+    {
+      "code": "care.guardian_email_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "guardian_email_conflict"
+    },
+    {
+      "code": "care.guardian_has_own_account",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "guardian_has_own_account"
+    },
+    {
+      "code": "care.guardian_management_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "guardian_management_disabled"
+    },
+    {
+      "code": "care.guardian_no_change",
+      "class": "input",
+      "parameters": [],
+      "legacy": "guardian_no_change"
+    },
+    {
+      "code": "care.guardian_not_linked",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "guardian_not_linked"
+    },
+    {
+      "code": "care.guardian_permission_denied",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "guardian_permission_denied"
+    },
+    {
+      "code": "care.guardian_relationship_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "guardian_relationship_invalid"
+    },
+    {
+      "code": "care.guardian_role_managed",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "guardian_role_managed"
+    },
+    {
+      "code": "care.guardian_shared_across_families",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "guardian_shared_across_families"
+    },
+    {
+      "code": "care.guardian_social_worker_managed",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "guardian_social_worker_managed"
+    },
+    {
+      "code": "care.invalid_credentials",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "invalid_credentials"
+    },
+    {
+      "code": "care.invalid_poll_response",
+      "class": "input",
+      "parameters": [],
+      "legacy": "invalid_poll_response"
+    },
+    {
+      "code": "care.invalid_recipients",
+      "class": "input",
+      "parameters": [],
+      "legacy": "invalid_recipients"
+    },
+    {
+      "code": "care.invalid_request_payload",
+      "class": "input",
+      "parameters": [],
+      "legacy": "invalid_request_payload"
+    },
+    {
+      "code": "care.invite_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "invite_disabled"
+    },
+    {
+      "code": "care.master_data_duplicate_pending",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "master_data_duplicate_pending"
+    },
+    {
+      "code": "care.master_data_edit_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "master_data_edit_disabled"
+    },
+    {
+      "code": "care.master_data_field_not_editable",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "master_data_field_not_editable"
+    },
+    {
+      "code": "care.master_data_invalid_value",
+      "class": "input",
+      "parameters": [],
+      "legacy": "master_data_invalid_value"
+    },
+    {
+      "code": "care.master_data_no_changes",
+      "class": "input",
+      "parameters": [],
+      "legacy": "master_data_no_changes"
+    },
+    {
+      "code": "care.master_data_request_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "master_data_request_disabled"
+    },
+    {
+      "code": "care.not_a_guardian",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "not_a_guardian"
+    },
+    {
+      "code": "care.notes_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "notes_disabled"
+    },
+    {
+      "code": "care.offering_change_already_pending",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "offering_change_already_pending"
+    },
+    {
+      "code": "care.offering_change_forbidden",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "offering_change_forbidden"
+    },
+    {
+      "code": "care.offering_change_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "offering_change_invalid"
+    },
+    {
+      "code": "care.offering_changes_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "offering_changes_disabled"
+    },
+    {
+      "code": "care.payer_guardian_protected",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "payer_guardian_protected"
+    },
+    {
+      "code": "care.photo_consent_not_withdrawn",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "photo_consent_not_withdrawn"
+    },
+    {
+      "code": "care.pickup_change_cutoff_passed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "pickup_change_cutoff_passed"
+    },
+    {
+      "code": "care.pickup_change_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "pickup_change_disabled"
+    },
+    {
+      "code": "care.poll_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "poll_closed"
+    },
+    {
+      "code": "care.primary_guardian_protected",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "primary_guardian_protected"
+    },
+    {
+      "code": "care.remove_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "remove_disabled"
+    },
+    {
+      "code": "care.request_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "request_not_found"
+    },
+    {
+      "code": "care.request_not_open",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "request_not_open"
+    },
+    {
+      "code": "care.request_sharing_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "request_sharing_invalid"
+    },
+    {
+      "code": "care.sick_note_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "sick_note_disabled"
+    },
+    {
+      "code": "care.staff_managed_guardian_protected",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "staff_managed_guardian_protected"
+    }
+  ]
+}

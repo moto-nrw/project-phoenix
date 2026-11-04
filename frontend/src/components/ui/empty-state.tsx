@@ -13,6 +13,7 @@ export function EmptyState({
   description,
   action,
   variant = "default",
+  titleAs = "p",
   className = "",
 }: {
   readonly icon?: ReactNode;
@@ -20,6 +21,8 @@ export function EmptyState({
   readonly description?: string;
   readonly action?: ReactNode;
   readonly variant?: "default" | "compact";
+  /** `h1` when the empty state is the page's only content, e.g. a full-page notice. */
+  readonly titleAs?: "p" | "h1" | "h2";
   readonly className?: string;
 }) {
   if (variant === "compact") {
@@ -43,6 +46,7 @@ export function EmptyState({
     );
   }
 
+  const Title = titleAs;
   return (
     // cn statt Aneinanderreihung: sonst gewinnt bei einer Kollision nicht die
     // uebergebene Klasse, sondern die, die in der erzeugten CSS-Datei spaeter
@@ -58,7 +62,7 @@ export function EmptyState({
           {icon}
         </span>
       ) : null}
-      <p className="text-lg font-medium text-gray-900">{title}</p>
+      <Title className="text-lg font-medium text-gray-900">{title}</Title>
       {description != null && description !== "" ? (
         <p className="max-w-md text-sm leading-relaxed text-gray-500">
           {description}

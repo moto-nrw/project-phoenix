@@ -1,0 +1,89 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/Client.CheckHealth",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/Client.Login",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/Client.LoginOperator",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/Client.LoginParent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/Client.LoginTraeger",
+      "reason": "#4651: the Träger-Portal sign-in needs the second factor; the seeder completes it through the command adapter like the other portal logins."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/Runtime.SetOperatorAuth",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/Runtime.SetTenantAuth",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/loginCachingAdapter.LoginParent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/loginCachingAdapter.LoginTenant",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/manualProfileStep.Run",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/printSummaryStep.Run",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/retryingAdapter.CheckHealth",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/retryingAdapter.LoginOperator",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/retryingAdapter.LoginParent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/retryingAdapter.LoginTenant",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/retryingAdapter.Raw",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "internal/devtools/seedapi/retryingAdapter.RawUpload",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

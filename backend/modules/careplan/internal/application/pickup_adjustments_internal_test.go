@@ -24,8 +24,8 @@ func (s directPickupCoordinatorStub) PrepareDirectOfferingAdjustment(context.Con
 	return nil
 }
 
-func (s directPickupCoordinatorStub) ApplyDirectOfferingAdjustment(context.Context, careplan.DirectOfferingAdjustmentInput) error {
-	return nil
+func (s directPickupCoordinatorStub) ApplyDirectOfferingAdjustment(context.Context, careplan.DirectOfferingAdjustmentInput) (careplan.RosterImpact, error) {
+	return careplan.RosterImpact{}, nil
 }
 
 func (s directPickupCoordinatorStub) PreviewDirectOfferingAdjustment(

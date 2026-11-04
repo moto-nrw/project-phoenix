@@ -1,0 +1,9 @@
+{
+  "bulk_exception_confirmation_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "future_manual_reset": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "offering_capacity_full": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "offerings_disabled": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "preview_stale": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "resolution_required": "Не вдалося зберегти: {object}. Перевірте введені дані."
+}

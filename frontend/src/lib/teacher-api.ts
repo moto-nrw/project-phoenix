@@ -472,8 +472,13 @@ class TeacherService {
   async updateTeacher(
     id: string,
     teacherData: Partial<Teacher>,
+    currentTeacher: Teacher,
   ): Promise<Teacher> {
-    const currentTeacher = await this.getTeacher(id);
+    // The caller already loaded this record. Keep its IDs, profile state and
+    // unchanged fields: the staff PUT replaces fields rather than patching them.
+    if (currentTeacher.id !== id) {
+      throw new Error("Cannot update teacher - current record ID mismatch");
+    }
 
     // Update person record if name/tag fields changed
     const needsPersonUpdate =

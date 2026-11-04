@@ -59,43 +59,14 @@ export { isBrowserContext };
 interface AuthFetchOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
-  token?: string;
 }
 
 /**
- * Build authorization headers for fetch requests
- * Matches original behavior: always includes Content-Type when token is present
- * @param token - JWT token
- */
-export function buildAuthHeaders(token?: string): HeadersInit | undefined {
-  if (!token) {
-    return undefined;
-  }
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-}
-
-/**
- * Build headers for requests that always need Content-Type (POST/PUT with body)
- * @param token - JWT token
- */
-export function buildAuthHeadersWithBody(token?: string): HeadersInit {
-  return {
-    "Content-Type": "application/json",
-    ...(token && { Authorization: `Bearer ${token}` }),
-  };
-}
-
-/**
- * Perform an authenticated fetch request in browser context
- * Matches original fetch pattern exactly:
- * - GET/DELETE with token: Authorization + Content-Type headers
- * - GET/DELETE without token: no headers
- * - POST/PUT: Always Content-Type, Authorization if token present
+ * Perform an authenticated fetch request in browser context. The BFF route
+ * authenticates through the session cookie; the browser holds no token
+ * (#5005), so a request carries Content-Type only when it has a body.
  * @param url - The URL to fetch
- * @param options - Fetch options including method, body, and token
+ * @param options - Fetch options including method and body
  * @returns Promise with response data
  * @throws Error if response is not ok
  */
@@ -103,15 +74,10 @@ export async function authFetch<T>(
   url: string,
   options: AuthFetchOptions = {},
 ): Promise<T> {
-  const { method = "GET", body, token } = options;
+  const { method = "GET", body } = options;
 
-  // Match original header behavior:
-  // - POST/PUT with body: always include Content-Type, add Auth if token
-  // - GET/DELETE: include both headers only if token present
-  const headers =
-    body === undefined
-      ? buildAuthHeaders(token)
-      : buildAuthHeadersWithBody(token);
+  const headers: HeadersInit | undefined =
+    body === undefined ? undefined : { "Content-Type": "application/json" };
 
   let response: Response;
   try {
@@ -160,45 +126,47 @@ interface FetchWithRetryOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
   onAuthFailure?: () => Promise<boolean>;
-  getNewToken?: () => Promise<string | undefined>;
+  /** Runs after a successful refresh, before the retry (session re-read). */
+  beforeRetry?: () => Promise<unknown>;
 }
 
 export interface FetchWithRetryResult<T> {
   response: Response | null;
   data: T | null;
   accessDeniedStatus?: 401 | 403;
+  /** The parsed error envelope of the refusal: code, details, instance. */
+  accessDeniedBody?: unknown;
+}
+
+function parseErrorText(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
  * Make an authenticated fetch request with 401 retry logic
- * Handles token refresh and retries the request once on 401
+ * Handles session refresh and retries the request once on 401. The BFF route
+ * reads the session cookie; no Authorization header leaves the browser
+ * (#5005).
  * @param url - The URL to fetch
- * @param token - Current auth token
  * @param options - Fetch options including retry handlers
  * @returns Response data or the status of a denied request
  */
 export async function fetchWithRetry<T>(
   url: string,
-  token: string | undefined,
   options: FetchWithRetryOptions = {},
 ): Promise<FetchWithRetryResult<T>> {
-  const { method = "GET", body, onAuthFailure, getNewToken } = options;
+  const { method = "GET", body, onAuthFailure, beforeRetry } = options;
 
-  const makeRequest = async (
-    authToken: string | undefined,
-  ): Promise<Response> => {
-    const headers = authToken
-      ? {
-          Authorization: `Bearer ${authToken}`,
-          "Content-Type": "application/json",
-        }
-      : undefined;
-
+  const makeRequest = async (): Promise<Response> => {
     try {
       return await fetch(url, {
         method,
         credentials: "include",
-        headers,
+        headers: { "Content-Type": "application/json" },
         ...(body !== undefined && { body: JSON.stringify(body) }),
       });
     } catch (error) {
@@ -207,10 +175,10 @@ export async function fetchWithRetry<T>(
   };
 
   // Initial request
-  let response = await makeRequest(token);
+  let response = await makeRequest();
 
   // Handle 401 with retry
-  if (response.status === 401 && onAuthFailure && getNewToken) {
+  if (response.status === 401 && onAuthFailure) {
     const errorText = await response.text();
     logger.info("token expired, attempting refresh", {
       url: sanitizeEndpoint(url),
@@ -222,15 +190,20 @@ export async function fetchWithRetry<T>(
     const refreshSuccessful = await onAuthFailure();
 
     if (refreshSuccessful) {
-      const newToken = await getNewToken();
-      response = await makeRequest(newToken);
+      await beforeRetry?.();
+      response = await makeRequest();
 
       if (response.ok) {
         const data = (await response.json()) as T;
         return { response, data };
       }
     } else {
-      return { response: null, data: null, accessDeniedStatus: 401 };
+      return {
+        response: null,
+        data: null,
+        accessDeniedStatus: 401,
+        accessDeniedBody: parseErrorText(errorText),
+      };
     }
   }
 
@@ -249,6 +222,7 @@ export async function fetchWithRetry<T>(
         response: null,
         data: null,
         accessDeniedStatus: response.status,
+        accessDeniedBody: parseErrorText(errorText),
       };
     }
     // All other errors (4xx bugs, 5xx server errors) should throw
@@ -264,17 +238,10 @@ export async function fetchWithRetry<T>(
     } else {
       logger.error("api error", logContext);
     }
-    const parsed = (() => {
-      try {
-        return JSON.parse(errorText) as unknown;
-      } catch {
-        return undefined;
-      }
-    })();
     throw apiErrorFromBody(
       `API error: ${response.status}`,
       response.status,
-      parsed,
+      parseErrorText(errorText),
     );
   }
 

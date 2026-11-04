@@ -19,6 +19,7 @@
 
 "use client";
 
+import { apiErrorFromResponse } from "~/lib/api-error";
 import { useImmutableSWR } from "~/lib/swr";
 import type { UserContextResponse } from "~/lib/user-context-types";
 
@@ -60,16 +61,19 @@ interface UseUserContextReturn {
  */
 export const USER_CONTEXT_SWR_KEY = "user-context";
 
-export function useUserContext(): UseUserContextReturn {
+export function useUserContext(enabled = true): UseUserContextReturn {
   const { data, isLoading, error } = useImmutableSWR<UserContextResponse>(
-    USER_CONTEXT_SWR_KEY,
+    enabled ? USER_CONTEXT_SWR_KEY : null,
     async () => {
       const response = await fetch("/api/user-context", {
         credentials: "include",
       });
 
       if (!response.ok) {
-        throw new Error(`User context fetch failed: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `User context fetch failed: ${response.status}`,
+        );
       }
 
       const json = (await response.json()) as ApiResponse<UserContextResponse>;

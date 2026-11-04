@@ -87,7 +87,7 @@ func TestAuthService_StartStaffPreview(t *testing.T) {
 	t.Run("mints a read-only token carrying the target's identity", func(t *testing.T) {
 		_, target := testpkg.CreateTestCalendarStaff(t, db, "Erika", "Beispiel")
 
-		session, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "127.0.0.1", "go-test")
+		session, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "127.0.0.1", "go-test")
 		require.NoError(t, err)
 		require.NotNil(t, session)
 
@@ -124,12 +124,12 @@ func TestAuthService_StartStaffPreview(t *testing.T) {
 	})
 
 	t.Run("refuses previewing yourself", func(t *testing.T) {
-		_, err := service.StartStaffPreview(ctx, admin.ID, tenantID, admin.ID, "", "", "")
+		_, err := service.StartStaffPreview(ctx, admin.ID, tenantID, admin.ID, "", "", "", "")
 		requirePreviewErr(t, err, identityaccess.ErrPreviewSelf)
 	})
 
 	t.Run("refuses a non-existent target", func(t *testing.T) {
-		_, err := service.StartStaffPreview(ctx, admin.ID, tenantID, 999999999, "", "", "")
+		_, err := service.StartStaffPreview(ctx, admin.ID, tenantID, 999999999, "", "", "", "")
 		requirePreviewErr(t, err, identityaccess.ErrAccountNotFound)
 	})
 
@@ -138,7 +138,7 @@ func TestAuthService_StartStaffPreview(t *testing.T) {
 		_, dbErr := db.Exec("UPDATE auth.accounts SET active = false WHERE id = ?", target.ID)
 		require.NoError(t, dbErr)
 
-		_, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "")
+		_, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "", "")
 		requirePreviewErr(t, err, identityaccess.ErrAccountInactive)
 	})
 
@@ -152,7 +152,7 @@ func TestAuthService_StartStaffPreview(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		_, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "")
+		_, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "", "")
 		requirePreviewErr(t, err, identityaccess.ErrTenantAccessDenied)
 	})
 
@@ -160,14 +160,14 @@ func TestAuthService_StartStaffPreview(t *testing.T) {
 		target := testpkg.CreateTestAccount(t, db, "preview-guardian")
 		assignSeededRoleForTenant(t, db, target.ID, tenantID, "guardian")
 
-		_, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "")
+		_, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "", "")
 		requirePreviewErr(t, err, identityaccess.ErrPreviewTargetNotStaff)
 	})
 
 	t.Run("refuses a target without any role at this school", func(t *testing.T) {
 		target := testpkg.CreateTestAccount(t, db, "preview-roleless")
 
-		_, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "")
+		_, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "", "")
 		requirePreviewErr(t, err, identityaccess.ErrPreviewTargetNotStaff)
 	})
 
@@ -175,7 +175,7 @@ func TestAuthService_StartStaffPreview(t *testing.T) {
 		target := testpkg.CreateTestAccount(t, db, "preview-lehrkraft")
 		testpkg.AssignLehrkraftSystemRole(t, db, target.ID, tenantID)
 
-		_, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "")
+		_, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "", "")
 		requirePreviewErr(t, err, identityaccess.ErrMustUseSchoolPortal)
 	})
 }
@@ -257,7 +257,7 @@ func TestAuthService_ListStaffPreviewCandidates_CustomLehrkraftRoleIsListed(t *t
 	assert.True(t, listed, "an account with a school-defined role named Lehrkraft must be selectable")
 
 	// And the picker agrees with the start path.
-	_, err = service.StartStaffPreview(ctx, admin.ID, tenantID, customLehrkraft.ID, "", "127.0.0.1", "go-test")
+	_, err = service.StartStaffPreview(ctx, admin.ID, tenantID, customLehrkraft.ID, "", "", "127.0.0.1", "go-test")
 	require.NoError(t, err)
 }
 
@@ -272,7 +272,7 @@ func TestAuthService_EndStaffPreview(t *testing.T) {
 	admin := testpkg.CreateTestAccount(t, db, "preview-end-admin")
 	_, target := testpkg.CreateTestCalendarStaff(t, db, "Ende", "Person")
 
-	session, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "127.0.0.1", "go-test")
+	session, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "127.0.0.1", "go-test")
 	require.NoError(t, err)
 
 	t.Run("reads admin and previewed account from the token and audits it", func(t *testing.T) {
@@ -312,7 +312,7 @@ func TestAuthService_EndStaffPreview(t *testing.T) {
 	// on THAT account, whoever submits the token.
 	t.Run("a preview token ends the preview of the admin it was minted for", func(t *testing.T) {
 		otherAdmin := testpkg.CreateTestAccount(t, db, "preview-end-other-admin")
-		foreign, foreignErr := service.StartStaffPreview(ctx, otherAdmin.ID, tenantID, target.ID, "", "127.0.0.1", "go-test")
+		foreign, foreignErr := service.StartStaffPreview(ctx, otherAdmin.ID, tenantID, target.ID, "", "", "127.0.0.1", "go-test")
 		require.NoError(t, foreignErr)
 
 		endedTarget, endErr := service.EndStaffPreview(ctx, foreign.AccessToken, "127.0.0.1", "go-test")
@@ -358,19 +358,19 @@ func TestAuthService_StaffPreviewAuditPairsOneStartWithOneEnd(t *testing.T) {
 		return count
 	}
 
-	first, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "127.0.0.1", "go-test")
+	first, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "127.0.0.1", "go-test")
 	require.NoError(t, err)
 	previewID, ok := decodePreviewTokenPayload(t, first.AccessToken)["preview_id"].(string)
 	require.True(t, ok)
 	require.NotEmpty(t, previewID)
 
 	// A renewal hands the expiring token back: same instance, no second start.
-	renewed, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, first.AccessToken, "127.0.0.1", "go-test")
+	renewed, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", first.AccessToken, "127.0.0.1", "go-test")
 	require.NoError(t, err)
 	assert.Equal(t, previewID, decodePreviewTokenPayload(t, renewed.AccessToken)["preview_id"])
 
 	// A start without that proof is a new preview and gets its own id.
-	fresh, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "127.0.0.1", "go-test")
+	fresh, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "127.0.0.1", "go-test")
 	require.NoError(t, err)
 	assert.NotEqual(t, previewID, decodePreviewTokenPayload(t, fresh.AccessToken)["preview_id"])
 
@@ -421,7 +421,7 @@ func TestAuthService_StartStaffPreviewIgnoresEndedPreviewToken(t *testing.T) {
 		return count
 	}
 
-	first, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "127.0.0.1", "go-test")
+	first, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "127.0.0.1", "go-test")
 	require.NoError(t, err)
 	endedID, ok := decodePreviewTokenPayload(t, first.AccessToken)["preview_id"].(string)
 	require.True(t, ok)
@@ -431,7 +431,7 @@ func TestAuthService_StartStaffPreviewIgnoresEndedPreviewToken(t *testing.T) {
 
 	// Same signed token, handed back as "previous" — the instance is closed,
 	// so this is a NEW preview with a new id and its own start event.
-	restarted, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, first.AccessToken, "127.0.0.1", "go-test")
+	restarted, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", first.AccessToken, "127.0.0.1", "go-test")
 	require.NoError(t, err)
 	newID, ok := decodePreviewTokenPayload(t, restarted.AccessToken)["preview_id"].(string)
 	require.True(t, ok)
@@ -459,7 +459,7 @@ func TestAuthService_StartStaffPreviewWaitsForConcurrentEnd(t *testing.T) {
 	admin := testpkg.CreateTestAccount(t, db, "preview-remint-race-admin")
 	_, target := testpkg.CreateTestCalendarStaff(t, db, "Gleichzeitig", "Erneuert")
 
-	session, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "127.0.0.1", "go-test")
+	session, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "127.0.0.1", "go-test")
 	require.NoError(t, err)
 	previewID, ok := decodePreviewTokenPayload(t, session.AccessToken)["preview_id"].(string)
 	require.True(t, ok)
@@ -486,7 +486,7 @@ func TestAuthService_StartStaffPreviewWaitsForConcurrentEnd(t *testing.T) {
 	remintErr := make(chan error, 1)
 	remint := make(chan *identityaccess.StaffPreviewSession, 1)
 	go func() {
-		renewed, startErr := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, session.AccessToken, "127.0.0.1", "go-test")
+		renewed, startErr := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", session.AccessToken, "127.0.0.1", "go-test")
 		remint <- renewed
 		remintErr <- startErr
 	}()
@@ -534,7 +534,7 @@ func TestAuthService_EndStaffPreviewConcurrentlyWritesOneEvent(t *testing.T) {
 	admin := testpkg.CreateTestAccount(t, db, "preview-end-race-admin")
 	_, target := testpkg.CreateTestCalendarStaff(t, db, "Gleichzeitig", "Beendet")
 
-	session, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "127.0.0.1", "go-test")
+	session, err := service.StartStaffPreview(ctx, admin.ID, tenantID, target.ID, "", "", "127.0.0.1", "go-test")
 	require.NoError(t, err)
 	previewID, ok := decodePreviewTokenPayload(t, session.AccessToken)["preview_id"].(string)
 	require.True(t, ok)

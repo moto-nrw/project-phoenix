@@ -28,8 +28,8 @@ func (p *nativeConversationProbe) MarkReadToNewest(ctx context.Context, tenantID
 func (p *nativeConversationProbe) DecorateReadReceipts(ctx context.Context, threadID, accountID int64, rows []*ParentMessage) {
 	p.decorate(ctx, threadID, accountID, rows)
 }
-func (*nativeConversationProbe) Broadcast(int64, int64, int64, int64)     {}
-func (*nativeConversationProbe) BroadcastRead(int64, int64, int64, int64) {}
+func (*nativeConversationProbe) Broadcast(int64, int64, int64, int64, string)     {}
+func (*nativeConversationProbe) BroadcastRead(int64, int64, int64, int64, string) {}
 
 func TestParentNativeConversationRetainsMutationOnOwnerErrorAndJSONNumbers(t *testing.T) {
 	t.Parallel()

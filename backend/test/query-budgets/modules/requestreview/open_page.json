@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.requestreview.open_page",
+  "max": 101,
+  "exact": false,
+  "description": "modules/requestreview/compose — #3179: the open review page of one\nchild with one request in each of the four native queues (the RLS\nproof fixture), inside one tenant transaction: the urgent and the\nnormal phase of every queue, the conflict scan, the group and\nFamilienschutz decorations. This remains a ceiling for the fixture,\nnot a claim that every owner read has flat cost."
+}

@@ -87,6 +87,8 @@ const (
 	CodeLegalBlockIncomplete         = "enrollment.legal_block_incomplete"
 	CodeLegalBlockRequiredNotAllowed = "enrollment.legal_block_required_not_allowed"
 
+	CodeHolidayRegistrationFormChanged = "enrollment.holiday_registration_form_changed"
+
 	CodeConsentRequired       = "enrollment.consent_required"
 	CodeChildRequired         = "enrollment.child_required"
 	CodeChildNameRequired     = "enrollment.child_name_required"

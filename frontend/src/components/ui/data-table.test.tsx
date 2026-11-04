@@ -666,3 +666,91 @@ describe("DataTable load-more button (#4975)", () => {
     expect(screen.getByRole("table")).toBeInTheDocument();
   });
 });
+
+describe("DataTable form phone layout (#4807)", () => {
+  interface WageRow {
+    id: string;
+    name: string;
+    number: string;
+  }
+  const wageRows: WageRow[] = [
+    { id: "1", name: "Nachtzuschlag", number: "311" },
+  ];
+  const formColumns: DataTableColumn<WageRow>[] = [
+    {
+      key: "name",
+      header: "Bezeichnung",
+      stacked: "title",
+      render: (row) => (
+        <input aria-label={`Bezeichnung ${row.name}`} defaultValue={row.name} />
+      ),
+    },
+    {
+      key: "number",
+      header: "Lohnartnummer",
+      render: (row) => (
+        <input aria-label={`Nummer ${row.name}`} defaultValue={row.number} />
+      ),
+    },
+    {
+      key: "actions",
+      header: "",
+      stacked: "meta",
+      render: (row) => (
+        <button type="button">{`Aktionen für ${row.name}`}</button>
+      ),
+    },
+  ];
+
+  it("puts the headline and the row menu on top and every control under its label", () => {
+    render(
+      <DataTable
+        columns={formColumns}
+        rows={wageRows}
+        getRowKey={(row) => row.id}
+        stackedOnMobile
+        stackedLayout="form"
+        stackedTitle={(row) => row.name}
+        rowHasInteractiveControls
+      />,
+    );
+
+    const stacked = within(screen.getByTestId("data-table-stacked"));
+    const row = stacked.getByRole("listitem");
+    expect(
+      within(row).getByText("Nachtzuschlag", { selector: "span" }),
+    ).toBeInTheDocument();
+    expect(
+      within(row).getByRole("button", { name: "Aktionen für Nachtzuschlag" }),
+    ).toBeInTheDocument();
+    // The title column is a control, so it becomes a labelled field too.
+    const nameLabel = within(row).getByText("Bezeichnung");
+    expect(nameLabel.tagName).toBe("DT");
+    expect(nameLabel.nextElementSibling).toContainElement(
+      within(row).getByRole("textbox", { name: "Bezeichnung Nachtzuschlag" }),
+    );
+    const numberLabel = within(row).getByText("Lohnartnummer");
+    expect(numberLabel.nextElementSibling).toContainElement(
+      within(row).getByRole("textbox", { name: "Nummer Nachtzuschlag" }),
+    );
+  });
+
+  it("stands in the card that holds it instead of a second frame", () => {
+    render(
+      <DataTable
+        columns={formColumns}
+        rows={wageRows}
+        getRowKey={(row) => row.id}
+        stackedOnMobile
+        stackedLayout="form"
+        stackedTitle={(row) => row.name}
+        rowHasInteractiveControls
+      />,
+    );
+
+    const list = within(screen.getByTestId("data-table-stacked")).getByRole(
+      "list",
+    );
+    expect(list.parentElement).not.toHaveClass("moto-content-surface");
+  });
+});

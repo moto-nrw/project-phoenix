@@ -15,28 +15,52 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useMemo } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import NavigationLink from "~/components/ui/navigation-link";
+import { ConfirmationModal } from "~/components/ui/modal";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
 import { Skeleton } from "~/components/ui/skeleton";
+import { StatCard } from "~/components/ui/stat-card";
 import { getUserDisplayName } from "~/lib/auth-utils";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { useTimeBasedGreeting } from "~/lib/greeting";
 import type { ClassDayReport } from "~/lib/class-day-api";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
-import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { createLogger } from "~/lib/logger";
-import { schoolClassLabel } from "~/lib/school-class-label";
-import type { ClassDayClasses } from "~/lib/school-class-day-api";
+import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
+import { schoolClassLabel, schoolClassesLabel } from "~/lib/school-class-label";
+import { ApiError } from "~/lib/api-error";
+import type {
+  AbsenceReportStatus,
+  ClassDayClasses,
+  SchoolDayChild,
+  SchoolDayReport,
+} from "~/lib/school-class-day-api";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
+import { schoolPortalKeys } from "~/lib/swr/portal-keys";
 import { countDayChanges } from "./day-changes";
-import { classDayDateParam, classDayPath, isWeekendISO } from "./routes";
-
-const logger = createLogger({ component: "ClassDayOverview" });
+import { classDayDateParam, isWeekendISO } from "./routes";
+import {
+  schoolDayChildrenByClass,
+  schoolDayClassPath,
+  schoolDayListParam,
+  schoolDayListPath,
+  visibleSchoolDayLists,
+} from "./school-day";
+import type { SchoolDayListKey } from "./school-day";
+import { statusLabel } from "./status-labels";
+import { useClassDayRefresh } from "./use-class-day-refresh";
+import { useSchoolReportRefusal } from "./use-school-report-refusal";
+import { useSchoolAbsenceReports } from "./use-school-absence-reports";
 
 // Die Ansicht bleibt bei Übergaben lange offen — sie muss sich selbst
 // aktualisieren, damit z. B. eine um 11:30 gemeldete Krankmeldung nicht
@@ -53,8 +77,48 @@ const logger = createLogger({ component: "ClassDayOverview" });
 // Roster-Rebuild nicht im Sekundentakt auslösen (SWR-Default wären 5s).
 const REPORT_FOCUS_THROTTLE_MS = 60 * 1000;
 
+/**
+ * Die Zahlen einer Klassenzeile. Kommen aus dem Klassenreport oder, für die
+ * Schulverwaltung, aus der Tagesübersicht der ganzen Schule (#4802): beide
+ * zählen nach denselben Regeln, die Zeile liest sich gleich.
+ */
+interface ClassLine {
+  school_day: boolean;
+  enrollment_known: boolean;
+  totals: {
+    students: number;
+    staying: number;
+    leaving: number;
+    absent: number;
+    list_entries: number;
+  };
+  changes: number;
+}
+
+function reportLine(report: ClassDayReport): ClassLine {
+  return {
+    school_day: report.school_day,
+    enrollment_known: report.enrollment_known,
+    totals: report.totals,
+    changes: countDayChanges(report),
+  };
+}
+
+function schoolDayLines(report: SchoolDayReport): Record<string, ClassLine> {
+  const lines: Record<string, ClassLine> = {};
+  for (const klass of report.classes) {
+    lines[klass.school_class] = {
+      school_day: report.school_day,
+      enrollment_known: report.enrollment_known,
+      totals: klass.totals,
+      changes: klass.totals.changes,
+    };
+  }
+  return lines;
+}
+
 /** Zusammenfassung einer Klasse für den Tag, in einer Zeile. */
-function classSummary(report: ClassDayReport, weekend: boolean): string {
+function classSummary(report: ClassLine, weekend: boolean): string {
   if (weekend || !report.school_day) return "Kein Schultag";
   const totals = report.totals;
   if (!report.enrollment_known) {
@@ -89,14 +153,16 @@ function ClassLink({
   failed,
   weekend,
   dateISO,
+  openList,
 }: Readonly<{
   klass: string;
-  report: ClassDayReport | null;
+  report: ClassLine | null;
   failed: boolean;
   weekend: boolean;
   dateISO: string;
+  openList: SchoolDayListKey | null;
 }>) {
-  const changes = countDayChanges(report);
+  const changes = report?.school_day ? report.changes : 0;
   const summary = failed
     ? "Konnte nicht geladen werden"
     : report
@@ -104,10 +170,10 @@ function ClassLink({
       : "Wird geladen …";
   return (
     <ButtonLink
-      href={schoolPath(classDayPath(klass, dateISO))}
+      href={schoolPath(schoolDayClassPath(klass, dateISO, openList))}
       variant="surface"
       size="card"
-      className="justify-between gap-3 text-left"
+      className="min-h-24 justify-between gap-3 text-left"
     >
       {/* flex-1 + min-w-0: ohne beides schrumpft das Textfeld nicht und die
           Karte läuft auf schmalen Bildschirmen über den Rand hinaus. Die
@@ -141,6 +207,175 @@ function ClassLink({
   );
 }
 
+/** One canonical report reader, shared with the opened class. */
+function ClassReportLink({
+  klass,
+  dateISO,
+  fetchClassDay,
+  onFailure,
+}: Readonly<{
+  klass: string;
+  dateISO: string;
+  fetchClassDay: ClassDayOverviewProps["fetchClassDay"];
+  onFailure: (klass: string, failure: ClassReportFailure | undefined) => void;
+}>) {
+  const classReportKey = schoolPortalKeys.classDayReport(klass, dateISO);
+  const { data, error, isLoading, mutate } = useSWRAuth(
+    classReportKey,
+    () => fetchClassDay(klass, dateISO),
+    {
+      revalidateOnFocus: true,
+      focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
+      keepPreviousData: false,
+    },
+  );
+  useSchoolReportRefusal(error, classReportKey);
+
+  const refresh = useCallback(() => void mutate(), [mutate]);
+  useClassDayRefresh(refresh);
+  useLayoutEffect(() => {
+    onFailure(
+      klass,
+      error && data === undefined ? { cause: error, retry: mutate } : undefined,
+    );
+  }, [klass, error, data, mutate, onFailure]);
+  if (isLoading && !data && !error) return <Skeleton className="h-24 w-full" />;
+  return (
+    <ClassLink
+      klass={klass}
+      dateISO={dateISO}
+      report={data ? reportLine(data) : null}
+      failed={Boolean(error) && !data}
+      weekend={false}
+      openList={null}
+    />
+  );
+}
+
+interface ClassReportFailure {
+  cause: unknown;
+  retry: () => unknown;
+}
+
+function ClassReportError({
+  classes,
+  failures,
+}: Readonly<{
+  classes: readonly string[];
+  failures: readonly ClassReportFailure[];
+}>) {
+  const { error } = useSwrResourceLoadError(
+    [{ error: failures[0]?.cause }],
+    `die Übersicht für ${schoolClassesLabel(classes)}`,
+    () => Promise.all(failures.map((failure) => failure.retry())),
+  );
+  return (
+    <LoadErrorAlert error={error} className="mt-4" actionLayout="responsive" />
+  );
+}
+
+/** Parallel readers, with one notice per error identity outside stable tiles. */
+function ClassReports({
+  classes,
+  dateISO,
+  fetchClassDay,
+}: Readonly<{
+  classes: readonly string[];
+  dateISO: string;
+  fetchClassDay: ClassDayOverviewProps["fetchClassDay"];
+}>) {
+  const [failures, setFailures] = useState<Record<string, ClassReportFailure>>(
+    {},
+  );
+  const onFailure = useCallback(
+    (klass: string, failure: ClassReportFailure | undefined) => {
+      setFailures((current) => {
+        if (current[klass]?.cause === failure?.cause) return current;
+        const next = { ...current };
+        if (failure) next[klass] = failure;
+        else delete next[klass];
+        return next;
+      });
+    },
+    [],
+  );
+  const groups = new Map<
+    string,
+    { classes: string[]; failures: ClassReportFailure[] }
+  >();
+  for (const klass of classes) {
+    const failure = failures[klass];
+    if (!failure) continue;
+    const identity =
+      failure.cause instanceof ApiError
+        ? (failure.cause.code ?? String(failure.cause.status))
+        : "crash";
+    const group = groups.get(identity) ?? { classes: [], failures: [] };
+    group.classes.push(klass);
+    group.failures.push(failure);
+    groups.set(identity, group);
+  }
+  return (
+    <>
+      <div className="mt-2 grid gap-3 lg:grid-cols-2">
+        {classes.map((klass) => (
+          <ClassReportLink
+            key={klass}
+            klass={klass}
+            dateISO={dateISO}
+            fetchClassDay={fetchClassDay}
+            onFailure={onFailure}
+          />
+        ))}
+      </div>
+      {[...groups].map(([identity, group]) => (
+        <ClassReportError key={identity} {...group} />
+      ))}
+    </>
+  );
+}
+
+/**
+ * Was eine Liste über ein Kind nicht schon selbst sagt: in „Kinder“ und
+ * „Fehlen“ der Tagesstatus, in „Kinder“ das Kind ohne Betreuung.
+ */
+function childNote(
+  child: SchoolDayChild,
+  list: SchoolDayListKey,
+): string | null {
+  // Eine Meldung, die die Schulverwaltung nachgetragen hat (#4791), sagt
+  // das in jeder Liste: nur sie nimmt die Meldung zurück.
+  const bySchool = child.status_by_school ? "nachgetragen" : null;
+  if (list !== "kinder" && list !== "fehlen") return bySchool;
+  if (child.status) {
+    return [statusLabel(child.status), bySchool].filter(Boolean).join(", ");
+  }
+  if (child.unreported) return "ohne Meldung";
+  if (list === "kinder" && child.list_entry) return "keine Betreuung";
+  return null;
+}
+
+/** Die Aktion, die ein Kind der Liste für die Schulverwaltung trägt (#4791). */
+function absenceReportMenu(
+  child: SchoolDayChild,
+  canReport: boolean,
+  onEnter: (status: AbsenceReportStatus) => void,
+  onWithdraw: () => void,
+): readonly OverflowMenuEntry[] {
+  if (!canReport || !child.student_id || child.list_entry) return [];
+  if (child.unreported) {
+    return [
+      { kind: "header", label: "Meldung eintragen" },
+      { label: statusLabel("sick"), onClick: () => onEnter("sick") },
+      { label: statusLabel("excused"), onClick: () => onEnter("excused") },
+    ];
+  }
+  if (child.status_by_school) {
+    return [{ label: "Meldung zurücknehmen", onClick: onWithdraw }];
+  }
+  return [];
+}
+
 export interface ClassDayOverviewProps {
   /** Klassenliste und Wochenendplan der angemeldeten Lehrkraft. */
   readonly fetchClasses: () => Promise<ClassDayClasses>;
@@ -149,11 +384,32 @@ export interface ClassDayOverviewProps {
     schoolClass: string,
     date: string,
   ) => Promise<ClassDayReport>;
+  /**
+   * Tagesübersicht der ganzen Schule (#4802). Darf die Person sie sehen,
+   * lädt die Startseite sie einmal statt einen Report je Klasse.
+   */
+  readonly fetchSchoolDay?: (date: string) => Promise<SchoolDayReport>;
+  /** Meldung nachtragen (#4791), nur für die Schulverwaltung. */
+  readonly reportAbsence?: (
+    schoolClass: string,
+    date: string,
+    studentId: string,
+    status: AbsenceReportStatus,
+  ) => Promise<void>;
+  /** Nachgetragene Meldung zurücknehmen (#4791). */
+  readonly withdrawAbsenceReport?: (
+    schoolClass: string,
+    date: string,
+    studentId: string,
+  ) => Promise<void>;
 }
 
 export function ClassDayOverview({
   fetchClasses,
   fetchClassDay,
+  fetchSchoolDay,
+  reportAbsence,
+  withdrawAbsenceReport,
 }: ClassDayOverviewProps) {
   const greeting = useTimeBasedGreeting();
   const { data: session } = useSession();
@@ -162,6 +418,7 @@ export function ClassDayOverview({
   // Der Tag steht in der Adresse, nicht nur im Zustand: nur so führt der
   // Zurück-Weg aus einer Klasse auf denselben Tag zurück.
   const dateISO = classDayDateParam(searchParams.get("tag"));
+  const openList = schoolDayListParam(searchParams.get("liste"));
   // Die Klassenliste MUSS mitrevalidieren (App-Default ist
   // revalidateOnFocus: false): bliebe sie auf dem Mount-Stand eingefroren,
   // würde eine entzogene Klasse für immer im Reports-Key stehen (jede
@@ -173,99 +430,96 @@ export function ClassDayOverview({
     error: classesError,
     isLoading: classesLoading,
     mutate: reloadClasses,
-  } = useSWRAuth("class-day-my-classes", fetchClasses, {
+  } = useSWRAuth(schoolPortalKeys.classDayClasses(), fetchClasses, {
     revalidateOnFocus: true,
     focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
   });
   const classes = classList?.classes;
   const weekend =
     isWeekendISO(dateISO) && classList?.weekend_follows_friday !== true;
+  // Die Schulverwaltung sieht alle Klassen. Ein Report je Klasse hieße N
+  // volle Klassenaufbauten pro Abruf; die Tagesübersicht der Schule liefert
+  // dieselben Zahlen aus einem Abruf (#4802).
+  const schoolMode =
+    fetchSchoolDay !== undefined && classList?.can_view_school_day === true;
 
-  // Alle zugewiesenen Klassen für den Tag parallel laden: die Übersicht
-  // braucht von jeder Klasse die Zahlen und die Anzahl der Abweichungen.
-  // allSettled, damit EINE fehlschlagende Klasse (z. B. 403 nach entzogener
-  // Zuweisung) nicht die gesunden Klassen mit wegwischt. Wochenenden laden
-  // gar nicht (spart pro Klasse den vollen Report samt GDPR-Logzeile).
+  const schoolDayKey = schoolPortalKeys.schoolDay(dateISO);
+
+  // Die Tagesübersicht der Schule: dieselbe Fokus-Revalidierung wie die
+  // Klassenreports, und der Server protokolliert sie wie diese nur einmal
+  // pro Person, Tag und Zugriffstag.
   const {
-    data: dayData,
-    isLoading: reportsLoading,
-    mutate: reloadReports,
+    data: schoolDay,
+    error: schoolDayError,
+    isLoading: schoolDayLoading,
+    mutate: reloadSchoolDay,
   } = useSWRAuth(
-    classes && classes.length > 0 && !weekend
-      ? `class-day-reports-${dateISO}-${JSON.stringify(classes)}`
+    schoolMode && classes && classes.length > 0 && !weekend
+      ? schoolDayKey
       : null,
-    async () => {
-      const list = classes ?? [];
-      const results = await Promise.allSettled(
-        list.map((klass) =>
-          fetchClassDay(klass, dateISO).then(
-            (response) => [klass, response] as const,
-          ),
-        ),
-      );
-      const loaded: Record<string, ClassDayReport> = {};
-      const failed: string[] = [];
-      // Der erste Fehlschlag trägt Code und Vorgangskennung in die Meldung.
-      let firstFailure: unknown = null;
-      for (const [index, result] of results.entries()) {
-        if (result.status === "fulfilled") {
-          const [klass, response] = result.value;
-          loaded[klass] = response;
-        } else {
-          const klass = list[index];
-          if (klass) failed.push(klass);
-          firstFailure ??= result.reason;
-          logger.error("class_day_fetch_failed", {
-            date: dateISO,
-            error:
-              result.reason instanceof Error
-                ? result.reason.message
-                : String(result.reason),
-          });
-        }
-      }
-      return { reports: loaded, failed, firstFailure };
-    },
+    () =>
+      fetchSchoolDay
+        ? fetchSchoolDay(dateISO)
+        : Promise.reject(new Error("school day not available")),
     {
       revalidateOnFocus: true,
       focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
-      // Beim Datumswechsel Skeleton statt der Daten des alten Tages zeigen;
-      // bereits besuchte Tage kommen trotzdem sofort aus dem SWR-Cache.
       keepPreviousData: false,
     },
   );
 
-  const reports = useMemo(() => dayData?.reports ?? {}, [dayData]);
-  const failedClasses = useMemo(
-    () => new Set(dayData?.failed ?? []),
-    [dayData],
+  useSchoolReportRefusal(schoolDayError, schoolDayKey);
+
+  // Eine neue Krankmeldung an dieser Schule aktualisiert die Zahlen der
+  // Übersicht ohne Neuladen der Seite (#4792); in der Schulansicht die
+  // Tagesübersicht der Schule, sonst die Klassenreports.
+  const refreshReports = useCallback(
+    () => void reloadSchoolDay(),
+    [reloadSchoolDay],
+  );
+  useClassDayRefresh(refreshReports);
+
+  const absenceReports = useSchoolAbsenceReports({
+    dateISO,
+    report: reportAbsence,
+    withdraw: withdrawAbsenceReport,
+    onChanged: reloadSchoolDay,
+  });
+  const canReportAbsences =
+    absenceReports.available && schoolDay?.can_report_absences === true;
+
+  const { withdrawTarget, closeWithdraw } = absenceReports;
+  useLayoutEffect(() => {
+    if (!canReportAbsences && withdrawTarget) closeWithdraw();
+  }, [canReportAbsences, withdrawTarget, closeWithdraw]);
+
+  const reports = useMemo(
+    () => (schoolDay ? schoolDayLines(schoolDay) : {}),
+    [schoolDay],
   );
   const loading =
     classesLoading ||
-    (!weekend &&
-      (classes?.length ?? 0) > 0 &&
-      dayData === undefined &&
-      reportsLoading);
-  // Fehler beim Laden der Klassenliste ist NICHT "keine Klassen zugewiesen":
-  // sonst rennt die Lehrkraft bei einem transienten 500 der Verwaltung
-  // hinterher. Katalogtext mit Wiederholen (#2517); bei Teilausfall nennt
-  // die Meldung die erste fehlende Klasse, die geladenen bleiben stehen.
-  const firstFailedClass = dayData?.failed[0];
-  const loadError = useSwrLoadError(
-    classesError ?? dayData?.firstFailure ?? null,
-    classesError
-      ? "die Liste Ihrer Klassen"
-      : firstFailedClass
-        ? `die Klasse ${schoolClassLabel(firstFailedClass)}`
-        : "die Klassenansicht",
-    () => (classesError ? reloadClasses() : reloadReports()),
+    (schoolMode && !weekend && schoolDay === undefined && schoolDayLoading);
+  const { error: classesLoadError } = useSwrResourceLoadError(
+    [{ data: classList, error: classesError }],
+    "die Liste Ihrer Klassen",
+    reloadClasses,
   );
-  const hasLoadFailure =
-    Boolean(classesError) || (dayData?.failed.length ?? 0) > 0;
+  const { error: schoolDayLoadError } = useSwrResourceLoadError(
+    [{ data: schoolDay, error: schoolMode ? schoolDayError : undefined }],
+    "die Tagesübersicht der Schule",
+    reloadSchoolDay,
+  );
+  const loadError = classesLoadError ?? schoolDayLoadError;
+  const hasLoadFailure = Boolean(loadError);
 
   const selectedDate = parseISODate(dateISO);
+  // Eine geöffnete Liste bleibt beim Tageswechsel offen: dieselbe Frage
+  // für den nächsten Tag.
   const goToDate = (next: string) => {
-    router.replace(`${schoolPath("/school")}?tag=${next}`, { scroll: false });
+    router.replace(schoolPath(schoolDayListPath(next, openList)), {
+      scroll: false,
+    });
   };
   const shiftDay = (delta: number) => {
     const next = new Date(selectedDate);
@@ -274,6 +528,16 @@ export function ClassDayOverview({
   };
 
   const noClasses = classes !== undefined && classes.length === 0;
+
+  // Die Zahlen der ganzen Schule für die Schulverwaltung (#4802). Jede Zahl
+  // ist ein Link auf dieselbe Seite mit `?liste=…`: darunter stehen dann die
+  // Kinder dieser Zahl, nach Klasse gruppiert. Ein echter Seitenwechsel im
+  // selben Fenster, keine versteckte Schaltfläche, und der Zurück-Weg aus
+  // einer Klasse landet wieder bei der Liste.
+  const schoolLists = schoolDay ? visibleSchoolDayLists(schoolDay) : [];
+  const open = schoolLists.find((list) => list.key === openList) ?? null;
+  const groups =
+    schoolDay && open ? schoolDayChildrenByClass(schoolDay, open) : [];
 
   return (
     <div
@@ -285,7 +549,7 @@ export function ClassDayOverview({
         } as CSSProperties
       }
     >
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+      <section className="moto-content-surface rounded-2xl border p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-semibold tracking-wide text-[var(--class-day-blue)] uppercase">
@@ -303,11 +567,11 @@ export function ClassDayOverview({
           <div className="flex w-full items-center gap-1 lg:w-auto">
             <Button
               type="button"
-              variant="outline"
+              variant="surface"
               size="icon"
               aria-label="Vorheriger Tag"
               onClick={() => shiftDay(-1)}
-              className="h-9 w-9 shrink-0 rounded-lg bg-white"
+              className="shrink-0"
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -322,11 +586,11 @@ export function ClassDayOverview({
             />
             <Button
               type="button"
-              variant="outline"
+              variant="surface"
               size="icon"
               aria-label="Nächster Tag"
               onClick={() => shiftDay(1)}
-              className="h-9 w-9 shrink-0 rounded-lg bg-white"
+              className="shrink-0"
             >
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -358,7 +622,7 @@ export function ClassDayOverview({
 
         {!noClasses &&
           !loading &&
-          (weekend || Object.keys(reports).length > 0) && (
+          (weekend || !schoolMode || Object.keys(reports).length > 0) && (
             <>
               {hasLoadFailure && Object.keys(reports).length > 0 && (
                 <LoadErrorAlert error={loadError} className="mt-4" />
@@ -372,26 +636,198 @@ export function ClassDayOverview({
                 />
               ) : (
                 <>
-                  <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    Ihre Klassen
-                  </h3>
-                  <div className="mt-2 grid gap-3 lg:grid-cols-2">
-                    {(classes ?? []).map((klass) => (
-                      <ClassLink
-                        key={klass}
-                        klass={klass}
-                        report={reports[klass] ?? null}
-                        failed={failedClasses.has(klass)}
-                        weekend={weekend}
-                        dateISO={dateISO}
-                      />
-                    ))}
-                  </div>
+                  {schoolMode && schoolDay && (
+                    <>
+                      <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                        Ganze Schule
+                      </h3>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                        {schoolLists.map((list) => (
+                          <StatCard
+                            key={list.key}
+                            variant="row"
+                            label={list.label}
+                            value={list.count(schoolDay.totals)}
+                            href={schoolPath(
+                              schoolDayListPath(dateISO, list.key),
+                            )}
+                          />
+                        ))}
+                      </div>
+                      {open && (
+                        <div className="mt-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <h3 className="text-sm font-semibold text-gray-900">
+                              {open.label}: {open.count(schoolDay.totals)}
+                            </h3>
+                            <ButtonLink
+                              href={schoolPath(
+                                schoolDayListPath(dateISO, null),
+                              )}
+                              variant="ghost"
+                              size="compact"
+                            >
+                              Liste schließen
+                            </ButtonLink>
+                          </div>
+                          {/* Bei offener Rückfrage steht der Fehler dort. */}
+                          <FormErrorAlert
+                            message={
+                              absenceReports.withdrawTarget
+                                ? null
+                                : absenceReports.error
+                            }
+                            className="mt-2"
+                          />
+                          {open.key === "ohne-meldung" && (
+                            <p className="mt-1 text-sm text-gray-600">
+                              Die Lehrkraft hat diese Kinder als fehlend
+                              eingetragen. Es gibt keine Krankmeldung.
+                              {canReportAbsences
+                                ? " Rufen die Eltern an, tragen Sie die Meldung hier ein."
+                                : ""}
+                            </p>
+                          )}
+                          {groups.length === 0 ? (
+                            <p className="mt-2 text-sm text-gray-500">
+                              An diesem Tag stehen keine Kinder in dieser Liste.
+                            </p>
+                          ) : (
+                            <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                              {groups.map((group) => (
+                                <div
+                                  key={group.schoolClass}
+                                  className="rounded-xl bg-gray-50 px-3 py-2"
+                                >
+                                  <NavigationLink
+                                    href={schoolPath(
+                                      schoolDayClassPath(
+                                        group.schoolClass,
+                                        dateISO,
+                                        open.key,
+                                      ),
+                                    )}
+                                    className="text-sm font-semibold text-gray-900 underline-offset-2 hover:underline"
+                                  >
+                                    {schoolClassLabel(group.schoolClass)} ·{" "}
+                                    {group.children.length}
+                                  </NavigationLink>
+                                  <ul className="mt-1 space-y-0.5 text-sm text-gray-700">
+                                    {group.children.map((child) => {
+                                      const note = childNote(child, open.key);
+                                      const target = {
+                                        schoolClass: group.schoolClass,
+                                        child,
+                                      };
+                                      const menu = absenceReportMenu(
+                                        child,
+                                        canReportAbsences,
+                                        (status) =>
+                                          void absenceReports.enter(
+                                            target,
+                                            status,
+                                          ),
+                                        () =>
+                                          absenceReports.askWithdraw(target),
+                                      );
+                                      return (
+                                        <li
+                                          key={
+                                            child.list_entry
+                                              ? `entry-${child.list_entry_id}`
+                                              : `student-${child.student_id}`
+                                          }
+                                          className="flex min-w-0 items-center justify-between gap-2"
+                                        >
+                                          <span className="min-w-0">
+                                            {child.last_name},{" "}
+                                            {child.first_name}
+                                            {note && (
+                                              <span className="text-gray-500">
+                                                {" "}
+                                                · {note}
+                                              </span>
+                                            )}
+                                          </span>
+                                          {menu.length > 0 && (
+                                            <OverflowMenu
+                                              items={menu}
+                                              ariaLabel={
+                                                child.unreported
+                                                  ? `Meldung für ${child.first_name} ${child.last_name} eintragen`
+                                                  : `Meldung für ${child.first_name} ${child.last_name} zurücknehmen`
+                                              }
+                                              triggerSize="sm"
+                                              triggerContent={
+                                                absenceReports.isPending(target)
+                                                  ? "Wird gespeichert …"
+                                                  : child.unreported
+                                                    ? "Meldung eintragen"
+                                                    : "Zurücknehmen"
+                                              }
+                                            />
+                                          )}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {classes !== undefined && (
+                    <>
+                      <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                        {schoolMode ? "Alle Klassen" : "Ihre Klassen"}
+                      </h3>
+                      {schoolMode ? (
+                        <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                          {classes.map((klass) => (
+                            <ClassLink
+                              key={klass}
+                              klass={klass}
+                              report={reports[klass] ?? null}
+                              failed={false}
+                              weekend={weekend}
+                              dateISO={dateISO}
+                              openList={openList}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <ClassReports
+                          key={JSON.stringify([dateISO, classes])}
+                          classes={classes}
+                          dateISO={dateISO}
+                          fetchClassDay={fetchClassDay}
+                        />
+                      )}
+                    </>
+                  )}
                 </>
               )}
             </>
           )}
       </section>
+      <ConfirmationModal
+        isOpen={canReportAbsences && absenceReports.withdrawTarget !== null}
+        onClose={absenceReports.closeWithdraw}
+        onConfirm={() => void absenceReports.confirmWithdraw()}
+        title="Meldung zurücknehmen?"
+        confirmText="Zurücknehmen"
+        isConfirmLoading={absenceReports.withdrawing}
+      >
+        <FormErrorAlert message={absenceReports.error} className="mb-3" />
+        <p className="text-sm text-gray-700">
+          {absenceReports.withdrawTarget
+            ? `${absenceReports.withdrawTarget.child.first_name} ${absenceReports.withdrawTarget.child.last_name} steht dann wieder unter „Fehlen ohne Meldung“. Die OGS sieht den Status nicht mehr.`
+            : null}
+        </p>
+      </ConfirmationModal>
     </div>
   );
 }

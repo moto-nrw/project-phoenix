@@ -1,0 +1,6 @@
+{
+  "scenario": "api.students.ogs_group_navigation",
+  "max": 19,
+  "exact": false,
+  "description": "api/students — GET /students/ogs-group-navigation over every tenant\ngroup: the group list, rooms, substitutions and one bulk Gruppenleitung\nlookup (#4351), independent of the number of groups and teachers."
+}

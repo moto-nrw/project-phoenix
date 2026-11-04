@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 type hostedWeekBody struct {
@@ -65,6 +66,7 @@ type holidayHostFixture struct {
 	holidayRegistrationFixture
 	office   traegerOffice
 	offer    holidayOfferBody
+	link     string
 	siblings int64
 	school   http.Handler
 	today    *atomic.Value
@@ -98,13 +100,18 @@ func newHolidayHostFixture(t *testing.T, name string) holidayHostFixture {
 		"bookings": []map[string]any{{"week_id": offer.Weeks[0].ID, "time_model_id": offer.Weeks[0].TimeModels[0].ID}},
 	}}
 	submit(tom)
+	// Both stand for registrations from before the consent texts of version 2
+	// (#4722): they share no health information with the hosting school.
+	_, err := f.db.ExecContext(t.Context(), `UPDATE enrollment.holiday_registrations
+		SET consent_version = NULL, custody_confirmed_at = NULL, declaration_name = NULL WHERE holiday_period_id = ?`, created.ID)
+	require.NoError(t, err)
 
 	today := &atomic.Value{}
 	today.Store(calendar.NewDate(2099, 7, 1))
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, f.db))
 	require.NoError(t, err)
-	resource := NewHolidayHostHTTP(organizations,
-		owners.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog,
+	resource := NewHolidayHostHTTP(organizations, owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, f.db)),
+		owners.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog, testHealthCipher(),
 		func() calendar.Date { return today.Load().(calendar.Date) })
 	unit := testpkg.TenantRuntime(t, f.db)
 	router := chi.NewRouter()
@@ -114,7 +121,7 @@ func newHolidayHostFixture(t *testing.T, name string) holidayHostFixture {
 		})
 	})
 	router.Mount("/api/holiday-weeks", resource.Router(ProtectedTenantRoutes))
-	return holidayHostFixture{holidayRegistrationFixture: f, office: office, offer: offer, siblings: siblings, school: testpkg.SessionVerifier(router), today: today}
+	return holidayHostFixture{holidayRegistrationFixture: f, office: office, offer: offer, link: link.PublicToken, siblings: siblings, school: testpkg.SessionVerifier(router), today: today}
 }
 
 // staffOf signs a staff member of the school in, with the given permissions.
@@ -254,10 +261,12 @@ func TestHolidayHostSeesOnlyConfirmedChildrenOfItsWeek(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Header().Get("Content-Disposition"), "teilnehmerliste-2099-07-06")
 	csv := strings.TrimPrefix(rec.Body.String(), "\xEF\xBB\xBF")
+	// The standard template shares the way home, the trips (#5202) and the
+	// class (#5625); the siblings answered none, so the columns stay empty.
 	assert.Equal(t, strings.Join([]string{
-		"Nachname;Vorname;Geburtsdatum;Heimatschule;Zeitmodell",
-		"Muster;Ben;12.09.2016;Feriengast (Grundschule Melle);bis 13 Uhr",
-		"Muster;Lia;01.03.2018;" + f.offer.Schools[0].Name + ";bis 16 Uhr",
+		"Nachname;Vorname;Geburtsdatum;Heimatschule;Zeitmodell;Darf allein nach Hause gehen;Darf an Ausflügen teilnehmen;Klasse",
+		"Muster;Ben;12.09.2016;Feriengast (Grundschule Melle);bis 13 Uhr;;;",
+		"Muster;Lia;01.03.2018;" + f.offer.Schools[0].Name + ";bis 16 Uhr;;;",
 	}, "\n")+"\n", csv)
 	rec = f.get(t, host, fmt.Sprintf("/%d/participants/export?format=xlsx", week))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -313,6 +322,6 @@ func TestHolidayHostParticipantListQueryBudgetIsFlat(t *testing.T) {
 	f.confirm(t, f.siblings, "confirm")
 	assert.Len(t, read("/"), len(oneWeek), "the weeks read the same statements for any number of children")
 	assert.Len(t, read(participants), len(oneList), "the list reads the same statements for any number of children")
-	testpkg.AssertQueryBudget(t, "api.holiday_weeks.list", oneWeek)
-	testpkg.AssertQueryBudget(t, "api.holiday_weeks.participants", oneList)
+	querybudgets.AssertQueryBudget(t, "api.holiday_weeks.list", oneWeek)
+	querybudgets.AssertQueryBudget(t, "api.holiday_weeks.participants", oneList)
 }

@@ -1,7 +1,9 @@
+import { gitTestEnvironment, initGitFixture } from './test-helpers/git-fixture.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { mkdtempSync, mkdirSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkRelease } from './check-release-architecture.mjs';
@@ -42,10 +44,9 @@ test('Git failures fail closed', async () => {
 test('real Git ancestry and tree checks accept promotion but reject release-only edits', async t => {
   const root = mkdtempSync(join(tmpdir(), 'moto-release-git-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
-  for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_PREFIX']) delete env[key];
+  const env = gitTestEnvironment();
   const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-  git('init', '-q'); git('config', 'user.name', 'Release test'); git('config', 'user.email', 'test@example.invalid');
+  initGitFixture(git); git('config', 'user.name', 'Release test'); git('config', 'user.email', 'test@example.invalid');
   git('config', 'gc.auto', '0'); git('config', 'maintenance.auto', 'false');
   const commit = content => {
     writeFileSync(join(root, 'file'), content); git('add', '.'); git('commit', '-qm', 'fixture'); return git('rev-parse', 'HEAD');
@@ -55,4 +56,46 @@ test('real Git ancestry and tree checks accept promotion but reject release-only
   assert.equal(await checkRelease({ ...context, baseSha, headSha }, execute), headSha);
   commit('release-only edit');
   await assert.rejects(() => checkRelease({ ...context, baseSha, headSha }, execute), /tree differs/);
+});
+
+// Exercise both script-language helpers against real Git, including inherited
+// command config and hook-exported repository/identity variables.
+test('Node and shell Git fixtures ignore inherited configuration and hooks', async t => {
+  for (const language of ['node', 'shell']) {
+    await t.test(language, t => {
+      const root = mkdtempSync(join(tmpdir(), 'moto-hostile-git-'));
+      t.after(() => rmSync(root, { recursive: true, force: true }));
+      const hooks = join(root, 'hooks');
+      mkdirSync(hooks);
+      writeFileSync(join(hooks, 'pre-commit'), '#!/bin/sh\nprintf ran > "$PHX_GIT_FIXTURE_HOOK_MARKER"\nexit 1\n', { mode: 0o755 });
+      const config = `[core]\n hooksPath = ${hooks}\n[commit]\n gpgsign = true\n[gpg]\n program = missing-fixture-gpg\n[fixture]\n inherited = true\n`;
+      const global = join(root, 'global.gitconfig');
+      writeFileSync(global, config);
+      const marker = join(root, 'hook-ran');
+      const env = {
+        ...process.env, GIT_CONFIG_GLOBAL: global, GIT_CONFIG_SYSTEM: global, GIT_CONFIG_NOSYSTEM: '0',
+        GIT_CONFIG: global, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'core.hooksPath', GIT_CONFIG_VALUE_0: hooks,
+        GIT_CONFIG_PARAMETERS: "'fixture.inherited=parameters'", GIT_DIR: join(root, 'foreign.git'), GIT_WORK_TREE: root,
+        GIT_AUTHOR_NAME: 'Inherited author', GIT_AUTHOR_EMAIL: 'inherited@example.invalid', GIT_TEMPLATE_DIR: root,
+        PHX_GIT_FIXTURE_HOOK_MARKER: marker,
+      };
+      let git;
+      if (language === 'node') {
+        const isolated = gitTestEnvironment(env);
+        git = (...args) => execFileSync('git', args, { cwd: root, env: isolated, encoding: 'utf8' }).trim();
+        initGitFixture(git);
+      } else {
+        const helper = fileURLToPath(new URL('./test-helpers/git-fixture.sh', import.meta.url));
+        execFileSync('bash', ['-euc', 'source "$1"; init_git_fixture "$2"', 'fixture', helper, root], { env });
+        git = (...args) => execFileSync('bash', ['-euc', 'source "$1"; shift; git "$@"', 'fixture', helper, ...args], { cwd: root, env, encoding: 'utf8' }).trim();
+      }
+      git('commit', '--allow-empty', '-qm', 'isolated fixture');
+      assert.equal(git('log', '-1', '--format=%an <%ae>'), 'Git fixture <fixture@example.invalid>');
+      assert.equal(git('config', '--local', '--get', 'core.hooksPath'), '/dev/null');
+      assert.doesNotMatch(git('config', '--list'), /fixture\.inherited/);
+      assert.equal(existsSync(marker), false, 'caller hook must not run');
+      assert.equal(readFileSync(global, 'utf8'), config, 'caller configuration must stay unchanged');
+      assert.equal(env.GIT_CONFIG_GLOBAL, global, 'isolation must not mutate the caller environment');
+    });
+  }
 });

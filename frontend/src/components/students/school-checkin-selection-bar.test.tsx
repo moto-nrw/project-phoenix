@@ -86,14 +86,14 @@ describe("SchoolCheckinSelectionBar", () => {
     expect(screen.getByText("3 ausgewählt")).toBeInTheDocument();
 
     expect(screen.getByRole("button", { name: /Anmelden/ })).toHaveClass(
-      "bg-moto-green",
+      "bg-moto-green-fill",
       "text-white",
-      "rounded-lg",
+      "rounded-md",
     );
     expect(screen.getByRole("button", { name: /Abmelden/ })).toHaveClass(
       "bg-moto-red",
       "text-white",
-      "rounded-lg",
+      "rounded-md",
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Abmelden/ }));

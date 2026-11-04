@@ -43,7 +43,7 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 		assert.NotEqual(t, row.ID, item.Request.ID, "pending rows must never appear in the history")
 	}
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: false, Reason: "Kapazität erschöpft", ReviewedBy: env.creatorID,
 	}))
 

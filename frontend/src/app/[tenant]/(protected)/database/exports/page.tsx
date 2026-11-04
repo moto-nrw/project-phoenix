@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { useModuleBooked } from "~/lib/tenant-context";
+import { useModuleBooked, useTimetableEnabled } from "~/lib/tenant-context";
 import Link from "~/components/ui/navigation-link";
 import { useSession } from "next-auth/react";
 import {
@@ -13,21 +13,19 @@ import {
   Download,
   HeartPulse,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { CollectionGrid } from "~/components/ui/collection-grid";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { StudentExportModal } from "~/components/students/student-export-modal";
 import { StaffBirthdayExportModal } from "~/components/staff/staff-birthday-export-modal";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
-import { getSettingValue } from "~/lib/settings-api";
 import { Button } from "~/components/ui/button";
 import {
   ExportMenu,
   exportFormatOptions,
   type ExportMenuOption,
 } from "~/components/ui/export-menu";
-import { InfoCard } from "~/components/ui/info-card";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
@@ -39,6 +37,18 @@ import {
   type StudentExportPreset,
 } from "~/lib/student-export-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { activitiesConcept } from "~/lib/concepts/activities";
+import { birthdaysConcept } from "~/lib/concepts/birthdays";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { childrenConcept } from "~/lib/concepts/children";
+import { emergencyConcept } from "~/lib/concepts/emergency";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { listsConcept } from "~/lib/concepts/lists";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { presentConcept } from "~/lib/concepts/present";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
 
 const logger = createLogger({ component: "DatabaseExportsPage" });
 
@@ -59,18 +69,22 @@ interface StudentModalConfig {
  * One icon per child-list template. Each list is its own card here, so the
  * template picker inside the modal only appears in the Kindersuche.
  */
-const STUDENT_LIST_ICONS: Record<StudentExportPreset, ReactNode> = {
-  ogs_weekly: <MotoConceptIcon concept="calendar" size={20} />,
-  ogs_compact: <MotoConceptIcon concept="lists" size={20} />,
-  class_roster: <MotoConceptIcon concept="children" size={20} />,
-  daily_planning: <MotoConceptIcon concept="carePlan" size={20} />,
-  attendance_snapshot: <MotoConceptIcon concept="present" size={20} />,
-  pickup_list: <MotoConceptIcon concept="pickup" size={20} />,
-  blank_checklist: <MotoConceptIcon concept="activities" size={20} />,
-  birthday_list: <MotoConceptIcon concept="birthdays" size={20} />,
+type ExportCardIcon =
+  | { readonly concept: MotoConcept; readonly icon?: never }
+  | { readonly icon: LucideIcon; readonly concept?: never };
+
+const STUDENT_LIST_ICONS: Record<StudentExportPreset, ExportCardIcon> = {
+  ogs_weekly: { concept: calendarConcept },
+  ogs_compact: { concept: listsConcept },
+  class_roster: { concept: childrenConcept },
+  daily_planning: { concept: carePlanConcept },
+  attendance_snapshot: { concept: presentConcept },
+  pickup_list: { concept: pickupConcept },
+  blank_checklist: { concept: activitiesConcept },
+  birthday_list: { concept: birthdaysConcept },
   // No moto concept names health data; "sick" is the Krank status and would
   // read as a list of sick children.
-  health_list: <HeartPulse className="h-5 w-5" />,
+  health_list: { icon: HeartPulse },
 };
 
 /**
@@ -88,17 +102,12 @@ export default function DatabaseExportsPage() {
   // Ein Export ist eine Aktion ohne Formular: Fehler als Toast mit
   // Wiederholen (#2517).
   const { show: showExportError } = useApiErrorDisplay();
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   // Slot lists are part of the timetable feature; hide the entry when a tenant
   // has explicitly disabled it (#1565 review), mirroring the sidebar and the
-  // Betreuungsplan/Vertretung route guards. getSettingValue returns undefined
-  // when the user cannot read settings, so the card stays visible by default.
-  const { data: settingsSchema } = useSettingsSchema(
-    status === "authenticated",
-    { revalidateOnFocus: false, revalidateOnReconnect: false },
-  );
-  const timetableDisabled =
-    getSettingValue(settingsSchema, "timetable.enabled") === false;
+  // Betreuungsplan/Vertretung route guards; the flag comes from the tenant
+  // resolve (#4996).
+  const timetableDisabled = !useTimetableEnabled();
   // "Wer ist wo" hits POST /api/rooms/export, which requires rooms:read on top
   // of the users:read that gates this page. Without rooms:read the export 403s,
   // so hide the card rather than offer a button that always fails.
@@ -193,10 +202,10 @@ export default function DatabaseExportsPage() {
 
         <ExportSection title="Kinderlisten">
           {STUDENT_EXPORT_PRESETS.map((preset) => (
-            <InfoCard
+            <ExportCard
               key={preset.id}
               title={preset.label}
-              icon={STUDENT_LIST_ICONS[preset.id]}
+              {...STUDENT_LIST_ICONS[preset.id]}
             >
               <ExportDescription>{preset.description}</ExportDescription>
               <ExportActions>
@@ -215,16 +224,13 @@ export default function DatabaseExportsPage() {
                   Liste erstellen
                 </Button>
               </ExportActions>
-            </InfoCard>
+            </ExportCard>
           ))}
         </ExportSection>
 
         {canExportStaffBirthdays && (
           <ExportSection title="Personallisten">
-            <InfoCard
-              title="Geburtstagsliste"
-              icon={<Cake className="h-5 w-5" />}
-            >
+            <ExportCard title="Geburtstagsliste" icon={Cake}>
               <ExportDescription>
                 Geburtstage der Mitarbeitenden nach Kalender sortiert.
                 Voreingestellt ist der aktuelle Monat. Ohne hinterlegtes
@@ -241,15 +247,12 @@ export default function DatabaseExportsPage() {
                   Liste erstellen
                 </Button>
               </ExportActions>
-            </InfoCard>
+            </ExportCard>
           </ExportSection>
         )}
 
         <ExportSection title="Momentaufnahmen">
-          <InfoCard
-            title="Notfallliste"
-            icon={<MotoConceptIcon concept="emergency" size={20} />}
-          >
+          <ExportCard title="Notfallliste" concept={emergencyConcept}>
             <ExportDescription>
               Alle aktuell anwesenden Kinder mit Kontaktdaten der
               Erziehungsberechtigten und den hinterlegten Gesundheitsinfos.
@@ -275,13 +278,10 @@ export default function DatabaseExportsPage() {
                 }}
               />
             </ExportActions>
-          </InfoCard>
+          </ExportCard>
 
           {canReadRooms && (
-            <InfoCard
-              title="Wer ist wo"
-              icon={<MotoConceptIcon concept="rooms" size={20} />}
-            >
+            <ExportCard title="Wer ist wo" concept={roomsConcept}>
               <ExportDescription>
                 Aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl.
                 Momentaufnahme.
@@ -317,60 +317,48 @@ export default function DatabaseExportsPage() {
                   }}
                 />
               </ExportActions>
-            </InfoCard>
+            </ExportCard>
           )}
         </ExportSection>
 
         <ExportSection title="Auf anderen Seiten">
           {canUseSlotLists && !timetableDisabled && (
-            <InfoCard
-              title="Tageslisten"
-              icon={<MotoConceptIcon concept="lists" size={20} />}
-            >
+            <ExportCard title="Tageslisten" concept={listsConcept}>
               <ExportDescription>
                 Listen aus geplanten Angeboten wie Mensa, Lernzeit, AG oder
                 Ganztag: Plan, Ist und Abgleich für ein Datum. Der Einstieg
                 liegt im Bereich Planung.
               </ExportDescription>
               <ExportLink href="/lists">Zu den Tageslisten</ExportLink>
-            </InfoCard>
+            </ExportCard>
           )}
           {/* Die beiden Wochenpläne (#2079) exportieren immer die Woche, die
               auf ihrer Seite gerade zu sehen ist. Ein Datumsdialog hier wäre
               eine zweite, konkurrierende Bedienung derselben Sache. */}
           {canEditPlans && dienstplanBooked && (
-            <InfoCard
-              title="Dienstplan"
-              icon={<CalendarRange className="h-5 w-5" />}
-            >
+            <ExportCard title="Dienstplan" icon={CalendarRange}>
               <ExportDescription>
                 Die Dienstplanwoche zum Aushängen: wer wann wo arbeitet,
                 wahlweise nach Personen oder nach Einsatzbereich. Der Export
                 liegt im Dienstplan.
               </ExportDescription>
               <ExportLink href="/dienstplan">Zum Dienstplan</ExportLink>
-            </InfoCard>
+            </ExportCard>
           )}
           {canUseSlotLists && !timetableDisabled && (
-            <InfoCard
-              title="Betreuungsplan"
-              icon={<CalendarCheck className="h-5 w-5" />}
-            >
+            <ExportCard title="Betreuungsplan" icon={CalendarCheck}>
               <ExportDescription>
                 Die Betreuungswoche mit Zeiten, Räumen, Personal und Kinderzahl.
                 Der Export liegt im Betreuungsplan.
               </ExportDescription>
               <ExportLink href="/betreuungsplan">Zum Betreuungsplan</ExportLink>
-            </InfoCard>
+            </ExportCard>
           )}
           {/* /admin/enrollments verlangt config:manage (#3469); ohne das Recht
               führte der Link nur auf eine Umleitung zur Startseite. */}
           {(isAdmin(session) || hasPermission(session, "config:manage")) &&
             onlineAnmeldungBooked && (
-              <InfoCard
-                title="Anmeldungen"
-                icon={<MotoConceptIcon concept="enrollments" size={20} />}
-              >
+              <ExportCard title="Anmeldungen" concept={enrollmentsConcept}>
                 <ExportDescription>
                   Eingegangene Anmeldungen einer Anmeldephase. Der Export gehört
                   zur jeweiligen Phase.
@@ -378,20 +366,17 @@ export default function DatabaseExportsPage() {
                 <ExportLink href="/admin/enrollments">
                   Zu den Anmeldephasen
                 </ExportLink>
-              </InfoCard>
+              </ExportCard>
             )}
 
           {zeiterfassungBooked && (
-            <InfoCard
-              title="Zeitnachweis"
-              icon={<MotoConceptIcon concept="timeTracking" size={20} />}
-            >
+            <ExportCard title="Zeitnachweis" concept={timeTrackingConcept}>
               <ExportDescription>
                 Arbeitszeiten einer Person für einen Zeitraum. Der Export gehört
                 zum jeweiligen Profil.
               </ExportDescription>
               <ExportLink href="/database/personal">Zum Personal</ExportLink>
-            </InfoCard>
+            </ExportCard>
           )}
         </ExportSection>
       </div>
@@ -422,6 +407,35 @@ function ExportSection({
   return (
     <SectionCard title={title}>
       <CollectionGrid minTileWidth="18rem">{children}</CollectionGrid>
+    </SectionCard>
+  );
+}
+
+/**
+ * Eine Exportkarte im Raster: gleich hohe Karten, die Aktionszeile sitzt per
+ * `mt-auto` unten, damit Knöpfe einer Reihe auf einer Linie stehen.
+ */
+function ExportCard({
+  title,
+  concept,
+  icon,
+  children,
+}: Readonly<{
+  title: string;
+  concept?: MotoConcept;
+  icon?: LucideIcon;
+  children: ReactNode;
+}>) {
+  return (
+    <SectionCard
+      title={title}
+      concept={concept}
+      icon={icon}
+      headingLevel={3}
+      className="flex h-full flex-col"
+      bodyClassName="compact:mt-3 mt-4 flex min-h-0 flex-1 flex-col space-y-3"
+    >
+      {children}
     </SectionCard>
   );
 }

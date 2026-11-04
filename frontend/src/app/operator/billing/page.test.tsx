@@ -10,7 +10,7 @@ import {
   within,
 } from "@testing-library/react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import { SWRConfig } from "swr";
+import { SWRConfig } from "~/lib/swr/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -43,7 +43,10 @@ const {
 vi.unmock("swr");
 
 vi.mock("next-auth/react", () => ({
-  useSession: () => ({ status: "authenticated", data: { user: {} } }),
+  useSession: () => ({
+    status: "authenticated",
+    data: { user: { id: "operator-1", scope: "operator" } },
+  }),
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
@@ -221,6 +224,11 @@ describe("OperatorBillingPage", () => {
       await screen.findByRole("button", { name: "Monat als CSV" }),
     );
     await waitFor(() => expect(mockDownload).toHaveBeenCalledWith("2026-08"));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Alle Monate als CSV" }),
+      ).toBeEnabled(),
+    );
 
     fireEvent.click(
       screen.getByRole("button", { name: "Alle Monate als CSV" }),

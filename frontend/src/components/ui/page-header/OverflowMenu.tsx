@@ -1,5 +1,6 @@
 "use client";
 
+import { Z_LAYER } from "../overlay-styles";
 import {
   useEffect,
   useId,
@@ -38,6 +39,8 @@ export interface OverflowMenuItem {
   readonly external?: boolean;
   /** Marks the current item in a navigational overflow menu. */
   readonly selected?: boolean;
+  /** Target of a guided tour (`data-setup-tour`), for an entry a tour points at. */
+  readonly tourTarget?: string;
 }
 
 /** Non-interactive thin divider between item groups. */
@@ -55,6 +58,8 @@ interface OverflowMenuHeader {
 interface OverflowMenuRadioItem {
   readonly kind: "radio";
   readonly label: string;
+  /** One short line under the label that says what the choice means. */
+  readonly description?: string;
   readonly checked: boolean;
   readonly onClick: () => void;
   readonly disabled?: boolean;
@@ -458,7 +463,7 @@ export function OverflowMenu({
               // escapes any clipping `overflow-hidden` ancestor. In
               // container-stretch mode the width comes from `menuStyle`, so the
               // 220px floor is dropped to let the menu match a narrow column.
-              className={`moto-popover-surface fixed z-50 scrollbar-thin overflow-x-hidden overflow-y-auto rounded-xl border py-1 ${
+              className={`moto-popover-surface fixed ${Z_LAYER.dropdown} scrollbar-thin overflow-x-hidden overflow-y-auto rounded-xl border py-1 ${
                 matchContainerSelector ? "" : "min-w-[220px]"
               }`}
             >
@@ -490,6 +495,12 @@ export function OverflowMenu({
                           : "menuitemcheckbox"
                       }
                       aria-checked={entry.checked}
+                      {...(entry.kind === "radio" && entry.description
+                        ? {
+                            "aria-labelledby": `${menuId}-${index}-label`,
+                            "aria-describedby": `${menuId}-${index}-description`,
+                          }
+                        : {})}
                       disabled={entry.disabled}
                       onClick={() => {
                         if (entry.disabled) return;
@@ -505,7 +516,21 @@ export function OverflowMenu({
                           : "hover:bg-gray-50 active:bg-gray-100"
                       } ${entry.checked ? "text-gray-900" : "text-gray-700"}`}
                     >
-                      <span>{entry.label}</span>
+                      {entry.kind === "radio" && entry.description ? (
+                        <span className="flex max-w-64 min-w-0 flex-col">
+                          <span id={`${menuId}-${index}-label`}>
+                            {entry.label}
+                          </span>
+                          <span
+                            id={`${menuId}-${index}-description`}
+                            className="text-xs font-normal text-gray-500"
+                          >
+                            {entry.description}
+                          </span>
+                        </span>
+                      ) : (
+                        <span>{entry.label}</span>
+                      )}
                       {entry.checked ? (
                         <Check className="size-4 text-gray-900" aria-hidden />
                       ) : null}
@@ -558,6 +583,7 @@ export function OverflowMenu({
                       <a
                         key={`item-${item.label}`}
                         role="menuitem"
+                        data-setup-tour={item.tourTarget}
                         aria-current={item.selected ? "true" : undefined}
                         tabIndex={0}
                         href={item.href}
@@ -574,6 +600,7 @@ export function OverflowMenu({
                     <Link
                       key={`item-${item.label}`}
                       role="menuitem"
+                      data-setup-tour={item.tourTarget}
                       aria-current={item.selected ? "true" : undefined}
                       tabIndex={0}
                       href={item.href}
@@ -590,6 +617,7 @@ export function OverflowMenu({
                     key={`item-${item.label}`}
                     type="button"
                     role="menuitem"
+                    data-setup-tour={item.tourTarget}
                     aria-current={item.selected ? "true" : undefined}
                     disabled={item.disabled}
                     onClick={() => {

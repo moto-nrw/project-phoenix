@@ -10,8 +10,8 @@ const swrResult: { data: unknown; error: unknown } = {
   error: undefined,
 };
 
-vi.mock("swr", () => ({
-  default: () => ({ ...swrResult, mutate }),
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: () => ({ ...swrResult, mutate }),
 }));
 vi.mock("~/lib/tenant-context", () => ({
   useTenant: () => ({ tenant: { messagingEnabled: true } }),

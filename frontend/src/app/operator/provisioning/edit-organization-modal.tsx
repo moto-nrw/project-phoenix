@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { Input } from "~/components/ui/input";
+import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
@@ -6,7 +8,7 @@ import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization } from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
-import { FormField, FieldWarning } from "./provisioning-shared";
+import { FieldWarning } from "./provisioning-shared";
 
 const logger = createLogger({ component: "EditOrganizationModal" });
 
@@ -84,21 +86,25 @@ export function EditOrganizationModal({
       title="Träger bearbeiten"
       footer={
         <>
-          <button
+          <Button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            variant="outline"
+            size="md"
+            className="flex-1"
           >
             Abbrechen
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={(e) => void handleUpdate(e)}
             disabled={orgSaving || !orgName.trim() || !orgSlug.trim()}
-            className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+            variant="primary"
+            size="md"
+            className="flex-1"
           >
             {orgSaving ? "Wird gespeichert..." : "Speichern"}
-          </button>
+          </Button>
         </>
       }
     >
@@ -109,41 +115,34 @@ export function EditOrganizationModal({
         id="edit-org-form"
       >
         <FormErrorAlert message={formErrors.error} />
-        <FormField
+        <Input
+          id="edit-org-name"
+          name="name"
+          type="text"
+          value={orgName}
+          onChange={(e) => setOrgName(e.target.value)}
+          maxLength={255}
           label="Name"
-          htmlFor="edit-org-name"
           required
           error={formErrors.fieldError("name")}
-        >
-          <input
-            id="edit-org-name"
-            name="name"
-            type="text"
-            value={orgName}
-            onChange={(e) => setOrgName(e.target.value)}
-            maxLength={255}
-            className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-            required
-          />
-        </FormField>
-        <FormField
-          label="Slug"
-          htmlFor="edit-org-slug"
-          required
-          error={formErrors.fieldError("slug")}
-        >
-          <input
+          controlSize="compact"
+        />
+        <div>
+          <Input
             id="edit-org-slug"
             name="slug"
             type="text"
             value={orgSlug}
             onChange={(e) => setOrgSlug(e.target.value)}
             maxLength={255}
-            className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
+            label="Slug"
             required
+            error={formErrors.fieldError("slug")}
+            controlSize="compact"
+            className="font-mono"
           />
           <FieldWarning message="Slug-Änderungen können bestehende Verweise ungültig machen." />
-        </FormField>
+        </div>
       </form>
     </Modal>
   );

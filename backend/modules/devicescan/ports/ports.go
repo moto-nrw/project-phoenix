@@ -112,6 +112,10 @@ var (
 
 // Visits are the room stay transitions of one student.
 type Visits interface {
+	// LockStudent locks the student in the scan's transaction. A scan takes
+	// it before it reads and ends the student's visit, the order every
+	// presence write that holds a student keeps (#5278).
+	LockStudent(ctx context.Context, studentID int64) error
 	// Current is nil, nil when the student has no open visit.
 	Current(ctx context.Context, studentID int64) (*CurrentVisit, error)
 	EndVisit(ctx context.Context, visitID int64) error

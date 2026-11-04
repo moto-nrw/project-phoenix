@@ -18,11 +18,8 @@ const mocks = vi.hoisted(() => ({
   endDefaultMonth: undefined as string | undefined,
 }));
 
-vi.mock("swr", () => ({
-  useSWRConfig: () => ({ mutate: mocks.mutate }),
-}));
-
 vi.mock("~/lib/swr", () => ({
+  useInvalidateMatching: () => mocks.mutate,
   useSWRAuth: () => ({
     data: mocks.loadError ? undefined : mocks.rows,
     error: mocks.loadError,
@@ -410,7 +407,7 @@ describe("SonderarbeitszeitenSection", () => {
     expect(screen.getAllByText("Sonderarbeitszeiten")).toHaveLength(1);
   });
 
-  it("offers the next step in the empty state", () => {
+  it("offers the next step once, in the card head, in the empty state", () => {
     mocks.rows = [];
     render(<SonderarbeitszeitenSection staffId="42" canEdit />);
 
@@ -420,9 +417,10 @@ describe("SonderarbeitszeitenSection", () => {
     expect(
       screen.getByText("Es gilt das Arbeitszeitmodell."),
     ).toBeInTheDocument();
+    // #5034: der Leerzustand wiederholt den Knopf aus dem Kartenkopf nicht.
     expect(
       screen.getAllByRole("button", { name: "Sonderarbeitszeit anlegen" }),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   });
 
   it("shows a single day as one date", () => {

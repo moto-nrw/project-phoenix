@@ -1,0 +1,31 @@
+{
+  "eyebrow": "Portal dla rodziców",
+  "title": "Witamy",
+  "fallbackSchool": "Państwa szkoły",
+  "subtitle": "Proszę potwierdzić zaproszenie od {school} i ustawić swoje hasło.",
+  "errorHelpBefore": "Mogą Państwo poprosić szkołę o nowe zaproszenie lub zalogować się przez",
+  "startPage": "stronę główną",
+  "errorHelpAfter": ".",
+  "formErrors": {
+    "passwordRules": "Hasło nie spełnia jeszcze wszystkich wymagań.",
+    "passwordMismatch": "Hasła nie są takie same."
+  },
+  "acceptedTitle": "Konto zostało utworzone",
+  "acceptedText": "Proszę zalogować się nowymi danymi logowania.",
+  "invitationFor": "Zaproszenie dla",
+  "passwordLabel": "Hasło",
+  "confirmPasswordLabel": "Potwierdź hasło",
+  "showPassword": "Pokaż hasło",
+  "hidePassword": "Ukryj hasło",
+  "requirementsTitle": "Wymagania dotyczące hasła",
+  "submitting": "Przyjmowanie...",
+  "submit": "Przyjmij zaproszenie",
+  "passwordRules": {
+    "0": "Co najmniej 8 znaków",
+    "1": "Jedna wielka litera",
+    "2": "Jedna mała litera",
+    "3": "Jedna cyfra",
+    "4": "Jeden znak specjalny"
+  },
+  "errorObject": "zaproszenie"
+}

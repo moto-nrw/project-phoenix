@@ -7,6 +7,7 @@ import {
   WrenchIcon,
   type Icon as PhosphorIcon,
 } from "@phosphor-icons/react";
+import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { useAnnouncements } from "~/lib/hooks/use-announcements";
@@ -130,46 +131,42 @@ export function AnnouncementModal() {
       <span className="flex-1 text-xs text-gray-500">
         {totalCount > 1 && `${currentIndex + 1} von ${totalCount}`}
       </span>
-      <button
+      <Button
         type="button"
+        variant="success"
+        size="md"
         onClick={() => void handleDismiss()}
-        className="bg-moto-green hover:bg-moto-green-hover rounded-xl px-5 py-2.5 text-sm font-medium text-white shadow-md transition-all hover:scale-105 hover:shadow-lg active:scale-100"
       >
         {currentIndex < totalCount - 1 ? "Weiter" : "Verstanden"}
-      </button>
+      </Button>
     </>
   );
 
   return (
-    <Modal isOpen={isVisible} onClose={handleClose} title="" footer={footer}>
-      {/* Header section with icon and titles */}
-      <div className="mb-5">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
-            <MotoDuotoneIcon icon={header.icon} tone="amber" size={22} />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">
-              {header.subtitle}
-            </h2>
-            <p className="mt-0.5 text-sm text-gray-500">
-              {header.title}
-              {current.version && (
-                <span className="ml-2 text-gray-400">v{current.version}</span>
-              )}
-            </p>
-          </div>
+    <Modal
+      isOpen={isVisible}
+      onClose={handleClose}
+      title={header.subtitle}
+      icon={
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
+          <MotoDuotoneIcon icon={header.icon} tone="amber" size={22} />
         </div>
-      </div>
-
-      {/* Divider */}
-      <div className="mb-4 border-t border-gray-100" />
-
+      }
+      description={
+        <>
+          {header.title}
+          {current.version && (
+            <span className="ml-2 text-gray-400">v{current.version}</span>
+          )}
+        </>
+      }
+      footer={footer}
+    >
       {/* Announcement content */}
       <div>
-        <h3 className="text-base font-semibold text-gray-900">
+        <h4 className="text-base font-semibold text-gray-900">
           {current.title}
-        </h3>
+        </h4>
         <p className="mt-2 text-sm whitespace-pre-wrap text-gray-600">
           {current.content}
         </p>

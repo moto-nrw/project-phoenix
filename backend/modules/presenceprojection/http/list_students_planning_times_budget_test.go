@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,6 +51,6 @@ func TestListStudentsPlanningTimesQueryBudget(t *testing.T) {
 	for _, table := range planningTimesTables {
 		queries := counter.Selects(table)
 		t.Logf("table %q: %d queries", table, len(queries))
-		testpkg.AssertQueryBudget(t, "api.students.list.planning_times.per_table", queries)
+		querybudgets.AssertQueryBudget(t, "api.students.list.planning_times.per_table", queries)
 	}
 }

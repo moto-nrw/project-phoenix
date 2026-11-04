@@ -16,6 +16,7 @@ import {
   submitCareScheduleRequest,
   type ChildCareSchedule,
 } from "~/lib/parent-api";
+import { calendarConcept } from "~/lib/concepts/calendar";
 
 const WEEKDAYS = [1, 2, 3, 4, 5] as const;
 const DAY_KEYS: Record<number, "mon" | "tue" | "wed" | "thu" | "fri"> = {
@@ -58,7 +59,7 @@ export function WeeklyScheduleSection(props: Readonly<ScheduleProps>) {
     <>
       <ParentSection
         title={tc("care.weekTitle")}
-        concept="calendar"
+        concept={calendarConcept}
         prominent
         actions={
           showAction ? (
@@ -150,7 +151,7 @@ function ScheduleDay({
       ? day.modes.map((mode) => t(`departureModes.${mode}`)).join(", ")
       : t("careSchedule.notSet");
   return (
-    <div className="moto-content-surface rounded-xl border p-4 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-4">
       <dt className="flex flex-col items-start gap-3 text-base font-semibold text-gray-900">
         <span>{t(`careSchedule.weekdays.${DAY_KEYS[weekday]}`)}</span>
         <StatusBadge label={status} tone={scheduled ? "green" : "gray"} />

@@ -365,8 +365,10 @@ func (s *service) clearPlannedRows(ctx context.Context, rows []*absencerecords.S
 		// "scheduled ahead" rows the live-flag path doesn't cover, so the
 		// next-checkin clear must treat them the same — otherwise a parent
 		// sick note for today stays active even after the child checks in.
+		// A day the Schulverwaltung entered afterwards (#4791) is planned too.
 		if row.Source != absencerecords.StudentStatusSourcePlanned &&
-			row.Source != absencerecords.StudentStatusSourceParent {
+			row.Source != absencerecords.StudentStatusSourceParent &&
+			row.Source != absencerecords.StudentStatusSourceSchool {
 			continue
 		}
 		if err := s.StudentStatusRepo.MarkClearedByID(ctx, row.ID, now, absencerecords.StudentStatusSourceNextCheckin); err != nil {

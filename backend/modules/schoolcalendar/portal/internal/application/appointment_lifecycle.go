@@ -30,7 +30,14 @@ func (s *service) createAppointment(ctx context.Context, req CreateAppointmentRe
 	if err != nil {
 		return nil, fmt.Errorf("%w: current staff required", ErrForbidden)
 	}
-	appointment, recurrence, err := newStaffAppointment(staff.ID, req)
+	return s.createAppointmentFor(ctx, staff.ID, req, allowEmptyParents)
+}
+
+// createAppointmentFor writes an appointment organized by organizerStaffID.
+// The Elternsprechtag uses it for a family's booking, which the Lehrkraft
+// organizes (#4801).
+func (s *service) createAppointmentFor(ctx context.Context, organizerStaffID int64, req CreateAppointmentRequest, allowEmptyParents bool) (*AppointmentDetail, error) {
+	appointment, recurrence, err := newStaffAppointment(organizerStaffID, req)
 	if err != nil {
 		return nil, err
 	}
@@ -165,6 +172,11 @@ func (s *service) loadOrganizedAppointment(ctx context.Context, appointmentID in
 	}
 	if appointment.OrganizerStaffID != staff.ID {
 		return nil, fmt.Errorf("%w: only the organizer may modify this appointment", ErrForbidden)
+	}
+	// A booked Elternsprechtag slot changes only through its booking (#4801):
+	// the family books, moves or cancels it, the Lehrkraft changes the day.
+	if isParentConferenceAppointment(appointment) {
+		return nil, fmt.Errorf("%w: an Elternsprechtag booking changes through the Sprechtag", ErrForbidden)
 	}
 	return appointment, nil
 }

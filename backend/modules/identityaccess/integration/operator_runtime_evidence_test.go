@@ -27,7 +27,7 @@ func TestOperatorRuntimeEvidence(t *testing.T) {
 	require.NoError(t, err)
 	operator := testpkg.CreateTestOperator(t, db)
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	testpkg.AttachLockWaitEvidence(db)
+	testpkg.AttachLockWaitEvidence(t, db)
 	ctx, events := testpkg.CaptureUnitOfWorkEvidence(counter.Context(testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db)))
 	var version string
 	require.NoError(t, db.NewRaw("SHOW server_version").Scan(ctx, &version))

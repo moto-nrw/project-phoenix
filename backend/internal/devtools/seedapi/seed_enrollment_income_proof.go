@@ -62,8 +62,19 @@ func (seedEnrollmentIncomeProofStep) Run(_ context.Context, rt *Runtime) error {
 	if err := json.Unmarshal(raw, &upload); err != nil || upload.Data.Token == "" {
 		return fmt.Errorf("upload income proof returned no token: %s", string(raw))
 	}
-	body := map[string]any{
-		"phase_id":            rt.Enrollment.PhaseID,
+	body := seedIncomeProofSubmission(rt.Enrollment.PhaseID, rt.Enrollment.Offerings, upload.Data.Token)
+	if _, err := rt.Client.PostPublicWithHeaders("/api/enrollment/"+slug+"/submit", body, publicEnrollmentSeedHeaders(90)); err != nil {
+		return fmt.Errorf("submit enrollment with income proof: %w", err)
+	}
+	fmt.Println("Seeded 1 enrollment request with an income proof")
+	return nil
+}
+
+// seedIncomeProofSubmission is the Rahimi family's request: the income
+// declaration once per enrollment, the allergies per child.
+func seedIncomeProofSubmission(phaseID int64, offerings map[string]int64, token string) map[string]any {
+	return map[string]any{
+		"phase_id":            phaseID,
 		"guardian_first_name": "Zahra",
 		"guardian_last_name":  "Rahimi",
 		"guardian_email":      "zahra.rahimi@example.test",
@@ -71,18 +82,13 @@ func (seedEnrollmentIncomeProofStep) Run(_ context.Context, rt *Runtime) error {
 		"consent_flags":       map[string]any{"data_processing": true},
 		"custom_data": map[string]any{
 			seedIncomeLevelKey: "stufe_1",
-			seedIncomeProofKey: []map[string]any{{"token": upload.Data.Token}},
+			seedIncomeProofKey: []map[string]any{{"token": token}},
 		},
 		"children": []map[string]any{{
 			"first_name": "Ahmad", "last_name": "Rahimi", "date_of_birth": "2019-05-12", "target_grade_level": 1,
-			"offering_ids":  []int64{rt.Enrollment.Offerings["ogs-kurz"], rt.Enrollment.Offerings["mittagessen"]},
-			"offering_days": []map[string]any{{"offering_id": rt.Enrollment.Offerings["ogs-kurz"], "selected_days": []string{"tue", "thu"}}, {"offering_id": rt.Enrollment.Offerings["mittagessen"], "selected_days": []string{"tue", "thu"}}},
+			"offering_ids":  []int64{offerings["ogs-kurz"], offerings["mittagessen"]},
+			"offering_days": []map[string]any{{"offering_id": offerings["ogs-kurz"], "selected_days": []string{"tue", "thu"}}, {"offering_id": offerings["mittagessen"], "selected_days": []string{"tue", "thu"}}},
 			"custom_data":   map[string]any{"allergies": "keine"},
 		}},
 	}
-	if _, err := rt.Client.PostPublicWithHeaders("/api/enrollment/"+slug+"/submit", body, publicEnrollmentSeedHeaders(90)); err != nil {
-		return fmt.Errorf("submit enrollment with income proof: %w", err)
-	}
-	fmt.Println("Seeded 1 enrollment request with an income proof")
-	return nil
 }

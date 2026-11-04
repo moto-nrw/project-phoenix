@@ -229,7 +229,7 @@ func (rs *Resource) putClassArrivalException(w http.ResponseWriter, r *http.Requ
 	}
 	// The roster and group views refetch on this event; a class-wide change
 	// concerns every child of the class, so no student ID travels with it.
-	tenant.RegisterAfterCommit(r.Context(), func() { rs.broadcastArrivalScheduleChanged(0) })
+	tenant.RegisterAfterCommit(r.Context(), func() { rs.broadcastArrivalScheduleChanged(tenant.FromContext(r.Context()), 0) })
 	common.Respond(w, r, http.StatusOK, mapClassArrivalException(row), "Class arrival exception saved successfully")
 }
 
@@ -246,6 +246,6 @@ func (rs *Resource) deleteClassArrivalException(w http.ResponseWriter, r *http.R
 		renderError(w, r, classArrivalExceptionErrorRenderer(err))
 		return
 	}
-	tenant.RegisterAfterCommit(r.Context(), func() { rs.broadcastArrivalScheduleChanged(0) })
+	tenant.RegisterAfterCommit(r.Context(), func() { rs.broadcastArrivalScheduleChanged(tenant.FromContext(r.Context()), 0) })
 	w.WriteHeader(http.StatusNoContent)
 }

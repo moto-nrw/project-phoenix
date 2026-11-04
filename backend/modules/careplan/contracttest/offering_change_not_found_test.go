@@ -43,10 +43,10 @@ func TestOfferingChangeNotFound(t *testing.T) {
 				call func(context.Context) error
 			}{
 				{"approve", func(ctx context.Context) error {
-					return svc.Decide(ctx, careplan.OfferingChangeDecisionInput{RequestID: id, Approve: true, ReviewedBy: env.creatorID})
+					return decideOfferingChange(ctx, svc, careplan.OfferingChangeDecisionInput{RequestID: id, Approve: true, ReviewedBy: env.creatorID})
 				}},
 				{"reject", func(ctx context.Context) error {
-					return svc.Decide(ctx, careplan.OfferingChangeDecisionInput{RequestID: id, Reason: "Rejected", ReviewedBy: env.creatorID})
+					return decideOfferingChange(ctx, svc, careplan.OfferingChangeDecisionInput{RequestID: id, Reason: "Rejected", ReviewedBy: env.creatorID})
 				}},
 				{"mark done", func(ctx context.Context) error { return svc.MarkDone(ctx, id, "", "", env.creatorID) }},
 				{"conflict candidate", func(ctx context.Context) error { _, err := svc.ConflictCandidate(ctx, id); return err }},
@@ -139,7 +139,7 @@ func TestOfferingChangeDeletedWhileWaitingForGate(t *testing.T) {
 						case "conflict":
 							return svc.LockConflictRequest(reviewCtx, row.ID)
 						default:
-							return svc.Decide(reviewCtx, careplan.OfferingChangeDecisionInput{RequestID: row.ID, Approve: operation == "approve", Reason: "Reviewed", ReviewedBy: env.creatorID})
+							return decideOfferingChange(reviewCtx, svc, careplan.OfferingChangeDecisionInput{RequestID: row.ID, Approve: operation == "approve", Reason: "Reviewed", ReviewedBy: env.creatorID})
 						}
 					})
 				}()

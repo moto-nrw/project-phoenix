@@ -300,10 +300,11 @@ describe("authService", () => {
         expect(result).toHaveLength(1);
       });
 
-      it("gets account roles in browser context with the session token", async () => {
+      // The route reads the session cookie; the browser holds no token (#5005).
+      it("gets account roles in browser context without a bearer token", async () => {
         vi.stubGlobal("window", {});
         mockedGetSession.mockResolvedValueOnce({
-          user: { id: "1", token: "test-token" },
+          user: { id: "1" },
           expires: "2099-01-01",
         });
         const fetchMock = vi.fn().mockResolvedValueOnce({
@@ -320,9 +321,7 @@ describe("authService", () => {
           "/api/auth/accounts/1/roles",
           expect.objectContaining({
             method: "GET",
-            headers: expect.objectContaining({
-              Authorization: "Bearer test-token",
-            }) as unknown,
+            headers: { "Content-Type": "application/json" },
           }),
         );
       });

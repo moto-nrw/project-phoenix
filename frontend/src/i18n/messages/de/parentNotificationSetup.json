@@ -1,0 +1,19 @@
+{
+  "title": "Keine wichtige Nachricht verpassen",
+  "intro": "Aktivieren Sie Benachrichtigungen. moto informiert Sie dann über neue Nachrichten und wichtige Änderungen zu Ihrem Kind.",
+  "enable": "Benachrichtigungen aktivieren",
+  "later": "Später erinnern",
+  "enableError": "Die Benachrichtigungen konnten nicht aktiviert werden. Bitte versuchen Sie es erneut.",
+  "denied": "Benachrichtigungen sind im Browser blockiert. Öffnen Sie die Browser-Einstellungen, erlauben Sie Benachrichtigungen für moto und versuchen Sie es anschließend unter Einstellungen erneut.",
+  "installTitle": "moto zum Home-Bildschirm hinzufügen",
+  "installAndroidTitle": "moto als App installieren",
+  "installAndroidIntro": "Installieren Sie moto auf Ihrem Startbildschirm. Danach öffnen Sie moto wie eine App und können Benachrichtigungen einschalten.",
+  "installAndroidManual": "Öffnen Sie das Browser-Menü und wählen Sie „App installieren“ oder „Zum Startbildschirm hinzufügen“.",
+  "installApp": "App installieren",
+  "installing": "Wird installiert …",
+  "installError": "moto konnte nicht installiert werden. Bitte versuchen Sie es erneut.",
+  "understood": "Verstanden",
+  "closeGuide": "Anleitung schließen",
+  "close": "Dialog schließen",
+  "introStaff": "Schalten Sie Benachrichtigungen ein. moto meldet sich dann bei wichtigen Ereignissen, auch wenn die App geschlossen ist."
+}

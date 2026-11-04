@@ -13,7 +13,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Skeleton } from "~/components/ui/skeleton";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { SectionCard } from "~/components/ui/section-card";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -25,6 +25,7 @@ import {
   type NotificationPreferenceType,
   type PreferencePortal,
 } from "~/lib/notification-preferences-api";
+import { notificationsConcept } from "~/lib/concepts/notifications";
 
 const logger = createLogger({ component: "NotificationPreferencesSection" });
 
@@ -53,6 +54,7 @@ const PARENT_TYPES = new Set([
   "parent_appointment_reminder",
   "parent_request_decided",
   "parent_care_cancelled",
+  "parent_billing_document",
 ]);
 
 interface NotificationPreferencesSectionProps {
@@ -285,62 +287,58 @@ function NotificationPreferencesSectionContent({
   }, []);
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
-      <ConceptSectionHeader
-        className="mb-4"
-        // Die Kanalgruppen darunter sind h4, und auf /parents/settings ist
-        // dieser Abschnitt die oberste Ueberschrift der Seite.
-        level={3}
-        title={isParentPortal ? t("title") : "Benachrichtigungen"}
-        concept="notifications"
-        subtitle={
-          isParentPortal
-            ? t("description")
-            : "Wählen Sie, worüber moto Sie informieren soll."
-        }
-        actionsClassName={isParentPortal ? "ms-auto" : undefined}
-        actions={
-          isParentPortal && loading ? (
-            <Skeleton className="h-9 w-28 rounded-lg" />
-          ) : isParentPortal && types.length > 0 ? (
-            allEnabled ? (
-              <span
-                role="status"
-                className="flex h-9 items-center justify-center gap-2 text-sm font-medium text-gray-600"
-              >
-                <Check
-                  className="h-4 w-4"
-                  style={{ color: LOCATION_COLORS.GROUP_ROOM }}
-                  aria-hidden="true"
-                />
-                {t("allEnabled")}
-              </span>
-            ) : (
-              <Button
-                type="button"
-                size="md"
-                disabled={busy}
-                isLoading={bulkEnabling}
-                loadingText={t("enablingAll")}
-                onClick={() => void enableAll()}
-              >
-                {t("enableAll")}
-              </Button>
-            )
-          ) : anyEnabled ? (
+    <SectionCard
+      // Die Kanalgruppen darunter sind h4, und auf /parents/settings ist
+      // dieser Abschnitt die oberste Ueberschrift der Seite.
+      headingLevel={3}
+      title={isParentPortal ? t("title") : "Benachrichtigungen"}
+      concept={notificationsConcept}
+      description={
+        isParentPortal
+          ? t("description")
+          : "Wählen Sie, worüber moto Sie informieren soll."
+      }
+      actions={
+        isParentPortal && loading ? (
+          <Skeleton className="h-9 w-28 rounded-lg" />
+        ) : isParentPortal && types.length > 0 ? (
+          allEnabled ? (
+            <span
+              role="status"
+              className="flex h-9 items-center justify-center gap-2 text-sm font-medium text-gray-600"
+            >
+              <Check
+                className="h-4 w-4"
+                style={{ color: LOCATION_COLORS.GROUP_ROOM }}
+                aria-hidden="true"
+              />
+              {t("allEnabled")}
+            </span>
+          ) : (
             <Button
               type="button"
-              variant="outline"
-              size="sm"
+              size="md"
               disabled={busy}
-              onClick={() => void disableAll()}
+              isLoading={bulkEnabling}
+              loadingText={t("enablingAll")}
+              onClick={() => void enableAll()}
             >
-              {isParentPortal ? t("disableAll") : "Alle deaktivieren"}
+              {t("enableAll")}
             </Button>
-          ) : null
-        }
-      />
-
+          )
+        ) : anyEnabled ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            disabled={busy}
+            onClick={() => void disableAll()}
+          >
+            {isParentPortal ? t("disableAll") : "Alle deaktivieren"}
+          </Button>
+        ) : null
+      }
+    >
       {loadError ? (
         <div className="mb-3">
           <LoadErrorAlert error={loadError} />
@@ -438,6 +436,6 @@ function NotificationPreferencesSectionContent({
           ))}
         </div>
       )}
-    </div>
+    </SectionCard>
   );
 }

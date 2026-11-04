@@ -80,7 +80,7 @@ func TestErrorEnvelopeScanFindsEachViolation(t *testing.T) {
 		`api/bad/bad.go:19:6: error body legacyBody: has no "code" member`,
 		`api/bad/bad.go:19:6: error body legacyBody: has no "detail" member`,
 		`api/bad/bad.go:30:6: error body messageBody: carries the legacy "message" member; the text belongs in "detail"`,
-		`api/bad/bad.go:42:71: error body problem code is "care.not_registered", which is not in error-registry.json`,
+		`api/bad/bad.go:42:71: error body problem code is "care.not_registered", which is not in error-registry/`,
 		`api/bad/bad.go:45:9: map literal writes the legacy "error" member next to an error status; render the shared envelope`,
 		`api/bad/bad.go:49:6: struct rowFailure writes the legacy "error" member next to "code"; render the shared envelope`,
 		`api/bad/bad.go:67:9: map literal writes the legacy "message" member next to an error status; render the shared envelope`,
@@ -177,11 +177,11 @@ func (tree *sourceTree) checkEnvelopeFile(pkg *sourcePackage, file *sourceFile, 
 // resolves to an unregistered code, like the registry scan does.
 func (tree *sourceTree) reportCode(pkg *sourcePackage, file *sourceFile, expr ast.Expr, where string, registry errorCodeRegistry, report func(token.Pos, string, ...any)) {
 	if value, ok := tree.resolve(pkg, file, expr, 0); ok && !registry.codes[value] {
-		report(expr.Pos(), "%s is %q, which is not in error-registry.json", where, value)
+		report(expr.Pos(), "%s is %q, which is not in error-registry/", where, value)
 	}
 	for _, value := range tree.returnedStrings(pkg, file, expr) {
 		if !registry.codes[value] {
-			report(expr.Pos(), "%s can be %q, which is not in error-registry.json", where, value)
+			report(expr.Pos(), "%s can be %q, which is not in error-registry/", where, value)
 		}
 	}
 }

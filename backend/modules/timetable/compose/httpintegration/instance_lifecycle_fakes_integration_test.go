@@ -657,3 +657,7 @@ func (acceptingSessions) StartActivitySession(context.Context, studentpresence.A
 func (acceptingSessions) CompleteActivitySession(context.Context, studentpresence.ActivitySessionCompletion) (studentpresence.ActivitySession, error) {
 	return studentpresence.ActivitySession{}, nil
 }
+
+func (r *absorbVisitRepo) PrepareVisitWrites(context.Context, studentpresence.VisitWriteScope) error {
+	return nil
+}

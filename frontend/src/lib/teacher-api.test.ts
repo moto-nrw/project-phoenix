@@ -613,14 +613,168 @@ describe("teacher-api", () => {
   });
 
   describe("teacherService.updateTeacher", () => {
+    it("sends a staff-only update without a preceding detail GET", async () => {
+      const mockFetch = vi.mocked(globalThis.fetch);
+      mockFetch.mockImplementation(() =>
+        Promise.resolve(new Response(JSON.stringify(sampleTeacher))),
+      );
+
+      const result = await teacherService.updateTeacher(
+        "1",
+        {
+          specialization: "Physics",
+        },
+        sampleTeacher,
+      );
+
+      expect(result.id).toBe("1");
+      expect(
+        mockFetch.mock.calls.map(([url, init]) => [url, init?.method]),
+      ).toEqual([["/api/staff/1", "PUT"]]);
+      expect(JSON.parse(mockFetch.mock.calls[0]![1]!.body as string)).toEqual({
+        person_id: "100",
+        is_teacher: true,
+        specialization: "Physics",
+        staff_notes: "Senior teacher",
+        role: "Teacher",
+        qualifications: "M.Ed",
+      });
+    });
+
+    it.each([
+      { is_teacher: false, teacher_id: undefined, expected: false },
+      { is_teacher: undefined, teacher_id: undefined, expected: false },
+      { is_teacher: undefined, teacher_id: "10", expected: true },
+    ])(
+      "keeps the loaded profile state on a name correction: %j",
+      async ({ expected, ...profile }) => {
+        const mockFetch = vi.mocked(globalThis.fetch);
+        mockFetch.mockImplementation(() =>
+          Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ...sampleTeacher,
+                account_id: "9007199254740993",
+              }),
+            ),
+          ),
+        );
+
+        await teacherService.updateTeacher(
+          "1",
+          { first_name: "Milena" },
+          { ...sampleTeacher, ...profile },
+        );
+
+        expect(
+          mockFetch.mock.calls.map(([url, init]) => [url, init?.method]),
+        ).toEqual([
+          ["/api/users/100", "GET"],
+          ["/api/users/100", "PUT"],
+          ["/api/staff/1", "PUT"],
+        ]);
+        expect(JSON.parse(mockFetch.mock.calls[1]![1]!.body as string)).toEqual(
+          {
+            first_name: "Milena",
+            account_id: "9007199254740993",
+          },
+        );
+        expect(JSON.parse(mockFetch.mock.calls[2]![1]!.body as string)).toEqual(
+          {
+            person_id: "100",
+            is_teacher: expected,
+            specialization: "Mathematics",
+            staff_notes: "Senior teacher",
+            role: "Teacher",
+            qualifications: "M.Ed",
+          },
+        );
+      },
+    );
+
+    it.each([null, "", "TAG002"])(
+      "preserves tag removal/change: %j",
+      async (tag_id) => {
+        const mockFetch = vi.mocked(globalThis.fetch);
+        mockFetch.mockImplementation(() =>
+          Promise.resolve(new Response(JSON.stringify({ account_id: 50 }))),
+        );
+
+        await teacherService.updateTeacher("1", { tag_id }, sampleTeacher);
+
+        expect(mockFetch).toHaveBeenCalledTimes(3);
+        expect(mockFetch.mock.calls[1]![0]).toBe("/api/users/100");
+        expect(JSON.parse(mockFetch.mock.calls[1]![1]!.body as string)).toEqual(
+          { tag_id, account_id: 50 },
+        );
+      },
+    );
+
+    it("clears explicitly empty fields but keeps omitted fields", async () => {
+      const mockFetch = vi.mocked(globalThis.fetch);
+      mockFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify(sampleTeacher)),
+      );
+
+      await teacherService.updateTeacher(
+        "1",
+        { specialization: null, role: "  ", qualifications: "" },
+        sampleTeacher,
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(mockFetch.mock.calls[0]![1]!.body as string)).toEqual({
+        person_id: "100",
+        is_teacher: true,
+        specialization: "",
+        role: "",
+        qualifications: "",
+        staff_notes: "Senior teacher",
+      });
+    });
+
+    it("rejects a mismatched loaded record before writing", async () => {
+      await expect(
+        teacherService.updateTeacher("2", { role: "New" }, sampleTeacher),
+      ).rejects.toThrow("current record ID mismatch");
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it.each(["person-read", "person-write", "staff-write"])(
+      "retains permission errors and stops after %s fails",
+      async (stage) => {
+        const mockFetch = vi.mocked(globalThis.fetch);
+        const count = { "person-read": 1, "person-write": 2, "staff-write": 3 }[
+          stage
+        ]!;
+        for (let i = 1; i < count; i++) {
+          mockFetch.mockResolvedValueOnce(
+            new Response(JSON.stringify({ account_id: 50 })),
+          );
+        }
+        mockFetch.mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({ code: "general.permission", status: 403 }),
+            { status: 403 },
+          ),
+        );
+
+        await expect(
+          teacherService.updateTeacher(
+            "1",
+            { first_name: "Milena" },
+            sampleTeacher,
+          ),
+        ).rejects.toMatchObject({
+          status: 403,
+          code: "general.permission",
+        });
+        expect(mockFetch).toHaveBeenCalledTimes(count);
+      },
+    );
+
     it("updates teacher staff fields without person update", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-
-      // Mock getTeacher (for current data)
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(sampleTeacher),
-      } as Response);
 
       // Mock staff update
       mockFetch.mockResolvedValueOnce({
@@ -632,21 +786,19 @@ describe("teacher-api", () => {
           }),
       } as Response);
 
-      const result = await teacherService.updateTeacher("1", {
-        specialization: "Physics",
-      });
+      const result = await teacherService.updateTeacher(
+        "1",
+        {
+          specialization: "Physics",
+        },
+        sampleTeacher,
+      );
 
       expect(result.specialization).toBe("Physics");
     });
 
     it("updates person fields when name/tag changes", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-
-      // Mock getTeacher
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(sampleTeacher),
-      } as Response);
 
       // Mock person GET
       mockFetch.mockResolvedValueOnce({
@@ -670,9 +822,13 @@ describe("teacher-api", () => {
           }),
       } as Response);
 
-      const result = await teacherService.updateTeacher("1", {
-        first_name: "Maximilian",
-      });
+      const result = await teacherService.updateTeacher(
+        "1",
+        {
+          first_name: "Maximilian",
+        },
+        sampleTeacher,
+      );
 
       expect(result.first_name).toBe("Maximilian");
     });
@@ -683,11 +839,6 @@ describe("teacher-api", () => {
       // next door instead of failing (#2222).
       const personID = "9007199254740993";
 
-      // getTeacher
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ ...sampleTeacher, person_id: personID }),
-      } as Response);
       // person GET
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -704,7 +855,11 @@ describe("teacher-api", () => {
         json: () => Promise.resolve(sampleTeacher),
       } as Response);
 
-      await teacherService.updateTeacher("1", { first_name: "Maximilian" });
+      await teacherService.updateTeacher(
+        "1",
+        { first_name: "Maximilian" },
+        { ...sampleTeacher, person_id: personID },
+      );
 
       const personCalls = mockFetch.mock.calls.filter((call) =>
         String(call[0]).startsWith("/api/users/"),
@@ -723,27 +878,18 @@ describe("teacher-api", () => {
     });
 
     it("throws error when person_id is missing for person update", async () => {
-      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-
-      // Mock getTeacher returning teacher without person_id
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(sampleTeacherMinimal),
-      } as Response);
-
       await expect(
-        teacherService.updateTeacher("2", { first_name: "Updated" }),
+        teacherService.updateTeacher(
+          "2",
+          { first_name: "Updated" },
+          sampleTeacherMinimal,
+        ),
       ).rejects.toThrow("Cannot update person fields - person_id not found");
+      expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
     it("throws error when person fetch fails", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-
-      // Mock getTeacher
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(sampleTeacher),
-      } as Response);
 
       // Mock person GET failure
       mockFetch.mockResolvedValueOnce({
@@ -754,18 +900,16 @@ describe("teacher-api", () => {
       } as Response);
 
       await expect(
-        teacherService.updateTeacher("1", { first_name: "Updated" }),
+        teacherService.updateTeacher(
+          "1",
+          { first_name: "Updated" },
+          sampleTeacher,
+        ),
       ).rejects.toThrow("Failed to fetch person data");
     });
 
     it("throws error when person update fails", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-
-      // Mock getTeacher
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(sampleTeacher),
-      } as Response);
 
       // Mock person GET
       mockFetch.mockResolvedValueOnce({
@@ -780,18 +924,16 @@ describe("teacher-api", () => {
       } as Response);
 
       await expect(
-        teacherService.updateTeacher("1", { first_name: "Updated" }),
+        teacherService.updateTeacher(
+          "1",
+          { first_name: "Updated" },
+          sampleTeacher,
+        ),
       ).rejects.toThrow("Failed to update person: Validation error");
     });
 
     it("throws error when staff update fails", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-
-      // Mock getTeacher
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(sampleTeacher),
-      } as Response);
 
       // Mock staff update failure
       mockFetch.mockResolvedValueOnce({
@@ -801,18 +943,16 @@ describe("teacher-api", () => {
       } as Response);
 
       await expect(
-        teacherService.updateTeacher("1", { specialization: "New" }),
+        teacherService.updateTeacher(
+          "1",
+          { specialization: "New" },
+          sampleTeacher,
+        ),
       ).rejects.toThrow("Failed to update teacher: Bad Request - Invalid data");
     });
 
     it("trims field values before sending", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-
-      // Mock getTeacher
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(sampleTeacher),
-      } as Response);
 
       // Mock staff update
       mockFetch.mockResolvedValueOnce({
@@ -820,10 +960,14 @@ describe("teacher-api", () => {
         json: () => Promise.resolve(sampleTeacher),
       } as Response);
 
-      await teacherService.updateTeacher("1", {
-        specialization: "  Physics  ",
-        staff_notes: "  Notes  ",
-      });
+      await teacherService.updateTeacher(
+        "1",
+        {
+          specialization: "  Physics  ",
+          staff_notes: "  Notes  ",
+        },
+        sampleTeacher,
+      );
 
       // Verify the PUT call had trimmed values
       expect(mockFetch).toHaveBeenLastCalledWith(

@@ -165,7 +165,7 @@ describe("useStudentData additional scenarios", () => {
     const { result } = renderHook(() => useStudentData("123"));
 
     expect(result.current.student).toBeNull();
-    expect(result.current.hasFullAccess).toBe(true);
+    expect(result.current.hasFullAccess).toBe(false);
     expect(result.current.supervisors).toEqual([]);
     expect(result.current.myGroups).toEqual([]);
     expect(result.current.myGroupRooms).toEqual([]);

@@ -14,12 +14,12 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import {
   AuthShell,
   AuthShellSkeleton,
   MotoBrand,
-  authInputClassName,
-  authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
 import { buildParentAuthShellCopy } from "~/components/auth/parent-auth-shell-copy";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
@@ -33,6 +33,7 @@ import { parentPath } from "~/lib/parent-url";
 import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
 import { normalizeLocale } from "~/i18n/locales";
 import { clientEnv } from "~/env.client";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "ParentLoginPage" });
 
@@ -136,13 +137,12 @@ function ParentLoginForm() {
     [tAuthShell],
   );
   // A session the callback stripped (no usable access token) carries an
-  // empty token and stays on the form. The layout's server snapshot carries
-  // no token at all (#4990, #5005); the server already checked it, so a
-  // signed-in parent opening /login is still sent to the portal.
+  // error and stays on the form. No browser session carries a token
+  // (#4990, #5005); the server checks the cookie, so a signed-in parent
+  // opening /login is still sent to the portal.
   const isRedirectingToParent =
     status === "authenticated" &&
     session?.user?.scope === "parent" &&
-    session.user.token !== "" &&
     session.error === undefined;
   const isSessionSettling =
     status === "loading" ||
@@ -336,43 +336,36 @@ function ParentLoginForm() {
 
           <div className="space-y-4">
             <div className="text-left">
-              <label
-                htmlFor="parent-email"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                {t("emailLabel")}
-              </label>
-              <input
+              <Input
                 id="parent-email"
                 name="email"
                 type="email"
+                label={t("emailLabel")}
+                controlSize="compact"
                 autoComplete="username"
                 required
                 disabled={isSessionSettling}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className={authInputClassName}
               />
             </div>
 
             <div className="text-left">
-              <label
-                htmlFor="parent-password"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
+              <FieldLabel htmlFor="parent-password" required>
                 {t("passwordLabel")}
-              </label>
+              </FieldLabel>
               <div className="relative">
-                <input
+                <Input
                   id="parent-password"
                   name="password"
                   type={showPassword ? "text" : "password"}
+                  controlSize="compact"
                   autoComplete="current-password"
                   required
                   disabled={isSessionSettling}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`${authInputClassName} pr-10`}
+                  className="pr-10"
                 />
                 <PasswordToggleButton
                   showPassword={showPassword}
@@ -384,26 +377,29 @@ function ParentLoginForm() {
             </div>
 
             <div className="text-center">
-              <button
+              <Button
                 type="button"
+                variant="link"
+                size="md"
                 disabled={isLoading || isSessionSettling}
                 onClick={() => setIsResetModalOpen(true)}
-                className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
               >
                 {t("forgotPassword")}
-              </button>
+              </Button>
             </div>
           </div>
 
-          <button
+          <Button
             type="submit"
             disabled={isLoading || isSessionSettling}
-            className={authPrimaryButtonClassName}
+            variant="primary"
+            size="field"
+            className="w-full"
           >
             <span className="relative z-10">
               {isLoading ? t("submitting") : t("submit")}
             </span>
-          </button>
+          </Button>
         </form>
       </AuthShell>
 

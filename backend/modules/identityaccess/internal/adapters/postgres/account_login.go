@@ -104,26 +104,31 @@ func (s *Store) FindLoginAccount(ctx context.Context, id int64, forUpdate bool) 
 	return rows[0].toDomain(), true, stats, nil
 }
 
-// RecordAccountLogin writes the last-login stamp. On the login path this is
-// the first write of the mint transaction and takes the account row lock
-// concurrent issuers serialize the session cap on.
-func (s *Store) RecordAccountLogin(ctx context.Context, id int64, at time.Time) (domain.OperationStats, error) {
+// RecordAccountLogin writes the last-login stamp on a live account and
+// reports whether it did. On the login path this is the first write of the
+// mint transaction and takes the account row lock concurrent issuers
+// serialize the session cap on. The erasure of unused accounts takes the same
+// row lock (#5546): while it holds the account, this update waits for its
+// transaction and then re-checks the committed row, so an account erased
+// meanwhile is not stamped and the mint ends.
+func (s *Store) RecordAccountLogin(ctx context.Context, id int64, at time.Time) (bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.OperationStats{}, err
+		return false, domain.OperationStats{}, err
 	}
 	started := time.Now()
 	result, err := db.NewUpdate().
 		TableExpr(`auth.accounts AS "account"`).
 		Set("last_login = ?", at).
 		Where(`"account".id = ?`, id).
+		Where(`"account".personal_data_erased_at IS NULL`).
 		Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
-		return stats, fmt.Errorf("identity access postgres: record account login: %w", err)
+		return false, stats, fmt.Errorf("identity access postgres: record account login: %w", err)
 	}
 	stats.Rows, _ = result.RowsAffected()
-	return stats, nil
+	return stats.Rows == 1, stats, nil
 }
 
 // ListActiveTenantIDs returns the account's active school mappings in

@@ -128,7 +128,8 @@ func convertRows[Row, DTO any](rows []Row, convert func(Row) DTO) []DTO {
 
 func legacyInstance(row ports.ActivityInstance) *scheduleModels.ActivityInstance {
 	instance := &scheduleModels.ActivityInstance{
-		Date: calendar.Date(row.Date), ActivityGroupID: row.ActivityGroupID, CalendarPeriodID: row.CalendarPeriodID,
+		ClockTimesSet: true,
+		Date:          calendar.Date(row.Date), ActivityGroupID: row.ActivityGroupID, CalendarPeriodID: row.CalendarPeriodID,
 		Title: row.Title, Description: row.Description, StartTime: row.StartTime, EndTime: row.EndTime, RoomID: row.RoomID,
 		RequiredStaff: row.RequiredStaff, Status: row.Status, ActiveGroupID: row.ActiveGroupID, ListKind: row.ListKind,
 		IsSpontaneous: row.IsSpontaneous, UnderstaffedAck: row.UnderstaffedAck, UnderstaffedNote: row.UnderstaffedNote,

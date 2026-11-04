@@ -1,0 +1,6 @@
+DELETE /api/display/{id}/ -> basis
+GET /api/display/ -> basis
+GET /api/display/dashboard -> basis
+PATCH /api/display/{id}/ -> basis
+POST /api/display/ -> basis
+POST /api/display/{id}/regenerate -> basis

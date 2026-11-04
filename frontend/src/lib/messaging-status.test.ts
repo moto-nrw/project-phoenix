@@ -9,6 +9,8 @@
 import { describe, it, expect } from "vitest";
 import type { ChatMessage } from "./messaging-status";
 import {
+  childConversationPath,
+  parentReadersLine,
   parentEventI18nDescriptor,
   parentRequestStatusI18nKey,
   parentRequestTypeI18nKey,
@@ -456,5 +458,73 @@ describe("parentThreadPreviewI18nDescriptor", () => {
       parentThreadPreviewI18nDescriptor({ last_message_kind: "message" }),
     ).toBeNull();
     expect(parentThreadPreviewI18nDescriptor({})).toBeNull();
+  });
+});
+
+describe("parentReadersLine (#5200)", () => {
+  const texts: Record<string, string> = {
+    readersTeam: "Lesen können: Sie und alle Mitarbeitenden der OGS.",
+    readersLeadership: "Lesen können: Sie und die Leitung: {names}",
+    readersLeadershipUnnamed: "Lesen können: Sie und die Leitung der OGS.",
+    readersUnnamedLeader: "Schulverwaltung",
+  };
+  const t = (key: string, values?: { names: string }) =>
+    (texts[key] ?? key).replace("{names}", values?.names ?? "");
+
+  it("names all staff for the team conversation", () => {
+    expect(
+      parentReadersLine({ school: { kind: "all_staff", names: [] } }, t),
+    ).toBe("Lesen können: Sie und alle Mitarbeitenden der OGS.");
+  });
+
+  it("ends with one period after a short name", () => {
+    expect(
+      parentReadersLine(
+        { school: { kind: "leadership", names: ["Swantje M.", "Tom K."] } },
+        t,
+      ),
+    ).toBe("Lesen können: Sie und die Leitung: Swantje M., Tom K.");
+  });
+
+  it("names unnamed accounts in the reader's language and ends the sentence", () => {
+    expect(
+      parentReadersLine(
+        {
+          school: {
+            kind: "leadership",
+            names: ["Swantje M."],
+            unnamed_count: 2,
+          },
+        },
+        t,
+      ),
+    ).toBe("Lesen können: Sie und die Leitung: Swantje M., Schulverwaltung.");
+  });
+
+  it("adds the period after a name without one", () => {
+    expect(
+      parentReadersLine(
+        { school: { kind: "leadership", names: ["Swantje"] } },
+        t,
+      ),
+    ).toBe("Lesen können: Sie und die Leitung: Swantje.");
+  });
+
+  it("still says leadership when nobody is named", () => {
+    expect(
+      parentReadersLine({ school: { kind: "leadership", names: [] } }, t),
+    ).toBe("Lesen können: Sie und die Leitung der OGS.");
+  });
+});
+
+describe("childConversationPath (#5200)", () => {
+  it("opens the team conversation without a parameter", () => {
+    expect(childConversationPath("42")).toBe("/parents/messages/42");
+  });
+
+  it("marks the leadership conversation", () => {
+    expect(childConversationPath("42", "leadership")).toBe(
+      "/parents/messages/42?audience=leadership",
+    );
   });
 });

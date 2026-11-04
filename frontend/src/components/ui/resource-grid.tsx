@@ -187,7 +187,7 @@ export function ResourceGrid<TRow>({
       // Das Raster IST die Karte (#2031): vorher lag es in einer zusätzlichen
       // weißen Karte des Aufrufers, also Rahmen im Rahmen mit 24px Luft
       // dazwischen — keine andere Planungsfläche macht das.
-      className={`moto-content-surface max-w-full overflow-clip rounded-2xl border shadow-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-gray-900 ${className ?? ""}`}
+      className={`moto-content-surface max-w-full overflow-clip rounded-2xl border has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-gray-900 ${className ?? ""}`}
     >
       <div
         role={ariaLabel ? "region" : undefined}

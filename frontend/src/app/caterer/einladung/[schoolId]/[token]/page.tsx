@@ -12,21 +12,20 @@ import {
   useRef,
   useState,
 } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
-import { signIn } from "next-auth/react";
 import { Check } from "lucide-react";
 import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
-  authInputClass,
-  authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import {
   credentialError,
   LOGIN_REFUSALS,
 } from "~/components/auth/credential-error";
+import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { PasswordRequirements } from "~/components/auth/password-requirements";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
@@ -41,10 +40,12 @@ import {
   fetchCatererInvitation,
   loginCaterer,
   type CatererInvitationPreview,
+  type CatererLoginResult,
 } from "~/lib/caterer-api";
 import { catererPath } from "~/lib/caterer-url";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
+import { Button, ButtonLink } from "~/components/ui/button";
 
 const logger = createLogger({ component: "CatererInvitationPage" });
 
@@ -136,12 +137,14 @@ export default function CatererInvitationPage() {
       ) : (
         <div className="space-y-4">
           <LoadErrorAlert error={loadErrors.error} />
-          <Link
+          <ButtonLink
             href={catererPath("/caterer/login")}
-            className={authPrimaryButtonClassName}
+            variant="primary"
+            size="field"
+            className="w-full"
           >
             Zur Anmeldung
-          </Link>
+          </ButtonLink>
         </div>
       )}
     </AuthShell>
@@ -188,6 +191,10 @@ function AcceptForm({
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [mfaStep, setMfaStep] = useState<Extract<
+    CatererLoginResult,
+    { status: "mfa_required" }
+  > | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const latestSubmitRef = useRef<() => void>(() => undefined);
@@ -222,14 +229,14 @@ function AcceptForm({
     );
     let target = catererPath("/caterer");
     try {
-      const tokens = await loginCaterer(invitation.email, password);
-      const result = await signIn("caterer-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      });
-      if (result?.error) throw new Error(result.error);
+      const result = await loginCaterer(invitation.email, password);
+      if (result.status === "mfa_required") {
+        // Two-factor sign-in is on (#4497): the sign-in already mailed its
+        // code, so it is asked here instead of mailing a second one.
+        await shown;
+        setMfaStep(result);
+        return;
+      }
     } catch (cause) {
       // Accepted, only the automatic sign-in failed: the login page works.
       logger.warn("caterer_signin_after_accept_failed", {
@@ -247,6 +254,24 @@ function AcceptForm({
 
   const passwordError = formErrors.fieldError("password");
   const confirmError = formErrors.fieldError("confirm_password");
+
+  if (mfaStep) {
+    return (
+      <MFAChallengeForm
+        scope="caterer"
+        challengeToken={mfaStep.challengeToken}
+        maskedEmail={mfaStep.maskedEmail}
+        trustedDeviceEnabled={mfaStep.trustedDeviceEnabled}
+        trustedDeviceDays={mfaStep.trustedDeviceDays}
+        onSuccess={() => {
+          window.location.href = catererPath("/caterer");
+        }}
+        onCancel={() => {
+          window.location.href = catererPath("/caterer/login");
+        }}
+      />
+    );
+  }
 
   if (accepted) {
     return (
@@ -292,25 +317,27 @@ function AcceptForm({
       </section>
 
       <div>
-        <label
+        <FieldLabel
           htmlFor="password"
-          className={`mb-1 block text-sm font-medium ${passwordError ? "text-moto-red" : "text-gray-700"}`}
+          required
+          invalid={Boolean(passwordError)}
         >
           Passwort
-        </label>
+        </FieldLabel>
         <div className="relative">
-          <input
+          <Input
             id="password"
             name="password"
             type={showPassword ? "text" : "password"}
+            controlSize="compact"
             autoComplete={existing ? "current-password" : "new-password"}
             value={password}
             disabled={submitting}
             onChange={(event) => setPassword(event.target.value)}
             aria-invalid={Boolean(passwordError)}
             aria-describedby={passwordError ? "password-error" : undefined}
-            className={`${authInputClass(Boolean(passwordError))} pr-10`}
             required
+            className="pr-10"
           />
           <PasswordToggleButton
             showPassword={showPassword}
@@ -323,17 +350,19 @@ function AcceptForm({
       {existing ? null : (
         <>
           <div>
-            <label
+            <FieldLabel
               htmlFor="confirmPassword"
-              className={`mb-1 block text-sm font-medium ${confirmError ? "text-moto-red" : "text-gray-700"}`}
+              required
+              invalid={Boolean(confirmError)}
             >
               Passwort bestätigen
-            </label>
+            </FieldLabel>
             <div className="relative">
-              <input
+              <Input
                 id="confirmPassword"
                 name="confirm_password"
                 type={showConfirmPassword ? "text" : "password"}
+                controlSize="compact"
                 autoComplete="new-password"
                 value={confirmPassword}
                 disabled={submitting}
@@ -342,8 +371,8 @@ function AcceptForm({
                 aria-describedby={
                   confirmError ? "confirmPassword-error" : undefined
                 }
-                className={`${authInputClass(Boolean(confirmError))} pr-10`}
                 required
+                className="pr-10"
               />
               <PasswordToggleButton
                 showPassword={showConfirmPassword}
@@ -362,15 +391,17 @@ function AcceptForm({
         </>
       )}
 
-      <button
+      <Button
         type="submit"
         disabled={submitting}
-        className={authPrimaryButtonClassName}
+        variant="primary"
+        size="field"
+        className="w-full"
       >
         <span className="relative z-10">
           {submitting ? "Wird übernommen…" : "Einladung akzeptieren"}
         </span>
-      </button>
+      </Button>
     </form>
   );
 }

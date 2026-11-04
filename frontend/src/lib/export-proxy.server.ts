@@ -3,7 +3,7 @@ import { problemResponse } from "~/lib/api-response-error.server";
 import { NextResponse } from "next/server";
 
 import { auth, uncachedAuth } from "~/server/auth";
-import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
+import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { captureBffException } from "~/lib/sentry-bff.server";
@@ -40,7 +40,7 @@ export function createFileExportRoute(options: {
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
-        ...(await incomingAnalyticsSessionHeaders()),
+        ...(await incomingClientForwardHeaders()),
       },
       body,
       cache: "no-store",
@@ -129,7 +129,7 @@ export function createFileDownloadRoute<
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
-        ...(await incomingAnalyticsSessionHeaders()),
+        ...(await incomingClientForwardHeaders()),
       },
       cache: "no-store",
     });

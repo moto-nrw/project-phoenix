@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/realtime"
+
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
@@ -13,6 +15,7 @@ import (
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	blockDisplayCompose "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // TimetableOwner is Timetable & Activities as the roots bind it (#4009): the
@@ -30,6 +33,9 @@ type TimetableOwner struct {
 	TemplateRows        arrivalTimetable.TemplateRows
 	RosterReconciler    timetablePorts.RosterReconciler
 	BlockMetadata       timetablePorts.BlockDisplayMetadata
+	// StudentTemplateDays names and removes the hand planning a booking
+	// change leaves behind (#5102).
+	StudentTemplateDays timetable.StudentTemplateDays
 }
 
 // BuildTimetableOwner binds the Timetable owner's retained rows. The
@@ -38,7 +44,7 @@ type TimetableOwner struct {
 func BuildTimetableOwner(
 	db transactionruntime.Database, logger *slog.Logger, now func() time.Time,
 	owner timetable.Capability, repos TimetableRepositories, calendar schoolcalendar.Days,
-	enrollment *enrollmentOwner.BookingProjection, groups EducationGroupRows,
+	enrollment *enrollmentOwner.BookingProjection, groups EducationGroupRows, broadcaster realtime.Broadcaster,
 ) (TimetableOwner, error) {
 	pool := db.Pool()
 	recurrenceLock, err := arrivalTimetable.NewRecurrenceWriteLock(arrivalTimetable.RecurrenceLockDependencies{
@@ -48,6 +54,14 @@ func BuildTimetableOwner(
 		return TimetableOwner{}, fmt.Errorf("compose timetable recurrence lock: %w", err)
 	}
 	calendarPeriods := arrivalTimetable.NewCalendarPeriodRepository(calendar, arrivalTimetable.NewPlanningCalendarPeriodUsage(enrollment.Owner, owner))
+	today := timezone.TodayDate
+	if now != nil {
+		today = func() timezone.Date { return timezone.DateFromTime(now()) }
+	}
+	studentDays, err := NewTimetableStudentTemplateDays(repos, calendarPeriods, recurrenceLock, today, logger, NewStaffingAnnouncer(broadcaster))
+	if err != nil {
+		return TimetableOwner{}, fmt.Errorf("compose timetable student template days: %w", err)
+	}
 	return TimetableOwner{
 		Repositories:        repos,
 		EducationGroupNames: TimetableEducationGroupNames(groups),
@@ -61,7 +75,22 @@ func BuildTimetableOwner(
 		},
 		// Reconciles already-materialized future timetable rosters when a
 		// grade transition graduates or restores students (#405).
-		RosterReconciler: arrivalTimetable.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, repos.Directories, logger, now),
-		BlockMetadata:    arrivalTimetable.NewBlockDisplayMetadata(pool, blockDisplayCompose.List),
+		RosterReconciler:    arrivalTimetable.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, repos.Directories, logger, now),
+		BlockMetadata:       arrivalTimetable.NewBlockDisplayMetadata(pool, blockDisplayCompose.List),
+		StudentTemplateDays: studentDays,
 	}, nil
+}
+
+// NewTimetableStudentTemplateDays binds the student template days over the
+// retained rows and the recurrence gate; today bounds the removal, staffing
+// wakes the planning caches (nil wakes none).
+func NewTimetableStudentTemplateDays(
+	repos TimetableRepositories, periods timetablePorts.ActiveCalendarPeriods, lock timetable.RecurrenceWriteLock, today func() timezone.Date, logger *slog.Logger,
+	staffing timetablePorts.StaffingAnnouncer,
+) (timetable.StudentTemplateDays, error) {
+	return arrivalTimetable.NewStudentTemplateDays(timetablePorts.StudentTemplateDaysDependencies{
+		Groups: repos.Timetable, Schedules: repos.ActivitySchedule, Timeframes: repos.Timeframe, Periods: periods, Enrollments: repos.StudentEnrollment,
+		Instances: repos.ActivityInstance.Reads, Participants: repos.InstanceStudent, RecurrenceLock: lock,
+		Staffing: staffing, Today: today, Logger: logger,
+	})
 }

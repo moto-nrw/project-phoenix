@@ -20,6 +20,27 @@ export type StaffNoticePriority = "info" | "important";
 export const STAFF_NOTICES_REFRESH_EVENT = "staff-notices-refresh";
 
 /**
+ * SWR-Schlüssel der heute geltenden Hinweise im OGS-Portal, je Konto;
+ * useSWRAuth stellt die Schule davor. Den Eintrag teilen sich das Badge der
+ * Seitenleiste, der Startseiten-Baustein und /tagesinformationen; die App-Hülle
+ * legt ihn beim vollen Seitenaufruf aus dem Server-Seed an (#4989).
+ */
+export function staffNoticesTodayKey(accountId: string): string {
+  return `staff-notices-today:${accountId}`;
+}
+
+/**
+ * Hinweise, deren Kenntnisnahme verlangt ist und noch fehlt. Hinweise ohne
+ * Pflicht-Kenntnisnahme zählen nicht — sonst stünde das Badge dauerhaft.
+ */
+export function countPendingAcknowledgements(
+  notices: readonly StaffNotice[],
+): number {
+  return notices.filter((n) => n.requires_acknowledgement && !n.acknowledged_at)
+    .length;
+}
+
+/**
  * Zielgruppe (#2208): die ganze Einrichtung, nur die Betreuung im OGS-Portal
  * oder nur die Lehrkräfte in moto schule. Drei feste Werte, kein Verteiler.
  */

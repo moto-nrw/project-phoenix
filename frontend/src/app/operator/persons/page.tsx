@@ -1,8 +1,11 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Button } from "~/components/ui/button";
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
+import { Suspense, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -19,6 +22,7 @@ import {
 } from "~/components/ui/page-skeletons";
 import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
+import { peopleConcept } from "~/lib/concepts/people";
 
 function OperatorPersonsPageContent() {
   useSetBreadcrumb({ pageTitle: "Personen" });
@@ -28,12 +32,19 @@ function OperatorPersonsPageContent() {
     activeOrganizations,
     filterOrgId,
     selectedSchool,
+    urlSchoolId,
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
     organizationsLoadError,
     schoolsLoadError,
   } = useOrgSchoolFilter("/operator/persons");
+
+  const invalidate = useInvalidateMatching();
+  const refreshPersons = useCallback(
+    () => invalidate(operatorProvisioningKeys.personChanges),
+    [invalidate],
+  );
 
   const [deletePersonTarget, setDeletePersonTarget] =
     useState<OperatorPerson | null>(null);
@@ -43,13 +54,13 @@ function OperatorPersonsPageContent() {
     error: schoolPersonsError,
     isLoading: schoolPersonsLoading,
     mutate: mutateSchoolPersons,
-  } = useSWR(
-    isAuthenticated && selectedSchool
-      ? `operator-school-persons-${selectedSchool.id}`
+  } = useSWRAuth(
+    isAuthenticated && urlSchoolId
+      ? operatorProvisioningKeys.schoolPersons(urlSchoolId)
       : null,
-    () => operatorProvisioningService.listSchoolPersons(selectedSchool!.id),
+    () => operatorProvisioningService.listSchoolPersons(urlSchoolId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -78,7 +89,11 @@ function OperatorPersonsPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Personen" concept="people" tabs={tabs} />
+      <PageHeaderWithSearch
+        title="Personen"
+        concept={peopleConcept}
+        tabs={tabs}
+      />
 
       <OrgSchoolFilter
         idPrefix="person"
@@ -124,7 +139,7 @@ function OperatorPersonsPageContent() {
             {schoolPersons.map((person) => (
               <div
                 key={person.id}
-                className="moto-content-surface flex items-center justify-between rounded-xl border p-4 shadow-sm"
+                className="moto-content-surface flex items-center justify-between rounded-xl border p-4"
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-gray-900">
@@ -139,11 +154,14 @@ function OperatorPersonsPageContent() {
                     </p>
                   )}
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="ghost_danger"
+                  size="icon"
                   onClick={() => setDeletePersonTarget(person)}
-                  className="hover:bg-moto-red-soft hover:text-moto-red-hover ml-3 shrink-0 rounded-lg p-1.5 text-gray-400 transition-colors"
+                  className="ml-3 shrink-0"
                   title="Person löschen"
+                  aria-label="Person löschen"
                 >
                   <svg
                     className="h-4 w-4"
@@ -158,7 +176,7 @@ function OperatorPersonsPageContent() {
                       d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                     />
                   </svg>
-                </button>
+                </Button>
               </div>
             ))}
           </div>
@@ -170,7 +188,7 @@ function OperatorPersonsPageContent() {
           key={selectedSchool.id}
           schoolId={selectedSchool.id}
           schoolName={selectedSchool.name}
-          onMerged={() => mutateSchoolPersons()}
+          onMerged={refreshPersons}
         />
       )}
 
@@ -182,7 +200,9 @@ function OperatorPersonsPageContent() {
             (persons) =>
               persons?.filter((person) => person.id !== deletedPerson.id),
             { revalidate: false },
-          ).then(() => undefined)
+          ).then(async () => {
+            await refreshPersons();
+          })
         }
       />
     </div>

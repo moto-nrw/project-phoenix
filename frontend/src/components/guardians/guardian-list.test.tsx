@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import GuardianList from "./guardian-list";
 
 // Bearbeiten liegt im Kebab der Karte (Bauart 1 Regel 4).
@@ -116,6 +116,36 @@ const mockGuardians = [
 ];
 
 describe("GuardianList", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // The visitor of the public demo takes the name of a seed guardian, who
+  // keeps the seed address; the demo shows no seed address (#5033).
+  it("hides a seed address in the demo build", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_ENV", "demo");
+    const seeded = {
+      ...mockGuardians[0]!,
+      firstName: "Christian",
+      lastName: "Wolf",
+      email: "sabine.schneider@demo-ogs-nord.moto-ogs.de",
+    };
+    render(<GuardianList guardians={[seeded]} onInvite={vi.fn()} />);
+
+    expect(screen.getAllByText("Christian Wolf").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("contact-email")).toBeEmptyDOMElement();
+    expect(
+      screen.queryByText("sabine.schneider@demo-ogs-nord.moto-ogs.de"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Nicht angegeben")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^Aktionen für/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Für die Einladung fehlt die E-Mail-Adresse."),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders empty state when no guardians", () => {
     render(<GuardianList guardians={[]} />);
 

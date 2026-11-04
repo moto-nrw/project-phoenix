@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	remindersService "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,5 +40,5 @@ func TestPresentStudentsInRoomsQueryBudget(t *testing.T) {
 	add(3, 8)
 	large := run()
 	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "services.reminders.present_students_in_rooms.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.reminders.present_students_in_rooms.reads", large)
 }

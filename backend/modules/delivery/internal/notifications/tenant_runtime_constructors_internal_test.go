@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
 
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -23,12 +24,21 @@ type (
 	stubPushSubscriptions struct {
 		deliveryPorts.PushSubscriptionRepository
 	}
-	stubPushOutbox     struct{ PushOutbox }
+	stubPushOutbox struct{ PushOutbox }
+	stubRelayStore struct {
+		deliveryPorts.RealtimeNotificationStore
+	}
 	stubService        struct{ Service }
 	stubRecipients     struct{ StaffRecipientResolver }
 	stubConsent        struct{ ConsentStore }
 	stubPrefSettings   struct{ PreferenceSettings }
-	stubGuardianSchool struct{ GuardianSchools }
+	stubGuardianSchool struct {
+		GuardianSchools
+		AccountPermissions
+	}
+	// stubGuardianSchoolOnly answers the guardian schools but not the
+	// account permissions (#4791).
+	stubGuardianSchoolOnly struct{ GuardianSchools }
 )
 
 func lazyTestDatabase() *bun.DB {
@@ -41,7 +51,7 @@ func TestTenantConstructorsBindTheRuntimeAtConstruction(t *testing.T) {
 	runtime, db := newMockTenantRuntime(t, nil), lazyTestDatabase()
 	permits := PermissionMatch(func(string, []string) bool { return true })
 
-	sse, err := NewTenantSSEChannel(runtime, stubBroadcaster{}, db, stubChildAccess{}, nil)
+	sse, err := NewTenantSSEChannel(runtime, stubBroadcaster{}, db, stubChildAccess{}, nil, stubRelayStore{})
 	require.NoError(t, err)
 	assert.NotNil(t, sse.(*sseChannel).tenantRuntime)
 	assert.NotNil(t, sse.(*sseChannel).guardians, "the guardian child-access check is wired")
@@ -51,7 +61,7 @@ func TestTenantConstructorsBindTheRuntimeAtConstruction(t *testing.T) {
 	assert.NotNil(t, push.(*webPushChannel).tenantRuntime)
 	assert.NotNil(t, push.(*webPushChannel).outbox)
 
-	absence, err := NewTenantAbsenceNotifier(runtime, stubService{}, stubRecipients{}, db, nil)
+	absence, err := NewTenantAbsenceNotifier(runtime, stubService{}, stubRecipients{}, db, nil, contract.SchoolClassRecipients{})
 	require.NoError(t, err)
 	assert.NotNil(t, absence.(*absenceNotifier).tenantRuntime)
 
@@ -71,7 +81,7 @@ func TestTenantConstructorsRejectAMissingDependency(t *testing.T) {
 
 	for name, construct := range map[string]func(tenant.UnitOfWork) error{
 		"sse": func(runtime tenant.UnitOfWork) error {
-			_, err := NewTenantSSEChannel(runtime, stubBroadcaster{}, db, stubChildAccess{}, nil)
+			_, err := NewTenantSSEChannel(runtime, stubBroadcaster{}, db, stubChildAccess{}, nil, stubRelayStore{})
 			return err
 		},
 		"web push": func(runtime tenant.UnitOfWork) error {
@@ -79,7 +89,7 @@ func TestTenantConstructorsRejectAMissingDependency(t *testing.T) {
 			return err
 		},
 		"absence": func(runtime tenant.UnitOfWork) error {
-			_, err := NewTenantAbsenceNotifier(runtime, stubService{}, stubRecipients{}, db, nil)
+			_, err := NewTenantAbsenceNotifier(runtime, stubService{}, stubRecipients{}, db, nil, contract.SchoolClassRecipients{})
 			return err
 		},
 		"preferences": func(runtime tenant.UnitOfWork) error {
@@ -96,19 +106,21 @@ func TestTenantConstructorsRejectAMissingDependency(t *testing.T) {
 	}
 
 	missing := map[string]error{}
-	_, missing["sse broadcaster"] = NewTenantSSEChannel(runtime, nil, db, stubChildAccess{}, nil)
-	_, missing["sse database"] = NewTenantSSEChannel(runtime, stubBroadcaster{}, nil, stubChildAccess{}, nil)
-	_, missing["sse child access"] = NewTenantSSEChannel(runtime, stubBroadcaster{}, db, nil, nil)
+	_, missing["sse broadcaster"] = NewTenantSSEChannel(runtime, nil, db, stubChildAccess{}, nil, stubRelayStore{})
+	_, missing["sse database"] = NewTenantSSEChannel(runtime, stubBroadcaster{}, nil, stubChildAccess{}, nil, stubRelayStore{})
+	_, missing["sse child access"] = NewTenantSSEChannel(runtime, stubBroadcaster{}, db, nil, nil, stubRelayStore{})
+	_, missing["sse relay store"] = NewTenantSSEChannel(runtime, stubBroadcaster{}, db, stubChildAccess{}, nil, nil)
 	_, missing["web push database"] = NewTenantDurableWebPushChannel(runtime, nil, stubPushSubscriptions{}, VAPIDConfig{}, stubPushOutbox{}, nil)
 	_, missing["web push repository"] = NewTenantDurableWebPushChannel(runtime, db, nil, VAPIDConfig{}, stubPushOutbox{}, nil)
 	_, missing["web push outbox"] = NewTenantDurableWebPushChannel(runtime, db, stubPushSubscriptions{}, VAPIDConfig{}, nil, nil)
-	_, missing["absence notifier"] = NewTenantAbsenceNotifier(runtime, nil, stubRecipients{}, db, nil)
-	_, missing["absence recipients"] = NewTenantAbsenceNotifier(runtime, stubService{}, nil, db, nil)
-	_, missing["absence database"] = NewTenantAbsenceNotifier(runtime, stubService{}, stubRecipients{}, nil, nil)
+	_, missing["absence notifier"] = NewTenantAbsenceNotifier(runtime, nil, stubRecipients{}, db, nil, contract.SchoolClassRecipients{})
+	_, missing["absence recipients"] = NewTenantAbsenceNotifier(runtime, stubService{}, nil, db, nil, contract.SchoolClassRecipients{})
+	_, missing["absence database"] = NewTenantAbsenceNotifier(runtime, stubService{}, stubRecipients{}, nil, nil, contract.SchoolClassRecipients{})
 	_, missing["preferences consent"] = NewTenantPreferenceService(runtime, nil, stubPrefSettings{}, db, stubGuardianSchool{}, permits)
 	_, missing["preferences settings"] = NewTenantPreferenceService(runtime, stubConsent{}, nil, db, stubGuardianSchool{}, permits)
 	_, missing["preferences database"] = NewTenantPreferenceService(runtime, stubConsent{}, stubPrefSettings{}, nil, stubGuardianSchool{}, permits)
 	_, missing["preferences schools"] = NewTenantPreferenceService(runtime, stubConsent{}, stubPrefSettings{}, db, nil, permits)
+	_, missing["preferences account permissions"] = NewTenantPreferenceService(runtime, stubConsent{}, stubPrefSettings{}, db, stubGuardianSchoolOnly{}, permits)
 	_, missing["preferences permissions"] = NewTenantPreferenceService(runtime, stubConsent{}, stubPrefSettings{}, db, stubGuardianSchool{}, nil)
 	_, missing["push subscriptions database"] = NewTenantPushSubscriptionService(runtime, nil, stubPushSubscriptions{}, stubGuardianSchool{}, VAPIDConfig{}, nil)
 	_, missing["push subscriptions repository"] = NewTenantPushSubscriptionService(runtime, db, nil, stubGuardianSchool{}, VAPIDConfig{}, nil)

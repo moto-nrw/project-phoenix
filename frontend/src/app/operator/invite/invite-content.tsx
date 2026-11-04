@@ -1,14 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { Check, Circle } from "lucide-react";
-import {
-  AuthShell,
-  OperatorBrand,
-  authInputClassName,
-  authPrimaryButtonClassName,
-} from "~/components/auth/auth-shell";
+import { AuthShell, OperatorBrand } from "~/components/auth/auth-shell";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
 import {
   FormErrorAlert,
@@ -26,6 +23,7 @@ import {
 import type { OperatorInvitationValidation } from "~/lib/operator/operator-invitation-helpers";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
+import { Button, ButtonLink } from "~/components/ui/button";
 
 const logger = createLogger({ component: "OperatorInviteAcceptPage" });
 
@@ -222,12 +220,14 @@ export function InviteContent() {
               aria-hidden="true"
             />
           </div>
-          <Link
+          <ButtonLink
             href={operatorPath("/operator/login")}
-            className={authPrimaryButtonClassName}
+            variant="primary"
+            size="field"
+            className="w-full"
           >
             Zur Anmeldung
-          </Link>
+          </ButtonLink>
         </div>
       </AuthShell>
     );
@@ -251,12 +251,14 @@ export function InviteContent() {
             error={invitationLoad.error}
             className="mb-4 text-left"
           />
-          <Link
+          <ButtonLink
             href={operatorPath("/operator/login")}
-            className={authPrimaryButtonClassName}
+            variant="primary"
+            size="field"
+            className="w-full"
           >
             Zur Anmeldung
-          </Link>
+          </ButtonLink>
         </div>
       </AuthShell>
     );
@@ -285,46 +287,25 @@ export function InviteContent() {
         className="space-y-5"
       >
         <FormErrorAlert message={formErrors.error} />
-        <div>
-          <label
-            htmlFor="accept-display-name"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Anzeigename *
-          </label>
-          <input
-            id="accept-display-name"
-            name="display_name"
-            aria-invalid={
-              formErrors.fieldError("display_name") ? true : undefined
-            }
-            aria-describedby={
-              formErrors.fieldError("display_name")
-                ? "accept-display-name-error"
-                : undefined
-            }
-            type="text"
-            required
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Max Mustermann"
-            className={authInputClassName}
-          />
-          <FieldErrorText
-            id="accept-display-name-error"
-            message={formErrors.fieldError("display_name")}
-          />
-        </div>
+        <Input
+          id="accept-display-name"
+          name="display_name"
+          type="text"
+          label="Anzeigename"
+          required
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="Max Mustermann"
+          error={formErrors.fieldError("display_name")}
+          controlSize="compact"
+        />
 
         <div>
-          <label
-            htmlFor="accept-password"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Passwort *
-          </label>
+          <FieldLabel htmlFor="accept-password" required>
+            Passwort
+          </FieldLabel>
           <div className="relative">
-            <input
+            <Input
               id="accept-password"
               name="password"
               aria-invalid={
@@ -339,14 +320,15 @@ export function InviteContent() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className={`${authInputClassName} pr-10`}
+              controlSize="compact"
+              className="pr-10"
             />
             <PasswordToggleButton
               showPassword={showPassword}
               onToggle={() => setShowPassword(!showPassword)}
             />
           </div>
-          <FieldErrorText
+          <FieldErrorHint
             id="accept-password-error"
             message={formErrors.fieldError("password")}
           />
@@ -384,14 +366,11 @@ export function InviteContent() {
         </div>
 
         <div>
-          <label
-            htmlFor="accept-confirm-password"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Passwort bestätigen *
-          </label>
+          <FieldLabel htmlFor="accept-confirm-password" required>
+            Passwort bestätigen
+          </FieldLabel>
           <div className="relative">
-            <input
+            <Input
               id="accept-confirm-password"
               name="confirm_password"
               aria-invalid={
@@ -406,7 +385,8 @@ export function InviteContent() {
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className={`${authInputClassName} pr-10`}
+              controlSize="compact"
+              className="pr-10"
             />
             <PasswordToggleButton
               showPassword={showConfirmPassword}
@@ -414,18 +394,18 @@ export function InviteContent() {
             />
           </div>
           {formErrors.fieldError("confirm_password") ? (
-            <FieldErrorText
+            <FieldErrorHint
               id="accept-confirm-password-error"
               message={formErrors.fieldError("confirm_password")}
             />
           ) : confirmPassword.length > 0 && !passwordsMatch ? (
-            <p className="text-moto-red mt-1 text-xs">
+            <p className="text-moto-red-strong mt-1 text-xs">
               Passwörter stimmen nicht überein
             </p>
           ) : null}
         </div>
 
-        <button
+        <Button
           ref={primaryRef}
           type="submit"
           disabled={
@@ -434,26 +414,13 @@ export function InviteContent() {
             !passwordsMatch ||
             !displayName.trim()
           }
-          className={authPrimaryButtonClassName}
+          variant="primary"
+          size="field"
+          className="w-full"
         >
           {state === "submitting" ? "Wird erstellt..." : "Konto erstellen"}
-        </button>
+        </Button>
       </form>
     </AuthShell>
-  );
-}
-
-function FieldErrorText({
-  id,
-  message,
-}: {
-  readonly id: string;
-  readonly message: string | undefined;
-}) {
-  if (!message) return null;
-  return (
-    <p id={id} className="text-moto-red mt-1 text-xs">
-      {message}
-    </p>
   );
 }

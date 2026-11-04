@@ -12,10 +12,13 @@ import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { FamilyProtectionControl } from "~/components/students/family-protection-control";
 import type { CareWithdrawalCompletion } from "~/lib/care-exit-api";
+import type { AggregatedOpenRequest } from "~/lib/change-request-list-api";
+import type { HeldOfferingDecision } from "~/components/students/offering-request-review-item";
 import {
   caseTypeLabels,
   conflictedItemKeys,
   itemKey,
+  decidedRequestCount,
   openRequestCount,
   pastRequestCount,
   type OpenCase,
@@ -23,6 +26,7 @@ import {
 import { ConflictDecisionGroup } from "./conflict-decision-group";
 import { RequestDecisionRow } from "./request-decision-row";
 import { OpenWithdrawalCard } from "./withdrawal-cards";
+import { childrenConcept } from "~/lib/concepts/children";
 
 export function RequestCaseDetail({
   childCase,
@@ -33,6 +37,8 @@ export function RequestCaseDetail({
   onBackToList,
   onSelectionChange,
   onDecided,
+  onHold,
+  held,
   onProtectionChanged,
   onReload,
   onNotice,
@@ -53,6 +59,12 @@ export function RequestCaseDetail({
   onBackToList: () => void;
   onSelectionChange: (key: string, checked: boolean) => void;
   onDecided: (key: string, notice: string) => void;
+  onHold?: (
+    request: AggregatedOpenRequest,
+    decision: HeldOfferingDecision,
+  ) => void;
+  /** Gehaltene Freigaben nach Anfrage-Schlüssel. */
+  held?: ReadonlyMap<string, HeldOfferingDecision>;
   onProtectionChanged: (studentID: string, enabled: boolean) => void;
   onReload: () => void;
   onNotice: (notice: string) => void;
@@ -76,7 +88,7 @@ export function RequestCaseDetail({
     <div
       ref={paneRef}
       tabIndex={-1}
-      className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm focus:outline-none"
+      className="moto-content-surface overflow-hidden rounded-2xl border focus:outline-none"
     >
       {narrow && (
         <div className="px-4 pt-3 sm:px-5">
@@ -84,7 +96,6 @@ export function RequestCaseDetail({
             type="button"
             variant="ghost"
             size="md"
-            className="max-sm:min-h-11"
             onClick={onBackToList}
           >
             Zur Liste
@@ -94,7 +105,7 @@ export function RequestCaseDetail({
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 bg-gray-50/70 px-4 py-3 sm:px-5">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <MotoConceptIcon concept="children" size={20} />
+            <MotoConceptIcon concept={childrenConcept} size={20} />
             <h3 className="truncate font-semibold text-gray-900">
               {childCase.studentName}
             </h3>
@@ -102,9 +113,11 @@ export function RequestCaseDetail({
           <p className="text-sm font-medium text-gray-600">
             {requestCount > 0 || expired === 0 ? (
               <span>
-                {requestCount === 1
-                  ? "1 offene Anfrage"
-                  : `${requestCount} offene Anfragen`}
+                {requestCount === 0 && decidedRequestCount(childCase) > 0
+                  ? "Freigegeben"
+                  : requestCount === 1
+                    ? "1 offene Anfrage"
+                    : `${requestCount} offene Anfragen`}
               </span>
             ) : null}
             {expired > 0
@@ -152,6 +165,8 @@ export function RequestCaseDetail({
             approveReasonRequired={reasonRequired}
             onSelectionChange={onSelectionChange}
             onDecided={onDecided}
+            onHold={onHold}
+            held={held?.get(itemKey(request))}
             onStale={onReload}
           />
         ))}

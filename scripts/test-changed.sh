@@ -2,7 +2,7 @@
 # Läuft nur die Tests, die von den Änderungen gegenüber BASE betroffen sind.
 # Backend: geänderte Go-Packages PLUS alle Packages, deren Produktions- oder
 #   Test-Abhängigkeiten sie transitiv importieren.
-# Frontend: vitest --changed (derselbe Modus, den CI für PRs benutzt).
+# Frontend: Dateisystem-Guards plus vitest --changed (wie im PR-Check).
 #
 # Usage: scripts/test-changed.sh [--fast] [base-ref]   (Default: origin/development)
 #   --fast: nur direkt geänderte Packages plus ihre direkten Importer
@@ -20,8 +20,6 @@ if [ "${1:-}" = --fast ]; then
   shift
 fi
 BASE=${1:-origin/development}
-# Merge-Base statt Drei-Punkt-Diff, damit auch uncommittete Änderungen zählen.
-MB=$(git merge-base HEAD "$BASE")
 
 affected=()
 if [ "$FAST" = true ]; then
@@ -44,7 +42,9 @@ if [ "${#affected[@]}" -gt 0 ]; then
   backend_go_log=
   summarize_backend_go_failure() {
     echo "==> go test failure summary" >&2
-    summary=$(grep -E '^(FAIL$|FAIL[[:space:]]|--- FAIL:)|panic:|Error Trace:|Received unexpected error|Not equal:|Should be' "$backend_go_log" | tail -200 || true)
+    # Indented file_test.go:N lines carry t.Error/t.Fatal messages; go test
+    # prints them only for failed tests.
+    summary=$(grep -E '^(FAIL$|FAIL[[:space:]]|--- FAIL:)|^[[:space:]]+(--- FAIL:|[^[:space:]]+_test\.go:[0-9]+: )|panic:|Error Trace:|Received unexpected error|Not equal:|Should be' "$backend_go_log" | tail -200 || true)
     if [ -n "$summary" ]; then
       printf '%s\n' "$summary" >&2
     else
@@ -55,6 +55,11 @@ if [ "${#affected[@]}" -gt 0 ]; then
     status=$?
     if [ "$status" -ne 0 ] && [ "$backend_go_phase" -eq 1 ] && [ -f "$backend_go_log" ]; then
       summarize_backend_go_failure
+      # Publish atomically: an overlapping run (throwaway run ID) may fail too.
+      if gzip -c "$backend_go_log" >"$backend_go_published.$$" &&
+        mv -f "$backend_go_published.$$" "$backend_go_published"; then
+        echo "==> full go test output: $backend_go_published ($(du -h "$backend_go_published" | cut -f1))" >&2
+      fi
     fi
     if ! (cd "$repo_root/backend" && go run ./internal/testdb/cmd/sweep) &&
       [ "$status" -eq 0 ]; then
@@ -78,41 +83,28 @@ if [ "${#affected[@]}" -gt 0 ]; then
   # sie genauso).
   PHX_TEST_TEMPLATE=$(cd backend && go run ./internal/testdb/cmd/bootstrap)
   export PHX_TEST_TEMPLATE
+  # A failed package prints everything its binary wrote, once 494 MB from one
+  # api run. Show only package results and build errors live; a failure adds
+  # the summary above and keeps the last failed run's log, compressed, per worktree.
   backend_go_log=$(mktemp "${TMPDIR:-/tmp}/phoenix-test-changed-go.XXXXXX")
+  backend_go_published=$(git rev-parse --path-format=absolute --git-path test-changed-go.log.gz)
   backend_go_phase=1
   (cd backend && go test \
-    -p "$package_workers" -parallel 8 -tags=testhooks "${affected[@]}") 2>&1 | tee "$backend_go_log"
+    -p "$package_workers" -parallel 8 -tags=testhooks "${affected[@]}") 2>&1 | tee "$backend_go_log" |
+    awk '/^(ok|FAIL|\?|--- FAIL|panic:|# )/ || /^[^[:space:]]+\.go:[0-9]+:[0-9]+: / { print; fflush() }'
   backend_go_phase=0
 else
   echo "==> backend: keine Go-Änderungen"
 fi
 
-frontend_changes=$(
-  {
-    git diff --name-only "$MB" -- frontend
-    git ls-files --others --exclude-standard -- frontend
-  } | awk '!/\.md$/' | sort -u
-)
-run_frontend_vitest() {
+# One fail-closed policy owns local and CI selection, including untracked files.
+frontend_mode=$(node scripts/test-frontend-changed.mjs --mode "$BASE")
+if [ "$frontend_mode" != none ]; then
   (
     cd frontend
-    # The changed-test command is unattended. CI mode lets pnpm recreate a
-    # stale generated modules directory from the frozen lockfile.
     CI=true pnpm install --frozen-lockfile
-    pnpm vitest run "$@"
+    node ../scripts/test-frontend-changed.mjs "$BASE"
   )
-}
-
-if printf '%s\n' "$frontend_changes" | grep -qxE \
-  'frontend/(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.json|vitest\.config\.ts|src/test/setup(-common)?\.ts)'; then
-  echo "==> vitest (frontend test infrastructure changed)"
-  run_frontend_vitest
-elif [ -n "$frontend_changes" ]; then
-  # Vitest 4 includes committed, staged, unstaged, and untracked files in its
-  # dependency traversal. A separate full-suite fallback only duplicates work
-  # for new test files.
-  echo "==> vitest --changed $BASE"
-  run_frontend_vitest --changed "$BASE"
 else
   echo "==> frontend: keine Änderungen"
 fi

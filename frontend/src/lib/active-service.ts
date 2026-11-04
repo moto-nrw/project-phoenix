@@ -1,4 +1,5 @@
 // lib/active-service.ts
+import { hasSessionAccess } from "./session-access";
 import { getCachedSession, sessionFetch } from "./session-cache";
 import api from "./api";
 import { resolveApiUrl } from "./api-url";
@@ -511,12 +512,10 @@ export const activeService = {
 
   // Bulk fetch visits with student display data (optimized for SSE - single query)
   getActiveGroupVisitsWithDisplay: async (id: string): Promise<Visit[]> => {
-    const session = await getCachedSession();
     const response = await transportFetch(
       `/api/active/groups/${id}/visits/display`,
       {
         headers: {
-          Authorization: `Bearer ${session?.user?.token}`,
           "Content-Type": "application/json",
         },
       },
@@ -904,10 +903,8 @@ export const activeService = {
 
     try {
       if (useProxyApi) {
-        const session = await getCachedSession();
         const response = await transportFetch(url, {
           headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
             "Content-Type": "application/json",
           },
         });
@@ -1052,13 +1049,11 @@ export const activeService = {
     const empty: TrackingIndicatorsResponse = { labels: [], results: {} };
     if (studentIds.length === 0) return empty;
 
-    const session = await getCachedSession();
-    if (!session?.user?.token) return empty;
+    if (!hasSessionAccess(await getCachedSession())) return empty;
 
     const response = await transportFetch("/api/active/tracking-indicators", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${session.user.token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({

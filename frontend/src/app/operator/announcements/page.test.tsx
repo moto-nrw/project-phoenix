@@ -67,8 +67,8 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: vi.fn(),
 }));
 
-vi.mock("swr", () => ({
-  default: mockUseSWR,
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: mockUseSWR,
 }));
 
 // Mock announcements API

@@ -45,7 +45,7 @@ func checkAGLeitungRoutePermissions(t *testing.T, api *goldenRuntime) {
 	external, account := testpkg.CreateTestTeacherWithAccount(t, db, "AG", "Leitung")
 	claims := testutil.TenantUserTestClaims(int(account.ID), tenantID, granted...)
 	claims.Roles = []string{identityaccess.AGLeitungRoleName}
-	token := testutil.MintTestJWT(t, claims)
+	token := testpkg.MintLiveSessionJWT(t, db, claims)
 
 	testpkg.EnsureWebManualDevice(t, db)
 	room := testpkg.CreateTestRoom(t, db, "AG-Raum")

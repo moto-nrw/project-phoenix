@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.identityaccess.caterers.operator_list",
+  "max": 1,
+  "exact": true,
+  "description": "#4497: the operator's list of caterer accounts and their second factor."
+}

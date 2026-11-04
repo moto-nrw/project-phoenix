@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -29,9 +30,9 @@ import (
 )
 
 // TraegerPortalIdentity is what the Träger-Portal serves of Identity &
-// Access: the sign-in, the account second factor, the Träger-Büro account
-// management, the Träger-Büro members' addresses and the Absprung into a
-// school.
+// Access: the sign-in, the account second factor, the password reset, the
+// Träger-Büro account management, the Träger-Büro members' addresses and the
+// Absprung into a school.
 type TraegerPortalIdentity interface {
 	identityaccess.TraegerAccountLogin
 	identityaccess.AccountMFAChallenges
@@ -39,6 +40,7 @@ type TraegerPortalIdentity interface {
 	identityaccess.TraegerAccountManagement
 	identityaccess.TraegerRoles
 	identityaccess.TraegerSchoolSessions
+	identityaccess.PasswordResets
 }
 
 // TraegerPersons is the People Directory read the access log names people
@@ -66,8 +68,8 @@ type TraegerAudit struct {
 // #4649) at /traeger: the public sign-in and the Träger route group, which
 // accepts only Träger sessions. Token refresh and logout go through the
 // shared scope-preserving /auth/refresh and /auth/logout.
-func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings settingsHTTP.TraegerOperations) error {
-	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings)
+func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings settingsHTTP.TraegerOperations, healthData enrollment.HolidayHealthCipher) error {
+	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings, healthData)
 	if err != nil {
 		return err
 	}
@@ -78,28 +80,31 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 // NewTraegerPortalHTTP binds the Träger sign-in, its second factor, the
 // account management, the Träger projection, the holiday periods of
 // Enrollment, the Träger settings and the master data of Organisation &
-// Tenancy to the portal's route ports.
-func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings settingsHTTP.TraegerOperations) (*traegerportal.Resource, error) {
+// Tenancy to the portal's route ports. healthData opens the health
+// information of a holiday registration behind the right
+// "Gesundheitsangaben sehen" (#4722).
+func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings settingsHTTP.TraegerOperations, healthData enrollment.HolidayHealthCipher) (*traegerportal.Resource, error) {
 	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil {
 		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log and the settings are required")
 	}
 	overview, err := traegerViewCompose.New(traegerview.Ports{
 		SchoolIDs: traegerSchoolIDs{organizations: organizations}, Trail: traegerAccessTrail{trail: audit.Trail},
-		Recorder: traegerAccessRecorder{log: audit.Log}, Persons: traegerPersonDirectory{persons: persons}, Staff: traegerStaffDirectory{staff: staff},
+		Recorder: traegerAccessRecorder{log: audit.Log}, Holiday: traegerHolidayTrail{trail: enrollmentCompose.NewHolidayAccessTrail()}, Persons: traegerPersonDirectory{persons: persons}, Staff: traegerStaffDirectory{staff: staff},
 		Bureau: traegerBureauAddresses{roles: identity},
 	})
 	if err != nil {
 		return nil, err
 	}
 	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(),
-		enrollmentCompose.NewHolidayRegistrationReview(), holidaySchoolNames{overview: overview},
-		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage))
+		enrollmentCompose.NewHolidayRegistrationReview(healthData), holidaySchoolNames{overview: overview},
+		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
 	traegerSettings := settingsHTTP.NewTraegerSettingsResource(settings, identityaccess.TraegerRightOverviewRead,
 		identityaccess.TraegerRightSettingsManage, identityaccess.TraegerRightStaffManage, identityaccess.TraegerRightBillingManage)
 	masterData := organizationTenancyTraeger.NewMasterDataResource(organizationTenancyCompose.NewTraegerMasterData(),
 		common.RequiresPermission(identityaccess.TraegerRightOverviewRead), common.RequiresPermission(identityaccess.TraegerRightSettingsManage))
 	overviewRoutes := traegerViewHTTP.NewResource(overview)
-	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity), overviewRoutes, holidayPeriods,
+	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity),
+		portalPasswordResets(identity, identityaccess.PasswordResetScopeTraeger), overviewRoutes, holidayPeriods,
 		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, overviewRoutes, identity), nil
 }
 
@@ -174,6 +179,36 @@ func (t traegerAccessTrail) ListAccessTrailActors(ctx context.Context, schools [
 	actors := make([]traegerview.AccessTrailActor, 0, len(rows))
 	for _, row := range rows {
 		actors = append(actors, traegerview.AccessTrailActor(row))
+	}
+	return actors, nil
+}
+
+// traegerHolidayTrail binds Enrollment's trail of the holiday registrations
+// to the Träger projection's port (#5326).
+type traegerHolidayTrail struct {
+	trail enrollment.HolidayAccessTrail
+}
+
+func (t traegerHolidayTrail) ListHolidayTrail(ctx context.Context, organizationID int64, query traegerview.HolidayTrailQuery) ([]traegerview.AccessTrailEntry, error) {
+	rows, err := t.trail.ListHolidayAccess(ctx, organizationID, enrollment.HolidayAccessFilter(query))
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]traegerview.AccessTrailEntry, 0, len(rows))
+	for _, row := range rows {
+		entries = append(entries, traegerview.AccessTrailEntry{ID: row.ID, OccurredAt: row.OccurredAt, AccountID: row.AccountID, Kind: row.Kind, Data: row.Data})
+	}
+	return entries, nil
+}
+
+func (t traegerHolidayTrail) ListHolidayTrailActors(ctx context.Context, organizationID int64, from, to time.Time) ([]traegerview.AccessTrailActor, error) {
+	accounts, err := t.trail.ListHolidayAccessActors(ctx, organizationID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	actors := make([]traegerview.AccessTrailActor, 0, len(accounts))
+	for _, account := range accounts {
+		actors = append(actors, traegerview.AccessTrailActor{AccountID: account})
 	}
 	return actors, nil
 }

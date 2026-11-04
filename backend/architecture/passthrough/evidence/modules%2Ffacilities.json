@@ -1,0 +1,102 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (e *InvalidExportError) Error() string {\n\treturn e.Err.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/facilities/http/InvalidExportError.Error",
+      "owner": "modules/facilities"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r RoomNameDirectory) AllRoomNames(ctx context.Context) (map[int64]string, error) {\n\trooms, err := r.rooms.List(ctx, map[string]interface{}{})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tnames := make(map[int64]string, len(rooms))\n\tfor _, room := range rooms {\n\t\tif room != nil {\n\t\t\tnames[room.ID] = room.Name\n\t\t}\n\t}\n\treturn names, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/facilities/internal/application/roomservice/RoomNameDirectory.AllRoomNames",
+      "owner": "modules/facilities"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r RoomNameDirectory) LockRoom(ctx context.Context, id int64) (*int, bool, error) {\n\troom, err := r.rooms.FindByIDForUpdate(ctx, id)\n\tif err != nil || room == nil {\n\t\treturn nil, false, err\n\t}\n\treturn room.Capacity, true, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/facilities/internal/application/roomservice/RoomNameDirectory.LockRoom",
+      "owner": "modules/facilities"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r RoomNameDirectory) RoomName(ctx context.Context, id int64) (string, bool, error) {\n\troom, err := r.rooms.FindByID(ctx, id)\n\tif err != nil || room == nil {\n\t\treturn \"\", false, err\n\t}\n\treturn room.Name, true, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/facilities/internal/application/roomservice/RoomNameDirectory.RoomName",
+      "owner": "modules/facilities"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r RoomNameDirectory) RoomNamesByID(ctx context.Context, ids []int64) (map[int64]string, error) {\n\trooms, err := r.rooms.FindByIDs(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tnames := make(map[int64]string, len(rooms))\n\tfor _, room := range rooms {\n\t\tif room != nil {\n\t\t\tnames[room.ID] = room.Name\n\t\t}\n\t}\n\treturn names, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/facilities/internal/application/roomservice/RoomNameDirectory.RoomNamesByID",
+      "owner": "modules/facilities"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r attendanceRooms) FindByID(ctx context.Context, id interface{}) (*studentpresence.SessionRoom, error) {\n\troom, err := r.records.FindByID(ctx, id)\n\treturn projectAttendanceRoom(room), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/facilities/internal/application/roomservice/attendanceRooms.FindByID",
+      "owner": "modules/facilities"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r attendanceRooms) FindByIDForUpdate(ctx context.Context, id int64) (*studentpresence.SessionRoom, error) {\n\troom, err := r.records.FindByIDForUpdate(ctx, id)\n\treturn projectAttendanceRoom(room), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/facilities/internal/application/roomservice/attendanceRooms.FindByIDForUpdate",
+      "owner": "modules/facilities"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r attendanceRooms) FindByIDs(ctx context.Context, ids []int64) ([]*studentpresence.SessionRoom, error) {\n\trooms, err := r.records.FindByIDs(ctx, ids)\n\treturn projectAttendanceRooms(rooms), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/facilities/internal/application/roomservice/attendanceRooms.FindByIDs",
+      "owner": "modules/facilities"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r attendanceRooms) List(ctx context.Context, filters map[string]interface{}) ([]*studentpresence.SessionRoom, error) {\n\trooms, err := r.records.List(ctx, filters)\n\treturn projectAttendanceRooms(rooms), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/facilities/internal/application/roomservice/attendanceRooms.List",
+      "owner": "modules/facilities"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) FindRoomByName(ctx context.Context, name string) (*facilitiesModule.Room, error) {\n\troom, err := s.config.Rooms.FindRoomByName(ctx, name)\n\tif err != nil {\n\t\treturn nil, wrap(\"find room by name\", err)\n\t}\n\treturn roomPointer(room), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/facilities/internal/application/roomservice/service.FindRoomByName",
+      "owner": "modules/facilities"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) FindToiletRoom(ctx context.Context, exclude int64) (*facilitiesModule.Room, error) {\n\troom, err := s.config.Rooms.FindToiletRoom(ctx, exclude)\n\tif err != nil {\n\t\treturn nil, wrap(\"find toilet room\", err)\n\t}\n\treturn roomPointer(room), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/facilities/internal/application/roomservice/service.FindToiletRoom",
+      "owner": "modules/facilities"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) GetBuildingList(ctx context.Context) ([]string, error) {\n\trooms, err := s.config.Rooms.ListRooms(ctx, facilitiesModule.RoomFilter{})\n\tif err != nil {\n\t\treturn nil, wrap(\"get building list\", err)\n\t}\n\tvalues := make(map[string]struct{})\n\tfor _, room := range rooms {\n\t\tif room.Building != \"\" {\n\t\t\tvalues[room.Building] = struct{}{}\n\t\t}\n\t}\n\treturn slices.Sorted(maps.Keys(values)), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/facilities/internal/application/roomservice/service.GetBuildingList",
+      "owner": "modules/facilities"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) GetCategoryList(ctx context.Context) ([]string, error) {\n\trooms, err := s.config.Rooms.ListRooms(ctx, facilitiesModule.RoomFilter{})\n\tif err != nil {\n\t\treturn nil, wrap(\"get category list\", err)\n\t}\n\tvalues := make(map[string]struct{})\n\tfor _, room := range rooms {\n\t\tif room.Category != nil \u0026\u0026 *room.Category != \"\" {\n\t\t\tvalues[*room.Category] = struct{}{}\n\t\t}\n\t}\n\treturn slices.Sorted(maps.Keys(values)), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/facilities/internal/application/roomservice/service.GetCategoryList",
+      "owner": "modules/facilities"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) ListRooms(ctx context.Context) ([]RoomWithOccupancy, error) {\n\trooms, err := s.config.Rooms.ListRooms(ctx, facilitiesModule.RoomFilter{})\n\tif err != nil {\n\t\treturn nil, wrap(\"list rooms\", err)\n\t}\n\trows, err := s.ProjectRoomOccupancy(ctx, rooms)\n\treturn rows, wrap(\"list rooms\", err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/facilities/internal/application/roomservice/service.ListRooms",
+      "owner": "modules/facilities"
+    }
+  ]
+}

@@ -36,9 +36,9 @@ type Runtime struct {
 	// Protected wraps the JWT-authenticated admin group and hands back the
 	// tenant-transaction middleware those routes run inside.
 	Protected func(chi.Router, func(chi.Router, Middleware))
-	// AnyPermission and Permission build the permission middleware.
+	// AnyPermission builds the read gate; HasPermission checks write authority.
 	AnyPermission func(...string) Middleware
-	Permission    func(string) Middleware
+	HasPermission func(context.Context, string) bool
 	ParseID       func(http.ResponseWriter, *http.Request, string, string) (int64, bool)
 	Failure       func(http.ResponseWriter, *http.Request, FailureKind, error, string)
 	// FeatureEnabled resolves the opt-in display.enabled toggle for the
@@ -58,7 +58,7 @@ type Resource struct {
 // NewResource constructs the display API resource.
 func NewResource(displays devicefleet.Capability, runtime Runtime) *Resource {
 	if displays == nil || runtime.Protected == nil || runtime.AnyPermission == nil ||
-		runtime.Permission == nil || runtime.ParseID == nil || runtime.Failure == nil ||
+		runtime.HasPermission == nil || runtime.ParseID == nil || runtime.Failure == nil ||
 		runtime.FeatureEnabled == nil || runtime.Read == "" || runtime.Manage == "" {
 		panic("display HTTP: all dependencies are required")
 	}
@@ -85,16 +85,30 @@ func (rs *Resource) Router() chi.Router {
 		// view-only roles, and display:manage must not lock its holders out
 		// of the very list their mutations operate on.
 		r.With(rs.runtime.AnyPermission(rs.runtime.Read, rs.runtime.Manage), withTx).Get("/", rs.listDisplays)
-		r.With(rs.runtime.Permission(rs.runtime.Manage), withTx).Post("/", rs.createDisplay)
+		manage := rs.runtime.AnyPermission(rs.runtime.Read, rs.runtime.Manage)
+		r.With(manage, rs.requireManage, withTx).Post("/", rs.createDisplay)
 		r.Route("/{id}", func(r chi.Router) {
-			manage := rs.runtime.Permission(rs.runtime.Manage)
-			r.With(manage, withTx).Patch("/", rs.updateDisplay)
-			r.With(manage, withTx).Post("/regenerate", rs.regenerateToken)
-			r.With(manage, withTx).Delete("/", rs.deleteDisplay)
+			r.With(manage, rs.requireManage, withTx).Patch("/", rs.updateDisplay)
+			r.With(manage, rs.requireManage, withTx).Post("/regenerate", rs.regenerateToken)
+			r.With(manage, rs.requireManage, withTx).Delete("/", rs.deleteDisplay)
 		})
 	})
 
 	return r
+}
+
+// ErrManageForbidden means the list is readable, but changes are not permitted.
+var ErrManageForbidden = errors.New("display management permission required")
+
+// The outer read gate retains the existing failure for loss of all access.
+func (rs *Resource) requireManage(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !rs.runtime.HasPermission(r.Context(), rs.runtime.Manage) {
+			rs.runtime.Failure(w, r, FailureForbidden, ErrManageForbidden, "")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // displayView is the wire shape of one screen. It is spelled out here so the

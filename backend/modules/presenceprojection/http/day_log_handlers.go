@@ -308,17 +308,32 @@ func (rs *Resource) loadDayLogData(ctx context.Context, groups []*SchoolGroup, d
 	// Student.GroupID is the current assignment. The data model does not retain
 	// dated group assignments, so only enrollment eligibility can be evaluated
 	// retrospectively here.
+	return rs.dayLogDataOf(ctx, records, date, clock, currentDayLogGroup)
+}
 
+// currentDayLogGroup files a child under its current group; a child without
+// one is in no group's log.
+func currentDayLogGroup(student *peopleModule.StudentState) (int64, bool) {
+	if student.GroupID == nil {
+		return 0, false
+	}
+	return *student.GroupID, true
+}
+
+// dayLogDataOf loads the day's facts of the children, each filed under the
+// log groupOf names.
+func (rs *Resource) dayLogDataOf(ctx context.Context, records []peopleModule.StudentRecord, date calendar.Date, clock dayLogClock, groupOf func(*peopleModule.StudentState) (int64, bool)) (*dayLogData, error) {
 	data := &dayLogData{
-		studentsByGroup:     make(map[int64][]*peopleModule.StudentState, len(groups)),
+		studentsByGroup:     map[int64][]*peopleModule.StudentState{},
 		attendanceByStudent: map[int64][]*studentpresence.Attendance{},
 		statusByStudent:     map[int64][]*absencerecords.StudentStatusDay{},
 		careDays:            map[int64]careplan.CareDayStatus{},
 		arrivalTimes:        map[int64]*careplan.EffectiveArrivalTime{},
 		clock:               clock,
 	}
-	studentIDs, personIDs := indexDayLogStudents(data, peopleModule.StudentStatesFromRecords(records))
+	studentIDs, personIDs := indexDayLogStudents(data, peopleModule.StudentStatesFromRecords(records), groupOf)
 
+	var err error
 	data.persons, err = rs.personsByIDs(ctx, personIDs)
 	if err != nil {
 		return nil, err
@@ -332,14 +347,18 @@ func (rs *Resource) loadDayLogData(ctx context.Context, groups []*SchoolGroup, d
 	return data, nil
 }
 
-func indexDayLogStudents(data *dayLogData, students []*peopleModule.StudentState) (studentIDs, personIDs []int64) {
+func indexDayLogStudents(data *dayLogData, students []*peopleModule.StudentState, groupOf func(*peopleModule.StudentState) (int64, bool)) (studentIDs, personIDs []int64) {
 	studentIDs = make([]int64, 0, len(students))
 	personIDs = make([]int64, 0, len(students))
 	for _, student := range students {
-		if student == nil || student.GroupID == nil {
+		if student == nil {
 			continue
 		}
-		data.studentsByGroup[*student.GroupID] = append(data.studentsByGroup[*student.GroupID], student)
+		groupID, ok := groupOf(student)
+		if !ok {
+			continue
+		}
+		data.studentsByGroup[groupID] = append(data.studentsByGroup[groupID], student)
 		studentIDs = append(studentIDs, student.ID)
 		personIDs = append(personIDs, student.PersonID)
 	}

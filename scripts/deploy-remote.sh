@@ -120,5 +120,18 @@ bash "$script_dir/release-backup.sh" prune "$backup_root" "$BACKUP_RETENTION" "$
 # their images by digest and verification pulls missing ones before a restore
 # stops anything; Compose pulls missing images for another environment's pending
 # start. A failed prune never changes the deployment's result.
-docker image prune -af || echo 'WARNING: image prune failed; the release itself is healthy' >&2
+# `docker image prune -a` is not used: with the containerd image store it
+# deletes an image a container still runs once that image's tag moved to a
+# newer pull. The demo's postgres lost its image so on 2026-10-27, and the
+# next deploy could not keep the running images. Only images no container
+# uses by ID are removed.
+prune_unused_images() {
+  local used unused
+  used=$(docker ps -aq --no-trunc | xargs -r docker inspect --format '{{.Image}}') || return 1
+  unused=$(docker images -q --no-trunc | sort -u | grep -vxF -e '' -f <(printf '%s\n' "$used") || true)
+  [ -z "$unused" ] && return 0
+  # shellcheck disable=SC2086 # one image ID per word
+  docker rmi -f $unused > /dev/null
+}
+prune_unused_images || echo 'WARNING: image prune failed; the release itself is healthy' >&2
 echo "Deployment complete; rollback backup: $backup_id"

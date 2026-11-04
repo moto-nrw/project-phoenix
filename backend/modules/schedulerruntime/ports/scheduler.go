@@ -180,6 +180,13 @@ type OutboxWorkerRunner interface {
 	Backlog(ctx context.Context) (int, error)
 }
 
+// OutboxWakeupSource is optionally implemented by an OutboxWorkerRunner
+// whose store reports committed e-mail enqueues. The scheduler then runs
+// the outbox at once; the poll interval stays the fallback.
+type OutboxWakeupSource interface {
+	EmailWakeups(ctx context.Context) <-chan struct{}
+}
+
 // TimetableBridgeCompleter finalizes attendance and completes the schedule-side
 // instances of ended active.groups in one step. Implemented by the Timetable
 // owner's timetable.EndedSessionCompletion, the same completion the

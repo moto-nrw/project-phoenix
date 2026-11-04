@@ -27,8 +27,8 @@ vi.mock("~/lib/emergency-export-api", () => ({
 }));
 
 vi.mock("~/components/ui/moto-concept-icon", () => ({
-  MotoConceptIcon: ({ concept }: { concept: string }) => (
-    <svg data-testid="concept-icon" data-concept={concept} />
+  MotoConceptIcon: ({ concept }: { concept: { key: string } }) => (
+    <svg data-testid="concept-icon" data-concept={concept.key} />
   ),
 }));
 

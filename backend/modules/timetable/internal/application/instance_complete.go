@@ -128,6 +128,9 @@ func (s *InstanceLifecycleService) completableInstance(ctx context.Context, inst
 // checkout (visit row locks) with the snapshot, so Reopen restores the rows
 // the session end actually closes.
 func (s *InstanceLifecycleService) lockCompletionState(ctx context.Context, instance *scheduleModel.ActivityInstance) error {
+	if err := s.deps.Presence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{GroupIDs: []int64{*instance.ActiveGroupID}}); err != nil {
+		return &ports.ScheduleError{Op: "complete instance: prepare visit writes", Err: err}
+	}
 	lockedGroup, err := s.deps.ActiveGroupRepo.FindByIDForUpdate(ctx, *instance.ActiveGroupID)
 	if err != nil {
 		return &ports.ScheduleError{Op: "complete instance: lock group", Err: err}

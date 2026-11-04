@@ -17,6 +17,9 @@ const (
 	// PasswordResetScopeCaterer serves caterer accounts only; the link lands
 	// on the caterer portal (ADR 0077).
 	PasswordResetScopeCaterer PasswordResetScope = "caterer"
+	// PasswordResetScopeTraeger serves accounts with an active Träger-Büro
+	// membership; the link lands on the Träger-Portal (#5149).
+	PasswordResetScopeTraeger PasswordResetScope = "traeger"
 )
 
 // PasswordResetRateLimitThreshold is the number of reset requests per e-mail

@@ -119,6 +119,7 @@ func (s *InstanceLifecycleService) editableInstance(ctx context.Context, instanc
 // with a CalendarPeriodID) stamps the full materializer marker.
 func applyPlannedEdit(instance *scheduleModel.ActivityInstance, req timetable.UpdateInstanceInput) []string {
 	instance.Date = calendar.Date(req.Date)
+	instance.ClockTimesSet = false // Raw request clocks still use zero to report a missing field.
 	instance.StartTime = req.StartTime
 	instance.EndTime = req.EndTime
 	instance.Title = req.Title

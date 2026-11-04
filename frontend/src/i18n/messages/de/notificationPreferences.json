@@ -1,0 +1,49 @@
+{
+  "title": "Benachrichtigungen",
+  "description": "Bleiben Sie über Nachrichten und wichtige Änderungen zu Ihrem Kind informiert.",
+  "allEnabled": "Alle aktiviert",
+  "enableAll": "Alle aktivieren",
+  "enablingAll": "Wird aktiviert ...",
+  "disableAll": "Alle deaktivieren",
+  "tenantDisabled": "Ihre Schule hat Benachrichtigungen derzeit deaktiviert. Ihre Auswahl wird gespeichert und gilt, sobald die Schule sie wieder einschaltet.",
+  "typeUnavailable": "Von Ihrer Schule derzeit deaktiviert.",
+  "groups": {
+    "kinder": "Kinder",
+    "mitteilungen": "Mitteilungen",
+    "termine": "Termine"
+  },
+  "types": {
+    "parent_announcement": {
+      "label": "Neue Mitteilung der Schule",
+      "description": "Wenn die Schule eine neue Mitteilung im Elternportal veröffentlicht."
+    },
+    "parent_message": {
+      "label": "Neue Nachricht der OGS",
+      "description": "Wenn die OGS Ihnen zu einem Kind schreibt."
+    },
+    "parent_appointment": {
+      "label": "Neuer oder geänderter Termin",
+      "description": "Wenn ein Termin für Sie angelegt, geändert oder abgesagt wird."
+    },
+    "parent_appointment_reminder": {
+      "label": "Terminerinnerung",
+      "description": "Kurz vor einem Termin, zu dem Sie eingeladen sind."
+    },
+    "parent_request_decided": {
+      "label": "Entscheidung über Ihre Anfrage",
+      "description": "Wenn die OGS über eine Ihrer Anfragen entschieden hat."
+    },
+    "parent_care_cancelled": {
+      "label": "Betreuung fällt aus",
+      "description": "Wenn die OGS einen Betreuungstermin Ihres Kindes absagt."
+    },
+    "parent_billing_document": {
+      "label": "Neues Dokument vom Träger",
+      "description": "Wenn der Träger Ihnen ein Dokument schickt, zum Beispiel ein Bestätigungsschreiben."
+    }
+  },
+  "errorObjectList": "die Liste der Benachrichtigungen",
+  "errorObjectType": "die Benachrichtigung „{name}“",
+  "errorObjectEnableAll": "das Einschalten aller Benachrichtigungen",
+  "errorObjectDisableAll": "das Ausschalten aller Benachrichtigungen"
+}

@@ -6,6 +6,11 @@ const NEXT_APP_ENTRYPOINT =
 const PUBLIC_ROOT_ENTRYPOINT =
   "^src/(proxy|instrumentation|instrumentation-client|sentry\\.(client|server|edge|shared)\\.config)\\.[cm]?[jt]sx?$|^src/app/manifest\\.ts$";
 const PRODUCTION_SOURCE = `${TEST_OR_SUPPORT}|${NEXT_APP_ENTRYPOINT}|${PUBLIC_ROOT_ENTRYPOINT}`;
+// Code that runs only on the server: the auth module, route handlers and
+// *.server files. Everything else may end up in the browser bundle; the
+// browser token ratchet (src/lib/browser-token-ratchet.test.ts) uses the
+// same definition.
+const SERVER_ONLY = "^src/server/|^src/app/api/|\\.server\\.[cm]?[jt]sx?$";
 
 module.exports = {
   forbidden: [
@@ -62,6 +67,14 @@ module.exports = {
       severity: "error",
       from: { path: "^src/app/api/", pathNot: TEST_OR_SUPPORT },
       to: { path: "^src/(components|hooks|contexts)/" },
+    },
+    {
+      name: "browser-not-to-server-auth",
+      comment:
+        "Browser modules never import src/server, not even a type: the auth module holds the token-carrying server types (#5005).",
+      severity: "error",
+      from: { path: SOURCE, pathNot: `${TEST_OR_SUPPORT}|${SERVER_ONLY}` },
+      to: { path: "^src/server/" },
     },
     {
       name: "server-not-to-client-layers",

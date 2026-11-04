@@ -44,6 +44,8 @@ type ActivityInstance struct {
 	Model `bun:"schema:schedule,table:activity_instances"`
 	TenantModel
 
+	// ClockTimesSet distinguishes explicitly normalized midnight from absent legacy clocks.
+	ClockTimesSet    bool          `bun:"-" json:"-"`
 	Date             calendar.Date `bun:"date,notnull" json:"date"`
 	ActivityGroupID  *int64        `bun:"activity_group_id" json:"activity_group_id,omitempty"`
 	CalendarPeriodID *int64        `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
@@ -137,10 +139,10 @@ func (i *ActivityInstance) Validate() error {
 	if i.Date.IsZero() {
 		return errors.New("date is required")
 	}
-	if i.StartTime.IsZero() {
+	if !i.ClockTimesSet && i.StartTime.IsZero() {
 		return errors.New("start_time is required")
 	}
-	if i.EndTime.IsZero() {
+	if !i.ClockTimesSet && i.EndTime.IsZero() {
 		return errors.New("end_time is required")
 	}
 	if !i.EndTime.After(i.StartTime) {

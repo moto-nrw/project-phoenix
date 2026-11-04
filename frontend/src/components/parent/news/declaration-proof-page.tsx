@@ -128,7 +128,7 @@ export function DeclarationProofPage({
             <Button
               type="button"
               variant="primary"
-              size="touch"
+              size="md"
               className="gap-1.5"
               onClick={() => void download()}
               isLoading={downloading}
@@ -147,7 +147,7 @@ export function DeclarationProofPage({
       {!proof && !notFound && !loadError && <ParentPageSkeleton rows={2} />}
 
       {proof && (
-        <div className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+        <div className="moto-content-surface rounded-2xl border p-5">
           <ProofDocument
             announcementId={announcementId}
             proof={proof}

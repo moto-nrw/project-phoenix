@@ -303,7 +303,7 @@ import { useSWRAuth } from "~/lib/swr";
 function mockSessionWithPermissions(permissions: string[]) {
   vi.mocked(useSession).mockReturnValue({
     data: {
-      user: { id: "1", token: "test-token", permissions },
+      user: { id: "1", permissions },
       expires: "2099-01-01",
     },
     status: "authenticated",

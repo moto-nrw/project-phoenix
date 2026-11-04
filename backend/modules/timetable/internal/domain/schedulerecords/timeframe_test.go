@@ -146,12 +146,12 @@ func TestTimeframe_IsOpen(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "open - zero end time",
+			name: "closed - explicit midnight end time",
 			timeframe: &Timeframe{
 				StartTime: now,
 				EndTime:   &zeroTime,
 			},
-			expected: true,
+			expected: false,
 		},
 		{
 			name: "closed - has end time",

@@ -28,7 +28,7 @@ describe("GET /api/request-feed/[token]", () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       "http://backend:8080/public/request-feed/secret",
-      { cache: "no-store" },
+      { headers: {}, cache: "no-store" },
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe(
@@ -36,6 +36,35 @@ describe("GET /api/request-feed/[token]", () => {
     );
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
     expect(await response.text()).toContain("<rss");
+  });
+
+  it("leitet die Client-IP an das Backend weiter", async () => {
+    // Das Backend begrenzt anonyme Abrufe pro Client-IP; ohne den Header
+    // teilen sich alle Feed-Leser den Topf des Frontend-Containers.
+    mockFetch.mockResolvedValue(
+      new Response('<rss version="2.0"></rss>', { status: 200 }),
+    );
+
+    await GET(
+      new NextRequest("http://schule.localhost:3000/api/request-feed/secret", {
+        headers: {
+          "user-agent": "FeedReader/2",
+          "x-forwarded-for": "198.51.100.23",
+        },
+      }),
+      context("secret"),
+    );
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://backend:8080/public/request-feed/secret",
+      {
+        headers: {
+          "X-Forwarded-For": "198.51.100.23",
+          "User-Agent": "FeedReader/2",
+        },
+        cache: "no-store",
+      },
+    );
   });
 
   it("gibt unbekannte oder gesperrte Links einheitlich als 404 zurück", async () => {
@@ -61,7 +90,7 @@ describe("GET /api/request-feed/[token]", () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       "http://backend:8080/public/request-feed/part%2Fwith%20space",
-      { cache: "no-store" },
+      { headers: {}, cache: "no-store" },
     );
   });
 });

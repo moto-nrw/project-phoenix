@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -127,4 +128,29 @@ func (a StatisticsStatusDays) StatusDays(ctx context.Context, from, to timezone.
 type AccessLogLedger interface {
 	Create(context.Context, *auditModels.DataAccessLog) error
 	ExistsSince(context.Context, int64, string, map[string]string, time.Time) (bool, error)
+}
+
+// StatisticsPlannedCareDays reads Care Plan's verdict with the planned clock
+// times for the occupancy by time of day (#4764) and Soll und Ist (#4774).
+type StatisticsPlannedCareDays struct {
+	CareDays careplan.CareDayQuery
+}
+
+func (a StatisticsPlannedCareDays) PlannedCareDays(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]studentpresence.PlannedCareDay, error) {
+	values, err := a.CareDays.ResolvePlannedForRange(ctx, studentIDs, from, to)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]map[timezone.Date]studentpresence.PlannedCareDay, len(values))
+	for studentID, days := range values {
+		byDate := make(map[timezone.Date]studentpresence.PlannedCareDay, len(days))
+		for date, day := range days {
+			byDate[date] = studentpresence.PlannedCareDay{
+				Expected: day.Status.Expected(), NoPlan: day.Status == careplan.CareDayUnknown,
+				Cancelled: day.Status == careplan.CareDayCancelled, Arrival: day.Arrival, Pickup: day.Pickup,
+			}
+		}
+		result[studentID] = byDate
+	}
+	return result, nil
 }

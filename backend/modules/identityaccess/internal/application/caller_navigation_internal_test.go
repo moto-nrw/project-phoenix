@@ -304,3 +304,29 @@ func TestSSESubscription_RejectsWithSetupError(t *testing.T) {
 	assert.Equal(t, "User is not a staff member", setupErr.Message)
 	assert.Equal(t, http.StatusForbidden, setupErr.Status)
 }
+
+func TestSSESubscription_PreservesLookupFailures(t *testing.T) {
+	t.Parallel()
+	for _, role := range []string{"staff", "admin"} {
+		for _, stage := range []string{"person", "staff"} {
+			for _, cause := range []error{errors.New("database unavailable"), context.DeadlineExceeded, context.Canceled} {
+				t.Run(role+"/"+stage+"/"+cause.Error(), func(t *testing.T) {
+					t.Parallel()
+					h := newCallerHarness(authenticatedCaller(role == "admin")).withStaff()
+					h.live = &callerTestLiveTopics{}
+					if stage == "person" {
+						h.people.err = cause
+					} else {
+						h.membership.staffErr = cause
+					}
+					subscription, err := h.build(t).SSESubscription(context.Background())
+					require.ErrorIs(t, err, cause)
+					var setupErr *domain.SSESetupError
+					assert.False(t, errors.As(err, &setupErr))
+					assert.Empty(t, subscription.AllTopics)
+					assert.Zero(t, h.live.openCalls)
+				})
+			}
+		}
+	}
+}

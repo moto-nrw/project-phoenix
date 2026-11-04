@@ -5,10 +5,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Circle } from "lucide-react";
 import { useTranslations } from "next-intl";
-import {
-  authInputClassName,
-  authPrimaryButtonClassName,
-} from "~/components/auth/auth-shell";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import {
   credentialError,
   INVITATION_REFUSALS,
@@ -26,6 +24,7 @@ import {
 } from "~/lib/guardian-invitation-api";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "GuardianInvitationAccept" });
 
@@ -237,14 +236,15 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
       </section>
 
       <div>
-        <label
+        <FieldLabel
           htmlFor="password"
-          className={`mb-2 block text-sm font-medium ${passwordInvalid ? "text-moto-red-strong" : "text-gray-700"}`}
+          required
+          invalid={Boolean(passwordInvalid)}
         >
           {t("passwordLabel")}
-        </label>
+        </FieldLabel>
         <div className="relative">
-          <input
+          <Input
             id="password"
             name="password"
             type={showPassword ? "text" : "password"}
@@ -253,7 +253,8 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
             disabled={isSubmitting}
             autoComplete="new-password"
             aria-invalid={passwordInvalid || undefined}
-            className={`${authInputClassName} pr-12 ${passwordInvalid ? "ring-moto-red/35 ring-2" : ""}`}
+            controlSize="compact"
+            className="pr-12"
             required
           />
           <PasswordToggleButton
@@ -266,14 +267,15 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
       </div>
 
       <div>
-        <label
+        <FieldLabel
           htmlFor="confirmPassword"
-          className={`mb-2 block text-sm font-medium ${confirmInvalid ? "text-moto-red-strong" : "text-gray-700"}`}
+          required
+          invalid={Boolean(confirmInvalid)}
         >
           {t("confirmPasswordLabel")}
-        </label>
+        </FieldLabel>
         <div className="relative">
-          <input
+          <Input
             id="confirmPassword"
             name="confirmPassword"
             type={showConfirmPassword ? "text" : "password"}
@@ -282,7 +284,8 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
             disabled={isSubmitting}
             autoComplete="new-password"
             aria-invalid={confirmInvalid || undefined}
-            className={`${authInputClassName} pr-12 ${confirmInvalid ? "ring-moto-red/35 ring-2" : ""}`}
+            controlSize="compact"
+            className="pr-12"
             required
           />
           <PasswordToggleButton
@@ -328,13 +331,15 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         </div>
       </div>
 
-      <button
+      <Button
         type="submit"
         disabled={isSubmitting}
-        className={authPrimaryButtonClassName}
+        variant="primary"
+        size="field"
+        className="w-full"
       >
         {isSubmitting ? t("submitting") : t("submit")}
-      </button>
+      </Button>
     </form>
   );
 }

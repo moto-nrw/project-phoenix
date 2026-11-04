@@ -226,62 +226,25 @@ describe("response interceptor token refresh queue", () => {
     await import("./api");
   });
 
-  it("request interceptor injects auth token in browser context", async () => {
+  // The browser session carries no token (#5005): BFF routes read the
+  // session cookie, so the interceptor neither looks up the session nor sets
+  // an Authorization header.
+  it("request interceptor adds no Authorization header in browser context", async () => {
     const restore = setupBrowserEnv();
-    const consoleDebug = vi
-      .spyOn(console, "debug")
-      .mockImplementation(() => {});
     try {
-      mockGetSession.mockResolvedValue({ user: { token: "browser-token" } });
-
-      const result = await requestInterceptorFulfilled({
-        method: "get",
-        url: "/api/students?search=Mustermann",
-        headers: {},
-      });
-
-      expect(mockGetSession).toHaveBeenCalledTimes(1);
-      expect(result.headers).toMatchObject({
-        Authorization: "Bearer browser-token",
-      });
-      expect(consoleDebug).toHaveBeenCalledWith("token injected in request", {
-        method: "GET",
-        url: "/api/students",
-        has_token: true,
-      });
-    } finally {
-      consoleDebug.mockRestore();
-      restore();
-    }
-  });
-
-  it("request interceptor leaves headers unchanged when browser session has no token", async () => {
-    const restore = setupBrowserEnv();
-    const consoleDebug = vi
-      .spyOn(console, "debug")
-      .mockImplementation(() => {});
-    try {
-      mockGetSession.mockResolvedValue({ user: {} });
+      mockGetSession.mockResolvedValue({ user: { id: "1" } });
       const headers = {};
 
       const result = await requestInterceptorFulfilled({
         method: "get",
-        url: "/api/students?email=erika%40example.com",
+        url: "/api/students?search=Mustermann",
         headers,
       });
 
-      expect(mockGetSession).toHaveBeenCalledTimes(1);
+      expect(mockGetSession).not.toHaveBeenCalled();
       expect(result.headers).toBe(headers);
       expect(result.headers).not.toHaveProperty("Authorization");
-      expect(consoleDebug).toHaveBeenCalledWith(
-        "no token available for request",
-        {
-          method: "GET",
-          url: "/api/students",
-        },
-      );
     } finally {
-      consoleDebug.mockRestore();
       restore();
     }
   });
@@ -346,9 +309,7 @@ describe("response interceptor token refresh queue", () => {
     try {
       // Simulate first 401 triggers refresh
       mockHandleAuthFailure.mockResolvedValue(true);
-      mockGetSession.mockResolvedValue({
-        user: { token: "new-token-123" },
-      });
+      mockGetSession.mockResolvedValue({ user: { id: "1" } });
       mockAxiosInstance.mockResolvedValue({
         status: 200,
         data: { ok: true },
@@ -367,29 +328,21 @@ describe("response interceptor token refresh queue", () => {
     }
   });
 
-  it("retries with the NEW token even when the session cache was warm (#2123)", async () => {
-    // Regression: the request interceptor reads the session through the 10s
-    // getCachedSession() cache. After a 401→refresh, axios re-runs the request
-    // interceptor on the retried request — if the refresh path did not clear
-    // the cache, the interceptor would overwrite the fresh token with the
-    // stale cached one and the retry would 401 again (hard failure, _retry is
-    // already set).
+  it("re-reads the session after a refresh even when the session cache was warm (#2123)", async () => {
+    // Regression: the session cache serves a lookup for 10s. After a
+    // 401→refresh the retry must follow a fresh session lookup — it persists
+    // the rotated cookie — instead of the stale cached session. The retry
+    // itself carries no token (#5005).
     const restore = setupBrowserEnv();
     try {
-      // 1. Warm the session cache with the OLD token via a normal request.
-      mockGetSession.mockResolvedValue({ user: { token: "old-token" } });
-      const warmup = await requestInterceptorFulfilled({
-        method: "get",
-        url: "/api/warmup",
-        headers: {},
-      });
-      expect(warmup.headers).toMatchObject({
-        Authorization: "Bearer old-token",
-      });
+      // 1. Warm the session cache.
+      mockGetSession.mockResolvedValue({ user: { id: "1" } });
+      const { getCachedSession } = await import("./session-cache");
+      await getCachedSession();
+      expect(mockGetSession).toHaveBeenCalledTimes(1);
 
-      // 2. The refresh rotates the token.
+      // 2. The refresh rotates the cookie.
       mockHandleAuthFailure.mockResolvedValue(true);
-      mockGetSession.mockResolvedValue({ user: { token: "rotated-token" } });
 
       // 3. Simulate real axios: the retried request re-runs the request
       //    interceptor, then report which Authorization header went out.
@@ -413,7 +366,8 @@ describe("response interceptor token refresh queue", () => {
       });
       const result = await responseInterceptorRejected(error);
 
-      expect(result.data).toEqual({ sentAuth: "Bearer rotated-token" });
+      expect(mockGetSession).toHaveBeenCalledTimes(2);
+      expect(result.data).toEqual({ sentAuth: undefined });
     } finally {
       restore();
     }
@@ -442,9 +396,12 @@ describe("response interceptor token refresh queue", () => {
   it("queued requests reject when client session is missing after refresh", async () => {
     const restore = setupBrowserEnv();
     try {
-      // handleAuthFailure succeeds but getSession returns no token
+      // handleAuthFailure succeeds but the session ended meanwhile
       mockHandleAuthFailure.mockResolvedValue(true);
-      mockGetSession.mockResolvedValue({ user: {} });
+      mockGetSession.mockResolvedValue({
+        user: { id: "1" },
+        error: "RefreshTokenError",
+      });
 
       const error = make401Error({
         url: "/api/test",
@@ -476,7 +433,7 @@ describe("response interceptor token refresh queue", () => {
       // proving isRefreshing was reset
       mockHandleAuthFailure.mockResolvedValue(true);
       mockGetSession.mockResolvedValue({
-        user: { token: "recovered-token" },
+        user: { id: "1" },
       });
       mockAxiosInstance.mockResolvedValue({
         status: 200,
@@ -604,7 +561,7 @@ describe("response interceptor token refresh queue", () => {
       });
       mockHandleAuthFailure.mockReturnValue(authPromise);
       mockGetSession.mockResolvedValue({
-        user: { token: "fresh-token" },
+        user: { id: "1" },
       });
       mockAxiosInstance.mockResolvedValue({
         status: 200,

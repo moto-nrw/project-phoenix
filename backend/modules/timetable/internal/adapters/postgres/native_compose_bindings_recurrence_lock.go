@@ -18,7 +18,9 @@ type RecurrenceWriteLock struct {
 // materialization inside one tenant. The lock must be acquired before reading
 // schedule bounds: otherwise a concurrent split/end can commit valid_until
 // after another operation read NULL, allowing stale schedules or instances to
-// be written across the new boundary.
+// be written across the new boundary. If the operation also needs substitute
+// day locks, recurrence MUST precede every day lock; take all affected days
+// ascending before writing instance/participant rows (#5378).
 //
 // A tenant-wide key is intentional. Split holds the gate and then invokes a
 // materialization pass over every template; per-template locks would accumulate

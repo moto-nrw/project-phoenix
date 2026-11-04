@@ -28,7 +28,12 @@ export interface AggregatedRequestFilters {
    * weg, statt der Seite einen 403 einzuhandeln.
    */
   readonly includeEnrollment?: boolean;
-  /** Offene Komplett-Abmeldungen; verlangt users:delete. */
+  /**
+   * Komplett-Abmeldungen mitladen. Die Liste der Schule verlangt
+   * users:delete. Mit `studentId` liest die Historie stattdessen die
+   * abgeschlossenen Abmeldungen dieses Kindes; dafür reichen users:update
+   * oder users:absence plus Lesezugriff auf das Kind (#5025).
+   */
   readonly includeCareWithdrawals?: boolean;
   readonly canManageFamilyProtection?: boolean;
   /** Leer = alle Arten. */

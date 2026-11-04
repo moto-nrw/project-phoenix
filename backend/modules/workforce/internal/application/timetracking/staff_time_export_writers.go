@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/csv"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -100,14 +102,78 @@ func monthExportCells(row MonthExportRow, timeFormat string) []string {
 }
 
 func writeMonthCSV(rows []MonthExportRow, timeFormat string) ([]byte, error) {
+	wageTypes := exportWageTypeColumns(rows)
 	cells := make([][]string, 0, len(rows))
 	for _, row := range rows {
-		cells = append(cells, monthExportCells(row, timeFormat))
+		cells = append(cells, append(monthExportCells(row, timeFormat), wageTypeCells(row, wageTypes, timeFormat)...))
 	}
-	return writeExportCSV(monthExportHeaders, cells, []int{0, 1, 2})
+	return writeExportCSV(monthExportHeadersWith(wageTypes), cells, []int{0, 1, 2})
+}
+
+// monthExportHeadersWith appends one column per wage type definition in the
+// export (#4807); a school without one keeps the header unchanged.
+func monthExportHeadersWith(wageTypes []exportWageTypeColumn) []string {
+	headers := slices.Clone(monthExportHeaders)
+	for _, wageType := range wageTypes {
+		headers = append(headers, wageTypeColumnHeader(wageType.WageType))
+	}
+	return headers
+}
+
+// wageTypeCells renders the row's value of each wage type column; a wage
+// type the row does not book stays empty.
+func wageTypeCells(row MonthExportRow, wageTypes []exportWageTypeColumn, timeFormat string) []string {
+	values := wageTypeValuesByColumn(row)
+	cells := make([]string, len(wageTypes))
+	for i, wageType := range wageTypes {
+		value, ok := values[wageType.key()]
+		if !ok {
+			continue
+		}
+		switch wageType.WageType.Unit {
+		case workforce.WageTypeUnitAmount:
+			cells[i] = formatExportCents(value.Cents)
+		case workforce.WageTypeUnitDays:
+			cells[i] = formatExportDays(value.Days)
+		default:
+			cells[i] = formatExportMinutes(value.Minutes, timeFormat)
+		}
+	}
+	return cells
+}
+
+// wageTypeXLSXValues are the numeric cells of the wage type columns: hours
+// as decimal hours or "h:mm" text, days and Euro as numbers.
+func wageTypeXLSXValues(row MonthExportRow, wageTypes []exportWageTypeColumn, timeFormat string) []any {
+	values := wageTypeValuesByColumn(row)
+	cells := stringsToAny(wageTypeCells(row, wageTypes, timeFormat))
+	for i, wageType := range wageTypes {
+		value, ok := values[wageType.key()]
+		if !ok {
+			continue
+		}
+		switch {
+		case wageType.WageType.Unit == workforce.WageTypeUnitAmount:
+			cells[i] = float64(value.Cents) / 100
+		case wageType.WageType.Unit == workforce.WageTypeUnitDays:
+			cells[i] = value.Days
+		case timeFormat == ExportTimeDecimal:
+			cells[i] = float64(value.Minutes) / 60
+		}
+	}
+	return cells
+}
+
+func wageTypeValuesByColumn(row MonthExportRow) map[wageTypeColumnKey]wageTypeValue {
+	values := map[wageTypeColumnKey]wageTypeValue{}
+	for _, value := range rowWageTypeValues(row) {
+		values[wageTypeColumnKeyFor(value.WageType)] = value
+	}
+	return values
 }
 
 func writeMonthXLSX(rows []MonthExportRow, timeFormat string, render TimeTrackingWorkbookRenderer) ([]byte, error) {
+	wageTypes := exportWageTypeColumns(rows)
 	cells := make([][]any, 0, len(rows))
 	for _, row := range rows {
 		values := stringsToAny(monthExportCells(row, timeFormat))
@@ -132,13 +198,18 @@ func writeMonthXLSX(rows []MonthExportRow, timeFormat string, render TimeTrackin
 			values[20] = float64(row.ClosingBalanceMinutes) / 60
 			values[21] = float64(row.DriftMinutes) / 60
 		}
-		cells = append(cells, values)
+		cells = append(cells, append(values, wageTypeXLSXValues(row, wageTypes, timeFormat)...))
 	}
 	var decimalColumns []int
 	if timeFormat == ExportTimeDecimal {
 		decimalColumns = []int{6, 7, 8, 9, 10, 11, 12, 16, 17, 18, 19, 20, 21, 22}
 	}
-	return render("Zeiterfassung", monthExportHeaders, cells, decimalColumns)
+	for i, wageType := range wageTypes {
+		if wageType.WageType.Unit == workforce.WageTypeUnitAmount || (wageType.WageType.Unit == workforce.WageTypeUnitHours && timeFormat == ExportTimeDecimal) {
+			decimalColumns = append(decimalColumns, len(monthExportHeaders)+i+1)
+		}
+	}
+	return render("Zeiterfassung", monthExportHeadersWith(wageTypes), cells, decimalColumns)
 }
 
 // --- day granularity -------------------------------------------------------

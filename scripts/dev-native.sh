@@ -19,7 +19,7 @@
 # `devbox run dev <command>` is the same thing with the pinned toolchain.
 # Every `up` replaces both managed native apps, even when selecting only one.
 # Shared postgres/mailpit stay running; frontend-only skips Go and migrations.
-# Backend children default to GOFLAGS=-p=4 and GOMAXPROCS=4; caller values win.
+# Backend children default to GOFLAGS="-p=4 -trimpath" and GOMAXPROCS=4; caller values win.
 #
 # Why .env and not backend/dev.env: parts of the backend read os.Getenv
 # directly (CORS, rate limits, OPERATOR_*, ADMIN_*) and never see dev.env.
@@ -79,7 +79,16 @@ expand_refs() {
 
 load_env() {
   local line key val shell_env_keys=$'\n'
-  while IFS= read -r key; do shell_env_keys+="$key"$'\n'; done < <(compgen -e)
+  # A linked worktree without its own ports gets them first (stderr keeps
+  # `env` output to key names).
+  if [ -f "$ROOT/scripts/worktree-ports.sh" ]; then
+    bash "$ROOT/scripts/worktree-ports.sh" >&2 || die "could not assign this worktree's ports"
+  fi
+  # `export -p`, not `compgen -e`: Devbox's Bash lacks programmable completion.
+  while IFS= read -r line; do
+    [[ $line =~ ^(declare\ -x|export)\ ([A-Za-z_][A-Za-z0-9_]*) ]] &&
+      shell_env_keys+="${BASH_REMATCH[2]}"$'\n'
+  done < <(export -p)
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in '' | '#'*) continue ;; esac
     line=${line#export }
@@ -122,19 +131,97 @@ require_tools() {
   done
 }
 
-kill_tree() {
+tree_pids() {
   local pid=$1 child
-  for child in $(pgrep -P "$pid" 2>/dev/null); do kill_tree "$child"; done
-  kill "$pid" 2>/dev/null || true
+  for child in $(pgrep -P "$pid" 2>/dev/null); do tree_pids "$child"; done
+  echo "$pid"
+}
+
+kill_tree() {
+  local pid
+  for pid in $(tree_pids "$1"); do kill "$pid" 2>/dev/null || true; done
+}
+
+process_identity() {
+  local identity
+  identity=$(LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null) || return 1
+  read -r identity <<< "$identity"
+  [ -n "$identity" ] || return 1
+  printf '%s\n' "$identity"
 }
 
 stop_native() {
-  local name pidfile
+  local name pidfile pid pending state deadline i identity current
+  local tracking="$STATE/stopping-pids"
+  local names=() roots=() pids=() identities=()
+  require_tools pgrep ps
+  # Snapshot both trees before TERM: children can outlive their launcher, and
+  # the old supervisor may remove PID files as soon as a launcher exits.
   for name in backend frontend; do
     pidfile="$STATE/$name.pid"
     [ -f "$pidfile" ] || continue
-    kill_tree "$(cat "$pidfile")"
-    rm -f "$pidfile"
+    pid=$(cat "$pidfile")
+    [[ $pid =~ ^[1-9][0-9]*$ ]] || die "invalid PID in $pidfile"
+    names+=("$name")
+    roots+=("$pid")
+  done
+  if [ -f "$tracking" ]; then
+    # The supervisor owns launcher PID files, but never this shutdown snapshot.
+    # Do not recapture trees on retry: their roots may already be gone or reused.
+    while read -r pid identity; do
+      [[ $pid =~ ^[1-9][0-9]*$ ]] && [ -n "$identity" ] || die "invalid process identity in $tracking"
+      pids+=("$pid")
+      identities+=("$identity")
+    done < "$tracking"
+  else
+    for i in "${!roots[@]}"; do
+      for pid in $(tree_pids "${roots[$i]}"); do
+        if ! identity=$(process_identity "$pid"); then
+          ! kill -0 "$pid" 2>/dev/null || die "cannot identify native process $pid"
+          continue
+        fi
+        pids+=("$pid")
+        identities+=("$identity")
+      done
+    done
+    if [ "${#pids[@]}" -gt 0 ]; then
+      # Persist before signaling, so a timeout or interrupted stop is retryable.
+      for i in "${!pids[@]}"; do
+        printf '%s %s\n' "${pids[$i]}" "${identities[$i]}"
+      done > "$tracking.tmp"
+      mv -f "$tracking.tmp" "$tracking"
+    fi
+  fi
+  for i in "${!pids[@]}"; do
+    pid=${pids[$i]}
+    if ! current=$(process_identity "$pid"); then
+      ! kill -0 "$pid" 2>/dev/null || die "cannot identify native process $pid"
+      continue
+    fi
+    [ "$current" != "${identities[$i]}" ] || kill "$pid" 2>/dev/null || true
+  done
+  deadline=$((SECONDS + 10))
+  while true; do
+    pending=''
+    for i in "${!pids[@]}"; do
+      pid=${pids[$i]}
+      kill -0 "$pid" 2>/dev/null || continue
+      current=$(process_identity "$pid") || current=${identities[$i]}
+      [ "$current" = "${identities[$i]}" ] || continue
+      # Zombies have exited and cannot write; their parent still has to reap
+      # them. A failed ps lookup is inconclusive, so keep waiting in that case.
+      state=$(ps -o stat= -p "$pid" 2>/dev/null) || state='unknown'
+      [[ $state == *Z* ]] || pending="$pending $pid"
+    done
+    [ -n "$pending" ] || break
+    [ "$SECONDS" -lt "$deadline" ] || die "timed out waiting for native processes to stop (PIDs:$pending); shutdown tracking retained"
+    sleep 0.1
+  done
+  rm -f "$tracking"
+  for i in "${!names[@]}"; do
+    name=${names[$i]}
+    pidfile="$STATE/$name.pid"
+    [ "$(cat "$pidfile" 2>/dev/null || true)" != "${roots[$i]}" ] || rm -f "$pidfile"
     echo "stopped $name"
   done
 }
@@ -205,7 +292,7 @@ cmd_up() {
   for name in "${services[@]}"; do
     case "$name" in
       backend)
-        GOFLAGS=${GOFLAGS--p=4} GOMAXPROCS=${GOMAXPROCS-4} \
+        GOFLAGS="${GOFLAGS--p=4 -trimpath}" GOMAXPROCS=${GOMAXPROCS-4} \
           start_svc backend backend bash -c 'go build -ldflags="-s -w" -o ./tmp/main . && ./tmp/main migrate && exec air -c .air.toml'
         echo "dev-native: backend http://localhost:$SERVER_HOST_PORT"
         ;;
@@ -259,7 +346,7 @@ cmd_in() {
   if [ "$dir" = frontend ]; then
     export PORT=$FRONTEND_HOST_PORT
   else
-    export GOFLAGS=${GOFLAGS--p=4} GOMAXPROCS=${GOMAXPROCS-4}
+    export GOFLAGS="${GOFLAGS--p=4 -trimpath}" GOMAXPROCS=${GOMAXPROCS-4}
   fi
   cd "$ROOT/$dir"
   exec "$@"

@@ -622,6 +622,28 @@ describe("getDayData", () => {
     expect(result.effectiveTime).toBe("16:00");
   });
 
+  it("uses the supplied Berlin date for today's status", () => {
+    const friday = { ...schedules[0]!, weekday: 5 };
+    const saturday = new Date("2026-05-30T12:00:00+02:00");
+
+    const result = getDayData(
+      saturday,
+      [friday],
+      [],
+      true,
+      [],
+      false,
+      null,
+      [],
+      true,
+      [],
+      "2026-05-30",
+    );
+
+    expect(result.isToday).toBe(true);
+    expect(result.showSick).toBe(true);
+  });
+
   describe("with mocked time (weekday)", () => {
     beforeEach(() => {
       vi.useFakeTimers();

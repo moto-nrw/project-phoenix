@@ -19,7 +19,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	enrollmentProvenanceView "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance/compose"
@@ -30,7 +29,7 @@ import (
 )
 
 func NewCleanupTimetable(db transactionruntime.Database) (timetableModule.Capability, error) {
-	students, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: studentDirectoryView.NewReader(), DB: db.Pool(), Observe: func(peopleCompose.Observation) {}, GuardianLinkRows: guardianLinkView.NewReader()}, nil)
+	students, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: StudentDirectoryReader(), DB: db.Pool(), Observe: func(peopleCompose.Observation) {}, GuardianLinkRows: guardianLinkView.NewReader()}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +117,7 @@ func composeFeedback(db transactionruntime.Database, settings *feedbackCompose.S
 }
 
 func ComposeCarePlan(db transactionruntime.Database, persons peopleModule.Capability, slots carePlanCompose.StatusSlotDirectory) (carePlanModule.Owner, error) {
-	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(carePlanCompose.Observation) {})
+	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), StudentDirectoryReader(), func(carePlanCompose.Observation) {})
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +126,7 @@ func ComposeCarePlan(db transactionruntime.Database, persons peopleModule.Capabi
 		return nil, err
 	}
 	return carePlanCompose.New(carePlanCompose.Dependencies{
-		StudentDirectory: studentDirectoryView.NewReader(),
+		StudentDirectory: StudentDirectoryReader(),
 		DB:               db.Pool(), AmbientDB: carePlanCompose.TenantAmbientDatabase(db.Pool()),
 		StatusStudents: statusStudents, StatusSlots: slots,
 		People: carePlanStudentNames(func(ctx context.Context, ids []int64) ([]carePlanPorts.StudentName, error) {

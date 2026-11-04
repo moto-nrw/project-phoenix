@@ -45,7 +45,6 @@ import { ApiError } from "~/lib/api-error";
 import { hasPermission } from "~/lib/auth-utils";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import {
   SURVEY_QUESTION_KIND_LABEL,
   hasEditorErrors,
@@ -68,6 +67,7 @@ import {
 } from "~/lib/surveys-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { pollsConcept } from "~/lib/concepts/polls";
 
 const logger = createLogger({ component: "SurveyDetailPage" });
 
@@ -267,8 +267,8 @@ function SurveyDetail({ surveyId }: Readonly<{ surveyId: string }>) {
       {...BACK}
       leading={
         <MotoDuotoneIcon
-          icon={MOTO_CONCEPTS.polls.icon}
-          tone={MOTO_CONCEPTS.polls.tone}
+          icon={pollsConcept.icon}
+          tone={pollsConcept.tone}
           size={40}
         />
       }

@@ -32,3 +32,10 @@ func (s careResumptionStudents) LockResumptionStudent(ctx context.Context, id in
 	student, found := students[id]
 	return careexit.ResumptionStudent{Status: student.Status, EnrolledUntil: student.EnrolledUntil}, found, nil
 }
+
+// NewCarePlanRestoration binds the care lifecycle and Care Plan's student
+// roster resync to the care-exit workflow that re-plans a restored care plan
+// (#5235). The lifecycle's transaction joins the workflow's tenant unit.
+func NewCarePlanRestoration(lifecycle careexit.RestoringCareExits, rosters careexit.RestoredPlanResync, today func() calendar.Date) *careexit.PlanRestoration {
+	return careexit.NewPlanRestoration(lifecycle, rosters, tenant.NewTransactionRunner().RunInTx, today)
+}

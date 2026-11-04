@@ -63,4 +63,24 @@ describe("RequestReviewCard", () => {
       }),
     ).toBeVisible();
   });
+
+  it("opens when the opening request arrives after mount", () => {
+    const { rerender } = render(
+      <RequestReviewCard childName="Lina Beispiel">
+        <p>Die Details der Anfrage</p>
+      </RequestReviewCard>,
+    );
+
+    expect(
+      screen.queryByText("Die Details der Anfrage"),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <RequestReviewCard childName="Lina Beispiel" defaultOpen>
+        <p>Die Details der Anfrage</p>
+      </RequestReviewCard>,
+    );
+
+    expect(screen.getByText("Die Details der Anfrage")).toBeVisible();
+  });
 });

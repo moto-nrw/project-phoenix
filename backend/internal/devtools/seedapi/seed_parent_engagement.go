@@ -284,6 +284,7 @@ func seedParentPhotoConsentHistory(rt *Runtime, auth AuthRef, studentID int64) e
 // appointment reminder stays off, so the settings show a real choice.
 var seedParentNotificationTopics = []string{
 	"parent_message", "parent_announcement", "parent_appointment", "parent_request_decided", "parent_care_cancelled",
+	"parent_billing_document",
 }
 
 func seedParentNotificationPreferences(rt *Runtime, auth AuthRef) error {
@@ -333,6 +334,32 @@ func seedParentConversation(rt *Runtime, auth AuthRef, studentID int64) error {
 	if _, err := rt.Client.GetWithAuth(auth, path); err != nil {
 		return fmt.Errorf("read seeded parent conversation: %w", err)
 	}
+	return seedLeadershipConversation(rt, auth, path)
+}
+
+// seedLeadershipConversation is the same parent's conversation with the
+// leadership only (#5200): a request the team does not read, answered by the
+// school's administration.
+func seedLeadershipConversation(rt *Runtime, auth AuthRef, path string) error {
+	if _, err := rt.Client.PutWithAuth(rt.TenantAuth, "/api/settings/values/operations.parent_message_leadership_enabled", map[string]any{"value": true}); err != nil {
+		return fmt.Errorf("enable leadership conversations: %w", err)
+	}
+	raw, err := rt.Client.PostWithAuth(auth, path, map[string]any{
+		"body":     "Ich würde gern in Ruhe mit Ihnen über die Betreuung von Felix sprechen. Haben Sie nächste Woche einen Termin?",
+		"audience": "leadership",
+	})
+	if err != nil {
+		return fmt.Errorf("seed leadership message: %w", err)
+	}
+	threadID, messageID, err := parseThreadMessageIDs(raw)
+	if err != nil {
+		return fmt.Errorf("parse leadership conversation: %w", err)
+	}
+	if _, err := rt.Client.PostWithAuth(rt.TenantAuth, fmt.Sprintf("/api/messages/threads/%d", threadID), map[string]any{
+		"body": "Gern. Passt Ihnen Dienstag um 14 Uhr?", "handled_up_to_message_id": strconv.FormatInt(messageID, 10),
+	}); err != nil {
+		return fmt.Errorf("seed leadership reply: %w", err)
+	}
 	return nil
 }
 
@@ -380,7 +407,7 @@ func seedParentGuardianChanges(rt *Runtime, auth AuthRef, studentID int64) error
 	); err != nil {
 		return fmt.Errorf("update parent-managed pickup contact: %w", err)
 	}
-	if err := seedParentPickupPermissions(rt, auth, studentID, contactID); err != nil {
+	if err := seedParentPickupPermissions(rt, auth, studentID, contactID, todaySeedDate()); err != nil {
 		return err
 	}
 	return withTemporarySeedSetting(rt, rt.TenantAuth, "guardians.parent_invite_mode", "staff_approval", "direct", func() error {
@@ -500,9 +527,11 @@ func parseThreadMessageIDs(raw []byte) (int64, int64, error) {
 // parent-managed contact (#4780), so the child profile shows a pickup
 // permission limited to Tuesdays and Thursdays, approves the contact as the
 // collector of the next care day, and files an open request to walk home
-// alone four days out. Every one carries the drawn demo signature, so the
-// proofs open for the parent and the OGS.
-func seedParentPickupPermissions(rt *Runtime, auth AuthRef, studentID, contactID int64) error {
+// alone on the fourth school day, one after the parent's open pickup change
+// (seedSchoolDayAfter), so the two open requests never share a day. Every one
+// carries the drawn demo signature, so the proofs open for the parent and the
+// OGS.
+func seedParentPickupPermissions(rt *Runtime, auth AuthRef, studentID, contactID int64, today seedDate) error {
 	raw, err := rt.Client.GetWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/pickup-permission-requests", studentID))
 	if err != nil {
 		return fmt.Errorf("list seeded pickup permission requests: %w", err)
@@ -514,7 +543,7 @@ func seedParentPickupPermissions(rt *Runtime, auth AuthRef, studentID, contactID
 	if err := seedDecideCareRequest(rt, studentID, permissionID, "Danke, die Abholberechtigung ist eingetragen."); err != nil {
 		return err
 	}
-	collectorDate := seedWeekdayOnOrAfter(todaySeedDate())
+	collectorDate := seedWeekdayOnOrAfter(today)
 	collectorSignature, err := seedPickupSignature(rt, auth, studentID, map[string]any{
 		"kind": "day_pickup", "person_name": "Gisela Hahn", "date": collectorDate.String(),
 	})
@@ -537,7 +566,7 @@ func seedParentPickupPermissions(rt *Runtime, auth AuthRef, studentID, contactID
 	if err := seedDecideCareRequest(rt, studentID, collectorID, "Alles klar, wir geben Ihr Kind Gisela mit."); err != nil {
 		return err
 	}
-	aloneDate := seedWeekdayOnOrAfter(todaySeedDate().AddDays(4))
+	aloneDate := seedSchoolDayAfter(today, 4)
 	aloneSignature, err := seedPickupSignature(rt, auth, studentID, map[string]any{
 		"kind": "day_pickup", "date": aloneDate.String(), "departure_mode": "alone",
 	})
@@ -581,7 +610,7 @@ func seedPickupSignature(rt *Runtime, auth AuthRef, studentID int64, declaration
 // seedFirstParentName is the name the first parent signs with.
 func seedFirstParentName(rt *Runtime) string {
 	if len(rt.Parents) > 0 && rt.Parents[0].Name != "" {
-		return rt.Parents[0].Name
+		return parentSignName(rt.seedVisitor(), rt.Parents[0])
 	}
 	return "Sabine Schneider"
 }

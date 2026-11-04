@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   fireEvent,
   render as rtlRender,
@@ -14,6 +17,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/school/kalender",
   redirect: vi.fn(),
 }));
+// The Elternsprechtag link (#4801) resolves its portal path at render.
+vi.mock("~/lib/school-url", () => ({ schoolPath: (path: string) => path }));
 vi.mock("~/lib/shell-auth-context", () => ({
   SchoolShellProvider: ({ children }: { children: ReactNode }) => children,
 }));
@@ -282,3 +287,15 @@ describe("SchoolCalendarPage", () => {
     );
   });
 });
+
+it.each(schoolDateCases("2026-09-07"))(
+  "opens the Berlin calendar week in %s",
+  (zone, instant) => {
+    setSchoolDateClock(zone, instant, "2026-09-07");
+    render(<SchoolCalendarPage />);
+    expect(mockUseSWRAuth).toHaveBeenCalledWith(
+      "school-calendar-2026-09-07-2026-09-13",
+      expect.any(Function),
+    );
+  },
+);

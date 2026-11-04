@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,4 +34,13 @@ func (api *goldenRuntime) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Handler returns the fully assembled production HTTP graph the suites drive.
 func (runtime *Runtime) Handler() http.Handler {
 	return runtime.handler
+}
+
+// queryBudgetHandler marks only this request tree, including its tenant
+// transactions. Detached jobs and other requests on the same pool stay outside
+// the capture without changing the production graph or its connection pool.
+func (api *goldenRuntime) queryBudgetHandler(counter *testpkg.QueryCounter) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		api.ServeHTTP(w, r.WithContext(counter.Context(r.Context())))
+	})
 }

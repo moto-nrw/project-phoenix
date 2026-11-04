@@ -439,6 +439,30 @@ export interface PersonOption {
 }
 
 /**
+ * The children a Klasse, Jahrgang or Gruppe target adds to a children list
+ * (#5103 review). The list holds only the children picked by hand; the
+ * target adds its members to every occurrence. Without this line the list
+ * shows fewer children than the occurrence. Null when nothing is added.
+ */
+export function targetCohortExtraText(
+  cohort: { label: string | null; memberIds: readonly string[] },
+  selectedIds: readonly string[],
+  students: readonly PersonOption[],
+): string | null {
+  if (!cohort.label) return null;
+  const selected = new Set(selectedIds);
+  const members = new Set(cohort.memberIds);
+  const names = students
+    .filter((student) => members.has(student.id) && !selected.has(student.id))
+    .map((student) => student.name)
+    .sort((a, b) => a.localeCompare(b, "de"));
+  if (names.length === 0) return null;
+  return names.length === 1
+    ? `Über ${cohort.label} kommt außerdem: ${names[0]}`
+    : `Über ${cohort.label} kommen außerdem ${names.length} Kinder: ${names.join(", ")}`;
+}
+
+/**
  * One Dienstplan gap as a sentence (#2516). Built from the warning's fields,
  * never from the server's `message`, so the wording stays in this app.
  */
@@ -522,6 +546,41 @@ export function emptyForm(
     sourceGradeLevels: [],
     sourceSchoolClasses: [],
     sourceFilterMode: "alle",
+  };
+}
+
+/**
+ * A new Regeltermin started from an offering without one (#5140): the
+ * offering feeds its children, and title and weekdays follow its bookings.
+ * schoolClasses is the Klassenfilter, so only the listed classes come in
+ * (#5343). The form is empty, so there is no manual list the source would
+ * replace.
+ */
+export interface SeriesSourcePrefill {
+  careOfferingIds: string[];
+  title: string;
+  weekdays: number[];
+  schoolClasses?: string[];
+}
+
+export function withSourcePrefill(
+  form: EventFormState,
+  prefill: SeriesSourcePrefill,
+): EventFormState {
+  return {
+    ...form,
+    title: prefill.title,
+    weekdays:
+      prefill.weekdays.length > 0 ? [...prefill.weekdays] : form.weekdays,
+    targetGroupType: "angebot",
+    sourceCareOfferingIds: [...prefill.careOfferingIds],
+    ...(prefill.schoolClasses && prefill.schoolClasses.length > 0
+      ? {
+          sourceGradeLevels: [],
+          sourceSchoolClasses: [...prefill.schoolClasses],
+          sourceFilterMode: "klasse" as const,
+        }
+      : {}),
   };
 }
 
@@ -757,11 +816,6 @@ export function sortPeople<T extends PersonOption>(items: T[]): T[] {
     if (groupCompare !== 0) return groupCompare;
     return a.name.localeCompare(b.name, "de");
   });
-}
-
-export function schoolClassLabel(schoolClass: string): string {
-  const trimmed = schoolClass.trim();
-  return /^klasse(?:\s|$)/i.test(trimmed) ? trimmed : `Klasse ${trimmed}`;
 }
 
 export function targetCohortActionLabel(

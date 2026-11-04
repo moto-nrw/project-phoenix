@@ -13,6 +13,11 @@
  */
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 
+/** A host name as DNS compares it: no port, lowercase, no trailing dot. */
+export function normalizeHostname(host: string): string {
+  return (host.split(":")[0] ?? "").toLowerCase().replace(/\.$/, "");
+}
+
 export function tenantSlugFromHost(host: string | null): string | null {
   const tenantDomain = process.env.TENANT_DOMAIN;
   if (!tenantDomain) {
@@ -21,13 +26,29 @@ export function tenantSlugFromHost(host: string | null): string | null {
     );
   }
   if (!host) return null;
-  const hostname = host.split(":")[0] ?? "";
+  const normalizedTenantDomain = normalizeHostname(tenantDomain);
+  const hostname = normalizeHostname(host);
 
-  if (hostname === tenantDomain) return null;
-  if (!hostname.endsWith(`.${tenantDomain}`)) return null;
+  if (hostname === normalizedTenantDomain) return null;
+  if (!hostname.endsWith(`.${normalizedTenantDomain}`)) return null;
 
-  const slug = hostname.slice(0, -(tenantDomain.length + 1));
+  const slug = hostname.slice(0, -(normalizedTenantDomain.length + 1));
   if (!slug) return null;
   if (RESERVED_SLUGS.has(slug)) return null;
   return slug;
+}
+
+/**
+ * Whether the host is the bare TENANT_DOMAIN itself. Path mode
+ * (<domain>/<school>/...) lives there; the tenant layout sends it to the
+ * school's subdomain (#5130).
+ */
+export function isBareTenantDomainHost(host: string | null): boolean {
+  const tenantDomain = process.env.TENANT_DOMAIN;
+  if (!tenantDomain) {
+    throw new Error(
+      "TENANT_DOMAIN is not set — refusing to classify the host without it",
+    );
+  }
+  return !!host && normalizeHostname(host) === normalizeHostname(tenantDomain);
 }

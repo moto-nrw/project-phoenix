@@ -16,7 +16,7 @@ import (
 )
 
 type StaffMessagingTestRepositories struct {
-	Thread  communication.StaffThreadRecords
+	Thread  communication.StaffConversationRecords
 	Message communication.StaffMessageRecords
 	Read    communication.StaffReadRecords
 }

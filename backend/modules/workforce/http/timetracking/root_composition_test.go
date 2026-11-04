@@ -41,6 +41,16 @@ func init() {
 		require.NoError(t, err)
 		return capability
 	}
+	workforcetest.ComposePayrollRules = func(t *testing.T, db *bun.DB) workforce.PayrollRules {
+		t.Helper()
+		membership, err := owners.NewSchoolMembership(testpkg.NewDatabase(t, db))
+		require.NoError(t, err)
+		capability, err := owners.NewWorkforceWithClock(testpkg.NewDatabase(t, db), membership, nil)
+		require.NoError(t, err)
+		rules, err := owners.BuildPayrollRules(capability, testpkg.NewDatabase(t, db))
+		require.NoError(t, err)
+		return rules
+	}
 	workforcetest.ComposeRows = func(t *testing.T, db *bun.DB) workforcetest.Rows {
 		t.Helper()
 		repos, err := api.NewWorkforceTestRepositories(testpkg.NewDatabase(t, db))

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	announcementService "github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // The staff proof report of an Erklärung (#3430) in the moto PDF design. The
@@ -228,10 +229,7 @@ func childStateRank(state string) int {
 
 func declarationChildCard(c announcementService.DeclarationChildStatus, name string) ReportCard {
 	title := name
-	if class := strings.TrimSpace(c.SchoolClass); class != "" {
-		if !strings.HasPrefix(class, "Klasse") {
-			class = "Klasse " + class
-		}
+	if class := collation.SchoolClassLabel(c.SchoolClass); class != "" {
 		title += " · " + class
 	}
 	blocks := make([]ReportBlock, 0, len(c.Signers))

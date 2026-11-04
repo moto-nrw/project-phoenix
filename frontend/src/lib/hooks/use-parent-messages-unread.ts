@@ -6,8 +6,8 @@ import { useUnreadCount } from "./use-unread-count";
 /**
  * Number of conversations with unread staff-side activity for a guardian, for
  * the parents-portal sidebar badge. Only fetches when `enabled` (parent mode) so
- * the staff/operator portals never hit the parent endpoint. Uses the dedicated
- * COUNT endpoint instead of fetching every thread's full projection. Refreshes
+ * the staff/operator portals never hit the parent endpoints. Counts unread
+ * entries in the visible team and group inbox lists. Refreshes
  * on mount, on window focus, and on the parent-messages-unread-refresh event
  * (dispatched by the parent chat after it loads/sends — reading marks a thread
  * read server-side — so the badge updates without a full reload).

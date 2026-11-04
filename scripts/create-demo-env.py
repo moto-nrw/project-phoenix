@@ -5,6 +5,7 @@ SMTP settings come from staging. Plaintext passes through memory and pipes only.
 """
 
 from pathlib import Path
+import base64
 import secrets
 import subprocess
 
@@ -55,6 +56,9 @@ def main():
         "NEXT_PUBLIC_SENTRY_DSN": "",
         "NEXT_PUBLIC_SENTRY_ENVIRONMENT": "demo", "POSTHOG_API_KEY": "", "NEXT_PUBLIC_POSTHOG_KEY": "",
         "VAPID_PUBLIC_KEY": "", "VAPID_PRIVATE_KEY": "", "VAPID_SUBSCRIBER": "",
+        # The demo seals its holiday health data with a key ring of its own,
+        # never the one of staging (#4722).
+        "HEALTH_DATA_KEYS": "demo1:" + base64.b64encode(secrets.token_bytes(32)).decode(),
     })
     result = subprocess.run(
         ["sops", "encrypt", "--input-type", "dotenv", "--output-type", "dotenv",

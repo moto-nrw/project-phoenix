@@ -1,0 +1,64 @@
+# Each unindented line is a middleware chain, outermost first.
+# The indented routes below it run through exactly that chain.
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.RequireLiveSession.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.TenantTxMiddleware > modules/studentpresence/inbound/presence.(*Resource).requireVisitView-fm
+	GET /api/active/visits/{id}
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.RequireLiveSession.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions# > api/common.TenantTxMiddleware
+	GET /api/active/analytics/dashboard
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.RequireLiveSession.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions.# > api/common.TenantTxMiddleware
+	DELETE /api/active/combined/{id}
+	DELETE /api/active/groups/{id}
+	DELETE /api/active/supervisors/{id}
+	GET /api/active/combined/
+	GET /api/active/combined/active
+	GET /api/active/combined/{id}
+	GET /api/active/combined/{id}/groups
+	GET /api/active/cross-tenant-students
+	GET /api/active/groups/
+	GET /api/active/groups/group/{groupId}
+	GET /api/active/groups/room/{roomId}
+	GET /api/active/groups/unclaimed
+	GET /api/active/groups/{id}
+	GET /api/active/groups/{id}/supervisors
+	GET /api/active/groups/{id}/visits
+	GET /api/active/groups/{id}/visits/display
+	GET /api/active/mappings/combined/{combinedId}
+	GET /api/active/mappings/group/{groupId}
+	GET /api/active/schulhof/status
+	GET /api/active/supervision-dashboard
+	GET /api/active/supervisors/
+	GET /api/active/supervisors/all
+	GET /api/active/supervisors/group/{groupId}
+	GET /api/active/supervisors/staff/{staffId}
+	GET /api/active/supervisors/staff/{staffId}/active
+	GET /api/active/supervisors/{id}
+	GET /api/active/visits/
+	GET /api/active/visits/group/{groupId}
+	GET /api/active/visits/student/{studentId}
+	GET /api/active/visits/student/{studentId}/current
+	POST /api/active/combined/
+	POST /api/active/combined/{id}/end
+	POST /api/active/groups/
+	POST /api/active/groups/{id}/claim
+	POST /api/active/mappings/add
+	POST /api/active/mappings/remove
+	POST /api/active/supervisors/
+	POST /api/active/supervisors/{id}/end
+	POST /api/active/tracking-indicators
+	PUT /api/active/combined/{id}
+	PUT /api/active/groups/{id}
+	PUT /api/active/supervisors/{id}
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.RequireLiveSession.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions.# > api/common.TenantTxMiddleware > api/common.RequireWebAttendanceEnabled.#
+	DELETE /api/active/visits/{id}
+	POST /api/active/groups/{id}/end
+	POST /api/active/visits/
+	POST /api/active/visits/move-to-group
+	POST /api/active/visits/move-to-room
+	POST /api/active/visits/move-to-transit
+	POST /api/active/visits/student/{studentId}/checkout
+	POST /api/active/visits/transit/assign
+	POST /api/active/visits/{id}/end
+	PUT /api/active/visits/{id}

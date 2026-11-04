@@ -17,7 +17,7 @@ func TestDevtoolsRootCmd_HasCommands(t *testing.T) {
 	assert.NotNil(t, RootCmd.PersistentFlags().Lookup("demo-standing-school"))
 }
 
-func TestDevtoolsPropagatesDemoRuntimeConfig(t *testing.T) {
+func TestDevtoolsPropagatesDatabaseRuntimeConfig(t *testing.T) {
 	t.Parallel()
 	config := map[string]string{
 		"app_env":               "development",
@@ -33,10 +33,9 @@ func TestDevtoolsPropagatesDemoRuntimeConfig(t *testing.T) {
 	})
 
 	assert.Equal(t, "development", effective["APP_ENV"])
+	assert.Equal(t, "postgres://postgres@localhost:5432/postgres?sslmode=disable", effective["DB_DSN"])
 	assert.Equal(t, "postgres://phoenix_demo@localhost:5432/postgres?sslmode=disable", effective["DEMO_DB_DSN"])
 	assert.Equal(t, "demo-password", effective["PHOENIX_DEMO_PASSWORD"])
-	// The dev tools never open the privileged maintenance connection.
-	assert.NotContains(t, effective, "DB_DSN")
 }
 
 func TestDevtoolsSecureRandomSourceFillsBuffer(t *testing.T) {

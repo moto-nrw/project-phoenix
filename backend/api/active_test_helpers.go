@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/realtime"
+
 	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
 
 	presenceHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
@@ -23,7 +25,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -204,7 +205,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return fail(err)
 	}
 	logger := slog.Default()
-	hub := deliveryCompose.NewRealtimeHub(logger)
+	hub := realtime.NewHub(logger)
 	students, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return fail(err)
@@ -333,7 +334,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return fail(err)
 	}
 	scan := ActiveDeviceScan{
-		SessionLifecycle: scanBindings.NewSessionLifecycle(presence, scanBindings.NewSupervisionQuery(owners.NewLoggedStudentPresence(db, logger)), NewDeviceScanPeople(dataUsers), dataDevices.IoT, nil, logger, DeviceScanPrincipal),
+		SessionLifecycle: scanBindings.NewSessionLifecycle(presence, owners.NewLoggedStudentPresence(db, logger), scanBindings.NewSupervisionQuery(owners.NewLoggedStudentPresence(db, logger)), NewDeviceScanPeople(dataUsers), dataDevices.IoT, nil, logger, DeviceScanPrincipal),
 		RoomAvailability: data.RoomAvailability, Configuration: data.Configuration, Directory: data.Directory, TagAssignments: data.TagAssignments,
 	}
 	return ActiveTestModule{PickupSchedule: pickups, ArrivalSchedule: arrivals, CareDay: careDay},
@@ -440,8 +441,8 @@ type iotTestSessionToEnd = devicescan.SessionToEnd
 type iotTestSessionEndResult = sessionend.Result
 type iotTestSessionConflict = devicescan.ConflictInfoResponse
 
-func iotSessionEndTestFailures() (notFound, alreadyEnded error) {
-	return sessionend.ErrSessionNotFound, sessionend.ErrSessionAlreadyEnded
+func iotSessionEndTestFailures() (notFound, alreadyEnded, conflict error) {
+	return sessionend.ErrSessionNotFound, sessionend.ErrSessionAlreadyEnded, sessionend.ErrSessionConflict
 }
 
 func iotSessionEndTestInvalidRequest(message string) error {

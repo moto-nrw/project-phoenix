@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import type React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import GuardiansPanel from "./guardians-panel";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { catalogText } from "~/test/error-catalog-text";
@@ -100,6 +100,10 @@ const editableGuardian: ChildGuardian = {
 };
 
 describe("GuardiansPanel", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.listChildGuardians.mockResolvedValue([editableGuardian]);
@@ -338,10 +342,65 @@ describe("GuardiansPanel", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("juergen@example.test")).toBeInTheDocument();
     expect(screen.getByText("petra@example.test")).toBeInTheDocument();
+    // Outside the public demo a parent's own row carries no marker (#5033).
+    expect(screen.queryByText("Das sind Sie")).not.toBeInTheDocument();
     expect(
       screen.queryByText("magdalena@example.test"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("klaus@example.test")).not.toBeInTheDocument();
+  });
+
+  // The demo visitor is the parent of one child and carries the name of a
+  // seed parent; the marker says which row is the visitor (#5033).
+  it("marks the parent's own rows in the demo build", async () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_ENV", "demo");
+    mocks.listChildGuardians.mockResolvedValue([
+      { ...editableGuardian, is_self: true },
+    ]);
+    mocks.listRelatedAccounts.mockResolvedValue([
+      {
+        guardian_profile_id: "7",
+        first_name: "Helga",
+        last_name: "Schneider",
+        email: "helga@example.test",
+        relationship_type: "relative",
+        is_primary: false,
+        status: "active",
+        is_self: true,
+      },
+    ]);
+
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Verbundene Konten" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Das sind Sie")).toHaveLength(2);
+  });
+
+  it("does not offer access for a hidden demo seed address", async () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_ENV", "demo");
+    mocks.listRelatedAccounts.mockResolvedValue([
+      {
+        guardian_profile_id: "7",
+        first_name: "Helga",
+        last_name: "Schneider",
+        email: "sabine.schneider@demo-ogs-nord.moto-ogs.de",
+        relationship_type: "relative",
+        is_primary: false,
+        status: "no_account",
+        is_self: false,
+      },
+    ] satisfies RelatedAccount[]);
+
+    render(<GuardiansPanel studentId="42" canInvite canRemove={false} />);
+
+    expect(await screen.findByText("Helga Schneider")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zugang geben" }),
+    ).not.toBeInTheDocument();
   });
 
   it("separates contacts and accounts with the standard section spacing", async () => {
@@ -608,6 +667,20 @@ describe("GuardiansPanel", () => {
     );
   });
 
+  it("exposes one loading status for contacts and connected accounts", () => {
+    mocks.listChildGuardians.mockReturnValueOnce(new Promise(() => undefined));
+
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
+
+    expect(screen.getAllByTestId("parent-page-section-skeleton")).toHaveLength(
+      2,
+    );
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Inhalt wird geladen");
+  });
+
   // #2518: each section reports its own failed load in place, with a retry,
   // and never as an empty list.
   it("shows load errors where the lists are missing and retries them", async () => {
@@ -643,10 +716,18 @@ describe("GuardiansPanel", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "Wiederholen" })[0]!);
 
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Inhalt wird geladen");
+
     expect(
       await screen.findByRole("button", { name: "Bearbeiten" }),
     ).toBeInTheDocument();
     expect(mocks.listChildGuardians).toHaveBeenCalledTimes(2);
+    // Anker: die Kontaktliste ist nach dem Wiederholen geladen.
+    expect(
+      screen.getByRole("button", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("reports a failed access removal through the shared toast", async () => {

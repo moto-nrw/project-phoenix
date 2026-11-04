@@ -36,9 +36,9 @@ func (f *fakeOfferingChangeRequestService) PreviewDecision(
 	return f.preview, nil
 }
 
-func (f *fakeOfferingChangeRequestService) Decide(_ context.Context, input careplan.OfferingChangeDecisionInput) error {
+func (f *fakeOfferingChangeRequestService) Decide(_ context.Context, input careplan.OfferingChangeDecisionInput) (careplan.RosterImpact, error) {
 	f.input = input
-	return nil
+	return careplan.RosterImpact{}, nil
 }
 
 func (f *fakeOfferingChangeRequestService) EarliestEffectiveFrom(context.Context) (calendar.Date, error) {

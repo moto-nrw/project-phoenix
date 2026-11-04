@@ -16,12 +16,11 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
+import { Input } from "~/components/ui/input";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { createLogger } from "~/lib/logger";
-import { Minus, Plus } from "lucide-react";
-import { InfoIcon } from "@phosphor-icons/react";
-import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { SectionHeader } from "~/components/ui/concept-section-header";
+import { Info, Minus, Plus } from "lucide-react";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "QuickCreateActivityModal" });
 
@@ -227,14 +226,13 @@ export function QuickCreateActivityModal({
                 </div>
                 Aktivitätsname
               </label>
-              <input
+              <Input
                 id="name"
                 name="name"
                 value={form.name}
                 onChange={onInput}
                 aria-invalid={fieldError("name") ? true : undefined}
                 placeholder="z.B. Hausaufgaben, Malen, Basteln..."
-                className={`block w-full rounded-xl border-0 bg-white/80 px-4 py-3.5 text-base text-gray-900 shadow-sm ring-1 ${fieldError("name") ? "ring-moto-red/40" : "ring-gray-200/50"} backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-gray-700 focus:ring-inset`}
                 required
                 maxLength={255}
               />
@@ -315,20 +313,22 @@ export function QuickCreateActivityModal({
                   />
                 </button>
 
-                <input
-                  id="max_participants"
-                  name="max_participants"
-                  type="number"
-                  value={form.max_participants}
-                  onChange={onInput}
-                  aria-invalid={
-                    fieldError("max_participants") ? true : undefined
-                  }
-                  min="1"
-                  disabled={!form.max_participants}
-                  required={Boolean(form.max_participants)}
-                  className="block w-full [appearance:textfield] rounded-xl border-0 bg-white/80 px-16 py-3.5 text-center text-lg font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-gray-700 focus:ring-inset [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                />
+                <div className="flex-1">
+                  <Input
+                    id="max_participants"
+                    name="max_participants"
+                    type="number"
+                    value={form.max_participants}
+                    onChange={onInput}
+                    aria-invalid={
+                      fieldError("max_participants") ? true : undefined
+                    }
+                    min="1"
+                    disabled={!form.max_participants}
+                    required={Boolean(form.max_participants)}
+                    className="[appearance:textfield] px-16! text-center text-lg! font-semibold [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  />
+                </div>
 
                 <button
                   type="button"
@@ -373,14 +373,13 @@ export function QuickCreateActivityModal({
 
           {/* Info Card */}
           <div className="rounded-2xl border border-gray-200/50 bg-gray-50 p-4">
-            <SectionHeader
+            <SectionCard
+              bare
               // FormModal rendert seinen Titel als h3.
-              level={4}
+              headingLevel={4}
               title="Hinweis"
-              icon={
-                <MotoDuotoneIcon icon={InfoIcon} tone="neutral" size={18} />
-              }
-              subtitle="Die Aktivität ist sofort für NFC-Terminals verfügbar."
+              icon={Info}
+              description="Die Aktivität ist sofort für NFC-Terminals verfügbar."
             />
           </div>
         </form>

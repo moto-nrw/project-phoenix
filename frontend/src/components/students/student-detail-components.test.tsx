@@ -11,8 +11,8 @@ const { mockUseSWR } = vi.hoisted(() => ({
   mockUseSWR: vi.fn(),
 }));
 
-vi.mock("swr", () => ({
-  default: mockUseSWR,
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: mockUseSWR,
 }));
 
 vi.mock("~/lib/tenant-router", () => ({

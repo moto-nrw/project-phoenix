@@ -33,8 +33,33 @@ import (
 // the first selected option explains the empty occurrence, and before that
 // phase's service start the occurrence waits for it.
 type stubOfferingSources struct {
-	options []timetable.OfferingSourceOption
-	err     error
+	options  []timetable.OfferingSourceOption
+	bookings []timetable.OfferingWeekdayBooking
+	err      error
+	// decisions records the template-gap decisions (#5140) by offering and
+	// planning period, as Care Plan stores them.
+	decisions map[offeringPeriod][]string
+	// bookingsFrom records the from of every bookings read; Care Plan
+	// returns only links still in force on or after it.
+	bookingsFrom []calendar.Date
+}
+
+type offeringPeriod struct{ offeringID, periodID int64 }
+
+func (s *stubOfferingSources) DecideOfferingTemplateGap(_ context.Context, offeringID, periodID int64, schoolClasses []string) error {
+	if s.err != nil {
+		return s.err
+	}
+	if s.decisions == nil {
+		s.decisions = make(map[offeringPeriod][]string)
+	}
+	s.decisions[offeringPeriod{offeringID: offeringID, periodID: periodID}] = schoolClasses
+	return nil
+}
+
+// decided is the stored decision of the offering for the period.
+func (s *stubOfferingSources) decided(offeringID, periodID int64) []string {
+	return s.decisions[offeringPeriod{offeringID: offeringID, periodID: periodID}]
 }
 
 func (s *stubOfferingSources) ListOfferingSourceOptions(
@@ -84,6 +109,23 @@ func (s *stubOfferingSources) TemplateRosterMaintenance(
 	_ []timetable.TemplateRosterMaintenanceQuery,
 ) (map[int64]timetable.TemplateRosterMaintenance, error) {
 	return nil, nil
+}
+
+func (s *stubOfferingSources) OfferingWeekdayBookings(
+	_ context.Context,
+	periodID *int64,
+	from calendar.Date,
+) ([]timetable.OfferingWeekdayBooking, error) {
+	s.bookingsFrom = append(s.bookingsFrom, from)
+	if s.decisions == nil || periodID == nil {
+		return s.bookings, s.err
+	}
+	// The period's decisions travel with each booking, as Care Plan's do.
+	bookings := slices.Clone(s.bookings)
+	for i := range bookings {
+		bookings[i].TemplateGapAckClasses = s.decided(bookings[i].OfferingID, *periodID)
+	}
+	return bookings, s.err
 }
 
 type listSetup struct {
@@ -508,6 +550,12 @@ func (s stubListCareDays) ResolveForRange(
 		out[id] = byDate
 	}
 	return out, nil
+}
+
+func (stubListCareDays) ResolvePlannedForRange(
+	context.Context, []int64, calendar.Date, calendar.Date,
+) (map[int64]map[calendar.Date]careplan.PlannedCareDay, error) {
+	panic("not used by the instance list")
 }
 
 // A sick / excused / class-trip report flips every still-expected slot of the

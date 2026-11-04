@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.accounts",
+  "max": 8,
+  "exact": true,
+  "description": "modules/traegerview — GET /traeger/schools (ADR 0084, #4649): the Träger\nrow, the school IDs of the Träger and the school rows of that set, in\none administrative transaction. Flat in the number of schools."
+}

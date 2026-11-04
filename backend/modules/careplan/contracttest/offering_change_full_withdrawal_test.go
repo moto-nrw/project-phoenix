@@ -86,7 +86,7 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 	decision := careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID, ActorRole: "admin",
 	}
-	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, decision)
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), decision)
 	require.ErrorIs(t, err, careplan.ErrCompleteWithdrawalConfirmationRequired)
 	stillPending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation
 	assert.Empty(t, pendingCompletions, "a failed approval must not create its completion task")
 
 	decision.CompleteWithdrawalConfirmed = true
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, decision))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), decision))
 	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, offeringContract.OfferingChangeStatusApproved, decided.Status)
@@ -124,7 +124,7 @@ func TestOfferingChangeRequestService_Reject_DoesNotCreateWithdrawalCompletion(t
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: false, Reason: "Nicht freigegeben",
 		ReviewedBy: env.creatorID, ActorRole: "admin",
 	}))
@@ -164,7 +164,7 @@ func TestOfferingChangeRequestService_Decide_ReportsAppliedWithdrawalResult(t *t
 		Set("payload = ?::jsonb", payload).Where("id = ?", row.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID, ActorRole: "admin",
 	}))
 	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
@@ -210,14 +210,14 @@ func TestOfferingChangeRequestService_Decide_RequiresConfirmationAfterTargetBeco
 	decision := careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID, ActorRole: "admin",
 	}
-	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, decision)
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), decision)
 	require.ErrorIs(t, err, careplan.ErrCompleteWithdrawalConfirmationRequired)
 	stillPending, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.Equal(t, offeringContract.OfferingChangeStatusPending, stillPending.Status)
 
 	decision.CompleteWithdrawalConfirmed = true
-	require.NoError(t, svc.Decide(ctx, decision))
+	require.NoError(t, decideOfferingChange(ctx, svc, decision))
 	decided, err := enrollmentTest.NewOfferingChangeRecords(env.repos.CarePlan()).FindByID(ctx, row.ID)
 	require.NoError(t, err)
 	assert.True(t, decided.ApprovedCompleteWithdrawal)
@@ -237,7 +237,7 @@ func TestOfferingChangeRequestService_GetForStudent_DropsOldWithdrawalAfterCareR
 		CompleteWithdrawalConfirmed: true,
 	})
 	require.NoError(t, err)
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID, ActorRole: "admin",
 		CompleteWithdrawalConfirmed: true,
 	}))

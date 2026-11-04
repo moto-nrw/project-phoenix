@@ -63,6 +63,23 @@ func (c *CareOfferingCatalog) resolveTemplatePeriodForGroup(ctx context.Context,
 	return period, nil
 }
 
+// sourcedRowPeriodID is the calendar period a sourced template's roster rows
+// carry: the one period all its schedules materialize their instances under
+// (a schedule's own period, else the template's), nil when they resolve to
+// different periods or to none. An instance counts only rows whose period is
+// NULL or its own, so any other value leaves the child off the template's
+// instances (#5176). Approval, corrections and every resync use this rule.
+func sourcedRowPeriodID(templatePeriodID *int64, schedules []careplan.LinkedSchedule) *int64 {
+	if len(schedules) == 0 {
+		return templatePeriodID
+	}
+	shared, err := resolveTemplateSchedulePeriodID(careplan.LinkedGroup{CalendarPeriodID: templatePeriodID}, schedules)
+	if err != nil {
+		return nil
+	}
+	return &shared
+}
+
 func resolveTemplateSchedulePeriodID(group careplan.LinkedGroup, schedules []careplan.LinkedSchedule) (int64, error) {
 	var periodID *int64
 	for _, schedule := range schedules {

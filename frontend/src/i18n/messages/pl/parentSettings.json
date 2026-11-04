@@ -1,0 +1,11 @@
+{
+  "eyebrow": "Państwa konto",
+  "title": "Ustawienia",
+  "description": "Proszę ustawić język i powiadomienia dla swojego konta.",
+  "languageTitle": "Język",
+  "languageDescription": "Proszę wybrać język, w którym wyświetla się moto.",
+  "appInstallTitle": "Zainstaluj moto jako aplikację",
+  "appInstallDescription": "Proszę nie instalować moto przez Samsung Internet. Proszę otworzyć moto w Chrome.",
+  "appInstallGenericDescription": "Dodaj moto do ekranu głównego telefonu i otwieraj je jak aplikację.",
+  "appInstallGuide": "Otwórz instrukcję"
+}

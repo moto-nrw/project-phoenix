@@ -1,4 +1,13 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useTenantMutateMatching } from "~/lib/swr";
+import { traegerKeys } from "~/lib/swr/portal-keys";
+import { SWRConfig } from "~/lib/swr/testing";
+vi.unmock("swr");
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -82,6 +91,60 @@ describe("TraegerSettingsPage", () => {
     mockClear.mockReset().mockResolvedValue(undefined);
   });
 
+  it.each([503, 403])(
+    "keeps loaded content only for recoverable schema refresh errors (%s)",
+    async (status) => {
+      mockFetchSchema.mockResolvedValue(schema([NEWS_FROM_TRAEGER]));
+      render(
+        <ToastProvider>
+          <RefreshSchema />
+          <TraegerSettingsPage />
+        </ToastProvider>,
+      );
+      expect(
+        await screen.findByRole("switch", {
+          name: "Neuigkeiten im Elternportal",
+        }),
+      ).toBeInTheDocument();
+      const code =
+        status === 503 ? "general.unavailable" : "general.permission";
+      mockFetchSchema.mockRejectedValue(
+        new ApiError("refused", status, { code }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Refresh schema" }));
+      // Anker: the current schema failure is shown after a complete initial load.
+      expect(
+        await screen.findByText(
+          catalogText(code, "die Liste der Einstellungen"),
+        ),
+      ).toBeInTheDocument();
+      if (status === 503)
+        expect(
+          screen.queryByRole("switch", { name: "Neuigkeiten im Elternportal" }),
+        ).toBeInTheDocument();
+      else
+        expect(
+          screen.queryByRole("switch", { name: "Neuigkeiten im Elternportal" }),
+        ).not.toBeInTheDocument();
+    },
+  );
+
+  it("shares one schema request between mounted settings consumers", async () => {
+    mockFetchSchema.mockResolvedValue(schema([NEWS_FROM_TRAEGER]));
+    render(
+      <ToastProvider>
+        <TraegerSettingsPage />
+        <TraegerSettingsPage />
+      </ToastProvider>,
+    );
+    expect(
+      await screen.findAllByText(
+        "Vom Träger festgelegt · geändert am 01.09.2026",
+      ),
+    ).toHaveLength(2);
+    expect(mockFetchSchema).toHaveBeenCalledTimes(1);
+  });
+
   it("shows each setting with where its value comes from", async () => {
     mockFetchSchema.mockResolvedValue(
       schema([NEWS_FROM_TRAEGER, STAFF_NAME_DEFAULT]),
@@ -91,15 +154,21 @@ describe("TraegerSettingsPage", () => {
     expect(
       await screen.findByText("Vom Träger festgelegt · geändert am 01.09.2026"),
     ).toBeInTheDocument();
+    // Die Erklärung steht hinter dem Info-Knopf am Titel (#5146).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Erklärung zu Einstellungen" }),
+    );
     expect(
-      screen.getByText(
-        "Hier legen Sie Werte für alle Schulen Ihres Trägers fest. Wo es erlaubt ist, kann eine Schule einen eigenen Wert eintragen.",
-      ),
-    ).toBeInTheDocument();
-    // Tab and category carry the names of the school settings page.
-    expect(
-      screen.getByRole("heading", { name: "Betrieb" }),
-    ).toBeInTheDocument();
+      screen.getByRole("dialog", { name: "Erklärung zu Einstellungen" }),
+    ).toHaveTextContent(
+      "Hier legen Sie Werte für alle Schulen Ihres Trägers fest. Wo es erlaubt ist, kann eine Schule einen eigenen Wert eintragen.",
+    );
+    // Tab and category carry the names of the school settings page; the
+    // tab is a page tab of the scaffold (#5146).
+    expect(screen.getByRole("tab", { name: "Betrieb" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(
       screen.getByRole("heading", { name: "Elternportal" }),
     ).toBeInTheDocument();
@@ -174,6 +243,141 @@ describe("TraegerSettingsPage", () => {
     expect(mockFetchSchema).toHaveBeenCalledTimes(2);
   });
 
+  describe("payment text of the letters (#5622)", () => {
+    function holidaySchema(text: string, asksDebtorNumber: boolean) {
+      return {
+        tabs: [
+          {
+            key: "ferien",
+            label: "ferien",
+            categories: [
+              {
+                key: "ferien-bestaetigung",
+                label: "ferien-bestaetigung",
+                items: [
+                  item({
+                    key: "parent_billing.debtor_number_on_confirm",
+                    label: "Debitorennummer beim Bestätigen abfragen",
+                    value: asksDebtorNumber,
+                    levels: "traeger",
+                  }),
+                ],
+              },
+              {
+                key: "ferien-schreiben",
+                label: "ferien-schreiben",
+                items: [
+                  item({
+                    key: "parent_billing.payment_text",
+                    label: "Zahlungstext im Schreiben",
+                    type: "textarea",
+                    default: "",
+                    value: text,
+                    levels: "traeger",
+                    validation: { allow_empty: true, max_length: 600 },
+                  }),
+                ],
+              },
+            ],
+          },
+        ],
+      } satisfies SettingsSchema;
+    }
+
+    it("shows the built-in sentence as example and in the preview", async () => {
+      mockFetchSchema.mockResolvedValue(holidaySchema("", true));
+      renderPage();
+
+      const field = await screen.findByRole("textbox", {
+        name: "Zahlungstext im Schreiben",
+      });
+      expect(field).toHaveAttribute(
+        "placeholder",
+        "Bitte überweisen Sie {Betrag} bis zum {Zahlungsfrist} auf das Konto unten. Geben Sie als Verwendungszweck die Rechnungsnummer {Rechnungsnummer} an.",
+      );
+      // The limit counts characters like the backend, not UTF-16 units.
+      expect(field).not.toHaveAttribute("maxlength");
+      expect(
+        screen.getByRole("heading", { name: "Schreiben an die Familien" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("figure", { name: "Vorschau des Zahlungstexts" }),
+      ).toHaveTextContent(
+        "Bitte überweisen Sie 124,00 € bis zum 15.12.2026 auf das Konto unten. Geben Sie als Verwendungszweck Ihre Debitorennummer 10 4711 an.",
+      );
+    });
+
+    it("previews the Träger's own text with example values", async () => {
+      mockFetchSchema.mockResolvedValue(
+        holidaySchema(
+          "Bitte überweisen Sie {Betrag} bis zum {Zahlungsfrist}. Verwendungszweck: {Rechnungsnummer}, {Debitorennummer}. Haben Sie uns bereits ein SEPA-Lastschriftmandat erteilt, buchen wir den Betrag ab.",
+          false,
+        ),
+      );
+      renderPage();
+
+      expect(
+        await screen.findByRole("figure", {
+          name: "Vorschau des Zahlungstexts",
+        }),
+      ).toHaveTextContent(
+        "Bitte überweisen Sie 124,00 € bis zum 15.12.2026. Verwendungszweck: FE-2026-0007, 10 4711. Haben Sie uns bereits ein SEPA-Lastschriftmandat erteilt, buchen wir den Betrag ab.",
+      );
+    });
+
+    it("saves 600 characters with an emoji at the end", async () => {
+      mockFetchSchema.mockResolvedValue(holidaySchema("", false));
+      renderPage();
+
+      const field = await screen.findByRole("textbox", {
+        name: "Zahlungstext im Schreiben",
+      });
+      const text = `{Betrag}${"a".repeat(591)}😀`;
+      expect([...text]).toHaveLength(600);
+      fireEvent.change(field, { target: { value: text } });
+      fireEvent.blur(field);
+
+      await waitFor(() =>
+        expect(mockSave).toHaveBeenCalledWith(
+          "parent_billing.payment_text",
+          text,
+        ),
+      );
+    });
+
+    it("refuses an unknown placeholder at the field before saving", async () => {
+      mockFetchSchema.mockResolvedValue(holidaySchema("", false));
+      renderPage();
+
+      const field = await screen.findByRole("textbox", {
+        name: "Zahlungstext im Schreiben",
+      });
+      fireEvent.change(field, {
+        target: { value: "Bitte überweisen Sie {Betrag} für {Kind}." },
+      });
+      fireEvent.blur(field);
+
+      const hint = await screen.findByText(
+        "„{Kind}“ ist kein Platzhalter. Erlaubt sind {Betrag}, {Zahlungsfrist}, {Rechnungsnummer} und {Debitorennummer}.",
+      );
+      expect(field).toHaveAttribute("aria-invalid", "true");
+      expect(field).toHaveAttribute("aria-describedby", hint.id);
+      expect(mockSave).not.toHaveBeenCalled();
+
+      fireEvent.change(field, {
+        target: { value: "Bitte überweisen Sie {Betrag}." },
+      });
+      fireEvent.blur(field);
+      await waitFor(() =>
+        expect(mockSave).toHaveBeenCalledWith(
+          "parent_billing.payment_text",
+          "Bitte überweisen Sie {Betrag}.",
+        ),
+      );
+      expect(field).not.toHaveAttribute("aria-invalid");
+    });
+  });
+
   it("leaves the branding to the page Briefkopf (#4653)", async () => {
     mockFetchSchema.mockResolvedValue({
       tabs: [
@@ -207,3 +411,29 @@ describe("TraegerSettingsPage", () => {
     expect(screen.queryByText("Fußzeile")).not.toBeInTheDocument();
   });
 });
+
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <SWRConfig value={{ provider: () => new Map() }}>{ui}</SWRConfig>,
+  );
+}
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "A", scope: "org", orgId: 7 } },
+    status: "authenticated",
+  }),
+}));
+
+function RefreshSchema() {
+  const refresh = useTenantMutateMatching([traegerKeys.settings()]);
+  return (
+    <button
+      onClick={() => {
+        void refresh().catch(() => undefined);
+      }}
+    >
+      Refresh schema
+    </button>
+  );
+}

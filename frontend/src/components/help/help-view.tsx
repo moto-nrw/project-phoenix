@@ -57,6 +57,8 @@ const GROUP_ORDER_BY_ROLE: Readonly<
     "team",
     "arbeitszeit",
     "nfc",
+    // Soll und Ist (#4774) liest die Betreuung beim Kind.
+    "auswertung",
     "probleme",
   ],
   // Leitung: erst einrichten, dann der laufende Betrieb, zuletzt Einstellen
@@ -329,7 +331,7 @@ function HelpMobileHeader({
           aria-controls={MOBILE_HELP_DRAWER_ID}
           aria-expanded={drawerOpen && drawerMode === "topics"}
           onClick={(event) => onOpenDrawer("topics", event.currentTarget)}
-          className="min-h-11 min-w-11 shrink-0"
+          className="shrink-0"
         >
           <Menu className="h-5 w-5" aria-hidden="true" />
         </Button>
@@ -348,15 +350,10 @@ function HelpMobileHeader({
             aria-controls={MOBILE_HELP_DRAWER_ID}
             aria-expanded={drawerOpen && drawerMode === "search"}
             onClick={(event) => onOpenDrawer("search", event.currentTarget)}
-            className="min-h-11 min-w-11"
           >
             <Search className="h-5 w-5" aria-hidden="true" />
           </Button>
-          <BackToAppLink
-            href={appHref}
-            label="Zur App"
-            className="min-h-11 shrink-0 px-3"
-          />
+          <BackToAppLink href={appHref} label="Zur App" className="shrink-0" />
         </div>
       </div>
     </header>
@@ -437,7 +434,7 @@ function GroupOverview({
             <Link
               key={item.id}
               href={hrefFor(item.id)}
-              className="moto-content-surface group rounded-2xl border p-5 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              className="moto-content-surface group rounded-2xl border p-5 focus-visible:outline-2 focus-visible:outline-gray-400"
             >
               <MotoDuotoneIcon
                 icon={HELP_ICONS[item.icon]}
@@ -482,7 +479,7 @@ function RelatedTopics({
           <Link
             key={item.id}
             href={hrefFor(item.id)}
-            className="moto-content-surface group flex items-center justify-between rounded-2xl border p-4 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            className="moto-content-surface group flex items-center justify-between rounded-2xl border p-4 focus-visible:outline-2 focus-visible:outline-gray-400"
           >
             <span>
               <span className="block text-sm font-semibold text-gray-900">
@@ -772,7 +769,7 @@ function DocumentationArticle({
             {troubleshootingTopic && (
               <Link
                 href={hrefFor(troubleshootingTopic.id)}
-                className="moto-content-surface group mt-5 flex items-center justify-between rounded-2xl border p-4 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                className="moto-content-surface group mt-5 flex items-center justify-between rounded-2xl border p-4 focus-visible:outline-2 focus-visible:outline-gray-400"
               >
                 <span className="font-semibold text-gray-900">
                   {troubleshootingTopic.title}
@@ -940,7 +937,7 @@ function HelpMobileDrawer({
               variant="ghost"
               size="icon"
               aria-label="Schließen"
-              className="min-h-11 min-w-11 shrink-0"
+              className="shrink-0"
             >
               <X className="h-5 w-5" aria-hidden="true" />
             </Button>
@@ -1055,10 +1052,9 @@ function HelpDocumentationShell({
           action={
             <Button
               type="button"
-              variant="ghost"
-              size="compact"
+              variant="link"
+              size="md"
               onClick={() => onSearchQueryChange("")}
-              className="min-h-11 px-3 text-sm font-semibold underline decoration-gray-300 underline-offset-4 lg:min-h-10"
             >
               Suche löschen
             </Button>
@@ -1218,7 +1214,7 @@ function HelpDocumentationShell({
                     <Link
                       key={item.id}
                       href={hrefFor(item.id)}
-                      className="moto-content-surface group rounded-2xl border p-5 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                      className="moto-content-surface group rounded-2xl border p-5 focus-visible:outline-2 focus-visible:outline-gray-400"
                     >
                       <MotoDuotoneIcon
                         icon={HELP_ICONS[item.icon]}

@@ -82,6 +82,8 @@ export function HolidayPeriodForm({
     period ? draftFromPeriod(period) : emptyHolidayPeriod(),
   );
   const [saving, setSaving] = useState(false);
+  const [source, setSource] = useState(period);
+  const [edited, setEdited] = useState(false);
   const [invalidDates, setInvalidDates] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -109,6 +111,15 @@ export function HolidayPeriodForm({
   // A date field whose text is no valid date holds an unsaved change: the
   // stored period no longer matches what the person sees.
   const hasInvalidDate = invalidDates.size > 0;
+  // Revalidation may replace cached metadata after this form mounted. Adopt
+  // it before rendering fields only while pristine, never over typed edits,
+  // invalid date text or an in-flight save. Remember an ignored answer too.
+  if (source !== period) {
+    setSource(period);
+    if (period && !edited && !hasInvalidDate && !saving) {
+      setDraftState(draftFromPeriod(period));
+    }
+  }
   useEffect(() => {
     if (hasInvalidDate) onDirtyChange?.(true);
   }, [hasInvalidDate, onDirtyChange]);
@@ -122,6 +133,7 @@ export function HolidayPeriodForm({
 
   const setDraft = (next: HolidayPeriodDraft) => {
     setDraftState(next);
+    setEdited(true);
     onDirtyChange?.(true);
   };
   const setWeek = (index: number, week: WeekDraft) =>
@@ -147,6 +159,7 @@ export function HolidayPeriodForm({
         ? await updateHolidayPeriod(period.id, input)
         : await createHolidayPeriod(input);
       setDraftState(draftFromPeriod(saved));
+      setEdited(false);
       onDirtyChange?.(false);
       onSaved(saved);
     } catch (err) {

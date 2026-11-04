@@ -1,0 +1,9 @@
+{
+  "bulk_exception_confirmation_required": "{object} could not be saved. Please check your entries.",
+  "future_manual_reset": "{object} could not be changed. Please check its current status.",
+  "invalid": "{object} could not be saved. Please check your entries.",
+  "offering_capacity_full": "{object} could not be changed. Please check its current status.",
+  "offerings_disabled": "{object} could not be changed. Please check its current status.",
+  "preview_stale": "{object} could not be changed. Please check its current status.",
+  "resolution_required": "{object} could not be saved. Please check your entries."
+}

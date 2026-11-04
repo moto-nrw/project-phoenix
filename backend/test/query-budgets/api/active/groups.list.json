@@ -1,0 +1,6 @@
+{
+  "scenario": "api.active.groups.list",
+  "max": 9,
+  "exact": false,
+  "description": "api/active — GET /active/groups list, 8 active groups with visits."
+}

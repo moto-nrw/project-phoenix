@@ -16,6 +16,7 @@ import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
 import { formatDate, formatTime } from "~/lib/date-helpers";
 import { ChangeHistorySkeleton } from "./page-skeleton";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 
 const logger = createLogger({ component: "StudentChangeHistoryPage" });
 
@@ -51,6 +52,9 @@ const FIELD_LABELS: Record<string, string> = {
   pickup_schedule: "Dauerhafte Gehzeiten",
   departure_days: "Wochenplan (Abholung)",
   departure_companion_note: "Geht außerdem mit",
+  // Krank oder entschuldigt, von der Schulverwaltung in moto schule
+  // nachgetragen (#4791).
+  school_absence_report: "Meldung der Schulverwaltung",
   document: "Dokument",
 };
 
@@ -194,7 +198,9 @@ function StudentChangeHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={<ConceptIconTile concept="changeHistory" variant="page" />}
+        leading={
+          <ConceptIconTile concept={changeHistoryConcept} variant="page" />
+        }
         title={displayName || "Änderungsverlauf"}
         stats={studentMeta || entryLine}
         statsLoading={loading}
@@ -210,15 +216,13 @@ function StudentChangeHistoryPageContent() {
             : null
         }
       >
-        {/* bodyClassName hebt die Kartenpolsterung auf: die Tabelle bringt ihre
-            eigene Zellpolsterung mit und läuft bis zur Kartenkante. */}
+        {/* flush: die Tabelle bringt ihre eigene Zellpolsterung mit und läuft
+            bis zur Kartenkante. */}
         <SectionCard
           title="Änderungsverlauf"
           description="Wer hat wann welche Angaben zu diesem Kind geändert"
-          leading={
-            <ConceptIconTile concept="changeHistory" variant="section" />
-          }
-          bodyClassName="mt-4 -mx-5 -mb-5"
+          concept={changeHistoryConcept}
+          flush
         >
           <>
             {/* Desktop table */}

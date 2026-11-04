@@ -132,7 +132,7 @@ describe("CalendarPeriodModal", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Enddatum*"), {
+    fireEvent.change(screen.getByLabelText("Enddatum"), {
       target: { value: "2026-07-31" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
@@ -142,7 +142,7 @@ describe("CalendarPeriodModal", () => {
     // Das Feld trägt den Hinweis selbst.
     expect(screen.getByText("Bitte ein späteres Datum wählen.")).toBeVisible();
 
-    fireEvent.change(screen.getByLabelText("Enddatum*"), {
+    fireEvent.change(screen.getByLabelText("Enddatum"), {
       target: { value: "2027-07-31" },
     });
     fireEvent.change(screen.getByLabelText("Wiederholung in Wochen"), {
@@ -155,7 +155,7 @@ describe("CalendarPeriodModal", () => {
       ),
     ).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Startdatum der Wiederholung*"), {
+    fireEvent.change(screen.getByLabelText("Startdatum der Wiederholung"), {
       target: { value: "2026-08-03" },
     });
     fireEvent.click(screen.getByLabelText(/Zeitraum im Plan verwenden/));
@@ -193,7 +193,7 @@ describe("CalendarPeriodModal", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Bezeichnung*"), {
+    fireEvent.change(screen.getByLabelText("Bezeichnung"), {
       target: { value: "Neues Schuljahr" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -572,7 +572,7 @@ describe("CalendarPeriodModal", () => {
     await screen.findByRole("button", { name: "Schließen" });
 
     // Editing the form dismisses the warning footer and re-enables saving …
-    fireEvent.change(screen.getByLabelText("Bezeichnung*"), {
+    fireEvent.change(screen.getByLabelText("Bezeichnung"), {
       target: { value: "Schuljahr 2026/2027 B" },
     });
 
@@ -658,7 +658,7 @@ describe("CalendarPeriodModal", () => {
         ),
       ),
     ).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Bezeichnung*"), {
+    fireEvent.change(screen.getByLabelText("Bezeichnung"), {
       target: { value: "Schuljahr B" },
     });
     // Eine Änderung räumt den Hinweis ab; der nächste Fehler kommt neu.

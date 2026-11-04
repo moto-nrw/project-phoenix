@@ -37,16 +37,23 @@ func (t SchoolClassTrips) RecordClassTrip(ctx context.Context, studentIDs []int6
 	if inClass == nil {
 		return errors.New("school class trips: class check is required")
 	}
-	tenantID := tenant.FromContext(ctx)
-	wc := studentpresence.StatusDayWriteContext{
+	wc := t.rs.schoolClassWriteContext(tenant.FromContext(ctx), absencerecords.StudentStatusDayClassTrip, inClass)
+	return t.rs.StudentStatusDayService.BulkCreateForDates(ctx, wc, studentIDs, absencerecords.StudentStatusDayClassTrip, reason, dates)
+}
+
+// schoolClassWriteContext is the status-day write context of a write moto
+// schule makes for a class (#4799, #4791): the locked child is authorized
+// only for status and only while it is still in the class (inClass), and the
+// after-commit fan-out is the OGS write's.
+func (rs *Resource) schoolClassWriteContext(tenantID int64, status string, inClass func(schoolClass string) bool) studentpresence.StatusDayWriteContext {
+	return studentpresence.StatusDayWriteContext{
 		TenantID: tenantID,
-		StudentService: newStatusDayStudents(t.rs.PeopleDirectory, func(_ context.Context, student *peopleModule.StudentState, status string) bool {
-			return status == absencerecords.StudentStatusDayClassTrip && student != nil && inClass(student.SchoolClass)
+		StudentService: newStatusDayStudents(rs.PeopleDirectory, func(_ context.Context, student *peopleModule.StudentState, locked string) bool {
+			return locked == status && student != nil && inClass(student.SchoolClass)
 		}),
 		AfterCommit: func(studentID int64) {
-			t.rs.broadcastStudentUpdated(tenantID, studentID)
-			t.rs.wakeChildGuardians(tenantID, studentID)
+			rs.broadcastStudentUpdated(tenantID, studentID)
+			rs.wakeChildGuardians(tenantID, studentID)
 		},
 	}
-	return t.rs.StudentStatusDayService.BulkCreateForDates(ctx, wc, studentIDs, absencerecords.StudentStatusDayClassTrip, reason, dates)
 }

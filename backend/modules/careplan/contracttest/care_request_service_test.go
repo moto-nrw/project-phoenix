@@ -644,7 +644,7 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := f.staffCtx(f.staffAccount)
-	thread, err := testpkg.TenantQuery2(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID)
+	thread, err := testpkg.TenantQuery3(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID, "team")
 	require.NoError(t, err)
 	require.NotNil(t, thread, "the request_created pill must have opened the thread while messaging was on")
 	created, err := testpkg.TenantQuery4(t, ctx, testpkg.SetupTestDB(t), communicationtest.NewParentMessageRepository(f.db).FindEventByRef, thread.ID, peopleValues.ParentMessageEventRequestCreated, "schedule.care_schedule_change_requests", req.ID)
@@ -696,7 +696,7 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 	require.NoError(t, err)
 
 	ctx := f.staffCtx(f.staffAccount)
-	thread, err := testpkg.TenantQuery2(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID)
+	thread, err := testpkg.TenantQuery3(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID, "team")
 	require.NoError(t, err)
 	require.NotNil(t, thread, "the request_created pill opens the thread")
 	created, err := testpkg.TenantQuery4(t, ctx, testpkg.SetupTestDB(t), communicationtest.NewParentMessageRepository(f.db).FindEventByRef, thread.ID, peopleValues.ParentMessageEventRequestCreated, "schedule.care_schedule_change_requests", req.ID)
@@ -716,7 +716,7 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 	require.NoError(t, err)
 	require.NotNil(t, status, "the reject decision writes a request_status pill")
 
-	decided, err := testpkg.TenantQuery2(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID)
+	decided, err := testpkg.TenantQuery3(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID, "team")
 	require.NoError(t, err)
 	require.NotNil(t, decided)
 	require.NotNil(t, decided.LastMessageID, "a request_status decision advances the thread preview")
@@ -755,7 +755,7 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 
 	// No thread was ever opened (created pill dropped while disabled), so there is
 	// nothing to reconcile and no dangling status pill.
-	thread, err := testpkg.TenantQuery2(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID)
+	thread, err := testpkg.TenantQuery3(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID, "team")
 	require.NoError(t, err)
 	assert.Nil(t, thread, "a request filed while disabled leaves no thread, so nothing to reconcile")
 }
@@ -966,7 +966,7 @@ func TestListPending_ReturnsEnrichedItemWithDiff(t *testing.T) {
 
 // TestDecide_ApproveBroadcastsCacheInvalidation proves that applying a care
 // request fans out the cache-invalidation events (student_updated tenant-wide,
-// arrival_schedule_changed globally) so every open kiosk/dashboard refetches the
+// arrival_schedule_changed tenant-wide) so every open kiosk/dashboard refetches the
 // new plan. The shared fixture wires a nil broadcaster; this rebuilds the service
 // with a capturing one against the SAME db/repos.
 func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
@@ -991,7 +991,15 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Positive(t, len(bc.CallsByMethod("tenant")), "approve must broadcast student_updated to the tenant")
-	assert.Positive(t, len(bc.CallsByMethod("all")), "approve must broadcast arrival_schedule_changed globally")
+	var arrivalFound bool
+	for _, call := range bc.CallsByMethod("tenant") {
+		if call.Event.Type == realtime.EventArrivalScheduleChanged {
+			arrivalFound = true
+			assert.Equal(t, testpkg.Tenant(t), call.TenantID)
+		}
+	}
+	assert.True(t, arrivalFound, "approve must broadcast arrival_schedule_changed to its school")
+	assert.Empty(t, bc.CallsByMethod("all"), "approve must never wake other schools")
 }
 
 // TestDecide_ApproveCompanionEventOnlyOnEffectiveChange pins WHO the approval

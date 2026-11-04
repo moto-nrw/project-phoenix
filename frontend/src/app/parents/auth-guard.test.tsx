@@ -9,6 +9,8 @@ const { mockRedirect, mockUsePathname, mockUseSession, mockUseSWR } =
     mockUseSWR: vi.fn(),
   }));
 
+vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+
 vi.mock("next/navigation", () => ({
   redirect: mockRedirect,
   usePathname: mockUsePathname,
@@ -18,7 +20,10 @@ vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
 }));
 
-vi.mock("swr", () => ({ default: mockUseSWR }));
+vi.mock("swr", () => ({
+  default: mockUseSWR,
+  useSWRConfig: () => ({ cache: new Map(), mutate: vi.fn() }),
+}));
 
 vi.mock("~/lib/parent-api", () => ({
   fetchParentProfile: vi.fn(),
@@ -68,7 +73,7 @@ describe("ParentAuthGuard", () => {
       data: { user: { id: "parent-1", scope: "parent" } },
       status: "authenticated",
     });
-    mockUseSWR.mockReturnValue({ data: undefined });
+    mockUseSWR.mockReturnValue({ data: undefined, mutate: vi.fn() });
   });
 
   it("separates cached profiles by authenticated parent account", () => {
@@ -78,10 +83,9 @@ describe("ParentAuthGuard", () => {
       </ParentAuthGuard>,
     );
 
-    expect(mockUseSWR.mock.calls.at(-1)?.[0]).toEqual([
-      "parent-profile",
-      "parent-1",
-    ]);
+    expect(mockUseSWR.mock.calls.at(-1)?.[0]).toEqual(
+      "parent:-:parent-1:parent-profile",
+    );
 
     mockUseSession.mockReturnValue({
       data: { user: { id: "parent-2", scope: "parent" } },
@@ -93,10 +97,9 @@ describe("ParentAuthGuard", () => {
       </ParentAuthGuard>,
     );
 
-    expect(mockUseSWR.mock.calls.at(-1)?.[0]).toEqual([
-      "parent-profile",
-      "parent-2",
-    ]);
+    expect(mockUseSWR.mock.calls.at(-1)?.[0]).toEqual(
+      "parent:-:parent-2:parent-profile",
+    );
   });
 
   // #4895: once none of the parent's schools books Eltern-App, every request

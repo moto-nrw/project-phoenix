@@ -1,6 +1,11 @@
+import { SWRConfig } from "~/lib/swr/testing";
+vi.unmock("swr");
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   fireEvent,
-  render,
+  render as rtlRender,
   screen,
   waitFor,
   within,
@@ -42,6 +47,21 @@ vi.mock("~/lib/traeger-api", () => ({
 vi.mock("~/lib/file-download", () => ({
   downloadBlob: (blob: Blob, name: string) => mockDownloadBlob(blob, name),
 }));
+
+const captureRange = vi.hoisted(() => vi.fn());
+vi.mock("~/components/ui/date-range-picker", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/components/ui/date-range-picker")>();
+  return {
+    ...actual,
+    DateRangePicker: (
+      props: React.ComponentProps<typeof actual.DateRangePicker>,
+    ) => {
+      captureRange(props);
+      return <actual.DateRangePicker {...props} />;
+    },
+  };
+});
 
 import TraegerAccessLogPage from "./page";
 
@@ -168,9 +188,11 @@ describe("TraegerAccessLogPage", () => {
     renderPage();
     await screen.findByRole("table");
 
+    // Export als Menü im Seitenkopf (#5146).
     fireEvent.click(
-      screen.getByRole("button", { name: "Als CSV herunterladen" }),
+      screen.getByRole("button", { name: "Zugriffsprotokoll herunterladen" }),
     );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "CSV" }));
 
     await waitFor(() =>
       expect(mockDownloadBlob).toHaveBeenCalledWith(
@@ -193,9 +215,11 @@ describe("TraegerAccessLogPage", () => {
     renderPage();
     await screen.findByRole("table");
 
+    // Export als Menü im Seitenkopf (#5146).
     fireEvent.click(
-      screen.getByRole("button", { name: "Als CSV herunterladen" }),
+      screen.getByRole("button", { name: "Zugriffsprotokoll herunterladen" }),
     );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "CSV" }));
 
     expect(
       await screen.findByText(/Der Export hat mehr als 10000 Einträge/),
@@ -240,9 +264,11 @@ describe("TraegerAccessLogPage", () => {
     renderPage();
     await screen.findByRole("table");
 
-    fireEvent.click(screen.getByRole("combobox", { name: "Person" }));
+    // Die Filter stehen in der Filterzeile des Seitenkopfs (#5146); der
+    // Auslöser nennt die gewählte Person.
+    fireEvent.click(screen.getByRole("button", { name: "Alle Personen" }));
     fireEvent.click(
-      await screen.findByRole("option", { name: "Lena Leitung" }),
+      await screen.findByRole("button", { name: "Lena Leitung" }),
     );
     await waitFor(() =>
       expect(mockFetchLog).toHaveBeenLastCalledWith(
@@ -262,8 +288,50 @@ describe("TraegerAccessLogPage", () => {
         undefined,
       ),
     );
-    expect(screen.getByRole("combobox", { name: "Person" })).toHaveTextContent(
-      "Alle Personen",
-    );
+    expect(
+      screen.getByRole("button", { name: "Alle Personen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Lena Leitung" }),
+    ).not.toBeInTheDocument();
   });
+
+  it.each(schoolDateCases("2026-09-09"))(
+    "uses Berlin days for defaults, presets and the maximum in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-09-09");
+      renderPage();
+      await screen.findByRole("table");
+      expect(mockFetchLog).toHaveBeenCalledWith(
+        expect.objectContaining({ from: "2026-08-11", to: "2026-09-09" }),
+        1,
+        undefined,
+      );
+      expect(captureRange.mock.calls.at(-1)![0].toMax).toEqual(
+        new Date(2026, 8, 9),
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Sep\./ }));
+      fireEvent.click(await screen.findByRole("button", { name: "Heute" }));
+      await waitFor(() =>
+        expect(mockFetchLog).toHaveBeenLastCalledWith(
+          expect.objectContaining({ from: "2026-09-09", to: "2026-09-09" }),
+          1,
+          undefined,
+        ),
+      );
+    },
+  );
 });
+
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <SWRConfig value={{ provider: () => new Map() }}>{ui}</SWRConfig>,
+  );
+}
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "A", scope: "org", orgId: 7 } },
+    status: "authenticated",
+  }),
+}));

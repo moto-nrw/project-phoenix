@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, vi } from "vitest";
 
+import { installSessionCookieExit } from "~/lib/session-cookie-exit.server";
 import { freezeTestClock } from "./clock";
 
 process.env.API_URL = "http://server:8080";
@@ -21,6 +22,21 @@ process.env.API_URL = "http://server:8080";
 freezeTestClock();
 
 let fakeTimersInstalledBeforeTest = false;
+
+// Node delivers BroadcastChannel messages to every worker thread of the
+// process: a "next-auth" broadcast of one test file reached the
+// SessionProvider of another file running at the same time (#5157). Channels
+// stay shared within a file, never across files.
+const ProcessBroadcastChannel = globalThis.BroadcastChannel;
+if (ProcessBroadcastChannel) {
+  // Vitest sets VITEST_WORKER_ID in every worker, unique per test file.
+  const testFile = process.env.VITEST_WORKER_ID;
+  globalThis.BroadcastChannel = class extends ProcessBroadcastChannel {
+    constructor(name: string) {
+      super(`${testFile}:${name}`);
+    }
+  };
+}
 
 beforeEach(() => {
   fakeTimersInstalledBeforeTest = vi.isFakeTimers();
@@ -55,6 +71,15 @@ vi.mock("~/lib/logger", () => {
     createLogger: vi.fn(() => createMockLogger()),
   };
 });
+
+// The server auth modules import "server-only", whose default export throws
+// outside Next.js's react-server condition (#5005). Tests import them in Node.
+vi.mock("server-only", () => ({}));
+
+// As in production (instrumentation.ts), every Node server and response of
+// the test process carries the session cookie exit lock (#5520);
+// gateSessionCookieWrites refuses to run without it.
+installSessionCookieExit();
 
 // Avoid Zod validation while keeping required runtime values explicit.
 vi.mock("~/env", () => ({

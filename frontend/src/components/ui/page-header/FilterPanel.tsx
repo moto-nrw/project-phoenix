@@ -1,5 +1,6 @@
 "use client";
 
+import { Z_LAYER } from "../overlay-styles";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -12,6 +13,7 @@ import {
 import { CustomSelect } from "../custom-select";
 import { MultiSelect } from "../multi-select";
 import { InfoSection } from "../detail-modal-components";
+import { Button } from "../button";
 
 // Viewport Y just below the sticky app topbar — the line the panel docks to.
 // Measured live so it tracks the topbar's responsive + scroll-shrink heights.
@@ -25,6 +27,9 @@ function topbarFloor(): number {
 }
 
 const MOBILE_BOTTOM_NAV_CLEARANCE = "calc(6rem + env(safe-area-inset-bottom))";
+
+// Helle Spur wie ui/SegmentedControl; das gewählte Feld hebt sich hell ab.
+const OPTION_TRACK = "rounded-lg bg-gray-100 p-1";
 
 function panelMaxHeight(top: number, isDesktopPlacement: boolean): string {
   return isDesktopPlacement
@@ -193,6 +198,8 @@ export function FilterPanel({
   }
 
   const isQuiet = variant === "quiet";
+  // Die Spur trägt das Grau, nicht der einzelne Knopf: ungewählte Felder
+  // bleiben ohne eigene Füllung (#5574).
   // Selected-pill treatment. Quiet mode swaps the near-black fill for the
   // app's calm blue-accent pill (same tokens as the active-filter badge in
   // PageHeaderWithSearch) so the panel matches the detail-modal language.
@@ -216,11 +223,12 @@ export function FilterPanel({
     <button
       key={option.value}
       type="button"
+      aria-pressed={selectedValues.includes(option.value)}
       onClick={() => selectOption(filter, option.value, selectedValues)}
       className={`flex h-9 min-w-[84px] items-center justify-center rounded-md px-3 text-xs font-medium transition-all ${extraClass} ${
         selectedValues.includes(option.value)
           ? selectedOptionClass
-          : "bg-gray-100 text-gray-500 hover:text-gray-900"
+          : "text-gray-500 hover:text-gray-900"
       } `}
     >
       {content}
@@ -237,7 +245,7 @@ export function FilterPanel({
     switch (filter.type) {
       case "buttons":
         return (
-          <div className="flex flex-wrap gap-1.5">
+          <div className={`flex flex-wrap gap-1 ${OPTION_TRACK}`}>
             {filter.options.map((option) =>
               optionButton(filter, option, selectedValues, "", option.label),
             )}
@@ -246,7 +254,7 @@ export function FilterPanel({
 
       case "grid":
         return (
-          <div className="grid grid-cols-2 gap-2">
+          <div className={`grid grid-cols-2 gap-1 ${OPTION_TRACK}`}>
             {filter.options.map((option) =>
               optionButton(
                 filter,
@@ -295,7 +303,7 @@ export function FilterPanel({
               }
               triggerClassName={
                 isQuiet
-                  ? "moto-content-surface h-10 w-full font-medium hover:border-gray-300"
+                  ? "moto-content-surface h-10 w-full font-medium"
                   : "h-10 w-full border-gray-200 bg-gray-50 font-medium"
               }
               options={filter.options.map((option) => ({
@@ -317,7 +325,7 @@ export function FilterPanel({
             onChange={(next) => filter.onChange(next)}
             triggerClassName={
               isQuiet
-                ? "moto-content-surface h-10 w-full font-medium hover:border-gray-300"
+                ? "moto-content-surface h-10 w-full font-medium"
                 : "h-10 w-full border-gray-200 bg-gray-50 font-medium"
             }
             options={filter.options.map((option) => ({
@@ -383,25 +391,26 @@ export function FilterPanel({
     <>
       {/* Click-outside backdrop. Transparent so the page content stays
           visible behind it — Stripe / Linear pattern. The panel itself
-          dominates focus via shadow + border. Sits at z-[45]: above the
-          page's floating actions (bottom nav z-30, FABs z-40) so any tap
-          outside the panel closes it instead of leaking through to a FAB
-          or nav action, and below the panel itself (z-50). */}
+          dominates focus via shadow + border. Sits at Z_LAYER.panelBackdrop:
+          above the page's floating actions (Z_LAYER.nav, Z_LAYER.fab) so any
+          tap outside the panel closes it instead of leaking through to a FAB
+          or nav action, and below the panel itself (Z_LAYER.sheet). */}
       <button
         type="button"
         onClick={onClose}
         aria-label="Filter schließen"
-        className="fixed inset-0 z-[45] cursor-default bg-transparent"
+        className={`fixed inset-0 ${Z_LAYER.panelBackdrop} cursor-default bg-transparent`}
       />
 
       {/* Panel. When an anchor is provided by the search row, the portaled
           panel opens just below the trigger instead of covering it. The
           non-anchored branch keeps the legacy bottom-sheet fallback for
-          standalone tests or older consumers. The panel sits at z-50 so it
-          paints above page-level floating actions (FABs at z-40, e.g. the
-          Activities create FAB or the binary-mode SchoolCheckinFab) instead
-          of letting them cover the lower filter fields. It does NOT cover the
-          mobile bottom nav (z-30): the height calculation reserves that nav
+          standalone tests or older consumers. The panel sits at
+          Z_LAYER.sheet so it paints above page-level floating actions
+          (Z_LAYER.fab, e.g. the Activities create FAB or the binary-mode
+          SchoolCheckinFab) instead of letting them cover the lower filter
+          fields. It does NOT cover the mobile bottom nav (Z_LAYER.nav): the
+          height calculation reserves that nav
           area (MOBILE_BOTTOM_NAV_CLEARANCE), so the panel never reaches it
           geometrically — z-index only resolves the FAB overlap. */}
       <div
@@ -411,7 +420,7 @@ export function FilterPanel({
         aria-label="Filter"
         data-testid={testId}
         style={panelStyle}
-        className={`z-50 flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${panelPositionClass}`}
+        className={`${Z_LAYER.sheet} flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ${panelPositionClass}`}
       >
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
           {useSections ? (
@@ -440,25 +449,28 @@ export function FilterPanel({
         {(onApply ?? onReset) && (
           <div className="flex gap-2 border-t border-gray-100 bg-white/95 p-3 backdrop-blur-sm">
             {onReset && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="md"
                 onClick={onReset}
-                className="flex-1 py-2 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+                className="flex-1"
               >
                 Zurücksetzen
-              </button>
+              </Button>
             )}
             {onApply && (
-              <button
+              <Button
                 type="button"
+                size="md"
                 onClick={() => {
                   onApply();
                   onClose();
                 }}
-                className="flex-1 rounded-lg bg-gray-900 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+                className="flex-1"
               >
                 {applyLabel}
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -468,9 +480,9 @@ export function FilterPanel({
 
   // Portal to <body> so the panel escapes the page's `relative z-10` content
   // stacking context (app-shell.tsx). At the body level the transparent
-  // backdrop sits at z-[45] (above the bottom nav z-30 and FABs z-40 so an
-  // outside tap closes the panel rather than firing a FAB/nav action), while
-  // the panel itself is z-50 so it paints above the backdrop. The panel still
+  // backdrop sits at Z_LAYER.panelBackdrop (above the bottom nav and FABs so
+  // an outside tap closes the panel rather than firing a FAB/nav action),
+  // while the panel itself is Z_LAYER.sheet so it paints above the backdrop. The panel still
   // never geometrically covers the bottom nav (MOBILE_BOTTOM_NAV_CLEARANCE).
   if (typeof document !== "undefined") {
     return createPortal(panel, document.body);

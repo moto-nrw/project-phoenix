@@ -12,6 +12,8 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
 } from "@/lib/location-helper";
+import { childrenConcept } from "~/lib/concepts/children";
+import { transportConcept } from "~/lib/concepts/transport";
 
 const PrivacyConsentSection = dynamic(
   () =>
@@ -62,7 +64,7 @@ export const studentsConfig = defineEntityConfig<Student>({
     plural: "Kinder",
   },
 
-  concept: "children",
+  concept: childrenConcept,
 
   backUrl: "/database",
 
@@ -75,7 +77,7 @@ export const studentsConfig = defineEntityConfig<Student>({
     sections: [
       {
         title: "Persönliche Daten",
-        concept: "children",
+        concept: childrenConcept,
         columns: 2,
         fields: [
           {
@@ -108,7 +110,7 @@ export const studentsConfig = defineEntityConfig<Student>({
 
       {
         title: "Busfahrer",
-        concept: "transport",
+        concept: transportConcept,
         columns: 1,
         fields: [
           {
@@ -285,7 +287,7 @@ export const studentsConfig = defineEntityConfig<Student>({
               <div
                 className={`rounded-lg p-2 text-sm md:p-3 ${
                   isSchoolyardLocation(student.current_location)
-                    ? "bg-moto-amber-soft text-moto-amber-strong"
+                    ? "bg-moto-orange-soft text-moto-orange-strong"
                     : "bg-gray-100 text-gray-500"
                 }`}
               >
@@ -293,7 +295,7 @@ export const studentsConfig = defineEntityConfig<Student>({
                   <span
                     className={`mr-2 inline-block h-3 w-3 flex-shrink-0 rounded-full ${
                       isSchoolyardLocation(student.current_location)
-                        ? "bg-moto-amber"
+                        ? "bg-moto-orange"
                         : "bg-gray-300"
                     }`}
                   />

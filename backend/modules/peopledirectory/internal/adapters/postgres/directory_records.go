@@ -32,8 +32,11 @@ type directoryRecordRow struct {
 	AddressCity       *string `bun:"address_city"`
 	AddressPostalCode *string `bun:"address_postal_code"`
 
-	ExtraInfo    *string `bun:"extra_info"`
-	HealthInfo   *string `bun:"health_info"`
+	ExtraInfo *string `bun:"extra_info"`
+	// HealthData is the sealed health field, bound to the school and the
+	// care row of MembershipID (#5472).
+	HealthData   []byte  `bun:"health_data"`
+	MembershipID int64   `bun:"membership_id"`
 	PickupStatus *string `bun:"pickup_status"`
 
 	DepartureDays          directory.DepartureDays         `bun:"departure_days"`
@@ -56,14 +59,18 @@ type directoryRecordRow struct {
 	EmailContactAcceptedAt   *time.Time `bun:"email_contact_accepted_at"`
 }
 
-func (r directoryRecordRow) toDomain() directory.StudentRecord {
+func (r directoryRecordRow) toDomain(health HealthOpener) (directory.StudentRecord, error) {
+	healthInfo, err := health.OpenStudentHealth(r.TenantID, r.MembershipID, r.HealthData)
+	if err != nil {
+		return directory.StudentRecord{}, fmt.Errorf("student directory projection: student %d: %w", r.ID, err)
+	}
 	record := directory.StudentRecord{
 		ID: r.ID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, TenantID: r.TenantID,
 		PersonID: r.PersonID, SchoolClass: r.SchoolClass, GroupID: r.GroupID, Status: r.Status,
 
 		AddressStreet: r.AddressStreet, AddressCity: r.AddressCity, AddressPostalCode: r.AddressPostalCode,
 		ExtraInfo:  r.ExtraInfo,
-		HealthInfo: r.HealthInfo, PickupStatus: r.PickupStatus,
+		HealthInfo: healthInfo, PickupStatus: r.PickupStatus,
 		DepartureDays: r.DepartureDays, AllowedDepartureModes: r.AllowedDepartureModes,
 		PickupDays: r.PickupDays, BusDays: r.BusDays, DepartureCompanionNote: r.DepartureCompanionNote,
 		Sick: r.Sick, SickSince: r.SickSince, Excused: r.Excused, ExcusedSince: r.ExcusedSince,
@@ -77,14 +84,27 @@ func (r directoryRecordRow) toDomain() directory.StudentRecord {
 	if r.EnrolledUntil != nil {
 		record.EnrolledUntil = r.EnrolledUntil.String()
 	}
-	return record
+	return record, nil
+}
+
+// directoryRecords converts scanned rows, opening each health field.
+func directoryRecords(rows []directoryRecordRow, health HealthOpener) ([]directory.StudentRecord, error) {
+	result := make([]directory.StudentRecord, 0, len(rows))
+	for _, row := range rows {
+		record, err := row.toDomain(health)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, record)
+	}
+	return result, nil
 }
 
 const studentRecordColumns = `"student".id, "student".created_at, "student".updated_at, "student".tenant_id,
 	"student".person_id, "student".school_class, "student".group_id, "student".status,
 	"student".enrolled_from, "student".enrolled_until,
 	"student".address_street, "student".address_city, "student".address_postal_code,
-	"student".extra_info, "student".health_info, "student".pickup_status,
+	"student".extra_info, "student".health_data, "student".membership_id, "student".pickup_status,
 	"student".departure_days, "student".allowed_departure_modes, "student".pickup_days, "student".bus_days,
 	"student".departure_companion_note,
 	"student".sick, "student".sick_since, "student".excused, "student".excused_since,
@@ -122,11 +142,8 @@ func (s *studentDirectoryReads) ListDirectory(
 		return nil, stats, fmt.Errorf("student directory projection: list student directory: %w", err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]directory.StudentRecord, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, row.toDomain())
-	}
-	return result, stats, nil
+	result, err := directoryRecords(rows, s.rows)
+	return result, stats, err
 }
 
 func (s *studentDirectoryReads) CountDirectory(
@@ -198,6 +215,13 @@ func applyStudentDirectoryFilter(query *bun.SelectQuery, filter directoryFilter)
 			return group.WhereOr(`"student".enrolled_until IS NULL`).
 				WhereOr(`"student".enrolled_until >= ?`, filter.CareStatusOn)
 		})
+		query = holidayGuestArrivedUnlessPresent(query, filter.CareStatusOn, filter.KeepAlumni)
+	}
+	// The child list's running view leaves the end of the care to Care
+	// Plan's participation and asks for every side here (#5630 review), so
+	// its caller names the arrival day of the holiday guests on its own.
+	if filter.HolidayGuestsArrivedOn != "" {
+		query = holidayGuestArrivedUnlessPresent(query, filter.HolidayGuestsArrivedOn, filter.KeepAlumni)
 	}
 
 	if len(filter.SchoolClasses) > 0 {
@@ -225,6 +249,18 @@ func (s *studentDirectoryReads) FindRecord(
 	studentID int64,
 	lock string,
 ) (directory.StudentRecord, bool, directoryStats, error) {
+	return s.findRecord(ctx, studentID, lock, nil)
+}
+
+// findRecord reads one owned row. A locking read given a gate query joins
+// the gate as a materialized CTE, so one statement takes the gate before the
+// row lock.
+func (s *studentDirectoryReads) findRecord(
+	ctx context.Context,
+	studentID int64,
+	lock string,
+	gate *bun.SelectQuery,
+) (directory.StudentRecord, bool, directoryStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return directory.StudentRecord{}, false, directoryStats{}, err
@@ -232,12 +268,18 @@ func (s *studentDirectoryReads) FindRecord(
 	rows := []directoryRecordRow{}
 	query := withStudentTenant(s.studentRows(db, scope).
 		ColumnExpr(studentRecordColumns).Where(`"student".id = ?`, studentID), scope)
-	if lock != "" {
-		query = query.For(lock)
+	scan := query.Scan
+	switch {
+	case lock != "" && gate != nil:
+		scan = db.NewRaw(`WITH class_write_gate AS MATERIALIZED (?)
+  SELECT record.* FROM (?) AS record CROSS JOIN class_write_gate
+  FOR ?`, gate, query, bun.Safe(lock)).Scan
+	case lock != "":
+		scan = query.For(lock).Scan
 	}
 	stats := directoryStats{Queries: 1}
 	started := time.Now()
-	err = query.Scan(ctx, &rows)
+	err = scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		// A NOWAIT acquisition the holder refuses is the caller's retriable
@@ -252,7 +294,8 @@ func (s *studentDirectoryReads) FindRecord(
 		return directory.StudentRecord{}, false, stats, nil
 	}
 	stats.Rows = 1
-	return rows[0].toDomain(), true, stats, nil
+	record, err := rows[0].toDomain(s.rows)
+	return record, err == nil, stats, err
 }
 
 // ListRecordsByIDs reads the owned rows of the given children, alumni
@@ -277,9 +320,6 @@ func (s *studentDirectoryReads) ListRecordsByIDs(
 		return nil, stats, fmt.Errorf("student directory projection: list student records: %w", err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]directory.StudentRecord, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, row.toDomain())
-	}
-	return result, stats, nil
+	result, err := directoryRecords(rows, s.rows)
+	return result, stats, err
 }

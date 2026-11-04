@@ -15,6 +15,7 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OfferingChangeRequestModal } from "~/components/parent/offering-change-request-modal";
 import { RequestSharingControl } from "~/components/parent/request-sharing-control";
 import { WeeklyScheduleSection } from "~/components/parent/child/weekly-schedule-section";
+import { useChildRequests } from "~/components/parent/child-requests-context";
 import {
   ParentSection,
   ParentSubsection,
@@ -27,12 +28,13 @@ import { createLogger } from "~/lib/logger";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import {
   getChildCareOfferings,
-  getChildCareSchedule,
   submitOfferingChangeRequest,
   type ChildCareOfferings,
   type ChildCareSchedule,
   type OfferingChangesDisabledReason,
 } from "~/lib/parent-api";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
 
 const logger = createLogger({ component: "BookedCareSection" });
 
@@ -89,6 +91,7 @@ export function BookedCareSection({
     offeringsLoad;
   const { show: showScheduleError, clear: clearScheduleError } = scheduleLoad;
   const latestLoadRef = useRef<() => void>(() => undefined);
+  const childRequests = useChildRequests();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,7 +101,7 @@ export function BookedCareSection({
     clearScheduleError();
     const [offeringsResult, scheduleResult] = await Promise.allSettled([
       getChildCareOfferings(studentId),
-      getChildCareSchedule(studentId),
+      childRequests.careSchedule(studentId),
     ]);
     if (offeringsResult.status === "fulfilled") {
       setOfferings(offeringsResult.value);
@@ -132,6 +135,7 @@ export function BookedCareSection({
   }, [
     clearOfferingsError,
     clearScheduleError,
+    childRequests,
     showOfferingsError,
     showScheduleError,
     studentId,
@@ -196,7 +200,7 @@ export function BookedCareSection({
     return (
       <div className="flex flex-col gap-5">
         <ParentSectionSkeleton rows={5} />
-        <ParentSectionSkeleton rows={2} />
+        <ParentSectionSkeleton rows={2} announce={false} />
       </div>
     );
   }
@@ -241,7 +245,7 @@ export function BookedCareSection({
       ) : scheduleError ? (
         <ParentSection
           title={tc("care.weekTitle")}
-          concept="calendar"
+          concept={calendarConcept}
           prominent
         >
           <div data-parent-tour="child-care-times">
@@ -257,7 +261,7 @@ export function BookedCareSection({
             periodLabel ??
             t("careOfferings.offeringsDescription", { name: childFirstName })
           }
-          concept="carePlan"
+          concept={carePlanConcept}
           prominent
           actions={
             !careEnded && !pending && offerings.can_request ? (
@@ -399,7 +403,6 @@ export function BookedCareSection({
                   type="button"
                   variant="outline"
                   size="md"
-                  className="max-sm:min-h-11"
                   onClick={() => setEditRequest(pending.id)}
                 >
                   {t("careOfferings.edit")}
@@ -498,7 +501,7 @@ export function BookedCareSection({
       ) : offeringsError ? (
         <ParentSection
           title={t("careOfferings.offeringsTitle")}
-          concept="carePlan"
+          concept={carePlanConcept}
           prominent
         >
           <LoadErrorAlert error={offeringsLoad.error} />

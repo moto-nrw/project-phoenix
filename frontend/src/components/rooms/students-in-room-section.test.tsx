@@ -106,10 +106,9 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 
 // Light mocks for visual primitives, we want to assert behaviors (text,
 // button visibility, click handlers), not the exact rendering of every UI
-// atom imported transitively. The "Kinder im Raum" section now renders
-// its own <section aria-label> wrapper instead of going through InfoCard
-// (#1323 review, quiet section headers across the slide-over), so no
-// info-card mock is needed.
+// atom imported transitively. The "Kinder im Raum" section renders its
+// own <section aria-label> wrapper (#1323 review, quiet section headers
+// across the slide-over), so no card mock is needed.
 
 vi.mock("~/components/ui/button", () => ({
   Button: ({
@@ -328,7 +327,7 @@ beforeEach(() => {
         isLoading: false,
       };
     }
-    if (key === "room-bulk-current-staff") {
+    if (key === "me-staff") {
       return {
         data: currentStaffState.data,
         error: currentStaffState.error ?? null,
@@ -362,7 +361,7 @@ beforeEach(() => {
         isLoading: false,
       };
     }
-    if (key === "room-bulk-rooms") {
+    if (key === "rooms-list-{}") {
       return {
         data: roomsState.data,
         error: null,
@@ -640,7 +639,7 @@ describe("StudentsInRoomSection", () => {
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
       expect(mockUseTenantMutateMatching).toHaveBeenCalledWith(
-        expect.arrayContaining(["rooms-list", "room-bulk-source-visits-"]),
+        expect.arrayContaining(["rooms-", "room-bulk-source-visits-"]),
       );
       fireEvent.click(
         screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),

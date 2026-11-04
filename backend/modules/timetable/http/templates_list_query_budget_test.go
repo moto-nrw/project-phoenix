@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,7 +63,7 @@ func TestListTemplatesQueryBudget(t *testing.T) {
 	t.Logf("query budget: 3 templates → %d queries, 8 templates → %d queries", smallCount, largeCount)
 	assert.Equal(t, smallCount, largeCount,
 		"query count must be independent of the number of templates (no per-template N+1)")
-	testpkg.AssertQueryBudget(t, "api.timetable.templates.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.templates.list", counter.Queries())
 }
 
 func templateQueryBudgetRouter(t *testing.T, parentCtx context.Context, resource *Resource) chi.Router {

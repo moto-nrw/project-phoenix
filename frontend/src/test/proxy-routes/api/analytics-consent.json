@@ -1,0 +1,6 @@
+{
+  "api/analytics-consent": [
+    "GET tenant /analytics-consent/",
+    "PUT tenant /analytics-consent/"
+  ]
+}

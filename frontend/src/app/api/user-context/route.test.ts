@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET } from "./route";
 import { ApiResponseError } from "~/lib/api-response-error.server";
-import { mockSessionData } from "~/test/mocks/next-auth";
+import { mockServerSessionData } from "~/test/mocks/next-auth";
 import {
   type ExtendedSession,
   createMockContext,
@@ -28,7 +28,7 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
   ),
 }));
 
-const defaultSession = mockSessionData() as ExtendedSession;
+const defaultSession = mockServerSessionData() as ExtendedSession;
 
 interface ApiResponse<T> {
   success: boolean;
@@ -154,6 +154,65 @@ describe("GET /api/user-context", () => {
 
     expect(response.status).toBe(200);
     expect(json.data.supervisedGroups).toEqual([]);
+  });
+
+  // The signed-in app shell reads these school switches here instead of the
+  // settings schema (#4996).
+  it.each([
+    {
+      name: "maps the school switches",
+      wire: {
+        parent_news_enabled: true,
+        parent_invite_mode: "staff_approval",
+        timetable_day_start_time: "07:30",
+        timetable_day_end_time: "16:15",
+      },
+      expected: {
+        parentNewsEnabled: true,
+        parentInviteMode: "staff_approval",
+        timetableDayStartTime: "07:30",
+        timetableDayEndTime: "16:15",
+      },
+    },
+    {
+      name: "keeps an unknown invite mode undefined instead of guessing",
+      wire: {
+        parent_news_enabled: false,
+        parent_invite_mode: "nonsense_from_a_newer_backend",
+        timetable_day_start_time: "09:00",
+        timetable_day_end_time: "17:00",
+      },
+      expected: {
+        parentNewsEnabled: false,
+        parentInviteMode: undefined,
+        timetableDayStartTime: "09:00",
+        timetableDayEndTime: "17:00",
+      },
+    },
+    { name: "maps missing switches to null", wire: undefined, expected: null },
+  ])("$name", async ({ wire, expected }) => {
+    mockApiGet.mockResolvedValueOnce({
+      data: {
+        educational_groups: [],
+        supervised_groups: [],
+        current_staff: null,
+        incomplete: false,
+        unavailable_sections: [],
+        ...(wire ? { school_switches: wire } : {}),
+      },
+    });
+
+    const response = await GET(
+      createMockRequest("/api/user-context"),
+      createMockContext(),
+    );
+    const json =
+      await parseJsonResponse<ApiResponse<{ schoolSwitches: unknown }>>(
+        response,
+      );
+
+    expect(response.status).toBe(200);
+    expect(json.data.schoolSwitches).toEqual(expected);
   });
 
   it("surfaces an aggregate failure instead of returning partial empty data", async () => {

@@ -161,7 +161,7 @@ export function PendingInvitationsList({
     (failedWithoutData && formErrorMessage(loadError.error) === null)
   ) {
     return (
-      <div className="moto-content-surface flex items-center justify-center rounded-2xl border p-12 shadow-sm">
+      <div className="moto-content-surface flex items-center justify-center rounded-2xl border p-12">
         <div className="flex items-center gap-3 text-sm text-gray-600">
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900"></div>
           Wird geladen…
@@ -171,7 +171,7 @@ export function PendingInvitationsList({
   }
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-3 shadow-sm md:p-4">
+    <div className="moto-content-surface rounded-2xl border p-3 md:p-4">
       <div className="mb-2 flex items-center gap-2">
         <div className="rounded-lg bg-gray-100 p-1.5">
           <Mail className="h-4 w-4 text-gray-500" aria-hidden="true" />

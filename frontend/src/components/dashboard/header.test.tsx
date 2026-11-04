@@ -391,6 +391,15 @@ describe("Header", () => {
     expect(screen.getByTestId("page-title")).toHaveTextContent("Kalender");
   });
 
+  it("names the parent letters of moto schule in the page title", () => {
+    shellAuth.mode = "school";
+    mockUsePathname.mockReturnValue("/elternbriefe/14");
+
+    render(<Header />);
+
+    expect(screen.getByTestId("page-title")).toHaveTextContent("Elternbriefe");
+  });
+
   it("names the Schulverwaltung in moto schule by its role", () => {
     shellAuth.mode = "school";
     shellAuth.roles = ["schulverwaltung"];

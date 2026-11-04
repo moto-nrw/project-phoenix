@@ -1,7 +1,7 @@
 import { validateSessionToken } from "./token-validation";
 vi.mock("./token-validation", () => ({ validateSessionToken: vi.fn() }));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { User } from "next-auth";
+import type { AuthUser } from "./shared";
 import { tenantAuthConfig } from "./tenant-config";
 import { _resetRefreshState } from "./shared";
 
@@ -40,7 +40,7 @@ function tenantAuthorize() {
   return provider.options.authorize as (
     credentials: Record<string, string> | undefined,
     request: Request,
-  ) => Promise<User | null>;
+  ) => Promise<AuthUser | null>;
 }
 
 const HANDOFF = jwt({ id: 7, token: "handoff-session", tenant_id: 12 });

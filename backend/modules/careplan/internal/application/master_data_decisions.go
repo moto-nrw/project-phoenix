@@ -76,8 +76,8 @@ func (s *MasterDataDecisions) Decide(ctx context.Context, input masterdatareques
 		return nil, err
 	}
 	// An approval needs a reason only while the school's policy asks staff for
-	// one; a rejection's reason is required by the route either way (#2267).
-	if input.Approve && input.ReasonRequired && strings.TrimSpace(input.Reason) == "" {
+	// one. A rejection always needs one, including from a direct API caller.
+	if (!input.Approve || input.ReasonRequired) && strings.TrimSpace(input.Reason) == "" {
 		return nil, parentrequests.ErrReasonRequired
 	}
 	var reason *string

@@ -11,7 +11,15 @@ import (
 )
 
 // This row is private to the adapter. The public snapshot has no ORM tags.
+// HealthData is the sealed health field, bound to the school and the care row
+// of MembershipID (#5472); it opens into HealthInfo.
 type enrollmentReadRow struct {
+	enrollmentFields
+	HealthData   []byte `bun:"health_data"`
+	MembershipID int64  `bun:"membership_id"`
+}
+
+type enrollmentFields struct {
 	ID                       int64               `bun:"id"`
 	CreatedAt                time.Time           `bun:"created_at"`
 	UpdatedAt                time.Time           `bun:"updated_at"`
@@ -25,7 +33,7 @@ type enrollmentReadRow struct {
 	AddressCity              *string             `bun:"address_city"`
 	AddressPostalCode        *string             `bun:"address_postal_code"`
 	ExtraInfo                *string             `bun:"extra_info"`
-	HealthInfo               *string             `bun:"health_info"`
+	HealthInfo               *string             `bun:"-"`
 	PickupStatus             *string             `bun:"pickup_status"`
 	DepartureCompanionNote   *string             `bun:"departure_companion_note"`
 	PhotoPath                *string             `bun:"photo_path"`
@@ -83,7 +91,11 @@ func (s *studentDirectoryReads) ReadEnrollment(ctx context.Context, id int64, lo
 	if err != nil {
 		return directory.EnrollmentRecord{}, stats, fmt.Errorf("people directory postgres: read enrollment student: %w", err)
 	}
-	return directory.EnrollmentRecord(row), stats, nil
+	record := directory.EnrollmentRecord(row.enrollmentFields)
+	if record.HealthInfo, err = s.rows.OpenStudentHealth(row.TenantID, row.MembershipID, row.HealthData); err != nil {
+		return directory.EnrollmentRecord{}, stats, fmt.Errorf("people directory postgres: read enrollment student: %w", err)
+	}
+	return record, stats, nil
 }
 
-const enrollmentColumns = `"student".id, "student".created_at, "student".updated_at, "student".tenant_id, "student".person_id, "student".school_class, "student".status, "student".address_street, "student".address_city, "student".address_postal_code, "student".extra_info, "student".health_info, "student".pickup_status, "student".departure_companion_note, "student".photo_path, "student".group_id, "student".sick, "student".excused, "student".sick_since, "student".excused_since, "student".photo_consent_given_at, "student".agb_accepted_at, "student".data_processing_accepted_at, "student".email_contact_accepted_at, "student".photo_consent_given_by, "student".allowed_departure_modes, "student".departure_days, "student".bus_days, "student".pickup_days`
+const enrollmentColumns = `"student".id, "student".created_at, "student".updated_at, "student".tenant_id, "student".person_id, "student".school_class, "student".status, "student".address_street, "student".address_city, "student".address_postal_code, "student".extra_info, "student".health_data, "student".membership_id, "student".pickup_status, "student".departure_companion_note, "student".photo_path, "student".group_id, "student".sick, "student".excused, "student".sick_since, "student".excused_since, "student".photo_consent_given_at, "student".agb_accepted_at, "student".data_processing_accepted_at, "student".email_contact_accepted_at, "student".photo_consent_given_by, "student".allowed_departure_modes, "student".departure_days, "student".bus_days, "student".pickup_days`

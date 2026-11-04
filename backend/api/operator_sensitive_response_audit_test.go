@@ -32,12 +32,17 @@ func TestOperatorAuditSensitiveResponseRoutesFailClosed(t *testing.T) {
 	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
 	router := chi.NewRouter()
 	mountOperatorProvisioningRoutes(router, resource, nil)
+	demoPresenceHistoryCalls := 0
+	demoPresenceHistory := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		demoPresenceHistoryCalls++
+		w.WriteHeader(http.StatusOK)
+	})
 	mountOperatorSchoolRoutes(router, resource, nil, &operatorSchoolSettings{
 		values: settingsAPI.NewSettingsResource(settingsAPI.SettingsConfig{
 			Settings: module.OperatorSchoolSettings(module.SettingsSideEffects.Dispatch), OperatorID: operatorIDFromSession,
 		}),
 		bookingAuthorityImpact: newBookingAuthorityImpact(lifecycle),
-	})
+	}, demoPresenceHistory)
 	(operatorIdentityRoutes{account: identityAPI.NewResource(identity, operatorIdentityResponses())}).mountAccountTenantAccessRoutes(router, resource)
 	// The mounted scan reader/writer must never be invoked if its audit fails.
 	scanCalls := 0
@@ -85,6 +90,23 @@ func TestOperatorAuditSensitiveResponseRoutesFailClosed(t *testing.T) {
 		require.NoError(t, json.Unmarshal(entries[0].Changes, &changes))
 		assert.Equal(t, expected, changes, "only fixed categories and IDs, never filters, setting values or scan contents")
 	}
+	response := request(http.MethodPost, school+"/demo-presence-history")
+	require.Equal(t, http.StatusOK, response.Code)
+	var demoEntries []struct {
+		ResourceType string
+		ResourceID   *int64
+		RequestIP    string
+		Changes      json.RawMessage
+	}
+	require.NoError(t, db.NewRaw(`SELECT resource_type, resource_id, host(request_ip) AS request_ip, changes
+		FROM platform.operator_audit_log WHERE operator_id = ? AND action = 'view' AND changes->>'view' = 'demo_presence_history'`, operatorID).Scan(ctx, &demoEntries))
+	require.Len(t, demoEntries, 1)
+	assert.Equal(t, "school", demoEntries[0].ResourceType)
+	require.NotNil(t, demoEntries[0].ResourceID)
+	assert.Equal(t, schoolID, *demoEntries[0].ResourceID)
+	assert.Equal(t, "198.51.100.47", demoEntries[0].RequestIP)
+	assert.JSONEq(t, fmt.Sprintf(`{"view":"demo_presence_history","school_id":%d}`, schoolID), string(demoEntries[0].Changes))
+	assert.Equal(t, 1, demoPresenceHistoryCalls)
 	require.Equal(t, 1, scanCalls)
 	scanCalls = 0
 	_, err = db.ExecContext(ctx, `CREATE FUNCTION platform.reject_operator_audit() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -106,6 +128,7 @@ func TestOperatorAuditSensitiveResponseRoutesFailClosed(t *testing.T) {
 		{http.MethodPost, access + "/"},
 		{http.MethodPut, access + fmt.Sprintf("/%d", schoolID)},
 		{http.MethodDelete, access + fmt.Sprintf("/%d", schoolID)},
+		{http.MethodPost, school + "/demo-presence-history"},
 		{http.MethodGet, school + "/settings/schema"},
 		{http.MethodGet, school + "/settings/values/sftp.password/reveal"},
 		{http.MethodGet, "/unregistered-tag-scans/"},
@@ -121,5 +144,6 @@ func TestOperatorAuditSensitiveResponseRoutesFailClosed(t *testing.T) {
 			}
 		})
 	}
+	assert.Equal(t, 1, demoPresenceHistoryCalls, "no presence history write is permitted without its audit")
 	assert.Zero(t, scanCalls, "no scan read or mutation is permitted without its audit")
 }

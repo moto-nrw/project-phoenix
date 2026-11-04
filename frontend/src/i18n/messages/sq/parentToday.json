@@ -1,0 +1,36 @@
+{
+  "today": "Sot",
+  "sectionTitle": "Sot",
+  "sectionDescription": "Statusi i sotëm dhe veprimet e rëndësishme me një shikim.",
+  "statusLabel": "Statusi aktual",
+  "atOgs": "Në OGS",
+  "notAtOgs": "Jo në OGS",
+  "state": {
+    "present": "Këtu që nga ora {time}",
+    "presentNoTime": "Sot këtu",
+    "left": "Shkoi në shtëpi në orën {time}",
+    "leftNoTime": "Sot shkoi në shtëpi",
+    "expected": "Vjen sot në orën {time}",
+    "expectedNoTime": "Vjen sot",
+    "notArrived": "Pritet që nga ora {time}",
+    "notArrivedNoTime": "Pritet sot",
+    "absent": "Sot është njoftuar mungesa",
+    "noCare": "Sot nuk ka kujdes",
+    "unknown": "Statusi nuk është i disponueshëm për momentin"
+  },
+  "actions": {
+    "profile": "Shiko profilin",
+    "sick": "Njofto mungesën e {name}",
+    "sickCompact": "Njofto mungesën",
+    "sickHint": "Njofto sëmundjen ose justifiko mungesën",
+    "pickup": "Ndrysho orën e marrjes për {name}",
+    "pickupCompact": "Ndrysho orën e marrjes",
+    "pickupHint": "Përshtat orën e marrjes për një ditë",
+    "message": "Shkruaj një mesazh",
+    "messageCompact": "Shkruaj një mesazh",
+    "messageHint": "Kontakto OGS-në për {name}",
+    "pickupWithMode": "Ndrysho marrjen për {name}",
+    "pickupCompactWithMode": "Ndrysho marrjen",
+    "pickupHintWithMode": "Ndrysho orën ose mënyrën e marrjes për një ditë"
+  }
+}

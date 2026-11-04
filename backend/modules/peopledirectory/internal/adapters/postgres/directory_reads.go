@@ -41,6 +41,14 @@ type StudentDirectory interface {
 	AllSchoolsStudentRows(db bun.IDB) *bun.SelectQuery
 	StudentModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery
 	AllSchoolsStudentModelRows(db bun.IDB, model any) *bun.SelectQuery
+	HealthOpener
+}
+
+// HealthOpener opens the sealed health field (health_data) a directory row
+// carries with the school and care row (membership_id) it is bound to
+// (#5472). NULL opens to nil; a value that does not open is an error.
+type HealthOpener interface {
+	OpenStudentHealth(tenantID, membershipID int64, sealed []byte) (*string, error)
 }
 
 // studentDirectoryReads are the student reads over the projection's row
@@ -75,8 +83,11 @@ type directoryFilter struct {
 	KeepAlumni    []int64
 	CareStatus    string
 	CareStatusOn  string
-	Page          int
-	PageSize      int
+	// HolidayGuestsArrivedOn keeps a holiday guest before its week off the
+	// page (#5630); empty applies no such bound.
+	HolidayGuestsArrivedOn string
+	Page                   int
+	PageSize               int
 }
 
 func directoryDateParam(value string) *calendar.Date {

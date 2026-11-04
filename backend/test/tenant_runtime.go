@@ -87,8 +87,11 @@ func WithinAdminTransaction(ctx context.Context, fn func(context.Context) error)
 	return tenant.WithinAdmin(ctx, fn)
 }
 
-func AttachLockWaitEvidence(db *bun.DB) {
-	transactionruntime.ObserveLockWaits(db)
+// AttachLockWaitEvidence reports lock waits on db to the unit-of-work
+// observer for the rest of the test.
+func AttachLockWaitEvidence(tb testing.TB, db *bun.DB) {
+	tb.Helper()
+	registerTestQueryHook(tb, db, transactionruntime.NewLockWaitHook(), nil)
 }
 
 var packageTenantRuntime atomic.Pointer[tenant.UnitOfWork]

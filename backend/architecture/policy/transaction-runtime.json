@@ -1,0 +1,121 @@
+{
+  "packages": [
+    {
+      "path": "modules/transactionruntime/internal/adapters/database",
+      "owner": "transaction-runtime",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime/internal/application/stats",
+      "owner": "transaction-runtime",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime",
+      "owner": "transaction-runtime",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime/compose",
+      "owner": "transaction-runtime",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/transactionruntime/internal/adapters/postgres",
+      "owner": "transaction-runtime",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime/stats",
+      "owner": "transaction-runtime",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/transactionruntime/protocol",
+      "owner": "transaction-runtime",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "transaction-runtime.public.postgres-errors",
+      "description": "The driver-free public failure classifier delegates SQL details to its private Postgres adapter (#2738).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "public",
+      "target_owner": "transaction-runtime",
+      "target_role": "postgres"
+    },
+    {
+      "id": "transaction-runtime.compose.tenant-runtime",
+      "description": "The tenant runtime bootstrap returns the shared unit of work and reports pool and lock waits to its observer (#3970).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "transaction-runtime.compose.audit-platform-public",
+      "description": "The tenant runtime bootstrap hands each unit of work's tenant and transaction to the Audit adapters through the Audit Platform contract (#3970).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "transaction-runtime.compose.orm-sql",
+      "description": "The tenant runtime bootstrap takes and opens the concrete Bun database (#3970).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "transaction-runtime.public.stats-port",
+      "description": "Native statistics types replace public application aliases; narrower successor of platform.public-application for the same owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "public",
+      "target_owner": "transaction-runtime",
+      "target_role": "port"
+    },
+    {
+      "id": "transaction-runtime.postgres.native-protocol",
+      "description": "The transaction adapter uses native outcome errors moved from its database implementation; same owner and original marker/error contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "transaction-runtime",
+      "source_role": "postgres",
+      "target_owner": "transaction-runtime",
+      "target_role": "contract",
+      "target_package": "modules/transactionruntime/protocol"
+    }
+  ]
+}

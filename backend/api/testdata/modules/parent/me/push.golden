@@ -1,0 +1,3 @@
+DELETE /parent/me/push/subscriptions -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+GET /parent/me/push/public-key -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+POST /parent/me/push/subscriptions -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)

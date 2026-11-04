@@ -183,15 +183,18 @@ type fakeStore struct {
 	operatorTokens map[int64]domain.OperatorSession
 
 	// error injection
-	findAccountErr      error
-	findAccountByEmail  error
-	listTenantsErr      error
-	hasMappingErr       error
-	lockMappingErr      error
-	listRolesErr        error
-	listPermissionsErr  error
-	lockPermissionsErr  error
-	recordLoginErr      error
+	findAccountErr     error
+	findAccountByEmail error
+	listTenantsErr     error
+	hasMappingErr      error
+	lockMappingErr     error
+	listRolesErr       error
+	listPermissionsErr error
+	lockPermissionsErr error
+	recordLoginErr     error
+	// erasedBeforeMint makes the account gone when the mint stamps the
+	// login: the erasure anonymized it after the caller's checks (#5546).
+	erasedBeforeMint    bool
 	insertSessionErr    error
 	insertSessionErrors []error
 	findOperatorErr     error
@@ -308,9 +311,9 @@ func (s *fakeStore) FindLoginAccount(_ context.Context, id int64, forUpdate bool
 	return account, ok, stats(), nil
 }
 
-func (s *fakeStore) RecordAccountLogin(_ context.Context, id int64, _ time.Time) (domain.OperationStats, error) {
+func (s *fakeStore) RecordAccountLogin(_ context.Context, id int64, _ time.Time) (bool, domain.OperationStats, error) {
 	s.record("RecordAccountLogin")
-	return stats(), s.recordLoginErr
+	return s.recordLoginErr == nil && !s.erasedBeforeMint, stats(), s.recordLoginErr
 }
 
 func (s *fakeStore) ListActiveTenantIDs(_ context.Context, accountID int64) ([]int64, domain.OperationStats, error) {
@@ -624,6 +627,9 @@ func (s *fakeStore) RetireAccountSessionFamily(_ context.Context, accountID int6
 	defer s.mu.Unlock()
 	for id, session := range s.sessions {
 		if session.AccountID == accountID && session.FamilyID == familyID && session.Expiry.After(expiry) {
+			if session.SwitchedFromFamilyID == "" && session.LineageDeadline == nil {
+				session.LineageDeadline = legacyDeadline(session)
+			}
 			session.Expiry = expiry
 			cap := expiry
 			session.FamilyExpiryCap = &cap

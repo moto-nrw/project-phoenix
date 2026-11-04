@@ -1,0 +1,14 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/exporttransfer/internal/adapters/postgres/JournalRetention.DeleteExpiredTransfers",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/exporttransfer/internal/application/Service.Status",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

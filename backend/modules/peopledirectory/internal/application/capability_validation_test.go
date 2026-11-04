@@ -159,6 +159,9 @@ func (s validationStudentStore) FindRecord(_ context.Context, id int64, _ string
 	s.recording.recordLockedrecord(id)
 	return domain.StudentRecord{}, true, domain.OperationStats{}, nil
 }
+func (s validationStudentStore) LockRecord(ctx context.Context, id int64, lock string) (domain.StudentRecord, bool, domain.OperationStats, error) {
+	return s.FindRecord(ctx, id, lock)
+}
 func (s validationStudentStore) LockClassWrites(context.Context) (domain.OperationStats, error) {
 	return domain.OperationStats{}, nil
 }

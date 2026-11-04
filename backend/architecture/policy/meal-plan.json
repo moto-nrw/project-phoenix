@@ -1,0 +1,151 @@
+{
+  "packages": [
+    {
+      "path": "modules/mealplan/http",
+      "owner": "meal-plan",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/mealplan/internal/adapters/postgres",
+      "owner": "meal-plan",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/mealplan/internal/domain",
+      "owner": "meal-plan",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/mealplan/internal/ports",
+      "owner": "meal-plan",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/mealplan",
+      "owner": "meal-plan",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/mealplan/compose",
+      "owner": "meal-plan",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/mealplan/internal/application",
+      "owner": "meal-plan",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "schedule.meal_plan_entries",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_order_change_counters",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_order_changes",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_order_days",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_order_lines",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_orders",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_participation_overrides",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_participation_schedules",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_registration_changes",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_sickness_status_history",
+      "write_owner": "meal-plan"
+    }
+  ],
+  "rules": [
+    {
+      "id": "meal-plan.http.public",
+      "description": "The Meal Plan HTTP adapter calls its own public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "http",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "meal-plan.port-domain",
+      "description": "Meal Plan ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "meal-plan.compose.orm-sql",
+      "description": "Meal Plan composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "meal-plan.compose.tenant-runtime",
+      "description": "Meal Plan composition binds the shared tenant transaction runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "meal-plan.internal-test.tenant-runtime",
+      "description": "Meal Plan composition tests verify tenant isolation through the shared tenant runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "meal-plan",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    }
+  ]
+}

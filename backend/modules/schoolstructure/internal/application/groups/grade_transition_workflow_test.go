@@ -567,7 +567,7 @@ func TestGradeTransitionRuntimeEvidence(t *testing.T) {
 	f := newTransitionFixture(t, db)
 	workflow := f.workflow(t)
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	testpkg.AttachLockWaitEvidence(db)
+	testpkg.AttachLockWaitEvidence(t, db)
 	ctx, events := testpkg.CaptureUnitOfWorkEvidence(counter.Context(testpkg.Ctx(t)))
 	var version string
 	require.NoError(t, db.NewRaw("SHOW server_version").Scan(ctx, &version))

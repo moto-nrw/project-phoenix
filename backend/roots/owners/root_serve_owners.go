@@ -28,7 +28,6 @@ import (
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -101,6 +100,18 @@ func BuildSchoolCalendarRecords(db transactionruntime.Database, observe func(sch
 	})
 }
 
+// BuildSchoolVacations composes the school vacations of the School Calendar
+// (#5345) over the tenant's federal state and the OpenHolidays API.
+func BuildSchoolVacations(settings settingsCompose.SettingsService) (schoolcalendar.SchoolVacationOwner, error) {
+	return schoolCalendarCompose.NewSchoolVacations(func(ctx context.Context) (string, error) {
+		region, err := settings.ResolveString(ctx, configModels.KeyFederalState)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve federal state setting: %w", err)
+		}
+		return region, nil
+	}, "", nil)
+}
+
 // BuildServeWorkforce composes Workforce over School Membership; a
 // Sonderarbeitszeit never sets a target on a statutory holiday.
 func BuildServeWorkforce(db transactionruntime.Database, membership schoolmembership.Capability, calendar schoolcalendar.Days) (workforceCompose.WorkTime, error) {
@@ -125,6 +136,16 @@ func BuildServeAppointments(db transactionruntime.Database) (appointmentsModule.
 	})
 }
 
+// BuildServeParentConferences composes the Elternsprechtag days and
+// bookings of the School Calendar (#4801); nil without a database, which
+// leaves the Sprechtag routes answering that it is not configured.
+func BuildServeParentConferences(db transactionruntime.Database) schoolcalendar.ParentConferences {
+	if db.Pool() == nil {
+		return nil
+	}
+	return schoolCalendarCompose.NewParentConferences(db.Pool())
+}
+
 // BuildPeopleDirectory composes the People Directory over its owners, the
 // photo runtime and the guardian provider, both built before it. Care Plan's
 // companion slice and student profiles are constructible from the database
@@ -139,7 +160,7 @@ func BuildPeopleDirectory(db transactionruntime.Database, observe func(peopleCom
 	if err != nil {
 		return nil, err
 	}
-	careProfiles, err := careplanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(careplanCompose.Observation) {})
+	careProfiles, err := careplanCompose.NewStudentProfiles(db.Pool(), StudentDirectoryReader(), func(careplanCompose.Observation) {})
 	if err != nil {
 		return nil, err
 	}

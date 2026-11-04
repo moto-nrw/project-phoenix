@@ -1,0 +1,33 @@
+{
+  "badges": {
+    "audience": "Stworzone dla całodziennej opieki",
+    "hosting": "Dane przechowywane w Niemczech"
+  },
+  "testimonialButtonLabel": "Pokaż opinię {number}",
+  "testimonials": {
+    "infoHub": {
+      "quote": "Najważniejsze informacje z OGS mam w jednym miejscu. Nie muszę już szukać w e-mailach ani na kartkach.",
+      "author": "Rodzic",
+      "role": "Informacje z OGS",
+      "metric": "Wszystko w jednym miejscu"
+    },
+    "easyReplies": {
+      "quote": "Kontakt z OGS jest o wiele prostszy. Nie każda sprawa musi iść przez telefon albo osobny e-mail.",
+      "author": "Rodzic",
+      "role": "Komunikacja z OGS",
+      "metric": "Łatwiej odpowiadać"
+    },
+    "lookUpLater": {
+      "quote": "Gdy na co dzień dużo się dzieje, bardzo pomaga, że mogę później jeszcze raz sprawdzić, co przekazała OGS.",
+      "author": "Rodzic",
+      "role": "Codzienność rodziny",
+      "metric": "Zawsze na bieżąco"
+    },
+    "organized": {
+      "quote": "Komunikacja jest wyraźnie lepiej zorganizowana. Szybciej wiemy, co jest ważne i gdzie to znów znaleźć.",
+      "author": "Rodzic",
+      "role": "Codzienność w opiece",
+      "metric": "Lepiej zorganizowani"
+    }
+  }
+}

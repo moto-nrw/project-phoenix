@@ -1,0 +1,6 @@
+{
+  "scenario": "api.operator.staff_person_merge.preview",
+  "max": 2,
+  "exact": true,
+  "description": "Operator-reviewed staff person repairs read all school people and\nemployments in two bulk queries, independent of the number of cases."
+}

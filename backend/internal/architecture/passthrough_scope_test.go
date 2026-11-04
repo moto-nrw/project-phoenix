@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
 	"github.com/moto-nrw/project-phoenix/internal/passthrough"
 )
 
@@ -33,14 +34,15 @@ func TestPassthroughRejectsAPIFilterBypass(t *testing.T) {
 		t.Fatal(err)
 	}
 	put("backend/architecture/passthrough.json", output.String())
+	gitfixture.Init(t, repo)
 	for _, args := range [][]string{
-		{"init", "--quiet"}, {"add", "."},
+		{"add", "."},
 		{"-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Base"},
 	} {
 		runGit(t, repo, args...)
 	}
 	tool := filepath.Join(repo, "tool")
-	put("tool/go.mod", "module bypass\n\ngo 1.24\n")
+	put("tool/go.mod", "module github.com/moto-nrw/project-phoenix\n\ngo 1.24\n")
 	files, err := filepath.Glob(filepath.Join(packageDir(t), "..", "passthrough", "*.go"))
 	if err != nil {
 		t.Fatal(err)
@@ -60,8 +62,22 @@ func TestPassthroughRejectsAPIFilterBypass(t *testing.T) {
 		}
 		put("tool/internal/passthrough/"+file, source)
 	}
+	storageFiles, err := filepath.Glob(filepath.Join(packageDir(t), "..", "..", "architecture", "artifacts", "*.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range storageFiles {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		put("tool/architecture/artifacts/"+filepath.Base(file), string(data))
+	}
 	put("tool/main.go", `package main
-import ("os"; "fmt"; "bypass/internal/passthrough")
+import ("os"; "fmt"; "github.com/moto-nrw/project-phoenix/internal/passthrough")
 func main() {
  root := os.Args[1]
  f, err := os.Create(root+"/architecture/passthrough.json")

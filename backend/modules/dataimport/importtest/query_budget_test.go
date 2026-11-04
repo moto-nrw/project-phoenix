@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // TestStudentImportBatchQueryBudget pins the statements and driver-reported
@@ -40,7 +41,7 @@ func TestStudentImportBatchQueryBudget(t *testing.T) {
 
 	rows := tenStudentBatch(2)
 	run(rows, true)
-	testpkg.AssertQueryBudget(t, "modules.dataimport.student_batch.preview", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.preview", counter.Queries())
 	require.EqualValues(t, 1, counter.WriteRows())
 
 	run(rows, false)
@@ -51,7 +52,7 @@ func TestStudentImportBatchQueryBudget(t *testing.T) {
 	// each new child takes the class-write gate and Kinderkontingent lock
 	// before reading the limit, also without a Kinderkontingent. The count
 	// scales with the rows, so the ceiling holds for this ten-row file only.
-	testpkg.AssertQueryBudget(t, "modules.dataimport.student_batch.import", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import", counter.Queries())
 	// BUN labels RawQuery as SELECT, including the three owner INSERTs of each
 	// guardian link; this is the driver-reported DML counter, not physical
 	// table writes.
@@ -62,9 +63,9 @@ func TestStudentImportBatchQueryBudget(t *testing.T) {
 	// either path costs 110 statements here instead of 10 above.
 	large := studentBatch(3, 11*studentBatchRows)
 	run(large, true)
-	testpkg.AssertQueryBudget(t, "modules.dataimport.student_batch.preview_110", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.preview_110", counter.Queries())
 	run(large, false)
-	testpkg.AssertQueryBudget(t, "modules.dataimport.student_batch.import_110", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import_110", counter.Queries())
 	t.Logf("import statements: %d rows -> %d, %d rows -> %d", studentBatchRows, smallImport, len(large), counter.Total())
 }
 

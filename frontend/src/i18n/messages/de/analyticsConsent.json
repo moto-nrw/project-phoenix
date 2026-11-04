@@ -1,0 +1,16 @@
+{
+  "title": "Nutzungsanalyse",
+  "promptTitle": "Nutzungsanalyse erlauben?",
+  "promptIntro": "moto möchte zählen, welche Seiten und Schaltflächen Sie nutzen. So machen wir moto besser.",
+  "promptPrivacy": "Namen und Eingaben sieht moto dabei nicht.",
+  "promptNoDisadvantage": "Wenn Sie ablehnen, können Sie moto genauso nutzen.",
+  "promptChangeLater": "Ihre Wahl gilt für Ihr Konto. Sie können sie jederzeit unter „Einstellungen“ ändern.",
+  "allow": "Erlauben",
+  "refuse": "Ablehnen",
+  "saving": "Wird gespeichert…",
+  "closeLabel": "Später entscheiden",
+  "sectionDescription": "Darf moto zählen, welche Seiten und Schaltflächen Sie nutzen? Namen und Eingaben sieht moto dabei nicht. Das entscheiden nur Sie.",
+  "switchLabel": "Nutzungsanalyse erlauben",
+  "schoolOff": "Ihre Schule hat die Nutzungsanalyse ausgeschaltet. Ihre Wahl gilt, sobald die Schule sie wieder einschaltet.",
+  "errorObject": "die Einstellung zur Nutzungsanalyse"
+}

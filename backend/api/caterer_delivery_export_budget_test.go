@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // checkCatererDeliveryExportQueryBudget pins the statements of the caterer's
@@ -22,7 +23,7 @@ import (
 // grows by a fixed number of statements per school, never with the children
 // or the days beyond the week the window is bounded to, and it writes
 // nothing and takes no order lock. A longer window is refused before any
-// school is read. It runs serially: the counter sees the router's pool.
+// school is read. Only statements descended from the export request count.
 func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
@@ -38,7 +39,8 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 	require.NoError(t, err)
 	tokenAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
-	token, err := tokenAuth.CreateJWT(sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"caterer"}, Scope: tenant.ScopeCaterer})
+	family := testpkg.CreateTestSessionFamily(t, db, account.ID, testpkg.Tenant(t), tenant.ScopeCaterer)
+	token, err := tokenAuth.CreateJWT(sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"caterer"}, Scope: tenant.ScopeCaterer, FamilyID: family})
 	require.NoError(t, err)
 
 	addSchool := func(children int) {
@@ -60,12 +62,22 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 	// A week far ahead: every day is open and lies after the supply started.
 	monday := calendar.NewDate(2030, 3, 4)
 	week := fmt.Sprintf("/caterer/orders/export?from=%s&to=%s&format=csv", monday, monday.AddDays(4))
-	counter := testpkg.CaptureQueries(t, api.db.Pool())
+	counter := testpkg.CaptureQueriesForContext(t, api.db.Pool())
+	countedHandler := api.queryBudgetHandler(counter)
 	export := func(path string) (int, []string) {
 		t.Helper()
 		counter.Reset()
-		response := checkpointRequest(api, checkpointScenario{Method: http.MethodGet, Path: path, Authenticated: true}, token)
-		return response.Code, counter.Queries()
+		// A detached job on the router's pool must not consume the request's
+		// budget (#5550). Join it inside the capture window, without sleeps.
+		foreignQuery := make(chan error, 1)
+		go func() {
+			_, err := api.db.Pool().ExecContext(context.Background(), "SELECT 1")
+			foreignQuery <- err
+		}()
+		response := checkpointRequest(countedHandler, checkpointScenario{Method: http.MethodGet, Path: path, Authenticated: true}, token)
+		require.NoError(t, <-foreignQuery)
+		assert.NotContains(t, counter.Queries(), "SELECT 1", "detached pool traffic is outside the request budget")
+		return response.Code, withoutSessionCheck(t, counter.Queries())
 	}
 
 	addSchool(1)
@@ -82,7 +94,7 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 		return strings.HasPrefix(strings.TrimSpace(sql), "insert") || strings.HasPrefix(strings.TrimSpace(sql), "update") || strings.HasPrefix(strings.TrimSpace(sql), "delete")
 	}), "the caterer's list writes nothing")
 	assert.Empty(t, counter.Matching(func(sql string) bool { return strings.Contains(sql, "pg_advisory") }), "and takes no lock")
-	testpkg.AssertQueryBudget(t, "workflows.catererportal.delivery_export", three)
+	querybudgets.AssertQueryBudget(t, "workflows.catererportal.delivery_export", three)
 
 	status, refused := export(fmt.Sprintf("/caterer/orders/export?from=%s&to=%s&format=csv", monday, monday.AddDays(7)))
 	assert.Equal(t, http.StatusBadRequest, status)

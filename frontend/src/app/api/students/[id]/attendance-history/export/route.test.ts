@@ -93,7 +93,7 @@ describe("GET /api/students/[id]/attendance-history/export", () => {
         `attachment; filename="${filename}"`,
       );
       expect(response.headers.get("Content-Length")).toBe("9");
-      expect(response.headers.get("Cache-Control")).toBe("no-store");
+      expect(response.headers.get("Cache-Control")).toBe("private, no-store");
       expect(await response.text()).toBe("file-data");
     },
   );

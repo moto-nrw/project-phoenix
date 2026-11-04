@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ERROR_CODES, ERROR_CODE_CLASSES } from "~/lib/error-codes.generated";
-import de from "./messages/de.json";
+import de from "./messages/de.generated";
 import { OPERATOR_PORTAL_ERROR_CODES } from "~/test/operator-error-codes";
 
 interface ErrorCatalog {

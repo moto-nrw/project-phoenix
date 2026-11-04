@@ -37,7 +37,13 @@ func (root migrateRoot) operation(command string) (migrations.Operation, error) 
 	}
 }
 
-func (root migrateRoot) runCommand(ctx context.Context, command string) error {
+func (root migrateRoot) runCommand(ctx context.Context, command, appEnvironment string) error {
+	// Command dispatch supplies the effective environment after initConfig.
+	// A manual reset can initialize cluster-global roles from dev.env rather
+	// than the test fixture configuration supplied by the harness.
+	if command == "reset" && appEnvironment == "test" {
+		return fmt.Errorf("APP_ENV=test migrate reset is disabled; the test harness owns template and role initialization; run tests or the testdb bootstrap instead; see docs/agents/operations.md#test-database")
+	}
 	operation, err := root.operation(command)
 	if err != nil {
 		return err
@@ -93,7 +99,7 @@ var migrateCmd = &cobra.Command{
 	Short: "use bun migration tool",
 	Long:  `run bun migrations`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		return defaultMigrateRoot.runCommand(cmd.Context(), "migrate")
+		return defaultMigrateRoot.runCommand(cmd.Context(), "migrate", viper.GetString("app_env"))
 	},
 }
 
@@ -103,7 +109,7 @@ var migrateResetCmd = &cobra.Command{
 	Short: "reset database and run all migrations",
 	Long:  `WARNING: This will delete all data in the database and run all migrations from scratch`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		return defaultMigrateRoot.runCommand(cmd.Context(), "reset")
+		return defaultMigrateRoot.runCommand(cmd.Context(), "reset", viper.GetString("app_env"))
 	},
 }
 
@@ -113,7 +119,7 @@ var migrateStatusCmd = &cobra.Command{
 	Short: "show migration status",
 	Long:  `Display the status of all migrations, showing which ones have been applied`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		return defaultMigrateRoot.runCommand(cmd.Context(), "status")
+		return defaultMigrateRoot.runCommand(cmd.Context(), "status", viper.GetString("app_env"))
 	},
 }
 
@@ -132,7 +138,7 @@ failing mid-migration and forcing a restore of the backup. Exits non-zero when a
 	// operator reading a deployment log actually needs.
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		return defaultMigrateRoot.runCommand(cmd.Context(), "preflight")
+		return defaultMigrateRoot.runCommand(cmd.Context(), "preflight", viper.GetString("app_env"))
 	},
 }
 

@@ -56,6 +56,17 @@ type OfferingRosterResync struct {
 	// TolerateDriftedSources loads the source offerings without the active
 	// and phase checks. Detach fallback only; never set on a save path.
 	TolerateDriftedSources bool
+	// SkipInactiveSources lets a stored source that turned inactive after it
+	// was declared contribute nothing while another source stays valid
+	// (#5305). Every other guard still applies, and a template left without
+	// a valid source is still refused. Resyncs of a template's stored
+	// sources, catalog edits included (#5313); never set on a save path.
+	SkipInactiveSources bool
+	// StoredOfferingIDs are the source ids a template save found stored
+	// before it wrote the new ones. An inactive source among them is skipped
+	// like with SkipInactiveSources, while a newly selected inactive one is
+	// still refused (#5313). Template saves only.
+	StoredOfferingIDs []int64
 }
 
 // SourcedRosters keeps the rosters of offering-sourced Regeltermine in step
@@ -69,17 +80,22 @@ type SourcedRosters interface {
 	// the tenant; drifted templates are skipped with a warning.
 	ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom calendar.Date) error
 	// ResyncTemplatesSourcedFromOffering re-reconciles the templates sourcing
-	// one offering; a template the edit would strand is refused.
+	// one offering; a template the edit would strand is refused with a
+	// SourcedTemplateRefusal naming it and the problem (#5313).
 	ResyncTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom calendar.Date) error
 	// DetachTemplatesSourcedFromOffering removes an offering from every
 	// template sourcing it before the offering is deleted.
 	DetachTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom calendar.Date) error
+	// ResyncStudentSourcedRosters re-reconciles only the given children's
+	// rows on every sourced template; drifted templates are skipped with a
+	// warning. A restored care plan uses it to match the current sources.
+	ResyncStudentSourcedRosters(ctx context.Context, studentIDs []int64, effectiveFrom calendar.Date) error
 }
 
 // OfferingSourceEditor serves the Regeltermin editor (#2137, #3140).
 type OfferingSourceEditor interface {
 	// ListOfferingSourceOptions lists the offerings a template may source
-	// from, restricted to those fitting the calendar period when one is given.
+	// from, restricted to those whose phase overlaps the calendar period.
 	ListOfferingSourceOptions(ctx context.Context, calendarPeriodID *int64) ([]OfferingSourceOption, error)
 	// CombinedOfferingSourceCounts validates a selection like a save would
 	// and counts its distinct approved children.
@@ -87,6 +103,11 @@ type OfferingSourceEditor interface {
 	// TemplateRosterMaintenanceFeeds resolves the offering-side facts of the
 	// roster indicator with a constant number of reads.
 	TemplateRosterMaintenanceFeeds(ctx context.Context, templates []TemplateRosterFeedQuery) (map[int64]TemplateRosterFeeds, error)
+	// OfferingWeekdayBookings lists the approved bookings of the active
+	// offerings overlapping the calendar period with the weekdays they plan on or
+	// after from (#5103). Empty while the school has Betreuungsangebote
+	// switched off. A constant number of reads.
+	OfferingWeekdayBookings(ctx context.Context, calendarPeriodID *int64, from calendar.Date) ([]OfferingWeekdayBooking, error)
 }
 
 // BookingMaterializer is what an Enrollment decision asks of Care Plan when
@@ -210,6 +231,103 @@ type OfferingAdjustmentResult struct {
 	Offerings          map[int64]CareOffering
 	Overridden         []OfferingOverride
 	CompleteWithdrawal bool
+	// RosterImpact tells the office what the adjustment did to the child's
+	// Regeltermine (#5102).
+	RosterImpact RosterImpact
+}
+
+// RosterImpact is the effect of a booking change on the child's
+// Regeltermine from EffectiveFrom on (#5102). Weekdays are ISO (1 = Monday).
+type RosterImpact struct {
+	// EffectiveFrom is the first day the change rewrites.
+	EffectiveFrom calendar.Date
+	// Adjusted are the Regeltermine whose booking-created rows the change
+	// rewrote, with the weekdays the child left or joined there.
+	Adjusted []AdjustedRosterTemplate
+	// NotAdjusted are the Regeltermine that keep planning the child on a
+	// weekday the change took away, because staff maintain them by hand: a
+	// hand roster row, a Klasse/Jahrgang/Gruppe target or an occurrence
+	// roster. Only weekdays no remaining booking feeds there are listed.
+	NotAdjusted []ManualRosterTemplate
+	// PickupOverrides are the weekdays on which a stored staff pickup time
+	// hides the booked offering's pickup time from the date on. The office
+	// may reset them to the booking.
+	PickupOverrides []PickupOverride
+}
+
+// PickupOverride is one weekday whose stored staff pickup time differs from
+// the pickup time the bookings set from Date on.
+type PickupOverride struct {
+	// Weekday is the ISO weekday (1 = Monday).
+	Weekday int
+	// Date is the first day from the change's date on that falls on the
+	// weekday; a reset to the booking uses it.
+	Date calendar.Date
+	// StoredTime and BookedTime are "HH:MM".
+	StoredTime string
+	BookedTime string
+	// ResetNow says whether removing the stored time today keeps every day
+	// before Date unchanged. A stored row has no dates; for a change still
+	// ahead it may only go when the earlier days already use the same time.
+	ResetNow bool
+}
+
+// AdjustedRosterTemplate is one Regeltermin series the change rewrote.
+type AdjustedRosterTemplate struct {
+	TemplateID      int64
+	Name            string
+	RemovedWeekdays []int
+	AddedWeekdays   []int
+}
+
+// BookingDayChange is what a booking change did to the child's weekdays,
+// as the roster impact needs it (#5342).
+type BookingDayChange struct {
+	// DroppedWeekdays are the ISO weekdays the change drops a booking on.
+	DroppedWeekdays []int
+	// NetLossWeekdays are the ISO weekdays the change drops more offerings
+	// on than it newly books.
+	NetLossWeekdays []int
+	// Remaining are the offerings the child books after the change.
+	Remaining []RemainingDayBooking
+	// OtherEnrollments are the offerings the student books on the date
+	// through other approved enrollments, which the change leaves as they
+	// are (#5366). They carry a Regeltermin like Remaining; one without a
+	// pickup time keeps the day on the net-loss rule like one of Remaining.
+	OtherEnrollments []RemainingDayBooking
+}
+
+// RemainingDayBooking is one offering the child still books on one ISO
+// weekday after a booking change, with what decides whether it carries a
+// hand-maintained Regeltermin: its kind flags and its pickup time that day
+// ("HH:MM", empty when the offering sets none).
+type RemainingDayBooking struct {
+	Weekday       int
+	CountsAsCare  bool
+	IncludesLunch bool
+	PickupTime    string
+	// From is the day a booking of another enrollment starts when that lies
+	// after the change's date (#5497); nil when it is in force then.
+	From *calendar.Date
+	// Until is the exclusive end of the booking; nil when it remains in
+	// force. A later booking can end a removal gap only while it carries the
+	// Regeltermin (#5497).
+	Until *calendar.Date
+}
+
+// ManualRosterTemplate is one hand-maintained Regeltermin series that keeps
+// the child on a weekday the change dropped a booking on, where no remaining
+// booking carries it (#5342).
+type ManualRosterTemplate struct {
+	TemplateID int64
+	Name       string
+	Weekdays   []int
+	// ViaTarget is true when a Klasse, Jahrgang or Gruppe target includes
+	// the child: occurrences created later add the child again.
+	ViaTarget bool
+	// Until is the day a later booking carries the Regeltermin again on
+	// Weekdays (exclusive end of the gap, #5497); nil when none does.
+	Until *calendar.Date
 }
 
 // OfferingAdjustmentSnapshot is one offering in the before and after

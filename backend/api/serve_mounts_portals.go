@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -70,7 +72,14 @@ func newAccountResource(db transactionruntime.Database, identity identityaccess.
 // newOperatorIdentity binds the operator sign-in, session and account routes
 // to Identity & Access.
 func newOperatorIdentity(sessionAuth *sessiontoken.TokenAuth, identity identityaccess.Owner) operatorIdentity {
+	var caterers identityOperatorAPI.CatererMFA
+	if identity != nil {
+		if access := identity.Caterers(); access != nil {
+			caterers = access
+		}
+	}
 	return operatorIdentity{
+		caterers:    caterers,
 		sessions:    identityOperatorAPI.NewSessions(sessionAuth, identity),
 		account:     identityOperatorAPI.NewResource(identity, operatorIdentityResponses()),
 		access:      identity,
@@ -145,6 +154,7 @@ func newOperatorRouter(
 		limiters,
 		mergeRoutes,
 		newSampleChildrenRoute(provisioning, students),
+		newDemoPresenceHistoryRoute(db, viper.GetString("app_env")),
 	), nil
 }
 
@@ -154,12 +164,14 @@ func newParentResource(
 	logger *slog.Logger, identity identityaccess.Owner, parent *parentportal.Portal, calendarApp calendarCompose.Application, flows owners.EnrollmentFlows,
 	guardianProfiles *peopleCompose.GuardianProfileLoader, organizations organizationtenancy.Query,
 	devices owners.DeliveryDevices, notifications owners.DeliveryNotifications, delivery deliveryRuntime.Capability,
+	healthData enrollmentOwner.HolidayHealthCipher,
 ) *parentAPI.Resource {
 	return parentAPI.NewResource(parentAPI.ResourceConfig{
-		Auth:     parentPortalLogin(identity),
-		Resets:   parentPasswordResets(identity),
-		Parent:   parent,
-		Calendar: calendarApp,
+		Auth:        parentPortalLogin(identity),
+		Resets:      parentPasswordResets(identity),
+		Parent:      parent,
+		Calendar:    calendarApp,
+		Conferences: calendarApp,
 		Enrollment: parentEnrollmentForms(
 			enrollmentAPI.NewRequestService(flows.Intake),
 			enrollmentUploadUnits{intake: flows.Intake, records: owners.NewEnrollmentBookings(), reads: flows.Uploads},
@@ -167,7 +179,7 @@ func newParentResource(
 		),
 		GuardianProfileLoader: newParentGuardianProfiles(guardianProfiles),
 		Schools:               parentSchoolDirectory{schools: organizations},
-		HolidayLinks:          newParentHolidayRegistrationLinks(organizations, delivery, logger),
+		HolidayLinks:          newParentHolidayRegistrationLinks(organizations, delivery, healthData, logger),
 		Push:                  bindParentPushSubscriptions(devices.PushSubscriptions),
 		Preferences:           bindParentPreferences(notifications.Preferences),
 		PWAUsage:              devices.PWAUsage,

@@ -64,7 +64,7 @@ func loadConfig(config *viper.Viper, configFile string, docker bool) {
 
 func propagateDatabaseConfigFrom(get func(string) string, setenv func(string, string) error) {
 	for _, key := range []string{
-		"app_env", "demo_db_dsn", "phoenix_demo_password",
+		"app_env", "db_dsn", "demo_db_dsn", "phoenix_demo_password",
 		"db_max_open_conns", "db_max_idle_conns", "db_conn_max_lifetime", "db_conn_max_idle_time",
 	} {
 		if value := get(key); value != "" {

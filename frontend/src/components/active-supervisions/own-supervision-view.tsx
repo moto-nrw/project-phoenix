@@ -21,6 +21,7 @@ import {
 } from "~/components/active-supervisions/use-reopen-banner";
 import { useTimetableActions } from "~/components/active-supervisions/use-timetable-actions";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
+import { usePlannedWindowRefresh } from "~/components/active-supervisions/planned-window";
 import { rosterRunState } from "~/components/active-supervisions/view-model";
 import type { ActiveGroup } from "~/lib/usercontext-helpers";
 import { userContextService } from "~/lib/usercontext-api";
@@ -29,7 +30,8 @@ import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { useSWRAuth } from "~/lib/swr";
+import { useLiveRefreshInterval, useSWRAuth } from "~/lib/swr";
+import { ownSupervisionKeys } from "~/lib/swr/shell-keys";
 import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
@@ -37,9 +39,9 @@ import {
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 const NO_ROOMS = [] as const;
-const LIST_REFRESH_MS = 60 * 1000;
 
 function sessionHref(activeGroupId: string): string {
   return `/active-supervisions?session=${activeGroupId}`;
@@ -96,21 +98,24 @@ export function OwnSupervisionView() {
   const showTimetableCounts = useShowTimetableCounts();
   const isDesktop = !useMediaQuery(BELOW_LG);
 
+  // SSE invalidates these on supervision, activity and timetable events; the
+  // interval only reconciles missed events (#5017).
+  const refreshInterval = useLiveRefreshInterval();
   const day = useSWRAuth<PlannedTimetableInstance[]>(
-    "active-supervisions-own-day",
+    ownSupervisionKeys.day(),
     () =>
       timetableOperationsApi.plannedNow({ scope: "day", includeRoster: false }),
-    { refreshInterval: LIST_REFRESH_MS },
+    { refreshInterval },
   );
   const upcoming = useSWRAuth<PlannedTimetableInstance[]>(
-    "active-supervisions-own-planned-now",
+    ownSupervisionKeys.plannedNow(),
     () => timetableOperationsApi.plannedNow({ includeRoster: true }),
-    { refreshInterval: LIST_REFRESH_MS },
+    { refreshInterval },
   );
   const ownSessions = useSWRAuth<ActiveGroup[]>(
-    "active-supervisions-own-sessions",
+    ownSupervisionKeys.sessions(),
     () => userContextService.getMySupervisedGroups(),
-    { refreshInterval: LIST_REFRESH_MS },
+    { refreshInterval },
   );
   const { mutate: mutateOwnSessions } = ownSessions;
   const { mutate: mutateDay } = day;
@@ -146,6 +151,13 @@ export function OwnSupervisionView() {
     () => Promise.all([mutateDay(), mutateUpcoming(), mutateOwnSessions()]),
     [mutateDay, mutateUpcoming, mutateOwnSessions],
   );
+  // „Als Nächstes“ follows the clock: reload when the next block enters or
+  // leaves the start window instead of waiting for the reconcile (#5017).
+  const reloadWindow = useCallback(() => {
+    void mutateUpcoming();
+    void mutateDay();
+  }, [mutateUpcoming, mutateDay]);
+  usePlannedWindowRefresh(day.data, reloadWindow);
   // Die Auswahl folgt der Adresse; die Seite merkt sich keinen Block selbst.
   const adoptSession = useCallback(
     (activeGroupId: string) => sessionHref(activeGroupId),
@@ -290,7 +302,7 @@ export function OwnSupervisionView() {
         ownSessions.data !== undefined ? (
         <SectionCard>
           <EmptyState
-            icon={<MotoConceptIcon concept="rooms" size={48} />}
+            icon={<MotoConceptIcon concept={roomsConcept} size={48} />}
             title="Keine laufende Aufsicht"
             description="Starten Sie Ihren Termin unter „Als Nächstes“. Dann sehen Sie hier die Kinderliste."
           />

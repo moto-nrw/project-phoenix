@@ -1,0 +1,7 @@
+{
+  "input": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "permission": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "business_rejection": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "unavailable": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
+  "server": "{object} işlenemedi. Daha sonra yeniden deneyin."
+}

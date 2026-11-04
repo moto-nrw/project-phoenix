@@ -191,7 +191,7 @@ export function RolloverReviewQueue({ phaseID }: Props) {
             return (
               <li
                 key={item.child_id}
-                className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6"
+                className="moto-content-surface rounded-2xl border p-4 sm:p-6"
               >
                 {/* Titel links, Entscheidungen rechts: die drei Aktionen
                     hatten vorher eine eigene Zeile am Fuß des Eintrags. */}

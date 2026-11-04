@@ -133,8 +133,24 @@ describe("useUrlParams", () => {
       expect(result.current.params.d).toBe("2026-07-15");
     });
 
+    it("reads the router's params, not a stale window.location, after a client navigation", () => {
+      // A Link from another page renders the view before the browser URL
+      // moved on: window.location still names the old page (#5103).
+      window.history.replaceState(null, "", "/acme/home");
+      mockSearch.value = "d=2026-07-15&block=42";
+      const { result } = renderHook(() =>
+        useUrlParams(ALLOWED, { syncPopstate: true }),
+      );
+      expect(result.current.params).toEqual({
+        d: "2026-07-15",
+        block: "42",
+        verlauf: null,
+      });
+    });
+
     it("re-reads window.location.search on popstate when the option is on", () => {
       window.history.replaceState(null, "", "/acme/vertretung?d=2026-07-15");
+      mockSearch.value = "d=2026-07-15";
       const { result } = renderHook(() =>
         useUrlParams(ALLOWED, { syncPopstate: true }),
       );

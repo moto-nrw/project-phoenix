@@ -179,7 +179,7 @@ function isSpreadsheet(file: File): boolean {
 function PreviewRowCard({ row }: { readonly row: DisplayRow }) {
   const status = STATUS_TONE[row.status];
   return (
-    <div className="moto-content-surface rounded-xl border p-3 shadow-sm">
+    <div className="moto-content-surface rounded-xl border p-3">
       <div className="flex items-start gap-3">
         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
           {row.isSummary ? "∑" : row.rowNumber}
@@ -317,7 +317,7 @@ function OpeningBalanceImportPageContent() {
     try {
       await downloadImportTemplate(
         `/api/import/opening-balances/template?format=${templateFormat}`,
-        session?.user?.token,
+        session,
         templateFormat === "xlsx"
           ? "eroeffnungssalden-import-vorlage.xlsx"
           : "eroeffnungssalden-import-vorlage.csv",
@@ -347,7 +347,7 @@ function OpeningBalanceImportPageContent() {
       try {
         const response = await postImportFile(
           "/api/import/opening-balances/preview",
-          session?.user?.token,
+          session,
           buildFormData(file),
         );
         const payload = response.body;
@@ -427,7 +427,7 @@ function OpeningBalanceImportPageContent() {
     try {
       const response = await postImportFile(
         "/api/import/opening-balances/import",
-        session?.user?.token,
+        session,
         buildFormData(uploadedFile),
       );
       const payload = response.body;

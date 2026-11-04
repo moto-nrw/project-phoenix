@@ -7,6 +7,7 @@ import (
 
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -27,12 +28,13 @@ func requireTenantRuntime(service string, runtime tenant.UnitOfWork, dependencie
 }
 
 // NewTenantSSEChannel is NewSSEChannel with WithGuardianChildAccess over the
-// tenant unit of work.
-func NewTenantSSEChannel(runtime tenant.UnitOfWork, broadcaster realtime.Broadcaster, db *bun.DB, guardians GuardianChildAccessRepository, logger *slog.Logger) (Channel, error) {
-	if err := requireTenantRuntime("sse channel", runtime, broadcaster != nil && db != nil && guardians != nil); err != nil {
+// tenant unit of work. Over a relaying hub it also stores each notification
+// for the other API processes (#5504); NewRelayedContent shows theirs.
+func NewTenantSSEChannel(runtime tenant.UnitOfWork, broadcaster realtime.Broadcaster, db *bun.DB, guardians GuardianChildAccessRepository, logger *slog.Logger, relayed deliveryPorts.RealtimeNotificationStore) (Channel, error) {
+	if err := requireTenantRuntime("sse channel", runtime, broadcaster != nil && db != nil && guardians != nil && relayed != nil); err != nil {
 		return nil, err
 	}
-	channel := NewSSEChannel(broadcaster, WithGuardianChildAccess(db, guardians, logger)).(*sseChannel)
+	channel := NewSSEChannel(broadcaster, WithGuardianChildAccess(db, guardians, logger), withRelayStore(relayed)).(*sseChannel)
 	channel.tenantRuntime = &runtime
 	return channel, nil
 }
@@ -51,19 +53,24 @@ func NewTenantDurableWebPushChannel(runtime tenant.UnitOfWork, db *bun.DB, repo 
 
 // NewTenantAbsenceNotifier is NewAbsenceNotifier over the tenant unit of
 // work.
-func NewTenantAbsenceNotifier(runtime tenant.UnitOfWork, notifier Service, recipients StaffRecipientResolver, db *bun.DB, logger *slog.Logger) (AbsenceNotifier, error) {
+// school adds the moto schule notice (#4792); its zero value keeps the
+// notifier OGS-only.
+func NewTenantAbsenceNotifier(runtime tenant.UnitOfWork, notifier Service, recipients StaffRecipientResolver, db *bun.DB, logger *slog.Logger, school contract.SchoolClassRecipients) (AbsenceNotifier, error) {
 	if err := requireTenantRuntime("absence notifier", runtime, notifier != nil && recipients != nil && db != nil); err != nil {
 		return nil, err
 	}
-	service := NewAbsenceNotifier(notifier, recipients, db, logger).(*absenceNotifier)
+	service := NewAbsenceNotifier(notifier, recipients, db, logger, WithSchoolClassRecipients(school)).(*absenceNotifier)
 	service.tenantRuntime = &runtime
 	return service, nil
 }
 
 // NewTenantPreferenceService is NewPreferenceService over the tenant unit of
-// work, with the guardian-portal and e-mail collaborators required.
+// work, with the guardian-portal and e-mail collaborators required. The
+// guardian schools must answer the account permissions too: without them
+// every push type with a Permission would silently vanish (#4791).
 func NewTenantPreferenceService(runtime tenant.UnitOfWork, consent ConsentStore, settings PreferenceSettings, db *bun.DB, accountTenants GuardianSchools, permissions PermissionMatch) (PreferenceService, error) {
-	if err := requireTenantRuntime("notification preferences", runtime, consent != nil && settings != nil && db != nil && accountTenants != nil && permissions != nil); err != nil {
+	_, answersPermissions := accountTenants.(AccountPermissions)
+	if err := requireTenantRuntime("notification preferences", runtime, consent != nil && settings != nil && db != nil && answersPermissions && permissions != nil); err != nil {
 		return nil, err
 	}
 	service := NewPreferenceService(consent, settings, db, accountTenants, permissions).(*preferenceService)

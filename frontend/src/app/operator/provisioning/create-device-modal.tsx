@@ -1,5 +1,7 @@
 import { API_KEY_COPY_FAILED_MESSAGE } from "~/lib/operator/provisioning-helpers";
 import { useState, useCallback, useEffect, useRef } from "react";
+import { Input } from "~/components/ui/input";
+import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
@@ -153,25 +155,23 @@ export function CreateDeviceModal({
                 <code className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-xs break-all">
                   {createdDevice.apiKey}
                 </code>
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="md"
                   onClick={() => void handleCopyApiKey()}
-                  className="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                  className="shrink-0"
                 >
                   {copied ? "Kopiert!" : "Kopieren"}
-                </button>
+                </Button>
               </div>
             </div>
           )}
 
           <div className="flex justify-end pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-            >
+            <Button type="button" variant="primary" size="md" onClick={onClose}>
               Schließen
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -185,21 +185,25 @@ export function CreateDeviceModal({
       title="Neues Gerät"
       footer={
         <>
-          <button
+          <Button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            variant="outline"
+            size="md"
+            className="flex-1"
           >
             Abbrechen
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={(e) => void handleCreate(e)}
             disabled={isSaving || !schoolId || !deviceId.trim() || !deviceType}
-            className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+            variant="primary"
+            size="md"
+            className="flex-1"
           >
             {isSaving ? "Wird erstellt..." : "Erstellen"}
-          </button>
+          </Button>
         </>
       }
     >
@@ -233,24 +237,20 @@ export function CreateDeviceModal({
           />
         </FormField>
 
-        <FormField
+        <Input
+          id="device-id"
+          name="device_id"
+          type="text"
+          value={deviceId}
+          onChange={(e) => setDeviceId(e.target.value)}
+          placeholder="z.B. T-001"
+          maxLength={255}
           label="Geräte-ID"
-          htmlFor="device-id"
           required
           error={formErrors.fieldError("device_id")}
-        >
-          <input
-            id="device-id"
-            name="device_id"
-            type="text"
-            value={deviceId}
-            onChange={(e) => setDeviceId(e.target.value)}
-            placeholder="z.B. T-001"
-            maxLength={255}
-            className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
-            required
-          />
-        </FormField>
+          controlSize="compact"
+          className="font-mono"
+        />
 
         <FormField
           label="Typ"
@@ -275,22 +275,18 @@ export function CreateDeviceModal({
           />
         </FormField>
 
-        <FormField
+        <Input
+          id="device-name"
+          name="name"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="z.B. Eingangsbereich"
+          maxLength={255}
           label="Name"
-          htmlFor="device-name"
           error={formErrors.fieldError("name")}
-        >
-          <input
-            id="device-name"
-            name="name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="z.B. Eingangsbereich"
-            maxLength={255}
-            className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-          />
-        </FormField>
+          controlSize="compact"
+        />
 
         <p className="text-sm text-gray-600">
           Der API-Key wird automatisch erstellt und nur einmal angezeigt.

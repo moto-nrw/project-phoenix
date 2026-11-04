@@ -1,5 +1,5 @@
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { cn } from "~/lib/utils";
 
@@ -24,15 +24,15 @@ const CONCEPT_ICON_TILE_VARIANTS: Record<
 };
 
 interface ConceptIconTileProps {
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   readonly variant: ConceptIconTileVariant;
   readonly tone?: MotoDuotoneTone;
   readonly className?: string;
 }
 
 /**
- * Shared gray icon tile for fachliche Konzepte (see Header-Muster in
- * concept-section-header.tsx). Consolidates the repeated
+ * Shared gray icon tile for fachliche Konzepte (`SectionCard concept`,
+ * `ConceptPageHeader`). Consolidates the repeated
  * "rounded-xl bg-gray-100 tile + MotoConceptIcon" markup so the tile size,
  * rounding and icon size stay in one place per variant.
  *

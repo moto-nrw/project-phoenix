@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 )
 
 const transactionBoundaryRegister = "test/transaction_boundaries.json"
@@ -19,15 +18,12 @@ type transactionBoundaryRegisterData struct {
 
 func transactionRegisterOnlyShrinks(root string, current transactionBoundaryRegisterData) error {
 	run := func(args ...string) ([]byte, error) {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = filepath.Dir(root)
-		return cmd.Output()
+		return registerGitOutput(filepath.Dir(root), args...)
 	}
-	revision, err := run("rev-parse", "--verify", "origin/development^{commit}")
+	base, err := registerMergeBase(run)
 	if err != nil {
 		return err
 	}
-	base := strings.TrimSpace(string(revision))
 	path := "backend/" + transactionBoundaryRegister
 	files, err := run("ls-tree", "--name-only", base, "--", path)
 	if err != nil {

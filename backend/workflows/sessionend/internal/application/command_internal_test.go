@@ -27,6 +27,7 @@ type recorder struct {
 func (r *recorder) step(name string) { r.steps = append(r.steps, name) }
 
 type fakePresence struct {
+	prepareErr error
 	rec        *recorder
 	group      studentpresence.LiveGroup
 	lockErr    error
@@ -419,4 +420,18 @@ func TestNewCommandRequiresEveryDependency(t *testing.T) {
 	missing = deps
 	missing.Runtime.AfterCommit = nil
 	assert.Panics(t, func() { NewCommand(missing) })
+}
+
+func (f *fakePresence) PrepareVisitWrites(context.Context, studentpresence.VisitWriteScope) error {
+	return f.prepareErr
+}
+
+func TestEndSessionRejectsAChangedVisitCohortBeforeWriting(t *testing.T) {
+	t.Parallel()
+	h := newHarness()
+	h.presence.prepareErr = studentpresence.ErrVisitWriteConflict
+	result, err := h.command().EndSession(context.Background(), h.presence.group.ID)
+	require.ErrorIs(t, err, sessionend.ErrSessionConflict)
+	require.Empty(t, result)
+	require.Equal(t, []string{"begin", "rollback"}, h.rec.steps)
 }

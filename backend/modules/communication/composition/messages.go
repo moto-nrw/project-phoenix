@@ -46,7 +46,7 @@ func NewParentMessaging(cfg ParentMessagingConfig, runtime parentMessages.Runtim
 		Broadcaster: cfg.Broadcaster, Logger: cfg.Logger, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier), Preferences: cfg.Preferences, Outbox: cfg.Outbox,
 		GuardianProfiles: cfg.GuardianProfiles, Schools: cfg.Schools, LoginImages: cfg.LoginImages, ParentsURL: cfg.ParentsURL,
 		CountPreferences: newCountPreferences(cfg.DB), Groups: cfg.UserContext,
-		GroupThreads: parentpostgres.NewGroupThreadStore(parentDatabase(cfg.DB)), GroupAudience: cfg.GroupAudience,
+		GroupThreads: parentpostgres.NewGroupThreadStore(parentDatabase(cfg.DB)), GroupAudience: cfg.GroupAudience, Leaders: cfg.Persons,
 	}, runtime, policy)
 	return deliveryPorts.NewParentMessagingFacade(service, parentMessages.NativeFacadeRows(), parentMessages.NativeFacadeErrors(), communicationPostgres.NewMessageObservation(cfg.Observe)), service
 }
@@ -64,7 +64,7 @@ func NewParentMessageRenderer(cfg ParentMessageRendererConfig, policy deliveryPo
 }
 
 type StaffMessagingConfig struct {
-	ThreadRepo  deliveryPorts.StaffThreadSource
+	ThreadRepo  deliveryPorts.StaffConversationSource
 	MessageRepo deliveryPorts.StaffMessageSource
 	ReadRepo    deliveryPorts.StaffReadSource
 	Persons     staffMessages.PersonLookup
@@ -79,7 +79,7 @@ type StaffMessagingConfig struct {
 
 func NewStaffMessaging(cfg StaffMessagingConfig, runtime staffMessages.Runtime, policy deliveryPorts.NotificationErrors) communication.StaffMessagingRuntime {
 	service := staffMessages.NewService(staffMessages.Config{
-		ThreadRepo: staffMessages.NewThreadRepository(cfg.ThreadRepo), MessageRepo: staffMessages.NewMessageRepository(cfg.MessageRepo), ReadRepo: staffMessages.NewReadRepository(cfg.ReadRepo),
+		ThreadRepo: staffMessages.NewThreadRepository(cfg.ThreadRepo), Groups: cfg.ThreadRepo, MessageRepo: staffMessages.NewMessageRepository(cfg.MessageRepo), ReadRepo: staffMessages.NewReadRepository(cfg.ReadRepo),
 		Persons: cfg.Persons, Session: cfg.Session, Settings: cfg.Settings, Broadcaster: cfg.Broadcaster,
 		Logger: cfg.Logger, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier), Preferences: cfg.Preferences,
 	}, runtime, policy)

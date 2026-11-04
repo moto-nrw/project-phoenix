@@ -14,6 +14,7 @@ vi.mock("~/lib/guardian-helpers", () => ({
 }));
 
 import {
+  readersLabel,
   relationshipLabel,
   fetchInboxWithFilters,
   fetchStudentThreads,
@@ -612,5 +613,51 @@ describe("message count setting", () => {
       status: 400,
       code: "general.input",
     });
+  });
+});
+
+describe("readersLabel (#5200)", () => {
+  beforeEach(() => {
+    mockGetRelationshipTypeLabel.mockReturnValue("Mutter");
+  });
+
+  const guardian = {
+    account_id: "5",
+    name: "Sabine Schneider",
+    relationship_type: "parent",
+  };
+
+  it("names the one parent and all staff for a team conversation", () => {
+    expect(
+      readersLabel({ guardian, school: { kind: "all_staff", names: [] } }),
+    ).toBe("Lesen können: Sabine Schneider (Mutter) und alle Mitarbeitenden.");
+  });
+
+  it("names the leadership persons of a leadership conversation", () => {
+    expect(
+      readersLabel({
+        guardian,
+        school: { kind: "leadership", names: ["Swantje M.", "Tom K."] },
+      }),
+    ).toBe(
+      "Lesen können: Sabine Schneider (Mutter) und die Leitung: Swantje M., Tom K.",
+    );
+  });
+
+  it("names unnamed accounts as Schulverwaltung and ends the sentence once", () => {
+    expect(
+      readersLabel({
+        guardian,
+        school: { kind: "leadership", names: ["Swantje M."], unnamed_count: 1 },
+      }),
+    ).toBe(
+      "Lesen können: Sabine Schneider (Mutter) und die Leitung: Swantje M., Schulverwaltung.",
+    );
+  });
+
+  it("says leadership only when the row carries no names", () => {
+    expect(
+      readersLabel({ guardian, school: { kind: "leadership", names: [] } }),
+    ).toBe("Lesen können: Sabine Schneider (Mutter) und die Leitung.");
   });
 });

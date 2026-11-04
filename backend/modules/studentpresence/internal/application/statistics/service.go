@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -56,7 +57,11 @@ type Config struct {
 	AccessLog       ports.StatisticsAccessLog
 	Retention       ports.StatisticsRetention
 	PrivacyConsents ports.RetentionSettings
-	Logger          *slog.Logger
+	// PlannedCareDays and AttendanceIntervals feed the occupancy by time of
+	// day (#4764).
+	PlannedCareDays     ports.PlannedCareDays
+	AttendanceIntervals ports.AttendanceIntervals
+	Logger              *slog.Logger
 	// Now is injectable for tests; nil means time.Now.
 	Now func() time.Time
 }
@@ -102,10 +107,6 @@ func (s *service) ReportForExport(ctx context.Context, filters studentpresence.S
 	return report, nil
 }
 
-func (s *service) today() calendar.Date {
-	return calendar.DateFromTime(s.cfg.Now())
-}
-
 func (s *service) validate(filters studentpresence.StatisticsFilters, today calendar.Date) error {
 	if filters.From.IsZero() || filters.To.IsZero() {
 		return fmt.Errorf("%w: from and to are required", studentpresence.ErrInvalidStatisticsRange)
@@ -126,23 +127,25 @@ func (s *service) compute(ctx context.Context, filters studentpresence.Statistic
 	// One clock read for the whole report: enrollment eligibility, the room
 	// clamp and the retention cutoff must all agree on "today" even when the
 	// request spans Berlin midnight (see users.EnrolledOn).
-	today := s.today()
+	now := s.cfg.Now()
+	today := calendar.DateFromTime(now)
 	if err := s.validate(filters, today); err != nil {
 		return nil, err
 	}
 
-	// The child population is shared by all three sections — every one of
-	// them reports children, so it is loaded unconditionally. The care-day
-	// and attendance reads behind it are the attendance section's alone and
-	// stay unread when it was not asked for.
+	// The child population is shared by all sections — every one of them
+	// reports children, so it is loaded unconditionally. The care-day and
+	// attendance reads behind it belong to the attendance and occupancy
+	// sections and stay unread when neither was asked for.
 	students, err := s.cfg.Students.FindOverlappingWithGroups(ctx, filters.From, filters.To, today)
 	if err != nil {
 		return nil, fmt.Errorf("load students: %w", err)
 	}
 	students = filterStudentsByGroup(students, filters.GroupIDs)
+	students = filterStudentsByClass(students, filters.SchoolClasses)
 
 	var inputs attendanceInputs
-	if filters.Wants(studentpresence.StatisticsSectionAttendance) {
+	if filters.Wants(studentpresence.StatisticsSectionAttendance) || filters.Wants(studentpresence.StatisticsSectionOccupancy) {
 		if inputs, err = s.loadAttendanceInputs(ctx, filters.From, filters.To); err != nil {
 			return nil, err
 		}
@@ -163,20 +166,32 @@ func (s *service) compute(ctx context.Context, filters studentpresence.Statistic
 		report.Groups = buildGroupRows(studentRows)
 		report.Totals = buildTotals(studentRows)
 	}
-	if filters.Wants(studentpresence.StatisticsSectionRooms) {
-		if err := s.fillRoomSection(ctx, report, filters, today, students, studentRows); err != nil {
-			return nil, err
-		}
-	}
-	if filters.Wants(studentpresence.StatisticsSectionCourses) {
-		if err := s.fillCourseSection(ctx, report, filters, today, studentRows); err != nil {
-			return nil, err
-		}
+	if err := s.fillOptionalSections(ctx, report, filters, today, now, students, studentRows, inputs); err != nil {
+		return nil, err
 	}
 	return report, nil
 }
 
-// attendanceInputs are the reads only the attendance section needs.
+// fillOptionalSections computes the rooms, courses and occupancy sections
+// that were asked for, over the shared population.
+func (s *service) fillOptionalSections(ctx context.Context, report *studentpresence.StatisticsReport, filters studentpresence.StatisticsFilters, today calendar.Date, now time.Time, students []*ports.StatisticsStudent, studentRows []studentpresence.StatisticsStudentRow, inputs attendanceInputs) error {
+	if filters.Wants(studentpresence.StatisticsSectionRooms) {
+		if err := s.fillRoomSection(ctx, report, filters, today, students, studentRows); err != nil {
+			return err
+		}
+	}
+	if filters.Wants(studentpresence.StatisticsSectionCourses) {
+		if err := s.fillCourseSection(ctx, report, filters, today, studentRows); err != nil {
+			return err
+		}
+	}
+	if filters.Wants(studentpresence.StatisticsSectionOccupancy) {
+		return s.fillOccupancySection(ctx, report, filters, today, now, students, inputs)
+	}
+	return nil
+}
+
+// attendanceInputs are the reads the attendance and occupancy sections need.
 type attendanceInputs struct {
 	careDays   map[calendar.Date]bool
 	excluded   studentpresence.StatisticsExcludedDays
@@ -636,24 +651,7 @@ func (s *service) recordAccess(ctx context.Context, filters studentpresence.Stat
 	if role == "" {
 		role = "unknown"
 	}
-	meta := map[string]string{
-		"action": action,
-		"from":   filters.From.String(),
-		"to":     filters.To.String(),
-	}
-	if len(filters.Sections) > 0 {
-		sections := make([]string, 0, len(filters.Sections))
-		for _, section := range filters.Sections {
-			sections = append(sections, string(section))
-		}
-		sort.Strings(sections)
-		meta["sections"] = strings.Join(sections, ",")
-	}
-	if len(filters.GroupIDs) > 0 {
-		groupIDs := append([]int64(nil), filters.GroupIDs...)
-		sort.Slice(groupIDs, func(i, j int) bool { return groupIDs[i] < groupIDs[j] })
-		meta["group_ids"] = strings.Trim(strings.Join(strings.Fields(fmt.Sprint(groupIDs)), ","), "[]")
-	}
+	meta := accessMetadata(filters, action)
 	now := s.cfg.Now()
 	if dedup {
 		exists, err := s.cfg.AccessLog.SeenStatisticsAccessSince(ctx, actor.AccountID, meta, now.Add(-viewDedupWindow))
@@ -684,6 +682,48 @@ func (s *service) recordAccess(ctx context.Context, filters studentpresence.Stat
 		return fmt.Errorf("%w: %v", studentpresence.ErrStatisticsAuditFailed, err)
 	}
 	return nil
+}
+
+// accessMetadata names the report scope in a stable order, so repeated views
+// of the same scope deduplicate.
+func accessMetadata(filters studentpresence.StatisticsFilters, action string) map[string]string {
+	meta := map[string]string{
+		"action": action,
+		"from":   filters.From.String(),
+		"to":     filters.To.String(),
+	}
+	if len(filters.Sections) > 0 {
+		sections := make([]string, 0, len(filters.Sections))
+		for _, section := range filters.Sections {
+			sections = append(sections, string(section))
+		}
+		sort.Strings(sections)
+		meta["sections"] = strings.Join(sections, ",")
+	}
+	if len(filters.SchoolClasses) > 0 {
+		classes := append([]string(nil), filters.SchoolClasses...)
+		sort.Strings(classes)
+		meta["school_classes"] = encodeMetadataStrings(classes)
+	}
+	if len(filters.GroupIDs) > 0 {
+		groupIDs := append([]int64(nil), filters.GroupIDs...)
+		sort.Slice(groupIDs, func(i, j int) bool { return groupIDs[i] < groupIDs[j] })
+		meta["group_ids"] = strings.Trim(strings.Join(strings.Fields(fmt.Sprint(groupIDs)), ","), "[]")
+	}
+	return meta
+}
+
+// encodeMetadataStrings keeps sorted, user-provided filter values unambiguous
+// for audit deduplication. A separator alone would collide with that separator
+// inside a class name.
+func encodeMetadataStrings(values []string) string {
+	var encoded strings.Builder
+	for _, value := range values {
+		encoded.WriteString(strconv.Itoa(len(value)))
+		encoded.WriteByte(':')
+		encoded.WriteString(value)
+	}
+	return encoded.String()
 }
 
 // visitWindows uses the owner's eligibility answer for every report date.

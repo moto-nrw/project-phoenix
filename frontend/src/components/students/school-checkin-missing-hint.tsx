@@ -61,7 +61,7 @@ export function SchoolCheckinMissingHint({
             <Button
               key={status}
               type="button"
-              variant="secondary"
+              variant="surface"
               size="compact"
               onClick={() => onShowStatus(status)}
             >
@@ -72,7 +72,6 @@ export function SchoolCheckinMissingHint({
             type="button"
             variant="ghost"
             size="compact"
-            className="shadow-none"
             onClick={onDismiss}
           >
             Ausblenden

@@ -1,0 +1,16 @@
+{
+  "button": "Ndaje kërkesën",
+  "title": "Ndaje kërkesën me të tjerët",
+  "privacyHint": "Vetëm kujdestarët e zgjedhur e shohin kërkesën tuaj dhe përgjigjen e shkollës.",
+  "recipientLegend": "Ndaje kërkesën (me dëshirë)",
+  "protected": "Kjo kërkesë mbetet private. Shkolla ka aktivizuar mbrojtjen e familjes.",
+  "noRecipients": "Nuk ka kujdestarë të tjerë me qasje në aplikacionin e prindërve.",
+  "loading": "Po ngarkohen marrësit …",
+  "save": "Ruaj zgjedhjen",
+  "saving": "Po ruhet …",
+  "cancel": "Anulo",
+  "close": "Mbyll dritaren",
+  "errorObjectRecipients": "lista e marrësve",
+  "errorObjectSelection": "zgjedhja",
+  "optionsHint": "Mund ta dërgoni kërkesën gjithsesi dhe ta ndani më vonë."
+}

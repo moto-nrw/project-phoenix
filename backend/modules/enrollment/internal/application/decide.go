@@ -235,7 +235,7 @@ func (d *Decisions) refreshDecidedChild(ctx context.Context, target *decisionTar
 // failure rolls back the decision so a retry can safely enqueue it; the
 // tenant-scoped idempotency key prevents duplicate rows after retries.
 func (d *Decisions) afterDecision(ctx context.Context, target *decisionTarget, phase *enrollmentNative.Phase, input enrollmentNative.DecideInput) error {
-	if input.Status == enrollmentNative.DecisionApproved && !calendar.Date(phase.ServiceStartDate).After(d.todayDate()) {
+	if input.Status == enrollmentNative.DecisionApproved {
 		if err := d.syncOfferingPickupAfterApproval(ctx, target.child); err != nil {
 			return fmt.Errorf("decision: refresh offering pickup projection: %w", err)
 		}

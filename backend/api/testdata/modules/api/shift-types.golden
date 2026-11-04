@@ -1,0 +1,5 @@
+DELETE /api/shift-types/{id} -> dienstplan
+GET /api/shift-types/ -> dienstplan
+POST /api/shift-types/ -> dienstplan
+POST /api/shift-types/defaults -> dienstplan
+PUT /api/shift-types/{id} -> dienstplan

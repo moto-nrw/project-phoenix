@@ -4,6 +4,7 @@ import { defineEntityConfig } from "@/lib/database/types";
 import { CatalogColorField } from "@/components/ui/database/catalog-color-field";
 import { mapRoomResponse, prepareRoomForBackend } from "@/lib/room-helpers";
 import type { Room, BackendRoom } from "@/lib/room-helpers";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 export const roomsConfig = defineEntityConfig<Room>({
   name: {
@@ -11,7 +12,7 @@ export const roomsConfig = defineEntityConfig<Room>({
     plural: "Räume",
   },
 
-  concept: "rooms",
+  concept: roomsConcept,
 
   backUrl: "/database",
 

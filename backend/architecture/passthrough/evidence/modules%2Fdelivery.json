@@ -1,0 +1,270 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (rs *Resource) SchoolRouter() chi.Router {\n\tr := chi.NewRouter()\n\tr.Use(render.SetContentType(render.ContentTypeJSON))\n\tr.Use(withPortal(PortalSchool))\n\trs.Runtime.ProtectedSchool(r, rs.registerRoutes)\n\treturn r\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/http/notifications/Resource.SchoolRouter",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *databaseError) Error() string {\n\tif e.Err == nil {\n\t\treturn \"database error during \" + e.Op\n\t}\n\treturn \"database error during \" + e.Op + \": \" + e.Err.Error()\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/adapters/deliverypostgres/databaseError.Error",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *MockMailer) Send(m mailcontract.Message) error {\n\ts.SendInvoked.Store(true)\n\treturn s.SendFn(m)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/adapters/email/MockMailer.Send",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *Runtime) EmailStatus(ctx context.Context, tenantID, id int64) (deliveryContract.State, bool, error) {\n\tif r == nil || r.Store == nil {\n\t\treturn \"\", false, errors.New(\"delivery compose: service is not initialized\")\n\t}\n\tif tenantID \u003c= 0 || id \u003c= 0 {\n\t\treturn \"\", false, errors.New(\"delivery compose: tenant and e-mail intent are required\")\n\t}\n\tintent, found, err := r.Store.EmailStatus(ctx, tenantID, id)\n\tif err != nil || !found {\n\t\treturn \"\", found, err\n\t}\n\treturn deliveryContract.State(intent.Status), true, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/application/Runtime.EmailStatus",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) AttachEmailOutbox(ctx context.Context, tenantID, deliveryID, outboxID int64) error {\n\tif tenantID \u003c= 0 || deliveryID \u003c= 0 || outboxID \u003c= 0 {\n\t\treturn errors.New(\"delivery: tenant, delivery, and outbox ids are required\")\n\t}\n\treturn s.store.AttachEmailOutbox(ctx, tenantID, deliveryID, outboxID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/application/Service.AttachEmailOutbox",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ClaimFailedEmailDelivery(ctx context.Context, tenantID, deliveryID int64) (bool, error) {\n\tif tenantID \u003c= 0 || deliveryID \u003c= 0 {\n\t\treturn false, errors.New(\"delivery: tenant and delivery ids are required\")\n\t}\n\treturn s.store.ClaimFailedEmailDelivery(ctx, tenantID, deliveryID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/application/Service.ClaimFailedEmailDelivery",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteEmailDeliveries(ctx context.Context, tenantID int64, related deliveryContract.RelatedEntity) (int64, error) {\n\tif tenantID \u003c= 0 {\n\t\treturn 0, errors.New(\"delivery: tenant is required\")\n\t}\n\trelated.Type = strings.TrimSpace(related.Type)\n\tif err := validateRelated(related); err != nil {\n\t\treturn 0, err\n\t}\n\treturn s.store.DeleteEmailDeliveries(ctx, tenantID, related.Type, related.ID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/application/Service.DeleteEmailDeliveries",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *fixtureIntentStore) Claim(ctx context.Context, transport domain.Transport, _ int, now, expires time.Time) ([]domain.Intent, error) {\n\tif transport != domain.TransportEmail {\n\t\treturn nil, nil\n\t}\n\trow, acquired, err := s.exact.ClaimEmail(ctx, s.tenantID, s.id, now, expires)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif acquired {\n\t\treturn []domain.Intent{row}, nil\n\t}\n\ts.finished = row.Status == string(domain.StateSent) || row.Status == string(domain.StateDeadLetter) || row.Status == string(domain.StateCancelled)\n\treturn nil, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/application/fixtureIntentStore.Claim",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a DurableEmails) CancelEmail(ctx context.Context, tenantID int64, relatedType string, relatedID int64, reason string) (int64, error) {\n\treturn a.Module.Cancel(ctx, tenantID, deliveryContract.TransportEmail, deliveryContract.RelatedEntity{Type: relatedType, ID: relatedID}, reason)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/emailoutbox/DurableEmails.CancelEmail",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a DurableEmails) EnqueueEmail(ctx context.Context, input DurableEmail) (DurableEmailResult, error) {\n\tstored, err := a.Module.EnqueueEmail(ctx, deliveryContract.EmailIntent{TenantID: input.TenantID, Template: input.Template, Recipient: deliveryContract.EmailRecipient{Address: input.Recipient}, Payload: input.Payload, IdempotencyKey: input.IdempotencyKey, Related: deliveryContract.RelatedEntity{Type: input.RelatedType, ID: input.RelatedID}, DeliverAfter: input.DeliverAfter})\n\tif err != nil {\n\t\treturn DurableEmailResult{}, err\n\t}\n\treturn DurableEmailResult{ID: stored.ID, Duplicate: stored.Duplicate}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/emailoutbox/DurableEmails.EnqueueEmail",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error) {\n\tif s == nil || s.delivery == nil {\n\t\treturn 0, errors.New(\"outbox service not wired\")\n\t}\n\ttenantID, err := tenant.TenantFromContext(ctx)\n\tif err != nil {\n\t\treturn 0, fmt.Errorf(\"cancel email outbox rows: tenant is required: %w\", err)\n\t}\n\treturn s.delivery.CancelEmail(ctx, tenantID.Int64(), relatedType, relatedID, reason)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/emailoutbox/Service.CancelPendingByRelatedEntity",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a DurablePushOutbox) CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error) {\n\ttenantID, err := tenant.TenantFromContext(ctx)\n\tif err != nil {\n\t\treturn 0, fmt.Errorf(\"cancel push outbox rows: tenant is required: %w\", err)\n\t}\n\treturn a.Module.Cancel(ctx, tenantID.Int64(), deliveryContract.TransportPush, deliveryContract.RelatedEntity{Type: relatedType, ID: relatedID}, reason)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/DurablePushOutbox.CancelPendingByRelatedEntity",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s parentPreferences) GetForParent(ctx context.Context, accountID int64) (*parentAPI.PreferenceOverview, error) {\n\trow, err := s.PreferenceService.GetForParent(ctx, accountID)\n\tif row == nil {\n\t\treturn nil, err\n\t}\n\tout := \u0026parentAPI.PreferenceOverview{TenantEnabled: row.TenantEnabled}\n\tif row.Types != nil {\n\t\tout.Types = make([]parentAPI.PreferenceState, len(row.Types))\n\t\tfor i, item := range row.Types {\n\t\t\tout.Types[i] = parentAPI.PreferenceState(item)\n\t\t}\n\t}\n\treturn out, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/parentPreferences.GetForParent",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s parentPreferences) SetForParent(ctx context.Context, accountID int64, key string, enabled bool) error {\n\treturn parentDeliveryError(s.PreferenceService.SetForParent(ctx, accountID, key, enabled))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/parentPreferences.SetForParent",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s parentPushSubscriptions) PublicKey() (string, error) {\n\tkey, err := s.PushSubscriptionService.PublicKey()\n\treturn key, parentDeliveryError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/parentPushSubscriptions.PublicKey",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s parentPushSubscriptions) SubscribeParent(ctx context.Context, accountID int64, input parentAPI.PushSubscriptionInput) error {\n\treturn parentDeliveryError(s.PushSubscriptionService.SubscribeParent(ctx, accountID, PushSubscriptionInput(input)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/parentPushSubscriptions.SubscribeParent",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *preferenceService) DisableAllForParent(ctx context.Context, accountID int64) error {\n\tctx = s.withTenantRuntime(ctx)\n\tif accountID \u003c= 0 {\n\t\treturn errors.New(\"account id is required\")\n\t}\n\treturn s.forEachGuardianTenant(ctx, accountID, func(tenantCtx context.Context, tenantID int64) error {\n\t\tif err := s.consent.DisableConsent(tenantCtx, accountID, typeKeysForPortal(PortalParent)); err != nil {\n\t\t\treturn fmt.Errorf(\"disable notification preferences for tenant %d: %w\", tenantID, err)\n\t\t}\n\t\treturn nil\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/preferenceService.DisableAllForParent",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *preferenceService) DisableAllForPortalAccount(ctx context.Context, accountID int64, portal string) error {\n\tif accountID \u003c= 0 {\n\t\treturn errors.New(\"account id is required\")\n\t}\n\tif portal != PortalStaff \u0026\u0026 portal != PortalSchool {\n\t\treturn fmt.Errorf(\"unsupported preference portal %q\", portal)\n\t}\n\tif err := s.consent.DisableConsent(ctx, accountID, typeKeysForPortal(portal)); err != nil {\n\t\treturn fmt.Errorf(\"disable notification preferences: %w\", err)\n\t}\n\treturn s.declineDefaultOnTypes(ctx, accountID, portal)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/preferenceService.DisableAllForPortalAccount",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *preferenceService) EmailSubscribed(ctx context.Context, accountID int64, permissions []string, notificationType string) (bool, error) {\n\tif err := s.checkOwnEmailDecision(accountID, permissions, notificationType); err != nil {\n\t\treturn false, err\n\t}\n\tstored, err := s.consent.StoredConsent(ctx, accountID)\n\tif err != nil {\n\t\treturn false, fmt.Errorf(\"load e-mail subscription: %w\", err)\n\t}\n\treturn stored[notificationType], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/preferenceService.EmailSubscribed",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *preferenceService) SetEmailSubscribed(ctx context.Context, accountID int64, permissions []string, notificationType string, enabled bool) error {\n\tif err := s.checkOwnEmailDecision(accountID, permissions, notificationType); err != nil {\n\t\treturn err\n\t}\n\tif err := s.consent.RecordConsent(ctx, accountID, notificationType, enabled); err != nil {\n\t\treturn fmt.Errorf(\"save e-mail subscription: %w\", err)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/preferenceService.SetEmailSubscribed",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *pushSubscriptionService) PublicKey() (string, error) {\n\tif !s.vapid.Configured() {\n\t\treturn \"\", ErrWebPushNotConfigured\n\t}\n\treturn s.vapid.PublicKey, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/pushSubscriptionService.PublicKey",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *pushSubscriptionService) Unsubscribe(ctx context.Context, accountID int64, endpoint string) error {\n\tctx = s.withTenantRuntime(ctx)\n\treturn tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {\n\t\treturn s.repo.DeleteByEndpoint(txCtx, accountID, endpoint)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/pushSubscriptionService.Unsubscribe",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *pushSubscriptionService) UnsubscribeSchool(ctx context.Context, accountID int64, endpoint string) error {\n\tctx = s.withTenantRuntime(ctx)\n\treturn tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {\n\t\treturn s.repo.DeleteSchoolByEndpoint(txCtx, accountID, endpoint)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/pushSubscriptionService.UnsubscribeSchool",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s staffPreferences) DisableAllForPortalAccount(ctx context.Context, accountID int64, portal string) error {\n\treturn s.source.DisableAllForPortalAccount(ctx, accountID, portal)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/delivery/internal/notifications/staffPreferences.DisableAllForPortalAccount",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s staffPreferences) EmailSubscribed(ctx context.Context, accountID int64, permissions []string, notificationType string) (bool, error) {\n\treturn s.source.EmailSubscribed(ctx, accountID, permissions, notificationType)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/delivery/internal/notifications/staffPreferences.EmailSubscribed",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s staffPreferences) GetForAccount(ctx context.Context, accountID int64, portal string) (*devices.PreferenceOverview, error) {\n\trow, err := s.source.GetForAccount(ctx, accountID, portal)\n\tif err != nil || row == nil {\n\t\treturn nil, err\n\t}\n\tout := \u0026devices.PreferenceOverview{TenantEnabled: row.TenantEnabled}\n\tif row.Types != nil {\n\t\tout.Types = make([]devices.PreferenceState, len(row.Types))\n\t\tfor i, value := range row.Types {\n\t\t\tout.Types[i] = devices.PreferenceState{Key: value.Key, Label: value.Label, Description: value.Description, Group: value.Group, Enabled: value.Enabled, Available: value.Available}\n\t\t}\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/staffPreferences.GetForAccount",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s staffPreferences) SetEmailSubscribed(ctx context.Context, accountID int64, permissions []string, notificationType string, enabled bool) error {\n\treturn s.source.SetEmailSubscribed(ctx, accountID, permissions, notificationType, enabled)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/delivery/internal/notifications/staffPreferences.SetEmailSubscribed",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s staffPreferences) SetForPortalAccount(ctx context.Context, accountID int64, portal, notificationType string, enabled bool) error {\n\treturn s.source.SetForPortalAccount(ctx, accountID, portal, notificationType, enabled)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/delivery/internal/notifications/staffPreferences.SetForPortalAccount",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s staffPushSubscriptions) PublicKey() (string, error) {\n\treturn s.source.PublicKey()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/delivery/internal/notifications/staffPushSubscriptions.PublicKey",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s staffPushSubscriptions) Subscribe(ctx context.Context, accountID int64, input devices.PushSubscriptionInput) error {\n\treturn s.source.Subscribe(ctx, accountID, PushSubscriptionInput(input))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/staffPushSubscriptions.Subscribe",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s staffPushSubscriptions) SubscribeSchool(ctx context.Context, accountID int64, input devices.PushSubscriptionInput) error {\n\treturn s.source.SubscribeSchool(ctx, accountID, PushSubscriptionInput(input))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/notifications/staffPushSubscriptions.SubscribeSchool",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s staffPushSubscriptions) Unsubscribe(ctx context.Context, accountID int64, endpoint string) error {\n\treturn s.source.Unsubscribe(ctx, accountID, endpoint)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/delivery/internal/notifications/staffPushSubscriptions.Unsubscribe",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s staffPushSubscriptions) UnsubscribeSchool(ctx context.Context, accountID int64, endpoint string) error {\n\treturn s.source.UnsubscribeSchool(ctx, accountID, endpoint)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/delivery/internal/notifications/staffPushSubscriptions.UnsubscribeSchool",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *usageService) ReportStaff(ctx context.Context, accountID int64) error {\n\tif err := validateUsage(accountID, deliveryModels.PushPortalStaff); err != nil {\n\t\treturn err\n\t}\n\treturn s.repo.RecordSeen(ctx, tenant.FromContext(ctx), accountID, deliveryModels.PushPortalStaff)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/internal/pwa/usageService.ReportStaff",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *PrivateUploads) OpenPrivate(ctx context.Context, kind string, tenantID int64, storedName string) (interface {\n\tio.ReadSeekCloser\n\tModTime() time.Time\n}, error) {\n\tkey, err := TenantKey(kind, tenantID, storedName)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tobject, err := s.backend.OpenObject(ctx, key)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026privateUploadObject{ReadSeekCloser: object.Content, modifiedAt: object.ModifiedAt}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/objects/PrivateUploads.OpenPrivate",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *PrivateUploads) RemovePrivate(ctx context.Context, kind string, tenantID int64, storedName string) error {\n\tkey, err := TenantKey(kind, tenantID, storedName)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn s.backend.RemoveObject(ctx, key)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/objects/PrivateUploads.RemovePrivate",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *PrivateUploads) SavePrivate(ctx context.Context, kind string, tenantID int64, storedName string, source io.Reader) (int64, error) {\n\tkey, err := TenantKey(kind, tenantID, storedName)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn s.backend.WriteObject(ctx, key, source, SaveOptions{Private: true})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/delivery/objects/PrivateUploads.SavePrivate",
+      "owner": "modules/delivery"
+    },
+    {
+      "build": "production",
+      "evidence": "func (w *Worker) Backlog(ctx context.Context) (int, error) {\n\treturn w.engine.Backlog(ctx)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/delivery/runtime/Worker.Backlog",
+      "owner": "modules/delivery"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "scenario": "e2e.timetable.student_week.14d",
+  "max": 25,
+  "exact": false,
+  "description": "test/e2e/timetable — end-to-end counts include TenantTxMiddleware overhead."
+}

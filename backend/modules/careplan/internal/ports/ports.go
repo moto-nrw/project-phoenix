@@ -31,6 +31,7 @@ type Store interface {
 	ListDeletedCareDocuments(context.Context, int64, []string) ([]domain.CareDocument, domain.OperationStats, error)
 	ListCareDocumentCleanups(context.Context, *int64) ([]domain.CareDocumentCleanup, domain.OperationStats, error)
 	CreateCareDocument(context.Context, domain.CareDocument) (domain.CareDocument, domain.OperationStats, error)
+	UpdateOpenCareAccidentReport(context.Context, domain.CareDocument) (domain.CareDocument, domain.OperationStats, error)
 	SoftDeleteCareDocument(context.Context, int64, int64) (time.Time, domain.OperationStats, error)
 	MarkCareDocumentFileDeleted(context.Context, int64) (domain.OperationStats, error)
 	QueueCareDocumentCleanup(context.Context, domain.CareDocumentCleanup) (domain.CareDocumentCleanup, domain.OperationStats, error)
@@ -54,6 +55,7 @@ type Store interface {
 	UpdateCareOffering(context.Context, int64, careplan.CareOfferingFields) (careplan.CareOffering, domain.OperationStats, error)
 	DeleteCareOffering(context.Context, int64) (domain.OperationStats, error)
 	ReplaceAutoAddTriggers(context.Context, int64, []int64) (domain.OperationStats, error)
+	SetCareOfferingTemplateGapAck(context.Context, int64, int64, []string) (domain.OperationStats, error)
 
 	FindOfferingChange(context.Context, int64, bool) (careplan.OfferingChangeRequest, bool, domain.OperationStats, error)
 	ListOfferingChanges(context.Context, careplan.OfferingChangeFilter) ([]careplan.OfferingChangeRequest, domain.OperationStats, error)

@@ -19,6 +19,11 @@ type RetentionStore interface {
 	// appointments, rules and overrides until the tenant transaction commits.
 	LockRetentionCandidates(ctx context.Context, cutoff appointments.Date, ids []int64) ([]appointments.RetentionCandidate, error)
 	DeleteAppointments(ctx context.Context, ids []int64) (int, error)
+	// ListParentConferenceAppointments returns the Elternsprechtag
+	// appointments that start before cutoff, cancelled ones included, and
+	// locks them; DeleteParentConferenceAppointments deletes them.
+	ListParentConferenceAppointments(ctx context.Context, cutoff appointments.Date) ([]int64, error)
+	DeleteParentConferenceAppointments(ctx context.Context, ids []int64) (int, error)
 }
 
 // Retention deletes the ended appointments of the school in context.
@@ -65,4 +70,17 @@ func (r *Retention) DeleteExpiredAppointments(ctx context.Context, retentionDays
 		return 0, nil
 	}
 	return r.store.DeleteAppointments(ctx, expired)
+}
+
+// DeleteParentConferenceAppointmentsBefore deletes the appointments of
+// Elternsprechtag bookings that start before cutoff (#4801).
+func (r *Retention) DeleteParentConferenceAppointmentsBefore(ctx context.Context, cutoff appointments.Date) (int, error) {
+	if _, err := appointments.ParseDate(cutoff.String()); err != nil {
+		return 0, fmt.Errorf("%w: parent conference cutoff: %v", appointments.ErrInvalidAppointment, err)
+	}
+	ids, err := r.store.ListParentConferenceAppointments(ctx, cutoff)
+	if err != nil || len(ids) == 0 {
+		return 0, err
+	}
+	return r.store.DeleteParentConferenceAppointments(ctx, ids)
 }

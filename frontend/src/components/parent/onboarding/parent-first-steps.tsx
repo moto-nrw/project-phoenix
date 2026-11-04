@@ -396,7 +396,7 @@ export function ParentFirstSteps({
                     >
                       {done ? (
                         <span
-                          className="bg-moto-green flex size-5 shrink-0 items-center justify-center rounded-full text-xs leading-none font-bold text-white"
+                          className="bg-moto-green-fill flex size-5 shrink-0 items-center justify-center rounded-full text-xs leading-none font-bold text-white"
                           aria-hidden
                         >
                           ✓
@@ -477,13 +477,14 @@ export function ParentFirstSteps({
 
         {!allFinished && (
           <footer className="border-t border-gray-100 p-3 text-center">
-            <button
+            <Button
               type="button"
+              variant="link"
+              size="md"
               onClick={() => setConfirmDismiss(true)}
-              className="min-h-11 px-3 text-sm text-gray-600 underline-offset-4 hover:text-gray-900 hover:underline"
             >
               {t("dismiss.action")}
-            </button>
+            </Button>
           </footer>
         )}
       </section>

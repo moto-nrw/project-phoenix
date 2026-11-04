@@ -71,6 +71,12 @@ type OfferingPhase struct {
 	Name         string
 	ServiceStart calendar.Date
 	ServiceEnd   calendar.Date
+	// SchoolYear is true for a school-year phase, whose service follows the
+	// school days; holiday and custom phases are false.
+	SchoolYear bool
+	// Holiday is true for a phase of the kind Ferienbetreuung; its
+	// offerings are never suggested as a Regeltermin source (#5139).
+	Holiday bool
 }
 
 // LinkedSegment is one live segment of a linked template's split series with
@@ -84,12 +90,14 @@ type LinkedSegment struct {
 
 // OfferingSources is the validated source set of an offering-sourced
 // template (#2137): the surviving offerings in request order, their shared
-// phase, and the ids that no longer resolve. Booking materialization (#3560)
+// phase, the ids that no longer resolve, and the ids of stored sources that
+// turned inactive and were skipped (#5305). Booking materialization (#3560)
 // resyncs the template's roster from it.
 type OfferingSources struct {
 	Offerings []CareOffering
 	Phase     *OfferingPhase
 	Dropped   []int64
+	Inactive  []int64
 }
 
 // SchedulesOverlapPhase reports whether any schedule can produce an
@@ -105,8 +113,34 @@ func SchedulesOverlapPhase(schedules []LinkedSchedule, phase OfferingPhase) bool
 	return false
 }
 
+// ClipPhaseToPeriod narrows the phase's service window to the part that lies
+// inside the planning period. A booking phase often follows the school
+// year while the planning period ends earlier or starts later; the overlap is
+// what a timetable template of that period can plan. A phase without any
+// overlap is refused with the error ValidatePhaseWithinPeriod reports. A nil
+// period passes the phase unchanged.
+func ClipPhaseToPeriod(phase OfferingPhase, period *LinkedPeriod) (OfferingPhase, error) {
+	if period == nil {
+		return phase, nil
+	}
+	if phase.ServiceEnd.Before(period.StartDate) || phase.ServiceStart.After(period.EndDate) {
+		return OfferingPhase{}, fmt.Errorf("%w: %s: %w", ErrCareOfferingConfigInvalid,
+			"linked timetable template period does not overlap the enrollment phase",
+			ErrCareOfferingTemplatePeriodMismatch)
+	}
+	if phase.ServiceStart.Before(period.StartDate) {
+		phase.ServiceStart = period.StartDate
+	}
+	if phase.ServiceEnd.After(period.EndDate) {
+		phase.ServiceEnd = period.EndDate
+	}
+	return phase, nil
+}
+
 // ValidatePhaseWithinPeriod refuses a phase whose service window leaves the
-// template's planning period. A nil period passes.
+// template's planning period. A nil period passes. Only the legacy
+// ActivityGroupID link keeps this containment rule; offering sources use
+// ClipPhaseToPeriod.
 func ValidatePhaseWithinPeriod(phase OfferingPhase, period *LinkedPeriod) error {
 	if period == nil {
 		return nil

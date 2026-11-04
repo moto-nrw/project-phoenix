@@ -1,0 +1,6 @@
+{
+  "api/parent/analytics-consent": [
+    "GET parent /analytics-consent/",
+    "PUT parent /analytics-consent/"
+  ]
+}

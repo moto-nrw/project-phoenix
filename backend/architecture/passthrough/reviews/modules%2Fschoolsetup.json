@@ -1,0 +1,19 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/schoolsetup/http/Resource.Router",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolsetup/http/StaffResource.Router",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolsetup/internal/application/progress[Flags].Facts",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

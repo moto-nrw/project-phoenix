@@ -98,7 +98,7 @@ import (
 // count as growth, so both trees share one entry. A method moved to another
 // module still raises that module's entry.
 //
-// Form: a budget per module, like test/query_budgets.go, not an allowlist per
+// Form: a budget per module, like test/query-budgets/, not an allowlist per
 // method. The key is the module directory relative to the backend root
 // ("modules/identityaccess", "workflows/reminderdelivery"); the value is the
 // number of pass-throughs measured in it.
@@ -237,7 +237,14 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0119: the billing run list of modules/parentbilling (+1).
 // Lowered by ADR 0118: the holiday registration retention of modules/enrollment
 // also prunes its deletion log and is no pass-through any more (-1).
-const modulePassthroughOwnerBudgetTotal = 1412
+// Raised by ADR 0131: the kiosk count revision read of modules/studentpresence (+1).
+// Raised by ADR 0133: the kiosk room count revision read of modules/studentpresence (+1).
+// Lowered by #4771: accident-report category visibility has permission logic
+// instead of forwarding directly to the access port (-1).
+// Raised by ADR 0141: the payroll dispatch overview of modules/workforce (+1).
+// Lowered by #4497: the caterer scope of CapabilityGate.StartChallenge in
+// modules/identityaccess makes it no pass-through any more (-1).
+const modulePassthroughOwnerBudgetTotal = 1409
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -253,12 +260,12 @@ const modulePassthroughOwnerBudgetTotal = 1412
 var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/appointments": 21,
 	"modules/auditlog":     1,
-	"modules/careplan":     159,
+	"modules/careplan":     158,
 	"modules/classday":     14,
 	// Raised by ADR 0073: the composition forwards the parent announcement
 	// retention to its service.
 	// Raised by ADR 0079: the facade observes the reachable-children read.
-	"modules/communication": 58,
+	"modules/communication": 55,
 	"modules/dataimport":    1,
 	"modules/delivery":      5,
 	"modules/devicefleet":   33,
@@ -272,7 +279,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/feedback":       2,
 	"modules/filestorage":    6,
 	// Raised by ADR 0077: the caterer flows.
-	"modules/identityaccess": 215,
+	"modules/identityaccess": 214,
 	"modules/mealplan":       1,
 	// Raised by ADR 0112: the Träger logo read of the Träger-Portal.
 	"modules/organizationtenancy": 12,
@@ -288,10 +295,13 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/schoolsetup":      1,
 	"modules/schoolstructure":  43,
 	"modules/settings":         17,
-	"modules/studentpresence":  120,
-	"modules/timetable":        204,
-	"modules/workforce":        139,
-	"workflows/openroommove":   1,
+	// Raised by ADR 0131: the kiosk count revision read (+1).
+	// Raised by ADR 0133: the kiosk room count revision read (+1).
+	"modules/studentpresence": 122,
+	"modules/timetable":       203,
+	// Raised by ADR 0141: the payroll dispatch overview (+1).
+	"modules/workforce":      140,
+	"workflows/openroommove": 1,
 	// Raised by ADR 0078: the week change of the meal plan adapter.
 	"workflows/parentportal": 18,
 }
@@ -301,7 +311,7 @@ func TestModulePassthroughRatchet(t *testing.T) {
 
 	backendRoot, err := findBackendRoot()
 	if err != nil {
-		t.Skipf("Could not find backend root: %v", err)
+		t.Fatalf("Could not find backend root: %v", err)
 		return
 	}
 

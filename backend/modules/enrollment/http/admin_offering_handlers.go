@@ -91,28 +91,35 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, updateAdminOfferingsErrorRenderer(err))
 		return
 	}
-	out := newAdminRequestChild(updated)
-	out.CustomData = updated.CustomData
-	rs.enrichUpdatedAdminOfferings(r, requestID, childID, &out)
+	out := adminChildOfferingsResponse{AdminRequestChild: newAdminRequestChild(updated.Child), RosterImpact: newRosterImpactResponse(updated.RosterImpact)}
+	out.CustomData = updated.Child.CustomData
+	rs.enrichUpdatedAdminOfferings(r, requestID, childID, &out.AdminRequestChild)
 	common.Respond(w, r, http.StatusOK, out, "Child offerings updated")
+}
+
+// adminChildOfferingsResponse is the corrected child with the effect of the
+// correction on the child's Regeltermine (#5102).
+type adminChildOfferingsResponse struct {
+	AdminRequestChild
+	RosterImpact rosterImpactResponse `json:"roster_impact"`
 }
 
 func (rs *Resource) applyAdminOfferingUpdate(
 	r *http.Request, requestID, childID int64, body *AdminUpdateOfferingsRequest,
-) (*RequestChild, error) {
+) (*ChildOfferingsUpdate, error) {
 	selections, effectiveFrom, err := parseAdminOfferingUpdate(body)
 	if err != nil {
 		return nil, err
 	}
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
-	var updated *RequestChild
+	var updated *ChildOfferingsUpdate
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
-		child, updateErr := rs.DecisionService.UpdateChildOfferings(ctx, UpdateChildOfferingsInput{
+		update, updateErr := rs.DecisionService.UpdateChildOfferings(ctx, UpdateChildOfferingsInput{
 			RequestID: requestID, ChildID: childID, Offerings: selections, Reason: body.Reason,
 			ActorAccountID: int64(claims.ID), ActorRole: actorRoleFromClaims(claims.Roles),
 			EffectiveFrom: effectiveFrom, CompleteWithdrawalConfirmed: body.CompleteWithdrawalConfirmed,
 		})
-		updated = child
+		updated = update
 		return updateErr
 	})
 	return updated, err

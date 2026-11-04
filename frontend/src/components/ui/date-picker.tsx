@@ -1,5 +1,6 @@
 "use client";
 
+import { Z_INDEX, Z_LAYER } from "./overlay-styles";
 import {
   Suspense,
   useState,
@@ -17,6 +18,7 @@ import { format } from "date-fns/format";
 import { subMonths } from "date-fns/subMonths";
 import { de } from "date-fns/locale/de";
 import "react-day-picker/style.css";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import type { DatePickerLabels } from "~/lib/date-picker-labels";
 import { Input } from "~/components/ui/input";
@@ -447,6 +449,7 @@ export function DatePicker({
           }
           aria-expanded={isOpen}
           aria-describedby={isMultiple ? undefined : props.ariaDescribedBy}
+          data-form-invalid={!isMultiple && props.invalid ? true : undefined}
           disabled={isDisabled}
           onClick={toggleOpen}
           // Fetch the calendar module before the click, so opening does not
@@ -544,7 +547,7 @@ export function DatePicker({
               <FocusScope asChild loop trapped>
                 <div
                   ref={popoverRef}
-                  className="fixed z-[10001] max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain"
+                  className={`fixed ${Z_LAYER.popover} max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain`}
                   style={{
                     top: popoverPosition.top,
                     left: popoverPosition.left,
@@ -559,7 +562,7 @@ export function DatePicker({
             ) : (
               <div
                 ref={popoverRef}
-                className="fixed z-[10001] max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain"
+                className={`fixed ${Z_LAYER.popover} max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain`}
                 style={{
                   top: popoverPosition.top,
                   left: popoverPosition.left,
@@ -618,7 +621,10 @@ function DatePickerCalendar({
   readonly required?: boolean;
   readonly onChange: (date: Date | null) => void;
 }) {
-  const [month, setMonth] = useState(value ?? defaultMonth ?? new Date());
+  const today = useBerlinToday();
+  const [month, setMonth] = useState(
+    value ?? defaultMonth ?? parseISODate(today),
+  );
   const controlledMonthTime = value?.getTime();
 
   useEffect(() => {
@@ -643,6 +649,7 @@ function DatePickerCalendar({
       />
       <Suspense fallback={<CalendarGridSkeleton month={month} />}>
         <LazyDayPicker
+          today={parseISODate(today)}
           mode="single"
           selected={value ?? undefined}
           required={required}
@@ -706,13 +713,15 @@ function MultipleDatePickerCalendar({
   compact,
   calendarLayout,
 }: MultipleDatePickerCalendarProps) {
-  const [month, setMonth] = useState(values[0] ?? new Date());
+  const today = useBerlinToday();
+  const [month, setMonth] = useState(values[0] ?? parseISODate(today));
 
   return (
     <div className={getCalendarContainerClass(calendarLayout, compact)}>
       <CalendarNavHeader month={month} onMonthChange={setMonth} />
       <Suspense fallback={<CalendarGridSkeleton month={month} />}>
         <LazyDayPicker
+          today={parseISODate(today)}
           mode="multiple"
           selected={values}
           disabled={disabledDates}
@@ -1072,9 +1081,9 @@ function buildMonthLabels(locale: Locale): string[] {
 const DEFAULT_YEARS_BACK = 100;
 const DEFAULT_YEARS_AHEAD = 5;
 
-// One above the calendar's own portal (z-[10001]), so the month/year menu opens
-// on top of the calendar surface instead of behind it.
-const NAV_MENU_Z_INDEX = 10002;
+// One above the calendar's own portal (`Z_LAYER.popover`), so the month/year
+// menu opens on top of the calendar surface instead of behind it.
+const NAV_MENU_Z_INDEX = Z_INDEX.popoverMenu;
 
 // The menu surface is the caller's job in this kit component — without these it
 // renders as unstyled text floating over the calendar. min-w keeps a 46px-wide

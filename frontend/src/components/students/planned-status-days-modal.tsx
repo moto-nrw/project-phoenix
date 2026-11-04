@@ -43,6 +43,7 @@ import {
   formatDate as formatCalendarDate,
   parseISODate,
   toISODate,
+  berlinTodayISO,
 } from "~/lib/date-helpers";
 import {
   StudentStatusDayConflictError,
@@ -51,6 +52,9 @@ import {
 } from "~/lib/student-status-days-api";
 import type { CarePlanDay } from "~/lib/student-care-plan-api";
 import type { StudentPartialAbsence } from "~/lib/student-partial-absences-api";
+import { excusedConcept } from "~/lib/concepts/excused";
+import { classTripConcept } from "~/lib/concepts/classTrip";
+import { sickConcept } from "~/lib/concepts/sick";
 
 interface PlannedStatusDaysModalProps {
   readonly isOpen: boolean;
@@ -189,7 +193,9 @@ export function PlannedStatusDaysModal({
         ? "Klassenfahrt speichern"
         : "Entschuldigen";
   const currentWeekDates = useMemo(() => {
-    const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const monday = startOfWeek(parseISODate(berlinTodayISO()), {
+      weekStartsOn: 1,
+    });
     return Array.from({ length: 5 }, (_, index) => addDays(monday, index));
   }, []);
   const activeExistingDays = useMemo(
@@ -368,7 +374,7 @@ export function PlannedStatusDaysModal({
 
   const resetForm = useCallback(
     (prefillClassTrip: boolean) => {
-      const today = new Date();
+      const today = parseISODate(berlinTodayISO());
       const todayKey = toISODate(today);
       setSelectionMode("individual");
       clearSubmitError();
@@ -795,7 +801,11 @@ export function PlannedStatusDaysModal({
                 <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
                   <MotoConceptIcon
                     concept={
-                      isClassTrip ? "classTrip" : isSick ? "sick" : "excused"
+                      isClassTrip
+                        ? classTripConcept
+                        : isSick
+                          ? sickConcept
+                          : excusedConcept
                     }
                     size={22}
                   />
@@ -939,12 +949,12 @@ export function PlannedStatusDaysModal({
                             type="button"
                             onClick={() => toggleDate(date)}
                             disabled={existingDay !== undefined}
-                            className={`min-h-16 rounded-lg border px-1.5 py-2 text-center text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-2 ${
+                            className={`min-h-16 rounded-lg border px-1.5 py-2 text-center text-sm transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 sm:px-2 ${
                               isSelected
-                                ? "border-gray-900 bg-gray-900 text-white"
+                                ? "border-gray-900 bg-gray-900 text-white shadow-sm"
                                 : existingDay
-                                  ? "border-gray-100 bg-gray-50 text-gray-400"
-                                  : "moto-content-surface border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                                  ? "border-gray-100 bg-gray-50 text-gray-400 shadow-sm"
+                                  : "moto-content-surface text-gray-700"
                             } disabled:cursor-not-allowed`}
                             title={
                               existingDay
@@ -1048,9 +1058,11 @@ export function PlannedStatusDaysModal({
                     {selectedDates.map((date) => {
                       const key = toISODate(date);
                       return (
-                        <button
+                        <Button
                           key={key}
                           type="button"
+                          variant="surface"
+                          size="compact"
                           onClick={() =>
                             setSortedDates(
                               selectedDates.filter(
@@ -1058,11 +1070,10 @@ export function PlannedStatusDaysModal({
                               ),
                             )
                           }
-                          className="moto-content-surface inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                         >
                           {format(date, "dd.MM.yyyy", { locale: de })}
                           <X className="h-3.5 w-3.5 text-gray-400" />
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>
@@ -1078,7 +1089,7 @@ export function PlannedStatusDaysModal({
                     {removableExistingDays.map((day) => (
                       <div
                         key={day.id}
-                        className="moto-content-surface flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm"
+                        className="moto-content-surface flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm text-gray-700"
                       >
                         <span>
                           <span className="block">
@@ -1139,7 +1150,7 @@ export function PlannedStatusDaysModal({
                     {existingPartialAbsences.map((absence) => (
                       <div
                         key={absence.id}
-                        className="moto-content-surface flex flex-col gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                        className="moto-content-surface flex flex-col gap-3 rounded-lg border px-3 py-2 text-sm text-gray-700 sm:flex-row sm:items-center sm:justify-between"
                       >
                         <span className="min-w-0 flex-1 break-words">
                           <span className="block">

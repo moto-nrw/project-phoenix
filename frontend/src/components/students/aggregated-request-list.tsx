@@ -33,7 +33,6 @@ import {
   type AggregatedOpenRequest,
   type BulkApproveRequestRef,
   type ParentRequestKind,
-  type RequestReviewAccess,
 } from "~/lib/change-request-list-api";
 import {
   bucketCases,
@@ -48,6 +47,7 @@ import {
 } from "~/components/students/requests/bulk-approval-panel";
 import { HistoryRequestList } from "~/components/students/requests/history-request-list";
 import { RequestCaseDetail } from "~/components/students/requests/request-case-detail";
+import type { HeldOfferingDecision } from "~/components/students/offering-request-review-item";
 import {
   RequestCaseList,
   caseRowID,
@@ -86,11 +86,17 @@ export function AggregatedRequestList({
   view,
   filters,
   onCountChange,
+  focusRequest = null,
 }: Readonly<{
   view: "open" | "history";
   filters: AggregatedRequestFilters;
   /** Meldet die geladene Zeilenzahl an den Seitenkopf (Statuszeile). */
   onCountChange?: (count: number | null, hasMore: boolean) => void;
+  /**
+   * Öffnet die Anfragen dieses Kindes, etwa aus der Warteliste einer AG
+   * (#4767). `nonce` lässt denselben Sprung wiederholen.
+   */
+  focusRequest?: { readonly studentId: string; readonly nonce: number } | null;
 }>) {
   // useTenantSafe statt useTenant: die Liste wird auch außerhalb des
   // Tenant-Providers gerendert (Tests, Einbettungen). Ohne Provider gilt die
@@ -99,36 +105,30 @@ export function AggregatedRequestList({
   const reasonRequired = staffReasonRequired(
     tenant?.tenant?.parentRequestReasonPolicy,
   );
-  const [reviewAccess, setReviewAccess] = useState<
-    RequestReviewAccess | undefined
-  >(undefined);
-  const sources = useRequestSources(view, filters, setReviewAccess);
-  const feed = useMergedRequestFeed(sources, view);
+  const sources = useRequestSources(view, filters);
+  const feed = useMergedRequestFeed(sources, view, filters);
   const {
     items,
     setItems,
     hasMore,
     loading,
     loadingMore,
-    error,
-    clearError,
-    reportError,
+    reviewAccess,
+    error: listError,
+    loadMore,
   } = feed;
-  const withdrawalsFeed = useWithdrawalFeed(
-    view,
-    filters,
-    reportError,
-    clearError,
-  );
+  const withdrawalsFeed = useWithdrawalFeed(view, filters);
   const {
     items: withdrawals,
     setItems: setWithdrawals,
     loading: withdrawalsLoading,
     loadingMore: withdrawalsLoadingMore,
     hasMore: withdrawalsHaveMore,
+    error: withdrawalsError,
     load: loadWithdrawals,
     loadMore: loadMoreWithdrawals,
   } = withdrawalsFeed;
+  const error = listError ?? withdrawalsError;
   const { success: showSuccess } = useToast();
   const { show: showActionError } = useApiErrorDisplay();
   const [selectedCaseKey, setSelectedCaseKey] = useState<string | null>(null);
@@ -144,37 +144,92 @@ export function AggregatedRequestList({
   // doesn't refetch — it already removed the decided row optimistically.
   const suppressSelfReloadRef = useRef(false);
 
+  // Ereignisse anderer Flächen gleichen die offene Liste im Hintergrund ab;
+  // Fokus und Sichtbarkeit übernimmt SWR (#4988).
+  const reloadFeed = feed.reload;
   useEffect(() => {
     if (view !== "open") return;
     const handler = () => {
       if (suppressSelfReloadRef.current) return;
-      void feed.reload();
+      void reloadFeed();
       void loadWithdrawals();
-    };
-    const onFocus = () => {
-      void feed.reload();
-      void loadWithdrawals();
-    };
-    const onVisibility = () => {
-      if (typeof document !== "undefined" && !document.hidden) {
-        void feed.reload();
-        void loadWithdrawals();
-      }
     };
     window.addEventListener("change-requests-refresh", handler);
     window.addEventListener("messages-unread-refresh", handler);
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("change-requests-refresh", handler);
       window.removeEventListener("messages-unread-refresh", handler);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [view, feed, loadWithdrawals]);
+  }, [view, reloadFeed, loadWithdrawals]);
+
+  // Freigegebene Anfragen, deren Karte noch die Auswirkung zeigt (#5102).
+  // Ein Neuladen im Hintergrund liefert sie nicht mehr; ohne diesen Halt
+  // verschwände die Karte samt Hinweis, bevor die OGS ihn gelesen hat.
+  // Mit der Anfrage merkt sich die Liste das Ergebnis der Freigabe. Wechselt
+  // die OGS das Kind und kommt zurück, zeigt die Karte es wieder, statt die
+  // schon entschiedene Anfrage erneut zur Entscheidung anzubieten.
+  // Gezeigt wird die Karte nur unter den Filtern, unter denen sie entschieden
+  // wurde: Suche, Kind und Art wirken auf dem Server, eine gehaltene Anfrage
+  // käme sonst auch in eine Liste, in die sie nicht gehört.
+  const heldScope = JSON.stringify([
+    filters.search.trim(),
+    filters.studentId ?? null,
+    filters.types,
+    filters.includeAggregated !== false,
+    filters.includeEnrollment === true,
+  ]);
+  const [heldItems, setHeldItems] = useState<
+    ReadonlyMap<
+      string,
+      {
+        request: AggregatedOpenRequest;
+        decision: HeldOfferingDecision;
+        scope: string;
+      }
+    >
+  >(() => new Map());
+  const handleHold = useCallback(
+    (request: AggregatedOpenRequest, decision: HeldOfferingDecision) => {
+      setHeldItems((current) =>
+        new Map(current).set(itemKey(request), {
+          request,
+          decision,
+          scope: heldScope,
+        }),
+      );
+      // Entschieden ist sie schon: aus den offenen Anfragen (und damit aus
+      // der Zahl) heraus, gezeigt wird sie über den Halt.
+      const key = itemKey(request);
+      setItems((prev) =>
+        prev.some((item) => itemKey(item) === key)
+          ? prev.filter((item) => itemKey(item) !== key)
+          : prev,
+      );
+      setSelectedForBulk((current) => {
+        if (!current.has(key)) return current;
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
+    },
+    [heldScope, setItems],
+  );
+  const heldDecisions = useMemo(
+    () =>
+      new Map(
+        [...heldItems].map(([key, held]) => [key, held.decision] as const),
+      ),
+    [heldItems],
+  );
 
   const handleDecided = useCallback(
     (key: string, decidedNotice: string) => {
+      setHeldItems((current) => {
+        if (!current.has(key)) return current;
+        const next = new Map(current);
+        next.delete(key);
+        return next;
+      });
       setItems((prev) => prev.filter((item) => itemKey(item) !== key));
       setSelectedForBulk((current) => {
         if (!current.has(key)) return current;
@@ -194,12 +249,25 @@ export function AggregatedRequestList({
   // wird neu geladen, statt eine Entscheidung vorzutäuschen, die nicht galt.
   // Den Grund hat die Stelle gemeldet, an der entschieden wurde.
   const handleStale = useCallback(() => {
-    void feed.reload();
-  }, [feed]);
+    void reloadFeed();
+  }, [reloadFeed]);
 
+  // Gezählt werden nur offene Anfragen; gezeigt werden auch die gehaltenen.
+  const shownItems = useMemo(() => {
+    if (heldItems.size === 0) return items;
+    const loaded = new Set(items.map(itemKey));
+    const held = [...heldItems.values()]
+      .filter((entry) => entry.scope === heldScope)
+      .map((entry) => entry.request)
+      .filter((item) => !loaded.has(itemKey(item)));
+    return [...items, ...held];
+  }, [items, heldItems, heldScope]);
   const openCases = useMemo(
-    () => (view === "open" ? groupOpenCases(items, withdrawals) : []),
-    [items, view, withdrawals],
+    () =>
+      view === "open"
+        ? groupOpenCases(shownItems, withdrawals, heldDecisions)
+        : [],
+    [shownItems, view, withdrawals, heldDecisions],
   );
   const buckets = useMemo(() => bucketCases(openCases), [openCases]);
 
@@ -226,6 +294,45 @@ export function AggregatedRequestList({
     },
     [returnFocus],
   );
+
+  // Ein Sprung aus der Warteliste wählt das Kind und holt die Liste in den
+  // Blick. Fehlt es auf der ersten Seite, folgt die Liste ihrem Cursor, bis
+  // sie das Kind findet oder keine offene Seite mehr bleibt.
+  const listAreaRef = useRef<HTMLDivElement>(null);
+  const handledFocus = useRef(0);
+  const attemptedFocusLoad = useRef<{
+    nonce: number;
+    cases: readonly OpenCase[];
+  } | null>(null);
+  useEffect(() => {
+    if (!focusRequest || handledFocus.current === focusRequest.nonce) return;
+    const target = openCases.find(
+      (childCase) => childCase.studentID === focusRequest.studentId,
+    );
+    if (!target) {
+      const attempted = attemptedFocusLoad.current;
+      if (
+        hasMore &&
+        !loadingMore &&
+        !listError &&
+        (attempted?.nonce !== focusRequest.nonce ||
+          attempted.cases !== openCases)
+      ) {
+        // Ein fehlgeschlagener Seitenabruf lässt dieselben Fälle stehen. Erst
+        // eine neue Seite darf den automatischen Sprung erneut fortsetzen;
+        // Wiederholen bleibt die ausdrückliche Aktion im Ladefehler.
+        attemptedFocusLoad.current = {
+          nonce: focusRequest.nonce,
+          cases: openCases,
+        };
+        void loadMore();
+      }
+      return;
+    }
+    handledFocus.current = focusRequest.nonce;
+    setSelectedCaseKey(target.key);
+    listAreaRef.current?.scrollIntoView?.({ block: "start" });
+  }, [focusRequest, hasMore, listError, loadMore, loadingMore, openCases]);
 
   const backToList = useCallback(() => {
     setSelectedCaseKey(null);
@@ -367,7 +474,7 @@ export function AggregatedRequestList({
   return (
     <div className="space-y-3">
       <LoadErrorAlert error={error} />
-      {items.length === 0 && visibleWithdrawals.length === 0 && !error ? (
+      {shownItems.length === 0 && visibleWithdrawals.length === 0 && !error ? (
         <RequestEmptyState
           view={view}
           hasMore={hasMore}
@@ -383,7 +490,10 @@ export function AggregatedRequestList({
             reasonRequired={reasonRequired}
             open={() => setBulkConfirmOpen(true)}
           />
-          <div className="grid gap-3 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]">
+          <div
+            ref={listAreaRef}
+            className="grid scroll-mt-20 gap-3 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]"
+          >
             {showList && (
               <RequestCaseList
                 buckets={buckets}
@@ -405,6 +515,8 @@ export function AggregatedRequestList({
                   onBackToList={backToList}
                   onSelectionChange={handleBulkSelection}
                   onDecided={handleDecided}
+                  onHold={handleHold}
+                  held={heldDecisions}
                   onProtectionChanged={handleProtectionChanged}
                   onReload={handleStale}
                   onNotice={showSuccess}
@@ -433,7 +545,6 @@ export function AggregatedRequestList({
             type="button"
             variant="outline"
             size="md"
-            className="max-sm:min-h-11"
             onClick={() => {
               if (hasMore) void feed.loadMore();
               if (withdrawalsHaveMore) void loadMoreWithdrawals();

@@ -40,7 +40,7 @@ vi.mock("~/lib/auth-utils", () => {
   const hasEffectiveAdminScopeFn = vi.fn(() => isAdminFn());
   // Elternmitteilungen (#1669) gates on this; admins hold it via admin:*.
   // The nav item additionally requires operations.parent_news_enabled (off
-  // in these tests' settings schema), so it stays hidden regardless.
+  // in the global tenant-context mock), so it stays hidden regardless.
   const hasPermissionFn = vi.fn((_session: unknown, _permission: string) =>
     isAdminFn(),
   );
@@ -762,9 +762,7 @@ describe("Sidebar", () => {
     });
 
     it("highlights Dienstplan without also highlighting Mitarbeiter", () => {
-      // /staff/dienstplan ist nur noch der Redirect-Frame des Dienstplans
-      // (Planung-Redesign) und darf die Mitarbeiter-Sektion nicht färben.
-      mockUsePathname.mockReturnValue("/staff/dienstplan");
+      mockUsePathname.mockReturnValue("/dienstplan");
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
 
@@ -914,6 +912,36 @@ describe("Sidebar", () => {
 
       const roomsLink = screen.getByText("Räume").closest("a");
       expect(roomsLink).toHaveClass("bg-gray-100");
+    });
+
+    it("keeps Alle Kinder highlighted on Unterwegs opened from there", () => {
+      // #5026: die Karte „Unterwegs“ auf „Alle Kinder“ führt hierher.
+      mockUsePathname.mockReturnValue("/rooms/unterwegs");
+      const mockGet = vi.fn((key: string) =>
+        key === "from" ? "/students/search?status=unterwegs" : null,
+      );
+      mockUseSearchParams.mockReturnValue(createMockSearchParams(mockGet));
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Alle Kinder").closest("a")).toHaveClass(
+        "bg-gray-100",
+      );
+      expect(screen.getByText("Räume").closest("a")).not.toHaveClass(
+        "bg-gray-100",
+      );
+    });
+
+    it("highlights rooms on Unterwegs opened from the rooms", () => {
+      mockUsePathname.mockReturnValue("/rooms/unterwegs");
+      const mockGet = vi.fn((key: string) =>
+        key === "from" ? "/rooms" : null,
+      );
+      mockUseSearchParams.mockReturnValue(createMockSearchParams(mockGet));
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Räume").closest("a")).toHaveClass("bg-gray-100");
     });
 
     it("defaults to student search when no from param", () => {
@@ -2692,6 +2720,30 @@ describe("Sidebar", () => {
       expect(screen.getByText("Heute")).toBeInTheDocument();
     });
 
+    // Wochenprotokolle (#4769): ohne feste Gruppen fehlt die Gruppenseite,
+    // also führt die Planung jede Fachkraft (groups:update) zum Protokoll
+    // der ganzen Schule. Mit festen Gruppen bleibt der Eintrag der Leitung.
+    it("zeigt einer Fachkraft die Wochenprotokolle nur bei offener Betreuung", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          CAREGIVER_PERMISSIONS.has(permission) ||
+          permission === "groups:update",
+      );
+
+      const { unmount } = render(<Sidebar />);
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
+      expect(screen.queryByText("Wochenprotokolle")).not.toBeInTheDocument();
+      unmount();
+
+      mockUseOpenCareGroupMode.mockReturnValue(true);
+      try {
+        render(<Sidebar />);
+        expect(screen.getByText("Wochenprotokolle")).toBeInTheDocument();
+      } finally {
+        mockUseOpenCareGroupMode.mockReturnValue(false);
+      }
+    });
+
     it("hält Planung, Anmeldungen, Verwaltung und Einstellungen von einer Betreuungsrolle fern", () => {
       mockHasPermission.mockImplementation(
         (_session: unknown, permission: string) =>
@@ -2941,23 +2993,12 @@ describe("Sidebar", () => {
     });
 
     it("keeps Schuljahr und Kalender and Abrechnung when timetable.enabled is false", () => {
-      mockUseSWRDefault.mockReturnValue({
-        data: {
-          tabs: [
-            {
-              categories: [
-                { items: [{ key: "timetable.enabled", value: false }] },
-              ],
-            },
-          ],
-        },
-        error: undefined,
-        isLoading: false,
-        isValidating: false,
-        mutate: vi.fn(),
-      } as unknown as ReturnType<typeof useSWR>);
-
-      render(<Sidebar />);
+      vi.mocked(useTimetableEnabled).mockReturnValue(false);
+      try {
+        render(<Sidebar />);
+      } finally {
+        vi.mocked(useTimetableEnabled).mockReturnValue(true);
+      }
 
       // Schuljahr und Ferien bleiben erreichbar — die Anmeldephasen hängen
       // daran; nur die timetable-spezifischen Seiten verschwinden. Der
@@ -2970,19 +3011,18 @@ describe("Sidebar", () => {
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
     });
 
-    it("reads the settings schema from the tenant-scoped SWR key", () => {
+    it("reads its switches from the tenant resolve, not the settings schema (#4996)", () => {
       render(<Sidebar />);
 
-      expect(mockUseSWRDefault).toHaveBeenCalledWith(
+      expect(screen.getByText("Planung")).toBeInTheDocument();
+      expect(mockUseSWRDefault).not.toHaveBeenCalledWith(
         "test-tenant:settings-schema",
-        expect.any(Function),
-        expect.any(Object),
+        expect.anything(),
+        expect.anything(),
       );
     });
 
-    it("shows the Planung accordion while the settings schema is loading", () => {
-      // data undefined (globaler SWR-Default) — der Bereich darf beim Laden
-      // nicht kurz verschwinden (`!== false`-Gate).
+    it("shows the Planung accordion while timetable.enabled is on", () => {
       render(<Sidebar />);
 
       expect(screen.getByText("Planung")).toBeInTheDocument();

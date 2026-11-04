@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
@@ -86,6 +87,19 @@ func (d traegerInvitationDelivery) DispatchTraegerInvitation(ctx context.Context
 	})
 }
 
+// DispatchTraegerAccountChange queues the notice to the person whose roles
+// changed or who was removed, with the change (#5474).
+func (d traegerInvitationDelivery) DispatchTraegerAccountChange(ctx context.Context, notice identityaccess.TraegerAccountChangeNotice) error {
+	if d.dispatcher == nil {
+		return nil
+	}
+	message := *identityMessage(d.from, email.NewEmail("", notice.TargetEmail),
+		identityaccess.TraegerAccountChangeMail(notice, d.frontendURL))
+	return d.outbox.EnqueueTransactionalMail(ctx, DurableMail{
+		Message: message, Type: "traeger_account_change", ReferenceID: notice.TargetAccountID, Backoff: d.backoff,
+	})
+}
+
 // TraegerBueroDirectory serves the account management's membership port over
 // Organisation & Tenancy. The membership commands join the account
 // management's administrative transaction.
@@ -150,9 +164,35 @@ func (d TraegerBueroDirectory) DeactivateTraegerMembership(ctx context.Context, 
 }
 
 // TraegerAccountLedger appends the account management's entries to the
-// Audit Platform's Träger account ledger.
+// Audit Platform's Träger account ledger and reads its changes back for the
+// history (#5474).
 type TraegerAccountLedger struct {
 	Command auditModels.Command
+	Changes auditlog.TraegerAccountChangeQuery
+}
+
+// ListTraegerAccountChanges reads the changes of the Träger on the caller's
+// transaction.
+func (l TraegerAccountLedger) ListTraegerAccountChanges(ctx context.Context, organizationID, beforeID int64, limit int) ([]identityBindingPorts.TraegerAccountLedgerEntry, error) {
+	if l.Changes == nil {
+		return nil, errors.New("audit Träger account changes: query is not configured")
+	}
+	changes, err := l.Changes.ListTraegerAccountChanges(ctx, organizationID, beforeID, limit)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]identityBindingPorts.TraegerAccountLedgerEntry, 0, len(changes))
+	for _, change := range changes {
+		entries = append(entries, identityBindingPorts.TraegerAccountLedgerEntry{
+			ID: change.ID, OccurredAt: change.OccurredAt,
+			TraegerAccountChange: identityaccess.TraegerAccountChange{
+				OrganizationID: organizationID, ActorAccountID: change.ActorAccountID, Action: change.Action,
+				TargetAccountID: change.TargetAccountID, TargetEmail: change.TargetEmail,
+				RolesBefore: change.RolesBefore, RolesAfter: change.RolesAfter,
+			},
+		})
+	}
+	return entries, nil
 }
 
 // RecordTraegerAccountChange appends one entry on the caller's transaction.

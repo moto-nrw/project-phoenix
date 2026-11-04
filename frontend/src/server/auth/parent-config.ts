@@ -11,6 +11,9 @@
  * BasePath: "/api/parent/auth"
  */
 
+import "server-only";
+import { PORTAL_SESSION_COOKIE_NAMES } from "~/lib/session-cookie-exit.server";
+import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -44,6 +47,10 @@ export const parentAuthConfig = {
       },
       async authorize(credentials, request) {
         const creds = credentials as Record<string, string> | undefined;
+        // HTTP credentials cannot create a session from caller-supplied tokens.
+        // Only the BFF's in-process mutation context may use this seed path.
+        if (creds?.internalRefresh === "true" && !isServerSessionMutation())
+          return null;
         const isDev = process.env.NODE_ENV === "development";
 
         // Internal token refresh — mirrors operator path.
@@ -165,7 +172,7 @@ export const parentAuthConfig = {
     // POST-only, no third-party callbacks. callbackUrl stays Lax
     // because NextAuth uses it during initial sign-in navigations.
     sessionToken: {
-      name: "parent.session-token",
+      name: PORTAL_SESSION_COOKIE_NAMES.parent,
       options: {
         httpOnly: true,
         sameSite: "strict" as const,

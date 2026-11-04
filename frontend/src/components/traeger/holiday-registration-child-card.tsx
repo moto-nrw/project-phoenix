@@ -2,9 +2,9 @@
 
 // Ein Kind einer Ferienanmeldung (#4663): Schule, gebuchte Wochen,
 // Gesundheitsangaben und der Hinweis auf eine mögliche Doppelanmeldung. Hier
-// bucht das Träger-Büro das Kind um.
+// bucht das Träger-Büro das Kind um und ändert seine Angaben (#5629).
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -36,6 +36,11 @@ import {
   rebookingDraft,
 } from "./holiday-rebooking-model";
 import {
+  answeredQuestions,
+  HolidayRegistrationAnswers,
+} from "./holiday-registration-answers";
+import { EDIT_TITLE } from "./holiday-registration-edit-fields";
+import {
   childSchoolLabel,
   formatHolidayWeek,
 } from "./holiday-registration-format";
@@ -47,15 +52,27 @@ export function HolidayRegistrationChildCard({
   registration,
   child,
   health,
+  healthHidden = false,
   names,
   onChanged,
+  onEdit,
+  editor,
 }: Readonly<{
   period: HolidayPeriod;
   registration: HolidayRegistrationDetail;
   child: HolidayRegistrationChild;
   health: HolidayRegistrationHealth | undefined;
+  /**
+   * The parents gave health information, but the account lacks the right
+   * „Gesundheitsangaben sehen“ (#4722): the card says so instead.
+   */
+  healthHidden?: boolean;
   names: ReadonlyMap<string, string>;
   onChanged: (registration: HolidayRegistrationDetail) => void;
+  /** Opens the edit of the child's details; absent, the card offers none. */
+  onEdit?: () => void;
+  /** The edit state of the child's details, in place of the card's body. */
+  editor?: ReactNode;
 }>) {
   const [draft, setDraft] = useState<HolidayRebookingDraft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -87,8 +104,8 @@ export function HolidayRegistrationChildCard({
   };
 
   const bookings = draft ? rebookingBookings(period, draft) : [];
-  const action =
-    draft || cancelled || registration.frozen ? undefined : (
+  const rebook =
+    draft || cancelled || registration.frozen ? null : (
       <Button
         type="button"
         variant="outline"
@@ -98,12 +115,42 @@ export function HolidayRegistrationChildCard({
         Umbuchen
       </Button>
     );
+  const edit =
+    draft || !onEdit ? null : (
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        aria-label={`Angaben von ${child.firstName} ${child.lastName} ändern`}
+        onClick={onEdit}
+      >
+        Ändern
+      </Button>
+    );
+
+  if (editor) {
+    return (
+      <SectionCard
+        title={EDIT_TITLE}
+        description={`${child.firstName} ${child.lastName}`}
+      >
+        {editor}
+      </SectionCard>
+    );
+  }
 
   return (
     <SectionCard
       title={`${child.firstName} ${child.lastName}`}
       description={`Geboren am ${formatDate(child.birthDate)} · ${childSchoolLabel(child, names)}`}
-      action={action}
+      action={
+        edit || rebook ? (
+          <span className="flex flex-wrap gap-2">
+            {edit}
+            {rebook}
+          </span>
+        ) : undefined
+      }
     >
       <div className="space-y-4">
         {child.duplicateRegistrationIds.length > 0 ? (
@@ -170,7 +217,18 @@ export function HolidayRegistrationChildCard({
           </InfoSection>
         )}
 
-        {health ? (
+        <ChildAnswers registration={registration} childId={child.id} />
+
+        {healthHidden ? (
+          <InfoSection title="Gesundheit">
+            <InfoText>
+              Gesundheitsangaben sieht nur die Rolle Verwaltung.
+            </InfoText>
+          </InfoSection>
+        ) : null}
+
+        {health &&
+        (health.allergies || health.medication || health.healthNotes) ? (
           <InfoSection title="Gesundheit">
             <DataGrid>
               {health.allergies ? (
@@ -193,6 +251,21 @@ export function HolidayRegistrationChildCard({
         ) : null}
       </div>
     </SectionCard>
+  );
+}
+
+/** The child's answers to the questions of the Träger (#5198). */
+function ChildAnswers({
+  registration,
+  childId,
+}: Readonly<{ registration: HolidayRegistrationDetail; childId: string }>) {
+  const answers = registration.childAnswers[childId] ?? {};
+  const questions = answeredQuestions(registration.form.fields, true, answers);
+  if (questions.length === 0) return null;
+  return (
+    <InfoSection title="Weitere Angaben">
+      <HolidayRegistrationAnswers questions={questions} answers={answers} />
+    </InfoSection>
   );
 }
 

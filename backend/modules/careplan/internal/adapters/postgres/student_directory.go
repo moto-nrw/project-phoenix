@@ -36,6 +36,9 @@ type StudentDirectory interface {
 	// future enrolment start one.
 	ListCareStudents(ctx context.Context, db bun.IDB, tenantID int64, onDay string, studentIDs []int64, inactiveStatus, activeStatus string,
 		each func(studentID int64, firstName, lastName, schoolClass string, enrolledUntil *calendar.Date)) error
+	// SealStudentHealth seals the health field of the care row of
+	// membershipID (#5472); nil stays NULL. The column never holds plaintext.
+	SealStudentHealth(tenantID, membershipID int64, value *string) ([]byte, error)
 }
 
 // DirectoryStore is the Care Plan store with the student directory bound: the

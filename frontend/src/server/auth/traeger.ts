@@ -7,17 +7,31 @@
  * Import from "~/server/auth/traeger" in Träger-portal code.
  */
 
+import "server-only";
 import NextAuth from "next-auth";
 
 import { traegerAuthConfig } from "./traeger-config";
+import { createSessionWriter } from "./session-writer";
 import { createResponseAwareAuth } from "./route-handler";
 
-const { auth: rawTraegerAuth, handlers: traegerHandlers } =
-  NextAuth(traegerAuthConfig);
+const {
+  auth: rawTraegerAuth,
+  handlers: traegerHandlers,
+  signIn,
+} = NextAuth(traegerAuthConfig);
 const {
   auth: traegerAuth,
   uncachedAuth: uncachedTraegerAuth,
   withAuthResponse: withTraegerAuth,
+  withSessionResponse: withTraegerSessionResponse,
+  mutateSession,
 } = createResponseAwareAuth(rawTraegerAuth, "traeger");
 
 export { traegerAuth, uncachedTraegerAuth, traegerHandlers, withTraegerAuth };
+
+export const setTraegerSession = createSessionWriter(
+  mutateSession,
+  signIn,
+  "traeger-credentials",
+);
+export { withTraegerSessionResponse };

@@ -84,8 +84,9 @@ type offeringChangeLifecycle struct {
 	careplan.OfferingChangeCapability
 }
 
-func (l offeringChangeLifecycle) Decide(ctx context.Context, input careplan.OfferingChangeDecisionInput) error {
-	return mapOfferingLifecycleError(l.OfferingChangeCapability.Decide(ctx, input))
+func (l offeringChangeLifecycle) Decide(ctx context.Context, input careplan.OfferingChangeDecisionInput) (careplan.RosterImpact, error) {
+	impact, err := l.OfferingChangeCapability.Decide(ctx, input)
+	return impact, mapOfferingLifecycleError(err)
 }
 
 func (l offeringChangeLifecycle) Edit(ctx context.Context, requestID int64, input careplan.CreateOfferingChangeInput, expectedVersion string) (*careplan.OfferingChangeRequest, error) {
@@ -291,7 +292,23 @@ func (e offeringChangeEnrollment) StudentCarePeriods(ctx context.Context, studen
 	result := make([]carePlanCompose.OfferingCarePeriod, 0, len(periods))
 	for _, period := range periods {
 		result = append(result, carePlanCompose.OfferingCarePeriod{
-			RequestChildID: period.RequestChildID, RequestID: period.RequestID, PhaseID: period.PhaseID,
+			StudentID: studentID, RequestChildID: period.RequestChildID, RequestID: period.RequestID, PhaseID: period.PhaseID,
+			PhaseName: period.PhaseName, ServiceStart: period.ServiceStartDate, ServiceEnd: period.ServiceEndDate,
+			TargetGradeLevel: period.TargetGradeLevel, TargetSchoolClass: period.TargetSchoolClass,
+		})
+	}
+	return result, nil
+}
+
+func (e offeringChangeEnrollment) StudentCarePeriodsByStudentIDs(ctx context.Context, studentIDs []int64) ([]carePlanCompose.OfferingCarePeriod, error) {
+	periods, err := enrollmentOwner.StudentCarePeriodRecordsByStudentIDs(ctx, e.owner, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]carePlanCompose.OfferingCarePeriod, 0, len(periods))
+	for _, period := range periods {
+		result = append(result, carePlanCompose.OfferingCarePeriod{
+			StudentID: period.StudentID, RequestChildID: period.RequestChildID, RequestID: period.RequestID, PhaseID: period.PhaseID,
 			PhaseName: period.PhaseName, ServiceStart: period.ServiceStartDate, ServiceEnd: period.ServiceEndDate,
 			TargetGradeLevel: period.TargetGradeLevel, TargetSchoolClass: period.TargetSchoolClass,
 		})
@@ -370,11 +387,29 @@ func (e offeringChangeEnrollment) CapacityPeak(ctx context.Context, offeringID i
 	return e.owner.OfferingCapacityPeak(ctx, offeringID, excludeChildIDs, enrollmentOwner.Date(from), enrollmentOwner.Date(until))
 }
 
+func (e offeringChangeEnrollment) CapacityPeaks(ctx context.Context, offeringIDs []int64, from, until calendar.Date) (map[int64]int, error) {
+	return e.owner.OfferingCapacityPeaks(ctx, offeringIDs, enrollmentOwner.Date(from), enrollmentOwner.Date(until))
+}
+
 // offeringChangeStudents reads the People Directory students a decision
 // authorizes against and their open complete-withdrawal follow-up.
 type offeringChangeStudents struct {
 	students    offeringChangeStudentRows
 	withdrawals offeringChangeWithdrawalRows
+}
+
+func (s offeringChangeStudents) FindStudents(ctx context.Context, ids []int64) (map[int64]carePlanCompose.ReviewStudent, error) {
+	rows, err := s.students.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	students := make(map[int64]carePlanCompose.ReviewStudent, len(rows))
+	for id, row := range rows {
+		if student := offeringReviewStudent(row); student != nil {
+			students[id] = *student
+		}
+	}
+	return students, nil
 }
 
 func (s offeringChangeStudents) FindStudent(ctx context.Context, id int64) (*carePlanCompose.ReviewStudent, error) {

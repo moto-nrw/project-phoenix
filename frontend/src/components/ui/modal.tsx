@@ -10,13 +10,28 @@ import {
   OVERLAY_BACKDROP_CLASS,
   OVERLAY_BACKDROP_TINT_CLASS,
   OVERLAY_BACKDROP_TINT_HIDDEN_CLASS,
+  OVERLAY_PANEL_STYLE,
+  Z_LAYER,
 } from "./overlay-styles";
 import { Button } from "./button";
+import { CloseIcon } from "./close-icon";
+import { SpinnerIcon } from "./icons";
 
-// Shared a11y contract for all modal dialogs (also consumed by form-modal).
-export const dialogAriaProps = {
+// Shared a11y contract for all modal dialogs.
+const dialogAriaProps = {
   role: "dialog" as const,
   "aria-modal": true,
+};
+
+/** Maximum dialog width: `md` is the default confirmation/form width. */
+export type ModalSize = "sm" | "md" | "lg" | "xl";
+
+// Literal class strings so Tailwind finds them.
+const MODAL_MAX_WIDTH: Record<ModalSize, string> = {
+  sm: "max-w-md",
+  md: "max-w-lg",
+  lg: "max-w-2xl",
+  xl: "max-w-4xl",
 };
 
 function getModalAnimationClass(
@@ -36,13 +51,17 @@ interface ModalProps {
   /** Resets the dialog animation without remounting its children. */
   readonly animationKey?: string;
   readonly title: string;
+  /** Leading icon in the header, left of the title (e.g. a `ConceptIconTile`). */
+  readonly icon?: React.ReactNode;
+  /** One line under the title; becomes the dialog's accessible description. */
+  readonly description?: React.ReactNode;
   readonly children: React.ReactNode;
   readonly footer?: React.ReactNode;
+  /** Maximum dialog width; `md` (`max-w-lg`) by default. */
+  readonly size?: ModalSize;
   /**
-   * Tailwind width utilities for the dialog container. Defaults to
-   * `mx-4 w-[calc(100%-2rem)] max-w-lg` to keep existing form/confirm
-   * modals unchanged. Pass a wider value (e.g. `max-w-4xl`) for detail
-   * views that need more horizontal space.
+   * Tailwind width utilities for the dialog container. Overrides `size` on
+   * the centered dialog; ignored with `mobileSheet`, which takes `size`.
    */
   readonly widthClass?: string;
   /**
@@ -74,6 +93,12 @@ interface ModalProps {
    * führt weiter zu den Aktionen (#3368).
    */
   readonly focusTitleOnOpen?: boolean;
+  /**
+   * Hides the dialog while a child confirmation is shown, without unmounting
+   * the children and losing their pending state. While suspended the dialog
+   * neither traps focus, locks scroll nor reacts to Escape.
+   */
+  readonly suspended?: boolean;
 }
 
 export function Modal({
@@ -82,19 +107,25 @@ export function Modal({
   onDismissStart,
   animationKey,
   title,
+  icon,
+  description,
   children,
   footer,
-  widthClass = "mx-4 w-[calc(100%-2rem)] max-w-lg",
+  size = "md",
+  widthClass,
   closeLabel = "Modal schließen",
   backdropLabel = "Hintergrund - Klicken zum Schließen",
   isDismissDisabled = false,
   isBackdropDismissDisabled = false,
   mobileSheet = false,
   focusTitleOnOpen = false,
+  suspended = false,
 }: ModalProps) {
   // Stable id so the dialog can reference its heading via aria-labelledby,
   // giving the dialog an accessible name (role="dialog" alone has none).
   const titleId = React.useId();
+  const descriptionId = React.useId();
+  const visible = isOpen && !suspended;
   const titleRef = React.useRef<HTMLHeadingElement>(null);
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
@@ -105,7 +136,7 @@ export function Modal({
   const closeModalRef = useLatest(closeModal);
 
   // Use scroll lock hook
-  useScrollLock(isOpen);
+  useScrollLock(visible);
 
   // Store onClose in a ref so handleClose never changes identity
   const onCloseRef = useLatest(onClose);
@@ -163,7 +194,7 @@ export function Modal({
 
   // Handle modal context state for blur overlay
   useEffect(() => {
-    if (isOpen) {
+    if (visible) {
       const openModal = openModalRef.current;
       const closeModal = closeModalRef.current;
       openModal();
@@ -171,11 +202,11 @@ export function Modal({
         closeModal();
       };
     }
-  }, [closeModalRef, isOpen, openModalRef]);
+  }, [closeModalRef, visible, openModalRef]);
 
   // Handle escape key and animations
   useEffect(() => {
-    if (!isOpen) {
+    if (!visible) {
       setIsAnimating(false);
       setIsExiting(false);
       return;
@@ -211,9 +242,22 @@ export function Modal({
       document.removeEventListener("keydown", handleEscKey);
       clearTimeout(animationTimer);
     };
-  }, [isOpen, handleClose, animationKey]);
+  }, [visible, handleClose, animationKey]);
 
   if (!isOpen) return null;
+
+  // Kept a direct child of the header row unless a description needs a
+  // column, so a long title still shares the row with the close X.
+  const heading = (
+    <h3
+      id={titleId}
+      ref={titleRef}
+      tabIndex={focusTitleOnOpen ? -1 : undefined}
+      className="min-w-0 flex-1 py-0.5 text-lg font-semibold wrap-anywhere text-gray-900 outline-none sm:text-xl pointer-coarse:py-2"
+    >
+      {title}
+    </h3>
+  );
 
   const modalContent = (
     // Wrapping in FocusScope pushes a new entry onto Radix's focusScopesStack,
@@ -223,8 +267,8 @@ export function Modal({
     // as "outside" the drawer's scope.
     <FocusScope
       asChild
-      loop
-      trapped
+      loop={!suspended}
+      trapped={!suspended}
       onMountAutoFocus={
         focusTitleOnOpen && title
           ? (event) => {
@@ -236,9 +280,10 @@ export function Modal({
     >
       <div
         data-modal-focus-scope="true"
-        className={`fixed inset-0 z-[9999] flex justify-center ${
+        className={`fixed inset-0 ${Z_LAYER.modal} ${suspended ? "hidden" : "flex"} justify-center ${
           mobileSheet ? "items-end sm:items-center" : "items-center"
         }`}
+        aria-hidden={suspended || undefined}
         // pointerEvents: 'auto' is required when this modal is rendered while
         // a Radix/Vaul dialog (e.g. the mobile master/detail drawer) has set
         // `document.body { pointer-events: none }`. Without this, the modal
@@ -279,100 +324,58 @@ export function Modal({
         <div
           className={`relative flex transform flex-col overflow-hidden overscroll-contain border border-gray-200/50 shadow-2xl ${
             mobileSheet
-              ? "max-h-[calc(100dvh-3rem-env(safe-area-inset-top))] w-full max-w-none rounded-t-2xl sm:mx-4 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:max-w-lg sm:rounded-2xl"
-              : `${widthClass} max-h-[calc(100dvh-2rem)] rounded-2xl`
+              ? `max-h-[calc(100dvh-3rem-env(safe-area-inset-top))] w-full rounded-t-2xl max-sm:max-w-none sm:mx-4 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:rounded-2xl ${MODAL_MAX_WIDTH[size]}`
+              : `${widthClass ?? `mx-4 w-[calc(100%-2rem)] ${MODAL_MAX_WIDTH[size]}`} max-h-[calc(100dvh-2rem)] rounded-2xl`
           } ${getModalAnimationClass(isAnimating, isExiting)}`}
           {...dialogAriaProps}
           aria-labelledby={title ? titleId : undefined}
-          style={{
-            pointerEvents: "auto",
-            background:
-              "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
-            backdropFilter: "blur(20px)",
-            boxShadow:
-              "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 8px 16px -8px rgba(80, 128, 216, 0.15)",
-            animationFillMode: "both",
-          }}
+          aria-describedby={title && description ? descriptionId : undefined}
+          style={{ ...OVERLAY_PANEL_STYLE, pointerEvents: "auto" }}
         >
           {/* Header with close button - only show border if title exists */}
           {title ? (
             <div className="flex shrink-0 items-start gap-4 border-b border-gray-100 p-4 sm:p-6">
-              {/* py-2 hebt die 28-px-Zeile auf die 44 px des X: eine Zeile
-                  steht mittig neben dem X, lange Titel brechen darunter um. */}
-              <h3
-                id={titleId}
-                ref={titleRef}
-                tabIndex={focusTitleOnOpen ? -1 : undefined}
-                className="min-w-0 flex-1 py-2 text-lg font-semibold wrap-anywhere text-gray-900 outline-none sm:text-xl"
-              >
-                {title}
-              </h3>
-              <button
+              {icon ? <div className="shrink-0">{icon}</div> : null}
+              {/* Das Polster hebt die 28-px-Zeile auf die Höhe des X (32 px
+                  mit Maus, 44 px unter Fingerbedienung): eine Zeile steht
+                  mittig neben dem X, lange Titel brechen darunter um. */}
+              {description ? (
+                <div className="min-w-0 flex-1">
+                  {heading}
+                  <p id={descriptionId} className="text-sm text-gray-500">
+                    {description}
+                  </p>
+                </div>
+              ) : (
+                heading
+              )}
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={handleClose}
                 disabled={isDismissDisabled}
-                className="group relative flex size-11 shrink-0 items-center justify-center rounded-xl text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+                className="shrink-0"
                 aria-label={closeLabel}
                 data-overlay-close=""
               >
-                {/* Animated X icon */}
-                <svg
-                  className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-
-                {/* Subtle hover glow */}
-                <div
-                  className="absolute inset-0 rounded-xl opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-                  style={{
-                    boxShadow: "0 0 12px rgba(80,128,216,0.3)",
-                  }}
-                />
-              </button>
+                <CloseIcon />
+              </Button>
             </div>
           ) : (
             /* X button positioned absolutely in top-right when no title */
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={handleClose}
               disabled={isDismissDisabled}
-              className="group absolute top-4 right-4 z-10 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+              className="absolute top-4 right-4 z-10"
               aria-label={closeLabel}
               data-overlay-close=""
             >
-              {/* Animated X icon */}
-              <svg
-                className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-
-              {/* Subtle hover glow */}
-              <div
-                className="absolute inset-0 rounded-xl opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-                style={{
-                  boxShadow: "0 0 12px rgba(80,128,216,0.3)",
-                }}
-              />
-            </button>
+              <CloseIcon />
+            </Button>
           )}
 
           {/* Content area with hidden scrollbar and reveal animation */}
@@ -500,25 +503,7 @@ export function ConfirmationModal({
       >
         {isConfirmLoading ? (
           <span className="flex items-center justify-center gap-2">
-            <svg
-              className="h-4 w-4 animate-spin"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              ></circle>
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
+            <SpinnerIcon className="h-4 w-4" />
             {loadingText}
           </span>
         ) : (

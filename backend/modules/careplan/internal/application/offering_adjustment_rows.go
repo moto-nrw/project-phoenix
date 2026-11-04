@@ -236,6 +236,10 @@ func (m *BookingMaterialization) splitAdjustedEnrollments(
 	if err != nil {
 		return err
 	}
+	inactiveSourced, err := m.excludeInvalidAdjustedUnionTemplates(ctx, multiSource)
+	if err != nil {
+		return err
+	}
 	existing, err := m.deps.Rosters.StudentEnrollments(ctx, adjusted.studentID)
 	if err != nil {
 		return fmt.Errorf("decision: list enrollments for dated adjustment: %w", err)
@@ -246,6 +250,9 @@ func (m *BookingMaterialization) splitAdjustedEnrollments(
 	affectedGroups := draftGroupIDSet(drafts)
 	for _, row := range existing {
 		if !taggedWithRequestChild(row, adjusted.requestChildID) {
+			continue
+		}
+		if deferredToUnionResync(row, drafts, multiSource) {
 			continue
 		}
 		affectedGroups[row.ActivityGroupID] = true
@@ -266,7 +273,141 @@ func (m *BookingMaterialization) splitAdjustedEnrollments(
 	// keeps through ANOTHER of the template's source offerings after leaving
 	// this one. Scoped to this child: a dated switch must not reconcile other
 	// children's rows as a side effect.
-	return m.resyncMultiSourceTemplates(ctx, multiSource, boundary, []int64{adjusted.requestChildID})
+	return m.resyncAdjustedUnionTemplates(ctx, multiSource, inactiveSourced, existing, boundary, adjusted.requestChildID)
+}
+
+// resyncAdjustedUnionTemplates runs the child's union resync from the switch
+// boundary. A template with a source that turned inactive is resynced from
+// today instead: that source contributes nothing from today on (#5305), as
+// every later student or tenant-wide resync applies it, so the correction
+// already leaves the state those resyncs keep. That covers the templates of
+// the new selection and those the child's rows still plan from the old one
+// (previousInactiveSourcedTemplates). The resync reads the child's links as
+// they stand, so before the switch the remaining sources still plan the old
+// selection; only the inactive source's contribution leaves earlier.
+func (m *BookingMaterialization) resyncAdjustedUnionTemplates(
+	ctx context.Context,
+	templates map[int64]ports.SourcedTemplate,
+	inactiveSourced map[int64]bool,
+	existing []ports.RosterEnrollment,
+	boundary calendar.Date,
+	requestChildID int64,
+) error {
+	fromToday, err := m.previousInactiveSourcedTemplates(ctx, existing, requestChildID, templates)
+	if err != nil {
+		return err
+	}
+	for id, tmpl := range templates {
+		if inactiveSourced[id] {
+			fromToday[id] = tmpl
+			delete(templates, id)
+		}
+	}
+	scope := []int64{requestChildID}
+	if err := m.resyncMultiSourceTemplates(ctx, templates, boundary, scope); err != nil {
+		return err
+	}
+	return m.resyncMultiSourceTemplates(ctx, fromToday, m.todayDate(), scope)
+}
+
+// previousInactiveSourcedTemplates lists the templates outside the new
+// selection on which the child's rows still plan from today on and whose
+// sources include an inactive one next to a valid one. Without the resync
+// from today, the dated correction would only cap such a row at the switch,
+// keep the inactive source's days until then, and leave the next resync to
+// rewrite the rows. The candidates come from the list the tenant-wide resync
+// walks; a template it refuses keeps the ordinary cap path.
+func (m *BookingMaterialization) previousInactiveSourcedTemplates(
+	ctx context.Context,
+	existing []ports.RosterEnrollment,
+	requestChildID int64,
+	selected map[int64]ports.SourcedTemplate,
+) (map[int64]ports.SourcedTemplate, error) {
+	planned := plannedTemplatesFromToday(existing, requestChildID, m.todayDate(), selected)
+	previous := make(map[int64]ports.SourcedTemplate)
+	if len(planned) == 0 {
+		return previous, nil
+	}
+	templates, err := m.tenantSourcedTemplates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, tmpl := range templates {
+		// One stored source left without a valid one is refused anyway.
+		if !planned[tmpl.ID] || len(tmpl.SourceCareOfferingIDs) < 2 {
+			continue
+		}
+		sources, err := m.catalog.LoadOfferingSources(ctx, tmpl.SourceCareOfferingIDs, tmpl.CalendarPeriodID, skipInactiveSources)
+		if err != nil {
+			if !m.catalog.deps.SourceRules.IsRejection(err) {
+				return nil, fmt.Errorf("decision: validate previously planned union template %d: %w", tmpl.ID, err)
+			}
+			continue
+		}
+		if len(sources.Inactive) > 0 {
+			previous[tmpl.ID] = tmpl
+		}
+	}
+	return previous, nil
+}
+
+// plannedTemplatesFromToday is the set of templates outside selected on which
+// the request child's rows plan today or later.
+func plannedTemplatesFromToday(
+	rows []ports.RosterEnrollment, requestChildID int64, today calendar.Date, selected map[int64]ports.SourcedTemplate,
+) map[int64]bool {
+	planned := make(map[int64]bool)
+	for _, row := range rows {
+		if !taggedWithRequestChild(row, requestChildID) || (row.ValidUntil != nil && !row.ValidUntil.After(today)) {
+			continue
+		}
+		if _, ok := selected[row.ActivityGroupID]; !ok {
+			planned[row.ActivityGroupID] = true
+		}
+	}
+	return planned
+}
+
+// excludeInvalidAdjustedUnionTemplates leaves only templates whose sources
+// the union resync accepts, under the same policy the resync below loads
+// them with: a stored source that turned inactive is skipped while another
+// stays valid (#5305). A rejected resync is best effort and writes nothing;
+// deferring an old row to it would retain weekdays the correction removed.
+// Invalid templates instead use the ordinary cap/delete and instance reconcile
+// path. Do not bypass the remaining source guards to create replacement
+// coverage. The kept templates with a skipped inactive source are returned.
+func (m *BookingMaterialization) excludeInvalidAdjustedUnionTemplates(ctx context.Context, templates map[int64]ports.SourcedTemplate) (map[int64]bool, error) {
+	inactiveSourced := make(map[int64]bool)
+	for id, tmpl := range templates {
+		sources, err := m.catalog.LoadOfferingSources(ctx, tmpl.SourceCareOfferingIDs, tmpl.CalendarPeriodID, skipInactiveSources)
+		if err != nil {
+			if !m.catalog.deps.SourceRules.IsRejection(err) {
+				return nil, fmt.Errorf("decision: validate adjusted union template %d: %w", id, err)
+			}
+			m.logSkippedSourcedTemplate(id, tmpl.SourceCareOfferingIDs, "dated adjustment: multi-source template invalid", err)
+			delete(templates, id)
+			continue
+		}
+		if len(sources.Inactive) > 0 {
+			inactiveSourced[id] = true
+		}
+	}
+	return inactiveSourced, nil
+}
+
+// deferredToUnionResync reports whether the union resync below, not the
+// per-link drafts, decides about the row: its template sources several
+// valid offerings, the new selection still feeds it, and no legacy link drafted
+// it. Such a template is never drafted (see addSourcedTemplateDrafts), so
+// the missing draft says nothing about whether the child still wants the
+// row; capping it here would replace an unchanged union row (#5234). A
+// template the selection no longer feeds is not in multiSource and is
+// capped below as before.
+func deferredToUnionResync(row ports.RosterEnrollment, drafts map[int64]*careEnrollmentDraft, multiSource map[int64]ports.SourcedTemplate) bool {
+	if _, ok := multiSource[row.ActivityGroupID]; !ok {
+		return false
+	}
+	return drafts[row.ActivityGroupID] == nil
 }
 
 // reconcileAdjustedEnrollment keeps, caps or deletes one of the request

@@ -9,7 +9,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { resumeCare } from "~/lib/care-exit-api";
 
@@ -43,7 +43,7 @@ export function CareResumeModal({
   onClose,
   onResumed,
 }: CareResumeModalProps) {
-  const [newStart, setNewStart] = useState(todayISO());
+  const [newStart, setNewStart] = useState(berlinTodayISO());
   const [checked, setChecked] = useState(false);
   const [saving, setSaving] = useState(false);
   const errors = useApiFormError();
@@ -53,7 +53,7 @@ export function CareResumeModal({
 
   useEffect(() => {
     if (isOpen) return;
-    setNewStart(todayISO());
+    setNewStart(berlinTodayISO());
     setChecked(false);
     clearErrors();
   }, [isOpen, clearErrors]);
@@ -143,7 +143,7 @@ export function CareResumeModal({
           label="Neuer Beginn"
           value={newStart}
           onChange={setNewStart}
-          min={todayISO()}
+          min={berlinTodayISO()}
           required
         />
 

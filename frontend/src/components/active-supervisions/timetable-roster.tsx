@@ -1,6 +1,7 @@
 "use client";
 
 import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
+import { schoolClassLabel, schoolClassName } from "~/lib/school-class-label";
 import {
   Fragment,
   useEffect,
@@ -67,6 +68,7 @@ import type {
 } from "~/lib/timetable-operations-types";
 import { isCareDayExpected, isNotScheduledRow } from "~/lib/timetable-types";
 import { rosterRunState } from "~/components/active-supervisions/view-model";
+import { presentConcept } from "~/lib/concepts/present";
 
 /**
  * Marks the attendance mutation as our own before firing the request so the
@@ -120,14 +122,23 @@ function RosterStudentMeta({
   row,
   instanceIsSpontaneous,
 }: Readonly<{ row: TimetableRosterRow; instanceIsSpontaneous: boolean }>) {
-  const showGroup = row.groupName && row.groupName !== row.schoolClass;
+  const classLabel = schoolClassLabel(row.schoolClass);
+  const groupLabel = schoolClassLabel(row.groupName);
+  const className = schoolClassName(row.schoolClass);
+  const showGroup = row.groupName && groupLabel !== classLabel;
+  const shouldAnnounceClassPrefix =
+    classLabel !== "Klasse" && classLabel !== className;
   return (
     <>
-      {row.schoolClass ? (
+      {className ? (
         <span className={ROSTER_META_CLASS}>
           <SchoolClassIcon />
-          <span className="sr-only">Klasse </span>
-          {row.schoolClass}
+          {/* Das Symbol steht für „Klasse“; der Name kommt ohne das Wort,
+              auch wo die Schule „Klasse 2a“ speichert (#5101). */}
+          {shouldAnnounceClassPrefix ? (
+            <span className="sr-only">Klasse </span>
+          ) : null}
+          {className}
         </span>
       ) : null}
       {showGroup ? (
@@ -366,7 +377,6 @@ function RosterRowActions({
               onClick={() => runAction("excused")}
               variant="outline"
               size="md"
-              className="text-moto-purple-strong !ring-moto-purple"
             >
               Entschuldigt
             </Button>
@@ -425,7 +435,7 @@ function RosterRowActions({
             variant="outline"
             size="icon"
             aria-label={`Profil ansehen: ${row.studentName || `Kind ${row.studentId}`}`}
-            className="size-9 shrink-0"
+            className="shrink-0"
           >
             <ArrowUpRightIcon
               className="size-4"
@@ -778,7 +788,7 @@ function TimetableRosterHeader({
   );
 
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border border-gray-200 shadow-sm backdrop-blur-md">
+    <div className="moto-content-surface overflow-hidden rounded-2xl border">
       {/* Auf dem Telefon steht der Einklapp-Pfeil neben dem Titel und die
           Knöpfe darunter; ab sm steht der Pfeil hinter den Knöpfen, wie in
           der eingeklappten Karte. */}
@@ -787,7 +797,7 @@ function TimetableRosterHeader({
             um, statt Raum und Uhrzeit abzuschneiden. */}
         <div className="flex min-w-0 items-center gap-3 sm:min-w-64">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
-            <MotoConceptIcon concept="present" size={18} />
+            <MotoConceptIcon concept={presentConcept} size={18} />
           </span>
           <div className="min-w-0">
             {/* Der Kicker folgt dem Zustand des Blocks. Fest "Aktiv" war
@@ -835,9 +845,8 @@ function TimetableRosterHeader({
             <Button
               type="button"
               onClick={onAddPresentStudents}
-              variant="outline"
+              variant="surface"
               size="md"
-              className="bg-white"
             >
               <Users className="h-4 w-4" aria-hidden="true" />
               Anwesende Kinder
@@ -847,9 +856,8 @@ function TimetableRosterHeader({
             <Button
               type="button"
               onClick={onAddStudent}
-              variant="outline"
+              variant="surface"
               size="md"
-              className="bg-white"
             >
               <UserPlus className="h-4 w-4" aria-hidden="true" />
               Kind hinzufügen
@@ -865,7 +873,7 @@ function TimetableRosterHeader({
               variant="success"
               size="md"
             >
-              <MotoConceptIcon concept="present" size={16} />
+              <MotoConceptIcon concept={presentConcept} size={16} />
               {confirmLabel}
             </Button>
           ) : null}

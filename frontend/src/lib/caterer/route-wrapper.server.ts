@@ -2,13 +2,18 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { catererAuth } from "~/server/auth/caterer";
 import { withCatererAuth } from "~/server/auth/caterer-route";
-import { incomingAnalyticsSessionHeaders } from "../analytics-session-header.server";
+import { incomingClientForwardHeaders } from "../client-headers.server";
 import { handleApiError } from "../api-helpers.server";
 import {
   backendResponseError,
   isApiResponseError,
 } from "../api-response-error.server";
 import { makeProxyFactories } from "../route-proxy-factory.server";
+import {
+  proxyJsonRequest,
+  type JsonProxyOptions,
+} from "../backend-proxy-route.server";
+import type { RouteContext } from "../route-wrapper-utils.server";
 import {
   extractParams,
   parseRequestBody,
@@ -55,7 +60,7 @@ async function catererServerFetch<T>(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      ...(await incomingAnalyticsSessionHeaders()),
+      ...(await incomingClientForwardHeaders()),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
@@ -232,3 +237,18 @@ export const { proxyGet, proxyPost } = makeProxyFactories({
   apiDelete: catererApiDelete,
   fetcherUnwrapsData: true,
 });
+
+/**
+ * Caterer-session JSON proxy. Unlike the factories above it forwards a
+ * backend 401 as it is, without a refresh: the caterer routes that use it
+ * answer a refused credential with 401 and its own code (#4496).
+ */
+export function createCatererJsonProxy(options: JsonProxyOptions) {
+  return withCatererAuth(
+    async (request: NextRequest, context: RouteContext) => {
+      const session = await catererAuth();
+      if (!session?.user?.token) return createUnauthorizedResponse(request);
+      return proxyJsonRequest(request, context, options, session.user.token);
+    },
+  );
+}

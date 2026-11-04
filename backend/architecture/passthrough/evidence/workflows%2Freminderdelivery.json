@@ -1,0 +1,11 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (rs *Resource) Router() chi.Router {\n\tr := chi.NewRouter()\n\tr.Use(render.SetContentType(render.ContentTypeJSON))\n\trs.runtime.Protected(r, func(r chi.Router, withTx Middleware) {\n\t\tr.With(rs.runtime.ReadPermission, withTx).Get(\"/\", rs.listReminders)\n\t})\n\treturn r\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/reminderdelivery/http/Resource.Router",
+      "owner": "workflows/reminderdelivery"
+    }
+  ]
+}

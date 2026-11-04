@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { parentAuth } from "~/server/auth/parent";
 import { withParentAuth } from "~/server/auth/parent-route";
-import { incomingAnalyticsSessionHeaders } from "../analytics-session-header.server";
+import { incomingClientForwardHeaders } from "../client-headers.server";
 import { handleApiError } from "../api-helpers.server";
 import {
   ApiResponseError,
@@ -56,7 +56,7 @@ async function parentServerFetch<T>(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      ...(await incomingAnalyticsSessionHeaders()),
+      ...(await incomingClientForwardHeaders()),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });

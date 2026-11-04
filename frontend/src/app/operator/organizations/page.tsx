@@ -1,8 +1,10 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -22,15 +24,17 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import {
   useSoftDeletable,
   DeletedEntityCard,
+  TrashToggleButton,
 } from "../provisioning/soft-delete-shared";
 import {
   OrgRestoreModal,
   OrgSoftDeleteModal,
 } from "../provisioning/operator-entity-modals";
+import { organizationsConcept } from "~/lib/concepts/organizations";
 
 function KpiCard({ label, value }: Readonly<{ label: string; value: number }>) {
   return (
-    <div className="moto-content-surface rounded-xl border px-5 py-4 shadow-sm">
+    <div className="moto-content-surface rounded-xl border px-5 py-4">
       <div className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
         {label}
       </div>
@@ -55,8 +59,8 @@ export default function OperatorOrganizationsPage() {
     error: orgsError,
     isLoading: orgsLoading,
     mutate: mutateOrgs,
-  } = useSWR(
-    isAuthenticated ? "operator-organization-summaries" : null,
+  } = useSWRAuth(
+    isAuthenticated ? operatorProvisioningKeys.organizationSummaries() : null,
     () => operatorProvisioningService.listOrganizationSummaries(),
     {
       keepPreviousData: true,
@@ -69,8 +73,8 @@ export default function OperatorOrganizationsPage() {
     data: stats,
     error: statsError,
     mutate: mutateStats,
-  } = useSWR(
-    isAuthenticated ? "operator-provisioning-stats" : null,
+  } = useSWRAuth(
+    isAuthenticated ? operatorProvisioningKeys.provisioningStats() : null,
     () => operatorProvisioningService.getStats(),
     {
       keepPreviousData: true,
@@ -145,13 +149,14 @@ export default function OperatorOrganizationsPage() {
       >
         Test-Träger anlegen
       </Button>
-      <button
+      <Button
         type="button"
+        variant="primary"
+        size="md"
         onClick={() => setCreateOrgOpen(true)}
-        className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
       >
         Neuer Träger
-      </button>
+      </Button>
     </div>
   );
 
@@ -165,14 +170,15 @@ export default function OperatorOrganizationsPage() {
       >
         Test-Träger
       </Button>
-      <button
+      <Button
         type="button"
+        variant="primary"
+        size="icon"
         onClick={() => setCreateOrgOpen(true)}
-        className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
         aria-label="Neuer Träger"
       >
         <PlusIcon />
-      </button>
+      </Button>
     </div>
   );
 
@@ -243,7 +249,7 @@ export default function OperatorOrganizationsPage() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Träger"
-        concept="organizations"
+        concept={organizationsConcept}
         tabs={tabs}
         actionButton={actionButton}
         mobileActionButton={mobileActionButton}
@@ -263,17 +269,11 @@ export default function OperatorOrganizationsPage() {
         <LoadErrorAlert error={orgsLoadError} className="mb-4" />
         {deletedOrganizations.length > 0 && (
           <div className="mb-4 flex justify-end">
-            <button
-              type="button"
-              onClick={() => orgDelete.setShowTrash(!orgDelete.showTrash)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                orgDelete.showTrash
-                  ? "bg-moto-red/15 text-moto-red-strong hover:bg-moto-red/20"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              Papierkorb ({deletedOrganizations.length})
-            </button>
+            <TrashToggleButton
+              count={deletedOrganizations.length}
+              active={orgDelete.showTrash}
+              onToggle={() => orgDelete.setShowTrash(!orgDelete.showTrash)}
+            />
           </div>
         )}
 

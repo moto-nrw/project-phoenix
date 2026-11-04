@@ -1,13 +1,28 @@
+import {
+  holidayAddressRequirement,
+  holidayLegalBlocks,
+  type HolidayLegalBlockWire,
+} from "~/lib/holiday-form-field";
 // Öffentliche Ferienanmeldung (#4661): der eine Link eines Ferienzeitraums
 // für alle Schulen des Trägers, ohne Elternkonto.
 
 import { unavailableApiError, type ApiError } from "~/lib/api-error";
+import type {
+  HolidayFormField,
+  HolidayFormVersion,
+} from "~/lib/holiday-form-field";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import {
   type BackendContribution,
   contributionFromBackend,
   type HolidayContribution,
 } from "~/lib/holiday-contribution";
+import { type NewUploadValue, postUpload } from "~/lib/enrollment-uploads";
+import {
+  type BackendConsentTexts,
+  consentTextsFromBackend,
+  type HolidayConsentTexts,
+} from "~/lib/holiday-consent-texts";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "HolidayRegistrationApi" });
@@ -17,6 +32,8 @@ export interface HolidayRegistrationTimeModel {
   readonly name: string;
   readonly startsAt: string;
   readonly endsAt: string;
+  /** Price per week in cent: the base line of the contribution (#5237). */
+  readonly priceCents: number;
 }
 
 export interface HolidayRegistrationWeek {
@@ -44,6 +61,10 @@ export interface HolidayRegistrationOffer {
   readonly weeks: readonly HolidayRegistrationWeek[];
   readonly schools: readonly HolidayRegistrationSchool[];
   readonly captchaSiteKey: string;
+  /** The questions of the Träger in their current version (#5198). */
+  readonly form: HolidayFormVersion;
+  /** The German texts of the declarations the form shows (#5626). */
+  readonly consentTexts: HolidayConsentTexts;
 }
 
 interface BackendOffer {
@@ -61,12 +82,25 @@ interface BackendOffer {
         ends_on: string;
         host_school_name: string;
         time_models?:
-          | { id: number; name: string; starts_at: string; ends_at: string }[]
+          | {
+              id: number;
+              name: string;
+              starts_at: string;
+              ends_at: string;
+              price_cents: number;
+            }[]
           | null;
       }[]
     | null;
   schools?: { id: number; name: string }[] | null;
   captcha_site_key: string;
+  form?: {
+    version: number;
+    fields?: HolidayFormField[] | null;
+    legal_blocks?: HolidayLegalBlockWire[] | null;
+    address_requirement?: string | null;
+  } | null;
+  consent_texts?: BackendConsentTexts | null;
 }
 
 /** The registration as the backend reads it; IDs travel as numbers. */
@@ -76,6 +110,13 @@ export interface HolidayRegistrationPayload {
     readonly last_name: string;
     readonly email: string;
     readonly phone: string;
+  };
+  readonly second_guardian?: HolidayRegistrationPayload["guardian"];
+  /** Only when the form asks for it and the parent filled it in (#5625). */
+  readonly guardian_address?: {
+    readonly street: string;
+    readonly postal_code: string;
+    readonly city: string;
   };
   readonly children: readonly {
     readonly first_name: string;
@@ -90,14 +131,31 @@ export interface HolidayRegistrationPayload {
       readonly week_id: number;
       readonly time_model_id: number;
     }[];
+    /** Answers to the questions per child, by key (#5198). */
+    readonly custom_data: Readonly<Record<string, unknown>>;
   }[];
   readonly emergency_contacts: readonly HolidayContactPayload[];
   readonly pickup_persons: readonly HolidayContactPayload[];
   readonly privacy_consent: boolean;
   readonly health_consent: boolean;
   readonly binding_confirmed: boolean;
+  /** The custody and the typed name of the declaration (#5626). */
+  readonly custody_confirmed: boolean;
+  readonly declaration_name: string;
   readonly benefits_declared: boolean;
+  /** Tokens of the uploaded proofs of benefits (#5238). */
+  readonly benefits_proof_tokens: readonly string[];
   readonly captcha_token: string;
+  /** The form version the parent answered (#5198). */
+  readonly legal_acceptances?: Readonly<Record<string, boolean>>;
+  readonly form_version: number;
+  /**
+   * Version of the consent texts the parent agreed to (#4722): from 2 on the
+   * hosting OGS reads the health information, 3 adds the declaration (#5626).
+   */
+  readonly consent_version: number;
+  /** Answers to the questions per family, by key (#5198). */
+  readonly custom_data: Readonly<Record<string, unknown>>;
 }
 
 export interface HolidayContactPayload {
@@ -125,6 +183,7 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
         name: model.name,
         startsAt: model.starts_at,
         endsAt: model.ends_at,
+        priceCents: model.price_cents,
       })),
     })),
     schools: (offer.schools ?? []).map((school) => ({
@@ -132,6 +191,15 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       name: school.name,
     })),
     captchaSiteKey: offer.captcha_site_key,
+    form: {
+      legalBlocks: holidayLegalBlocks(offer.form?.legal_blocks),
+      version: offer.form?.version ?? 0,
+      fields: offer.form?.fields ?? [],
+      addressRequirement: holidayAddressRequirement(
+        offer.form?.address_requirement,
+      ),
+    },
+    consentTexts: consentTextsFromBackend(offer.consent_texts),
   };
 }
 
@@ -170,6 +238,21 @@ export async function fetchHolidayRegistrationOffer(
   }
   const body = (await response.json()) as { data: BackendOffer };
   return offerFromBackend(body.data);
+}
+
+/**
+ * Uploads one proof of benefits through the public link (#5238). Like the
+ * uploads of the online registration, the answer's token is single-use and
+ * claimed by the registration.
+ */
+export function uploadHolidayProof(
+  token: string,
+  file: File,
+  signal?: AbortSignal,
+): Promise<NewUploadValue> {
+  const body = new FormData();
+  body.append("file", file);
+  return postUpload(`${registrationPath(token)}/uploads`, body, file, signal);
 }
 
 export async function submitHolidayRegistration(

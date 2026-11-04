@@ -58,6 +58,7 @@ type TimetableHTTPTestOptions struct {
 	ValidateOfferingSource     func(context.Context, []int64, []int64, *int64) error
 	ResyncOfferingRoster       func(context.Context, timetable.OfferingRosterResyncInput) error
 	Materialization            timetable.MaterializationCapability
+	NonWorkingDays             timetable.NonWorkingDayCalendar
 	Instances                  timetable.InstanceLifecycleCapability
 	Clock                      func() time.Time
 }
@@ -68,10 +69,13 @@ type TimetableHTTPTestOptions struct {
 // the recurrence gate.
 type TimetableHTTPTestModule struct {
 	Templates             timetable.TemplateAdministration
+	RosterReview          timetable.TemplateRosterReview
 	Data                  timetable.TimetableDataCapability
 	ConflictDetection     timetable.ConflictDetectionCapability
 	AttendanceCorrections timetable.AttendanceCorrections
 	RecurrenceLock        timetable.RecurrenceWriteLock
+	// Materialization is the composed or the replaced materialization.
+	Materialization timetable.MaterializationCapability
 }
 
 // NewTimetableHTTPTestModule composes the Timetable owner for the timetable
@@ -108,14 +112,14 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 			GroupRepo: r.Timetable, ScheduleRepo: r.ActivitySchedule,
 			EnrollmentRepo: r.StudentEnrollment, SupervisorRepo: r.ActivitySupervisor, Directories: r.Directories,
 			PeriodRepo: r.CalendarPeriod, InstanceRepo: r.ActivityInstance, StaffRepo: r.InstanceStaff,
-			StudentRepo: r.InstanceStudent, ExceptionRepo: r.ActivityException,
+			StudentRepo: r.InstanceStudent, ExceptionRepo: r.ActivityException, NonWorkingDays: options.NonWorkingDays,
 			TimeframeRepo: r.Timeframe, CareBounds: members.Student, RecurrenceLock: lock, Transactions: timetableCompose.NewTenantTransactions(db.Pool()),
 		})
 		if err != nil {
 			return TimetableHTTPTestModule{}, err
 		}
 	}
-	templates, err := timetableCompose.NewTemplateAdministration(timetablePorts.TemplateAdministrationDependencies{
+	templates, rosterReview, err := timetableCompose.NewTemplateAdministration(timetablePorts.TemplateAdministrationDependencies{
 		Groups:               r.Timetable,
 		Categories:           r.ActivityCategory,
 		Schedules:            r.ActivitySchedule,
@@ -154,11 +158,11 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 		return TimetableHTTPTestModule{}, err
 	}
 	return TimetableHTTPTestModule{
-		Templates:             templates,
+		Templates: templates, RosterReview: rosterReview,
 		Data:                  data,
 		ConflictDetection:     conflicts,
 		AttendanceCorrections: corrections,
-		RecurrenceLock:        lock,
+		RecurrenceLock:        lock, Materialization: materialization,
 	}, nil
 }
 
@@ -362,6 +366,11 @@ func WithOfferingRosterResync(resync func(context.Context, timetable.OfferingRos
 // WithTimetableMaterialization replaces the owner's materialization.
 func WithTimetableMaterialization(materialization timetable.MaterializationCapability) TimetableHTTPOption {
 	return func(options *TimetableHTTPTestOptions) { options.Materialization = materialization }
+}
+
+// WithTimetableNonWorkingDays binds the calendar used by the real recurrence engine.
+func WithTimetableNonWorkingDays(days timetable.NonWorkingDayCalendar) TimetableHTTPOption {
+	return func(options *TimetableHTTPTestOptions) { options.NonWorkingDays = days }
 }
 
 // WithTimetableInstances hands the template split the instance lifecycle

@@ -100,25 +100,25 @@ type StudentDocumentDependencies struct {
 	Access      StudentDocumentAccess
 	Permissions StudentDocumentPermissions
 	Audit       StudentDocumentAudit
+	Signatures  ports.StudentAccidentSignatures
 }
 
-// NewStudentDocuments composes the child document capability. Every command
-// commits its own tenant transaction before it returns.
-func NewStudentDocuments(deps StudentDocumentDependencies) (careplan.StudentDocuments, error) {
+// NewStudentDocuments composes the child document capability with the
+// accident reports kept among the documents (#4771). Every command commits
+// its own tenant transaction before it returns.
+func NewStudentDocuments(deps StudentDocumentDependencies) (application.StudentDocumentsBinding, error) {
 	if deps.DB == nil {
-		return nil, errors.New("care plan documents compose: database is required")
+		return application.StudentDocumentsBinding{}, errors.New("care plan documents compose: database is required")
 	}
 	documents, err := application.NewStudentDocuments(application.StudentDocumentDependencies{
 		Records: deps.Records, Access: deps.Access, Permissions: deps.Permissions, Audit: deps.Audit,
-		Transaction: ownTenantTransaction(deps.DB),
+		Signatures: deps.Signatures, Transaction: ownTenantTransaction(deps.DB),
 	})
 	if err != nil {
-		return nil, err
+		return application.StudentDocumentsBinding{}, err
 	}
 	return application.StudentDocumentsBinding{StudentDocuments: documents, DocumentFileRecords: application.DocumentFileRecords{Records: deps.Records}}, nil
 }
-
-var _ careplan.StudentDocuments = application.StudentDocumentsBinding{}
 
 // ownTenantTransaction runs every command in a transaction of its own for the
 // request's school, committed before the command returns.

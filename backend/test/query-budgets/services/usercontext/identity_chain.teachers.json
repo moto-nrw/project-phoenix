@@ -1,0 +1,6 @@
+{
+  "scenario": "services.usercontext.identity_chain.teachers",
+  "max": 1,
+  "exact": true,
+  "description": "modules/identityaccess caller context (behavior/caller_request_cache_test.go) —\nthe #2099 request cache dedups the identity chain."
+}

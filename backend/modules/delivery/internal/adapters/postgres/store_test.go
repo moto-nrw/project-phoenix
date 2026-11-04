@@ -161,6 +161,38 @@ func TestStoreCrashBeforeSendReclaimsExpiredLeaseAndFencesStaleWorker(t *testing
 	assert.True(t, finalized)
 }
 
+// A school's queue of hundreds of mails must not hold back mail one person
+// waits for: the demo link queued behind a new demo school's seed for
+// half an hour (2026-10-27).
+func TestStoreClaimsSystemEmailBeforeOlderSchoolEmail(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	school := enqueueEmail(t, db, store, ctx, "welcome:older")
+	systemKey := "demo-access:visitor"
+	var system domain.Enqueued
+	err := tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		system, err = store.Enqueue(txCtx, domain.Intent{
+			Transport: domain.TransportEmail, Template: "demo-access", IdempotencyKey: &systemKey,
+			Recipient: json.RawMessage(`{"address":"visitor@example.com"}`), Payload: json.RawMessage(`{}`),
+			Status: "pending", NextRetryAt: time.Now().Add(-time.Second),
+		})
+		return err
+	})
+	require.NoError(t, err)
+
+	now := time.Now()
+	first, err := store.Claim(ctx, domain.TransportEmail, 1, now, now.Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, first, 1)
+	assert.Equal(t, system.ID, first[0].ID, "the system mail is claimed first although the school mail is older")
+	second, err := store.Claim(ctx, domain.TransportEmail, 1, now, now.Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, second, 1)
+	assert.Equal(t, school.ID, second[0].ID, "the school mail follows")
+}
+
 func TestStoreCancellationInvalidatesClaimedIntent(t *testing.T) {
 	t.Parallel()
 	for _, transport := range []domain.Transport{domain.TransportEmail, domain.TransportPush} {

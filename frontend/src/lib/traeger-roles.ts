@@ -1,10 +1,13 @@
 /**
  * The fixed Träger roles (ADR 0084 section 4). Each bundles Träger rights;
  * a person may hold several. Shared by the operator portal and the
- * Träger-Portal (#4649, #4650).
+ * Träger-Portal (#4649, #4650). Leitung and Schulzugang came out of
+ * Verwaltung in #5471.
  */
 export const TRAEGER_ROLES = [
+  "leadership",
   "administration",
+  "school_access",
   "billing",
   "personnel",
   "read_only",
@@ -13,7 +16,9 @@ export const TRAEGER_ROLES = [
 export type TraegerRole = (typeof TRAEGER_ROLES)[number];
 
 export const TRAEGER_ROLE_LABELS: Readonly<Record<TraegerRole, string>> = {
+  leadership: "Leitung",
   administration: "Verwaltung",
+  school_access: "Schulzugang",
   billing: "Abrechnung",
   personnel: "Personal",
   read_only: "Nur lesen",

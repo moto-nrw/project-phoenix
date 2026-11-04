@@ -84,8 +84,7 @@ never cached; dirty trees and missing tools fail even with a warm cache.
 Docs-only follow-up pushes reuse unchanged static results. Vulnerability scans
 always run. Runner/workflow-only changes run hook tests, not both full stacks.
 Affected/integration tests are not automatic hook steps: contributors still run
-`scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development` before
-pushing code. CI keeps independent validation, tests, builds, bundle limits,
+`scripts/run-go-toolchain.sh scripts/check-changed.mjs` before pushing code. CI keeps independent validation, tests, builds, bundle limits,
 Storybook and seed smoke; it does not consume local success records.
 `scripts/pre-push.test.mjs` exercises selection and failure propagation in
 isolated Git repositories without running expensive analyzers.
@@ -106,6 +105,12 @@ isolated Git repositories without running expensive analyzers.
   before committing. The checker covers local Markdown links,
   concrete inline document pointers, path casing, symlinks, and skill mirrors.
   It does not prove instructions are correct or automatically loaded.
+- Size limits live in `scripts/check-agent-context.budget.json`: entry files,
+  rules, and canonical skill frontmatter. Each budget is the size plus 5 %
+  (at least 256 bytes) slack. Run the checker with `--update-budget` to lock in
+  cuts and add/remove surfaces; it never raises existing budgets.
+  Raise budgets by hand with a reason in the PR body. Codex's 32768-byte chain
+  cap and the 1024-character skill-description limit cannot be raised.
 - Check changed hook behavior separately. For reminder changes, check valid
   JSON, empty input, non-repo cwd, and missing `jq`. Missing tooling must not
   report a successful check.

@@ -36,34 +36,45 @@ func generateAdditionalErrorCodes(t *testing.T, additions int) {
 			t.Fatal(err)
 		}
 	}
-	copyErrorCodeGeneratorInput(t, filepath.Dir(backendRoot), root, "scripts/generate-error-codes.mjs")
-	data, err := os.ReadFile(filepath.Join(backendRoot, "..", "error-registry.json"))
+	for _, script := range []string{"scripts/generate-error-codes.mjs", "scripts/error-registry.mjs"} {
+		copyErrorCodeGeneratorInput(t, filepath.Dir(backendRoot), root, script)
+	}
+	fragments, err := filepath.Glob(filepath.Join(backendRoot, "..", "error-registry", "*.json"))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(fragments) == 0 {
+		t.Fatal("no authored registry fragments")
+	}
+	if err := os.MkdirAll(filepath.Join(root, "error-registry"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, fragment := range fragments {
+		copyErrorCodeGeneratorInput(t, filepath.Dir(backendRoot), root, filepath.Join("error-registry", filepath.Base(fragment)))
 	}
 	var registry struct {
 		Codes []json.RawMessage `json:"codes"`
 	}
-	if err := json.Unmarshal(data, &registry); err != nil {
-		t.Fatal(err)
-	}
 	for index := range additions {
-		code := fmt.Sprintf("general.ratchet_probe_%d", index)
+		code := fmt.Sprintf("probe.ratchet_probe_%d", index)
 		entry := fmt.Sprintf(`{"code":%q,"class":"server","parameters":[],"legacy":%q}`, code, code)
 		registry.Codes = append(registry.Codes, json.RawMessage(entry))
 	}
-	data, err = json.Marshal(registry)
+	data, err := json.Marshal(registry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "error-registry.json"), data, 0600); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "error-registry"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "error-registry", "probe.json"), data, 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := runErrorCodeFixtureGenerator(filepath.Join(root, "scripts/generate-error-codes.mjs")); err != nil {
 		t.Fatal(err)
 	}
-	output, err := os.ReadFile(filepath.Join(root, "frontend/src/lib/error-codes.generated.ts"))
-	if err != nil || !strings.Contains(string(output), `"general.ratchet_probe_0"`) {
+	output, err := os.ReadFile(filepath.Join(root, "frontend/src/lib/error-codes/probe.generated.ts"))
+	if err != nil || !strings.Contains(string(output), `"probe.ratchet_probe_0"`) {
 		t.Fatalf("generator did not emit the additional code: %v", err)
 	}
 	assertGeneratedErrorCodeRatchets(t, filepath.Join(root, "backend"))

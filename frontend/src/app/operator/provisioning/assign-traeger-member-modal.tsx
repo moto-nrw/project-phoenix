@@ -3,22 +3,21 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { TraegerRoleChoice } from "~/components/traeger/traeger-role-choice";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
-import {
-  TRAEGER_ROLES,
-  TRAEGER_ROLE_LABELS,
-  type TraegerRole,
-} from "~/lib/operator/provisioning-helpers";
+import type { TraegerRole } from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
-import { FormField, SelectWithChevron } from "./provisioning-shared";
 
 const logger = createLogger({ component: "AssignTraegerMemberModal" });
 
+const ROLES_REQUIRED = "Bitte wählen Sie mindestens eine Rolle.";
+
 /**
- * Assigns an existing account to the Träger-Büro with one Träger role
- * (#4649). The person signs in at the Träger-Portal with the same account;
- * an e-mail without an account answers `identity.account_not_found`.
+ * Assigns an existing account to the Träger-Büro with one or more Träger
+ * roles (#4649, #5144). The person signs in at the Träger-Portal with the
+ * same account; an e-mail without an account answers
+ * `identity.account_not_found`, so the text points to the invitation.
  */
 export function AssignTraegerMemberModal({
   isOpen,
@@ -34,17 +33,17 @@ export function AssignTraegerMemberModal({
   readonly onAssigned: () => Promise<unknown>;
 }) {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<TraegerRole>("administration");
+  const [roles, setRoles] = useState<TraegerRole[]>([]);
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
-  const { show: showError, clear: clearError } = formErrors;
+  const { show: showError, clear: clearError, invalid } = formErrors;
   const { success: toastSuccess } = useToast();
 
   useEffect(() => {
     if (isOpen) {
       setEmail("");
-      setRole("administration");
+      setRoles([]);
       clearError();
     }
   }, [isOpen, clearError]);
@@ -53,12 +52,16 @@ export function AssignTraegerMemberModal({
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (!email.trim()) return;
-      setSaving(true);
       clearError();
+      if (roles.length === 0) {
+        invalid(ROLES_REQUIRED, { roles: ROLES_REQUIRED });
+        return;
+      }
+      setSaving(true);
       try {
         await operatorProvisioningService.assignTraegerMember(organizationId, {
           email: email.trim(),
-          role,
+          roles,
         });
         onClose();
         toastSuccess(`Die Person ist dem Träger-Büro zugeordnet.`);
@@ -74,11 +77,12 @@ export function AssignTraegerMemberModal({
     },
     [
       email,
-      role,
+      roles,
       organizationId,
       onClose,
       onAssigned,
       clearError,
+      invalid,
       showError,
       toastSuccess,
     ],
@@ -113,8 +117,9 @@ export function AssignTraegerMemberModal({
         className="space-y-4"
       >
         <p className="text-sm text-gray-600">
-          Die Person meldet sich mit ihrem bestehenden moto-Konto im
-          Träger-Portal von {organizationName} an.
+          Nur für Personen mit moto-Konto. Sie melden sich mit diesem Konto im
+          Träger-Portal von {organizationName} an. Ohne Konto: „Person
+          einladen“.
         </p>
         <FormErrorAlert message={formErrors.error} />
         <Input
@@ -129,26 +134,12 @@ export function AssignTraegerMemberModal({
           maxLength={255}
           required
         />
-        <FormField
-          label="Rolle"
-          htmlFor="assign-traeger-member-role"
-          required
-          error={formErrors.fieldError("role")}
-        >
-          <SelectWithChevron
-            id="assign-traeger-member-role"
-            name="role"
-            value={role}
-            onChange={(e) => setRole(e.target.value as TraegerRole)}
-            required
-          >
-            {TRAEGER_ROLES.map((option) => (
-              <option key={option} value={option}>
-                {TRAEGER_ROLE_LABELS[option]}
-              </option>
-            ))}
-          </SelectWithChevron>
-        </FormField>
+        <TraegerRoleChoice
+          value={roles}
+          onChange={setRoles}
+          disabled={saving}
+          error={formErrors.fieldError("roles")}
+        />
       </form>
     </Modal>
   );

@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { mutate as globalMutate } from "swr";
+import { mutate as globalMutate } from "~/lib/swr/mutate";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import {
   isNotCheckedInLocation,

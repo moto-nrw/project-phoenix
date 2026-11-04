@@ -13,11 +13,13 @@ import { formatDate } from "~/lib/date-helpers";
 import {
   caseDates,
   caseTypeLabels,
+  decidedRequestCount,
   openRequestCount,
   pastRequestCount,
   type CaseBuckets,
   type OpenCase,
 } from "./case-model";
+import { childrenConcept } from "~/lib/concepts/children";
 
 export function caseRowID(caseKey: string): string {
   return `request-case-${caseKey}`;
@@ -31,6 +33,7 @@ function countLabel(childCase: OpenCase): string {
       : `${count} abgelaufene Anfragen`;
   }
   const count = openRequestCount(childCase);
+  if (count === 0 && decidedRequestCount(childCase) > 0) return "Freigegeben";
   return count === 1 ? "1 offene Anfrage" : `${count} offene Anfragen`;
 }
 
@@ -57,7 +60,7 @@ function CaseRow({
         }`}
       >
         <span className="flex w-full min-w-0 items-center gap-2">
-          <MotoConceptIcon concept="children" size={20} />
+          <MotoConceptIcon concept={childrenConcept} size={20} />
           <span className="truncate font-semibold text-gray-900">
             {childCase.studentName}
           </span>
@@ -138,7 +141,7 @@ export function RequestCaseList({
   onSelect: (childCase: OpenCase) => void;
 }>) {
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+    <div className="moto-content-surface overflow-hidden rounded-2xl border">
       <CaseBucket
         id="request-group-urgent"
         title="Heute wichtig"

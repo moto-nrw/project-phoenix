@@ -57,7 +57,6 @@ export function OpenWithdrawalCard({
             type="button"
             variant="outline"
             size="md"
-            className="max-sm:min-h-11"
             onClick={() => finish(row)}
           >
             Betreuung beenden
@@ -66,7 +65,6 @@ export function OpenWithdrawalCard({
             type="button"
             variant="outline_danger"
             size="md"
-            className="max-sm:min-h-11"
             onClick={() => openDeletionDialog(row)}
           >
             Kind sofort löschen
@@ -118,14 +116,11 @@ export function HistoryWithdrawalCard({
         kind: "readonly",
         label: deleted ? "Gelöscht" : "Abgeschlossen",
         tone: "gray",
+        // Ohne Zeitpunkt nähme die Zeile das Raster der Arbeitsliste und
+        // stünde quer zu den Spalten des Verlaufs.
+        decidedAt: row.resolvedAt,
       }}
-    >
-      {row.resolvedAt && (
-        <p className="text-sm text-gray-600">
-          Erledigt am {formatDate(row.resolvedAt)}
-        </p>
-      )}
-    </RequestReviewCard>
+    />
   );
 }
 

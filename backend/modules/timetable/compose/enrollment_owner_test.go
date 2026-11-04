@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -279,7 +280,7 @@ func TestStudentEnrollmentListQueryBudgetStaysFlat(t *testing.T) {
 		counter := testpkg.CaptureQueries(t, db)
 		_, err := module.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{StudentIDs: []int64{student.ID}})
 		require.NoError(t, err)
-		testpkg.AssertQueryBudget(t, "modules.timetable.enrollments.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.timetable.enrollments.list", counter.Queries())
 
 		return nil
 	}))

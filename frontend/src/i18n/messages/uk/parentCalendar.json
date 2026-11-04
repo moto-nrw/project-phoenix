@@ -1,0 +1,43 @@
+{
+  "kicker": "Події під рукою",
+  "title": "Календар",
+  "description": "Події та заходи ваших дітей одним поглядом.",
+  "empty": "У наступні 3 місяці подій немає.",
+  "groups": {
+    "thisWeek": "Цього тижня",
+    "nextWeek": "Наступного тижня",
+    "later": "Пізніше"
+  },
+  "when": "{date} о {time}",
+  "whenAllDay": "{date}, увесь день",
+  "forChild": "Для {name}",
+  "types": {
+    "care": "Час догляду",
+    "invitation": "Запрошення",
+    "appointment": "Подія"
+  },
+  "accept": "Підтвердити",
+  "decline": "Відхилити",
+  "accepted": "Ви підтвердили участь.",
+  "declined": "Ви відмовилися від участі.",
+  "answeredAccepted": "Підтверджено",
+  "answeredDeclined": "Відхилено",
+  "cancelledByOgs": "Скасовано OGS",
+  "previousMonth": "Попередній місяць",
+  "nextMonth": "Наступний місяць",
+  "close": "Закрити",
+  "allDay": "Увесь день",
+  "moreEvents": "+ ще {count}",
+  "responseRequired": "Потрібна відповідь",
+  "weekdayShort": {
+    "1": "Пн",
+    "2": "Вт",
+    "3": "Ср",
+    "4": "Чт",
+    "5": "Пт",
+    "6": "Сб",
+    "7": "Нд"
+  },
+  "errorObjectList": "список зустрічей",
+  "errorObjectResponse": "відповідь"
+}

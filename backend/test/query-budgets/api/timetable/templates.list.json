@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.templates.list",
+  "max": 11,
+  "exact": false,
+  "description": "modules/timetable/http — GET /templates: template rows, retained list enrichments,\nplus the setting, offering and series-root reads for roster maintenance\n(#3140). The test proves all 11 statements stay flat from 3 to 8 rows."
+}

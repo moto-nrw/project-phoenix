@@ -1,4 +1,5 @@
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
 
 // A session shape carrying the short-lived backend JWT. Kept minimal so both the
 // staff (`uncachedAuth`) and parent (`uncachedParentAuth`) refreshers fit.
@@ -16,8 +17,11 @@ export async function streamIcsDownload(
   refresh: () => Promise<TokenSession>,
 ): Promise<Response> {
   const url = `${getServerApiUrl()}${path}`;
+  const forwardHeaders = await incomingClientForwardHeaders();
   const request = (bearer: string) =>
-    fetch(url, { headers: { Authorization: `Bearer ${bearer}` } });
+    fetch(url, {
+      headers: { Authorization: `Bearer ${bearer}`, ...forwardHeaders },
+    });
 
   let upstream = await request(token);
   if (upstream.status === 401) {

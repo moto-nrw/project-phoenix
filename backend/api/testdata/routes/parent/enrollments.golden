@@ -1,0 +1,4 @@
+GET /parent/enrollments/{tenantSlug}/bootstrap/{phaseId}
+GET /parent/enrollments/{tenantSlug}/profile
+POST /parent/enrollments/{tenantSlug}/submit
+POST /parent/enrollments/{tenantSlug}/uploads

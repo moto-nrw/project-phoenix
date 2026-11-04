@@ -1,0 +1,11 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (e *StampError) Error() string {\n\treturn e.Cause.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "workflows/staffclock/StampError.Error",
+      "owner": "workflows/staffclock"
+    }
+  ]
+}

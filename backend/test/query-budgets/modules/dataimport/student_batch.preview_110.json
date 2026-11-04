@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.student_batch.preview_110",
+  "max": 116,
+  "exact": true,
+  "description": "The same file at 110 rows. The preview reads one person per row\n(6 + 1 per row), the import grows by about 31 statements per row; a\nfurther per-row statement moves these counts by 110."
+}

@@ -9,10 +9,17 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { Skeleton } from "~/components/ui/skeleton";
 import type { ChildFeatures, ChildToday } from "~/lib/parent-api";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
+import { childConversationPath } from "~/lib/messaging-status";
 import { parentPath } from "~/lib/parent-url";
 import { formatDate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { childrenConcept } from "~/lib/concepts/children";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { homeConcept } from "~/lib/concepts/home";
+import { presentConcept } from "~/lib/concepts/present";
+import { unknownConcept } from "~/lib/concepts/unknown";
 
 /**
  * Die Tageskarte eines Kindes. Das Herzstueck der Eltern-App: auf der
@@ -110,8 +117,12 @@ export function ChildDayCard({
   const level1 =
     today.at_ogs === null ? null : today.at_ogs ? t("atOgs") : t("notAtOgs");
   const level2 = explainState(today, t);
-  const stateConcept: MotoConceptKey =
-    today.at_ogs === null ? "unknown" : today.at_ogs ? "present" : "home";
+  const stateConcept: MotoConcept =
+    today.at_ogs === null
+      ? unknownConcept
+      : today.at_ogs
+        ? presentConcept
+        : homeConcept;
 
   return (
     /* @container: die Aktionsreihe richtet sich nach der Breite DIESER Karte,
@@ -121,7 +132,7 @@ export function ChildDayCard({
        umbrechen lassen, obwohl auf dem Schirm Platz war. */
     <article
       data-testid="child-day-card"
-      className="moto-content-surface @container relative overflow-hidden rounded-2xl border shadow-sm"
+      className="moto-content-surface @container relative overflow-hidden rounded-2xl border"
     >
       <div className="space-y-5 p-5 sm:p-6">
         {hideIdentity && (
@@ -149,7 +160,7 @@ export function ChildDayCard({
                 className="grid size-11 shrink-0 place-items-center rounded-xl bg-gray-50"
               >
                 <MotoConceptIcon
-                  concept="children"
+                  concept={childrenConcept}
                   size={28}
                   aria-hidden="true"
                 />
@@ -172,7 +183,7 @@ export function ChildDayCard({
               href={parentPath(`/parents/children/${child.studentId}`)}
               variant="ghost"
               size="md"
-              className="min-h-11 shrink-0 px-3 text-sm font-medium hover:bg-gray-100"
+              className="shrink-0"
             >
               {t("actions.profile")}
               <ChevronRight
@@ -317,14 +328,12 @@ function ChildDayActions({
         ? "@md:grid-cols-2"
         : "";
   const actionClassName =
-    display === "compact"
-      ? "min-w-0 w-full gap-2 px-3 py-2 text-sm font-semibold"
-      : "w-full gap-3 px-4 py-2";
+    display === "compact" ? "min-w-0 w-full gap-2" : "w-full gap-3";
   const absenceActionContent = (
     <>
       <MotoDuotoneIcon icon={XIcon} tone="red" size={20} weight="bold" />
       {display === "compact" ? (
-        <span className="min-w-0 text-center leading-5">
+        <span className="min-w-0 text-center leading-5 font-semibold">
           {t("actions.sick", { name: firstName })}
         </span>
       ) : (
@@ -344,9 +353,9 @@ function ChildDayActions({
   const withMode = features.pickup_change_mode_enabled === true;
   const pickupActionContent = (
     <>
-      <MotoConceptIcon concept="pickup" size={20} aria-hidden="true" />
+      <MotoConceptIcon concept={pickupConcept} size={20} aria-hidden="true" />
       {display === "compact" ? (
-        <span className="min-w-0 text-center leading-5">
+        <span className="min-w-0 text-center leading-5 font-semibold">
           {t(
             withMode
               ? "actions.pickupCompactWithMode"
@@ -370,12 +379,12 @@ function ChildDayActions({
   const messageActionContent = (
     <>
       <MotoConceptIcon
-        concept="parentConversations"
+        concept={parentConversationsConcept}
         size={20}
         aria-hidden="true"
       />
       {display === "compact" ? (
-        <span className="min-w-0 text-center leading-5">
+        <span className="min-w-0 text-center leading-5 font-semibold">
           {t("actions.messageCompact")}
         </span>
       ) : (
@@ -400,7 +409,7 @@ function ChildDayActions({
           <Button
             type="button"
             variant="surface"
-            size="touch"
+            size="md"
             className={actionClassName}
             onClick={onSick}
           >
@@ -410,7 +419,7 @@ function ChildDayActions({
           <ButtonLink
             href={parentPath(`/parents/children/${studentId}?action=sick`)}
             variant="surface"
-            size="touch"
+            size="md"
             className={actionClassName}
           >
             {absenceActionContent}
@@ -422,7 +431,7 @@ function ChildDayActions({
           <Button
             type="button"
             variant="surface"
-            size="touch"
+            size="md"
             className={actionClassName}
             onClick={onPickup}
           >
@@ -432,7 +441,7 @@ function ChildDayActions({
           <ButtonLink
             href={parentPath(`/parents/children/${studentId}?action=pickup`)}
             variant="surface"
-            size="touch"
+            size="md"
             className={actionClassName}
           >
             {pickupActionContent}
@@ -441,9 +450,9 @@ function ChildDayActions({
 
       {features.notes_enabled && (
         <ButtonLink
-          href={parentPath(`/parents/messages/${studentId}`)}
+          href={parentPath(childConversationPath(studentId))}
           variant="surface"
-          size="touch"
+          size="md"
           className={`${actionClassName} ${
             actionCount !== 3
               ? ""

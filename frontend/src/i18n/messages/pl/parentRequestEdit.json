@@ -1,0 +1,19 @@
+{
+  "title": "Edytuj prośbę",
+  "intro": "Mogą Państwo zmienić prośbę, dopóki OGS nie podjęła decyzji.",
+  "editedAt": "Zmieniono dnia {date}",
+  "firstDay": "Pierwszy dzień",
+  "lastDay": "Ostatni dzień",
+  "day": "Dzień",
+  "pickupTime": "Godzina odbioru",
+  "timeFormatHint": "Godzina w formacie 15:30",
+  "timeExample": "np. 15:30",
+  "reasonLabel": "Powód / uwaga dla OGS",
+  "reasonRequired": "Proszę wpisać krótką uwagę dla OGS.",
+  "valueRequired": "Proszę wpisać wartość.",
+  "submit": "Zapisz zmianę",
+  "saving": "Zapisywanie …",
+  "cancel": "Anuluj",
+  "close": "Zamknij okno",
+  "errorObject": "prośba"
+}

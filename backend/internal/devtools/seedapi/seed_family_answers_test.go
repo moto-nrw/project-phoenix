@@ -230,8 +230,20 @@ func TestRelatedAccountInviteNamesTheGrandmother(t *testing.T) {
 
 	assert.Equal(t, map[string]any{
 		"email": "renate.franke@mail.example", "first_name": "Renate", "last_name": "Franke",
-	}, relatedAccountInvite(ParentCredentials{Name: "Elfriede Franke"}))
-	assert.Equal(t, "renate.krueger@mail.example", relatedAccountInvite(ParentCredentials{Name: "Martin Krüger"})["email"])
+	}, relatedAccountInvite(ParentCredentials{Name: "Elfriede Franke"}, ""))
+	assert.Equal(t, "renate.krueger@mail.example", relatedAccountInvite(ParentCredentials{Name: "Martin Krüger"}, "")["email"])
+}
+
+// TestRelatedAccountInviteKeepsTheSchoolScope pins #5151: the grandmother
+// accepts her invitation and gets an account. Demo schools seeded side by
+// side each name her, so without the school's scope they raced for one
+// account and the losing school was rebuilt.
+func TestRelatedAccountInviteKeepsTheSchoolScope(t *testing.T) {
+	t.Parallel()
+
+	parent := ParentCredentials{Name: "Elfriede Franke"}
+	assert.Equal(t, "renate.franke@demo-k3m9x1.moto-ogs.de", relatedAccountInvite(parent, "k3m9x1")["email"])
+	assert.NotEqual(t, relatedAccountInvite(parent, "k3m9x1")["email"], relatedAccountInvite(parent, "k3m9x2")["email"])
 }
 
 func TestFamilyAccountLeavesOutLimitedRoles(t *testing.T) {

@@ -1,6 +1,7 @@
 // components/students/student-card.tsx
 // Shared student card component used across OGS groups and active supervisions pages
 
+import { useDataPrefetchIntent } from "~/components/ui/data-prefetch-intent";
 import type { ReactNode } from "react";
 import { TILE_CARD_SURFACE } from "~/components/ui/tile-card";
 import {
@@ -28,7 +29,11 @@ import {
   type StudentDayTimes,
   type StudentTimeStatus,
 } from "~/lib/student-time-status";
-import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import {
+  GROUP_ROOM_SHADES,
+  LOCATION_COLORS,
+  MOTO_COLOR_PALETTE,
+} from "~/lib/location-helper";
 import type { StudentCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
@@ -235,12 +240,19 @@ export function StudentCard({
       }
     : undefined;
   const hasTapStrip = checkinMode && !selectMode;
+  const dataIntent = useDataPrefetchIntent(
+    checkinMode || selectMode ? null : `/students/${studentId}`,
+  );
 
   return (
     <button
       key={studentId}
       type="button"
-      onClick={activeHandler}
+      {...dataIntent}
+      onClick={() => {
+        dataIntent.onClick();
+        activeHandler();
+      }}
       disabled={isCheckinPending}
       aria-label={ariaLabel}
       aria-busy={isCheckinPending}
@@ -275,7 +287,7 @@ export function StudentCard({
                     }`}
                     style={
                       isCheckinSelected
-                        ? { backgroundColor: LOCATION_COLORS.GROUP_ROOM }
+                        ? { backgroundColor: GROUP_ROOM_SHADES.fill }
                         : undefined
                     }
                     data-checkin-selection-indicator="true"

@@ -149,7 +149,8 @@ func (s *CareLifecycle) inUnitReconcileAuthoritativeBookingChange(ctx context.Co
 	if err != nil {
 		return err
 	}
-	return s.reconcileBookingEvaluation(ctx, evaluation, change, effectiveOn, pending[change.StudentID])
+	_, err = s.reconcileBookingEvaluation(ctx, evaluation, change, effectiveOn, pending[change.StudentID])
+	return err
 }
 
 func (s *CareLifecycle) reconcileWeeklyPlanRebooking(ctx context.Context, change careplan.CareWithdrawalBookingChange) error {
@@ -179,49 +180,54 @@ func (s *CareLifecycle) reconcileWeeklyPlanRebooking(ctx context.Context, change
 	return err
 }
 
-func (s *CareLifecycle) reconcileBookingEvaluations(ctx context.Context, evaluations []domain.CareBookingEvaluation, on calendar.Date) error {
+func (s *CareLifecycle) reconcileBookingEvaluations(ctx context.Context, evaluations []domain.CareBookingEvaluation, on calendar.Date) (bool, error) {
 	studentIDs := make([]int64, len(evaluations))
 	for i, evaluation := range evaluations {
 		studentIDs[i] = evaluation.StudentID
 	}
 	pending, err := s.pendingWithdrawals(ctx, studentIDs)
 	if err != nil {
-		return err
+		return false, err
 	}
+	changed := false
 	for _, evaluation := range evaluations {
 		change := careplan.CareWithdrawalBookingChange{StudentID: evaluation.StudentID, ConfirmedRole: "system"}
-		if err := s.reconcileBookingEvaluation(ctx, evaluation, change, on, pending[evaluation.StudentID]); err != nil {
-			return err
+		reconciled, err := s.reconcileBookingEvaluation(ctx, evaluation, change, on, pending[evaluation.StudentID])
+		if err != nil {
+			return false, err
 		}
+		changed = changed || reconciled
 	}
-	return nil
+	return changed, nil
 }
 
 func (s *CareLifecycle) reconcileBookingEvaluation(
 	ctx context.Context, evaluation domain.CareBookingEvaluation, change careplan.CareWithdrawalBookingChange,
 	obsoleteFrom calendar.Date, pending *careplan.WithdrawalCompletion,
-) error {
+) (bool, error) {
 	if evaluation.FirstBookinglessDay == nil {
 		if pending == nil || !evaluation.HasCareDays {
-			return nil
+			return false, nil
 		}
-		_, err := s.records.MarkWithdrawalObsoleteForRebooking(ctx, evaluation.StudentID, careplan.Date(obsoleteFrom), time.Now())
-		return err
+		return s.records.MarkWithdrawalObsoleteForRebooking(ctx, evaluation.StudentID, careplan.Date(obsoleteFrom), time.Now())
 	}
 	if pending != nil {
 		if *evaluation.FirstBookinglessDay != calendar.Date(pending.FirstBookinglessDay) {
 			changed, err := s.records.MarkWithdrawalObsoleteForRebooking(ctx, evaluation.StudentID, careplan.Date(obsoleteFrom), time.Now())
 			if err != nil {
-				return err
+				return false, err
 			}
 			if !changed {
-				return errors.New("care lifecycle: pending booking completion changed during reconciliation")
+				return false, errors.New("care lifecycle: pending booking completion changed during reconciliation")
 			}
 		} else if !change.WasCompleteWithdrawal {
-			return nil
+			return false, nil
 		}
 	}
-	return s.upsertBookingCompletion(ctx, evaluation, change)
+	if err := s.upsertBookingCompletion(ctx, evaluation, change); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *CareLifecycle) upsertBookingCompletion(ctx context.Context, evaluation domain.CareBookingEvaluation, change careplan.CareWithdrawalBookingChange) error {

@@ -1,18 +1,18 @@
+import { Button } from "~/components/ui/button";
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { Input } from "~/components/ui/input";
 import { getSchoolYear } from "~/lib/student-helpers";
 
 import {
   timetableMutedSurface,
   timetableNestedSurface,
-  timetableSearchClass,
 } from "../timetable-style";
 import type { PersonOption } from "./form-model";
 
-const FORM_SEARCH_CLASS = timetableSearchClass;
 const EMPTY_PROTECTED_VALUES: readonly string[] = [];
 
 export function MultiSelectField({
@@ -156,12 +156,13 @@ export function MultiSelectField({
             className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400"
             aria-hidden
           />
-          <input
+          <Input
             type="search"
+            controlSize="compact"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={`${label} suchen …`}
-            className={FORM_SEARCH_CLASS}
+            className="pl-9 hover:ring-gray-300"
           />
         </label>
         {metadata === "student" && gradeOptions.length > 0 && (
@@ -209,14 +210,15 @@ export function MultiSelectField({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
+        <Button
           type="button"
+          variant="surface"
+          size="compact"
           onClick={allVisibleSelected ? clearVisible : selectVisible}
           disabled={visibleIds.length === 0}
-          className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         >
           {allVisibleSelected ? "Sichtbare abwählen" : "Sichtbare auswählen"}
-        </button>
+        </Button>
         {bulkOptions && bulkOptions.length > 0 && (
           // Pinned to "" so picking an entry adds its members and the
           // select snaps back to the placeholder.
@@ -237,27 +239,29 @@ export function MultiSelectField({
           />
         )}
         {removableSelectedCount > 0 && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="compact"
             onClick={() => onChange(value.filter((id) => protectedSet.has(id)))}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             Auswahl leeren
-          </button>
+          </Button>
         )}
         {hasFilters && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="compact"
             onClick={() => {
               setQuery("");
               setGradeFilter("all");
               setClassFilter("all");
               setGroupFilter("all");
             }}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             Filter zurücksetzen
-          </button>
+          </Button>
         )}
       </div>
 

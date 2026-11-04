@@ -1,0 +1,2 @@
+GET /operator/staff-person-merges/{schoolId} -> basis
+POST /operator/staff-person-merges/{schoolId} -> basis

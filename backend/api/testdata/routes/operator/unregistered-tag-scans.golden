@@ -1,0 +1,2 @@
+GET /operator/unregistered-tag-scans/
+POST /operator/unregistered-tag-scans/{id}/resolve

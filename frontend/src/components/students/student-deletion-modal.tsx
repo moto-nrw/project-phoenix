@@ -26,6 +26,7 @@ import {
   type StudentDeletionReason,
 } from "~/lib/student-api";
 import { createLogger } from "~/lib/logger";
+import { permissionsConcept } from "~/lib/concepts/permissions";
 
 const logger = createLogger({ component: "StudentDeletionModal" });
 
@@ -291,7 +292,9 @@ export function StudentDeletionModal({
 
               <InfoSection
                 title="Was bleibt erhalten?"
-                icon={<MotoConceptIcon concept="permissions" size="100%" />}
+                icon={
+                  <MotoConceptIcon concept={permissionsConcept} size="100%" />
+                }
                 accentColor="gray"
               >
                 <InfoText>

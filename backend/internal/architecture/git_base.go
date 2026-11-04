@@ -21,7 +21,7 @@ func LoadBasePolicyAndManifest(project, policyPath, baselinePath, ref string) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	policyBlob, err := readGitBlob(root, project, sha, policyPath)
+	policyBlob, err := readBasePolicyDocument(root, project, sha, policyPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read base policy: %w", err)
 	}

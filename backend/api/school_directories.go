@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	presenceprojectionOwnerHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
@@ -183,6 +184,24 @@ func (d studentSchoolDirectory) GetSchoolByID(ctx context.Context, id int64) (*p
 		return nil, err
 	}
 	return &presenceprojectionOwnerHTTP.ExportSchool{Name: school.Name}, nil
+}
+
+// SchoolIdentity is the school's name and address for the first field of an
+// accident report (#4771); a missing school prints nothing.
+func (d studentSchoolDirectory) SchoolIdentity(ctx context.Context, id int64) (string, string, error) {
+	school, err := findSchool(ctx, d.schools.FindSchool, id)
+	if err != nil || school == nil {
+		return "", "", err
+	}
+	place := strings.TrimSpace(strings.TrimSpace(school.Zip) + " " + strings.TrimSpace(school.City))
+	address := strings.TrimSpace(school.Address)
+	if place != "" {
+		if address != "" {
+			address += ", "
+		}
+		address += place
+	}
+	return school.Name, address, nil
 }
 
 // findSchool runs one school lookup and reports a missing school as nil.

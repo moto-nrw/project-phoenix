@@ -34,7 +34,10 @@ Five optional URL parameters carry context; none of them is an access check:
 
 | File | Role |
 |------|------|
-| `frontend/src/components/help/help-content.ts` | **The content.** Every article, in German. This is what you edit. |
+| `frontend/src/components/help/articles/*.ts` | **The content.** One German article factory per file. |
+| `frontend/src/components/help/help-content.ts` | Public facade: explicit product order, groups and role/settings filtering. |
+| `frontend/src/components/help/help-types.ts` | Shared article types, without runtime content dependencies. |
+| `frontend/src/components/help/help-articles.generated.ts` | Generated export index; never edit by hand. |
 | `frontend/src/components/help/help-view.tsx` | The shell: sidebar, search, "Auf dieser Seite", article rendering, category order |
 | `frontend/src/components/help/help-entry.tsx` | The role question on a bare `/help` |
 | `frontend/src/lib/help-topics.ts` | `HELP_TOPICS` (the id registry) and the app-path → topic maps |
@@ -47,7 +50,7 @@ Five optional URL parameters carry context; none of them is an access check:
 
 ## Data Model
 
-One flat list of articles. The authoritative shape is `HelpTopic` in `help-content.ts` — trust it over this copy:
+One flat list of articles. The authoritative shape is `HelpTopic` in `help-types.ts` — trust it over this copy:
 
 ```ts
 interface HelpTopic {
@@ -113,9 +116,9 @@ When unsure: if a school admin or supervisor would *do something differently* af
 ## HOW To Update
 
 1. **Register the id** in `HELP_TOPICS` (`src/lib/help-topics.ts`): the key is the camelCase id, the value the URL slug. A typo is then a compile error, not a dead link. Add the id with the article's `audience` to `HELP_TOPIC_AUDIENCE` (`src/lib/help-topic-availability.ts`); the type demands the entry.
-2. **Write the article** in `help-content.ts` as a `function <name>Topic(): HelpTopic`, and add the call to the right role list in `getHelpTopics`, at a position its prerequisites allow.
+2. **Write the article** in `articles/<topic>.ts` as an exported `function <name>Topic(): HelpTopic`. Run `pnpm generate:help-index`, then add `articles.<name>Topic()` to the right ordered role list in `help-content.ts`, at a position its prerequisites allow. The generated index discovers files; the facade owns product order.
 3. **Write German** per `moto-einfache-sprache` (Sie-Form, short sentences, no technical vocabulary). Put every label the reader clicks in backticks, spelled exactly as the screen spells it. **Open the real screen and read the labels off it** — a remembered label is a wrong label.
-4. **Check the reverse direction:** does an existing article now contradict your change? Search `help-content.ts` for the label you renamed.
+4. **Check the reverse direction:** does an existing article now contradict your change? Search `frontend/src/components/help/articles/` for the label you renamed.
 5. **Reuse the kit.** The help is frontend, so `.claude/rules/frontend-ui-kit.md` applies. `help-view.tsx` already renders every section — do not invent a new block.
 6. **Verify:**
    ```bash

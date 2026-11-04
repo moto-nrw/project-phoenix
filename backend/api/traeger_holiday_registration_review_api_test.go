@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 type reviewBooking struct {
@@ -222,10 +223,10 @@ func TestTraegerConfirmsAndCancelsHolidayRegistrationsWithHistory(t *testing.T) 
 	t.Parallel()
 	f := newReviewFixture(t, "Träger Bestätigung Ferien")
 
-	detail := f.detail(t, traegerJSON(t, f.traeger, f.office.token, http.MethodGet, f.registrationPath(f.siblings, ""), nil))
-	require.Len(t, detail.Health, 1, "the detail shows the health information to the right")
-	assert.Equal(t, "Erdnüsse", detail.Health[0].Allergies)
-	assert.Equal(t, detail.Children[0].ID, detail.Health[0].ChildID)
+	read := traegerJSON(t, f.traeger, f.office.token, http.MethodGet, f.registrationPath(f.siblings, ""), nil)
+	detail := f.detail(t, read)
+	assert.Empty(t, detail.Health, "the detail carries no health information; the health read does (#4722)")
+	assert.NotContains(t, read.Body.String(), "Erdnüsse")
 	require.Len(t, detail.Contacts, 2)
 	assert.Empty(t, detail.History)
 
@@ -428,7 +429,7 @@ func TestTraegerHolidayRegistrationListQueryBudgetIsFlat(t *testing.T) {
 	rec := publicJSON(t, f.public, http.MethodPost, registrationPath(f.period.PublicToken), siblingsRegistration(f.offer, "budget@example.org"))
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	assert.Len(t, list(), len(one), "the list reads the same statements for any number of registrations")
-	testpkg.AssertQueryBudget(t, "api.traeger.holiday_registrations", one)
+	querybudgets.AssertQueryBudget(t, "api.traeger.holiday_registrations", one)
 }
 
 // TestHolidayRegistrationAuditGoesWithItsPeriod pins the retention of the

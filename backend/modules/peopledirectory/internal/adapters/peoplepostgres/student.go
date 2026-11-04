@@ -42,6 +42,13 @@ func (r *studentRepository) List(ctx context.Context, filters map[string]any) ([
 	if err := query.Scan(ctx); err != nil {
 		return nil, &ports.DatabaseError{Op: "list", Err: err}
 	}
+	for _, row := range rows {
+		health, err := r.students.OpenStudentHealth(row.TenantID, row.MembershipID, row.HealthData)
+		if err != nil {
+			return nil, &ports.DatabaseError{Op: "list", Err: err}
+		}
+		row.HealthInfo, row.HealthData = health, nil
+	}
 	return rows, nil
 }
 

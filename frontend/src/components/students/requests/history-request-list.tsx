@@ -110,7 +110,7 @@ export function HistoryRequestList({
 }>) {
   const [target, setTarget] = useState<CorrectionTarget | null>(null);
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+    <div className="moto-content-surface overflow-hidden rounded-2xl border">
       <RequestRowHeader view="history" />
       {withdrawals.map((row) => (
         <HistoryWithdrawalCard key={`care_withdrawal:${row.id}`} row={row} />

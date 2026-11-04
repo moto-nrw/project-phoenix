@@ -6,7 +6,7 @@ import { Providers } from "~/app/providers";
 import { TenantProvider } from "~/lib/tenant-context";
 import { mockSessionData } from "./fixtures/session";
 import type { TenantInfo } from "~/lib/tenant-api";
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 
 import "~/styles/globals.css";
 

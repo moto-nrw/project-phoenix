@@ -1,0 +1,5 @@
+GET /api/week-protocols/
+GET /api/week-protocols/{protocolId}
+GET /api/week-protocols/{protocolId}/pdf
+POST /api/week-protocols/{protocolId}/close
+PUT /api/week-protocols/{protocolId}/notes

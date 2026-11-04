@@ -55,7 +55,7 @@ export function CompactStudentCard({
 
   const chromeClass =
     chrome === "card"
-      ? "moto-content-surface border px-4 py-3 hover:border-gray-300 hover:bg-gray-50"
+      ? "moto-content-surface border px-4 py-3"
       : "bg-transparent px-0 py-0 hover:bg-transparent";
   const content = (
     <>
@@ -91,7 +91,7 @@ export function CompactStudentCard({
       onClick={onClick}
       aria-label={`${firstName} ${lastName} - Profil öffnen`}
       data-testid={`compact-student-card-${studentId}`}
-      className={`group flex w-full items-center gap-3 rounded-xl text-left transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 ${chromeClass} ${className}`}
+      className={`group moto-hover-elevated flex w-full items-center gap-3 rounded-xl text-left transition-colors duration-150 focus:outline-none focus-visible:outline-2 focus-visible:outline-gray-300 ${chromeClass} ${className}`}
     >
       {content}
     </button>

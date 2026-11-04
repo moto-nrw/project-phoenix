@@ -7,10 +7,10 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import {
   AuthFieldError,
   AuthShell,
-  authInputClass,
-  authPrimaryButtonClassName,
   type AuthTestimonialPanelCopy,
 } from "~/components/auth/auth-shell";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import { formErrorMessage } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Loading } from "~/components/ui/loading";
@@ -23,6 +23,7 @@ import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { useTenantSafe } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "ResetPasswordPage" });
 
@@ -141,24 +142,22 @@ function PasswordField({
 }: PasswordFieldProps) {
   return (
     <div className="text-left">
-      <label
-        htmlFor={id}
-        className="mb-1 block text-sm font-medium text-gray-700"
-      >
+      <FieldLabel htmlFor={id} required invalid={error !== undefined}>
         {label}
-      </label>
+      </FieldLabel>
       <div className="relative">
-        <input
+        <Input
           id={id}
           name={name}
           type={visible ? "text" : "password"}
+          controlSize="compact"
           autoComplete="new-password"
           required
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-invalid={error !== undefined}
           aria-describedby={error ? `${id}-error` : undefined}
-          className={`${authInputClass(error !== undefined)} pr-10`}
+          className="pr-10"
           disabled={disabled}
         />
         <PasswordToggleButton
@@ -394,10 +393,12 @@ export function ResetPasswordPageContent({
           </ul>
         </div>
 
-        <button
+        <Button
           type="submit"
           disabled={isLoading || !token}
-          className={authPrimaryButtonClassName}
+          variant="primary"
+          size="field"
+          className="w-full"
         >
           {isLoading ? (
             <>
@@ -407,7 +408,7 @@ export function ResetPasswordPageContent({
           ) : (
             <span>{copy.submit}</span>
           )}
-        </button>
+        </Button>
 
         <div className="pt-2 text-center">
           <Link

@@ -34,12 +34,15 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import type { ParentInviteMode } from "~/lib/user-context-types";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { accountsConcept } from "~/lib/concepts/accounts";
+import { settingsConcept } from "~/lib/concepts/settings";
 
 const logger = createLogger({ component: "GuardianApprovalQueue" });
 
 /** Values of the `guardians.parent_invite_mode` setting. */
-export type GuardianInviteMode = "disabled" | "direct" | "staff_approval";
+type GuardianInviteMode = ParentInviteMode;
 
 export type GuardianInviteModeState =
   | { readonly status: "loading" }
@@ -103,7 +106,7 @@ function ApprovalsEmptyState({
   const { configuredAway, title, description } = emptyStateCopy(inviteMode);
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <EmptyState
         icon={
           <span
@@ -112,7 +115,7 @@ function ApprovalsEmptyState({
             className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100"
           >
             <MotoConceptIcon
-              concept={configuredAway ? "settings" : "accounts"}
+              concept={configuredAway ? settingsConcept : accountsConcept}
               size={28}
             />
           </span>
@@ -312,7 +315,7 @@ export default function GuardianApprovalQueue({
         requests.map((req) => (
           <div
             key={req.id}
-            className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6"
+            className="moto-content-surface rounded-2xl border p-4 sm:p-6"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">

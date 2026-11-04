@@ -1,0 +1,145 @@
+{
+  "packages": [
+    {
+      "path": "modules/appointments",
+      "owner": "appointments",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/compose",
+      "owner": "appointments",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/internal/adapters/postgres",
+      "owner": "appointments",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/internal/application",
+      "owner": "appointments",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/internal/domain",
+      "owner": "appointments",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/appointments/internal/ports",
+      "owner": "appointments",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "calendar.appointment_occurrence_overrides",
+      "write_owner": "appointments"
+    },
+    {
+      "name": "calendar.appointment_recipient_students",
+      "write_owner": "appointments"
+    },
+    {
+      "name": "calendar.appointment_recipients",
+      "write_owner": "appointments"
+    },
+    {
+      "name": "calendar.appointment_reminder_push_deliveries",
+      "write_owner": "appointments"
+    },
+    {
+      "name": "calendar.appointment_targets",
+      "write_owner": "appointments"
+    },
+    {
+      "name": "calendar.appointments",
+      "write_owner": "appointments"
+    },
+    {
+      "name": "calendar.recurrence_rules",
+      "write_owner": "appointments"
+    }
+  ],
+  "rules": [
+    {
+      "id": "appointments.port-domain",
+      "description": "Appointments ports express persistence operations using owner domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "appointments",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "appointments.compose.orm-sql",
+      "description": "Appointments composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "appointments.compose.tenant-runtime",
+      "description": "Appointments composition resolves the ambient tenant transaction through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "appointments",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "appointments.internal-test.tenant-runtime",
+      "description": "Appointments composition tests verify rollback and tenant isolation through the shared tenant runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "appointments",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "appointments.integration-test.support",
+      "description": "Appointments integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "appointments",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "appointments.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "appointments",
+      "source_role": "postgres",
+      "source_package": "modules/appointments/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    }
+  ]
+}

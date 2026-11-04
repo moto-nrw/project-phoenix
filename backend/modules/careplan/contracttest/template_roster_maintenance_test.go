@@ -26,6 +26,33 @@ func TestDeriveTemplateRosterMaintenance(t *testing.T) {
 		return careplan.TemplateRosterFeedOffering{ID: id, Name: name}
 	}
 
+	t.Run("source and direct link retain independent coverage", func(t *testing.T) {
+		t.Parallel()
+		for _, enabled := range []bool{true, false} {
+			for _, state := range []string{"active", "inactive", "invalid"} {
+				feed := active(7, "Randstunde")
+				feed.IsActive = state != "inactive"
+				feed.IsInvalid = state == "invalid"
+				got := careplan.DeriveTemplateRosterMaintenance(careplan.TemplateRosterMaintenanceInput{
+					SourceCareOfferingIDs: []int64{7},
+					SourceSchoolClasses:   []string{"2a"},
+					Feeds: careplan.TemplateRosterFeeds{
+						CareOfferingsEnabled: enabled,
+						Sources:              []careplan.TemplateRosterFeedOffering{feed},
+						LinkedOfferings:      []careplan.TemplateRosterFeedOffering{feed},
+					},
+				})
+				if enabled && state == "active" {
+					assert.Equal(t, []int64{7}, got.LinkedOfferingIDs)
+					assert.Equal(t, []careplan.RosterMaintenanceOffering{{ID: 7, Name: "Randstunde"}}, got.Offerings)
+					assert.Equal(t, []string{"2a"}, got.SchoolClasses)
+				} else {
+					assert.Empty(t, got.LinkedOfferingIDs, "enabled=%t state=%s", enabled, state)
+				}
+			}
+		}
+	})
+
 	t.Run("class target without offering is manual", func(t *testing.T) {
 		t.Parallel()
 		// The support case of #3140: a Randstunde for a class, no offering.
@@ -276,11 +303,14 @@ func TestTemplateRosterMaintenanceFeeds_RejectsSourceOutsideTemplatePeriod(t *te
 	ctx := testpkg.Ctx(t)
 
 	source := createSourceOffering(t, env, "FeedAusserhalbZeitraum", nil)
+	// The period starts after the phase ends: no overlap. A phase that only
+	// reaches past the period is clipped and stays valid (see
+	// offering_source_period_overlap_test.go).
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("feed-too-short"+"-"+
 		t.Name()),
 
-		calendar.Date(env.sourcePhase.ServiceStartDate),
-		calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(-1))
+		calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1),
+		calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(30))
 	reader, ok := env.bookings.(careplan.OfferingSourceEditor)
 	require.True(t, ok)
 

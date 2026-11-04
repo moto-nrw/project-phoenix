@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { clientIdentityHeaders } from "~/lib/client-headers.server";
 import { withPrivateNoStore } from "~/lib/private-no-store";
 
 async function GETHandler(
@@ -19,6 +20,7 @@ async function GETHandler(
   let response: Response;
   try {
     response = await fetch(backendUrl, {
+      headers: clientIdentityHeaders(_request.headers),
       signal: AbortSignal.timeout(5000),
     });
   } catch {

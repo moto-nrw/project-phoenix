@@ -20,7 +20,6 @@ describe("auth-utils", () => {
           email: "test@example.com",
           roles: ["admin", "teacher"],
           isAdmin: false,
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -36,7 +35,6 @@ describe("auth-utils", () => {
           email: "test@example.com",
           roles: ["teacher"],
           isAdmin: false,
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -60,7 +58,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "test@example.com",
           isAdmin: false,
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -75,7 +72,6 @@ describe("auth-utils", () => {
           email: "test@example.com",
           roles: [],
           isAdmin: false,
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -91,7 +87,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "test@example.com",
           roles: ["admin", "user"],
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -109,7 +104,6 @@ describe("auth-utils", () => {
           email: "test@example.com",
           roles: ["user"],
           permissions: ["groups:read", "groups:update"],
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -124,7 +118,6 @@ describe("auth-utils", () => {
           email: "test@example.com",
           roles: ["guest"],
           permissions: ["users:read", "rooms:read"],
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -155,7 +148,6 @@ describe("auth-utils", () => {
         id: "1",
         email: "test@example.com",
         permissions: perms,
-        token: "token",
       },
       expires: "2024-12-31",
     });
@@ -213,7 +205,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "admin@example.com",
           roles: ["admin"],
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -227,7 +218,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "teacher@example.com",
           roles: ["user"],
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -250,7 +240,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "test@example.com",
           roles: ["user"],
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -269,7 +258,6 @@ describe("auth-utils", () => {
               id: "1",
               email: "admin@example.com",
               permissions: [permission],
-              token: "token",
             },
             expires: "2024-12-31",
           }),
@@ -284,7 +272,6 @@ describe("auth-utils", () => {
             id: "1",
             email: "user@example.com",
             permissions: ["groups:*"],
-            token: "token",
           },
           expires: "2024-12-31",
         }),
@@ -299,7 +286,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "caregiver@example.com",
           roles: ["user"],
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -313,7 +299,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "teacher@example.com",
           roles: ["teacher"],
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -327,7 +312,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "admin@example.com",
           roles: ["admin"],
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -344,7 +328,6 @@ describe("auth-utils", () => {
           email: "caregiver@example.com",
           roles: ["user"],
           permissions: ["rooms:read"],
-          token: "token",
         },
         expires: "2024-12-31",
       } satisfies Session;
@@ -358,7 +341,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "caregiver@example.com",
           roles: ["user"],
-          token: "token",
         },
         expires: "2024-12-31",
       } satisfies Session;
@@ -376,7 +358,6 @@ describe("auth-utils", () => {
           firstName: "John",
           name: "John Doe",
           isAdmin: false,
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -391,7 +372,6 @@ describe("auth-utils", () => {
           email: "test@example.com",
           name: "John Doe",
           isAdmin: false,
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -405,7 +385,6 @@ describe("auth-utils", () => {
           id: "1",
           email: "test@example.com",
           isAdmin: false,
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -430,7 +409,6 @@ describe("auth-utils", () => {
           name: undefined,
           firstName: undefined,
           isAdmin: false,
-          token: "token",
         },
         expires: "2024-12-31",
       };
@@ -446,7 +424,6 @@ describe("auth-utils", () => {
           firstName: "John",
           name: "John Doe",
           isAdmin: false,
-          token: "token",
         },
         expires: "2024-12-31",
       };

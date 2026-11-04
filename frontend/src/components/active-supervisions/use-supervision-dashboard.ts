@@ -2,15 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useSWRAuth } from "~/lib/swr";
+import {
+  fetchSupervisionDashboard,
+  type BFFDashboardResponse,
+} from "./supervision-dashboard-resource";
+import { dashboardKeys } from "~/lib/swr/shell-keys";
+import { useLiveRefreshInterval, useSWRAuth } from "~/lib/swr";
+import { usePlannedWindowRefresh } from "~/components/active-supervisions/planned-window";
 import type { FormError } from "~/components/ui/form-error";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
-import {
-  ApiError,
-  apiErrorFromResponse,
-  transportFetch,
-  wireErrorCode,
-} from "~/lib/api-error";
+import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
@@ -26,7 +27,7 @@ import {
   mapVisitsToSupervisionStudents,
   resolveSupervisionSelection,
 } from "~/components/active-supervisions/view-model";
-import type { DepartureMode, TeacherHint } from "~/lib/student-helpers";
+import type { TeacherHint } from "~/lib/student-helpers";
 import type {
   ActiveSupervisionRoom,
   ActiveSupervisionStudent,
@@ -38,107 +39,12 @@ import type {
 
 const logger = createLogger({ component: "useSupervisionDashboard" });
 
-// BFF response type for consolidated dashboard data
-interface BFFDashboardResponse {
-  businessDay: string;
-  spontaneousStartAvailability: {
-    available: boolean;
-    blockedReason?: "weekend";
-  };
-  supervisedGroups: Array<{
-    id: string;
-    name: string;
-    canAssign: boolean;
-    isCurrentUserSupervising?: boolean;
-    participantLimit?: number | null;
-    supervisorNames?: string[];
-    room_id?: string;
-    room?: { id: string; name: string; color?: string | null };
-  }>;
-  unclaimedGroups: Array<{
-    id: string;
-    name: string;
-    room?: { name: string };
-  }>;
-  currentStaff: { id: string } | null;
-  educationalGroups: Array<{
-    id: string;
-    name: string;
-    room?: { name: string };
-  }>;
-  firstRoomVisits: Array<{
-    studentId: string;
-    studentName: string;
-    schoolClass: string;
-    groupName: string;
-    activeGroupId: string;
-    checkInTime: string;
-    actualArrivalTime?: string;
-    actualPickupTime?: string;
-    isActive: boolean;
-    sick?: boolean;
-    sickSince?: string;
-    excused?: boolean;
-    excusedSince?: string;
-    class_trip?: boolean;
-    class_trip_since?: string;
-    // Authenticated proxy URL — backend rewrites the raw /uploads path
-    // to /api/students/{id}/photo/{filename} before sending it down.
-    photoUrl?: string;
-  }>;
-  firstRoomId: string | null;
-  schulhofStatus: SchulhofStatusResponse | null;
-  // Every permanently released room with its full occupancy (#3065). Optional
-  // so a cached payload from an older backend degrades to "no shared rooms"
-  // instead of breaking the page.
-  openRooms?: OpenRoomView[];
-  capabilities?: {
-    webSpontaneousActivitiesEnabled: boolean;
-  };
-  // Plan windows of today's running sessions for tab labels (#2265);
-  // optional so a cached older BFF payload degrades to name-only labels
-  activeSessions?: Array<{
-    activeGroupId: string;
-    instanceId: string;
-    title: string;
-    startTime: string;
-    endTime: string;
-  }>;
-  plannedNow: PlannedTimetableInstance[];
-  // Folded-in sections of the selected session (#2096): the aggregate
-  // resolves group_id (or the first supervised session) and ships its
-  // visits, tracking indicators, and pickup/arrival times in the same
-  // response. Optional so a cached payload from an older backend degrades
-  // gracefully instead of breaking the page.
-  selectedGroupId?: string | null;
-  trackingIndicators?: TrackingIndicatorsResponse;
-  pickupTimes?: Array<{
-    studentId: string;
-    date: string;
-    weekdayName: string;
-    pickupTime: string | null;
-    isException: boolean;
-    /** The Abholart set for today only (#3946). */
-    dayDepartureMode?: DepartureMode;
-    notes: string;
-    dayNotes: Array<{ id: string; content: string }>;
-  }>;
-  // Hinweise der Lehrkraft für heute (#4795), je Kind.
-  teacherHints?: Array<{ studentId: string } & TeacherHint>;
-  arrivalTimes?: Array<{
-    studentId: string;
-    date: string;
-    weekdayName: string;
-    expectedArrival: string | null;
-    isException: boolean;
-    notes: string;
-    dayNotes: Array<{ id: string; content: string }>;
-  }>;
-}
-
 export interface SupervisionDashboardOptions {
-  /** Bearer token of the signed-in user; no fetch while absent. */
-  readonly sessionToken: string | undefined;
+  /**
+   * Identity of the signed-in session (sessionIdentityKey); no fetch while
+   * null. The browser session carries no token (#5005).
+   */
+  readonly sessionKey: string | null;
   /** `?session=` — precise session (active group) selection from the URL. */
   readonly sessionParam: string | null;
   /** Legacy `?room=` entry point (sidebar, old links). */
@@ -244,6 +150,20 @@ export interface SupervisionDashboard {
   readonly loadError: FormError | null;
 }
 
+/**
+ * The session a cached aggregate was resolved for, if the aggregate still
+ * lists it. Older payloads without `selectedGroupId` restore nothing.
+ */
+function cachedSessionId(
+  data: BFFDashboardResponse | undefined,
+): string | null {
+  const sessionId = data?.selectedGroupId;
+  if (!sessionId) return null;
+  return data.supervisedGroups.some((group) => group.id === sessionId)
+    ? sessionId
+    : null;
+}
+
 /** The aggregate refuses a caller without supervision (HTTP 403). */
 function isNoAccessError(err: unknown): boolean {
   return (
@@ -275,7 +195,7 @@ function isNoAccessError(err: unknown): boolean {
 export function useSupervisionDashboard(
   options: SupervisionDashboardOptions,
 ): SupervisionDashboard {
-  const { sessionToken, sessionParam, roomParam } = options;
+  const { sessionKey, sessionParam, roomParam } = options;
   const router = useTenantRouter();
   const { data: session } = useSession();
   const memory = useSidebarMemory();
@@ -284,20 +204,10 @@ export function useSupervisionDashboard(
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((prev) => prev + 1), []);
 
-  // Selection state — genuine UI state, not a copy of server data.
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-  const [selectedOpenRoomId, setSelectedOpenRoomId] = useState<string | null>(
-    null,
-  );
-  const [selectedTimetableInstanceId, setSelectedTimetableInstanceId] =
-    useState<string | null>(null);
-  const [isSwitchingSession, setIsSwitchingSession] = useState(false);
   const { show: showActionError } = useApiErrorDisplay();
-
-  // The selected session for the fetcher. The SWR key is contractually
-  // stable (SSE invalidation matches on its prefix), so the selection cannot
-  // ride in the key — this ref is the request parameter instead.
-  const requestedGroupIdRef = useRef<string | null>(null);
+  // SSE invalidates the aggregate on attendance and supervision events; the
+  // interval reconciles missed events and the Berlin day change (#5017).
+  const refreshInterval = useLiveRefreshInterval();
 
   // SWR-based aggregate fetching with caching. The key prefix
   // "active-supervision-dashboard-" is invalidated by global SSE on relevant
@@ -310,63 +220,43 @@ export function useSupervisionDashboard(
     mutate: mutateDashboard,
     isLoading: isDashboardLoading,
   } = useSWRAuth<BFFDashboardResponse>(
-    sessionToken
-      ? `active-supervision-dashboard-${refreshKey}-${accountId}`
-      : null,
-    async () => {
-      logger.debug("SWR fetching dashboard data");
-      const start = performance.now();
-
-      const fetchDashboard = async (groupId: string | null) => {
-        const query =
-          groupId && /^[1-9]\d{0,18}$/.test(groupId)
-            ? `?group_id=${encodeURIComponent(groupId)}`
-            : "";
-        return transportFetch(`/api/active-supervision-dashboard${query}`, {
-          headers: {
-            Authorization: `Bearer ${sessionToken}`,
-            "Content-Type": "application/json",
-          },
-        });
-      };
-
-      const requestedGroupId = requestedGroupIdRef.current;
-      let response = await fetchDashboard(requestedGroupId);
-      // A stale selection (supervision revoked, session ended) is a backend
-      // 403 — retry once without group_id so the backend resolves the
-      // caller's first supervised session; the selection effects then
-      // re-align from the response.
-      if (!response.ok && response.status === 403 && requestedGroupId) {
-        response = await fetchDashboard(null);
-      }
-
-      if (!response.ok) {
-        // No silent fallback fan-out (#2096): a failed aggregate is an
-        // error, never a partial-empty payload — admins included.
-        throw await apiErrorFromResponse(
-          response,
-          `BFF request failed: ${response.status}`,
-        );
-      }
-
-      const bffData = (await response.json()) as {
-        data: BFFDashboardResponse;
-      };
-
-      logger.debug("SWR fetch complete", {
-        duration_ms: Math.round(performance.now() - start),
-      });
-      return bffData.data;
-    },
+    sessionKey ? dashboardKeys.supervision(accountId, refreshKey) : null,
+    (): Promise<BFFDashboardResponse> =>
+      fetchSupervisionDashboard(requestedGroupIdRef.current),
     {
       keepPreviousData: true,
       // Re-fetch server time without deriving a browser calendar day. Focus
       // covers backgrounded tabs; polling advances a continuously open tab
-      // across the Berlin midnight boundary.
-      refreshInterval: 60_000,
+      // across the Berlin midnight boundary, within five minutes while SSE
+      // is connected.
+      refreshInterval,
       revalidateOnFocus: true,
     },
   );
+
+  // A remount (browser back, another visit) finds the aggregate in the SWR
+  // cache; its resolved session is the one the page showed last. Until the
+  // URL and sidebar memory pick a session, that one is the session on screen
+  // and the one every request asks for, so restoring it needs no new request
+  // (#4988). The cache key carries tenant and account: the restored session
+  // is always the caller's own.
+  const [restoredSessionId] = useState(() => cachedSessionId(dashboardData));
+
+  // Selection state — genuine UI state, not a copy of server data.
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [selectedOpenRoomId, setSelectedOpenRoomId] = useState<string | null>(
+    null,
+  );
+  const [selectedTimetableInstanceId, setSelectedTimetableInstanceId] =
+    useState<string | null>(null);
+  const [isSwitchingSession, setIsSwitchingSession] = useState(false);
+
+  // The selected session for the fetcher. The SWR key is contractually
+  // stable (SSE invalidation matches on its prefix), so the selection cannot
+  // ride in the key — this ref is the request parameter instead. Seeded with
+  // the restored session so the background revalidation asks for the session
+  // on screen; the fetcher above reads it only after mount.
+  const requestedGroupIdRef = useRef<string | null>(restoredSessionId);
 
   // Retain the latest aggregate across renders where SWR reports no data
   // (key roll, transient cache states). This is the documented exception to
@@ -374,12 +264,11 @@ export function useSupervisionDashboard(
   // "storing information from previous renders" pattern), replacing the
   // former dozen per-field setState copies.
   const [snapshot, setSnapshot] = useState<BFFDashboardResponse | null>(null);
-  const [snapshotSessionToken, setSnapshotSessionToken] =
-    useState(sessionToken);
-  if (snapshotSessionToken !== sessionToken) {
-    // A token change can mean another account signed in on this tenant. Do
-    // not retain the previous account's aggregate while the new key loads.
-    setSnapshotSessionToken(sessionToken);
+  const [snapshotSessionKey, setSnapshotSessionKey] = useState(sessionKey);
+  if (snapshotSessionKey !== sessionKey) {
+    // Another account or set of rights on this tenant. Do not retain the
+    // previous session's aggregate while the new key loads.
+    setSnapshotSessionKey(sessionKey);
     setSnapshot(null);
   } else if (
     dashboardData &&
@@ -441,6 +330,13 @@ export function useSupervisionDashboard(
   }, [snapshot]);
 
   const plannedNow = useMemo(() => snapshot?.plannedNow ?? [], [snapshot]);
+
+  // The backend limits this list to five blocks. Reload at their window
+  // boundaries so an ended block frees its slot without waiting for a poll.
+  const reloadPlannedWindow = useCallback(() => {
+    void mutateDashboard();
+  }, [mutateDashboard]);
+  usePlannedWindowRefresh(plannedNow, reloadPlannedWindow);
 
   const currentStaffId = snapshot?.currentStaff?.id;
 
@@ -647,14 +543,18 @@ export function useSupervisionDashboard(
 
   // The caller's own selected session. A shared room is not one of them, so
   // while one is open this stays null and `currentOpenRoom` carries the view.
+  // Before a selection exists, the resolved session is the one whose children
+  // are shown, so it is also the one the header and the roster belong to.
   const currentRoom = useMemo(
     () =>
       selectedOpenRoomId
         ? null
-        : (allRooms.find((r) => r.id === selectedRoomId) ??
+        : (allRooms.find(
+            (r) => r.id === (selectedRoomId ?? resolvedRoom?.id),
+          ) ??
           allRooms[0] ??
           null),
-    [selectedOpenRoomId, allRooms, selectedRoomId],
+    [selectedOpenRoomId, allRooms, selectedRoomId, resolvedRoom],
   );
 
   const hasAccess: boolean | null = isNoAccessError(dashboardError)
@@ -741,7 +641,9 @@ export function useSupervisionDashboard(
   // A shared room asks the aggregate for nothing: it arrives complete with
   // every response, so opening one leaves the caller's own selection alone
   // instead of re-running the request for a session it does not have.
-  const explicitDesiredGroupId = selectedOpenRoomId ? null : selectedRoomId;
+  const explicitDesiredGroupId = selectedOpenRoomId
+    ? null
+    : (selectedRoomId ?? restoredSessionId);
   const resolvedGroupId = resolvedRoom?.id ?? null;
   const hasSnapshot = snapshot !== null;
 
@@ -769,6 +671,18 @@ export function useSupervisionDashboard(
       const targetRoom = allRoomsBase.find((r) => r.id === sessionId);
       if (!targetRoom) return;
 
+      // The retained aggregate already shows this session and every request
+      // asks for it (the remount restoring the last view, #4988): select it
+      // without the loading state; SWR revalidates it in the background.
+      if (
+        resolvedRoom?.id === sessionId &&
+        requestedGroupIdRef.current === sessionId
+      ) {
+        setSelectedTimetableInstanceId(null);
+        setSelectedRoomId(sessionId);
+        return;
+      }
+
       setIsSwitchingSession(true);
       setSelectedTimetableInstanceId(null);
       setSelectedRoomId(sessionId);
@@ -792,7 +706,13 @@ export function useSupervisionDashboard(
         setIsSwitchingSession(false);
       }
     },
-    [selectedRoomId, allRoomsBase, mutateDashboard, showActionError],
+    [
+      selectedRoomId,
+      allRoomsBase,
+      resolvedRoom,
+      mutateDashboard,
+      showActionError,
+    ],
   );
 
   const selectOpenRoom = useCallback((roomId: string) => {

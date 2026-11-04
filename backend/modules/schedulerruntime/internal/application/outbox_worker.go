@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log/slog"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 )
 
 // scheduleOutboxWorkerTask registers the platform email outbox tick.
@@ -21,8 +23,15 @@ func (s *Scheduler) scheduleOutboxWorkerTask() {
 	s.registerTask("email-outbox", "interval-poll", s.runOutboxWorkerTaskPolling)
 }
 
+// A committed enqueue wakes the task at once (OutboxWakeupSource), so a mail a
+// person waits for, such as a password reset, does not wait for the next
+// poll. The interval stays the fallback for lost wake-ups and retries.
 func (s *Scheduler) runOutboxWorkerTaskPolling(task *ScheduledTask) {
-	s.runIntervalPolling(task, "panic in outbox worker task",
+	var wakeups <-chan struct{}
+	if source, ok := s.outboxWorker.(ports.OutboxWakeupSource); ok {
+		wakeups = source.EmailWakeups(s.lifecycleContext())
+	}
+	s.runWakeablePolling(task, wakeups, "panic in outbox worker task",
 		"outbox worker using interval polling",
 		15*time.Second, s.resolveOutboxInterval, s.runOutboxOnce)
 }

@@ -8,6 +8,7 @@ import {
   useRef,
 } from "react";
 import { Eye, Loader2, Plus, Search } from "lucide-react";
+import { Button } from "~/components/ui/button";
 import GuardianList from "./guardian-list";
 import GuardianFormModal from "./guardian-form-modal";
 import GuardianPickerPanel from "./guardian-picker-panel";
@@ -53,10 +54,12 @@ import {
 import { formErrorMessage } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { createLogger } from "~/lib/logger";
+import { displayEmail } from "~/lib/demo-build";
 import { useSession } from "next-auth/react";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { SectionCard } from "~/components/ui/section-card";
 import { StudentPaymentCard } from "./student-payment-card";
 import { hasPermission } from "~/lib/auth-utils";
+import { parentsConcept } from "~/lib/concepts/parents";
 
 const logger = createLogger({ component: "StudentGuardianManager" });
 
@@ -427,10 +430,11 @@ export default function StudentGuardianManager({
     guardian: GuardianWithRelationship,
     confirmRoleUpgrade = false,
   ) => {
-    if (!guardian.email) return;
+    const email = displayEmail(guardian.email);
+    if (!email) return;
     setInvitingGuardianId(guardian.id);
     try {
-      const result = await inviteGuardianToStudent(studentId, guardian.email, {
+      const result = await inviteGuardianToStudent(studentId, email, {
         confirmRoleUpgrade,
       });
       if (result.outcome === "existing_contact_restricted") {
@@ -445,7 +449,7 @@ export default function StudentGuardianManager({
         inviteSuccessMessage(
           result.outcome,
           getGuardianFullName(guardian),
-          guardian.email ?? "",
+          email,
           confirmRoleUpgrade,
         ),
       );
@@ -660,47 +664,50 @@ export default function StudentGuardianManager({
   }
 
   return (
-    <div className="moto-content-surface relative z-10 rounded-2xl border p-4 shadow-sm sm:p-6">
-      <ConceptSectionHeader
-        className="mb-4"
-        title="Erziehungsberechtigte"
-        concept="parents"
-        actions={
-          <div className="flex items-center gap-2">
-            {readOnly && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 sm:px-2.5">
-                <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
-                <span className="hidden sm:inline">Nur Ansicht</span>
-                <span className="sm:hidden">Ansicht</span>
-              </span>
-            )}
-            {!readOnly && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setIsPickerOpen(true)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                  title="Vorhandene/n Erziehungsberechtigte/n suchen"
-                >
-                  <Search className="h-4 w-4" />
-                  <span className="hidden sm:inline">Vorhandene/n suchen</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOpenCreateModal}
-                  data-setup-tour="guardian-add"
-                  className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-                  title="Erziehungsberechtigte/n hinzufügen"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">Hinzufügen</span>
-                </button>
-              </>
-            )}
-          </div>
-        }
-      />
-
+    <SectionCard
+      className="relative z-10"
+      overflow="visible"
+      title="Erziehungsberechtigte"
+      concept={parentsConcept}
+      actions={
+        <div className="flex items-center gap-2">
+          {readOnly && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 sm:px-2.5">
+              <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Nur Ansicht</span>
+              <span className="sm:hidden">Ansicht</span>
+            </span>
+          )}
+          {!readOnly && (
+            <>
+              <Button
+                type="button"
+                variant="surface"
+                size="md"
+                onClick={() => setIsPickerOpen(true)}
+                className="gap-1"
+                title="Vorhandene/n Erziehungsberechtigte/n suchen"
+              >
+                <Search className="h-4 w-4" />
+                <span className="hidden sm:inline">Vorhandene/n suchen</span>
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={handleOpenCreateModal}
+                data-setup-tour="guardian-add"
+                className="gap-1"
+                title="Erziehungsberechtigte/n hinzufügen"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Hinzufügen</span>
+              </Button>
+            </>
+          )}
+        </div>
+      }
+    >
       {/* Existing-guardian picker (sibling case): eine Kopf-Aktion mit
           Dialog, kein Formular über der Liste (#3112). Der Dialog schließt,
           sobald die Person gewählt ist; die Verknüpfung läuft dahinter. */}
@@ -810,6 +817,6 @@ export default function StudentGuardianManager({
           der Eltern-App.
         </p>
       </ConfirmationModal>
-    </div>
+    </SectionCard>
   );
 }

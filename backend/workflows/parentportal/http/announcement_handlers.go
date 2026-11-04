@@ -25,12 +25,16 @@ type AnnouncementResponse struct {
 	// DeliveryMode "letter" marks a binding Elternbrief (#2384) so the portal can
 	// say so, instead of leaving the parent to infer it from a confirmation
 	// button appearing.
-	DeliveryMode string     `json:"delivery_mode"`
-	SchoolName   string     `json:"school_name"`
-	PublishedAt  *time.Time `json:"published_at,omitempty"`
-	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
-	Read         bool       `json:"read"`
-	Acknowledged bool       `json:"acknowledged"`
+	DeliveryMode string `json:"delivery_mode"`
+	SchoolName   string `json:"school_name"`
+	// SenderName and SenderSchoolClass name the Lehrkraft of a class letter
+	// (#4800); absent on letters of the OGS.
+	SenderName        *string    `json:"sender_name,omitempty"`
+	SenderSchoolClass *string    `json:"sender_school_class,omitempty"`
+	PublishedAt       *time.Time `json:"published_at,omitempty"`
+	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
+	Read              bool       `json:"read"`
+	Acknowledged      bool       `json:"acknowledged"`
 
 	// Poll fields (#1371). response_type "none" means the other three are absent:
 	// options are the answer choices, children the guardian's own children this
@@ -114,6 +118,8 @@ func toAnnouncementResponse(item *parentService.AnnouncementFeedItem) Announceme
 		RequiresAcknowledgement: item.RequiresAcknowledgement,
 		DeliveryMode:            item.DeliveryMode,
 		SchoolName:              item.SchoolName,
+		SenderName:              item.SenderName,
+		SenderSchoolClass:       item.SenderSchoolClass,
 		PublishedAt:             item.PublishedAt,
 		ExpiresAt:               item.ExpiresAt,
 		Read:                    item.ReadAt != nil,

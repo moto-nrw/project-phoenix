@@ -87,10 +87,7 @@ func TestEffectsUsesParsedProjectWithoutRunningPassThroughCheck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inventory, err := os.ReadFile(filepath.Join(project, commandEffectInventory))
-	if err != nil {
-		t.Fatal(err)
-	}
+	inventory := readMaterializedEffects(t, filepath.Join(project, commandEffectInventory))
 	if !strings.Contains(string(inventory), "example.test/effects/foreign.Ledger.Record") {
 		t.Fatalf("effects did not generate the project inventory: %s", inventory)
 	}
@@ -871,7 +868,7 @@ func runArchitectureWithEnv(t *testing.T, environment map[string]string, args ..
 	}
 
 	root := filepath.Clean(filepath.Join(packageDir(t), "..", "..", ".."))
-	environmentVariables := os.Environ()
+	environmentVariables := gitTestEnvironment()
 	for key, value := range environment {
 		prefix := key + "="
 		filtered := environmentVariables[:0]

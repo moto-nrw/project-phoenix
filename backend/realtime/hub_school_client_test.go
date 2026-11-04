@@ -74,3 +74,45 @@ func TestSchoolClientReceivesOnlyAccountAddressedEvents(t *testing.T) {
 		t.Fatalf("expected no clients after unregister, got %d", hub.GetClientCount())
 	}
 }
+
+// TestSchoolClientHearsThatAClassDayChanged pins the one tenant-wide signal
+// moto schule receives (#4792): a student_updated at its own school reaches
+// the school client as class_day_changed, without the source event's
+// payload, so an open class view refetches after a new sick note.
+func TestSchoolClientHearsThatAClassDayChanged(t *testing.T) {
+	t.Parallel()
+
+	hub := NewHub(nil)
+	teacher := schoolClient(11)
+	hub.RegisterSchool(teacher, 100)
+	elsewhere := schoolClient(12)
+	hub.RegisterSchool(elsewhere, 200)
+
+	source := "parent"
+	studentID := "7"
+	if err := hub.BroadcastToTenant(100, NewEvent(EventStudentUpdated, "", EventData{Source: &source, StudentID: &studentID})); err != nil {
+		t.Fatalf("tenant broadcast: %v", err)
+	}
+	select {
+	case event := <-teacher.Channel:
+		if event.Type != EventClassDayChanged {
+			t.Fatalf("expected %s, got %s", EventClassDayChanged, event.Type)
+		}
+		if event.Data.StudentID != nil {
+			t.Fatal("the school signal must not name the child")
+		}
+		if event.Data.Source == nil || *event.Data.Source != source {
+			t.Fatal("the school signal keeps the source for log review")
+		}
+	default:
+		t.Fatal("a student update at the client's school must reach it as class_day_changed")
+	}
+	if received(t, elsewhere) {
+		t.Fatal("another school's student update must not reach a school client")
+	}
+
+	hub.Unregister(teacher)
+	if err := hub.BroadcastToTenant(100, NewEvent(EventStudentUpdated, "", EventData{Source: &source})); err != nil {
+		t.Fatalf("tenant broadcast after unregister: %v", err)
+	}
+}

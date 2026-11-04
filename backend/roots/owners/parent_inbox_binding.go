@@ -9,12 +9,12 @@ import (
 )
 
 type parentInboxProjection interface {
-	ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*parentinbox.ParentInboxThread, error)
-	ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*parentinbox.ParentInboxThread, error)
+	ListInboxForStaff(ctx context.Context, accountID int64, reach parentinbox.StaffReach, onlyUnread bool) ([]*parentinbox.ParentInboxThread, error)
+	ListThreadsForStudent(ctx context.Context, accountID, studentID int64, reach parentinbox.StaffReach) ([]*parentinbox.ParentInboxThread, error)
 	ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64, staffAccounts map[int64][]int64) ([]*parentinbox.ParentInboxThread, error)
 	ListThreadsForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64, staffAccounts map[int64][]int64) ([]*parentinbox.ParentInboxThread, error)
-	UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error)
-	UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error)
+	UnreadMessageCountForStaff(ctx context.Context, accountID int64, reach parentinbox.StaffReach) (int, error)
+	UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, reach parentinbox.StaffReach, groupIDs []int64) (int, error)
 	UnreadMessageCountForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) (int, error)
 	FindThreadHeader(ctx context.Context, threadID int64) (*parentinbox.ParentThreadHeader, error)
 	LatestReadCursorByOtherStaff(ctx context.Context, threadID, excludeAccountID int64, staffAccounts map[int64][]int64) (*parentinbox.ParentReadCursor, error)
@@ -22,6 +22,11 @@ type parentInboxProjection interface {
 }
 
 type communicationParentInbox struct{ source parentInboxProjection }
+
+// staffReach hands Communication's reader reach to the projection.
+func staffReach(reach communication.ParentMessageStaffReach) parentinbox.StaffReach {
+	return parentinbox.StaffReach{AllStudents: reach.AllStudents, Leadership: reach.Leadership}
+}
 
 func cursorModel(cursor *parentinbox.ParentReadCursor) *communication.ParentReadCursorRecord {
 	if cursor == nil {
@@ -59,7 +64,7 @@ func inboxModels(rows []*parentinbox.ParentInboxThread) ([]*communication.Portal
 			ThreadID: row.ThreadID, TenantID: row.TenantID, StudentID: row.StudentID,
 			StudentName: row.StudentName, SchoolClass: row.SchoolClass, GroupID: row.GroupID,
 			GuardianAccountID: row.GuardianAccountID, GuardianName: row.GuardianName,
-			RelationshipType: row.RelationshipType, LastMessageAt: row.LastMessageAt,
+			RelationshipType: row.RelationshipType, Audience: row.Audience, LastMessageAt: row.LastMessageAt,
 			LastSenderKind: row.LastSenderKind, LastMessageBody: row.LastMessageBody,
 			LastMessageKind: row.LastMessageKind, LastEventType: row.LastEventType,
 			LastRequestType: row.LastRequestType, LastRequestStatus: row.LastRequestStatus,
@@ -74,16 +79,16 @@ func inboxModels(rows []*parentinbox.ParentInboxThread) ([]*communication.Portal
 	}
 	return threads, nil
 }
-func (r communicationParentInbox) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*communication.PortalInboxThread, error) {
-	rows, err := r.source.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
+func (r communicationParentInbox) ListInboxForStaff(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach, onlyUnread bool) ([]*communication.PortalInboxThread, error) {
+	rows, err := r.source.ListInboxForStaff(ctx, accountID, staffReach(reach), onlyUnread)
 	mapped, mapErr := inboxModels(rows)
 	if err != nil {
 		return mapped, err
 	}
 	return mapped, mapErr
 }
-func (r communicationParentInbox) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {
-	rows, err := r.source.ListThreadsForStudent(ctx, accountID, studentID)
+func (r communicationParentInbox) ListThreadsForStudent(ctx context.Context, accountID, studentID int64, reach communication.ParentMessageStaffReach) ([]*communication.PortalInboxThread, error) {
+	rows, err := r.source.ListThreadsForStudent(ctx, accountID, studentID, staffReach(reach))
 	mapped, mapErr := inboxModels(rows)
 	if err != nil {
 		return mapped, err
@@ -106,11 +111,11 @@ func (r communicationParentInbox) ListThreadsForGuardianTenantsWithStaff(ctx con
 	}
 	return mapped, mapErr
 }
-func (r communicationParentInbox) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error) {
-	return r.source.UnreadMessageCountForStaff(ctx, accountID, allStudents)
+func (r communicationParentInbox) UnreadMessageCountForStaff(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach) (int, error) {
+	return r.source.UnreadMessageCountForStaff(ctx, accountID, staffReach(reach))
 }
-func (r communicationParentInbox) UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {
-	return r.source.UnreadMessageCountForStaffInGroups(ctx, accountID, allStudents, groupIDs)
+func (r communicationParentInbox) UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach, groupIDs []int64) (int, error) {
+	return r.source.UnreadMessageCountForStaffInGroups(ctx, accountID, staffReach(reach), groupIDs)
 }
 func (r communicationParentInbox) UnreadMessageCountForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) (int, error) {
 	return r.source.UnreadMessageCountForGuardianTenants(ctx, accountID, tenantIDs)

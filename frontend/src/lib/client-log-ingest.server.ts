@@ -12,8 +12,8 @@ import {
   isApiResponseError,
   problemResponse,
 } from "~/lib/api-response-error.server";
-import type { Session } from "next-auth";
 import { parseRequestBody } from "~/lib/route-wrapper-utils.server";
+import type { ServerSession } from "~/server/auth/shared";
 import { validateSessionToken } from "~/server/auth/token-validation";
 import { redactSensitiveLogData } from "~/lib/log-redaction";
 
@@ -68,7 +68,7 @@ function validEntry(entry: unknown): entry is Record<string, unknown> {
 
 export async function ingestClientLogs(
   request: NextRequest,
-  session: Session | null,
+  session: ServerSession | null,
   portal: ClientLogPortal,
 ): Promise<NextResponse> {
   if (!session?.user?.token || session.error) {

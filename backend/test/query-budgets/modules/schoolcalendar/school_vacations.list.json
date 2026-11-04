@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.schoolcalendar.school_vacations.list",
+  "max": 6,
+  "exact": true,
+  "description": "modules/schoolcalendar/compose — the stored vacation list with 3 and 8 windows: tenant transaction, one vacation SELECT with the acknowledgement EXISTS projection, and one sync timestamp SELECT."
+}

@@ -74,15 +74,16 @@ export function useUrlParams<K extends string>(
   }, [syncPopstate]);
 
   const params = useMemo(() => {
-    if (syncPopstate && typeof window !== "undefined") {
+    // Only a popstate makes window.location the source: on a client
+    // navigation into the view the first render still sees the previous
+    // page's URL there, while the router's params are already current (#5103).
+    if (syncPopstate && popstateTick > 0 && typeof window !== "undefined") {
       return readSnapshot(
         allowedKeys,
         new URLSearchParams(window.location.search),
       );
     }
     return readSnapshot(allowedKeys, searchParams);
-    // popstateTick is a deliberate re-read trigger, not a value read here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowedKeys, searchParams, syncPopstate, popstateTick]);
 
   const updateParams = useCallback(

@@ -17,6 +17,9 @@ const (
 	activeSupervisionReasonActivityStarted = "activity_started"
 	activeSupervisionReasonActivityEnded   = "activity_ended"
 	activeSupervisionReasonStudentMoved    = "student_moved"
+	// activeSupervisionReasonSupervisorsChanged marks a write that changed
+	// who supervises a running session (claim, add, edit, end, replace).
+	activeSupervisionReasonSupervisorsChanged = "supervisors_changed"
 )
 
 // defaultDeviceOnlineWindow is the fallback online/offline cutoff used by the

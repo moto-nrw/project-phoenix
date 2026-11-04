@@ -91,3 +91,48 @@ func TestIsAnnouncementExpiredUsesStrictInstant(t *testing.T) {
 }
 
 func stringPointer(value string) *string { return &value }
+
+func TestParentMessageLeaderShortNameAndChoice(t *testing.T) {
+	t.Parallel()
+	for leader, want := range map[ParentMessageLeader]string{
+		{FirstName: "Swantje", LastName: "Meier"}: "Swantje M.",
+		{FirstName: "Ömer", LastName: "Özdemir"}:  "Ömer Ö.",
+		{FirstName: "Swantje"}:                    "Swantje",
+		{LastName: "Meier"}:                       "Meier",
+	} {
+		if got := leader.ShortName(); got != want {
+			t.Errorf("%+v: got %q, want %q", leader, got, want)
+		}
+	}
+	leaders := []ParentMessageLeader{{FirstName: "Swantje", LastName: "Meier"}}
+	for _, test := range []struct {
+		choice ParentMessageLeadershipChoice
+		want   bool
+	}{
+		{ParentMessageLeadershipChoice{Enabled: true, Leaders: leaders}, true},
+		{ParentMessageLeadershipChoice{Enabled: false, Leaders: leaders}, false},
+		{ParentMessageLeadershipChoice{Enabled: true}, false},
+	} {
+		if got := test.choice.Available(); got != test.want {
+			t.Errorf("%+v: available %v, want %v", test.choice, got, test.want)
+		}
+	}
+	unnamed := []ParentMessageLeader{{AccountID: 1, FirstName: "Swantje", LastName: "Meier"}, {AccountID: 2}, {AccountID: 3}}
+	got := ParentMessageLeaderShortNames(unnamed)
+	if len(got) != 3 || got[0] != "Swantje M." || got[1] != "" || got[2] != "" {
+		t.Errorf("one entry per reader, unnamed accounts empty and never a German label, got %v", got)
+	}
+	names, count := SplitParentMessageLeaderNames(got)
+	if len(names) != 1 || names[0] != "Swantje M." || count != 2 {
+		t.Errorf("split keeps the named leaders and counts the unnamed ones, got %v %d", names, count)
+	}
+	if names, count := SplitParentMessageLeaderNames(nil); names == nil || len(names) != 0 || count != 0 {
+		t.Errorf("an empty list splits into an empty, non-nil list, got %v %d", names, count)
+	}
+	if audience, ok := NormalizeParentMessageAudience(""); !ok || audience != ParentMessageAudienceTeam {
+		t.Error("an empty audience stays the team conversation")
+	}
+	if _, ok := NormalizeParentMessageAudience("all"); ok {
+		t.Error("an unknown audience is rejected")
+	}
+}

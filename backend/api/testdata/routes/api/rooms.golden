@@ -1,0 +1,11 @@
+DELETE /api/rooms/{id}
+GET /api/rooms/
+GET /api/rooms/available
+GET /api/rooms/buildings
+GET /api/rooms/by-category
+GET /api/rooms/categories
+GET /api/rooms/{id}
+GET /api/rooms/{id}/history
+POST /api/rooms/
+POST /api/rooms/export
+PUT /api/rooms/{id}

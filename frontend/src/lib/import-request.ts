@@ -1,3 +1,4 @@
+import type { Session } from "next-auth";
 import {
   ApiError,
   apiErrorFromBody,
@@ -5,6 +6,7 @@ import {
   transportFetch,
 } from "~/lib/api-error";
 import { downloadBlob } from "~/lib/file-download";
+import { hasSessionAccess } from "~/lib/session-access";
 
 /**
  * Requests of the import pages (#2517): every failure is an `ApiError` with
@@ -12,15 +14,16 @@ import { downloadBlob } from "~/lib/file-download";
  * A request that never reached the API becomes `general.unavailable`.
  */
 
-/** Without a session token the login has expired: the error path sends the
- *  person to the login screen. */
+/** Without a session that grants access the login has expired: the error
+ *  path sends the person to the login screen. */
 function missingSessionError(): ApiError {
   return new ApiError("No authentication token available", 401);
 }
 
-function authorized(token: string | undefined): Record<string, string> {
-  if (!token) throw missingSessionError();
-  return { Authorization: `Bearer ${token}` };
+/** The import routes read the session cookie; the browser holds no token
+ *  (#5005). */
+function requireSession(session: Session | null | undefined): void {
+  if (!hasSessionAccess(session)) throw missingSessionError();
 }
 
 /** The JSON envelope of an import response; `{}` when the body is not JSON. */
@@ -48,12 +51,13 @@ export interface ImportResponse {
  *  stopped batch carries the rows that were already saved. */
 export async function postImportFile(
   url: string,
-  token: string | undefined,
+  session: Session | null | undefined,
   formData: FormData,
 ): Promise<ImportResponse> {
+  requireSession(session);
   const response = await transportFetch(url, {
     method: "POST",
-    headers: authorized(token),
+    credentials: "include",
     body: formData,
   });
   return {
@@ -74,10 +78,11 @@ export function importResponseError(
 /** Downloads the import template as `filename`. */
 export async function downloadImportTemplate(
   url: string,
-  token: string | undefined,
+  session: Session | null | undefined,
   filename: string,
 ): Promise<void> {
-  const response = await transportFetch(url, { headers: authorized(token) });
+  requireSession(session);
+  const response = await transportFetch(url, { credentials: "include" });
   if (!response.ok) {
     throw await apiErrorFromResponse(response, "Template download failed");
   }

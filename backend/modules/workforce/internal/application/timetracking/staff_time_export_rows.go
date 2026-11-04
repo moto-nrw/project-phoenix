@@ -47,6 +47,10 @@ func (s *staffOverviewService) GetMonthExportRows(ctx context.Context, year, mon
 		return nil, err
 	}
 	monthSvc := newPrefetchedMonthService(prefetch, s.logger)
+	payroll, err := s.loadExportPayroll(ctx, firstKey, lastKey)
+	if err != nil {
+		return nil, err
+	}
 
 	rows := make([]MonthExportRow, 0, len(staffMembers))
 	for _, staff := range staffMembers {
@@ -56,6 +60,9 @@ func (s *staffOverviewService) GetMonthExportRows(ctx context.Context, year, mon
 				return nil, fmt.Errorf("failed to compute month summary for staff %d: %w", staff.ID, err)
 			}
 			row := buildMonthExportRow(staff, summary)
+			if err := payroll.apply(&row, summary, prefetch, key); err != nil {
+				return nil, err
+			}
 			rows = append(rows, row)
 		}
 	}

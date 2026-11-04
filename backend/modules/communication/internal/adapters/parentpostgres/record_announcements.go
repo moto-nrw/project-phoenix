@@ -381,6 +381,7 @@ func (r *announcementRepository) ListFeedForAccount(ctx context.Context, account
 			PublishedAt: value.PublishedAt, ExpiresAt: value.ExpiresAt, ResponseType: value.ResponseType,
 			DeliveryMode: value.DeliveryMode, ResponseDeadline: value.ResponseDeadline, SystemKind: value.SystemKind,
 			ReminderSentAt: value.ReminderSentAt, ReminderText: value.ReminderText,
+			SenderName: value.SenderName, SenderSchoolClass: value.SenderSchoolClass,
 			ReadAt: value.ReadAt, AcknowledgedAt: value.AcknowledgedAt,
 		})
 	}
@@ -481,6 +482,7 @@ func announcementValue(a *communication.PortalParentAnnouncement) *domain.Parent
 		PublishedAt: a.PublishedAt, ExpiresAt: a.ExpiresAt, Active: a.Active, CreatedBy: a.CreatedBy,
 		ResponseType: a.ResponseType, ResponseDeadline: a.ResponseDeadline,
 		DeliveryMode: a.DeliveryMode, EmailAudience: a.EmailAudience, SystemKind: a.SystemKind,
+		SenderName: a.SenderName, SenderSchoolClass: a.SenderSchoolClass,
 		ReminderAt: a.ReminderAt, ReminderText: a.ReminderText, ReminderSentAt: a.ReminderSentAt,
 		CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt, Declaration: domain.DeclarationSettings(a.Declaration),
 	}
@@ -496,6 +498,7 @@ func announcementModel(value *domain.ParentAnnouncement) *communication.PortalPa
 		PublishedAt: value.PublishedAt, ExpiresAt: value.ExpiresAt, Active: value.Active,
 		CreatedBy: value.CreatedBy, ResponseType: value.ResponseType, ResponseDeadline: value.ResponseDeadline,
 		DeliveryMode: value.DeliveryMode, EmailAudience: value.EmailAudience, SystemKind: value.SystemKind,
+		SenderName: value.SenderName, SenderSchoolClass: value.SenderSchoolClass,
 		ReminderAt: value.ReminderAt, ReminderText: value.ReminderText, ReminderSentAt: value.ReminderSentAt,
 		Declaration: communication.PortalAnnouncementDeclarationSettings(value.Declaration),
 	}

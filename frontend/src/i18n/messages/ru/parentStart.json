@@ -1,0 +1,39 @@
+{
+  "kicker": "Родительский портал",
+  "greeting": {
+    "morning": "Доброе утро, {name}",
+    "morningPlain": "Доброе утро",
+    "day": "Добрый день, {name}",
+    "dayPlain": "Добрый день",
+    "evening": "Добрый вечер, {name}",
+    "eveningPlain": "Добрый вечер"
+  },
+  "subtitle": "Самое важное на сегодня с первого взгляда.",
+  "todo": {
+    "title": "Нужно сделать",
+    "description": "Открытые сообщения, встречи и ответы с первого взгляда.",
+    "openCount": "Открыто: {count}",
+    "unread": "Не прочитано",
+    "today": "Сегодня",
+    "allDay": "Весь день",
+    "emptyTitle": "Всё сделано",
+    "emptyDescription": "Сейчас ничего делать не нужно.",
+    "messageTitleOne": "Новое сообщение",
+    "messageTitleMany": "Новых сообщений: {count}",
+    "messageContext": "Продлёнка · О {name}",
+    "pollContext": "Опрос · {school}",
+    "declarationContext": "Согласие · {school}",
+    "newsContext": "Письмо родителям · {school}",
+    "ackContext": "Требуется подтверждение · {school}",
+    "appointmentContext": "Встреча для {name}",
+    "appointmentContextPlain": "Встреча",
+    "showMoreOne": "Показать ещё один пункт",
+    "showMoreMany": "Показать остальные пункты ({count})",
+    "showLess": "Показать меньше",
+    "loading": "Загрузка задач",
+    "errorObject": "полный список дел"
+  },
+  "childrenLoading": "Загрузка данных о детях",
+  "noChildren": "К вашему аккаунту ещё не привязан ребёнок. Продлёнка вашей школы может это настроить.",
+  "errorObject": "обзор ваших детей"
+}

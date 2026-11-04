@@ -44,6 +44,7 @@ func BuildCarePlanOfferings(
 	bookings, err := BookingMaterializationOwners(
 		timetableOwner, owner.RosterReconciler, persons, calendar, enrollment.Bookings, enrollment.ApprovedOfferings,
 		audit.Persistence.EnrollmentOfferingAdjustment, people.Persons, identity, schedules.PickupBaselines, carePlan,
+		owner.StudentTemplateDays,
 	)
 	if err != nil {
 		return CarePlanOfferings{}, fmt.Errorf("compose care plan booking materialization: %w", err)

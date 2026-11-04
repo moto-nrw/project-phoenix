@@ -1,0 +1,7 @@
+DELETE /api/groups/{id} -> basis
+GET /api/groups/ -> basis
+GET /api/groups/{id} -> basis
+GET /api/groups/{id}/students -> basis
+GET /api/groups/{id}/supervisors -> basis
+POST /api/groups/ -> basis
+PUT /api/groups/{id} -> basis

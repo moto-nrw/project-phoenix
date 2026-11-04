@@ -22,10 +22,14 @@ import {
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
+import { displayEmail } from "~/lib/demo-build";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import type { Teacher } from "~/lib/teacher-api";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
+import { feedbackConcept } from "~/lib/concepts/feedback";
+import { messagesConcept } from "~/lib/concepts/messages";
+import { staffConcept } from "~/lib/concepts/staff";
 
 const logger = createLogger({ component: "StaffKontoTab" });
 
@@ -119,8 +123,8 @@ function hasTeacherProfile(teacher: Teacher): boolean {
 
 const staffIcon = (
   <MotoDuotoneIcon
-    icon={MOTO_CONCEPTS.staff.icon}
-    tone={MOTO_CONCEPTS.staff.tone}
+    icon={staffConcept.icon}
+    tone={staffConcept.tone}
     size={18}
   />
 );
@@ -142,6 +146,8 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
   // gesetzt, damit der normale Submit-Handler den aktuellen Rollenentwurf
   // nimmt, aber die bereits gespeicherten Felder auslässt.
   const retryRoleOnlyRef = useRef(false);
+  // The public demo hides its technical seed addresses (#5033).
+  const email = displayEmail(teacher.email);
   const errors = useApiFormError(formRef);
 
   const displayRole = teacher.account_role
@@ -292,20 +298,20 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
             </DataGrid>
           </InfoSection>
 
-          {teacher.email ? (
+          {email ? (
             <InfoSection
               title="E-Mail"
               icon={
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.messages.icon}
-                  tone={MOTO_CONCEPTS.messages.tone}
+                  icon={messagesConcept.icon}
+                  tone={messagesConcept.tone}
                   size={18}
                 />
               }
               accentColor="blue"
             >
               <EmailActions
-                email={teacher.email}
+                email={email}
                 name={
                   teacher.name ||
                   `${teacher.first_name ?? ""} ${teacher.last_name ?? ""}`.trim()
@@ -338,8 +344,8 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
               title="Notizen"
               icon={
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.feedback.icon}
-                  tone={MOTO_CONCEPTS.feedback.tone}
+                  icon={feedbackConcept.icon}
+                  tone={feedbackConcept.tone}
                   size={18}
                 />
               }
@@ -362,8 +368,8 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
               title="Zeitstempel"
               icon={
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.changeHistory.icon}
-                  tone={MOTO_CONCEPTS.changeHistory.tone}
+                  icon={changeHistoryConcept.icon}
+                  tone={changeHistoryConcept.tone}
                   size={18}
                 />
               }
@@ -556,8 +562,8 @@ function KontoEditForm({
           title="Notizen"
           icon={
             <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.feedback.icon}
-              tone={MOTO_CONCEPTS.feedback.tone}
+              icon={feedbackConcept.icon}
+              tone={feedbackConcept.tone}
               size={18}
             />
           }

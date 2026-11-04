@@ -32,6 +32,8 @@ import {
   formatPickupTime,
   pickupScheduleSourceLabel,
 } from "~/lib/pickup-schedule-helpers";
+import { parentsConcept } from "~/lib/concepts/parents";
+import { pickupConcept } from "~/lib/concepts/pickup";
 
 /**
  * The care plan is edited through exactly two doors, and each one owns one kind
@@ -76,6 +78,13 @@ const DEPARTURE_OPTION_ORDER: readonly DepartureMode[] = [
   "accompanied",
 ];
 const WEEKDAY_KEYS = ["", "mon", "tue", "wed", "thu", "fri"] as const;
+
+/** „jeden Montag“ für das Übernehmen der gebuchten Abholzeit. */
+function weeklyAdverb(weekday: number): string {
+  const names = ["", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
+  const name = names[weekday];
+  return name ? `jeden ${name}` : "in jeder Woche";
+}
 
 interface NoteDeletionTarget {
   readonly content: string;
@@ -389,7 +398,7 @@ export function CarePlanEditorModal({
               {parentAuthored ? (
                 <div className="border-moto-blue/20 bg-moto-blue/10 text-moto-blue-hover flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
                   <MotoConceptIcon
-                    concept="parents"
+                    concept={parentsConcept}
                     size={18}
                     className="mt-0.5"
                   />
@@ -422,7 +431,7 @@ export function CarePlanEditorModal({
                 />
                 <LegSection
                   label="Abholung"
-                  icon={<MotoConceptIcon concept="pickup" size={18} />}
+                  icon={<MotoConceptIcon concept={pickupConcept} size={18} />}
                   regularLabel={`Regulär: ${formatRegularPickup(pickupDay)}`}
                   mode={pickupMode}
                   onModeChange={(mode) => setPickupMode(mode as PickupMode)}
@@ -441,7 +450,7 @@ export function CarePlanEditorModal({
               </div>
               <LegSection
                 label="Abholart"
-                icon={<MotoConceptIcon concept="pickup" size={18} />}
+                icon={<MotoConceptIcon concept={pickupConcept} size={18} />}
                 regularLabel={`Regulär: ${formatRegularDeparture(pickupDay, weeklyDepartureModes)}`}
                 mode={departureMode}
                 onModeChange={setDepartureMode}
@@ -481,11 +490,23 @@ export function CarePlanEditorModal({
               pickupDay.baseSchedule &&
               pickupDay.offeringSchedule &&
               pickupDay.baseSchedule.source !== "care_offering" ? (
-                <div className="flex justify-end">
+                // Der Dialog gilt sonst nur für diesen Tag; das Übernehmen
+                // ändert aber den Wochenplan ab sofort, also auch vor diesem
+                // Tag. Der Satz sagt das und nennt die gebuchte Zeit (#5618).
+                // Braucht ein früherer Tag die Zeit noch, lehnt moto ab und
+                // nennt den Tag, ab dem es geht (#5643).
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-gray-600">
+                    Gebucht:{" "}
+                    {formatPickupTime(pickupDay.offeringSchedule.pickupTime)}{" "}
+                    Uhr. Übernehmen gilt ab sofort{" "}
+                    {weeklyAdverb(pickupDay.weekday)}, nicht nur an diesem Tag.
+                  </p>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="surface"
                     size="compact"
+                    className="ml-auto"
                     disabled={isResettingPickup}
                     onClick={() =>
                       void handleResetPickupToOffering(
@@ -495,8 +516,8 @@ export function CarePlanEditorModal({
                     }
                   >
                     {isResettingPickup
-                      ? "Setzt zurück…"
-                      : "Abholung auf Angebots-Gehzeit zurücksetzen"}
+                      ? "Wird übernommen …"
+                      : "Gebuchte Abholzeit übernehmen"}
                   </Button>
                 </div>
               ) : null}
@@ -601,7 +622,7 @@ function LegSection({
   const timeId = `exception-${label.toLowerCase()}-time`;
   const reasonId = `exception-${label.toLowerCase()}-reason`;
   return (
-    <section className="moto-content-surface rounded-xl border p-3 shadow-sm sm:rounded-2xl sm:p-4">
+    <section className="moto-content-surface rounded-xl border p-3 sm:rounded-2xl sm:p-4">
       <div className="mb-3 flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100">
           {icon}
@@ -632,12 +653,12 @@ function LegSection({
           <span className="mb-1 block text-xs font-medium text-gray-500">
             Uhrzeit
           </span>
-          <input
+          <Input
             id={timeId}
+            controlSize="compact"
             type="time"
             value={time}
             onChange={(event) => onTimeChange(event.target.value)}
-            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
           />
         </label>
       ) : null}
@@ -650,13 +671,13 @@ function LegSection({
           <span className="mb-1 block text-xs font-medium text-gray-500">
             Grund
           </span>
-          <input
+          <Input
             id={reasonId}
+            controlSize="compact"
             type="text"
             value={reason}
             onChange={(event) => onReasonChange(event.target.value)}
             maxLength={255}
-            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
             placeholder="Optional"
           />
         </label>

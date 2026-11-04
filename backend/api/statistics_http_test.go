@@ -942,3 +942,100 @@ func TestStatisticsExport_ExplainsDisabledRoomHistory(t *testing.T) {
 		}
 	}
 }
+
+type occupancyPayload struct {
+	Data struct {
+		Students  []json.RawMessage `json:"students"`
+		Occupancy *struct {
+			SlotMinutes     int    `json:"slot_minutes"`
+			UntimedPlanDays int    `json:"untimed_plan_days"`
+			ActualDataDays  int    `json:"actual_data_days"`
+			ActualDataFrom  string `json:"actual_data_from"`
+			Weekdays        []struct {
+				Weekday    int `json:"weekday"`
+				PlanDays   int `json:"plan_days"`
+				ActualDays int `json:"actual_days"`
+				Slots      []struct {
+					Start          string   `json:"start"`
+					PlannedAverage float64  `json:"planned_average"`
+					PlannedMax     int      `json:"planned_max"`
+					ActualAverage  *float64 `json:"actual_average"`
+					ActualMax      *int     `json:"actual_max"`
+				} `json:"slots"`
+			} `json:"weekdays"`
+		} `json:"occupancy"`
+	} `json:"data"`
+}
+
+// TestStatisticsReport_OccupancyByTimeOfDay pins the occupancy section
+// (#4764) through the real router and Care Plan: the weekly plan gives the
+// planned window, a sick day and "Kommt heute nicht" remove a child from the
+// plan, attendance gives the actual window, and the class filter narrows both.
+func TestStatisticsReport_OccupancyByTimeOfDay(t *testing.T) {
+	t.Parallel()
+	tc := setupStatisticsRoute(t)
+	tenantID := testpkg.Tenant(t)
+	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "Belegung", "Tester")
+	claims := claimsFor(t, account.ID)
+	monday := calendar.NewDate(2026, 6, 8)
+	device := testpkg.CreateTestDevice(t, tc.db, "occupancy-device")
+
+	planWeekly := func(studentID int64, arrival, pickup string) {
+		testpkg.CreateTestArrivalSchedule(t, tc.db, studentID, 1, staff.ID, arrival)
+		testpkg.CreateTestPickupSchedule(t, tc.db, studentID, 1, staff.ID, pickup)
+	}
+	anna := testpkg.CreateTestStudent(t, tc.db, "Anna", "Plan", "1a")
+	planWeekly(anna.ID, "07:30", "13:00")
+	insertAttendance(t, tc.db, tenantID, anna.ID, device.ID, monday) // 08:00 to 14:00
+	bert := testpkg.CreateTestStudent(t, tc.db, "Bert", "Krank", "1a")
+	planWeekly(bert.ID, "07:30", "16:00")
+	insertStatusDay(t, tc.db, tenantID, bert.ID, monday, careplan.StudentStatusDaySick)
+	cara := testpkg.CreateTestStudent(t, tc.db, "Cara", "Kommtnicht", "1a")
+	planWeekly(cara.ID, "07:30", "16:00")
+	testpkg.CreateTestArrivalException(t, tc.db, cara.ID, testpkg.CalendarDate(monday), staff.ID, "", "Kommt heute nicht")
+	dora := testpkg.CreateTestStudent(t, tc.db, "Dora", "Andereklasse", "2b")
+	planWeekly(dora.ID, "07:30", "16:00")
+	insertAttendance(t, tc.db, tenantID, dora.ID, device.ID, monday)
+
+	req := httptest.NewRequest(http.MethodGet, "/report?from="+monday.String()+"&to="+monday.String()+"&section=occupancy&school_class=1a", nil)
+	rec := authExec(t, tc, req, claims, reportPermissions)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var payload occupancyPayload
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+	assert.Empty(t, payload.Data.Students, "only the occupancy section was asked for")
+	occupancy := payload.Data.Occupancy
+	require.NotNil(t, occupancy)
+	assert.Equal(t, 30, occupancy.SlotMinutes)
+	assert.Equal(t, 0, occupancy.UntimedPlanDays)
+	require.Len(t, occupancy.Weekdays, 1)
+	day := occupancy.Weekdays[0]
+	assert.Equal(t, 1, day.Weekday)
+	assert.Equal(t, 1, day.PlanDays)
+	assert.Equal(t, 1, day.ActualDays)
+
+	planned := map[string]int{}
+	actual := map[string]int{}
+	for _, slot := range day.Slots {
+		planned[slot.Start] = slot.PlannedMax
+		require.NotNil(t, slot.ActualMax, slot.Start)
+		actual[slot.Start] = *slot.ActualMax
+	}
+	assert.Equal(t, 0, planned["07:00"])
+	assert.Equal(t, 1, planned["07:30"], "only Anna is planned: Bert is sick, Cara does not come, Dora is in 2b")
+	assert.Equal(t, 1, planned["12:30"])
+	assert.Equal(t, 0, planned["13:00"])
+	assert.Equal(t, 0, actual["07:30"])
+	assert.Equal(t, 1, actual["08:00"])
+	assert.Equal(t, 1, actual["13:30"])
+	assert.Equal(t, 0, actual["14:00"])
+
+	req = httptest.NewRequest(http.MethodGet, "/export?from="+weekFrom.String()+"&to="+weekTo.String()+"&format=xlsx&section=occupancy", nil)
+	rec = authExec(t, tc, req, claims, reportPermissions)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), "belegung-nach-uhrzeit-2026-06-08-2026-06-12.xlsx")
+	req = httptest.NewRequest(http.MethodGet, "/export?from="+monday.String()+"&to="+monday.String()+"&format=pdf&section=occupancy", nil)
+	rec = authExec(t, tc, req, claims, reportPermissions)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.NotEmpty(t, rec.Body.Bytes())
+}

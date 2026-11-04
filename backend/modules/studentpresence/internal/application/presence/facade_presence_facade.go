@@ -16,6 +16,7 @@ type LockExceptionDay func(context.Context, int64, string) error
 // presenceEngine is the application service plus the reads it offers beyond
 // the retained Service interface.
 type presenceEngine interface {
+	PrepareOpenRoomMove(context.Context, []int64, int64) error
 	Service
 	EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*ports.ActiveGroup, error)
 	MoveStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)

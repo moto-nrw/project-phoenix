@@ -14,6 +14,7 @@ import (
 // as they were; the planner's start-window sentinels carry the same codes on
 // both paths.
 var operationErrorRules = []common.ErrorRule{
+	{Target: studentpresence.ErrVisitWriteConflict, Render: conflictWithCode(common.CodeTimetableOperationStale)},
 	{Match: isCodedNotFound, Render: codedStatus(common.ErrorNotFoundWithCode)},
 	{Target: timetable.ErrTimetableOperationNotFound, Render: notFoundWithCode(common.CodeTimetableInstanceNotFound)},
 	{Target: timetable.ErrInstanceNotFound, Render: notFoundWithCode(common.CodeTimetableInstanceNotFound)},

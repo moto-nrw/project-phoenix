@@ -1,0 +1,5 @@
+{
+  "api/notifications/push/public-key": [
+    "GET tenant /api/notifications/push/public-key"
+  ]
+}

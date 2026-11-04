@@ -1,0 +1,14 @@
+{
+  "api/meal-caterer": [
+    "GET tenant /api/meal-caterer"
+  ],
+  "api/meal-caterer/invitations": [
+    "POST tenant /api/meal-caterer/invitations"
+  ],
+  "api/meal-caterer/invitations/[invitationId]": [
+    "DELETE tenant /api/meal-caterer/invitations/invitationId%2F1"
+  ],
+  "api/meal-caterer/supply": [
+    "DELETE tenant /api/meal-caterer/supply"
+  ]
+}

@@ -5,6 +5,7 @@ import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { Button } from "~/components/ui/button";
+import { NavSceneIcon } from "~/components/ui/nav-scene-icon/nav-scene-icon";
 import {
   SIDEBAR_GROUP_HEADING_CLASSES,
   SIDEBAR_ICON_CLASSES,
@@ -78,11 +79,9 @@ export function SidebarGroup({
         aria-expanded={isOpen}
         {...(collapsed ? { title: label, "aria-label": label } : {})}
       >
-        <Icon
-          size={20}
-          weight="regular"
+        <NavSceneIcon
+          icon={Icon}
           className={`${SIDEBAR_ICON_CLASSES} ${iconColor}`}
-          aria-hidden="true"
         />
         {labelsMounted && (
           <>

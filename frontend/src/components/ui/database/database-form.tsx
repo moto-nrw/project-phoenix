@@ -1,15 +1,18 @@
 "use client";
 
+import { studentKeys } from "~/lib/swr/portal-keys";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import type { MotoConcept } from "~/lib/moto-concepts";
+import { SectionCard } from "~/components/ui/section-card";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Button } from "~/components/ui/button";
 import { createLogger } from "~/lib/logger";
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "DatabaseForm" });
 
@@ -243,10 +246,10 @@ export interface FormSection {
   fields: FormField[];
   columns?: 1 | 2;
   /** Optional concept driving the section's header icon (gray tile, MotoConceptIcon). */
-  concept?: MotoConceptKey;
+  concept?: MotoConcept;
 }
 
-/** Konzeptloser Abschnittstitel, gleiche Ebenenlogik wie ConceptSectionHeader. */
+/** Konzeptloser Abschnittstitel, gleiche Ebenenlogik wie der SectionCard-Kopf. */
 function SectionTitle({
   level,
   className,
@@ -332,11 +335,10 @@ export function DatabaseForm<T = Record<string, unknown>>({
     hasPrivacyConsentFields(sections)
       ? initialData.id
       : null;
-  const { data: privacyConsent } = useSWR(
-    privacyStudentId
-      ? `/api/students/${privacyStudentId}/privacy-consent`
-      : null,
+  const { data: privacyConsent } = useSWRAuth(
+    privacyStudentId ? studentKeys.privacyConsent(privacyStudentId) : null,
     () => fetchPrivacyConsentForStudent(privacyStudentId!),
+    { keepPreviousData: false },
   );
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const formRef = useRef<HTMLFormElement>(null);
@@ -592,11 +594,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
     }));
   };
 
-  const renderSelectField = (
-    field: FormField,
-    hasError: boolean,
-    labelClasses: string,
-  ) => {
+  const renderSelectField = (field: FormField, hasError: boolean) => {
     const selectOptions = Array.isArray(field.options)
       ? field.options
       : (asyncOptions[field.name] ?? []);
@@ -604,10 +602,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
     return (
       <div>
-        <label htmlFor={field.name} className={labelClasses}>
+        <FieldLabel
+          htmlFor={field.name}
+          required={field.required}
+          invalid={hasError}
+          className="mb-1.5 text-xs"
+        >
           {field.label}
-          {field.required && "*"}
-        </label>
+        </FieldLabel>
         <CustomSelect
           id={field.name}
           name={field.name}
@@ -643,11 +645,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
     );
   };
 
-  const renderMultiselectField = (
-    field: FormField,
-    hasError: boolean,
-    labelClasses: string,
-  ) => {
+  const renderMultiselectField = (field: FormField, hasError: boolean) => {
     const multiselectOptions = Array.isArray(field.options)
       ? field.options
       : (asyncOptions[field.name] ?? []);
@@ -657,10 +655,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
     return (
       <div>
-        <label htmlFor={field.name} className={labelClasses}>
+        <FieldLabel
+          htmlFor={field.name}
+          required={field.required}
+          invalid={hasError}
+          className="mb-1.5 text-xs"
+        >
           {field.label}
-          {field.required && "*"}
-        </label>
+        </FieldLabel>
 
         {selectedValues.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1.5">
@@ -730,7 +732,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
     const hasError = errorPath.fieldError(field.name) !== undefined;
 
     const baseInputClasses = `w-full rounded-lg border ${hasError ? "border-moto-red/40" : "border-gray-300"} px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 focus:ring-moto-blue focus:outline-none`;
-    const labelClasses = `mb-1.5 block text-xs font-medium ${hasError ? "text-moto-red" : "text-gray-700"}`;
 
     switch (field.type) {
       case "custom": {
@@ -784,10 +785,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
       case "textarea":
         return (
           <div>
-            <label htmlFor={field.name} className={labelClasses}>
+            <FieldLabel
+              htmlFor={field.name}
+              required={field.required}
+              invalid={hasError}
+              className="mb-1.5 text-xs"
+            >
               {field.label}
-              {field.required && "*"}
-            </label>
+            </FieldLabel>
             <textarea
               id={field.name}
               name={field.name}
@@ -806,10 +811,10 @@ export function DatabaseForm<T = Record<string, unknown>>({
         );
 
       case "select":
-        return renderSelectField(field, hasError, labelClasses);
+        return renderSelectField(field, hasError);
 
       case "multiselect":
-        return renderMultiselectField(field, hasError, labelClasses);
+        return renderMultiselectField(field, hasError);
 
       case "number": {
         // Handle both number and empty string values
@@ -824,10 +829,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
         return (
           <div>
-            <label htmlFor={field.name} className={labelClasses}>
+            <FieldLabel
+              htmlFor={field.name}
+              required={field.required}
+              invalid={hasError}
+              className="mb-1.5 text-xs"
+            >
               {field.label}
-              {field.required && "*"}
-            </label>
+            </FieldLabel>
             <input
               type="number"
               id={field.name}
@@ -859,10 +868,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
       default:
         return (
           <div>
-            <label htmlFor={field.name} className={labelClasses}>
+            <FieldLabel
+              htmlFor={field.name}
+              required={field.required}
+              invalid={hasError}
+              className="mb-1.5 text-xs"
+            >
               {field.label}
-              {field.required && "*"}
-            </label>
+            </FieldLabel>
             <input
               type={field.type}
               id={field.name}
@@ -901,12 +914,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
               className="mb-6 rounded-lg bg-gray-50 p-3 md:mb-8 md:p-4"
             >
               {section.concept ? (
-                <ConceptSectionHeader
+                // Nur der Kopf: der graue Abschnitt ist schon die Fläche.
+                <SectionCard
+                  bare
                   className="mb-2.5 md:mb-3"
-                  level={sectionLevel}
+                  headingLevel={sectionLevel}
                   title={section.title}
                   concept={section.concept}
-                  subtitle={section.subtitle}
+                  description={section.subtitle}
                 />
               ) : (
                 <>
@@ -949,40 +964,40 @@ export function DatabaseForm<T = Record<string, unknown>>({
           const isBusy = isLoading === true || isSubmitting;
           return stickyActions ? (
             <div className="sticky bottom-0 -mx-4 mt-4 -mb-4 flex gap-2 border-t border-gray-100 bg-white/95 px-4 pt-3 pb-3 backdrop-blur-sm md:-mx-6 md:mt-6 md:-mb-6 md:gap-3 md:px-6 md:pt-4 md:pb-4">
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="md"
                 onClick={onCancel}
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
+                className="flex-1"
                 disabled={isBusy}
               >
                 Abbrechen
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
+                size="md"
                 data-setup-tour="form-submit"
-                className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
+                className="flex-1"
                 disabled={isBusy}
               >
                 {isBusy ? "Wird gespeichert..." : submitLabel}
-              </button>
+              </Button>
             </div>
           ) : (
-            <div className="flex justify-end pt-6 pb-2">
-              <button
+            <div className="flex justify-end gap-2 pt-6 pb-2">
+              <Button
                 type="button"
+                variant="ghost"
+                size="md"
                 onClick={onCancel}
-                className="mr-2 rounded-lg px-3 py-2 text-sm text-gray-700 shadow-sm transition-colors hover:bg-gray-100 md:px-4 md:text-base"
                 disabled={isBusy}
               >
                 Abbrechen
-              </button>
-              <button
-                type="submit"
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg md:px-6 md:text-base"
-                disabled={isBusy}
-              >
+              </Button>
+              <Button type="submit" size="md" disabled={isBusy}>
                 {isBusy ? "Wird gespeichert..." : submitLabel}
-              </button>
+              </Button>
             </div>
           );
         })()}

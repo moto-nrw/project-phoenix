@@ -8,18 +8,22 @@
    machine without one, run `agent-browser install` once (it installs per user
    in `~/.agent-browser`, not per checkout).
 2. Run `devbox run doctor`. It checks resolved tool paths, Go module agreement,
-   frontend dependencies, generated types and Docker. It never prints env files.
+   frontend dependencies, generated types and Docker. If `.env` or
+   `backend/dev.env` exists, it names keys missing from the matching example,
+   which otherwise stop the backend or Next at startup. It prints key names only,
+   never values.
 3. Run `devbox run check-lsp` after updating language servers or editor settings.
    It starts the real servers and checks Go/TypeScript definitions and errors,
    Next's server-component rule, a custom Oxlint rule and Tailwind formatting.
    It creates disposable source files and removes them at exit. Run it when
    no build or test watcher is active, since those files deliberately contain errors.
 
-A worktree created with `wt add` runs step 1 itself and copies the local env
-files, Compose file and certificates from the main checkout with its own
-ports; run `wt doctor` inside it when something is missing. To run backend
-and frontend on the host instead of in Compose, use `devbox run dev up`
-(`scripts/dev-native.sh`, see `docs/agents/operations.md`).
+For new `wt add` worktrees and existing T3/agent worktrees without local
+configuration, follow the canonical [worktree setup](agents/operations.md#worktrees).
+It covers configuration, certificates, isolated ports and Compose networks,
+and preserving existing branch work. Bootstrap alone supplies none of that
+runtime configuration. For host app processes, use the
+[native dev loop](agents/operations.md#native-dev-loop).
 
 `devbox run` works without a shell's direnv hook. For an interactive shell,
 use `devbox shell`, or enable direnv's shell hook and run `direnv allow`.
@@ -100,9 +104,17 @@ the current two-worker budget and later architecture-test changes.
 ### Go CPU and package budgets
 
 Devbox, `scripts/run-go-toolchain.sh`, the native backend launcher and the
-pre-push runner default to `GOFLAGS=-p=4` and `GOMAXPROCS=4`. The pinned
-runner also supplies these values outside a Devbox shell and passes them
-to nested commands. Explicit caller values remain intact.
+pre-push runner default to `GOFLAGS="-p=4 -trimpath"` and `GOMAXPROCS=4`.
+The pinned runner also supplies these values outside a Devbox shell and passes
+them to nested commands. Explicit caller values remain intact.
+
+[`-trimpath`](https://pkg.go.dev/cmd/go#hdr-Compile_packages_and_dependencies)
+lets worktrees share the Go build cache. Without it, Go adds each package's
+absolute directory to the cache key, so every new worktree compiles the
+backend again and stores a second copy. With it, `runtime.Caller` reports
+module-relative paths such as `github.com/moto-nrw/project-phoenix/api/...`.
+Code that locates repository files must therefore walk up from the working
+directory to `go.mod` (see `routetest.BackendRoot`), not from its source file.
 
 The two controls cover different work: [`-p`](https://pkg.go.dev/cmd/go#hdr-Compile_packages_and_dependencies)
 limits concurrent package commands, while
@@ -298,6 +310,25 @@ step's whole process tree:
 comparisons. `--simulate-ram-gb 16` makes the test scripts pick a 16 GB
 machine's parallelism on a larger machine. Run `devloop-docker` only from the
 main checkout; it does not work inside `wt` worktrees (see the script header).
+
+Run it through `devbox run -- scripts/dev-bench.sh ...` so the project's
+Go, Node and pnpm versions are measured; the metadata file records them with
+revision, dirty diff and load. A run exits 1 when any measured command failed
+or a requested stage could not run, so only a green exit is a valid row set.
+`--heavy` sends each measured command through the machine's shared heavy-job
+gate (`~/bin/agent-heavy`, if installed) and reports slot waiting time as
+`queue_s`, apart from the run's own wall time. `--repeat 3` gives three
+samples for a median. `-- NAME COMMAND...` measures any single command.
+
+The task-bank stages model agent work: `fresh-worktree` (detached worktree,
+bootstrap, doctor, removed afterwards), `go-leaf` and `go-central` (an
+untracked probe file in a package with few or many importers, then
+`test-changed.sh --fast HEAD`), `fe-change` (a comment appended to an
+unmodified frontend file, then changed tests and `pnpm run check`) and
+`browser-flow` (one Playwright spec against the already running, seeded
+native stack). Each change stage runs once after the edit and once unchanged,
+which separates a source change from a warm repeat. Probes are removed and the
+edited file restored, also on Ctrl-C.
 
 Reference numbers from `scripts/dev-bench.sh`, same 64 GB Mac with other work
 running (before: commit `384bb24562`, after: `1f5e74e781`):

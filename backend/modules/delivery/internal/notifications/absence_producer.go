@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"sort"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -61,7 +62,8 @@ type AbsenceReport struct {
 }
 
 // AbsenceNotifier turns a recorded absence into a notification for the people
-// responsible for that child.
+// responsible for that child: the OGS staff of its group and the office, and
+// in moto schule the accounts that reach its class (#4792).
 type AbsenceNotifier interface {
 	NotifyAbsenceReported(ctx context.Context, report AbsenceReport) error
 }
@@ -72,7 +74,13 @@ type absenceNotifier struct {
 	db            *bun.DB
 	logger        *slog.Logger
 	tenantRuntime *tenant.UnitOfWork
+	// school adds the moto schule notice (#4792); nil keeps the producer
+	// OGS-only.
+	school *contract.SchoolClassRecipients
 }
+
+// AbsenceNotifierOption configures optional recipients of the producer.
+type AbsenceNotifierOption = func(*absenceNotifier)
 
 // NewAbsenceNotifier builds the sick/excused producer.
 func NewAbsenceNotifier(
@@ -80,13 +88,18 @@ func NewAbsenceNotifier(
 	recipients StaffRecipientResolver,
 	db *bun.DB,
 	logger *slog.Logger,
+	opts ...AbsenceNotifierOption,
 ) AbsenceNotifier {
-	return &absenceNotifier{
+	n := &absenceNotifier{
 		notifier:   notifier,
 		recipients: recipients,
 		db:         db,
 		logger:     logger,
 	}
+	for _, opt := range opts {
+		opt(n)
+	}
+	return n
 }
 
 func (n *absenceNotifier) getLogger() *slog.Logger {
@@ -152,10 +165,27 @@ func (n *absenceNotifier) notify(ctx context.Context, report AbsenceReport) erro
 	if err != nil {
 		return err
 	}
-	if len(deliveries) == 0 {
+	schoolEvents, err := n.schoolClassEvents(ctx, report)
+	if err != nil {
+		return err
+	}
+	events := append(groupAbsenceEvents(report, deliveries), schoolEvents...)
+	if len(events) == 0 {
 		return nil
 	}
+	if batch, ok := n.notifier.(BatchNotifier); ok {
+		return batch.NotifyBatch(ctx, events)
+	}
+	for _, event := range events {
+		if err := n.notifier.Notify(ctx, event); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
+// groupAbsenceEvents builds one OGS event per recipient scope.
+func groupAbsenceEvents(report AbsenceReport, deliveries []absenceDelivery) []Event {
 	events := make([]Event, 0, len(deliveries))
 	for _, delivery := range deliveries {
 		scopedReport := report
@@ -179,15 +209,7 @@ func (n *absenceNotifier) notify(ctx context.Context, report AbsenceReport) erro
 			},
 		})
 	}
-	if batch, ok := n.notifier.(BatchNotifier); ok {
-		return batch.NotifyBatch(ctx, events)
-	}
-	for _, event := range events {
-		if err := n.notifier.Notify(ctx, event); err != nil {
-			return err
-		}
-	}
-	return nil
+	return events
 }
 
 func absenceEventKey(report AbsenceReport, accountIDs []int64) string {

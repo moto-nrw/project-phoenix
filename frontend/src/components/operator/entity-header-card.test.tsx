@@ -9,6 +9,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 
 import { EntityHeaderCard } from "./entity-header-card";
+import { organizationsConcept } from "~/lib/concepts/organizations";
 
 describe("EntityHeaderCard", () => {
   it("renders title and the active label", () => {
@@ -60,7 +61,7 @@ describe("EntityHeaderCard", () => {
 
   it("renders the grey concept icon tile when concept is set", () => {
     const { container } = render(
-      <EntityHeaderCard title="Org" active concept="organizations" />,
+      <EntityHeaderCard title="Org" active concept={organizationsConcept} />,
     );
 
     expect(

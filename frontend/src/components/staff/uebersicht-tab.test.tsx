@@ -18,6 +18,8 @@ const swr = vi.hoisted(() => ({
   respond: (_key: string | null): SwrResult | undefined => undefined,
 }));
 vi.mock("~/lib/swr", () => ({
+  // No SSE stream in these tests: readers keep their fallback interval.
+  useLiveRefreshInterval: (fallbackMs = 60_000) => fallbackMs,
   useSWRAuth: (key: string | null) => {
     if (key) swr.keys.push(key);
     return (

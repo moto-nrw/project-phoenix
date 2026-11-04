@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -181,4 +183,55 @@ func TestRenewalPhaseAnswersLeaveTheVisitorParentUndecided(t *testing.T) {
 		approved = approved || answer.status == "approved"
 	}
 	assert.True(t, approved, "the overview still needs one confirmed answer")
+}
+
+// The visitor's family carries the visitor's name everywhere the school shows
+// it, so its open renewal does too. Before, it showed the seed name the
+// visitor replaced (#5033). Its co-guardian would carry the visitor's name
+// in a contact the demo erasure does not reach, so the form names none.
+func TestSeeder_Seed_VisitorRenewalCarriesTheVisitorName(t *testing.T) {
+	t.Parallel()
+	trace := &fullSeedAPITrace{}
+	srv := fullSeedAPIMock(t, trace)
+	defer srv.Close()
+	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{
+		OnlyProfile:      DefaultProfileKey,
+		VisitorFirstName: "Zyxwolda",
+		VisitorLastName:  "Quorbelt",
+		// Keeps the seed state out of the package directory.
+		SaveState: func(context.Context, *SeedState) error { return nil },
+	})
+	_, err := s.Seed(t.Context(), "operator@example.test", "test-password", "1234")
+	require.NoError(t, err)
+
+	displaced := DemoGuardians[visitorGuardianIndex]
+	var renewals []map[string]any
+	for _, body := range trace.parentSubmissions {
+		assert.NotEqual(t, displaced.FirstName+" "+displaced.LastName,
+			fmt.Sprintf("%v %v", body["guardian_first_name"], body["guardian_last_name"]),
+			"no form of the visitor's family may name the guardian the visitor replaced")
+		if body["guardian_first_name"] == "Zyxwolda" && body["guardian_last_name"] == "Quorbelt" {
+			renewals = append(renewals, body)
+		}
+	}
+	require.NotEmpty(t, renewals, "the visitor's family files its forms under the visitor's name")
+	for _, body := range renewals {
+		assert.NotContains(t, body, "additional_guardians")
+	}
+}
+
+func TestParentFormNameNamesOnlyTheVisitorParentAfterTheVisitor(t *testing.T) {
+	t.Parallel()
+	displaced := DemoGuardians[visitorGuardianIndex]
+	visitorParent := ParentCredentials{Name: displaced.FirstName + " " + displaced.LastName}
+	other := ParentCredentials{Name: "Tobias Weber"}
+	visitor := visitorName{first: "Tobias", last: "Weber"}
+
+	first, last := parentFormName(visitor, visitorParent)
+	assert.Equal(t, []string{"Tobias", "Weber"}, []string{first, last})
+	first, last = parentFormName(visitor, other)
+	assert.Equal(t, []string{displaced.FirstName, displaced.LastName}, []string{first, last},
+		"a namesake of the visitor takes the replaced name, as on the guardian profile")
+	first, last = parentFormName(visitorName{}, visitorParent)
+	assert.Equal(t, []string{displaced.FirstName, displaced.LastName}, []string{first, last})
 }

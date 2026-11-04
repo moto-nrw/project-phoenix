@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import { defineEntityConfig } from "@/lib/database/types";
 import type { Device } from "@/lib/iot-helpers";
 import {
@@ -18,6 +19,7 @@ import {
   generateDefaultDeviceName,
   DEVICE_TYPE_OPTIONS,
 } from "@/lib/iot-helpers";
+import { devicesConcept } from "~/lib/concepts/devices";
 
 /**
  * Der API-Schlüssel eines Geräts: verborgen, mit zwei Schaltflächen aus dem
@@ -37,14 +39,17 @@ function ApiKeyField({ device }: Readonly<{ device: Device }>) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <input
-          aria-label={`API-Schlüssel für ${device.name}`}
-          type={visible ? "text" : "password"}
-          value={device.api_key}
-          readOnly
-          className="flex-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 font-mono text-xs"
-          onClick={(event) => event.currentTarget.select()}
-        />
+        <div className="min-w-0 flex-1">
+          <Input
+            aria-label={`API-Schlüssel für ${device.name}`}
+            type={visible ? "text" : "password"}
+            controlSize="compact"
+            value={device.api_key}
+            readOnly
+            className="font-mono"
+            onClick={(event) => event.currentTarget.select()}
+          />
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -82,7 +87,7 @@ export const devicesConfig = defineEntityConfig<Device>({
     plural: "Geräte",
   },
 
-  concept: "devices",
+  concept: devicesConcept,
 
   backUrl: "/database",
 
@@ -94,7 +99,7 @@ export const devicesConfig = defineEntityConfig<Device>({
     sections: [
       {
         title: "Geräteinformationen",
-        concept: "devices",
+        concept: devicesConcept,
         columns: 2,
         fields: [
           {

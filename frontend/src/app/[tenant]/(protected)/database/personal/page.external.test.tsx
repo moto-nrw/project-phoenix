@@ -64,7 +64,7 @@ vi.mock("~/lib/swr", () => ({
     mutate: mocks.refresh,
   })),
   mutate: vi.fn(),
-  useTenantMutate: vi.fn(() => vi.fn()),
+  useTenantMutateMatching: vi.fn(() => mocks.refresh),
 }));
 
 vi.mock("@/lib/database/service-factory", () => ({
@@ -134,7 +134,7 @@ vi.mock("~/components/admin/pending-invitations-list", () => ({
 function signInWith(permissions: string[]) {
   vi.mocked(useSession).mockReturnValue({
     data: {
-      user: { id: "1", token: "test-token", permissions },
+      user: { id: "1", permissions },
       expires: "2099-01-01",
     },
     status: "authenticated",
@@ -364,9 +364,10 @@ describe("Personalverwaltung: externe Personen", () => {
     fireEvent.click(
       screen.getAllByRole("button", { name: "Personal hinzufügen" })[1]!,
     );
+    // Die Einrichtungs-Tour zeigt auf diesen Eintrag (setup-tours.ts).
     expect(
       screen.getByRole("menuitem", { name: "Personal einladen" }),
-    ).toBeInTheDocument();
+    ).toHaveAttribute("data-setup-tour", "invite-create");
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Externe Person anlegen" }),
     );

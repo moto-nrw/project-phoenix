@@ -1,0 +1,9 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "roots/openroommovebinding/roomSessions.EnsureOpenRoomSession",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

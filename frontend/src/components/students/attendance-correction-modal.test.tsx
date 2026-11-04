@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { duplicateIds } from "~/test/helpers/duplicate-ids";
+
 import { AttendanceCorrectionModal } from "./attendance-correction-modal";
 
 const { mockGetCachedSession } = vi.hoisted(() => ({
@@ -191,5 +193,33 @@ describe("AttendanceCorrectionModal", () => {
       ),
     ).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps every HTML ID unique and names both selects by their labels (#5350)", () => {
+    render(
+      <AttendanceCorrectionModal
+        isOpen
+        onClose={vi.fn()}
+        studentId="student-1"
+        slot={slot}
+        onCorrected={vi.fn()}
+      />,
+    );
+
+    // Anker: both selects rendered, named by their field labels.
+    const status = screen.getByRole("combobox", { name: "Anwesenheit" });
+    expect(screen.getByRole("combobox", { name: "Hinweis" })).toBeVisible();
+    expect(duplicateIds()).toEqual([]);
+
+    fireEvent.click(status);
+    // Anker: the portaled listbox is open and named by the field label.
+    expect(screen.getByRole("listbox", { name: "Anwesenheit" })).toBeVisible();
+    expect(duplicateIds()).toEqual([]);
+
+    fireEvent.click(screen.getByRole("option", { name: "Abwesend" }));
+    expect(
+      screen.getByRole("combobox", { name: "Anwesenheit" }),
+    ).toHaveTextContent("Abwesend");
+    expect(duplicateIds()).toEqual([]);
   });
 });

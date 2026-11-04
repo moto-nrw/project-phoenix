@@ -14,8 +14,8 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
-import { InfoCard } from "~/components/ui/info-card";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   SlideOver,
   SlideOverCloseButton,
@@ -31,7 +31,7 @@ import {
   formatDate,
   parseISODate,
   toISODate,
-  todayISO,
+  berlinTodayISO,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -103,9 +103,9 @@ export function CareExitModal({
   }, [completionId, firstBookinglessDay]);
   const initialLastCareDay =
     completionLastCareDay ??
-    (plannedLastCareDay && plannedLastCareDay >= todayISO()
+    (plannedLastCareDay && plannedLastCareDay >= berlinTodayISO()
       ? plannedLastCareDay
-      : todayISO());
+      : berlinTodayISO());
   const isCorrection = Boolean(plannedLastCareDay);
   const [step, setStep] = useState<1 | 2>(1);
   const [lastCareDay, setLastCareDay] = useState(initialLastCareDay);
@@ -322,7 +322,8 @@ export function CareExitModal({
 
           <p className="text-sm text-gray-600">
             {completionId && !isCorrection
-              ? completionLastCareDay && completionLastCareDay >= todayISO()
+              ? completionLastCareDay &&
+                completionLastCareDay >= berlinTodayISO()
                 ? `Der letzte Betreuungstag ist am ${formatDate(completionLastCareDay)}. Das Kind nimmt an diesem Tag noch teil.`
                 : "Der letzte Betreuungstag liegt in der Vergangenheit. Mit diesem Schritt wird das frühere Ende dokumentiert."
               : isCorrection
@@ -339,7 +340,7 @@ export function CareExitModal({
                 label="Letzter Betreuungstag"
                 value={lastCareDay}
                 onChange={setLastCareDay}
-                min={completionId ? undefined : todayISO()}
+                min={completionId ? undefined : berlinTodayISO()}
                 max={completionLastCareDay ?? undefined}
                 required
               />
@@ -427,7 +428,7 @@ function CareExitPreviewList({
       ) : null}
 
       {ready.length > 0 ? (
-        <div className="moto-content-surface rounded-xl border shadow-sm">
+        <div className="moto-content-surface rounded-xl border">
           <div className="border-b border-gray-200 px-4 py-3">
             <p className="text-sm font-semibold text-gray-900">
               {ready.length === 1
@@ -458,10 +459,7 @@ function CareExitPreviewList({
         </div>
       ) : null}
       {ready.length > 0 ? (
-        <InfoCard
-          title="Folgen des Austritts"
-          icon={<LogOut className="h-5 w-5 text-gray-600" aria-hidden="true" />}
-        >
+        <SectionCard title="Folgen des Austritts" icon={LogOut}>
           <ul className="list-disc space-y-1 pl-5 text-sm text-gray-600">
             <li>
               Die Anmeldung zur Betreuung endet. Das Kind erscheint danach nicht
@@ -482,7 +480,7 @@ function CareExitPreviewList({
               geplant werden.
             </li>
           </ul>
-        </InfoCard>
+        </SectionCard>
       ) : null}
     </div>
   );

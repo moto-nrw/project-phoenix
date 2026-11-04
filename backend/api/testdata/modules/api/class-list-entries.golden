@@ -1,0 +1,5 @@
+DELETE /api/class-list-entries/{id} -> basis
+GET /api/class-list-entries/ -> basis
+POST /api/class-list-entries/ -> basis
+POST /api/class-list-entries/{id}/assign -> basis
+PUT /api/class-list-entries/{id} -> basis

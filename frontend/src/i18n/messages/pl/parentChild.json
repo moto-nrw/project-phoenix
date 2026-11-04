@@ -1,0 +1,93 @@
+{
+  "switcherLabel": "Wybierz dziecko",
+  "overviewKicker": "Przegląd dzieci",
+  "overviewDescription": "Proszę wybrać dziecko, aby zobaczyć opiekę, dane i kontakty.",
+  "ogsLabel": "OGS",
+  "careEnded": {
+    "title": "Opieka zakończona",
+    "body": "Państwa dziecko nie jest już objęte opieką w tej OGS. Wszystko, co było do tej pory, mogą Państwo nadal przeglądać. Nowe zgłoszenia nie są już możliwe."
+  },
+  "notFound": "Pod tym adresem nie ma dziecka powiązanego z Państwa kontem. Proszę wybrać dziecko w przeglądzie.",
+  "noChildren": "Z Państwa kontem nie jest jeszcze powiązane żadne dziecko. OGS Państwa szkoły może to ustawić.",
+  "sections": {
+    "today": "Dziś",
+    "care": "Opieka w OGS",
+    "data": "Dane dziecka",
+    "people": "Rodzice i osoby upoważnione do odbioru"
+  },
+  "areas": {
+    "label": "Obszary dotyczące dziecka",
+    "open": "Zobacz",
+    "openLabel": "Zobacz: {area}",
+    "back": "Do przeglądu",
+    "care": {
+      "title": "Opieka i plan tygodnia",
+      "shortTitle": "Opieka",
+      "description": "Zapisy, stałe godziny odbioru i droga do domu."
+    },
+    "data": {
+      "title": "Dane dziecka",
+      "shortTitle": "Dane",
+      "description": "Dane osobowe, klasa i zdrowie."
+    },
+    "contacts": {
+      "title": "Kontakty i odbiór",
+      "shortTitle": "Kontakty",
+      "description": "Opiekunowie, upoważnienia do odbioru i dostęp do aplikacji."
+    }
+  },
+  "today": {
+    "pickupLabel": "Odbiór",
+    "pickup": "Odbiór dziś o {time}",
+    "pickupChanged": "Odbiór dziś o {time}, zmieniony tylko na dziś",
+    "pickupAbsent": "Dziś zgłoszona nieobecność, bez odbioru",
+    "pickupNone": "Na dziś nie ma wpisanego odbioru",
+    "pickupUnknown": "Godzina odbioru jest teraz niedostępna"
+  },
+  "care": {
+    "weekTitle": "Plan tygodnia w OGS",
+    "absenceTitle": "Nieobecności"
+  },
+  "consents": {
+    "title": "Zgody i potwierdzenia",
+    "description": "Tutaj widzą Państwo, co jest zapisane dla Państwa dziecka.",
+    "staffDescription": "Tylko do wiadomości. Rodzice zmieniają zgodę na zdjęcia w portalu dla rodziców.",
+    "photoDescription": "Zgodę na zdjęcia mogą Państwo zmienić tutaj.",
+    "items": {
+      "agb": "Ogólne warunki umowy (regulamin)",
+      "data_processing": "Zapoznano się z informacją o ochronie danych",
+      "email_contact": "Zgoda na kontakt e-mailem",
+      "photo": "Zgoda na zdjęcia"
+    },
+    "states": {
+      "granted": "Zapisano",
+      "withdrawn": "Wycofano",
+      "not_recorded": "Nie zapisano"
+    },
+    "dates": {
+      "granted": "Zapisano {date}",
+      "withdrawn": "Wycofano {date}",
+      "not_recorded": "Nie zapisano"
+    },
+    "withdrawButton": "Wycofaj zgodę na zdjęcia",
+    "withdrawButtonShort": "Wycofaj",
+    "confirmTitle": "Wycofać zgodę na zdjęcia?",
+    "confirmBody": "Zgoda wygasa od razu. Jeśli zdjęcie jest zapisane, zostanie usunięte.",
+    "confirmButton": "Wycofaj teraz",
+    "withdrawing": "Wycofywanie",
+    "cancel": "Anuluj",
+    "close": "Zamknij okno",
+    "success": "Zgoda na zdjęcia została wycofana. Jeśli zdjęcie było zapisane, zostało usunięte.",
+    "grantButton": "Udziel ponownie zgody na zdjęcia",
+    "grantButtonShort": "Udziel ponownie",
+    "grantConfirmTitle": "Udzielić ponownie zgody na zdjęcia?",
+    "grantConfirmBody": "OGS będzie mogła potem znów zapisać zdjęcie.",
+    "grantConfirmButton": "Udziel zgody",
+    "granting": "Zapisywanie",
+    "grantSuccess": "Zgoda na zdjęcia została ponownie udzielona.",
+    "errorObjectList": "lista zgód",
+    "errorObjectPhoto": "zgoda na zdjęcia"
+  },
+  "errorObject": "lista Państwa dzieci",
+  "errorObjectCare": "przegląd opieki"
+}

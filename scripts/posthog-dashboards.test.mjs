@@ -128,8 +128,10 @@ test('every route template belongs to exactly one feature area or is an entry pa
     assert.ok(owners.length <= 1, `${surface} ${template} is in ${owners.map((f) => f.name).join(' and ')}`);
   }
   assert.equal(featureOfPage('ogs', '/students/:id/room-history'), 'Kinder und Kindakte');
+  assert.equal(featureOfPage('school', '/klasse/kind'), 'Kinder und Kindakte');
   assert.equal(featureOfPage('ogs', '/students-archive'), 'Sonstiges', 'a prefix covers its sub pages only');
   assert.equal(featureOfPage('parents', '/login'), null);
+  assert.equal(featureOfPage('parents', '/documents'), 'Weitere Werkzeuge');
 });
 
 test('feature areas have unique names, each event belongs to one area, and the kiosk counts', () => {

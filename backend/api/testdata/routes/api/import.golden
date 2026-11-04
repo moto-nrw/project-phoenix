@@ -1,0 +1,12 @@
+GET /api/import/class-list-entries/template
+GET /api/import/opening-balances/template
+GET /api/import/students/template
+GET /api/import/teachers/template
+POST /api/import/class-list-entries/import
+POST /api/import/class-list-entries/preview
+POST /api/import/opening-balances/import
+POST /api/import/opening-balances/preview
+POST /api/import/students/import
+POST /api/import/students/preview
+POST /api/import/teachers/import
+POST /api/import/teachers/preview

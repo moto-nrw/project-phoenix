@@ -72,4 +72,23 @@ describe("moto palette tokens", () => {
 
     expect(mismatches).toEqual([]);
   });
+
+  it("keeps white text on every green fill step at WCAG AA (#5141)", () => {
+    const luminance = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((offset) => {
+        const srgb = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
+        return srgb <= 0.04045
+          ? srgb / 12.92
+          : Math.pow((srgb + 0.055) / 1.055, 2.4);
+      });
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const contrastToWhite = (hex: string) => 1.05 / (luminance(hex) + 0.05);
+
+    for (const step of ["fill", "fill-hover", "fill-active"]) {
+      const hex = cssTokens.get(`green-${step}`);
+      expect(hex, `--color-moto-green-${step}`).toBeDefined();
+      expect(contrastToWhite(hex!)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
 });

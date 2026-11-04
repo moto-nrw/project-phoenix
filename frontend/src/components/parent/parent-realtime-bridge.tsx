@@ -1,5 +1,6 @@
 "use client";
 
+import { useParentResourceEvents } from "~/lib/hooks/use-parent-resources";
 import { useCallback } from "react";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { dispatchPhoenixNotification } from "~/lib/notification-events";
@@ -13,8 +14,8 @@ import type { SSEEvent } from "~/lib/sse-types";
  * window — the unread badge and the list both only refetched on those triggers.
  *
  * On a parent_message trigger this dispatches the window events those surfaces
- * already listen on: `parent-messages-unread-refresh` (the sidebar unread badge),
- * `parent-threads-refresh` (the messages list), and `parent-conversation-refresh`
+ * already listen on: `parent-messages-unread-refresh` (the sidebar unread badge
+ * and shared message lists), and `parent-conversation-refresh`
  * carrying the affected studentId (an open OgsConversation). This is the SINGLE
  * SSE connection for the parents portal — surfaces react to these window events
  * rather than each opening its own EventSource to the same endpoint.
@@ -23,13 +24,13 @@ import type { SSEEvent } from "~/lib/sse-types";
  * dispatcher as the staff portal, so the root NotificationBridge renders them.
  *
  * A parent_message_read trigger (the OGS read this guardian's messages, or the
- * guardian read in another tab) only refreshes the unread badge and the open
- * conversation's "Gelesen" receipts — it does NOT refresh the thread LIST, whose
- * order and previews a read never changes. The backend emits it only on a real
- * cursor advance, so the conversation refetch it triggers cannot loop. Renders
- * nothing.
+ * guardian read in another tab) refreshes the badge, the shared lists' unread
+ * counts and the open conversation's "Gelesen" receipts. The backend emits it
+ * only on a real cursor advance, so the conversation refetch cannot loop.
+ * Renders nothing.
  */
 export function ParentRealtimeBridge() {
+  useParentResourceEvents();
   const handleSSE = useCallback((event: SSEEvent) => {
     if (typeof window === "undefined") return;
     if (event.type === "notification") {
@@ -38,7 +39,6 @@ export function ParentRealtimeBridge() {
     }
     if (event.type === "parent_message") {
       window.dispatchEvent(new CustomEvent("parent-messages-unread-refresh"));
-      window.dispatchEvent(new CustomEvent("parent-threads-refresh"));
       window.dispatchEvent(
         new CustomEvent("parent-conversation-refresh", {
           detail: { studentId: event.data?.student_id ?? null },

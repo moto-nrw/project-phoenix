@@ -63,7 +63,8 @@ func CreateTestOrganization(tb testing.TB, db *bun.DB, organization *Organizatio
 		// The Träger's own rows (ADR 0086) carry no school; the tenant
 		// cleanup below deletes the organization with foreign-key triggers
 		// suspended, so they go first and by their Träger.
-		for _, table := range []string{"config.traeger_setting_audit", "config.traeger_setting_values"} {
+		// The pushes of the Träger (ADR 0126) are among them.
+		for _, table := range []string{"config.traeger_setting_audit", "config.traeger_setting_values", "platform.push_outbox"} {
 			_, cleanupErr = db.NewDelete().TableExpr(table).Where("organization_id = ?", organization.ID).Exec(ctx)
 			require.NoError(tb, cleanupErr, "Failed to clean up the Träger rows of %s", table)
 		}
@@ -224,14 +225,14 @@ func OwnTraegerHolidayPeriods(tb testing.TB, db *bun.DB, organizationID int64) {
 }
 
 // OwnTraegerContributionRules removes the contribution rules, the billing
-// runs with their invoices and the number ranges a test creates for the
-// Träger (#4664, #4668) when the test ends. The frozen contributions go with
+// runs with their invoices, the cost bearers and the number ranges a test
+// creates for the Träger (#4664, #4668, #5627) when the test ends. The frozen contributions go with
 // the children of their registrations.
 func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64) {
 	tb.Helper()
 	tb.Cleanup(func() {
 		for _, table := range []string{
-			"parent_billing.contribution_rules", "parent_billing.runs",
+			"parent_billing.contribution_rules", "parent_billing.runs", "parent_billing.cost_bearers",
 			"parent_billing.number_range_counters", "parent_billing.number_ranges",
 		} {
 			_, err := db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)

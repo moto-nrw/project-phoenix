@@ -32,7 +32,7 @@ type SeedOptions struct {
 	SchoolName    string // Optional school name override
 	OnlyProfile   string // Restrict the run to one profile; empty seeds all four
 	StatePath     string // Output path; empty uses DefaultSeedStatePath
-	StandingDemo  bool   // Keep simulation devices but disable their user interface
+	StandingDemo  bool   // Suppress the credential summary for the persistent demo sidecar
 	// VisitorFirstName and VisitorLastName put a prospect of the public demo
 	// into the school (#3463): one caregiver with a group and one parent
 	// carry exactly this name. Only the name is taken; every account keeps
@@ -60,12 +60,23 @@ type SeedOptions struct {
 	DeferHistory bool
 	// ReadMailLink reads the caterer's invitation mail (ADR 0077); nil invites none.
 	ReadMailLink MailLinkReader
+	// PresenceHistory writes the past attendance and room visits (#5031);
+	// nil seeds the past without presence, unless PresenceHistoryRoute is set.
+	PresenceHistory PresenceHistoryWriter
+	// PresenceHistoryRoute writes them through the operator route only the
+	// public demo's server mounts (APP_ENV=demo, ADR 0127) when
+	// PresenceHistory is nil.
+	PresenceHistoryRoute bool
 	// ProductScreenshots prepares the school for the product screenshots,
 	// whose simulation runs a single Tuesday: no weekend runs Friday's plan,
 	// so no screen shows Saturday and Sunday columns, and no statistics
 	// session sits at the seed time, since the simulated day fills the
 	// Statistik. The public demo keeps both.
 	ProductScreenshots bool
+	// SeedWeekProtocols asks the local development server to run the weekly
+	// protocol lifecycle after the regular seed data exists. Command roots set
+	// it; focused test servers keep their narrower API contracts.
+	SeedWeekProtocols bool
 }
 
 // Seeder orchestrates the complete API-based seeding process
@@ -77,6 +88,9 @@ type Seeder struct {
 	statePath  string
 	profile    string
 	definition demoProfileDefinition
+
+	localCarePlanAccount *AccountCredentials
+	schoolTeacherAccount *AccountCredentials
 }
 
 // SeedResult contains counts of created entities
@@ -113,15 +127,17 @@ func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOpti
 	if statePath == "" {
 		statePath = DefaultSeedStatePath
 	}
+	client := NewClientWithAdapter(newLoginCachingAdapter(adapter), verbose)
 	definition := fullOperationProfileDefinition()
-	if options.StandingDemo {
-		definition.Settings[profileSettingAttendanceNFC] = SeedSetting{Value: []byte(`false`), ManagedBy: SettingManagedByOperator}
+	if !localSeedAccountsEnabled(client.baseURL, options) {
+		delete(definition.Settings, profileSettingSchoolWriteScope)
+		delete(definition.Settings, profileSettingSchoolMorning)
 	}
 	if options.ProductScreenshots {
 		definition.Settings[profileSettingWeekendFollowsFriday] = SeedSetting{Value: []byte(`false`), ManagedBy: SettingManagedByOperator}
 	}
 	return &Seeder{
-		client:     NewClientWithAdapter(newLoginCachingAdapter(adapter), verbose),
+		client:     client,
 		random:     random,
 		verbose:    verbose,
 		options:    options,
@@ -506,7 +522,7 @@ func isConflictError(err error) bool {
 
 func wrapConflictError(err error, entity string) error {
 	if isConflictError(err) {
-		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'docker compose run server go run . migrate reset' before re-seeding", entity)
+		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'docker compose run server go run . migrate reset' before re-seeding: %w", entity, err)
 	}
 	return err
 }
@@ -561,6 +577,12 @@ func makeBootstrapSeedState(bootstrap *bootstrapSeedState) SeedStateBootstrap {
 }
 
 func (s *Seeder) populateSeedAccounts(state *SeedState, fs *FixedSeeder) {
+	if s.schoolTeacherAccount != nil {
+		state.Accounts.Lehrkraft = append(state.Accounts.Lehrkraft, *s.schoolTeacherAccount)
+	}
+	if s.localCarePlanAccount != nil {
+		state.Accounts.Local = append(state.Accounts.Local, *s.localCarePlanAccount)
+	}
 	groupKeys := []string{
 		"sternengruppe", "bärengruppe", "sonnengruppe", "mondgruppe",
 		"regenbogengruppe", "blumengruppe", "schmetterlingsgruppe",

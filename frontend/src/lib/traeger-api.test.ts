@@ -32,12 +32,10 @@ describe("traeger-api", () => {
     vi.unstubAllGlobals();
   });
 
-  it("sends the chosen Träger as a number and returns the token pair", async () => {
+  it("sends the chosen Träger as a number and returns only session status", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(200, {
         status: "authenticated",
-        access_token: "access",
-        refresh_token: "refresh",
       }),
     );
 
@@ -45,8 +43,6 @@ describe("traeger-api", () => {
       traegerLogin({ email: "a@b.de", password: "pw", organizationId: "7" }),
     ).resolves.toEqual({
       status: "authenticated",
-      accessToken: "access",
-      refreshToken: "refresh",
     });
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe("/api/traeger/auth/login");

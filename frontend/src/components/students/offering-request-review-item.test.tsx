@@ -39,6 +39,7 @@ async function expectDialogError(expected: RegExp | string) {
 const networkError = () =>
   new ApiError("network", 503, { code: "general.unavailable" });
 
+import { CourseWaitlistProvider } from "~/components/students/course-waitlist";
 import { OfferingRequestReviewItem } from "./offering-request-review-item";
 import {
   decideOfferingChangeRequest,
@@ -51,6 +52,14 @@ import {
 // thrown ApiError.
 // Das Gültigkeitsdatum wird als Feld getestet, nicht als Kalender-Overlay: die
 // Regel dahinter ist, welches Datum die Freigabe mitnimmt (#2484).
+vi.mock("next-auth/react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next-auth/react")>()),
+  useSession: () => ({
+    data: { user: { id: "1", token: "t", permissions: ["schedules:manage"] } },
+    status: "authenticated",
+  }),
+}));
+
 vi.mock("~/components/ui/date-picker", async () =>
   (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
 );
@@ -137,6 +146,43 @@ describe("OfferingRequestReviewItem", () => {
     expect(screen.getByText("Mo, Di")).toBeInTheDocument();
   });
 
+  it("opens expanded when the waiting list jumped to it", () => {
+    const row = request();
+    render(
+      <CourseWaitlistProvider
+        waitlists={[]}
+        refresh={vi.fn()}
+        openRequestId={row.id}
+      >
+        <OfferingRequestReviewItem row={row} onDecided={vi.fn()} />
+      </CourseWaitlistProvider>,
+    );
+
+    expect(screen.getByText("Mo, Di, Mi")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^Freigeben$/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("marks a course line in German, not with a raw message key", () => {
+    renderItem(
+      request({
+        diff: [
+          {
+            offering_id: "6",
+            label: "Theater-AG",
+            old: "nicht gebucht",
+            new: "alle Betreuungstage",
+            is_course: true,
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getByText("Kurs")).toBeInTheDocument();
+    expect(screen.getByText("Theater-AG:")).toBeInTheDocument();
+  });
+
   it("approves the request and reports the notice", async () => {
     mockDecide.mockResolvedValue(undefined);
     const onDecided = vi.fn();
@@ -163,6 +209,88 @@ describe("OfferingRequestReviewItem", () => {
     expect(onDecided).toHaveBeenCalledWith(
       "Die Änderung ist übernommen und gilt ab 01.02.2027. Die angezeigten Folgeänderungen sind auch übernommen.",
     );
+  });
+
+  // #5102: the backend reports what the approval did to the Regeltermine.
+  it("names the automatically adjusted Regeltermine in the notice", async () => {
+    mockDecide.mockResolvedValue({
+      effective_from: "2027-02-01",
+      adjusted: [
+        {
+          template_id: "7",
+          name: "Randstunde",
+          removed_weekdays: [3],
+          added_weekdays: [],
+        },
+      ],
+      not_adjusted: [],
+    });
+    const onDecided = vi.fn();
+    renderItem(request(), onDecided);
+
+    await confirmApproval();
+
+    await waitFor(() =>
+      expect(onDecided).toHaveBeenCalledWith(
+        "Die Änderung ist übernommen und gilt ab 01.02.2027. Automatisch angepasst: Randstunde (mittwochs entfernt).",
+      ),
+    );
+  });
+
+  it("keeps the card open while a hand-maintained Regeltermin still plans the child", async () => {
+    mockDecide.mockResolvedValue({
+      effective_from: "2027-02-01",
+      adjusted: [],
+      not_adjusted: [
+        { template_id: "9", name: "RDST 1b", weekdays: [3], via_target: false },
+      ],
+    });
+    const onDecided = vi.fn();
+    renderItem(request(), onDecided);
+
+    await confirmApproval();
+
+    expect(await screen.findByText("RDST 1b")).toBeInTheDocument();
+    expect(screen.getByText(/Kind bleibt eingeplant/)).toBeInTheDocument();
+    expect(onDecided).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
+    expect(onDecided).toHaveBeenCalledWith(
+      "Die Änderung ist übernommen und gilt ab 01.02.2027. Die angezeigten Folgeänderungen sind auch übernommen.",
+    );
+  });
+
+  // Schule am Berg, November 2026: Montag 14:30 Uhr von Hand verdeckte die
+  // neue Buchung bis 16:00 Uhr, ohne dass die OGS davon erfuhr.
+  it("keeps the card open while an entered pickup time hides the booking", async () => {
+    mockDecide.mockResolvedValue({
+      effective_from: "2027-02-01",
+      adjusted: [],
+      not_adjusted: [],
+      pickup_overrides: [
+        {
+          weekday: 1,
+          date: "2027-02-01",
+          stored_time: "14:30",
+          booked_time: "16:00",
+          reset_now: true,
+        },
+      ],
+    });
+    const onDecided = vi.fn();
+    renderItem(request(), onDecided);
+
+    await confirmApproval();
+
+    expect(
+      await screen.findByText("Abholzeit weicht von der Buchung ab"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /eingetragen 14:30 Uhr, ab 01.02.2027 gebucht 16:00 Uhr/,
+      ),
+    ).toBeInTheDocument();
+    expect(onDecided).not.toHaveBeenCalled();
   });
 
   it("requires a reason before rejecting", async () => {

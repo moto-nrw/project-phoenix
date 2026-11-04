@@ -28,13 +28,13 @@ import {
 } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { RolePermissionsTab } from "~/components/roles/role-permissions-tab";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import {
   getBaseRoleLabel,
   getRoleDisplayDescription,
   getRoleDisplayName,
   type Role,
 } from "@/lib/auth-helpers";
+import { rolesConcept } from "~/lib/concepts/roles";
 
 interface RolesMasterDetailProps {
   roles: Role[];
@@ -231,8 +231,8 @@ function RoleDetailContent({
         <DatabaseDetailHeader
           icon={
             <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.roles.icon}
-              tone={MOTO_CONCEPTS.roles.tone}
+              icon={rolesConcept.icon}
+              tone={rolesConcept.tone}
               size={36}
             />
           }
@@ -294,7 +294,7 @@ function RoleStammdatenTab({
 
   return (
     <div className="space-y-4">
-      <section className="moto-content-surface rounded-xl border p-4 shadow-sm">
+      <section className="moto-content-surface rounded-xl border p-4">
         <div className="flex flex-wrap items-center gap-2">
           {role.isSystem ? (
             <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
@@ -317,8 +317,8 @@ function RoleStammdatenTab({
         title="Rollendetails"
         icon={
           <MotoDuotoneIcon
-            icon={MOTO_CONCEPTS.roles.icon}
-            tone={MOTO_CONCEPTS.roles.tone}
+            icon={rolesConcept.icon}
+            tone={rolesConcept.tone}
             size={18}
           />
         }

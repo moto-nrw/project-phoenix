@@ -27,7 +27,8 @@ func BuildInvitationEmploymentReset(db transactionruntime.Database, env RootEnvi
 		StaffSchedules:  workforceCompose.StaffScheduleAssignments(employment),
 		ScheduleTargets: NewWorkScheduleTargets(schedules), TargetModels: NewWorkTimeTargetModels(models),
 		Shifts: workforceCompose.NewTimeTrackingShifts(workTime), Holidays: schoolCalendarCompose.NewNonWorkingDays(calendar),
-		Settings: settingsCompose.PresenceSettings(settings), Logger: env.Logger,
+		StatutoryHolidays: schoolCalendarCompose.NewTenantHolidays(calendar),
+		Settings:          settingsCompose.PresenceSettings(settings), Logger: env.Logger,
 		DeletionAudit: NewTimeTrackingDeletionAudit(audit.Persistence.TimeTrackingDeletion), Today: env.Today,
 	})
 	return &identityPorts.EmploymentResetCommands{

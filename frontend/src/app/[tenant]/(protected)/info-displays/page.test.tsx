@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: { user: { roles: ["admin"], permissions: [] } },
+    data: { user: { id: "admin-1", roles: ["admin"], permissions: [] } },
     status: "authenticated",
   }),
 }));
@@ -46,6 +46,7 @@ vi.mock("~/components/tenant/display-mode-guard", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   useTenant: () => ({ tenantSlug: "test" }),
+  useTenantSlugSafe: () => "test",
 }));
 
 vi.mock("~/lib/swr", () => ({

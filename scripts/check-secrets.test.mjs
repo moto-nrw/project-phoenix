@@ -1,3 +1,4 @@
+import { gitTestEnvironment, initGitFixture } from './test-helpers/git-fixture.mjs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -10,8 +11,7 @@ const source = dirname(fileURLToPath(import.meta.url));
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'phoenix-secret-hook-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
-  for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_PREFIX']) delete env[key];
+  const env = gitTestEnvironment();
   function run(command, args, extra = {}) {
     return spawnSync(command, args, { cwd: root, env: { ...env, ...extra }, encoding: 'utf8' });
   }
@@ -20,7 +20,7 @@ function fixture(t) {
     assert.equal(result.status, 0, result.stderr);
     return result.stdout.trim();
   }
-  git('init', '-q');
+  initGitFixture(git);
   git('config', 'user.name', 'Scanner fixture');
   git('config', 'user.email', 'scanner@example.invalid');
   mkdirSync(join(root, 'scripts'));
@@ -59,6 +59,35 @@ test('pre-push scans every branch commit, including credentials removed at the t
   const result = f.scan(['pre-push', 'base']);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(f.args().at(-1), `--log-opts=${base}..HEAD`);
+});
+
+test('worktree mode scans uncommitted and untracked changes as one snapshot commit', t => {
+  const f = fixture(t);
+  writeFileSync(join(f.root, '.gitignore'), '.devbox/\nscanner-args\n');
+  f.git('add', '.gitignore', 'scripts', '.gitleaks.toml');
+  f.git('commit', '-qm', 'tooling');
+  f.git('branch', '-f', 'base');
+  writeFileSync(join(f.root, 'fixture.txt'), 'changed but not committed');
+  writeFileSync(join(f.root, 'untracked.env'), 'TOKEN=not-committed');
+  const result = f.scan(['worktree', 'base']);
+  assert.equal(result.status, 0, result.stderr);
+  const range = f.args().find(arg => arg.startsWith('--log-opts='));
+  const [from, snapshot] = range.slice('--log-opts='.length).split('..');
+  assert.equal(from, f.git('rev-parse', 'base'));
+  assert.equal(f.git('show', `${snapshot}:untracked.env`), 'TOKEN=not-committed');
+  assert.equal(f.git('show', `${snapshot}:fixture.txt`), 'changed but not committed');
+  assert.equal(f.git('diff', '--cached', '--name-only'), '', 'the real index stays untouched');
+  rmSync(join(f.root, 'scanner-args'));
+  f.git('checkout', '--', 'fixture.txt');
+  rmSync(join(f.root, 'untracked.env'));
+  assert.equal(f.scan(['worktree', 'base']).status, 0);
+  assert.equal(existsSync(join(f.root, 'scanner-args')), false, 'no branch commits and no changes need no scan');
+  // A credential committed on the branch and removed again stays in the range.
+  f.commit('TOKEN=committed-then-removed');
+  f.commit('clean');
+  assert.equal(f.scan(['worktree', 'base']).status, 0);
+  const branchRange = f.args().find(arg => arg.startsWith('--log-opts=')).slice('--log-opts='.length);
+  assert.match(f.git('log', '-p', '--format=', branchRange), /committed-then-removed/);
 });
 
 test('missing pinned scanner cannot fall back to another installation', t => {

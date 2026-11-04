@@ -78,7 +78,10 @@ func erasureSchoolIDs(ctx context.Context, store ports.ErasureStore, r organizat
 	return ids, nil
 }
 
-func (s *Erasure) checkLedger(r organizationtenancy.ErasureRequest, ids []int64) error {
+func (s *Erasure) checkLedger(ctx context.Context, r organizationtenancy.ErasureRequest, ids []int64) error {
+	if err := s.store.CheckSchoolLock(ctx); err != nil {
+		return err
+	}
 	if r.DryRun {
 		return nil
 	}
@@ -90,12 +93,16 @@ func (s *Erasure) runSchool(ctx context.Context, r organizationtenancy.ErasureRe
 	err := s.store.WithSchoolLock(ctx, id, func(lockCtx context.Context) error {
 		// Recheck after acquiring the school lock: another erasure may have
 		// completed between the all-school preflight and this lock.
-		if err := s.checkLedger(r, []int64{id}); err != nil {
+		if err := s.checkLedger(lockCtx, r, []int64{id}); err != nil {
 			return err
 		}
 		var err error
 		proof, err = s.eraseSchool(lockCtx, s.store, r, id, kinds)
 		if err != nil || r.DryRun {
+			return err
+		}
+		if err = s.store.CheckSchoolLock(lockCtx); err != nil {
+			proof = nil
 			return err
 		}
 		if err = s.ledger.Record(proof); err != nil {
@@ -130,7 +137,7 @@ func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest)
 }
 
 func (s *Erasure) runSchools(ctx context.Context, r organizationtenancy.ErasureRequest, ids []int64, kinds []organizationtenancy.LifecycleFileKind) ([]json.RawMessage, error) {
-	if err := s.checkLedger(r, ids); err != nil {
+	if err := s.checkLedger(ctx, r, ids); err != nil {
 		return nil, err
 	}
 	var results []json.RawMessage
@@ -196,7 +203,7 @@ func (s *Erasure) beginOrganization(ctx context.Context, r organizationtenancy.E
 	if r.DryRun {
 		return nil
 	}
-	if err := s.checkLedger(r, ids); err != nil {
+	if err := s.checkLedger(ctx, r, ids); err != nil {
 		return err
 	}
 	_, err := s.store.Call(ctx, r.LockTimeout, r.StatementTimeout, "organization_begin", r.OrganizationID, r.OperatorID, r.OrderReference)
@@ -247,19 +254,11 @@ func validateErasureFiles(kinds []organizationtenancy.LifecycleFileKind) error {
 	return nil
 }
 func (s *Erasure) filePhase(ctx context.Context, id int64, kinds []organizationtenancy.LifecycleFileKind, remove bool) (map[string]int64, error) {
-	counts := make(map[string]int64, len(kinds))
-	for _, kind := range kinds {
-		layout := kind.Layout
-		if kind.Kind == "avatars" {
-			layout = "tenantDir"
-		}
-		n, err := s.files.TenantObjects(ctx, kind.Kind, layout, id, remove)
-		if err != nil {
-			return nil, errors.New("erasure: file phase failed; no overall completion, retry same order after fixing storage")
-		}
-		counts[kind.Kind] = n
+	counts, err := tenantFiles(ctx, s.files, id, kinds, remove, s.store.CheckSchoolLock)
+	if errors.Is(err, errTenantFiles) {
+		return nil, errors.New("erasure: file phase failed; no overall completion, retry same order after fixing storage")
 	}
-	return counts, nil
+	return counts, err
 }
 func (s *Erasure) previewSchool(ctx context.Context, store ports.ErasureStore, r organizationtenancy.ErasureRequest, id int64, kinds []organizationtenancy.LifecycleFileKind) (json.RawMessage, error) {
 	rows, err := store.Call(ctx, r.LockTimeout, r.StatementTimeout, "preview", id, r.OperatorID)
@@ -321,19 +320,13 @@ func eraseSchoolDatabase(ctx context.Context, store ports.ErasureStore, r organi
 }
 
 func (s *Erasure) removeAndVerifyFiles(ctx context.Context, id int64, kinds []organizationtenancy.LifecycleFileKind) error {
-	if _, err := s.filePhase(ctx, id, kinds, true); err != nil {
-		return err
+	_, err := removeAndVerify(func(remove bool) (map[string]int64, error) {
+		return s.filePhase(ctx, id, kinds, remove)
+	})
+	if errors.Is(err, errFilesRemain) {
+		return errors.New("erasure: files remain; order is not complete")
 	}
-	counts, err := s.filePhase(ctx, id, kinds, false)
-	if err != nil {
-		return err
-	}
-	for _, n := range counts {
-		if n != 0 {
-			return errors.New("erasure: files remain; order is not complete")
-		}
-	}
-	return nil
+	return err
 }
 
 func (s *Erasure) eraseSchool(ctx context.Context, store ports.ErasureStore, r organizationtenancy.ErasureRequest, id int64, kinds []organizationtenancy.LifecycleFileKind) (json.RawMessage, error) {
@@ -365,7 +358,7 @@ func (s *Erasure) eraseSchool(ctx context.Context, store ports.ErasureStore, r o
 		defer cancel()
 		failed, markErr := store.Call(markCtx, r.LockTimeout, r.StatementTimeout, "phase", proof.ID, "failed", "{}")
 		if markErr != nil {
-			return raw, errors.New("erasure: file phase and failure marker failed; order is not complete")
+			return raw, errors.Join(err, fmt.Errorf("erasure: failure marker failed; order is not complete: %w", markErr))
 		}
 		return failed, err
 	}

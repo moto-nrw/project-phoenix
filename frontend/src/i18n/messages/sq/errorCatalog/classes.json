@@ -1,0 +1,7 @@
+{
+  "input": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "permission": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+  "business_rejection": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
+  "server": "Nuk u përpunua: {object}. Provoni përsëri më vonë."
+}

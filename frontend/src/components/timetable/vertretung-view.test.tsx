@@ -7,9 +7,13 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 
 import { ApiError } from "~/lib/api-error";
-import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import {
+  useTimetableEnabled,
+  useWeekendFollowsFriday,
+} from "~/lib/tenant-context";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { catalogText } from "~/test/error-catalog-text";
 
@@ -75,6 +79,7 @@ vi.mock("~/lib/hooks/use-timetable-day-hours", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   useWeekendFollowsFriday: vi.fn(() => false),
+  useTimetableEnabled: vi.fn(() => true),
 }));
 
 vi.mock("~/lib/timetable-api", () => ({
@@ -261,8 +266,6 @@ interface SwrState {
   gapsLoading?: boolean;
   staffData?: Array<{ id: string; name: string }>;
   staffError?: Error;
-  settingsSchema?: unknown;
-  settingsLoading?: boolean;
   /** Dienstplan-Übersicht für den Abdeckungshinweis; ohne sie kein Hinweis. */
   coverageData?: {
     dienstplanInUse: boolean;
@@ -290,19 +293,12 @@ function setupSWR(state: SwrState = {}) {
     gapsLoading = false,
     staffData = [{ id: "11", name: "Ada Staff" }],
     staffError,
-    settingsSchema = null,
-    settingsLoading = false,
     coverageData,
     coverageError,
   } = state;
 
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
-    if (key === "settings-schema") {
-      return settingsLoading
-        ? { isLoading: true }
-        : { data: settingsSchema, isLoading: false };
-    }
     if (key.startsWith("vertretung-staff-list-")) {
       return {
         data: { appointments: [], staff: staffData },
@@ -404,8 +400,28 @@ describe("VertretungView", () => {
     expect(props.instances).toEqual([]);
   });
 
-  it("keeps weekend days and their substitutions when the weekend follows Friday", () => {
+  it("snaps a weekend day of another week to Monday on a weekday although the weekend follows Friday", () => {
     vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    mockSearch.value = "d=2026-07-18";
+    setupSWR();
+
+    render(<VertretungView />);
+
+    expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveClass(
+      "bg-gray-900",
+    );
+    // Anker: die Wochenleiste ist gerendert und endet am Freitag.
+    expect(
+      screen.getByRole("button", { name: "Fr 24.07." }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Sa 25.07." }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps today's weekend days and their substitutions when the weekend follows Friday", () => {
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    setTestClock("2026-07-18T12:00:00+02:00"); // Samstag
     mockSearch.value = "d=2026-07-18";
     setupSWR({
       weekData: {
@@ -428,6 +444,40 @@ describe("VertretungView", () => {
     ).toBeInTheDocument();
     const props = mockDayListProps.mock.calls.at(-1)?.[0];
     expect(props.instances.map((i: EnrichedInstance) => i.id)).toEqual(["44"]);
+  });
+
+  it("adds the weekend to an open week after Berlin midnight", () => {
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    setTestClock("2026-07-17T23:59:00+02:00"); // Friday
+    vi.useFakeTimers();
+    mockSearch.value = "view=woche&d=2026-07-17";
+    render(<VertretungView />);
+
+    expect(
+      screen.getByRole("button", {
+        name: "Fr 17.07. als Tagesansicht öffnen",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Sa 18.07. als Tagesansicht öffnen",
+      }),
+    ).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    expect(
+      screen.getByRole("button", {
+        name: "Sa 18.07. als Tagesansicht öffnen",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "So 19.07. als Tagesansicht öffnen",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("defaults to next Monday on a weekend and disables the Heute button", () => {
@@ -1033,22 +1083,13 @@ describe("VertretungView", () => {
   });
 
   it("renders the disabled state when timetable.enabled is false", () => {
-    setupSWR({
-      settingsSchema: {
-        tabs: [
-          {
-            id: "operations",
-            categories: [
-              {
-                id: "timetable",
-                items: [{ key: "timetable.enabled", value: false }],
-              },
-            ],
-          },
-        ],
-      },
-    });
-    render(<VertretungView />);
+    setupSWR();
+    vi.mocked(useTimetableEnabled).mockReturnValue(false);
+    try {
+      render(<VertretungView />);
+    } finally {
+      vi.mocked(useTimetableEnabled).mockReturnValue(true);
+    }
 
     expect(screen.getByTestId("vertretung-disabled-state")).toBeVisible();
     expect(

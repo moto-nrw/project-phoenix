@@ -3,6 +3,14 @@ import { render, screen } from "@testing-library/react";
 import type { Reminder, RemindersResult } from "~/lib/reminders-api";
 
 const mockUseReminders = vi.fn();
+// useTenantMutate scopes its keys to the signed-in account (#5006).
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "1" }, expires: "2099-01-01" },
+    status: "authenticated",
+  }),
+}));
+
 vi.mock("~/lib/hooks/use-reminders", () => ({
   useReminders: () => mockUseReminders(),
 }));

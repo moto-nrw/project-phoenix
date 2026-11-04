@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -82,9 +83,15 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repo
 		Logger:              logger,
 	}
 	if base.Traeger != nil {
+		// The history reads the ledger on the account management's
+		// administrative unit (#5474).
+		ledger, err := auditCompose.NewTenantPersistence(base.DB)
+		if err != nil {
+			return nil, fmt.Errorf("identity access composition: %w", err)
+		}
 		traeger := *base.Traeger
 		traeger.Memberships = TraegerBueroDirectory{Organizations: repos.traeger}
-		traeger.Audit = TraegerAccountLedger{Command: audit}
+		traeger.Audit = TraegerAccountLedger{Command: audit, Changes: ledger.TraegerAccountChanges}
 		base.Traeger = &traeger
 	}
 	return identityaccessCompose.New(base)

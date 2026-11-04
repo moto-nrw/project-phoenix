@@ -1592,6 +1592,52 @@ func TestSetValue_TextPatternValidation(t *testing.T) {
 	}
 }
 
+func TestSetValue_ColorPatternValidation(t *testing.T) {
+	t.Parallel()
+	registry := setupTest(t)
+	pattern := `^#[0-9A-Fa-f]{6}$`
+	registry.Register(config.Definition{
+		Key:        "branding.color_test",
+		Label:      "Farbe",
+		Type:       config.FieldColor,
+		Default:    "#111827",
+		Tab:        "branding",
+		Category:   "briefkopf",
+		Validation: &config.ValidationRules{Pattern: &pattern},
+	})
+
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
+
+	require.NoError(t, svc.SetValue(tenantCtx(1), "branding.color_test", "#1F4E79", nil, nil))
+	for _, value := range []any{"rot", "#12345", 42} {
+		require.Error(t, svc.SetValue(tenantCtx(1), "branding.color_test", value, nil, nil))
+	}
+}
+
+// Colour presets are suggestions (#5239): a colour outside them still saves,
+// so "Eigene Farbe" and every value stored before the presets keep working.
+func TestSetValue_ColorPresetsDoNotRestrictTheValue(t *testing.T) {
+	t.Parallel()
+	registry := setupTest(t)
+	pattern := `^#[0-9A-Fa-f]{6}$`
+	registry.Register(config.Definition{
+		Key:        "branding.color_presets_test",
+		Label:      "Farbe",
+		Type:       config.FieldColor,
+		Default:    "#111827",
+		Tab:        "branding",
+		Category:   "briefkopf",
+		Validation: &config.ValidationRules{Pattern: &pattern},
+		Options:    &config.SelectOptions{Static: []config.SelectOption{{Label: "Schwarz", Value: "#111827"}}},
+	})
+
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
+
+	require.NoError(t, svc.SetValue(tenantCtx(1), "branding.color_presets_test", "#111827", nil, nil))
+	require.NoError(t, svc.SetValue(tenantCtx(1), "branding.color_presets_test", "#254798", nil, nil))
+	require.Error(t, svc.SetValue(tenantCtx(1), "branding.color_presets_test", "Schwarz", nil, nil))
+}
+
 // =============================================================================
 // PIN validation tests
 // =============================================================================

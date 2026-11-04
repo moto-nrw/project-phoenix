@@ -1,5 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { StaffHistorySession } from "~/lib/staff-api";
 import type {
@@ -8,6 +8,10 @@ import type {
 } from "~/lib/time-tracking-helpers";
 
 import { StaffSessionTable } from "./staff-session-table";
+
+// The table invalidates the cache of the signed-in session after a save;
+// these tests render it without a SessionProvider.
+vi.mock("~/lib/swr", () => ({ useInvalidateMatching: () => vi.fn() }));
 
 // Hinweise zu Pausen und Höchstarbeitszeit (#4804): die Tabelle zeigt, was
 // der Server bewertet hat, und rechnet keine Schwelle selbst.

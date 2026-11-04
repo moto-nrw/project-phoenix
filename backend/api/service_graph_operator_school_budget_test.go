@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,13 +48,13 @@ func TestOperatorSchoolSummariesQueryBudget(t *testing.T) {
 
 	addSchoolWithChildren(1)
 	before := listSchools()
-	testpkg.AssertQueryBudget(t, "services.operator.school_summaries", before)
+	querybudgets.AssertQueryBudget(t, "services.operator.school_summaries", before)
 
 	for range 3 {
 		addSchoolWithChildren(3)
 	}
 	after := listSchools()
-	testpkg.AssertQueryBudget(t, "services.operator.school_summaries", after)
+	querybudgets.AssertQueryBudget(t, "services.operator.school_summaries", after)
 
 	require.Len(t, after, len(before),
 		"operator school listing must stay flat in the number of schools and children")

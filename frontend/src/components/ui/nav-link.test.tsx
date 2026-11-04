@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
 
+import { ButtonLink } from "./button";
 import { NavLink } from "./nav-link";
 import { HOVER_PREFETCH_DELAY_MS } from "./navigation-link";
 
@@ -30,7 +31,10 @@ function currentPrefetch(): boolean | null | undefined {
     ?.prefetch;
 }
 
-describe("NavLink", () => {
+describe.each([
+  { name: "NavLink", Link: NavLink },
+  { name: "ButtonLink", Link: ButtonLink },
+])("$name", ({ Link: NavLink }) => {
   beforeEach(() => {
     linkProps.mockClear();
   });
@@ -73,15 +77,18 @@ describe("NavLink", () => {
     expect(currentPrefetch()).toBe(false);
   });
 
-  it("prefetches at once when a touch starts on the link", () => {
-    render(<NavLink href="/rooms">Räume</NavLink>);
+  it.each(["touch", "pen"])(
+    "prefetches at once when %s starts on the link",
+    (pointerType) => {
+      render(<NavLink href="/rooms">Räume</NavLink>);
 
-    fireEvent.pointerEnter(screen.getByRole("link", { name: "Räume" }), {
-      pointerType: "touch",
-    });
+      fireEvent.pointerEnter(screen.getByRole("link", { name: "Räume" }), {
+        pointerType,
+      });
 
-    expect(currentPrefetch()).toBe(true);
-  });
+      expect(currentPrefetch()).toBe(true);
+    },
+  );
 
   it("prefetches when the link receives keyboard focus", () => {
     render(<NavLink href="/staff">Mitarbeitende</NavLink>);

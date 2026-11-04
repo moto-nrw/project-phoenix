@@ -22,6 +22,15 @@ vi.mock("~/server/auth/tenant-config", () => ({
 vi.mock("~/server/auth/shared", () => ({
   ACCESS_TOKEN_REFRESH_BUFFER_MS: 5 * 60 * 1000,
 }));
+const { familyState } = vi.hoisted(() => ({
+  familyState: vi.fn<() => Promise<"live" | "ended" | "unknown">>(),
+}));
+
+// #5399: a snapshot needs a family Identity & Access confirms live.
+vi.mock("~/server/auth/token-validation", () => ({
+  portalOfScope: (scope: unknown) => scope,
+  sessionFamilyState: familyState,
+}));
 
 import { readTenantSessionSnapshot } from "./tenant-session-snapshot.server";
 
@@ -42,13 +51,16 @@ const validToken = () => ({
 
 beforeEach(() => {
   mockGetToken.mockReset();
+  familyState.mockReset();
+  familyState.mockResolvedValue("live");
 });
 
 describe("readTenantSessionSnapshot", () => {
-  it("decodes the configured cookie without exposing its refresh token", async () => {
+  it("decodes the configured cookie and keeps both tokens out of the session", async () => {
     mockGetToken.mockResolvedValue(validToken());
 
-    const session = await readTenantSessionSnapshot();
+    const snapshot = await readTenantSessionSnapshot();
+    const session = snapshot?.session;
 
     expect(mockGetToken).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -63,11 +75,15 @@ describe("readTenantSessionSnapshot", () => {
     expect(requestHeaders.get("cookie")).toContain("encrypted");
     expect(session?.user).toMatchObject({
       id: "7",
-      token: "backend-access",
       tenantId: 3,
       roles: ["admin"],
     });
-    expect(session?.user.refreshToken).toBeUndefined();
+    // The session is serialized into the HTML and RSC payload (#5005); only
+    // the server-side shell preload receives the access token.
+    const serialized = JSON.stringify(session);
+    expect(serialized).not.toContain("backend-access");
+    expect(serialized).not.toContain("must-not-leave-server-cookie");
+    expect(snapshot?.accessToken).toBe("backend-access");
   });
 
   it("defers to the response-aware route inside the proactive refresh window", async () => {
@@ -96,4 +112,15 @@ describe("readTenantSessionSnapshot", () => {
 
     await expect(readTenantSessionSnapshot()).resolves.toBeNull();
   });
+
+  it.each(["ended", "unknown"] as const)(
+    "leaves a session of a %s family to the session route (#5399)",
+    async (state) => {
+      mockGetToken.mockResolvedValue(validToken());
+      familyState.mockResolvedValue(state);
+
+      await expect(readTenantSessionSnapshot()).resolves.toBeNull();
+      expect(familyState).toHaveBeenCalledWith("backend-access", undefined);
+    },
+  );
 });

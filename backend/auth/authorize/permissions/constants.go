@@ -124,6 +124,9 @@ const (
 
 	// Special group actions
 	GroupsAssign = ResourceGroups + ":assign"
+	// GroupsManage is the full control over groups the leadership holds;
+	// the weekly protocols (#4769) read it as the leadership's reach.
+	GroupsManage = ResourceGroups + ":" + ActionManage
 )
 
 // Feedback permissions
@@ -243,6 +246,15 @@ const (
 	SurveysManage = ResourceSurveys + ":" + ActionManage
 )
 
+// Parent message permissions (#5200). parent_messages:leadership reads and
+// answers the conversations parents address to the leadership only. Every
+// account without it never sees those conversations; admin:* implies it.
+const (
+	ResourceParentMessages = "parent_messages"
+
+	ParentMessagesLeadership = ResourceParentMessages + ":leadership"
+)
+
 // Staff permissions (#1423). staff:financial gates the bank & tax section
 // of the Stammdaten tab (IBAN, Steuer-ID, SV-Nummer) — deliberately its own
 // permission instead of users:update: the directory maintainers are not the
@@ -314,6 +326,14 @@ const (
 
 	StudentDocumentsHealth = ResourceStudentDocuments + ":health"
 	StudentDocumentsLegal  = ResourceStudentDocuments + ":legal"
+
+	// Accident reports (Unfallanzeige, #4771): a child's accident with its
+	// injuries is Art. 9 GDPR health data, so reading and writing are their
+	// own permissions. Both are granted to the admin role (Leitung).
+	ResourceStudentAccidents = "student_accidents"
+
+	StudentAccidentsRead   = ResourceStudentAccidents + ":read"
+	StudentAccidentsManage = ResourceStudentAccidents + ":manage"
 
 	// School file storage (#2596). Reading is not a permission: it is the
 	// visibility of the folder. Managing (folders, visibility, any upload or
@@ -396,6 +416,19 @@ const (
 	// is unlocked, and the education.class_teachers assignment decides for
 	// which class.
 	ClassDayHandoverWrite = ResourceClassDay + ":handover_write"
+	// ClassDayParentLetterWrite lets a Lehrkraft write parent letters to the
+	// classes she reaches and read the state of her own letters (#4800). The
+	// caller's class reach (MySchoolClasses: education.class_teachers, or
+	// every class with class_day:all_classes) decides for which class; the
+	// school's parent-news switch decides whether letters go out at all.
+	ClassDayParentLetterWrite = ResourceClassDay + ":parent_letter_write"
+	// ClassDayAbsenceReportWrite lets the Schulverwaltung enter a report
+	// afterwards for a child the Lehrkraft marked absent in the morning
+	// without one (#4791): sick or excused for today, the status day the OGS
+	// enters itself. Only the system role schulverwaltung holds it, and only
+	// its holders take such a report back. The caller's class reach decides
+	// for which class.
+	ClassDayAbsenceReportWrite = ResourceClassDay + ":absence_report_write"
 )
 
 // Supervision permission for the school portal (#2527). supervision:own gates

@@ -11,7 +11,6 @@
 
 "use client";
 
-import { useSession } from "next-auth/react";
 import { BuildingsIcon, StackSimpleIcon, TagIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type { FormError, FormErrorInput } from "~/components/ui/form-error";
@@ -24,6 +23,7 @@ import {
   DataGrid,
 } from "~/components/ui/detail-modal-components";
 import { useSWRAuth } from "~/lib/swr";
+import { roomKeys } from "~/lib/swr/rooms-keys";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
@@ -139,15 +139,7 @@ export interface UseRoomDetailResult {
   historyError: FormError | null;
 }
 
-/** SWR-Schlüssel der Raumseite; das globale SSE lädt darüber nach. */
-export function roomDetailKey(roomId: string): string {
-  return `room-detail-${roomId}`;
-}
-
 export function useRoomDetail(roomId: string): UseRoomDetailResult {
-  const { data: session } = useSession();
-  const token = session?.user?.token;
-
   // SWR-cached so the global SSE handler can invalidate the header on
   // checkin/checkout/activity events, see use-global-sse.ts. The cache
   // key shape is "room-detail-{id}" (the slug-prefix is added by
@@ -163,91 +155,92 @@ export function useRoomDetail(roomId: string): UseRoomDetailResult {
     history: RoomHistoryEntry[];
     historyDisabled: boolean;
     historyFailure: unknown;
-  }>(roomDetailKey(roomId), async () => {
-    const authHeaders = token
-      ? { Authorization: `Bearer ${token}` }
-      : undefined;
-
-    const [roomResponse, historyResponse] = await Promise.all([
-      transportFetch(`/api/rooms/${roomId}`, {
-        credentials: "include",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-      }),
-      transportFetch(`/api/rooms/${roomId}/history`, {
-        credentials: "include",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-      }),
-    ]);
-    if (!roomResponse.ok) {
-      throw await apiErrorFromResponse(roomResponse, "room detail failed");
-    }
-    const roomResponseData = (await roomResponse.json()) as {
-      data?: RoomPayload;
-    } & RoomPayload;
-    const roomData = roomResponseData.data ?? roomResponseData;
-    const room = mapBackendToFrontendRoom(roomData);
-
-    let history: RoomHistoryEntry[] = [];
-    let historyDisabled = false;
-    let historyFailure: unknown = null;
-    if (!historyResponse.ok) {
-      // A non-OK response is NOT the same as "no history". The proxy
-      // maps the GDPR feature-disabled path to 200 + status:"feature_disabled"
-      // (handled in the OK branch below), so anything reaching here is a
-      // genuine failure — proxy crash, backend 500, network timeout. Log
-      // it so the empty section isn't indistinguishable from a real
-      // outage. We deliberately leave historyDisabled=false: hiding the
-      // section on real errors would mask the failure further.
-      logger.warn("room_history_fetch_failed", {
-        room_id: roomId,
-        status: historyResponse.status,
-      });
-      historyFailure = await apiErrorFromResponse(
-        historyResponse,
-        "room history failed",
-      );
-    } else {
-      const historyResponseData = (await historyResponse.json()) as
-        | BackendRoomHistoryEntry[]
-        | { status?: string; data?: BackendRoomHistoryEntry[] | null }
-        | null;
-      // Four observed response shapes:
-      //   - bare array (legacy)
-      //   - { data: [...] } wrapped
-      //   - { status: "success", data: null, message: "..." } when no history
-      //   - { status: "feature_disabled", data: [] } when the tenant has
-      //     gdpr.attendance_log_enabled = false (issue #1425). In that
-      //     case set historyDisabled so the page hides the section
-      //     deliberately — distinguishing "off" from "no data" matters for
-      //     debugging and for surviving any future UX change that would
-      //     otherwise render a placeholder for empty history.
-      // Anything that isn't a real array must collapse to []; otherwise
-      // .map on the next line throws (#1374 regression).
-      if (
-        historyResponseData &&
-        typeof historyResponseData === "object" &&
-        !Array.isArray(historyResponseData) &&
-        historyResponseData.status === ROOM_HISTORY_STATUS_FEATURE_DISABLED
-      ) {
-        historyDisabled = true;
+  }>(
+    roomKeys.detailKey(roomId),
+    async () => {
+      // Both routes read the session cookie (#5005).
+      const [roomResponse, historyResponse] = await Promise.all([
+        transportFetch(`/api/rooms/${roomId}`, {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        }),
+        transportFetch(`/api/rooms/${roomId}/history`, {
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+        }),
+      ]);
+      if (!roomResponse.ok) {
+        throw await apiErrorFromResponse(roomResponse, "room detail failed");
       }
-      const backendHistoryEntries: BackendRoomHistoryEntry[] = (() => {
-        if (Array.isArray(historyResponseData)) return historyResponseData;
+      const roomResponseData = (await roomResponse.json()) as {
+        data?: RoomPayload;
+      } & RoomPayload;
+      const roomData = roomResponseData.data ?? roomResponseData;
+      const room = mapBackendToFrontendRoom(roomData);
+
+      let history: RoomHistoryEntry[] = [];
+      let historyDisabled = false;
+      let historyFailure: unknown = null;
+      if (!historyResponse.ok) {
+        // A non-OK response is NOT the same as "no history". The proxy
+        // maps the GDPR feature-disabled path to 200 + status:"feature_disabled"
+        // (handled in the OK branch below), so anything reaching here is a
+        // genuine failure — proxy crash, backend 500, network timeout. Log
+        // it so the empty section isn't indistinguishable from a real
+        // outage. We deliberately leave historyDisabled=false: hiding the
+        // section on real errors would mask the failure further.
+        logger.warn("room_history_fetch_failed", {
+          room_id: roomId,
+          status: historyResponse.status,
+        });
+        historyFailure = await apiErrorFromResponse(
+          historyResponse,
+          "room history failed",
+        );
+      } else {
+        const historyResponseData = (await historyResponse.json()) as
+          | BackendRoomHistoryEntry[]
+          | { status?: string; data?: BackendRoomHistoryEntry[] | null }
+          | null;
+        // Four observed response shapes:
+        //   - bare array (legacy)
+        //   - { data: [...] } wrapped
+        //   - { status: "success", data: null, message: "..." } when no history
+        //   - { status: "feature_disabled", data: [] } when the tenant has
+        //     gdpr.attendance_log_enabled = false (issue #1425). In that
+        //     case set historyDisabled so the page hides the section
+        //     deliberately — distinguishing "off" from "no data" matters for
+        //     debugging and for surviving any future UX change that would
+        //     otherwise render a placeholder for empty history.
+        // Anything that isn't a real array must collapse to []; otherwise
+        // .map on the next line throws (#1374 regression).
         if (
           historyResponseData &&
           typeof historyResponseData === "object" &&
-          "data" in historyResponseData &&
-          Array.isArray(historyResponseData.data)
+          !Array.isArray(historyResponseData) &&
+          historyResponseData.status === ROOM_HISTORY_STATUS_FEATURE_DISABLED
         ) {
-          return historyResponseData.data;
+          historyDisabled = true;
         }
-        return [];
-      })();
-      history = backendHistoryEntries.map(mapBackendToFrontendHistoryEntry);
-    }
+        const backendHistoryEntries: BackendRoomHistoryEntry[] = (() => {
+          if (Array.isArray(historyResponseData)) return historyResponseData;
+          if (
+            historyResponseData &&
+            typeof historyResponseData === "object" &&
+            "data" in historyResponseData &&
+            Array.isArray(historyResponseData.data)
+          ) {
+            return historyResponseData.data;
+          }
+          return [];
+        })();
+        history = backendHistoryEntries.map(mapBackendToFrontendHistoryEntry);
+      }
 
-    return { room, history, historyDisabled, historyFailure };
-  });
+      return { room, history, historyDisabled, historyFailure };
+    },
+    { keepPreviousData: false },
+  );
 
   if (error) {
     logger.error("failed to fetch room data", {
@@ -407,7 +400,7 @@ export function RoomDetailContent({
                     return (
                       <div
                         key={session.sessionId}
-                        className="moto-content-surface rounded-xl border p-4 shadow-sm"
+                        className="moto-content-surface rounded-xl border p-4"
                       >
                         <div className="mb-2 flex items-start justify-between gap-2">
                           <h4 className="font-medium text-gray-900">

@@ -47,8 +47,27 @@ func (r offeringChangesFixtureRoot) PreviewDecision(ctx context.Context, request
 		return r.OfferingChangeCapability.PreviewDecision(txCtx, requestID, excludedIDs, effectiveFrom)
 	})
 }
-func (r offeringChangesFixtureRoot) Decide(ctx context.Context, input careplan.OfferingChangeDecisionInput) error {
-	return fixtureEnrollmentCommand(ctx, func(txCtx context.Context) error { return r.OfferingChangeCapability.Decide(txCtx, input) })
+func (r offeringChangesFixtureRoot) Decide(ctx context.Context, input careplan.OfferingChangeDecisionInput) (careplan.RosterImpact, error) {
+	return fixtureEnrollmentQuery(ctx, func(txCtx context.Context) (careplan.RosterImpact, error) {
+		return r.OfferingChangeCapability.Decide(txCtx, input)
+	})
+}
+
+// decidesOfferingChange adapts Decide for the tenant command helpers.
+func decidesOfferingChange(svc interface {
+	Decide(context.Context, careplan.OfferingChangeDecisionInput) (careplan.RosterImpact, error)
+}) func(context.Context, careplan.OfferingChangeDecisionInput) error {
+	return func(ctx context.Context, input careplan.OfferingChangeDecisionInput) error {
+		return decideOfferingChange(ctx, svc, input)
+	}
+}
+
+// decideOfferingChange decides a request where a test only checks the error.
+func decideOfferingChange(ctx context.Context, svc interface {
+	Decide(context.Context, careplan.OfferingChangeDecisionInput) (careplan.RosterImpact, error)
+}, input careplan.OfferingChangeDecisionInput) error {
+	_, err := svc.Decide(ctx, input)
+	return err
 }
 func (r offeringChangesFixtureRoot) MarkDone(ctx context.Context, requestID int64, expectedVersion, reason string, reviewedBy int64) error {
 	return fixtureEnrollmentCommand(ctx, func(txCtx context.Context) error {
@@ -83,8 +102,8 @@ func (r offeringChangesFixtureRoot) PreviewDirectOfferingAdjustment(ctx context.
 		return r.OfferingChangeCapability.PreviewDirectOfferingAdjustment(txCtx, input)
 	})
 }
-func (r offeringChangesFixtureRoot) ApplyDirectOfferingAdjustment(ctx context.Context, input careplan.DirectOfferingAdjustmentInput) error {
-	return fixtureEnrollmentCommand(ctx, func(txCtx context.Context) error {
+func (r offeringChangesFixtureRoot) ApplyDirectOfferingAdjustment(ctx context.Context, input careplan.DirectOfferingAdjustmentInput) (careplan.RosterImpact, error) {
+	return fixtureEnrollmentQuery(ctx, func(txCtx context.Context) (careplan.RosterImpact, error) {
 		return r.OfferingChangeCapability.ApplyDirectOfferingAdjustment(txCtx, input)
 	})
 }

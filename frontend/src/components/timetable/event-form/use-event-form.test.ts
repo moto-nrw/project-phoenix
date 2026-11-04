@@ -55,6 +55,45 @@ describe("reconcileCategoryId", () => {
   });
 });
 
+describe("useEventForm offering prefill", () => {
+  it("starts a new Regeltermin fed by the offering of the hint", async () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+
+    const params: UseEventFormParams = {
+      isOpen: true,
+      onClose: vi.fn(),
+      onSaved: vi.fn(),
+      defaultDate: "2026-08-03",
+      calendarPeriods: [],
+      defaultCalendarPeriodId: "5",
+      planningPeriods: null,
+      initialInstance: null,
+      initialSeries: null,
+      convertInstance: null,
+      defaultRepeat: "weekly",
+      variant: "full",
+      canCheckShiftCoverage: false,
+      defaultSource: {
+        careOfferingIds: ["7"],
+        title: "Randstunde",
+        weekdays: [1, 2],
+      },
+    };
+    const { result } = renderHook(() => useEventForm(params));
+
+    await waitFor(() => expect(result.current.form.title).toBe("Randstunde"));
+    expect(result.current.form.sourceCareOfferingIds).toEqual(["7"]);
+    expect(result.current.form.weekdays).toEqual([1, 2]);
+  });
+});
+
 describe("useEventForm staff selection", () => {
   const baseParams: UseEventFormParams = {
     isOpen: true,

@@ -1,8 +1,10 @@
 "use client";
 
+import { operatorInvitationKeys } from "~/lib/swr/portal-keys";
+
 import { useState, useCallback, useRef } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -13,6 +15,8 @@ import {
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   createOperatorInvitation,
@@ -29,14 +33,12 @@ import type {
 } from "~/lib/operator/operator-invitation-helpers";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { createLogger } from "~/lib/logger";
-import {
-  ConceptPageHeader,
-  SectionHeader,
-} from "~/components/ui/concept-section-header";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { ConceptPageHeader } from "~/components/ui/concept-page-header";
+import { SectionCard } from "~/components/ui/section-card";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
+import { operatorsConcept } from "~/lib/concepts/operators";
 
 const logger = createLogger({ component: "OperatorOperatorsPage" });
 
@@ -48,10 +50,10 @@ export default function OperatorOperatorsPage() {
     error: fetchError,
     isLoading,
     mutate,
-  } = useSWR<OperatorInvitationsData>(
-    "operator-invitations",
+  } = useSWRAuth<OperatorInvitationsData>(
+    operatorInvitationKeys.list(),
     () => listOperatorInvitations(),
-    { revalidateOnFocus: false },
+    { keepPreviousData: false, revalidateOnFocus: false },
   );
   const loadError = useSwrLoadError(
     fetchError,
@@ -63,7 +65,7 @@ export default function OperatorOperatorsPage() {
     <div className="space-y-8 p-6">
       <ConceptPageHeader
         title="Operatoren"
-        concept="operators"
+        concept={operatorsConcept}
         subtitle="Neue Operatoren einladen und bestehende anzeigen."
       />
 
@@ -144,12 +146,7 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
   );
 
   return (
-    <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
-      <SectionHeader
-        title="Neuen Operator einladen"
-        icon={<MotoConceptIcon concept="operators" size={22} />}
-        className="mb-4"
-      />
+    <SectionCard title="Neuen Operator einladen" concept={operatorsConcept}>
       <form
         ref={formRef}
         onSubmit={(e) => void handleSubmit(e)}
@@ -157,63 +154,40 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
       >
         <FormErrorAlert message={formErrors.error} />
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="invite-email"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              E-Mail-Adresse *
-            </label>
-            <input
-              id="invite-email"
-              name="email"
-              type="email"
-              aria-invalid={formErrors.fieldError("email") ? true : undefined}
-              aria-describedby={
-                formErrors.fieldError("email")
-                  ? "invite-email-error"
-                  : undefined
-              }
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="operator@example.com"
-              className="focus:ring-moto-purple w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-            />
-            {formErrors.fieldError("email") ? (
-              <p id="invite-email-error" className="text-moto-red mt-1 text-xs">
-                {formErrors.fieldError("email")}
-              </p>
-            ) : null}
-          </div>
-          <div>
-            <label
-              htmlFor="invite-display-name"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Anzeigename (optional)
-            </label>
-            <input
-              id="invite-display-name"
-              name="display_name"
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Max Mustermann"
-              className="focus:ring-moto-purple w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-            />
-          </div>
+          <Input
+            id="invite-email"
+            name="email"
+            type="email"
+            label="E-Mail-Adresse"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="operator@example.com"
+            error={formErrors.fieldError("email")}
+            controlSize="compact"
+          />
+          <Input
+            id="invite-display-name"
+            name="display_name"
+            type="text"
+            label="Anzeigename (optional)"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Max Mustermann"
+            controlSize="compact"
+          />
         </div>
 
-        <button
+        <Button
           type="submit"
+          variant="primary"
+          size="md"
           disabled={isSubmitting || !email.trim()}
-          className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSubmitting ? "Wird gesendet..." : "Einladung senden"}
-        </button>
+        </Button>
       </form>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -284,13 +258,7 @@ function PendingInvitationsList({
   }, [revokeTarget, onMutate, toastSuccess, showRevokeError, clearRevokeError]);
 
   return (
-    <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
-      <SectionHeader
-        title="Offene Einladungen"
-        icon={<MotoConceptIcon concept="operators" size={22} />}
-        className="mb-4"
-      />
-
+    <SectionCard title="Offene Einladungen" concept={operatorsConcept}>
       <div className="space-y-3">
         {invitations.map((inv) => (
           <div
@@ -316,22 +284,24 @@ function PendingInvitationsList({
               </p>
             </div>
             <div className="ml-4 flex gap-2">
-              <button
+              <Button
                 type="button"
+                variant="surface"
+                size="compact"
                 disabled={actionLoading === inv.id}
                 onClick={() => void handleResend(inv.id)}
-                className="bg-moto-purple/15 text-moto-purple-strong hover:bg-moto-purple/25 rounded-full px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
               >
                 Erneut senden
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="outline_danger"
+                size="compact"
                 disabled={actionLoading === inv.id}
                 onClick={() => openRevoke(inv)}
-                className="bg-moto-red/15 text-moto-red-strong hover:bg-moto-red/25 rounded-full px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
               >
                 Widerrufen
-              </button>
+              </Button>
             </div>
           </div>
         ))}
@@ -351,7 +321,7 @@ function PendingInvitationsList({
         </p>
         <FormErrorAlert message={revokeErrors.error} className="mt-3" />
       </ConfirmationModal>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -437,13 +407,7 @@ function OperatorsList({
   );
 
   return (
-    <div className="moto-content-surface rounded-xl border p-6 shadow-sm">
-      <SectionHeader
-        title="Bestehende Operatoren"
-        icon={<MotoConceptIcon concept="operators" size={22} />}
-        className="mb-4"
-      />
-
+    <SectionCard title="Bestehende Operatoren" concept={operatorsConcept}>
       {operators.length === 0 ? (
         <p className="text-sm text-gray-500">Keine Operatoren vorhanden.</p>
       ) : (
@@ -542,6 +506,6 @@ function OperatorsList({
         </p>
         <FormErrorAlert message={deactivateErrors.error} className="mt-3" />
       </ConfirmationModal>
-    </div>
+    </SectionCard>
   );
 }

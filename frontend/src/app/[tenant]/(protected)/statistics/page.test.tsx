@@ -6,17 +6,32 @@ import {
   waitFor,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import StatisticsPage from "./page";
+import { SWRConfig } from "~/lib/swr/testing";
+import { SessionProvider } from "next-auth/react";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { StatisticsReport } from "~/lib/statistics-api";
 import { catalogText } from "~/test/error-catalog-text";
 import { TEST_CLOCK_TODAY } from "~/test/clock";
 
+vi.unmock("swr");
+
 // Exportfehler kommen als Toast (#2517).
 function render(ui: ReactElement) {
-  return rtlRender(ui, { wrapper: ToastProvider });
+  return rtlRender(
+    <SessionProvider
+      session={{
+        user: { id: "staff-7", scope: "tenant", tenantId: 42 },
+        expires: "2099-01-01",
+      }}
+    >
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <ToastProvider>{ui}</ToastProvider>
+      </SWRConfig>
+    </SessionProvider>,
+  );
 }
 
 vi.mock("next/navigation", () => ({
@@ -38,6 +53,19 @@ vi.mock("~/lib/statistics-api", async () => {
     ...actual,
     fetchStatisticsReport: (...args: unknown[]) =>
       mockFetchReport(...args) as Promise<StatisticsReport>,
+  };
+});
+
+const mockFetchOverruns = vi.fn();
+vi.mock("~/lib/care-times", async () => {
+  const actual =
+    await vi.importActual<typeof import("~/lib/care-times")>(
+      "~/lib/care-times",
+    );
+  return {
+    ...actual,
+    fetchCareTimeOverruns: (...args: unknown[]) =>
+      mockFetchOverruns(...args) as Promise<unknown>,
   };
 });
 
@@ -154,6 +182,8 @@ describe("Statistik — Bereich Kurse (#2891)", () => {
   });
 
   it("zeigt einen Ladefehler mit Katalogtext und lädt auf Wiederholen neu", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    onTestFinished(() => logged.mockRestore());
     mockFetchReport.mockRejectedValueOnce(
       new ApiError("down", 503, { code: "general.unavailable" }),
     );
@@ -164,6 +194,13 @@ describe("Statistik — Bereich Kurse (#2891)", () => {
         catalogText("general.unavailable", "die Statistik"),
       ),
     ).toBeInTheDocument();
+    expect(logged).toHaveBeenCalledWith(
+      "swr_fetch_failed",
+      expect.objectContaining({
+        error_code: "general.unavailable",
+        status: 503,
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() => expect(mockFetchReport).toHaveBeenCalledTimes(2));
   });
@@ -284,7 +321,8 @@ describe("Statistik — ausgeschaltete Raumhistorie (#3844)", () => {
           expect(mockFetchReport).toHaveBeenLastCalledWith(
             "2026-07-12",
             "2026-08-10",
-            [],
+            { groupIds: [], schoolClasses: [] },
+            ["attendance", "rooms", "courses"],
           ),
         );
       }
@@ -328,5 +366,232 @@ describe("Statistik — ausgeschaltete Raumhistorie (#3844)", () => {
     expect(
       screen.queryByText("Raumhistorie ist ausgeschaltet"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("Statistik — Bereich Soll und Ist (#4774)", () => {
+  beforeEach(() => {
+    mockFetchReport.mockReset();
+    mockFetchReport.mockResolvedValue(report());
+    mockFetchOverruns.mockReset();
+    mockFetchOverruns.mockResolvedValue({
+      from: "2026-08-11",
+      to: TEST_CLOCK_TODAY,
+      data_from: "2026-08-11",
+      tolerance_minutes: 15,
+      students: [],
+    });
+  });
+
+  it("zeigt die Liste im selben Zeitraum und nimmt den Anwesenheitsexport aus der Kopfkarte", async () => {
+    render(<StatisticsPage />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("tab", { name: "Soll und Ist" }),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("button", { name: "Weitere Aktionen" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Soll und Ist" }));
+
+    await waitFor(() => expect(mockFetchOverruns).toHaveBeenCalled());
+    const [from, to] = mockFetchReport.mock.calls[0] as [string, string];
+    expect(mockFetchOverruns).toHaveBeenCalledWith(from, to, {
+      groupIds: [],
+      schoolClasses: [],
+    });
+    expect(
+      screen.getByRole("button", { name: "Liste exportieren" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("Statistik — Filterkatalog", () => {
+  const currentGroup = { ...emptyGroupRow, group_id: "1", name: "Bärengruppe" };
+  const previousGroup = {
+    ...emptyGroupRow,
+    group_id: "2",
+    name: "Eulengruppe",
+  };
+  const currentStudent = {
+    student_id: "1",
+    first_name: "Ali",
+    last_name: "Arslan",
+    school_class: "2a",
+    group_name: "Bärengruppe",
+    present_days: 1,
+    sick_days: 0,
+    excused_days: 0,
+    unexplained_days: 0,
+    attendance_rate: 100,
+  };
+  const previousStudent = {
+    ...currentStudent,
+    student_id: "2",
+    school_class: "3b",
+    group_name: "Eulengruppe",
+  };
+
+  beforeEach(() => {
+    mockFetchReport.mockReset();
+    mockFetchReport.mockImplementation((_from: string, to: string) =>
+      Promise.resolve(
+        to === "2026-08-10"
+          ? report({ students: [previousStudent], groups: [previousGroup] })
+          : report({ students: [currentStudent], groups: [currentGroup] }),
+      ),
+    );
+  });
+
+  it("erneuert die Auswahl beim Zeitraumwechsel trotz aktivem Filter", async () => {
+    render(<StatisticsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Gruppen" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Bärengruppe" }));
+    fireEvent.click(screen.getByRole("button", { name: "Klassen" }));
+    fireEvent.click(await screen.findByRole("option", { name: "2a" }));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Vorheriger Zeitraum" }),
+    );
+
+    await waitFor(() =>
+      expect(mockFetchReport).toHaveBeenCalledWith(
+        "2026-07-12",
+        "2026-08-10",
+        {},
+        ["attendance"],
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Gruppen" })).toHaveTextContent(
+        "Alle Gruppen",
+      ),
+    );
+    expect(screen.getByRole("button", { name: "Klassen" })).toHaveTextContent(
+      "Alle Klassen",
+    );
+
+    const groupFilter = screen.getByRole("button", { name: "Gruppen" });
+    if (groupFilter.getAttribute("aria-expanded") !== "true") {
+      fireEvent.click(groupFilter);
+    }
+    expect(
+      await screen.findByRole("option", { name: "Eulengruppe" }),
+    ).toBeVisible();
+    fireEvent.keyDown(groupFilter, { key: "Escape" });
+
+    const classFilter = screen.getByRole("button", { name: "Klassen" });
+    if (classFilter.getAttribute("aria-expanded") !== "true") {
+      fireEvent.click(classFilter);
+    }
+    expect(await screen.findByRole("option", { name: "3b" })).toBeVisible();
+  });
+});
+
+describe("Statistik — Kinder nach Uhrzeit (#4764)", () => {
+  const occupancy = {
+    slot_minutes: 30,
+    untimed_plan_days: 0,
+    actual_data_days: 365,
+    actual_data_from: "2025-09-09",
+    plan_data_days: 365,
+    plan_data_from: "2025-09-09",
+    weekdays: [
+      {
+        weekday: 1,
+        plan_days: 4,
+        actual_days: 4,
+        slots: [
+          {
+            start: "07:30",
+            end: "08:00",
+            planned_average: 7.5,
+            planned_max: 9,
+            actual_average: 6,
+            actual_max: 8,
+          },
+        ],
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    mockFetchReport.mockReset();
+    mockFetchReport.mockImplementation(
+      (_from: string, _to: string, _filter: unknown, sections: string[]) =>
+        Promise.resolve(
+          sections.includes("occupancy")
+            ? report({ occupancy })
+            : report({
+                students: [
+                  {
+                    student_id: "1",
+                    first_name: "Ali",
+                    last_name: "Arslan",
+                    school_class: "2a",
+                    group_name: "",
+                    present_days: 1,
+                    sick_days: 0,
+                    excused_days: 0,
+                    unexplained_days: 0,
+                    attendance_rate: 100,
+                  },
+                ],
+              }),
+        ),
+    );
+  });
+
+  it("lädt die Zahlen nach Uhrzeit erst, wenn der Reiter offen ist", async () => {
+    render(<StatisticsPage />);
+    await waitFor(() => expect(mockFetchReport).toHaveBeenCalledTimes(1));
+    expect(mockFetchReport.mock.calls[0]?.[3]).toEqual([
+      "attendance",
+      "rooms",
+      "courses",
+    ]);
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Uhrzeit" }));
+
+    expect(await screen.findByText("07:30–08:00")).toBeVisible();
+    expect(mockFetchReport).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.any(String),
+      { groupIds: [], schoolClasses: [] },
+      ["occupancy"],
+    );
+    expect(screen.getByText("Kinder nach Uhrzeit")).toBeVisible();
+    expect(
+      screen.getByText("Montag: Durchschnitt aus 4 Betreuungstagen"),
+    ).toBeVisible();
+    expect(screen.getByText("7,5")).toBeVisible();
+    // Die Kennzahlenkarte der Anwesenheit gehört nicht zu diesem Bereich.
+    expect(screen.queryByText("Quote gesamt")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Zahlen nach Uhrzeit exportieren" }),
+    ).toBeVisible();
+  });
+
+  it("filtert nach Klasse und schickt die Klasse mit", async () => {
+    render(<StatisticsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Klassen" }));
+    fireEvent.click(await screen.findByRole("option", { name: "2a" }));
+
+    await waitFor(() =>
+      expect(mockFetchReport).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.any(String),
+        { groupIds: [], schoolClasses: ["2a"] },
+        ["attendance", "rooms", "courses"],
+      ),
+    );
+    expect(screen.getByRole("button", { name: "Klassen" })).toHaveTextContent(
+      "2a",
+    );
   });
 });

@@ -1,3 +1,5 @@
+import "server-only";
+
 export interface JwtPayload {
   id: string | number;
   exp?: number;

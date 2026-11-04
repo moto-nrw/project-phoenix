@@ -1,0 +1,2 @@
+GET /school/staff-notices/today
+POST /school/staff-notices/{noticeId}/acknowledge

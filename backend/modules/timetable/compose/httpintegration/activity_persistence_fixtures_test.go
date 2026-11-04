@@ -86,23 +86,24 @@ func activitySupervisorPlannedFixture(v *activityContract.SupervisorPlanned) *Su
 }
 
 type StudentEnrollment struct {
-	ID                       int64                   `bun:"id,pk,autoincrement" json:"id"`
-	CreatedAt                time.Time               `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
-	UpdatedAt                time.Time               `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
-	TenantID                 int64                   `bun:"tenant_id,notnull" json:"tenant_id"`
-	StudentID                int64                   `bun:"student_id,notnull" json:"student_id"`
-	ActivityGroupID          int64                   `bun:"activity_group_id,notnull" json:"activity_group_id"`
-	ValidFrom                activityContract.Date   `bun:"valid_from,notnull" json:"valid_from"`
-	ValidUntil               *activityContract.Date  `bun:"valid_until" json:"valid_until,omitempty"`
-	CalendarPeriodID         *int64                  `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
-	EnrollmentRequestChildID *int64                  `bun:"enrollment_request_child_id" json:"enrollment_request_child_id,omitempty"`
-	SelectedWeekdays         []int                   `bun:"selected_weekdays,type:jsonb,nullzero" json:"selected_weekdays,omitempty"`
-	AttendanceStatus         *string                 `bun:"attendance_status" json:"attendance_status,omitempty"`
-	Weekday                  *int                    `bun:"weekday" json:"weekday,omitempty"`
-	StudentAlumnus           bool                    `bun:"-" json:"-"`
-	StudentFirstName         string                  `bun:"-" json:"-"`
-	StudentLastName          string                  `bun:"-" json:"-"`
-	ActivityGroup            *activityContract.Group `bun:"-" json:"activity_group,omitempty"`
+	ID                       int64                         `bun:"id,pk,autoincrement" json:"id"`
+	CreatedAt                time.Time                     `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
+	UpdatedAt                time.Time                     `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
+	TenantID                 int64                         `bun:"tenant_id,notnull" json:"tenant_id"`
+	StudentID                int64                         `bun:"student_id,notnull" json:"student_id"`
+	ActivityGroupID          int64                         `bun:"activity_group_id,notnull" json:"activity_group_id"`
+	ValidFrom                activityContract.Date         `bun:"valid_from,notnull" json:"valid_from"`
+	ValidUntil               *activityContract.Date        `bun:"valid_until" json:"valid_until,omitempty"`
+	CalendarPeriodID         *int64                        `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
+	EnrollmentRequestChildID *int64                        `bun:"enrollment_request_child_id" json:"enrollment_request_child_id,omitempty"`
+	SelectedWeekdays         []int                         `bun:"selected_weekdays,type:jsonb,nullzero" json:"selected_weekdays,omitempty"`
+	AttendanceStatus         *string                       `bun:"attendance_status" json:"attendance_status,omitempty"`
+	Weekday                  *int                          `bun:"weekday" json:"weekday,omitempty"`
+	KeptWithoutBooking       map[int]activityContract.Date `bun:"kept_without_booking,type:jsonb,nullzero" json:"kept_without_booking,omitempty"`
+	StudentAlumnus           bool                          `bun:"-" json:"-"`
+	StudentFirstName         string                        `bun:"-" json:"-"`
+	StudentLastName          string                        `bun:"-" json:"-"`
+	ActivityGroup            *activityContract.Group       `bun:"-" json:"activity_group,omitempty"`
 }
 
 func activityStudentEnrollmentFixture(v *activityContract.StudentEnrollment) *StudentEnrollment {

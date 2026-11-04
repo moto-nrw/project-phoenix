@@ -110,3 +110,29 @@ describe("StudentRow", () => {
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });
+
+describe("StudentRow – Beobachtungen der OGS (#4797)", () => {
+  it("verlinkt die Beobachtungen, wenn die Lehrkraft sie lesen darf", () => {
+    render(
+      <ul>
+        <StudentRow
+          row={row()}
+          enrollmentKnown
+          now={NOW}
+          sharedNotesHref={(r) => `/klasse/kind?kind=${r.student_id}`}
+        />
+      </ul>,
+    );
+    expect(
+      screen.getByRole("link", { name: "Beobachtungen der OGS" }),
+    ).toHaveAttribute("href", "/klasse/kind?kind=1");
+  });
+
+  it("zeigt ohne Adresse keinen Link", () => {
+    renderRow();
+    expect(screen.getByText("Braun, Emilia")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Beobachtungen der OGS" }),
+    ).not.toBeInTheDocument();
+  });
+});

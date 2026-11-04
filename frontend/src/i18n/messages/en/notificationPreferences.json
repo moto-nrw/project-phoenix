@@ -1,0 +1,49 @@
+{
+  "title": "Notifications",
+  "description": "Stay informed about messages and important changes concerning your child.",
+  "allEnabled": "All enabled",
+  "enableAll": "Enable all",
+  "enablingAll": "Enabling ...",
+  "disableAll": "Disable all",
+  "tenantDisabled": "Your school has currently disabled notifications. Your selection will be saved and will apply when the school enables them again.",
+  "typeUnavailable": "Currently disabled by your school.",
+  "groups": {
+    "kinder": "Children",
+    "mitteilungen": "Messages",
+    "termine": "Appointments"
+  },
+  "types": {
+    "parent_announcement": {
+      "label": "New school announcement",
+      "description": "When the school publishes a new announcement in the parent portal."
+    },
+    "parent_message": {
+      "label": "New message from the OGS",
+      "description": "When the OGS writes to you about a child."
+    },
+    "parent_appointment": {
+      "label": "New or changed appointment",
+      "description": "When an appointment for you is created, changed or cancelled."
+    },
+    "parent_appointment_reminder": {
+      "label": "Appointment reminder",
+      "description": "Shortly before an appointment to which you are invited."
+    },
+    "parent_request_decided": {
+      "label": "Decision on your request",
+      "description": "When the OGS has decided on one of your requests."
+    },
+    "parent_care_cancelled": {
+      "label": "Care cancelled",
+      "description": "When the OGS cancels one of your child's care sessions."
+    },
+    "parent_billing_document": {
+      "label": "New document from the provider",
+      "description": "When the provider sends you a document, for example a confirmation letter."
+    }
+  },
+  "errorObjectList": "the list of notifications",
+  "errorObjectType": "the notification “{name}”",
+  "errorObjectEnableAll": "turning on all notifications",
+  "errorObjectDisableAll": "turning off all notifications"
+}

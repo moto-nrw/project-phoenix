@@ -1,0 +1,6 @@
+{
+  "scenario": "api.iot.teacher_students.reads",
+  "max": 5,
+  "exact": false,
+  "description": "#2941: formerly one identity query per supervisor / teacher."
+}

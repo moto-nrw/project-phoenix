@@ -26,7 +26,10 @@ vi.mock("~/components/staff-notices/today-notice-list", () => ({
 vi.mock("~/components/ui/section-card", () => ({
   SectionCard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
-vi.mock("~/lib/staff-notices-api", () => ({ fetchTodaysNotices: vi.fn() }));
+vi.mock("~/lib/staff-notices-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/staff-notices-api")>()),
+  fetchTodaysNotices: vi.fn(),
+}));
 vi.mock("~/lib/swr", () => ({ useSWRAuth }));
 vi.mock("~/lib/tenant-path", () => ({
   useTenantAwarePath: () => (path: string) => path,
@@ -46,13 +49,15 @@ describe("StaffNoticesBlock", () => {
     });
   });
 
+  // Der Eintrag gehört der App-Hülle (Seed, Badge); ein Besuch der
+  // Startseite lädt ihn nicht neu (#4989).
   it("trennt Hinweise nach angemeldetem Konto", () => {
     render(<StaffNoticesBlock />);
 
     expect(useSWRAuth).toHaveBeenCalledWith(
       "staff-notices-today:account-a",
       expect.any(Function),
-      { revalidateOnFocus: false },
+      { revalidateOnFocus: false, revalidateIfStale: false },
     );
 
     session.accountId = "account-b";
@@ -61,7 +66,7 @@ describe("StaffNoticesBlock", () => {
     expect(useSWRAuth).toHaveBeenLastCalledWith(
       "staff-notices-today:account-b",
       expect.any(Function),
-      { revalidateOnFocus: false },
+      { revalidateOnFocus: false, revalidateIfStale: false },
     );
   });
 });

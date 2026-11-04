@@ -1,5 +1,7 @@
 "use client";
 
+import { groupKeys } from "~/lib/swr/groups-keys";
+
 import {
   HANDOVER_ABSENT_WORDING,
   handoverDetail,
@@ -15,6 +17,7 @@ import {
   useLayoutEffect,
 } from "react";
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { RoleGuard } from "~/components/auth/role-guard";
@@ -76,6 +79,7 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { buildGroupOverflowItems } from "./components/group-overflow-items";
+import { weekProtocolsPath } from "~/lib/week-protocols-api";
 import { usePresenceMode } from "~/lib/tenant-context";
 import {
   StudentTable,
@@ -99,6 +103,8 @@ import {
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
+import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 import type {
   GroupTransfer,
@@ -124,9 +130,12 @@ import { type SidebarMemory, useSidebarMemory } from "~/lib/sidebar-memory";
 import { useArrivalOwner } from "~/lib/hooks/use-arrival-owner";
 import { useLatest } from "~/lib/hooks/use-latest";
 import { OgsGroupsPageSkeleton } from "./page-skeleton";
-import { hasEffectiveAdminScope } from "~/lib/auth-utils";
+import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
+import { childrenConcept } from "~/lib/concepts/children";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { substitutionConcept } from "~/lib/concepts/substitution";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
 const GROUP_ACCESS_RECONCILE_INTERVAL_MS = 15 * 60_000;
@@ -455,14 +464,11 @@ function OGSGroupPageContent() {
     error: liveError,
     mutate: reloadLive,
   } = useSWRAuth<OgsLiveViewData>(
-    session?.user?.token ? `ogs-students-${selectedGroupId ?? "auto"}` : null,
+    hasSessionAccess(session) ? groupKeys.live(selectedGroupId) : null,
     async () => {
       logger.debug("SWR fetching aggregated OGS live view");
       const start = performance.now();
-      const data = await fetchOgsGroupLive(
-        session?.user?.token,
-        selectedGroupId,
-      );
+      const data = await fetchOgsGroupLive(selectedGroupId);
       logger.debug("SWR fetch complete", {
         duration_ms: (performance.now() - start).toFixed(0),
       });
@@ -575,7 +581,7 @@ function OGSGroupPageContent() {
       // was in flight would otherwise leave a stale seed pinned until the
       // next event.
       if (dataGroupId) {
-        void tenantMutate(`ogs-students-${dataGroupId}`, liveData, {
+        void tenantMutate(groupKeys.live(dataGroupId), liveData, {
           revalidate: true,
         });
       }
@@ -1012,6 +1018,7 @@ function OGSGroupPageContent() {
     },
     [pickupTimes, now],
   );
+  const holidayGuestLabel = useHolidayGuestLabels(students);
   const tableColumns = useMemo(
     () =>
       compactColumns<Student>([
@@ -1035,12 +1042,18 @@ function OGSGroupPageContent() {
             />
           );
         }),
-        classColumn({ defaultVisible: false }),
+        classColumn({ defaultVisible: false, label: holidayGuestLabel }),
         arrivalColumn(ogsStudentDay),
         pickupColumn(ogsStudentDay),
         trackingColumn(trackingIndicators),
       ]),
-    [photosEnabled, currentGroup, ogsStudentDay, trackingIndicators],
+    [
+      photosEnabled,
+      currentGroup,
+      ogsStudentDay,
+      trackingIndicators,
+      holidayGuestLabel,
+    ],
   );
   const tableColumnDefaults = useMemo(
     () => columnDefaults(tableColumns),
@@ -1083,7 +1096,7 @@ function OGSGroupPageContent() {
       <TenantPage
         title={OGS_GROUPS_LABEL}
         empty={{
-          icon: <MotoConceptIcon concept="groups" size={48} />,
+          icon: <MotoConceptIcon concept={groupsConcept} size={48} />,
           title: "Keine OGS-Gruppe zugeordnet",
           description:
             "Sie sind keiner OGS-Gruppe als Leitung zugeordnet. Wenden Sie sich an Ihre Verwaltung, um einer Gruppe zugewiesen zu werden.",
@@ -1100,6 +1113,16 @@ function OGSGroupPageContent() {
         canTransfer: canAdministerGroups || currentGroup.isPersonal === true,
         activeTransfersCount: groupTransfer.transfers.length,
         onOpenTransfer: () => groupTransfer.setOpen(true),
+        // Wie das Backend: die Leitung immer, sonst Fachkräfte der eigenen
+        // oder vertretenen Gruppe; Gäste (nur groups:read) nie.
+        onOpenWeekProtocols:
+          canAdministerGroups ||
+          hasPermission(session, "groups:manage") ||
+          (hasPermission(session, "groups:update") &&
+            (currentGroup.isPersonal === true ||
+              currentGroup.viaSubstitution === true))
+            ? () => router.push(weekProtocolsPath(currentGroup.id))
+            : undefined,
       })
     : [];
 
@@ -1218,6 +1241,11 @@ function OGSGroupPageContent() {
                   }
                   extraContent={
                     <>
+                      {student.school_class === HOLIDAY_GUEST_SCHOOL_CLASS && (
+                        <StudentInfoRow icon={<SchoolClassIcon />}>
+                          {holidayGuestLabel(student)}
+                        </StudentInfoRow>
+                      )}
                       {student.pending_excused_note !== undefined && (
                         <StudentPendingExcusedRow
                           note={student.pending_excused_note}
@@ -1393,7 +1421,7 @@ function OGSGroupPageContent() {
             ) : null}
             {currentGroup?.viaSubstitution ? (
               <div className="flex items-center gap-2">
-                <MotoConceptIcon concept="substitution" size={18} />
+                <MotoConceptIcon concept={substitutionConcept} size={18} />
                 <span className="text-sm font-medium text-gray-900">
                   In Vertretung
                 </span>
@@ -1450,7 +1478,7 @@ function OGSGroupPageContent() {
         empty={
           !showSkeleton && !error && students.length === 0
             ? {
-                icon: <MotoConceptIcon concept="children" size={48} />,
+                icon: <MotoConceptIcon concept={childrenConcept} size={48} />,
                 title: `Keine Kinder in ${currentGroup?.name ?? "dieser Gruppe"}`,
                 description:
                   allGroups.length > 1

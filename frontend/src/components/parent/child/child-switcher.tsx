@@ -5,8 +5,12 @@ import { ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { ChildToday } from "~/lib/parent-api";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { parentPath } from "~/lib/parent-url";
+import { childrenConcept } from "~/lib/concepts/children";
+import { homeConcept } from "~/lib/concepts/home";
+import { unknownConcept } from "~/lib/concepts/unknown";
+import { presentConcept } from "~/lib/concepts/present";
 
 /**
  * Die Auswahlseite fuer mehrere Kinder.
@@ -24,9 +28,9 @@ export interface ChildSwitcherItem {
   readonly today: ChildToday;
 }
 
-function statusConcept(today: ChildToday): MotoConceptKey {
-  if (today.at_ogs === null) return "unknown";
-  return today.at_ogs ? "present" : "home";
+function statusConcept(today: ChildToday): MotoConcept {
+  if (today.at_ogs === null) return unknownConcept;
+  return today.at_ogs ? presentConcept : homeConcept;
 }
 
 export function ChildSwitcher({
@@ -49,13 +53,13 @@ export function ChildSwitcher({
             <Link
               href={parentPath(`/parents/children/${item.studentId}`)}
               data-parent-tour="child-switcher-item"
-              className="moto-content-surface group flex min-h-40 flex-col rounded-2xl border p-4 shadow-sm transition-[border-color,box-shadow] hover:border-gray-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:p-5"
+              className="moto-content-surface moto-hover-elevated group flex min-h-40 flex-col rounded-2xl border p-4 focus-visible:outline-2 focus-visible:outline-gray-400 sm:p-5"
             >
               <span className="flex w-full min-w-0 items-start justify-between gap-4">
                 <span className="flex min-w-0 items-center gap-3">
                   <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-gray-50">
                     <MotoConceptIcon
-                      concept="children"
+                      concept={childrenConcept}
                       size={28}
                       aria-hidden="true"
                     />

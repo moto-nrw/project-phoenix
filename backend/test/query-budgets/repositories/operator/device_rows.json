@@ -1,0 +1,6 @@
+{
+  "scenario": "repositories.operator.device_rows",
+  "max": 3,
+  "exact": false,
+  "description": "services — the operator device listing, organizationtenancy\nProvisioning.ListAllDevices (#2676, #3253), inside the request's\nadministrative transaction. Three statements: school summaries,\norganization summaries, and one device read through the Device Fleet\nowner. Flat in the number of devices."
+}

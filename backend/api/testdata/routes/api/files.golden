@@ -1,0 +1,9 @@
+DELETE /api/files/folders/{folderId}
+DELETE /api/files/folders/{folderId}/files/{fileId}
+GET /api/files/audience
+GET /api/files/folders
+GET /api/files/folders/{folderId}/files
+GET /api/files/folders/{folderId}/files/{fileId}/download
+POST /api/files/folders
+POST /api/files/folders/{folderId}/files
+PUT /api/files/folders/{folderId}

@@ -1,43 +1,109 @@
 "use client";
 
 // Eine Ferienanmeldung prüfen (#4663): alles, was die Eltern angegeben
-// haben, mit Status, Ferienbeitrag (#4664), Umbuchen und Verlauf. Jedes
-// Öffnen steht im Protokoll.
+// haben, mit Status, Ferienbeitrag (#4664), Umbuchen und Verlauf. Die
+// Gesundheitsangaben lädt die Seite getrennt und nur mit dem Recht
+// „Gesundheitsangaben sehen“ (#4722). Jedes Öffnen steht im Protokoll. Die
+// Karten der Angaben wechseln mit „Ändern“ an Ort und Stelle in den
+// Bearbeiten-Zustand (#5629); dessen Formulare lädt die Seite erst dann.
+// Geschwister aus anderen Anmeldungen stehen mit „Trennen“ in einer eigenen
+// Karte (#5628); zusammengeführt wird in der Liste.
 
+import { useSession } from "next-auth/react";
+import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HolidayContributionCard } from "~/components/traeger/holiday-contribution-card";
+import {
+  answeredQuestions,
+  HolidayRegistrationAnswers,
+} from "~/components/traeger/holiday-registration-answers";
 import { HolidayRegistrationChildCard } from "~/components/traeger/holiday-registration-child-card";
+import {
+  CANCELLED_EDIT_TEXT,
+  EDIT_TITLE,
+  editableQuestions,
+} from "~/components/traeger/holiday-registration-edit-fields";
+import {
+  HolidayDeclarationFields,
+  HolidayDeclarationTextsCard,
+} from "~/components/traeger/holiday-registration-declaration";
 import {
   HOLIDAY_REGISTRATION_STATUS_LABELS,
   HOLIDAY_REGISTRATION_STATUS_TONES,
   schoolNames,
 } from "~/components/traeger/holiday-registration-format";
 import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registration-history";
+import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-registration-proof-card";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
-import { BackLink } from "~/components/ui/back-link";
+import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { Loading } from "~/components/ui/loading";
+import {
+  AttachmentList,
+  type AttachmentLabels,
+} from "~/components/enrollment/attachment-list";
+import { holidayDocumentPath } from "~/lib/traeger-holiday-form-api";
+import { LegalMarkdown } from "~/components/enrollment/legal-markdown";
+import { Button } from "~/components/ui/button";
+import { ConfirmationModal } from "~/components/ui/modal";
+import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { useApiLoadError } from "~/contexts/ToastContext";
-import { formatBerlinDate } from "~/lib/date-helpers";
+import { TenantPage } from "~/components/ui/tenant-page";
+import {
+  useApiErrorDisplay,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { hasPermission } from "~/lib/auth-utils";
+import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { fetchHolidayPeriod, type HolidayPeriod } from "~/lib/traeger-api";
+import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
 import {
   fetchHolidayContribution,
   type HolidayContribution,
 } from "~/lib/traeger-contributions-api";
 import {
+  fetchHolidayConfirmationSettings,
   fetchHolidayRegistration,
+  fetchHolidayRegistrationHealth,
+  type HolidayConfirmationSettings,
   type HolidayRegistrationContact,
   type HolidayRegistrationDetail,
+  type HolidayRegistrationHealthDetail,
+  TRAEGER_HEALTH_RIGHT,
+  withHolidayHealthAnswers,
 } from "~/lib/traeger-holiday-registrations-api";
+import { splitHolidaySibling } from "~/lib/traeger-sibling-groups-api";
 import { traegerPath } from "~/lib/traeger-url";
 
+const PDF_LABELS: AttachmentLabels = {
+  open: "Öffnen",
+  download: "Herunterladen",
+  openLabel: (label) => `${label} öffnen`,
+  downloadLabel: (label) => `${label} herunterladen`,
+  popupBlocked:
+    "Das PDF konnte nicht geöffnet werden. Bitte erlauben Sie neue Fenster.",
+  errorObject: "die PDF-Datei",
+};
+
 const logger = createLogger({ component: "TraegerHolidayRegistrationPage" });
+
+// The edit states load with the first „Ändern“, not with the page.
+const editors = () => import("~/components/traeger/holiday-registration-edit");
+const GuardiansEditor = dynamic(() =>
+  editors().then((module) => module.GuardiansEditor),
+);
+const ChildEditor = dynamic(() =>
+  editors().then((module) => module.ChildEditor),
+);
+const ContactsEditor = dynamic(() =>
+  editors().then((module) => module.ContactsEditor),
+);
+const FamilyAnswersEditor = dynamic(() =>
+  editors().then((module) => module.FamilyAnswersEditor),
+);
 
 function consentText(at: string | null): string {
   return at ? `Ja, am ${formatBerlinDate(at)}` : "Nein";
@@ -70,36 +136,66 @@ export default function TraegerHolidayRegistrationPage() {
   const params = useParams<{ id: string; registrationId: string }>();
   const periodId = params?.id ?? "";
   const registrationId = params?.registrationId ?? "";
-  const [period, setPeriod] = useState<HolidayPeriod | null>(null);
+  const { data: session } = useSession();
+  const canSeeHealth = hasPermission(session, TRAEGER_HEALTH_RIGHT);
+  const [health, setHealth] = useState<HolidayRegistrationHealthDetail | null>(
+    null,
+  );
+  const {
+    data: period,
+    loadError: periodError,
+    error: periodFailure,
+  } = useTraegerHolidayPeriod(periodId);
   const [registration, setRegistration] =
     useState<HolidayRegistrationDetail | null>(null);
   const [contribution, setContribution] = useState<HolidayContribution | null>(
     null,
   );
+  // Whether the Träger asks for the debtor number (#5621).
+  const [confirmation, setConfirmation] =
+    useState<HolidayConfirmationSettings | null>(null);
   // The exemption the confirmation applies; it starts with the parents'
   // statement and the preview follows it.
   const [exemption, setExemption] = useState(false);
+  // The cost bearer that pays instead of the family (#5627); null otherwise.
+  const [costBearerId, setCostBearerId] = useState<string | null>(null);
   // While the preview is computed again, the confirmation waits for it: it
   // must freeze the amount the card shows.
   const [previewPending, setPreviewPending] = useState(false);
   const latestContribution = useRef(0);
-  const { schools, error: schoolsError } = useTraegerSchools();
+  // The card in its edit state: "guardians", "contacts", "answers" or
+  // "child:<id>"; one at a time.
+  const [editing, setEditing] = useState<string | null>(null);
+  const {
+    schools,
+    error: schoolsError,
+    fetchError: schoolsFailure,
+  } = useTraegerSchools();
   const registrationLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = registrationLoad;
 
   const load = useCallback(async () => {
     try {
-      const [loadedPeriod, loadedRegistration, loadedContribution] =
-        await Promise.all([
-          fetchHolidayPeriod(periodId),
-          fetchHolidayRegistration(periodId, registrationId),
-          fetchHolidayContribution(periodId, registrationId),
-        ]);
+      const [
+        loadedRegistration,
+        loadedContribution,
+        loadedHealth,
+        loadedConfirmation,
+      ] = await Promise.all([
+        fetchHolidayRegistration(periodId, registrationId),
+        fetchHolidayContribution(periodId, registrationId),
+        canSeeHealth
+          ? fetchHolidayRegistrationHealth(periodId, registrationId)
+          : Promise.resolve(null),
+        fetchHolidayConfirmationSettings(),
+      ]);
       latestContribution.current++;
-      setPeriod(loadedPeriod);
+      setConfirmation(loadedConfirmation);
       setRegistration(loadedRegistration);
+      setHealth(loadedHealth);
       setContribution(loadedContribution);
       setExemption(loadedRegistration.benefitsDeclared);
+      setCostBearerId(null);
       clearLoadError();
     } catch (err) {
       logger.error("traeger_holiday_registration_load_failed", {
@@ -110,7 +206,7 @@ export default function TraegerHolidayRegistrationPage() {
         retry: () => void load(),
       });
     }
-  }, [periodId, registrationId, clearLoadError, showLoadError]);
+  }, [periodId, registrationId, canSeeHealth, clearLoadError, showLoadError]);
 
   useEffect(() => {
     void load();
@@ -120,14 +216,15 @@ export default function TraegerHolidayRegistrationPage() {
   // would freeze, so the contribution is read again; only the newest answer
   // is shown.
   const refreshContribution = useCallback(
-    async (withExemption: boolean) => {
+    async (withExemption: boolean, withCostBearer: string | null) => {
       const request = ++latestContribution.current;
       setPreviewPending(true);
       try {
         const next = await fetchHolidayContribution(
           periodId,
           registrationId,
-          withExemption,
+          withCostBearer ? false : withExemption,
+          withCostBearer ?? undefined,
         );
         if (request === latestContribution.current) {
           setContribution(next);
@@ -151,21 +248,71 @@ export default function TraegerHolidayRegistrationPage() {
   const changed = useCallback(
     (next: HolidayRegistrationDetail) => {
       setRegistration(next);
-      void refreshContribution(exemption);
+      void refreshContribution(exemption, costBearerId);
     },
-    [exemption, refreshContribution],
+    [exemption, costBearerId, refreshContribution],
   );
+
+  const saved = useCallback(
+    (next: HolidayRegistrationDetail) => {
+      setEditing(null);
+      changed(next);
+    },
+    [changed],
+  );
+
+  // Siblings from another registration (#5628): split after asking.
+  const [confirmingSplit, setConfirmingSplit] = useState(false);
+  const [splitting, setSplitting] = useState(false);
+  const splitErrors = useApiErrorDisplay();
+  const { success } = useToast();
+  const splitSiblings = async () => {
+    setSplitting(true);
+    try {
+      await splitHolidaySibling(periodId, registrationId);
+      success("Die Anmeldung ist von den Geschwistern getrennt.");
+      setConfirmingSplit(false);
+      await load();
+    } catch (err) {
+      logger.error("holiday_registration_sibling_split_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setConfirmingSplit(false);
+      void splitErrors.show(err, { object: "die Geschwister" });
+    } finally {
+      setSplitting(false);
+    }
+  };
 
   const changeExemption = useCallback(
     (next: boolean) => {
       setExemption(next);
-      void refreshContribution(next);
+      void refreshContribution(next, null);
     },
     [refreshContribution],
   );
 
-  const loadError = registrationLoad.error ?? schoolsError;
+  const changeCostBearer = useCallback(
+    (next: string | null) => {
+      setCostBearerId(next);
+      if (next) void refreshContribution(false, next);
+    },
+    [refreshContribution],
+  );
+
+  const loadError =
+    registrationLoad.error ??
+    metadataLoadError(
+      periodError ?? schoolsError,
+      Boolean(registration && period && schools),
+      periodFailure,
+      schoolsFailure,
+    );
   const names = schoolNames(schools);
+  // The health answers stand beside the other answers, marked "(Gesundheit)".
+  const view = registration
+    ? withHolidayHealthAnswers(registration, health)
+    : null;
   const emergency = (registration?.contacts ?? []).filter(
     (contact) => contact.kind === "emergency",
   );
@@ -173,48 +320,145 @@ export default function TraegerHolidayRegistrationPage() {
     (contact) => contact.kind === "pickup",
   );
 
-  return (
-    <div className="w-full space-y-6">
-      <div className="space-y-2">
-        <BackLink
-          href={traegerPath(`/traeger/ferien/${periodId}/anmeldungen`)}
-          label="Zurück zu den Anmeldungen"
-        />
-        {registration ? (
-          <>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-                Anmeldung Nr. {registration.id}
-              </h1>
-              <StatusBadge
-                tone={HOLIDAY_REGISTRATION_STATUS_TONES[registration.status]}
-                label={HOLIDAY_REGISTRATION_STATUS_LABELS[registration.status]}
-              />
-              {registration.frozen ? (
-                <StatusBadge tone="gray" label="Eingefroren" />
-              ) : null}
-            </div>
-            <p className="text-sm text-gray-500">
-              {period ? `${period.name} · ` : ""}Eingegangen am{" "}
-              {formatBerlinDate(registration.submittedAt)}
-            </p>
-          </>
-        ) : null}
-      </div>
+  const cancelled = registration?.status === "cancelled";
+  const editAction = (section: string, label: string) =>
+    cancelled || editing ? undefined : (
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        aria-label={label}
+        onClick={() => setEditing(section)}
+      >
+        Ändern
+      </Button>
+    );
+  const editorProps = registration
+    ? {
+        periodId,
+        registration,
+        onSaved: saved,
+        onCancel: () => setEditing(null),
+      }
+    : null;
 
-      {loadError ? (
-        <LoadErrorAlert error={loadError} />
-      ) : registration && period && schools ? (
+  // Der Titel nennt die Eltern, nicht die Datenbanknummer. Die Nummer bleibt
+  // in der Statuszeile: Export und Hinweis auf Doppelanmeldungen verweisen
+  // mit „Anmeldung Nr.“ auf sie.
+  const title = registration
+    ? `Anmeldung von ${registration.guardianFirstName} ${registration.guardianLastName}`
+    : "Anmeldung";
+
+  return (
+    <TenantPage
+      title={title}
+      back
+      backHref={traegerPath(`/traeger/ferien/${periodId}/anmeldungen`)}
+      backLabel="Zurück zu den Anmeldungen"
+      stats={
+        registration ? (
+          <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+            <StatusBadge
+              tone={HOLIDAY_REGISTRATION_STATUS_TONES[registration.status]}
+              label={HOLIDAY_REGISTRATION_STATUS_LABELS[registration.status]}
+            />
+            {registration.frozen ? (
+              <StatusBadge tone="gray" label="Eingefroren" />
+            ) : null}
+            <span>
+              Nr. {registration.id} · {period ? `${period.name} · ` : ""}
+              Eingegangen am {formatBerlinDate(registration.submittedAt)}
+            </span>
+          </span>
+        ) : null
+      }
+      statsLoading={!registration && !loadError}
+      error={loadError}
+      loading={!loadError && !(registration && period && schools)}
+    >
+      {registration && view && period && schools ? (
         <>
           <HolidayRegistrationStatusCard
             periodId={periodId}
             registration={registration}
             contribution={contribution}
             previewPending={previewPending}
+            debtorNumberRequired={confirmation?.debtorNumberRequired ?? false}
             exemption={exemption}
             onExemptionChange={changeExemption}
+            costBearers={confirmation?.costBearers}
+            costBearerId={costBearerId}
+            onCostBearerChange={changeCostBearer}
             onChanged={changed}
             onConfirmed={load}
+            onDebtorNumberChanged={load}
+          />
+          {contribution?.siblings?.length ? (
+            <SectionCard
+              title="Geschwister"
+              description="Die Kinder dieser Anmeldungen zählen beim Ferienbeitrag zusammen. Das Kind mit dem höchsten Beitrag ist das 1. Kind."
+              action={
+                contribution.siblingsInvoiced ? undefined : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => setConfirmingSplit(true)}
+                  >
+                    Trennen
+                  </Button>
+                )
+              }
+            >
+              <div className="space-y-2 text-sm text-gray-700">
+                <ul className="space-y-1">
+                  {contribution.siblings.map((sibling) => (
+                    <li key={sibling.registrationId} className="wrap-anywhere">
+                      <NavigationLink
+                        href={traegerPath(
+                          `/traeger/ferien/${periodId}/anmeldungen/${sibling.registrationId}`,
+                        )}
+                        className="font-medium text-gray-900 underline"
+                      >
+                        Anmeldung Nr. {sibling.registrationId}
+                      </NavigationLink>
+                      {": "}
+                      {sibling.children.map((child) => child.name).join(", ")}
+                      {sibling.cancelled
+                        ? " (storniert, zählt nicht mit)"
+                        : null}
+                    </li>
+                  ))}
+                </ul>
+                {contribution.siblingsInvoiced ? (
+                  <p>
+                    Für eine dieser Anmeldungen gibt es schon eine Rechnung.
+                    Geschwister können Sie jetzt nicht mehr ändern.
+                  </p>
+                ) : null}
+              </div>
+              <ConfirmationModal
+                isOpen={confirmingSplit}
+                title="Von den Geschwistern trennen?"
+                confirmText="Trennen"
+                isConfirmLoading={splitting}
+                loadingText="Trennt …"
+                onClose={() => setConfirmingSplit(false)}
+                onConfirm={() => void splitSiblings()}
+              >
+                <p className="text-sm text-gray-700">
+                  Die Kinder dieser Anmeldung zählen dann nicht mehr mit den
+                  anderen Anmeldungen zusammen. moto berechnet den Ferienbeitrag
+                  neu, auch einen schon bestätigten. Eltern bekommen keine
+                  Nachricht von moto.
+                </p>
+              </ConfirmationModal>
+            </SectionCard>
+          ) : null}
+          <HolidayRegistrationProofCard
+            periodId={periodId}
+            registration={registration}
+            onUploaded={setRegistration}
           />
           {contribution &&
           (registration.status !== "cancelled" || contribution.frozen) ? (
@@ -223,68 +467,216 @@ export default function TraegerHolidayRegistrationPage() {
               registration={registration}
             />
           ) : null}
-          <SectionCard title="Eltern">
-            <DataGrid>
-              <DataField label="Name">
-                {registration.guardianFirstName} {registration.guardianLastName}
-              </DataField>
-              <DataField label="Telefon">
-                {registration.guardianPhone}
-              </DataField>
-              <DataField label="E-Mail" fullWidth>
-                {registration.guardianEmail}
-              </DataField>
-              <DataField label="Datenschutz zugestimmt">
-                {consentText(registration.privacyConsentAt)}
-              </DataField>
-              <DataField label="Gesundheitsangaben zugestimmt">
-                {consentText(registration.healthConsentAt)}
-              </DataField>
-              <DataField label="Verbindlich angemeldet">
-                {consentText(registration.bindingConfirmedAt)}
-              </DataField>
-            </DataGrid>
-          </SectionCard>
-          {registration.children.map((child) => (
+          {editing === "guardians" && editorProps ? (
+            <SectionCard title={EDIT_TITLE} description="Eltern">
+              <GuardiansEditor
+                {...editorProps}
+                invoiced={contribution?.invoiced ?? false}
+              />
+            </SectionCard>
+          ) : (
+            <SectionCard
+              title="Eltern"
+              description={cancelled ? CANCELLED_EDIT_TEXT : undefined}
+              action={editAction("guardians", "Angaben der Eltern ändern")}
+            >
+              <DataGrid>
+                <DataField label="Name">
+                  {registration.guardianFirstName}{" "}
+                  {registration.guardianLastName}
+                </DataField>
+                <DataField label="Telefon">
+                  {registration.guardianPhone}
+                </DataField>
+                <DataField label="E-Mail" fullWidth>
+                  {registration.guardianEmail}
+                </DataField>
+                {registration.guardianAddress ? (
+                  <DataField label="Anschrift" fullWidth>
+                    {registration.guardianAddress.street},{" "}
+                    {registration.guardianAddress.postalCode}{" "}
+                    {registration.guardianAddress.city}
+                  </DataField>
+                ) : null}
+                <DataField label="Datenschutz zugestimmt">
+                  {consentText(registration.privacyConsentAt)}
+                </DataField>
+                <DataField label="Gesundheitsangaben zugestimmt">
+                  {consentText(registration.healthConsentAt)}
+                </DataField>
+                <DataField label="Verbindlich angemeldet">
+                  {consentText(registration.bindingConfirmedAt)}
+                </DataField>
+                <HolidayDeclarationFields registration={registration} />
+              </DataGrid>
+            </SectionCard>
+          )}
+          <HolidayDeclarationTextsCard registration={registration} />
+          {registration.secondGuardian && editing !== "guardians" ? (
+            <SectionCard
+              title="Zweite sorgeberechtigte Person"
+              action={editAction(
+                "guardians",
+                "Angaben der zweiten sorgeberechtigten Person ändern",
+              )}
+            >
+              <DataGrid>
+                <DataField label="Name">
+                  {registration.secondGuardian.firstName}{" "}
+                  {registration.secondGuardian.lastName}
+                </DataField>
+                <DataField label="E-Mail">
+                  {registration.secondGuardian.email || "Nicht angegeben"}
+                </DataField>
+                <DataField label="Telefon">
+                  {registration.secondGuardian.phone || "Nicht angegeben"}
+                </DataField>
+              </DataGrid>
+            </SectionCard>
+          ) : null}
+          {view.children.map((child) => (
             <HolidayRegistrationChildCard
               key={child.id}
               period={period}
-              registration={registration}
+              registration={view}
               child={child}
-              health={registration.health.find(
+              health={health?.children.find(
                 (entry) => entry.childId === child.id,
               )}
+              healthHidden={
+                !canSeeHealth && registration.healthConsentAt !== null
+              }
               names={names}
               onChanged={changed}
+              onEdit={
+                cancelled || editing
+                  ? undefined
+                  : () => setEditing(`child:${child.id}`)
+              }
+              editor={
+                editing === `child:${child.id}` && editorProps ? (
+                  <ChildEditor
+                    {...editorProps}
+                    child={
+                      registration.children.find(
+                        (entry) => entry.id === child.id,
+                      ) ?? child
+                    }
+                    schools={schools}
+                  />
+                ) : undefined
+              }
             />
           ))}
-          <SectionCard title="Notfallkontakte und Abholung">
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-gray-900">
-                  Notfallkontakte
-                </p>
-                <ContactList contacts={emergency} empty="Keine Angabe." />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-gray-900">
-                  Abholberechtigte
-                </p>
-                <ContactList
-                  contacts={pickup}
-                  empty="Keine Angabe. Dann holen nur die Eltern ab."
+          {editing === "answers" && editorProps ? (
+            <SectionCard title={EDIT_TITLE} description="Allgemeine Angaben">
+              <FamilyAnswersEditor {...editorProps} />
+            </SectionCard>
+          ) : registration.form.fields.length > 0 ? (
+            <SectionCard
+              title="Allgemeine Angaben"
+              description={`Antworten auf die Fragen des Formulars, Version ${registration.form.version}. Antworten zu einem Kind stehen beim Kind.`}
+              action={
+                editableQuestions(registration.form.fields, false).length > 0
+                  ? editAction("answers", "Allgemeine Angaben ändern")
+                  : undefined
+              }
+            >
+              {answeredQuestions(registration.form.fields, false, view.answers)
+                .length > 0 ? (
+                <HolidayRegistrationAnswers
+                  questions={answeredQuestions(
+                    registration.form.fields,
+                    false,
+                    view.answers,
+                  )}
+                  answers={view.answers}
                 />
+              ) : (
+                <p className="text-sm text-gray-700">
+                  Keine allgemeinen Antworten.
+                </p>
+              )}
+            </SectionCard>
+          ) : null}
+          {registration.form.legalBlocks?.some((block) => block.enabled) ? (
+            <SectionCard title="Hinweise und Einwilligungen">
+              <div className="space-y-4">
+                {registration.form.legalBlocks
+                  .filter((block) => block.enabled)
+                  .map((block) => {
+                    const at = registration.legalAcceptances?.[block.key];
+                    return (
+                      <div key={block.key}>
+                        <h3 className="text-sm font-semibold text-gray-900">
+                          {block.title}
+                        </h3>
+                        <p className="text-sm text-gray-700">{block.label}</p>
+                        {block.text.trim() ? (
+                          <div className="mt-2 text-sm text-gray-700">
+                            <LegalMarkdown text={block.text} />
+                          </div>
+                        ) : null}
+                        {block.kind === "notice" && !block.required ? null : (
+                          <p className="text-sm text-gray-700">
+                            {at
+                              ? `Zugestimmt am ${formatChatDateTime(at)} Uhr`
+                              : "Nicht zugestimmt"}
+                          </p>
+                        )}
+                        <AttachmentList
+                          labels={PDF_LABELS}
+                          attachments={block.attachments}
+                          documentURL={(documentId) =>
+                            holidayDocumentPath(periodId, documentId)
+                          }
+                        />
+                      </div>
+                    );
+                  })}
               </div>
-            </div>
-          </SectionCard>
+            </SectionCard>
+          ) : null}
+          {editing === "contacts" && editorProps ? (
+            <SectionCard
+              title={EDIT_TITLE}
+              description="Notfallkontakte und Abholung"
+            >
+              <ContactsEditor {...editorProps} />
+            </SectionCard>
+          ) : (
+            <SectionCard
+              title="Notfallkontakte und Abholung"
+              action={editAction(
+                "contacts",
+                "Notfallkontakte und Abholung ändern",
+              )}
+            >
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-gray-900">
+                    Notfallkontakte
+                  </p>
+                  <ContactList contacts={emergency} empty="Keine Angabe." />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-gray-900">
+                    Abholberechtigte
+                  </p>
+                  <ContactList
+                    contacts={pickup}
+                    empty="Keine Angabe. Dann holen nur die Eltern ab."
+                  />
+                </div>
+              </div>
+            </SectionCard>
+          )}
           <HolidayRegistrationHistory
             period={period}
             registration={registration}
           />
         </>
-      ) : (
-        <Loading fullPage={false} />
-      )}
-    </div>
+      ) : null}
+    </TenantPage>
   );
 }

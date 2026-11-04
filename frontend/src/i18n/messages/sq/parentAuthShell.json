@@ -1,0 +1,33 @@
+{
+  "badges": {
+    "audience": "Krijuar për kujdesin pas shkollës",
+    "hosting": "Hostuar në Gjermani"
+  },
+  "testimonialButtonLabel": "Shfaq përvojën {number}",
+  "testimonials": {
+    "infoHub": {
+      "quote": "I gjej informacionet më të rëndësishme për OGS-në në një vend dhe nuk kam më nevojë të kërkoj në e-maile apo fletë.",
+      "author": "Prind",
+      "role": "Komunikimi me OGS-në",
+      "metric": "Gjithçka në një vend"
+    },
+    "easyReplies": {
+      "quote": "Përgjigjet për ekipin e kujdesit janë shumë më të lehta, sepse jo çdo temë duhet të kalojë përmes telefonatave ose e-maileve të veçanta.",
+      "author": "Prind",
+      "role": "Komunikimi me OGS-në",
+      "metric": "Më lehtë të përgjigjesh"
+    },
+    "lookUpLater": {
+      "quote": "Kur përditshmëria është e ngarkuar, më ndihmon shumë që mund të shoh përsëri më vonë çfarë ka njoftuar OGS-ja.",
+      "author": "Prind",
+      "role": "Përditshmëria familjare",
+      "metric": "Informim i besueshëm"
+    },
+    "organized": {
+      "quote": "Komunikimi duket shumë më i organizuar. Ne e kuptojmë më shpejt çfarë është e rëndësishme dhe ku mund ta gjejmë përsëri.",
+      "author": "Prind",
+      "role": "Rutina e kujdesit",
+      "metric": "Më mirë e organizuar"
+    }
+  }
+}

@@ -30,11 +30,11 @@ type ParentReadCommands interface {
 	ParentReadClearStaffUnreadMark(ctx context.Context, tenantID, threadID int64, observedAt time.Time) (bool, error)
 }
 type ParentReadQueries interface {
-	ParentReadUnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error)
-	ParentReadUnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error)
-	ParentReadListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, onlyUnread bool) ([]*PortalInboxThread, error)
+	ParentReadUnreadMessageCountForStaff(ctx context.Context, accountID int64, reach ParentMessageStaffReach) (int, error)
+	ParentReadUnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, reach ParentMessageStaffReach, groupIDs []int64) (int, error)
+	ParentReadListInboxForStaff(ctx context.Context, accountID int64, reach ParentMessageStaffReach, onlyUnread bool) ([]*PortalInboxThread, error)
 
-	ParentReadListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*PortalInboxThread, error)
+	ParentReadListThreadsForStudent(ctx context.Context, accountID, studentID int64, reach ParentMessageStaffReach) ([]*PortalInboxThread, error)
 
 	ParentReadFindThreadHeader(ctx context.Context, threadID int64) (*ParentThreadHeaderRecord, error)
 	ParentReadLatestReadCursorByOther(ctx context.Context, threadID, excludeAccountID int64) (*ParentReadCursorRecord, error)
@@ -55,8 +55,8 @@ type ParentThreadRecords interface {
 	ParentThreadTouchLastMessage(ctx context.Context, threadID int64, at time.Time, messageID int64, senderKind, body string) error
 
 	ParentThreadFindByID(ctx context.Context, id int64) (*PortalParentMessageThread, error)
-	ParentThreadFindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*PortalParentMessageThread, error)
-	ParentThreadGetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*PortalParentMessageThread, error)
+	ParentThreadFindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64, audience string) (*PortalParentMessageThread, error)
+	ParentThreadGetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64, audience string) (*PortalParentMessageThread, error)
 	ParentThreadListGuardiansForStudent(ctx context.Context, studentID int64) ([]*ParentGuardianRecipient, error)
 	ParentThreadListStudentIDsWithMessageableGuardian(ctx context.Context) ([]int64, error)
 }

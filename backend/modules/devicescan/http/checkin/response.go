@@ -9,7 +9,10 @@ import (
 // buildCheckinResponse renders a detailed-mode scan. The key set is the
 // PyrePortal contract: visit_id is always present (null without a visit),
 // previous_room only for a transfer, active_students and pickup_time only
-// when known.
+// when known. active_students_session_id and active_students_revision come
+// together, only with a session-scoped active_students (#5128);
+// active_students_room_id and active_students_room_revision come together,
+// only with a room-wide one (#5205).
 func buildCheckinResponse(result *devicescan.ScanResult) map[string]any {
 	response := map[string]any{
 		"student_id":               result.PersonID,
@@ -28,6 +31,13 @@ func buildCheckinResponse(result *devicescan.ScanResult) map[string]any {
 	}
 	if result.ActiveStudents != nil {
 		response["active_students"] = *result.ActiveStudents
+		if result.ActiveStudentsSessionID != nil && result.ActiveStudentsRevision != nil {
+			response["active_students_session_id"] = *result.ActiveStudentsSessionID
+			response["active_students_revision"] = *result.ActiveStudentsRevision
+		} else if result.ActiveStudentsRoomID != nil && result.ActiveStudentsRoomRevision != nil {
+			response["active_students_room_id"] = *result.ActiveStudentsRoomID
+			response["active_students_room_revision"] = *result.ActiveStudentsRoomRevision
+		}
 	}
 	if result.PickupTime != nil {
 		response["pickup_time"] = *result.PickupTime

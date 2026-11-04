@@ -14,7 +14,8 @@ import (
 
 func statisticsHTTPRuntime(renderer *lists.RendererService) statisticsAPI.Runtime {
 	runtime := statisticsAPI.Runtime{
-		ReportGuard: common.RequiresAllPermissions(presenceStudentsHTTP.StatisticsReportPermissions()...),
+		ReportGuard:  common.RequiresAllPermissions(presenceStudentsHTTP.StatisticsReportPermissions()...),
+		StudentGuard: common.RequiresAllPermissions(presenceStudentsHTTP.StudentCareTimePermissions()...),
 		Actor: func(r *http.Request) studentpresence.StatisticsActor {
 			claims := sessiontoken.ClaimsFromCtx(r.Context())
 			return studentpresence.StatisticsActor{AccountID: int64(claims.ID), Role: strings.Join(claims.Roles, ",")}

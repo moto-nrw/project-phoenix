@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,10 +70,10 @@ func TestStudentDeletionWorkflow_QueryBudget(t *testing.T) {
 	one := run(1)
 	four := run(4)
 	assert.Len(t, four.preview, len(one.preview), "the unlocked preview must not grow with linked children")
-	testpkg.AssertQueryBudget(t, "workflows.studentdeletion.preview.companions_1", one.preview)
-	testpkg.AssertQueryBudget(t, "workflows.studentdeletion.preview.companions_4", four.preview)
-	testpkg.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_1", one.execute)
-	testpkg.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_4", four.execute)
-	testpkg.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_1.student_rows", one.executeStudentRows)
-	testpkg.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_4.student_rows", four.executeStudentRows)
+	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.preview.companions_1", one.preview)
+	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.preview.companions_4", four.preview)
+	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_1", one.execute)
+	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_4", four.execute)
+	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_1.student_rows", one.executeStudentRows)
+	querybudgets.AssertQueryBudget(t, "workflows.studentdeletion.execute.companions_4.student_rows", four.executeStudentRows)
 }

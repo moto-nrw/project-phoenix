@@ -288,9 +288,11 @@ type AccountLoginStore interface {
 	// FindCatererOfAccount names the caterer of a caterer account; a
 	// caterer account joins no school and no family (ADR 0077).
 	FindCatererOfAccount(ctx context.Context, accountID int64) (domain.Caterer, bool, domain.OperationStats, error)
-	// RecordAccountLogin stamps the last login; on the login path it also
-	// takes the account row lock the session cap serializes on.
-	RecordAccountLogin(ctx context.Context, id int64, at time.Time) (domain.OperationStats, error)
+	// RecordAccountLogin stamps the last login on a live account and reports
+	// whether it did; an account erased or deleted meanwhile is not stamped
+	// (#5546). On the login path it also takes the account row lock the
+	// session cap serializes on.
+	RecordAccountLogin(ctx context.Context, id int64, at time.Time) (bool, domain.OperationStats, error)
 	// ListActiveTenantIDs returns the schools the account is actively mapped
 	// to in mapping-creation order.
 	ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error)

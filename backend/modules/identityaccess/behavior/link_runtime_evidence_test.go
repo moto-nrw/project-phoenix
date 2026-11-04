@@ -33,7 +33,7 @@ func TestLinkRuntimeEvidence(t *testing.T) {
 	role := testpkg.CreateTestRole(t, db, "link-evidence")
 
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	testpkg.AttachLockWaitEvidence(db)
+	testpkg.AttachLockWaitEvidence(t, db)
 	ctx, events := testpkg.CaptureUnitOfWorkEvidence(counter.Context(testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db)))
 	// The public accept and reset routes carry no tenant; they are measured
 	// the way they run, on a counted but tenant-less context.

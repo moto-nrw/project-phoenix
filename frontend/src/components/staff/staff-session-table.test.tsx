@@ -15,6 +15,10 @@ import { ApiError } from "~/lib/api-error";
 import { setTestClock } from "~/test/clock";
 import { catalogText } from "~/test/error-catalog-text";
 
+// The table invalidates the cache of the signed-in session after a save;
+// these tests render it without a SessionProvider.
+vi.mock("~/lib/swr", () => ({ useInvalidateMatching: () => vi.fn() }));
+
 describe("staff-session-table.targets", () => {
   // Mo–Fr 8h nach dem HEUTE gültigen Plan. Genau dieser Plan darf bei einem
   // fehlgeschlagenen Targets-Fetch NICHT auf vergangene Tage angewendet werden

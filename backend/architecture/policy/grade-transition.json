@@ -1,0 +1,169 @@
+{
+  "packages": [
+    {
+      "path": "workflows/gradetransition",
+      "owner": "grade-transition",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/gradetransition/compose",
+      "owner": "grade-transition",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "workflows/gradetransition/http",
+      "owner": "grade-transition",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "grade-transition.to.school-structure",
+      "description": "Grade Transition coordinates the public owner capability required by #2711.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "public",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.to.people-directory",
+      "description": "Grade Transition coordinates the public owner capability required by #2711.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "public",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.to.school-membership",
+      "description": "Grade Transition coordinates the public owner capability required by #2711.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "public",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.to.student-presence",
+      "description": "Grade Transition coordinates the public owner capability required by #2711.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "public",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.public.crypto",
+      "description": "The transition preview fingerprint is a SHA-256 digest compared in constant time (#2711).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "public",
+      "target_class": "crypto"
+    },
+    {
+      "id": "grade-transition.compose.database-binding",
+      "description": "Bind owner adapters to the shared database and ambient UnitOfWork; no workflow SQL (#2711).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "grade-transition.http.public",
+      "description": "The grade transition routes run the school-year rollover through the owner workflow (#2711, #2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "http",
+      "target_owner": "grade-transition",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.http.tenant-runtime.common",
+      "description": "The grade transition routes reuse the shared HTTP runtime of api/common: the tenant route group, the permission gates, request parsing and response rendering (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "grade-transition.http.security-contract",
+      "description": "The grade transition routes gate on the permission registry (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "grade-transition.http.tenant-runtime",
+      "description": "The grade transition routes mark rollbacks through the tenant runtime (#2742).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.workflow-decision-test.people-directory.public",
+      "description": "Grade Transition decision tests stub the People Directory port with the owner's public types (#2711).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "workflow-decision-test",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.workflow-decision-test.student-presence.public",
+      "description": "Grade Transition decision tests stub the Student Presence port with the owner's public types (#2711).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "workflow-decision-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.workflow-decision-test.school-structure.public",
+      "description": "Grade Transition decision tests stub the School Structure port with the owner's public types (#2711).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "workflow-decision-test",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    }
+  ]
+}

@@ -29,29 +29,40 @@ type approval struct {
 	// requests, which bypassed the self-service gates at creation.
 	eligibilityEnforced bool
 	newlyWaitlisted     map[int64]struct{}
+	// rosterImpacts collect what the booking changes did to the children's
+	// Regeltermine (#5102).
+	rosterImpacts []enrollmentNative.ChildRosterImpact
 }
 
 // applyApprovedChange applies an approved proposal to the request, its
 // children, co-guardians, bookings and the students an approval created, in
 // the locked transaction.
-func (s *ChangeRequests) applyApprovedChange(ctx context.Context, row *ChangeRequest, input enrollmentNative.ReviewChangeRequestInput) error {
+func (s *ChangeRequests) applyApprovedChange(ctx context.Context, row *ChangeRequest, input enrollmentNative.ReviewChangeRequestInput) ([]enrollmentNative.ChildRosterImpact, error) {
+	run, err := s.applyApprovedProposal(ctx, row, input)
+	if err != nil {
+		return nil, err
+	}
+	return run.rosterImpacts, nil
+}
+
+func (s *ChangeRequests) applyApprovedProposal(ctx context.Context, row *ChangeRequest, input enrollmentNative.ReviewChangeRequestInput) (*approval, error) {
 	// Take the global gates before the first request or student row lock:
 	// booking writers hold the recurrence gate while their FK checks touch
 	// request_children, so taking it later would invert the order.
 	if s.deps.Decisions != nil && s.deps.BookingGates != nil {
 		if err := s.deps.BookingGates.LockOfferingDerivedWrites(ctx); err != nil {
-			return fmt.Errorf("change request approve: lock offering-derived writes: %w", err)
+			return nil, fmt.Errorf("change request approve: lock offering-derived writes: %w", err)
 		}
 	}
 	run, err := s.loadApproval(ctx, row, input)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := s.writeApprovedRequest(ctx, run); err != nil {
-		return err
+		return nil, err
 	}
 	if err := s.lockApprovedStudents(ctx, run.children); err != nil {
-		return err
+		return nil, err
 	}
 	// One approval is one edit of the whole family, applied child by child.
 	// Defer the companion stranding verdicts and decide them once against
@@ -59,16 +70,16 @@ func (s *ChangeRequests) applyApprovedChange(ctx context.Context, row *ChangeReq
 	ctx = s.beginCompanionStrandingBatch(ctx)
 	for i, existing := range run.children {
 		if err := s.applyApprovedChild(ctx, run, i, existing); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if err := s.verifyCompanionStrandingBatch(ctx); err != nil {
-		return err
+		return nil, err
 	}
 	if err := s.reconcileApprovedPickups(ctx, run.children); err != nil {
-		return err
+		return nil, err
 	}
-	return s.notifyApprovedCapacityDecisions(ctx, run)
+	return run, s.notifyApprovedCapacityDecisions(ctx, run)
 }
 
 // loadApproval locks the request and its children, refuses a stale base
@@ -207,8 +218,15 @@ func (s *ChangeRequests) syncApprovedChild(ctx context.Context, run *approval, e
 		for _, pick := range selections {
 			offeringInput.Offerings = append(offeringInput.Offerings, enrollmentNative.OfferingAdjustmentSelection{OfferingID: pick.OfferingID, SelectedDays: pick.SelectedDays})
 		}
-		if _, err := s.deps.Decisions.ApplyChangeRequestOfferings(ctx, offeringInput); err != nil {
+		update, err := s.deps.Decisions.ApplyChangeRequestOfferings(ctx, offeringInput)
+		if err != nil {
 			return err
+		}
+		if existing.CreatedStudentID != nil {
+			run.rosterImpacts = append(run.rosterImpacts, enrollmentNative.ChildRosterImpact{
+				ChildID: existing.ID, StudentID: *existing.CreatedStudentID,
+				FirstName: existing.FirstName, Impact: update.RosterImpact,
+			})
 		}
 	}
 	snapshot, err := json.Marshal(run.row.BaseSnapshot)

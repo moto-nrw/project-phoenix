@@ -91,6 +91,16 @@ func (r StudentStatusDayRepository) FindActiveByStudentIDsAndDate(ctx context.Co
 	return r.list(ctx, careplan.StudentStatusDayFilter{StudentIDs: studentIDs, Date: careplan.Date(date), ActiveOnly: true})
 }
 
+// FindStandingByStudentIDsAndDateRange returns the status days of the
+// students from from to to that still stand: active, or archived at the end
+// of their day (#4793). A withdrawn or cleared day is not among them.
+func (r StudentStatusDayRepository) FindStandingByStudentIDsAndDateRange(ctx context.Context, studentIDs []int64, from, to absencerecords.Date) ([]*absencerecords.StudentStatusDay, error) {
+	if len(studentIDs) == 0 {
+		return []*absencerecords.StudentStatusDay{}, nil
+	}
+	return r.list(ctx, careplan.StudentStatusDayFilter{StudentIDs: studentIDs, From: careplan.Date(from), To: careplan.Date(to), IncludeEndOfDay: true})
+}
+
 func (r StudentStatusDayRepository) FindSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date absencerecords.Date) ([]*absencerecords.StudentStatusDay, error) {
 	if len(studentIDs) == 0 {
 		return []*absencerecords.StudentStatusDay{}, nil

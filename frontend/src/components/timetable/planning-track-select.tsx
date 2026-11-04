@@ -72,7 +72,7 @@ export function PlanningTrackSelect({
       onOpenChange={(open) => {
         if (!open) setQuery("");
       }}
-      className="moto-content-surface flex h-10 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-80"
+      className="moto-content-surface flex h-10 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 disabled:cursor-not-allowed disabled:text-gray-500 disabled:opacity-80"
       menuClassName="moto-popover-surface flex max-h-72 flex-col overflow-hidden rounded-xl border"
       listClassName="scrollbar-thin overflow-y-auto py-1"
       emptyState={

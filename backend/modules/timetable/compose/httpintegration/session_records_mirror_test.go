@@ -60,3 +60,20 @@ func TestCreateMirroredSessionInstanceOwnsTheSpontaneousActiveDefaults(t *testin
 		t.Errorf("mirrored session = spontaneous %v, started %v; want spontaneous and active", recorder.created.IsSpontaneous, recorder.started != nil)
 	}
 }
+
+func TestCreateMirroredSessionInstanceRejectsMissingRoom(t *testing.T) {
+	t.Parallel()
+	recorder := &mirrorCreateRecorder{}
+	records := compose.Repositories{ActivityInstance: timetablePorts.InstanceRows{Plans: recorder, Sessions: recorder}}.NativeRecords()
+	sessionID := int64(77)
+	_, err := records.CreateMirroredSessionInstance(t.Context(), timetable.ScheduledInstance{
+		Title: "Kiosk", Date: calendar.NewDate(2026, time.November, 2), ActiveGroupID: &sessionID,
+		StartTime: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC), EndTime: time.Date(2000, 1, 1, 1, 0, 0, 0, time.UTC),
+	})
+	if err == nil || err.Error() != "room_id is required" {
+		t.Fatalf("missing room: got %v", err)
+	}
+	if recorder.created != nil || recorder.started != nil {
+		t.Fatal("missing room must reject before any plan/session write")
+	}
+}

@@ -1,5 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import { frontendPort } from "./e2e/frontend-port";
+import { assertPortServesThisCheckout } from "./e2e/own-server";
+import { SECURE_CHROME_SETUP, secureChromeUse } from "./scripts/secure-chrome";
+
 // Dedicated config for build-time PDF generation of the printed NFC onepager
 // (pnpm run generate:guides). Kept separate from playwright.config.ts so the
 // generator never runs as part of the normal e2e suite (and vice versa).
@@ -14,7 +18,11 @@ import { defineConfig, devices } from "@playwright/test";
 // when the operator/parents/tenant hostnames are unset. Locally those come from
 // .env.local; in CI the generate:guides step sets them plus SKIP_ENV_VALIDATION.
 // No values are baked in here.
+// reuseExistingServer must not pick up another checkout's frontend.
+assertPortServesThisCheckout(frontendPort);
+
 export default defineConfig({
+  globalSetup: SECURE_CHROME_SETUP,
   testDir: "./scripts",
   testMatch: "generate-guides.ts",
   // A production build plus one render still needs more than Playwright's
@@ -23,7 +31,8 @@ export default defineConfig({
   workers: 1,
   reporter: "list",
   use: {
-    baseURL: "http://localhost:3000",
+    ...secureChromeUse(),
+    baseURL: `http://localhost:${frontendPort}`,
     headless: true,
   },
   projects: [
@@ -34,7 +43,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "pnpm run build && pnpm run start",
-    url: "http://localhost:3000/help/nfc/erste-schritte",
+    url: `http://localhost:${frontendPort}/help/nfc/erste-schritte`,
     // Locally reuse a server you already have running; in CI always build fresh.
     reuseExistingServer: !process.env.CI,
     // build + start is far slower to become ready than `next dev`.

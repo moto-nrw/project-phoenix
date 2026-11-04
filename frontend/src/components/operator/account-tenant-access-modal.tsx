@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -29,6 +29,9 @@ import {
   type AccountTenantAccess,
 } from "~/lib/operator/account-tenant-access-api";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
+import { permissionsConcept } from "~/lib/concepts/permissions";
+import { schoolsConcept } from "~/lib/concepts/schools";
 
 const logger = createLogger({ component: "AccountTenantAccessModal" });
 
@@ -426,21 +429,23 @@ export function AccountTenantAccessModal({
               gilt jeweils nur für die dort aufgeführte Schule.
             </p>
 
-            <section className="space-y-2">
-              <ConceptSectionHeader
-                title="Aktive Zugänge"
-                concept="schools"
-                // FormModal rendert seinen Titel als h3.
-                level={4}
-              />
+            <SectionCard
+              bare
+              className="space-y-2"
+              bodyClassName="space-y-2"
+              title="Aktive Zugänge"
+              concept={schoolsConcept}
+              // FormModal rendert seinen Titel als h3.
+              headingLevel={4}
+            >
               {activeEntries.length === 0 ? (
                 <EmptyState
-                  icon={<MotoConceptIcon concept="schools" size={22} />}
+                  icon={<MotoConceptIcon concept={schoolsConcept} size={22} />}
                   title="Kein aktiver Schulzugang"
                   description="Dieses Konto ist derzeit keiner Schule zugeordnet und kann sich nicht anmelden."
                 />
               ) : (
-                <ul className="moto-content-surface divide-y divide-gray-200 rounded-2xl border shadow-sm">
+                <ul className="moto-content-surface divide-y divide-gray-200 rounded-2xl border">
                   {activeEntries.map((entry) => (
                     <li
                       key={entry.tenantId}
@@ -511,7 +516,7 @@ export function AccountTenantAccessModal({
                   ))}
                 </ul>
               )}
-            </section>
+            </SectionCard>
 
             <section
               ref={grantFormRef}
@@ -601,7 +606,7 @@ export function AccountTenantAccessModal({
 
               <p className="flex items-start gap-2 text-xs text-gray-500">
                 <MotoConceptIcon
-                  concept="permissions"
+                  concept={permissionsConcept}
                   size={16}
                   className="mt-0.5"
                 />
@@ -623,14 +628,16 @@ export function AccountTenantAccessModal({
             </section>
 
             {formerEntries.length > 0 && (
-              <section className="space-y-2">
-                <ConceptSectionHeader
-                  title="Frühere Zugänge"
-                  concept="changeHistory"
-                  // FormModal rendert seinen Titel als h3.
-                  level={4}
-                />
-                <ul className="moto-content-surface divide-y divide-gray-200 rounded-2xl border shadow-sm">
+              <SectionCard
+                bare
+                className="space-y-2"
+                bodyClassName="space-y-2"
+                title="Frühere Zugänge"
+                concept={changeHistoryConcept}
+                // FormModal rendert seinen Titel als h3.
+                headingLevel={4}
+              >
+                <ul className="moto-content-surface divide-y divide-gray-200 rounded-2xl border">
                   {formerEntries.map((entry) => (
                     <li
                       key={entry.tenantId}
@@ -651,7 +658,7 @@ export function AccountTenantAccessModal({
                     </li>
                   ))}
                 </ul>
-              </section>
+              </SectionCard>
             )}
           </div>
         )}

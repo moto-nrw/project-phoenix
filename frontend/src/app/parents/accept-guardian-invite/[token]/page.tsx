@@ -15,6 +15,7 @@ import {
 } from "~/lib/guardian-invitation-api";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AcceptGuardianInvitePage" });
@@ -65,7 +66,7 @@ async function fetchInvitationServer(
   try {
     const response = await fetch(
       `${getServerApiUrl()}/auth/guardian-invitations/${encodeURIComponent(token)}`,
-      { cache: "no-store" },
+      { headers: await incomingClientForwardHeaders(), cache: "no-store" },
     );
     if (!response.ok) {
       return { invitation: null, failure: await loadFailure(response) };
@@ -201,7 +202,7 @@ function SchoolBrandMark({
     .join("");
 
   return (
-    <div className="moto-content-surface flex h-20 min-w-20 items-center justify-center overflow-hidden rounded-2xl border px-4 shadow-sm">
+    <div className="moto-content-surface flex h-20 min-w-20 items-center justify-center overflow-hidden rounded-2xl border px-4">
       {schoolLogoUrl ? (
         <Image
           src={schoolLogoUrl}

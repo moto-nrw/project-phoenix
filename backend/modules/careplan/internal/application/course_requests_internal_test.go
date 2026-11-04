@@ -472,3 +472,112 @@ func TestCourseGroupsForCompetingRequestsLoadsUnavailableOffering(t *testing.T) 
 	require.NoError(t, err)
 	assert.Equal(t, []ports.CourseGroup{{ID: groupID, Active: true}}, groups[8])
 }
+
+// TestTeamCourseQueueRanksLikeTheParentsPortal pins #4767's rule: the rank
+// the team reads for a child is the waiting position its family reads. A
+// child who already holds the course and a child outside the course's grade
+// wait for nothing.
+func TestTeamCourseQueueRanksLikeTheParentsPortal(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
+	withID := func(id, childID int64, created time.Time, offeringID int64) careplan.OfferingChangeRequest {
+		row := requestWithSelections(t, careplan.OfferingChangeSelection{OfferingID: offeringID})
+		row.ID, row.StudentID, row.RequestChildID, row.CreatedAt = id, id+1000, childID, created
+		return row
+	}
+	rows := []careplan.OfferingChangeRequest{
+		withID(14, 104, createdAt.Add(-2*time.Minute), 7), // grade four: outside the course
+		withID(15, 105, createdAt.Add(-time.Minute), 7),   // already holds the course
+		withID(11, 101, createdAt, 8),                     // reaches the AG through another offering
+		withID(12, 102, createdAt, 7),
+		withID(13, 103, createdAt.Add(time.Minute), 7),
+	}
+	gradeThree, gradeFour := int16(3), int16(4)
+	children := map[int64]*ports.OfferingChangeChild{
+		101: {TargetGradeLevel: &gradeThree}, 102: {TargetGradeLevel: &gradeThree}, 103: {TargetGradeLevel: &gradeThree},
+		104: {TargetGradeLevel: &gradeFour}, 105: {TargetGradeLevel: &gradeThree},
+	}
+	booked := map[int64]map[int64]bool{105: {7: true}}
+	participantLimit := 1
+	course := ports.CourseGroup{ID: 70, Active: true, ParticipantLimit: &participantLimit, SourceGradeLevels: []int{3}}
+	groupsByOffering := map[int64][]ports.CourseGroup{7: {course}, 8: {course}, 9: {{ID: 90, Active: false}}}
+	queue := &teamCourseQueue{rows: rows, childrenByID: children, bookedByChild: booked, groupsByOffering: groupsByOffering}
+
+	entries := queue.entriesByGroup(0)
+
+	require.Len(t, entries[70], 3)
+	assert.NotContains(t, entries, int64(90), "an archived AG has no waiting list")
+	for i, want := range []int64{11, 12, 13} {
+		entry := entries[70][i]
+		assert.Equal(t, want, entry.RequestID)
+		assert.Equal(t, want+1000, entry.StudentID)
+		assert.Equal(t, i+1, entry.Rank)
+		var pending careplan.OfferingChangeRequest
+		for _, row := range rows {
+			if row.ID == want {
+				pending = row
+			}
+		}
+		parentView := &courseWaitlist{rows: rows, pending: pending, childrenByID: children, bookedByChild: booked}
+		assert.Equal(t, entry.Rank, parentView.position([]ports.CourseGroup{course}, groupsByOffering),
+			"request %d: the team's rank is the family's waiting position", want)
+	}
+	assert.Empty(t, queue.entriesByGroup(71), "a filter on another AG keeps nothing of this one")
+}
+
+// TestCourseWaitlistNamesTheNextChildOnlyForAFreePlace pins when the team is
+// asked to act: a limited AG with a free place and somebody waiting.
+func TestCourseWaitlistNamesTheNextChildOnlyForAFreePlace(t *testing.T) {
+	t.Parallel()
+
+	free, full := 1, 0
+	waiting := []careplan.CourseWaitlistEntry{{RequestID: 11, Rank: 1}}
+	assert.True(t, careplan.CourseWaitlist{FreeSlots: &free, Entries: waiting}.HasFreeSlotForNext())
+	assert.False(t, careplan.CourseWaitlist{FreeSlots: &full, Entries: waiting}.HasFreeSlotForNext(), "the AG is full")
+	assert.False(t, careplan.CourseWaitlist{FreeSlots: &free}.HasFreeSlotForNext(), "nobody waits")
+	assert.False(t, careplan.CourseWaitlist{Entries: waiting}.HasFreeSlotForNext(), "an AG without a limit has no waiting list")
+}
+
+func TestCourseWaitlistCapacityUntilUsesQueuedChildPhaseEnd(t *testing.T) {
+	t.Parallel()
+
+	today := calendar.NewDate(2026, 9, 9)
+	until := courseWaitlistCapacityUntil(
+		[]careplan.OfferingChangeRequest{{StudentID: 11, EffectiveFrom: "2026-10-01"}},
+		[]ports.OfferingCarePeriod{
+			{
+				StudentID: 11, ServiceStart: calendar.NewDate(2026, 8, 1),
+				ServiceEnd: calendar.NewDate(2028, 7, 31),
+			},
+			{
+				StudentID: 12, ServiceStart: calendar.NewDate(2026, 8, 1),
+				ServiceEnd: calendar.NewDate(2030, 7, 31),
+			},
+		},
+		today,
+	)
+
+	assert.Equal(t, calendar.NewDate(2028, 8, 1), until)
+}
+
+func TestTeamCourseQueueCapacityWindowUsesAppliedRequestDate(t *testing.T) {
+	t.Parallel()
+
+	queue := teamCourseQueue{
+		rows: []careplan.OfferingChangeRequest{{
+			ID: 11, StudentID: 33, RequestChildID: 17, EffectiveFrom: "2026-08-01",
+		}},
+		periods: []ports.OfferingCarePeriod{{
+			StudentID: 33, RequestChildID: 17, ServiceStart: calendar.NewDate(2026, 9, 1), ServiceEnd: calendar.NewDate(2027, 7, 31),
+		}},
+	}
+
+	from, until := queue.capacityWindow(
+		[]careplan.CourseWaitlistEntry{{RequestID: 11, Rank: 1}},
+		calendar.NewDate(2026, 8, 24),
+	)
+
+	assert.Equal(t, calendar.NewDate(2026, 9, 1), from)
+	assert.Equal(t, calendar.NewDate(2027, 8, 1), until)
+}

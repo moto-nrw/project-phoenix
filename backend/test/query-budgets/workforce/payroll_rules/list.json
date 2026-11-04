@@ -1,0 +1,6 @@
+{
+  "scenario": "workforce.payroll_rules.list",
+  "max": 7,
+  "exact": true,
+  "description": "modules/workforce/http/timetracking — GET\n/api/staff/time-tracking/payroll-rules (#4807): the tenant-transaction\nstatements and ONE read each of the school's wage types, surcharge rules\nand absence types. Flat in the number of wage types and rules."
+}

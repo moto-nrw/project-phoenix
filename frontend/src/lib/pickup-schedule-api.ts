@@ -1,3 +1,4 @@
+import type { RosterImpactWire } from "~/lib/roster-impact";
 import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 // Pickup Schedule API Client
 // Calls Next.js API routes which proxy to the Go backend
@@ -198,7 +199,7 @@ export async function applyStudentPickupAdjustment(
     reason?: string;
     complete_withdrawal_confirmed?: boolean;
   },
-): Promise<{ resolution: PickupAdjustmentResolution }> {
+): Promise<PickupAdjustmentApplyResult> {
   const response = await transportFetch(
     `/api/students/${studentId}/pickup-schedules/apply`,
     {
@@ -213,10 +214,16 @@ export async function applyStudentPickupAdjustment(
       "Gehzeiten konnten nicht gespeichert werden",
     );
   }
-  return parseApiResult<{ resolution: PickupAdjustmentResolution }>(
+  return parseApiResult<PickupAdjustmentApplyResult>(
     response,
     "Gehzeiten konnten nicht gespeichert werden",
   );
+}
+
+/** A switched offering reports its effect on the Regeltermine (#5102). */
+export interface PickupAdjustmentApplyResult {
+  resolution: PickupAdjustmentResolution;
+  roster_impact?: RosterImpactWire;
 }
 
 /**

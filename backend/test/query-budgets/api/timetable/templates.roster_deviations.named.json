@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.templates.roster_deviations.named",
+  "max": 18,
+  "exact": false,
+  "description": "modules/timetable — GET /api/timetable/templates/roster-deviations\nfor a caller who may read children: the reads of\napi.timetable.templates.roster_deviations plus one batch that names the\nchildren behind the counts (attending children, then their person names).\nFlat from 3 to 8 Regeltermine."
+}

@@ -25,7 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// Registered error codes (error-registry.json) of the substitution routes.
+// Registered error codes (error-registry/) of the substitution routes.
 // This package may not import api/common, so it names them once here.
 const (
 	codeAlreadyAssigned = "substitutions.already_assigned"

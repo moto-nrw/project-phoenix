@@ -1,0 +1,5 @@
+{
+  "api/traeger/school-sessions": [
+    "POST traeger /traeger/school-sessions"
+  ]
+}

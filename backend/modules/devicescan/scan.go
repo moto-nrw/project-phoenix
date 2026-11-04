@@ -46,7 +46,7 @@ const (
 	MessageStudentAlreadyActive    = "student already has an active visit"
 )
 
-// Registered codes of the kiosk refusals (error-registry.json). The kiosk
+// Registered codes of the kiosk refusals (error-registry/). The kiosk
 // branches on them instead of the wire strings above (#3939).
 const (
 	CodeRFIDTagUnassigned            = "iot.rfid_tag_unassigned"
@@ -237,8 +237,18 @@ type ScanResult struct {
 	DailyCheckoutAvailable bool
 	FeedbackEnabled        bool
 	ActiveStudents         *int
-	PickupTime             *string
-	ProcessedAt            time.Time
+	// ActiveStudentsSessionID and ActiveStudentsRevision order a session
+	// count (#5128): the session the count belongs to and its visit revision
+	// from the same snapshot. ActiveStudentsRoomID and
+	// ActiveStudentsRoomRevision order a room-wide count (#5205) the same way
+	// within one room. At most one pair is set; both are nil when the count
+	// is unknown.
+	ActiveStudentsSessionID    *int64
+	ActiveStudentsRevision     *int64
+	ActiveStudentsRoomID       *int64
+	ActiveStudentsRoomRevision *int64
+	PickupTime                 *string
+	ProcessedAt                time.Time
 }
 
 // PickupInfo is the read-only pickup projection of a student scan.

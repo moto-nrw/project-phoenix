@@ -133,6 +133,9 @@ type BookingEnrollment interface {
 	SelectionsAt(ctx context.Context, childID int64, on calendar.Date) ([]careplan.BookedOffering, error)
 	// SelectionHistory lists every dated selection of the child.
 	SelectionHistory(ctx context.Context, childID int64) ([]careplan.BookedOffering, error)
+	// StudentSelectionsBetween lists the selections of all the student's
+	// approved request children that overlap the inclusive range.
+	StudentSelectionsBetween(ctx context.Context, studentID int64, from, to calendar.Date) ([]careplan.BookedOffering, error)
 	// ApprovedChildren lists the approved bookings of the offerings still in
 	// force on or after the date.
 	ApprovedChildren(ctx context.Context, offeringIDs []int64, onOrAfter calendar.Date) ([]ApprovedOfferingChild, error)
@@ -196,12 +199,19 @@ type AdjustmentAudit interface {
 type PickupWeekdayRow struct {
 	ID      int64
 	Weekday int
+	// PickupTime is the stored time as "HH:MM".
+	PickupTime string
+	// Manual marks a staff override. A legacy care_offering row is not one:
+	// the projection ignores it.
+	Manual bool
 }
 
 // BookingPickup reads the date-aware offering pickup projection and changes
 // the stored weekly pickup rows it overrides.
 type BookingPickup interface {
-	OfferingPickupForDate(ctx context.Context, studentID int64, date calendar.Date) (*careplan.PickupSchedule, error)
+	// OfferingPickupsBetween projects the student's pickup baseline over the
+	// dates; OfferingForDate reads the booked pickup of one day from it.
+	OfferingPickupsBetween(ctx context.Context, studentID int64, from, to calendar.Date) (*careplan.PickupBaselineProjection, error)
 	WeekdayRows(ctx context.Context, studentID int64) ([]PickupWeekdayRow, error)
 	DeleteWeekdayRow(ctx context.Context, id int64) error
 }
@@ -211,7 +221,24 @@ type PickupScheduleStaff interface {
 	PickupScheduleChanged(tenantID int64) error
 }
 
+// BookingPlanningStaffing hears about a booking change inside its
+// transaction and wakes, after commit, the staff views that compare the
+// planning with the bookings: the hints for children a Regeltermin keeps by
+// hand without a booking (#5498), on the Startseite and in the
+// Betreuungsplan.
+type BookingPlanningStaffing interface {
+	AnnounceBookingChange(ctx context.Context)
+}
+
 // PickupScheduleGuardians refreshes one child's card in the guardians' portal.
 type PickupScheduleGuardians interface {
 	BroadcastChildUpdateToGuardians(tenantID, studentID int64)
+}
+
+// BookingManualPlans reads the Regeltermine that keep planning a student on
+// weekdays from a date on other than through a booking-created roster row
+// (#5102), leaving out those a remaining booking carries (#5342). Runs in
+// the caller's tenant transaction.
+type BookingManualPlans interface {
+	ManualStudentPlan(ctx context.Context, studentID int64, from calendar.Date, change careplan.BookingDayChange) ([]careplan.ManualRosterTemplate, error)
 }

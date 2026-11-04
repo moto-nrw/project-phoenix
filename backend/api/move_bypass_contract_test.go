@@ -38,7 +38,7 @@ func checkMoveBypassAuthorization(t *testing.T, graph *goldenRuntime) {
 			Method: http.MethodPost, Path: "/api/active/visits/move-to-group", Authenticated: token != "", Body: body,
 		}, token)
 	}
-	staffToken := testutil.MintTestJWT(t, sessiontoken.AppClaims{
+	staffToken := testpkg.MintLiveSessionJWT(t, db, sessiontoken.AppClaims{
 		ID: int(account.ID), Sub: account.Email, TenantID: testpkg.Tenant(t), Roles: []string{"user"}, Permissions: []string{"visits:update"},
 	})
 	refused := request(staffToken)
@@ -54,7 +54,7 @@ func checkMoveBypassAuthorization(t *testing.T, graph *goldenRuntime) {
 	foreignTenant, _ := testpkg.CreateTestTenant(t, db)
 	_, foreignAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, foreignTenant, "Foreign", "Admin")
 	foreignTarget := testpkg.CreateTestActiveGroupForTenant(t, db, foreignTenant)
-	foreignToken := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(foreignAccount.ID), foreignTenant))
+	foreignToken := testpkg.MintLiveSessionJWT(t, db, testutil.AdminTestClaimsForTenant(int(foreignAccount.ID), foreignTenant))
 	foreignMove := checkpointRequest(graph, checkpointScenario{
 		Method: http.MethodPost, Path: "/api/active/visits/move-to-group", Authenticated: true,
 		Body: fmt.Sprintf(`{"student_ids":[%d],"target_active_group_id":%d}`, child.ID, foreignTarget.ID),
@@ -63,7 +63,7 @@ func checkMoveBypassAuthorization(t *testing.T, graph *goldenRuntime) {
 	assert.Contains(t, foreignMove.Body.String(), `"code":"general.business_rejection"`)
 	assert.Equal(t, []int64{source.ID}, openVisitSessions(t, db, child.ID), "foreign admin cannot move the child")
 
-	adminToken := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(account.ID), testpkg.Tenant(t)))
+	adminToken := testpkg.MintLiveSessionJWT(t, db, testutil.AdminTestClaimsForTenant(int(account.ID), testpkg.Tenant(t)))
 	moved := request(adminToken)
 	require.Equal(t, http.StatusOK, moved.Code, moved.Body.String())
 	assert.Equal(t, []int64{target.ID}, openVisitSessions(t, db, child.ID), "admin needs no source or target supervision")

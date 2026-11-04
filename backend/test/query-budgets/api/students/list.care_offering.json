@@ -1,0 +1,6 @@
+{
+  "scenario": "api.students.list.care_offering",
+  "max": 26,
+  "exact": false,
+  "description": "api/students — GET /students?location_state=present&care_offering_id=\n(#4571), 10 booked present children: the offering filter reads its\nbookings, exceptions and status days once per request."
+}

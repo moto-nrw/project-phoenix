@@ -33,7 +33,7 @@ func buildReadService(t *testing.T, enabled bool) (*parentportal.Portal, *testpk
 	return buildReadServiceWithNotifier(t, enabled, nil)
 }
 
-func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentportal.StaffParentMessageNotifier) (*parentportal.Portal, *testpkg.RecordingBroadcaster, *bun.DB, *api.ParentMessagingSuiteRepositories) {
+func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentportal.StaffParentMessageNotifier, leadership ...func(context.Context, bool) (parentportal.LeadershipOption, error)) (*parentportal.Portal, *testpkg.RecordingBroadcaster, *bun.DB, *api.ParentMessagingSuiteRepositories) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	// Child names come from the People Directory composition (#2661); bind
@@ -71,7 +71,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentpor
 		MessageThreadRepo:     owners.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
 		MessageRepo:           owners.BindParentMessageReads(messageStores.Message),
 		MessageReadRepo:       owners.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
-		Conversations:         api.NewParentConversationCore(reposMessages.ParentMessageThread, messageStores.Message, reposMessages.ParentMessageRead, bc, slog.Default()),
+		Conversations:         api.NewParentConversationCore(reposMessages.ParentMessageThread, messageStores.Message, reposMessages.ParentMessageRead, bc, slog.Default(), leadership...),
 		ParentMessageNotifier: notifier,
 		Logger:                slog.Default(),
 	})
@@ -95,7 +95,7 @@ func seedStaffReply(t *testing.T, db *bun.DB, repos *api.ParentMessagingSuiteRep
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
 	ctx := testpkg.Ctx(t)
-	thread, err := testpkg.TenantQuery3(t, ctx, db, repos.ParentMessageThread.GetOrCreate, chain.TenantID, chain.StudentID, chain.AccountID)
+	thread, err := testpkg.TenantQuery4(t, ctx, db, repos.ParentMessageThread.GetOrCreate, chain.TenantID, chain.StudentID, chain.AccountID, "team")
 	require.NoError(t, err)
 	m := &parentportal.ParentMessage{
 		ThreadID:        thread.ID,

@@ -61,6 +61,10 @@ import {
   ParentSurveySection,
 } from "~/components/parent/news/survey-section";
 import { useSurveyClosesAtLabel } from "~/components/surveys/survey-questionnaire";
+import { schoolClassName } from "~/lib/school-class-label";
+import { confirmationsConcept } from "~/lib/concepts/confirmations";
+import { newsConcept } from "~/lib/concepts/news";
+import { pollsConcept } from "~/lib/concepts/polls";
 
 const logger = createLogger({ component: "ParentNews" });
 
@@ -628,7 +632,7 @@ function PollChildCard({
   return (
     <fieldset
       disabled={poll.closed || poll.saving}
-      className="moto-content-surface rounded-2xl border p-4 shadow-sm disabled:opacity-60"
+      className="moto-content-surface rounded-2xl border p-4 disabled:opacity-60"
     >
       <legend className="mb-3 w-full">
         <span className="flex items-center justify-between gap-3">
@@ -743,14 +747,16 @@ function PollOptionList({
         })}
       </div>
       {!multi && selected.length > 0 && !closed && (
-        <button
+        <Button
           type="button"
+          variant="link"
+          size="md"
           disabled={saving}
           onClick={() => poll.toggle(child, selected[0]!)}
-          className="mt-2 min-h-11 rounded-lg px-2 text-sm font-semibold text-gray-600 underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className="mt-2"
         >
           {t("newsPollClear")}
-        </button>
+        </Button>
       )}
     </>
   );
@@ -758,6 +764,24 @@ function PollOptionList({
 
 function itemSafeId(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, "-");
+}
+
+/**
+ * Who signs the item (#4800): a class letter names the Lehrkraft, her class
+ * and the school; a letter of the OGS the school alone.
+ */
+function senderLabel(
+  item: ParentAnnouncement,
+  t: ReturnType<typeof useTranslations<"parentDashboard">>,
+): string {
+  if (!item.sender_name || !item.sender_school_class) return item.school_name;
+  return t("newsSender", {
+    name: item.sender_name,
+    // The text names the class itself: "3a", even where the school
+    // stores "Klasse 3a".
+    schoolClass: schoolClassName(item.sender_school_class),
+    school: item.school_name,
+  });
 }
 
 /**
@@ -779,10 +803,10 @@ export function NewsCard({
   const outstanding = isOutstandingAnnouncement(item);
   const concept =
     isPoll(item) || isSurveyItem(item)
-      ? "polls"
+      ? pollsConcept
       : item.requires_acknowledgement || isDeclarationItem(item)
-        ? "confirmations"
-        : "news";
+        ? confirmationsConcept
+        : newsConcept;
 
   return (
     <ChoiceTile
@@ -810,7 +834,7 @@ export function NewsCard({
           {item.title}
         </span>
         <span className="mt-0.5 block text-xs text-gray-500">
-          {item.school_name}
+          {senderLabel(item, t)}
           {item.published_at
             ? ` · ${formatDate(item.published_at, false, locale)}`
             : ""}
@@ -962,13 +986,13 @@ function NewsMessageSection({
   return (
     <section
       aria-labelledby={headingId}
-      className="moto-content-surface rounded-2xl border p-4 shadow-sm"
+      className="moto-content-surface rounded-2xl border p-4"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h4 id={headingId} className="text-base font-semibold text-gray-950">
           {isDeclarationItem(item)
-            ? t("newsDeclarationFrom", { school: item.school_name })
-            : t("newsMessageFrom", { school: item.school_name })}
+            ? t("newsDeclarationFrom", { school: senderLabel(item, t) })
+            : t("newsMessageFrom", { school: senderLabel(item, t) })}
         </h4>
         {item.published_at && (
           <time className="text-sm text-gray-500">
@@ -1046,7 +1070,11 @@ function NewsActionContext({
 
   return (
     <div className="flex items-start gap-3 px-1">
-      <ConceptIconTile concept="confirmations" variant="section" tone="blue" />
+      <ConceptIconTile
+        concept={confirmationsConcept}
+        variant="section"
+        tone="blue"
+      />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-semibold text-gray-900">

@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -64,42 +67,48 @@ describe("PeriodSwitcherDropdown", () => {
     expect(onCreate).toHaveBeenCalledOnce();
   });
 
-  it("shows week assignments, selects periods and links to the management route", () => {
-    const onCreate = vi.fn();
-    const onSelect = vi.fn();
+  it.each(schoolDateCases("2026-08-01"))(
+    "shows week assignments, selects periods and links to the management route in %s",
+    (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-08-01");
 
-    render(
-      <PeriodSwitcherDropdown
-        periods={basePeriods}
-        weekDays={weekDays}
-        onCreate={onCreate}
-        onSelect={onSelect}
-      />,
-    );
+      const onCreate = vi.fn();
+      const onSelect = vi.fn();
 
-    fireEvent.click(screen.getByRole("button", { name: /Schuljahr/ }));
+      render(
+        <PeriodSwitcherDropdown
+          periods={basePeriods}
+          weekDays={weekDays}
+          onCreate={onCreate}
+          onSelect={onSelect}
+        />,
+      );
 
-    expect(screen.getByText("Diese Woche")).toBeInTheDocument();
-    expect(screen.getAllByText("Schuljahr 2026/2027").length).toBeGreaterThan(
-      1,
-    );
+      fireEvent.click(screen.getByRole("button", { name: /Schuljahr/ }));
 
-    // Kalenderzeiträume sind Stammdaten: kein Bearbeiten je Zeitraum in der
-    // Auswahl (Bauart 1 Regel 9), stattdessen der Link auf die Route.
-    expect(
-      screen.queryByRole("button", { name: /bearbeiten/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: /Schuljahr und Kalender verwalten/ }),
-    ).toHaveAttribute("href", expect.stringContaining("/calendar-periods"));
+      expect(screen.getByText("Aktiv")).toBeInTheDocument();
+      expect(screen.getByText("Diese Woche")).toBeInTheDocument();
+      expect(screen.getAllByText("Schuljahr 2026/2027").length).toBeGreaterThan(
+        1,
+      );
 
-    fireEvent.click(screen.getByText("Sommerferien"));
-    expect(onSelect).toHaveBeenCalledWith(basePeriods[1]);
+      // Kalenderzeiträume sind Stammdaten: kein Bearbeiten je Zeitraum in der
+      // Auswahl (Bauart 1 Regel 9), stattdessen der Link auf die Route.
+      expect(
+        screen.queryByRole("button", { name: /bearbeiten/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: /Schuljahr und Kalender verwalten/ }),
+      ).toHaveAttribute("href", expect.stringContaining("/calendar-periods"));
 
-    fireEvent.click(screen.getByRole("button", { name: /Schuljahr/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Neuen Zeitraum/ }));
-    expect(onCreate).toHaveBeenCalledOnce();
-  });
+      fireEvent.click(screen.getByText("Sommerferien"));
+      expect(onSelect).toHaveBeenCalledWith(basePeriods[1]);
+
+      fireEvent.click(screen.getByRole("button", { name: /Schuljahr/ }));
+      fireEvent.click(screen.getByRole("button", { name: /Neuen Zeitraum/ }));
+      expect(onCreate).toHaveBeenCalledOnce();
+    },
+  );
 
   it("uses selected period in series view and shows a loading skeleton", () => {
     const { container } = render(

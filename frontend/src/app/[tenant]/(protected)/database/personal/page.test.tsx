@@ -35,7 +35,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   mutate: vi.fn(),
-  useTenantMutate: vi.fn(() => vi.fn()),
+  useTenantMutateMatching: vi.fn(() => vi.fn()),
 }));
 
 const mockGetOne = vi.fn();
@@ -275,7 +275,6 @@ describe("TeachersPage", () => {
       data: {
         user: {
           id: "1",
-          token: "test-token",
           permissions: ["users:manage", "users:delete", "staff:manage"],
         },
         expires: "2099-01-01",
@@ -419,7 +418,6 @@ describe("TeachersPage", () => {
       data: {
         user: {
           id: "1",
-          token: "test-token",
           permissions: ["staff:manage", "users:create"],
         },
         expires: "2099-01-01",
@@ -441,7 +439,6 @@ describe("TeachersPage", () => {
       data: {
         user: {
           id: "1",
-          token: "test-token",
           permissions: ["staff:manage", "users:manage"],
         },
         expires: "2099-01-01",
@@ -466,7 +463,6 @@ describe("TeachersPage", () => {
       data: {
         user: {
           id: "1",
-          token: "test-token",
           permissions: ["users:create"],
         },
         expires: "2099-01-01",

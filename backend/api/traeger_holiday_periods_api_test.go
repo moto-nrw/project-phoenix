@@ -18,6 +18,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 type holidayTimeModelBody struct {
@@ -338,5 +339,5 @@ func TestTraegerHolidayPeriodListQueryBudgetIsFlat(t *testing.T) {
 	second.Name = "Osterferien 2027"
 	createHolidayPeriod(t, router, office, second)
 	assert.Len(t, list(), len(one), "the period list reads the same statements for any number of periods")
-	testpkg.AssertQueryBudget(t, "api.traeger.holiday_periods", one)
+	querybudgets.AssertQueryBudget(t, "api.traeger.holiday_periods", one)
 }

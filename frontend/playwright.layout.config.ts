@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { SECURE_CHROME_SETUP, secureChromeUse } from "./scripts/secure-chrome";
 
 // Layouttests im echten Browser (pnpm run test:layout). Sie kompilieren
 // `src/styles/globals.css` selbst und rendern nachgebautes Markup mit
@@ -8,6 +9,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 /** @public Loaded by the Playwright CLI rather than imported by application code. */
 export default defineConfig({
+  globalSetup: SECURE_CHROME_SETUP,
+  use: secureChromeUse(),
   testDir: "./e2e/layout",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

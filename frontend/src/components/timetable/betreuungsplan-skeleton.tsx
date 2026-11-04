@@ -18,6 +18,8 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
         data-testid="timetable-content-skeleton"
         className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
       >
+        {/* Live-Regionen sagen Text an, kein aria-label (#4996). */}
+        <span className="sr-only">Regeltermine werden geladen</span>
         {[0, 1, 2].map((item) => (
           <div key={item} className={timetableSurfacePadded}>
             <div className="flex items-start justify-between gap-3">
@@ -56,6 +58,7 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
         data-testid="timetable-content-skeleton"
         className={`${timetableSurface} overflow-hidden`}
       >
+        <span className="sr-only">Tagesansicht wird geladen</span>
         <div className="hidden h-14 grid-cols-[64px_minmax(0,1fr)] border-b border-gray-200 bg-white sm:grid">
           <div aria-hidden />
           <div className="flex items-center justify-center gap-2 border-l border-gray-200 px-2 py-2">
@@ -80,7 +83,7 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
             {daySkeletonEvents.map((event) => (
               <div
                 key={`${event.top}-${event.height}`}
-                className="moto-content-surface absolute left-2 rounded-xl border p-2 shadow-sm sm:left-2.5"
+                className="moto-content-surface absolute left-2 rounded-xl border p-2 sm:left-2.5"
                 style={{
                   top: `${event.top}px`,
                   height: `${event.height}px`,
@@ -143,6 +146,7 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
         data-testid="timetable-content-skeleton"
         className={`${timetableSurface} overflow-hidden`}
       >
+        <span className="sr-only">Wochenplan wird geladen</span>
         <div className="hidden h-14 grid-cols-[64px_repeat(7,minmax(0,1fr))] border-b border-gray-200 bg-white sm:grid">
           <div aria-hidden />
           {Array.from({ length: 7 }, (_, day) => (
@@ -176,7 +180,7 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
               {(weekSkeletonEvents[day] ?? []).map((event) => (
                 <div
                   key={`${day}-${event.top}-${event.height}-${event.width}`}
-                  className="moto-content-surface absolute left-2 rounded-xl border p-2 shadow-sm sm:left-2.5"
+                  className="moto-content-surface absolute left-2 rounded-xl border p-2 sm:left-2.5"
                   style={{
                     top: `${event.top}px`,
                     height: `${event.height}px`,
@@ -204,6 +208,7 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
       data-testid="timetable-content-skeleton"
       className={`${timetableSurface} overflow-hidden`}
     >
+      <span className="sr-only">Monatsplan wird geladen</span>
       <div className="grid grid-cols-7 border-b border-gray-200 bg-white">
         {Array.from({ length: 7 }, (_, day) => (
           <div key={day} className="px-3 py-3">
@@ -241,19 +246,24 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
 export function PlanningContextBarSkeleton({
   ariaLabel = "Betreuungsplan-Kopfzeile wird geladen",
   testId = "timetable-header-skeleton",
+  announce = true,
 }: {
   readonly ariaLabel?: string;
   readonly testId?: string;
+  /** False only when the content status covers the same loading phase. */
+  readonly announce?: boolean;
 } = {}) {
   return (
     <div
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-      aria-label={ariaLabel}
+      role={announce ? "status" : undefined}
+      aria-live={announce ? "polite" : undefined}
+      aria-busy={announce ? true : undefined}
+      aria-label={announce ? ariaLabel : undefined}
+      aria-hidden={announce ? undefined : true}
       data-testid={testId}
-      className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-5 shadow-sm"
+      className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-5"
     >
+      {announce ? <span className="sr-only">{ariaLabel}</span> : null}
       <div>
         <Skeleton className="h-7 w-40" />
         <Skeleton className="mt-2 h-4 w-56" />
@@ -276,7 +286,7 @@ export function PlanningContextBarSkeleton({
 export function TimetablePageSkeleton() {
   return (
     <div className="w-full space-y-6" data-testid="timetable-page-skeleton">
-      <PlanningContextBarSkeleton />
+      <PlanningContextBarSkeleton announce={false} />
       <TimetableContentSkeleton view="week" />
     </div>
   );

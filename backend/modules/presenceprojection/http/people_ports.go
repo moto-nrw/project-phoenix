@@ -31,6 +31,9 @@ type PersonRecords interface {
 	// ListStudentsForDay returns the children of the groups whose care covers
 	// date, as the day log counts them; today is the caller's calendar day.
 	ListStudentsForDay(ctx context.Context, groupIDs []int64, date, today calendar.Date) ([]peopleModule.StudentRecord, error)
+	// ListSchoolStudentsForDay returns every child of the school whose care
+	// covers date, with a group or without one, as the day log counts them.
+	ListSchoolStudentsForDay(ctx context.Context, date, today calendar.Date) ([]peopleModule.StudentRecord, error)
 	// StaffIDForPerson resolves the staff member of a person; found is false
 	// for a person who is no staff member.
 	StaffIDForPerson(ctx context.Context, personID int64) (staffID int64, found bool, err error)

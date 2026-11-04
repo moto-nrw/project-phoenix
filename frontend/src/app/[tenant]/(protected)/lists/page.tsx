@@ -50,9 +50,8 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
-import { getSettingValue } from "~/lib/settings-api";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTimetableEnabled } from "~/lib/tenant-context";
 import {
   berlinTodayISO,
   formatStatusDate,
@@ -739,17 +738,9 @@ export default function SlotListsPage() {
   const router = useTenantRouter();
   // Route guard: Tageslisten are part of the timetable feature, so an explicit
   // timetable.enabled=false hides the page just like the Betreuungsplan/Vertretung
-  // guards and the sidebar (#1565 review). getSettingValue returns undefined when
-  // the user cannot read settings, so the page renders normally by default.
-  const { data: settingsSchema } = useSettingsSchema(
-    authStatus === "authenticated",
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-    },
-  );
-  const timetableDisabled =
-    getSettingValue(settingsSchema, "timetable.enabled") === false;
+  // guards and the sidebar (#1565 review). The flag comes from the tenant
+  // resolve (#4996).
+  const timetableDisabled = !useTimetableEnabled();
   const initialState = useMemo(
     () => parseInitialListState(searchParams),
     [searchParams],
@@ -2307,22 +2298,24 @@ export default function SlotListsPage() {
               <span className="min-w-0 truncate text-xs text-gray-500">
                 {slotSummary}
               </span>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="compact"
                 onClick={() => {
                   setSelectedSlotIds(null);
                   replaceListUrl({ selectedSlotIds: null });
                 }}
                 tabIndex={selectedSlotIds === null ? -1 : 0}
                 aria-hidden={selectedSlotIds === null}
-                className={`text-moto-blue-strong hover:bg-moto-blue/8 rounded-md px-2 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                className={
                   selectedSlotIds === null
                     ? "pointer-events-none opacity-0"
                     : "opacity-100"
-                }`}
+                }
               >
                 Alle auswählen
-              </button>
+              </Button>
             </div>
             {slotOptions.length > 0 ? (
               <div className="grid max-h-[11.5rem] grid-cols-3 gap-2 overflow-y-auto pr-1">
@@ -2451,7 +2444,7 @@ export default function SlotListsPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  size="md"
+                  size="compact"
                   onClick={resetFilterLink}
                 >
                   Filter zurücksetzen

@@ -74,3 +74,17 @@ func DerivePrivacyConsentExpiry(value PrivacyConsent) PrivacyConsent {
 	value.ExpiresAt = &expiresAt
 	return value
 }
+
+// LatestAcceptedPrivacyConsent selects the same effective retention consent for
+// the standalone read and the child-detail projection. Newer refusals do not
+// replace the latest accepted policy.
+func LatestAcceptedPrivacyConsent(consents []PrivacyConsent) *PrivacyConsent {
+	var latest *PrivacyConsent
+	for i := range consents {
+		consent := &consents[i]
+		if consent.Accepted && (latest == nil || consent.CreatedAt.After(latest.CreatedAt)) {
+			latest = consent
+		}
+	}
+	return latest
+}

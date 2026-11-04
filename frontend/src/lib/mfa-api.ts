@@ -1,13 +1,7 @@
 import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 
-export type LoginScope = "tenant" | "operator" | "school" | "traeger";
-
-interface AuthenticatedLoginResponse {
-  status: "authenticated";
-  access_token: string;
-  refresh_token: string;
-  mfa_enrollment_required?: boolean;
-}
+export type LoginScope =
+  "tenant" | "operator" | "school" | "traeger" | "caterer";
 
 interface MFARequiredLoginResponse {
   status: "mfa_required";
@@ -44,15 +38,12 @@ interface MFAEnrollmentRequiredLoginResponse {
   mfa_enrollment_required: true;
 }
 
-type LoginResponse =
-  | AuthenticatedLoginResponse
-  | MFARequiredLoginResponse
-  | MFAEnrollmentRequiredLoginResponse;
-
-export interface MFATokenResponse {
-  access_token: string;
-  refresh_token: string;
+export interface MFAResult {
+  status: "authenticated";
 }
+
+type LoginResponse =
+  MFAResult | MFARequiredLoginResponse | MFAEnrollmentRequiredLoginResponse;
 
 interface OperatorEnvelope<T> {
   status: string;
@@ -85,6 +76,10 @@ function mfaUrl(scope: LoginScope, suffix: string): string {
       return `/api/school/auth/mfa/${suffix}`;
     case "traeger":
       return `/api/traeger/auth/mfa/${suffix}`;
+    case "caterer":
+      // The caterer portal's second factor is voluntary (#4497); its
+      // endpoints answer top-level JSON like the tenant ones.
+      return `/api/caterer/auth/mfa/${suffix}`;
     default:
       return `/api/auth/mfa/${suffix}`;
   }
@@ -196,7 +191,7 @@ function organizationField(organizationId?: string) {
 export async function verifyMFA(
   scope: LoginScope,
   params: VerifyParams,
-): Promise<MFATokenResponse> {
+): Promise<MFAResult> {
   const url = mfaUrl(scope, "verify");
   const payload = {
     challenge_token: params.challengeToken,
@@ -205,13 +200,10 @@ export async function verifyMFA(
     ...organizationField(params.organizationId),
   };
   if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFATokenResponse>>(
-      url,
-      payload,
-    );
+    const envelope = await postJson<OperatorEnvelope<MFAResult>>(url, payload);
     return envelope.data;
   }
-  return postJson<MFATokenResponse>(url, payload);
+  return postJson<MFAResult>(url, payload);
 }
 
 interface ResendParams {
@@ -291,7 +283,7 @@ export async function enrollConfirm(
   rememberDevice = false,
   challengeToken?: string,
   organizationId?: string,
-): Promise<MFATokenResponse> {
+): Promise<MFAResult> {
   const url = mfaUrl(scope, "enroll/confirm");
   // The school confirm is bound to the exact challenge enroll/start minted
   // (see enrollStart); tenant/operator ignore the extra field.
@@ -302,17 +294,19 @@ export async function enrollConfirm(
     ...organizationField(organizationId),
   };
   if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFATokenResponse>>(
-      url,
-      payload,
-      { bearerToken },
-    );
+    const envelope = await postJson<OperatorEnvelope<MFAResult>>(url, payload, {
+      bearerToken,
+    });
     return envelope.data;
   }
-  return postJson<MFATokenResponse>(url, payload, { bearerToken });
+  return postJson<MFAResult>(url, payload, { bearerToken });
 }
 
-// ----- Self-service trusted devices (Tenant-only) -----
+// ----- Self-service trusted devices (tenant, operator and caterer) -----
+//
+// These and the admin calls below act for the signed-in account: their BFF
+// routes read the session cookie, so no bearer token leaves the browser
+// (#5005). Only enrollment above sends the login's enrollment token.
 
 export interface TrustedDeviceDTO {
   id: number;
@@ -324,37 +318,38 @@ export interface TrustedDeviceDTO {
 }
 
 function trustedDevicesUrl(scope: LoginScope, suffix = ""): string {
-  return isOperator(scope)
-    ? `/api/operator/auth/mfa/trusted-devices${suffix}`
-    : `/api/auth/mfa/trusted-devices${suffix}`;
+  switch (scope) {
+    case "operator":
+      return `/api/operator/auth/mfa/trusted-devices${suffix}`;
+    case "caterer":
+      return `/api/caterer/auth/mfa/trusted-devices${suffix}`;
+    default:
+      return `/api/auth/mfa/trusted-devices${suffix}`;
+  }
 }
 
 export async function listTrustedDevices(
   scope: LoginScope,
-  bearerToken: string,
 ): Promise<TrustedDeviceDTO[]> {
   const url = trustedDevicesUrl(scope);
   if (isOperator(scope)) {
     const envelope = await postJson<OperatorEnvelope<TrustedDeviceDTO[]>>(
       url,
       undefined,
-      { bearerToken, method: "GET" },
+      { method: "GET" },
     );
     return envelope.data;
   }
   return postJson<TrustedDeviceDTO[]>(url, undefined, {
-    bearerToken,
     method: "GET",
   });
 }
 
 export async function revokeTrustedDevice(
   scope: LoginScope,
-  bearerToken: string,
   deviceId: number,
 ): Promise<void> {
   await postJson<unknown>(trustedDevicesUrl(scope, `/${deviceId}`), undefined, {
-    bearerToken,
     method: "DELETE",
     allowEmptyBody: true,
   });
@@ -374,29 +369,25 @@ function adminMFAUrl(accountId: string, suffix: string): string {
 }
 
 export async function adminResetMFA(
-  bearerToken: string,
   accountId: string,
   reason: string,
 ): Promise<void> {
   await postJson<unknown>(
     adminMFAUrl(accountId, ""),
     { reason },
-    { bearerToken, method: "DELETE", allowEmptyBody: true },
+    { method: "DELETE", allowEmptyBody: true },
   );
 }
 
 export async function adminGetMFAState(
-  bearerToken: string,
   accountId: string,
 ): Promise<MFAAdminState> {
   return postJson<MFAAdminState>(adminMFAUrl(accountId, ""), undefined, {
-    bearerToken,
     method: "GET",
   });
 }
 
 export async function adminSetMFAOverride(
-  bearerToken: string,
   accountId: string,
   override: MFAAdminOverride,
   reason: string,
@@ -404,7 +395,7 @@ export async function adminSetMFAOverride(
   await postJson<unknown>(
     adminMFAUrl(accountId, "/override"),
     { override, reason },
-    { bearerToken, method: "PUT", allowEmptyBody: true },
+    { method: "PUT", allowEmptyBody: true },
   );
 }
 
@@ -419,7 +410,6 @@ function operatorAdminMFAUrl(
 }
 
 export async function operatorAdminResetMFA(
-  bearerToken: string,
   schoolId: string,
   accountId: string,
   reason: string,
@@ -427,7 +417,7 @@ export async function operatorAdminResetMFA(
   await postJson<unknown>(
     operatorAdminMFAUrl(schoolId, accountId, ""),
     { reason },
-    { bearerToken, method: "DELETE", allowEmptyBody: true },
+    { method: "DELETE", allowEmptyBody: true },
   );
 }
 
@@ -437,7 +427,6 @@ export async function operatorAdminResetMFA(
  * again at the next sign-in.
  */
 export async function operatorAdminResetTraegerMFA(
-  bearerToken: string,
   organizationId: string,
   accountId: string,
   reason: string,
@@ -445,12 +434,27 @@ export async function operatorAdminResetTraegerMFA(
   await postJson<unknown>(
     `/api/operator/provisioning/organizations/${encodeURIComponent(organizationId)}/traeger-members/${encodeURIComponent(accountId)}/mfa`,
     { reason },
-    { bearerToken, method: "DELETE", allowEmptyBody: true },
+    { method: "DELETE", allowEmptyBody: true },
+  );
+}
+
+/**
+ * Resets the second factor of one caterer account (#4497), scoped by the
+ * caterer, not a school. Its passkeys stay; the backend mails the caterer.
+ */
+export async function operatorAdminResetCatererMFA(
+  catererId: string,
+  accountId: string,
+  reason: string,
+): Promise<void> {
+  await postJson<unknown>(
+    `/api/operator/caterers/${encodeURIComponent(catererId)}/accounts/${encodeURIComponent(accountId)}/mfa`,
+    { reason },
+    { method: "DELETE", allowEmptyBody: true },
   );
 }
 
 export async function operatorAdminSetMFAOverride(
-  bearerToken: string,
   schoolId: string,
   accountId: string,
   override: MFAAdminOverride,
@@ -459,7 +463,7 @@ export async function operatorAdminSetMFAOverride(
   await postJson<unknown>(
     operatorAdminMFAUrl(schoolId, accountId, "/override"),
     { override, reason },
-    { bearerToken, method: "PUT", allowEmptyBody: true },
+    { method: "PUT", allowEmptyBody: true },
   );
 }
 
@@ -476,19 +480,17 @@ function operatorGlobalMFAUrl(accountId: string): string {
 }
 
 export async function operatorAdminGetGlobalMFAOverride(
-  bearerToken: string,
   accountId: string,
 ): Promise<MFAAdminState> {
   const envelope = await postJson<OperatorEnvelope<MFAAdminState>>(
     operatorGlobalMFAUrl(accountId),
     undefined,
-    { bearerToken, method: "GET" },
+    { method: "GET" },
   );
   return envelope.data;
 }
 
 export async function operatorAdminSetGlobalMFAOverride(
-  bearerToken: string,
   accountId: string,
   override: MFAAdminOverride,
   reason: string,
@@ -496,6 +498,6 @@ export async function operatorAdminSetGlobalMFAOverride(
   await postJson<unknown>(
     operatorGlobalMFAUrl(accountId),
     { override, reason },
-    { bearerToken, method: "PUT", allowEmptyBody: true },
+    { method: "PUT", allowEmptyBody: true },
   );
 }

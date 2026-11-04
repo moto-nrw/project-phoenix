@@ -34,6 +34,11 @@ const (
 	StateCancelled  State = "cancelled"
 )
 
+// DispatchOutcomeUnknown is the last error of a dead letter whose worker
+// stopped during the provider call: the provider may have accepted it, so
+// it is neither sent nor failed for sure.
+const DispatchOutcomeUnknown = "delivery outcome unknown: worker stopped during provider call"
+
 type RelatedEntity struct {
 	Type string
 	ID   int64

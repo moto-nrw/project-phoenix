@@ -37,10 +37,12 @@ vi.mock("next/link", () => ({
     href,
     onClick,
     onNavigate,
+    prefetch: _prefetch,
     ...rest
   }: {
     children?: React.ReactNode;
     href: string;
+    prefetch?: boolean | null;
     onClick?: React.MouseEventHandler<HTMLAnchorElement>;
     onNavigate?: (event: { preventDefault: () => void }) => void;
   }) => (
@@ -145,11 +147,14 @@ describe("NavigationProgress", () => {
       <ButtonLink href="/calendar-periods">Planungszeiträume</ButtonLink>,
     );
 
+    const notify = vi.spyOn(window, "m");
     fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
 
     expect(screen.getByTestId("navigation-progress")).toHaveClass(
       "moto-nav-progress",
     );
+    expect(notify).toHaveBeenCalledExactlyOnceWith("/calendar-periods");
+    notify.mockRestore();
   });
 
   it("cancels ButtonLink progress when onNavigate blocks the link", () => {

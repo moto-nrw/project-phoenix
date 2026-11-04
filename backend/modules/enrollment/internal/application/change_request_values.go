@@ -125,6 +125,7 @@ func (c *changeRequestCase) public() (*enrollment.ChangeRequestCase, error) {
 	}
 	return &enrollment.ChangeRequestCase{
 		ChangeRequest: changeRequest, Request: request, Children: children, Messages: c.Messages, Phase: c.Phase,
+		RosterImpacts: c.RosterImpacts,
 	}, nil
 }
 

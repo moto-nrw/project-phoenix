@@ -4,17 +4,20 @@
 // Ferienzeitraums, Korrekturen mit Begründung und die Freigabe, die jede
 // Rechnung mit ihrer Nummer ausstellt. Ausgestellte Rechnungen ändern sich
 // nicht mehr. Jedes Öffnen steht im Protokoll des Laufs. Ein freigegebener
-// Lauf hat die Übersicht für die Kämmerei (#4672).
+// Lauf hat die Übersicht für die Kämmerei (#4672). Eine ausgestellte Rechnung
+// lässt sich stornieren und gutschreiben (#4690); eine stornierte Rechnung
+// stellt der nächste Lauf des Zeitraums neu aus.
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   BillingCorrectionModal,
   type BillingCorrectionTarget,
 } from "~/components/traeger/billing-correction-modal";
-import { BillingDocumentCard } from "~/components/traeger/billing-document-card";
-import { BillingLettersCard } from "~/components/traeger/billing-letters-card";
+import { BillingCostTakeoverCard } from "~/components/traeger/billing-cost-takeover-card";
 import { BillingRunOverviewCard } from "~/components/traeger/billing-run-overview-card";
+import { BillingLettersCard } from "~/components/traeger/billing-letters-card";
+import { BillingMailCard } from "~/components/traeger/billing-mail-card";
 import {
   BILLING_RUN_STATUS_LABELS,
   BILLING_RUN_STATUS_TONES,
@@ -22,15 +25,12 @@ import {
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { formatDateRange } from "~/components/traeger/holiday-period-format";
 import { Alert } from "~/components/ui/alert";
-import { BackLink } from "~/components/ui/back-link";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
-import { EmptyState } from "~/components/ui/empty-state";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { TenantPage } from "~/components/ui/tenant-page";
 import {
   useApiErrorDisplay,
   useApiLoadError,
@@ -44,7 +44,9 @@ import {
   type BillingRunDetail,
   downloadBillingLetter,
   fetchBillingRun,
+  fetchBillingRuns,
   releaseBillingRun,
+  startBillingRun,
 } from "~/lib/traeger-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -54,7 +56,30 @@ function runDescription(run: BillingRunDetail): string {
   if (run.status === "released") {
     return "Die Rechnungen sind ausgestellt und lassen sich nicht mehr ändern.";
   }
-  return "Vorschau mit allen bestätigten Anmeldungen, die noch keine Rechnung haben. Neue Bestätigungen kommen bis zur Freigabe dazu.";
+  return "Vorschau mit allen bestätigten Anmeldungen ohne gültige Rechnung. Eine stornierte Rechnung wird hier neu ausgestellt. Neue Bestätigungen kommen bis zur Freigabe dazu.";
+}
+
+/** „3 Rechnungen mit Betrag haben keine Debitorennummer.“ */
+function invoicesWithoutDebtorNumber(count: number): string {
+  return count === 1
+    ? "1 Rechnung mit Betrag hat keine Debitorennummer."
+    : `${count} Rechnungen mit Betrag haben keine Debitorennummer.`;
+}
+
+/**
+ * The warning before the release when the payment text names the debtor
+ * number and invoices with an amount have none (#5622): the release locks
+ * the number, and their letters are refused until the placeholder goes.
+ * The field to enter it shows at the registration only while the Träger
+ * asks for the number (#5621); then `missingDebtorNumbers` counts these
+ * invoices too, otherwise it is 0.
+ */
+function paymentTextWarning(run: BillingRunDetail): string {
+  const where =
+    run.missingDebtorNumbers > 0
+      ? "Tragen Sie die Nummern vor dem Freigeben bei den Anmeldungen ein."
+      : "Tragen Sie die Nummern vor dem Freigeben bei den Anmeldungen ein. Das Feld dafür erscheint, wenn unter „Einstellungen“ im Bereich „Ferienbetreuung“ „Debitorennummer beim Bestätigen abfragen“ an ist.";
+  return `${invoicesWithoutDebtorNumber(run.paymentTextMissingDebtorNumbers)} Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext. ${where}`;
 }
 
 export default function TraegerBillingRunPage() {
@@ -65,6 +90,8 @@ export default function TraegerBillingRunPage() {
     null,
   );
   const [confirmingRelease, setConfirmingRelease] = useState(false);
+  const router = useRouter();
+  const reissueErrors = useApiErrorDisplay();
   const [releasing, setReleasing] = useState(false);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
@@ -123,55 +150,145 @@ export default function TraegerBillingRunPage() {
     }
   };
 
+  // A cancelled invoice is issued again by the run of its period that is
+  // still a preview; without one, a new run starts (#4690).
+  const reissue = async () => {
+    if (!run) return;
+    try {
+      const open = (await fetchBillingRuns()).find(
+        (other) =>
+          other.status === "calculated" &&
+          other.holidayPeriodId === run.holidayPeriodId,
+      );
+      const target = open ?? (await startBillingRun(run.holidayPeriodId));
+      router.push(traegerPath(`/traeger/abrechnung/${target.id}`));
+    } catch (err) {
+      logger.error("traeger_billing_reissue_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void reissueErrors.show(err, { object: "der neue Lauf" });
+    }
+  };
+
   const preview = run?.status === "calculated";
+  const corrections =
+    run?.documents.filter((document) => document.kind !== "invoice") ?? [];
   const canRelease = preview && run.numberRangeSet && run.previewCount > 0;
+  const paymentTextGaps = preview ? run.paymentTextMissingDebtorNumbers : 0;
 
   return (
-    <div className="w-full space-y-6">
-      <BackLink
-        href={traegerPath("/traeger/abrechnung")}
-        label="Zurück zur Abrechnung"
-      />
-      {pageLoad.error ? (
-        <LoadErrorAlert error={pageLoad.error} />
-      ) : run ? (
+    <TenantPage
+      title={run?.periodName ?? "Abrechnungslauf"}
+      back
+      backHref={traegerPath("/traeger/abrechnung")}
+      backLabel="Zurück zur Abrechnung"
+      stats={
+        run ? (
+          <StatusBadge
+            label={BILLING_RUN_STATUS_LABELS[run.status]}
+            tone={BILLING_RUN_STATUS_TONES[run.status]}
+          />
+        ) : null
+      }
+      statsLoading={!run && !pageLoad.error}
+      actions={
+        preview ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            disabled={!canRelease}
+            onClick={() => setConfirmingRelease(true)}
+          >
+            Lauf freigeben
+          </Button>
+        ) : undefined
+      }
+      error={pageLoad.error}
+      loading={!pageLoad.error && !run}
+      overlays={
+        run ? (
+          <>
+            <BillingCorrectionModal
+              runId={run.id}
+              target={correcting}
+              onClose={() => setCorrecting(null)}
+              onCorrected={(corrected) => {
+                setCorrecting(null);
+                setRun(corrected);
+              }}
+              onIssued={() => {
+                setCorrecting(null);
+                void load();
+              }}
+            />
+            <ConfirmationModal
+              isOpen={confirmingRelease}
+              title="Lauf freigeben?"
+              confirmText={
+                paymentTextGaps > 0 ? "Trotzdem freigeben" : "Freigeben"
+              }
+              confirmVariant={paymentTextGaps > 0 ? "warning" : "primary"}
+              isConfirmLoading={releasing}
+              loadingText="Wird freigegeben …"
+              onClose={() => setConfirmingRelease(false)}
+              onConfirm={() => void release()}
+            >
+              <p className="text-sm text-gray-700">
+                {run.previewCount} Rechnung(en) über{" "}
+                {formatEuro(run.previewCents)} bekommen ihre Nummer. Danach
+                lassen sie sich nicht mehr ändern.
+              </p>
+              {paymentTextGaps > 0 ? (
+                <Alert
+                  type="warning"
+                  className="mt-3"
+                  message={`${invoicesWithoutDebtorNumber(paymentTextGaps)} Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext.`}
+                />
+              ) : null}
+            </ConfirmationModal>
+          </>
+        ) : null
+      }
+    >
+      {run ? (
         <>
-          <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-            {run.periodName}
-          </h1>
           <SectionCard
             title="Abrechnungslauf"
             description={runDescription(run)}
-            actions={
-              preview ? (
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  disabled={!canRelease}
-                  onClick={() => setConfirmingRelease(true)}
-                >
-                  Lauf freigeben
-                </Button>
-              ) : null
-            }
           >
             <DataGrid columns={2}>
-              <DataField label="Status">
-                <StatusBadge
-                  label={BILLING_RUN_STATUS_LABELS[run.status]}
-                  tone={BILLING_RUN_STATUS_TONES[run.status]}
-                />
-              </DataField>
               <DataField label="Betreuung">
                 {formatDateRange(run.serviceFrom, run.serviceUntil)}
               </DataField>
               <DataField label="Rechnungen">{run.previewCount}</DataField>
-              <DataField label="Summe">
+              <DataField
+                label={
+                  corrections.length > 0
+                    ? "Summe nach Storno und Gutschrift"
+                    : "Summe"
+                }
+              >
                 <span className="tabular-nums">
                   {formatEuro(run.previewCents)}
                 </span>
               </DataField>
+              {corrections.length > 0 ? (
+                <DataField label="Storno und Gutschrift">
+                  {corrections.length === 1
+                    ? "1 Dokument"
+                    : `${corrections.length} Dokumente`}{" "}
+                  über{" "}
+                  <span className="tabular-nums">
+                    {formatEuro(
+                      corrections.reduce(
+                        (sum, document) => sum + document.totalCents,
+                        0,
+                      ),
+                    )}
+                  </span>
+                </DataField>
+              ) : null}
               <DataField label="Abrechnung">
                 Im Voraus, nach den bestätigten Buchungen
               </DataField>
@@ -192,6 +309,23 @@ export default function TraegerBillingRunPage() {
               message="Bevor Sie freigeben: Legen Sie unter „Abrechnung“ das Muster der Rechnungsnummern fest."
             />
           ) : null}
+          {paymentTextGaps > 0 ? (
+            <Alert
+              type="warning"
+              title="Schreiben brauchen die Debitorennummer"
+              message={paymentTextWarning(run)}
+            />
+          ) : null}
+          {preview && run.missingDebtorNumbers > 0 && paymentTextGaps === 0 ? (
+            <Alert
+              type="warning"
+              message={
+                run.missingDebtorNumbers === 1
+                  ? "1 Anmeldung hat noch keine Debitorennummer. Tragen Sie sie vor dem Freigeben ein."
+                  : `${run.missingDebtorNumbers} Anmeldungen haben noch keine Debitorennummer. Tragen Sie sie vor dem Freigeben ein.`
+              }
+            />
+          ) : null}
           {preview && run.unbilled > 0 ? (
             <Alert
               type="info"
@@ -205,64 +339,48 @@ export default function TraegerBillingRunPage() {
               onCreated={(letters) => setRun({ ...run, letters })}
             />
           ) : null}
-          {run.status === "released" && run.documents.length > 0 ? (
-            <BillingRunOverviewCard run={run} />
+          {run.status === "released" && run.letters ? (
+            // A new Storno or Gutschrift is a new letter to send (#4690).
+            <BillingMailCard key={run.documents.length} runId={run.id} />
           ) : null}
-          {run.documents.length === 0 ? (
-            <SectionCard>
-              <EmptyState
-                title="Keine Rechnung in diesem Lauf."
-                description="Alle bestätigten Anmeldungen haben schon eine Rechnung, oder es ist noch keine bestätigt."
-              />
-            </SectionCard>
-          ) : (
-            run.documents.map((document) => (
-              <BillingDocumentCard
-                key={document.registrationId}
-                document={document}
-                onCorrect={
-                  preview
-                    ? (child) =>
-                        setCorrecting({
-                          registrationId: document.registrationId,
-                          child,
-                        })
-                    : undefined
-                }
-                onDownloadLetter={
-                  run.letters ? () => void downloadLetter(document) : undefined
-                }
-              />
-            ))
-          )}
-          <BillingCorrectionModal
-            runId={run.id}
-            target={correcting}
-            onClose={() => setCorrecting(null)}
-            onCorrected={(corrected) => {
-              setCorrecting(null);
-              setRun(corrected);
-            }}
+          <BillingRunOverviewCard
+            run={run}
+            onCorrect={
+              preview
+                ? (document, child) =>
+                    setCorrecting({
+                      registrationId: document.registrationId,
+                      child,
+                    })
+                : undefined
+            }
+            onDownloadLetter={
+              run.letters
+                ? (document) => void downloadLetter(document)
+                : undefined
+            }
+            onCancel={
+              preview
+                ? undefined
+                : (document) =>
+                    setCorrecting({ kind: "cancellation", document })
+            }
+            onCredit={
+              preview
+                ? undefined
+                : (document, child, leftCents) =>
+                    setCorrecting({
+                      kind: "credit",
+                      document,
+                      child,
+                      leftCents,
+                    })
+            }
+            onReissue={preview ? undefined : () => void reissue()}
           />
-          <ConfirmationModal
-            isOpen={confirmingRelease}
-            title="Lauf freigeben?"
-            confirmText="Freigeben"
-            isConfirmLoading={releasing}
-            loadingText="Wird freigegeben …"
-            onClose={() => setConfirmingRelease(false)}
-            onConfirm={() => void release()}
-          >
-            <p className="text-sm text-gray-700">
-              {run.previewCount} Rechnung(en) über{" "}
-              {formatEuro(run.previewCents)} bekommen ihre Nummer. Danach lassen
-              sie sich nicht mehr ändern.
-            </p>
-          </ConfirmationModal>
+          <BillingCostTakeoverCard run={run} />
         </>
-      ) : (
-        <Loading fullPage={false} />
-      )}
-    </div>
+      ) : null}
+    </TenantPage>
   );
 }

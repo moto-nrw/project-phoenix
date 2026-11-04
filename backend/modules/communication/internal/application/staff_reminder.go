@@ -127,6 +127,9 @@ func (s *service) UpdateReminder(ctx context.Context, id int64, in ReminderInput
 	if a == nil {
 		return nil, ErrNotFound
 	}
+	if err := guardClassLetterWrite(ctx, a); err != nil {
+		return nil, err
+	}
 	if !a.IsPublished() {
 		return nil, ErrNotPublished
 	}

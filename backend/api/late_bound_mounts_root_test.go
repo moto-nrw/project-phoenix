@@ -23,7 +23,7 @@ func checkFormerLateBoundMounts(t *testing.T, graph *goldenRuntime) {
 
 	db := testpkg.SetupTestDB(t)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("late-bound-%d@test.local", time.Now().UnixNano()))
-	token := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(account.ID), testpkg.Tenant(t)))
+	token := testpkg.MintLiveSessionJWT(t, db, testutil.AdminTestClaimsForTenant(int(account.ID), testpkg.Tenant(t)))
 	request := func(method, path, body string) (int, string) {
 		response := checkpointRequest(graph, checkpointScenario{Method: method, Path: path, Authenticated: true, Body: body}, token)
 		return response.Code, response.Body.String()

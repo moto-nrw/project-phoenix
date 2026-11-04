@@ -1,12 +1,20 @@
 "use client";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useParams, useSearchParams } from "next/navigation";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useSession } from "next-auth/react";
-import { getStartDateForTimeRange, toISODate } from "~/lib/date-helpers";
+import {
+  getStartDateForTimeRange,
+  toISODate,
+  berlinTodayISO,
+  berlinDateTimeISO,
+  parseISODate,
+} from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
@@ -25,6 +33,7 @@ import type { Student } from "~/lib/student-helpers";
 import { fetchStudentFeedback, type FeedbackEntry } from "~/lib/feedback-api";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { feedbackConcept } from "~/lib/concepts/feedback";
 
 const logger = createLogger({ component: "StudentFeedbackHistoryPage" });
 
@@ -168,16 +177,20 @@ function StudentFeedbackHistoryPageContent() {
     };
   }, [attempt, clearPageError, showPageError, studentId]);
 
+  const today = useBerlinToday();
   const filteredFeedbackHistory = useMemo(() => {
     if (feedbackHistory === null) return [];
     if (timeRange === "all") return feedbackHistory;
-    const now = new Date();
-    const startDate = getStartDateForTimeRange(timeRange, now);
-    return feedbackHistory.filter((entry) => {
-      const entryDate = new Date(entry.timestamp);
-      return entryDate >= startDate;
-    });
-  }, [feedbackHistory, timeRange]);
+    const reference = new Date(berlinDateTimeISO(parseISODate(today), "00:00"));
+    const startDay = berlinTodayISO(
+      getStartDateForTimeRange(timeRange, reference),
+    );
+    // The API combines a Berlin DATE and wall-clock TIME without an offset.
+    // Compare calendar days, not browser-interpreted instants.
+    return feedbackHistory.filter(
+      (entry) => entry.timestamp.slice(0, 10) >= startDay,
+    );
+  }, [feedbackHistory, timeRange, today]);
 
   // Counts
   const positiveFeedbackCount = filteredFeedbackHistory.filter(
@@ -296,7 +309,7 @@ function StudentFeedbackHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={<ConceptIconTile concept="feedback" variant="page" />}
+        leading={<ConceptIconTile concept={feedbackConcept} variant="page" />}
         title={student?.name ?? "Feedbackhistorie"}
         stats={studentMeta || feedbackLine}
         statsLoading={loading}
@@ -328,7 +341,92 @@ function StudentFeedbackHistoryPageContent() {
         <SectionCard
           title="Feedback-Übersicht"
           description={FEEDBACK_HISTORY_DESCRIPTION}
-          leading={<ConceptIconTile concept="feedback" variant="section" />}
+          concept={feedbackConcept}
+          // Aufklappbare Einzelliste in der randlosen Fußzone.
+          footer={
+            totalFeedback > 0 ? (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="compact"
+                  onClick={() => setShowDetails((prev) => !prev)}
+                  aria-expanded={showDetails}
+                  className="w-full gap-2"
+                >
+                  {showDetails ? (
+                    <>
+                      Einträge ausblenden
+                      <ChevronUp className="h-4 w-4" />
+                    </>
+                  ) : (
+                    <>
+                      Alle Einträge anzeigen ({totalFeedback})
+                      <ChevronDown className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+
+                {showDetails && (
+                  <div className="border-t border-gray-100">
+                    {sortedDates.map((dateString) => {
+                      const feedbackForDate =
+                        groupedFeedbackHistory[dateString] ?? [];
+                      const dateObj = new Date(
+                        feedbackForDate[0]?.timestamp ?? dateString,
+                      );
+
+                      return (
+                        <div key={dateString}>
+                          <div className="border-b border-gray-50 bg-gray-50/50 px-4 py-2 sm:px-6">
+                            <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                              {dateObj.toLocaleDateString("de-DE", {
+                                timeZone: "Europe/Berlin",
+                                weekday: "long",
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                              })}
+                            </h3>
+                          </div>
+                          <div className="divide-y divide-gray-50 px-4 sm:px-6">
+                            {feedbackForDate.map((feedback) => (
+                              <div
+                                key={feedback.id}
+                                className="flex items-center gap-3 py-2.5"
+                                data-testid={`feedback-indicator-${feedback.feedback_type}`}
+                              >
+                                <span
+                                  className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                                  style={{
+                                    backgroundColor:
+                                      feedbackToneColors[
+                                        feedback.feedback_type
+                                      ],
+                                  }}
+                                />
+                                <span className="text-sm text-gray-900">
+                                  {feedbackTypeLabels[feedback.feedback_type]}
+                                </span>
+                                <span className="text-xs text-gray-400">
+                                  {formatTime(feedback.timestamp)}
+                                </span>
+                                {feedback.is_mensa_feedback && (
+                                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                                    Mensa
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            ) : undefined
+          }
         >
           <>
             {/* Proportion bar */}
@@ -403,85 +501,6 @@ function StudentFeedbackHistoryPageContent() {
               </div>
             )}
           </>
-
-          {/* Expandable detail list; sie läuft randlos bis zur Kartenkante. */}
-          {totalFeedback > 0 && (
-            <div className="-mx-5 mt-4 -mb-5">
-              <button
-                type="button"
-                onClick={() => setShowDetails((prev) => !prev)}
-                className="flex w-full items-center justify-center gap-2 border-t border-gray-100 px-4 py-3 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
-              >
-                {showDetails ? (
-                  <>
-                    Einträge ausblenden
-                    <ChevronUp className="h-4 w-4" />
-                  </>
-                ) : (
-                  <>
-                    Alle Einträge anzeigen ({totalFeedback})
-                    <ChevronDown className="h-4 w-4" />
-                  </>
-                )}
-              </button>
-
-              {showDetails && (
-                <div className="border-t border-gray-100">
-                  {sortedDates.map((dateString) => {
-                    const feedbackForDate =
-                      groupedFeedbackHistory[dateString] ?? [];
-                    const dateObj = new Date(
-                      feedbackForDate[0]?.timestamp ?? dateString,
-                    );
-
-                    return (
-                      <div key={dateString}>
-                        <div className="border-b border-gray-50 bg-gray-50/50 px-4 py-2 sm:px-6">
-                          <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                            {dateObj.toLocaleDateString("de-DE", {
-                              timeZone: "Europe/Berlin",
-                              weekday: "long",
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })}
-                          </h3>
-                        </div>
-                        <div className="divide-y divide-gray-50 px-4 sm:px-6">
-                          {feedbackForDate.map((feedback) => (
-                            <div
-                              key={feedback.id}
-                              className="flex items-center gap-3 py-2.5"
-                              data-testid={`feedback-indicator-${feedback.feedback_type}`}
-                            >
-                              <span
-                                className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                                style={{
-                                  backgroundColor:
-                                    feedbackToneColors[feedback.feedback_type],
-                                }}
-                              />
-                              <span className="text-sm text-gray-900">
-                                {feedbackTypeLabels[feedback.feedback_type]}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                {formatTime(feedback.timestamp)}
-                              </span>
-                              {feedback.is_mensa_feedback && (
-                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                                  Mensa
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
         </SectionCard>
       </TenantPage>
     </>

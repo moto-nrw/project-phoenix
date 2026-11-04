@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
 import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, PUT, PATCH, DELETE } from "./route";
 import {
@@ -33,6 +34,10 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
 }));
 
 vi.mock("~/lib/student-privacy-helpers", () => ({
+  DEFAULT_PRIVACY_CONSENT: {
+    privacy_consent_accepted: false,
+    data_retention_days: 30,
+  },
   fetchPrivacyConsent: vi.fn(() =>
     Promise.resolve({
       privacy_consent_accepted: true,
@@ -103,7 +108,13 @@ describe("GET /api/students/[id]", () => {
     const request = createMockRequest("/api/students/123");
     const response = await GET(request, createMockContext({ id: "123" }));
 
-    expect(mockApiGet).toHaveBeenCalledWith("/api/students/123", "test-token");
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/api/students/123?include_privacy_consent=true",
+      "test-token",
+      {
+        signal: expect.any(AbortSignal),
+      },
+    );
     expect(response.status).toBe(200);
 
     const json = await parseJsonResponse<{
@@ -120,11 +131,146 @@ describe("GET /api/students/[id]", () => {
     expect(json.data.has_sick_excused_write_access).toBe(false);
   });
 
+  it("spends only one backend read for a missing child with users:read", async () => {
+    mockAuth.mockResolvedValue({
+      ...defaultSession,
+      user: { ...defaultSession.user, permissions: ["users:read"] },
+    } as ExtendedSession);
+    mockApiGet.mockRejectedValue(
+      new ApiResponseError(404, '{"code":"general.input"}'),
+    );
+    const response = await GET(
+      createMockRequest("/api/students/123"),
+      createMockContext({ id: "123" }),
+    );
+    expect(response.status).toBe(404);
+    expect(mockApiGet).toHaveBeenCalledTimes(1);
+    const { fetchPrivacyConsent } =
+      await import("~/lib/student-privacy-helpers");
+    expect(vi.mocked(fetchPrivacyConsent).mock.calls).toEqual([]);
+  });
+
   it("throws error when student ID is missing", async () => {
     const request = createMockRequest("/api/students/");
     const response = await GET(request, createMockContext({ id: undefined }));
 
     expect(response.status).toBe(500);
+  });
+
+  describe("aggregated student and consent read", () => {
+    const backendPath = "/api/students/123?include_privacy_consent=true";
+    function getStudent(request = createMockRequest("/api/students/123")) {
+      return GET(request, createMockContext({ id: "123" }));
+    }
+
+    it("maps consent from the same response without another backend call", async () => {
+      mockApiGet.mockResolvedValueOnce({
+        data: {
+          id: 123,
+          first_name: "Alice",
+          last_name: "Smith",
+          privacy_consent: { accepted: true, data_retention_days: 14 },
+        },
+      });
+      const response = await getStudent();
+      expect(response.status).toBe(200);
+      const json = await parseJsonResponse<{
+        data: {
+          id: string;
+          privacy_consent_accepted: boolean;
+          data_retention_days: number;
+        };
+      }>(response);
+      expect(json.data).toMatchObject({
+        id: "123",
+        privacy_consent_accepted: true,
+        data_retention_days: 14,
+      });
+      expect(mockApiGet).toHaveBeenCalledTimes(1);
+      expect(mockApiGet).toHaveBeenCalledWith(backendPath, "test-token", {
+        signal: expect.any(AbortSignal),
+      });
+    });
+
+    it.each([403, 404, 429, 500, 502, 503])(
+      "forwards aggregate failure %i without successful defaults",
+      async (status) => {
+        const body = JSON.stringify({
+          type: "about:blank",
+          title: "Error",
+          status,
+          code: "general.unavailable",
+          detail: "backend",
+        });
+        mockApiGet.mockRejectedValueOnce(
+          new ApiResponseError(status, body, {
+            contentType: "application/problem+json",
+            retryAfter: "60",
+          }),
+        );
+        const response = await getStudent();
+        expect(response.status).toBe(status);
+        expect(await response.json()).toMatchObject({
+          status,
+          code: "general.unavailable",
+        });
+        expect(response.headers.get("Retry-After")).toBe("60");
+        expect(mockApiGet).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it("cancels the single backend read when the browser disconnects", async () => {
+      const browser = new AbortController();
+      let backendSignal: AbortSignal | undefined;
+      mockApiGet.mockImplementation(
+        (_path: string, _token: string, options: { signal: AbortSignal }) => {
+          backendSignal = options.signal;
+          return new Promise((_resolve, reject) => {
+            options.signal.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            );
+          });
+        },
+      );
+      const pending = getStudent(
+        new NextRequest("http://localhost:3000/api/students/123", {
+          signal: browser.signal,
+        }),
+      );
+      await vi.waitFor(() => expect(mockApiGet).toHaveBeenCalledTimes(1));
+      browser.abort();
+      await pending;
+      expect(backendSignal?.aborted).toBe(true);
+    });
+
+    it.each([[[]], [["students:read"]], [["users:read"]]])(
+      "preserves redacted/default consent for permissions %j",
+      async (permissions: string[]) => {
+        mockAuth.mockResolvedValue({
+          ...defaultSession,
+          user: { ...defaultSession.user, permissions },
+        } as ExtendedSession);
+        mockApiGet.mockResolvedValueOnce({
+          data: {
+            id: 123,
+            privacy_consent: { accepted: false, data_retention_days: 30 },
+          },
+        });
+        const response = await getStudent();
+        expect(response.status).toBe(200);
+        const json = await parseJsonResponse<{
+          data: {
+            privacy_consent_accepted: boolean;
+            data_retention_days: number;
+          };
+        }>(response);
+        expect(json.data).toMatchObject({
+          privacy_consent_accepted: false,
+          data_retention_days: 30,
+        });
+        expect(mockApiGet).toHaveBeenCalledTimes(1);
+      },
+    );
   });
 });
 

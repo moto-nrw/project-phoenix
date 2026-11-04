@@ -72,3 +72,46 @@ describe("ChatBubble in der Eltern-App", () => {
     expect(screen.getByLabelText("Von der OGS gelesen")).toBeInTheDocument();
   });
 });
+
+// #5011: eine eigene Nachricht auf dem Weg oder nicht gesendet.
+describe("ChatBubble beim Senden", () => {
+  it("zeigt im Team-Chat den Zustand statt Name und Uhrzeit", () => {
+    render(
+      <ChatBubble
+        body="Bin unterwegs"
+        own
+        senderName="Anna Beispiel"
+        createdAt="2026-08-16T06:50:00Z"
+        pending="pending"
+      />,
+    );
+
+    // Anker: die Blase steht mit ihrem Zustand da.
+    expect(screen.getByText("Bin unterwegs")).toBeInTheDocument();
+    expect(screen.getByText("Wird gesendet")).toBeInTheDocument();
+    expect(screen.queryByText(/Anna Beispiel/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/08:50/)).not.toBeInTheDocument();
+  });
+
+  it("zeigt in der Eltern-App den übergebenen Text ohne Haken", () => {
+    render(
+      <ChatBubble
+        body="Hallo OGS"
+        own
+        senderName="Sabine Schneider"
+        createdAt="2026-08-16T06:50:00Z"
+        tone="parent"
+        pending="failed"
+        pendingLabel="Nicht gesendet"
+        deliveryStatus="sent"
+        deliveryStatusLabel="Gesendet"
+      />,
+    );
+
+    // Anker: der Fehlzustand steht an der Blase.
+    expect(screen.getByText("Nicht gesendet")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: "Gesendet" }),
+    ).not.toBeInTheDocument();
+  });
+});

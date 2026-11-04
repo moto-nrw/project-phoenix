@@ -9,6 +9,7 @@ import {
 } from "./service-factory";
 import type { EntityConfig } from "./types";
 import { ApiError } from "~/lib/api-error";
+import { childrenConcept } from "~/lib/concepts/children";
 
 // Mock next-auth
 const mockGetSession = vi.fn();
@@ -30,7 +31,7 @@ describe("createCrudService", () => {
       singular: "Test Entity",
       plural: "Test Entities",
     },
-    concept: "children",
+    concept: childrenConcept,
     labels: {
       createModalTitle: "Test erstellen",
       editModalTitle: "Test bearbeiten",
@@ -57,7 +58,7 @@ describe("createCrudService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue({
-      user: { token: "mock-token" },
+      user: { id: "1" },
     });
   });
 
@@ -423,6 +424,22 @@ describe("createCrudService", () => {
   });
 
   describe("update", () => {
+    it("passes the loaded record to a custom update without fetching it again", async () => {
+      const current = { id: "1", name: "Original" };
+      const update = vi.fn().mockResolvedValue({ ...current, name: "Updated" });
+      const service = createCrudService({
+        ...mockConfig,
+        service: { update },
+      });
+
+      expect(await service.update("1", { name: "Updated" }, current)).toEqual({
+        id: "1",
+        name: "Updated",
+      });
+      expect(update).toHaveBeenCalledWith("1", { name: "Updated" }, current);
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
     it("updates existing entity", async () => {
       const mockResponse = {
         data: { id: "1", name: "Updated" },
@@ -487,11 +504,7 @@ describe("createCrudService", () => {
       const service = createCrudService(configWithCustom);
       await service.update("1", { name: "Updated" });
 
-      expect(mockUpdate).toHaveBeenCalledWith(
-        "1",
-        { name: "Updated" },
-        "mock-token",
-      );
+      expect(mockUpdate).toHaveBeenCalledWith("1", { name: "Updated" });
     });
   });
 
@@ -703,7 +716,8 @@ describe("createCrudService", () => {
   });
 
   describe("authentication", () => {
-    it("includes auth token in requests", async () => {
+    // The BFF reads the session cookie; the browser holds no token (#5005).
+    it("sends the session cookie and no Authorization header", async () => {
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({ data: [] }),
@@ -723,9 +737,13 @@ describe("createCrudService", () => {
       );
 
       const callArgs = (global.fetch as ReturnType<typeof vi.fn>).mock
-        .calls[0] as [string, { headers?: Headers }] | undefined;
+        .calls[0] as
+        | [string, { headers?: Headers; credentials?: RequestCredentials }]
+        | undefined;
       const headers = callArgs?.[1]?.headers;
-      expect(headers?.get("Authorization")).toBe("Bearer mock-token");
+      expect(callArgs?.[1]?.credentials).toBe("include");
+      expect(headers?.get("Content-Type")).toBe("application/json");
+      expect(headers?.has("Authorization")).toBe(false);
     });
 
     it("works without token when not authenticated", async () => {

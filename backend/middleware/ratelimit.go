@@ -92,7 +92,7 @@ func (rl *RateLimiter) ExemptLoopback() {
 // isLoopbackPeer reports whether the request's TCP peer is a loopback address.
 //
 // The root router rewrites RemoteAddr from the rightmost X-Forwarded-For entry
-// (ClientIPFromXFFTrustedProxies and syncClientIPToRemoteAddr in api/base.go), so a request
+// (ClientIPFromXFFTrustedProxies and syncClientIPToRemoteAddr in api/serve_middleware.go), so a request
 // that carries the header has a RemoteAddr chosen by a header, not by the
 // connection. Only a request without the header still holds the TCP peer, and
 // only such a request can be exempt.
@@ -165,7 +165,7 @@ func (rl *RateLimiter) reject(w http.ResponseWriter, r *http.Request, bucket str
 	})
 }
 
-// codeGeneralUnavailable is the registered class code (error-registry.json)
+// codeGeneralUnavailable is the registered class code (error-registry/)
 // of a rate-limited request. This package may not import api/common, so it
 // names the code once here.
 const codeGeneralUnavailable = "general.unavailable"

@@ -110,15 +110,22 @@ func (m StaffMasterData) validateEmploymentDates() error {
 
 // StaffQualification is one qualification row of a staff member (#1423).
 type StaffQualification struct {
-	ID         int64
-	TenantID   int64
-	StaffID    int64
-	SortOrder  int
+	ID        int64
+	TenantID  int64
+	StaffID   int64
+	SortOrder int
+	// TypeID names the kind of proof (#4808); nil is "Sonstiges" with the
+	// free-text Name.
+	TypeID     *int64
 	Name       string
 	AcquiredOn string
 	ExpiresOn  string
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	// LeadRemindedFor and ExpiryRemindedFor hold the expiry date the
+	// reminders already went out for; empty means not yet.
+	LeadRemindedFor   string
+	ExpiryRemindedFor string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 func (q StaffQualification) Validate() error {

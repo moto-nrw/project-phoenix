@@ -20,6 +20,7 @@ import (
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
@@ -51,5 +52,5 @@ func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
 	assert.Equal(t, 4, resp.Data.GradeLevelMax,
 		"grade cap must still resolve correctly through the batch + cache path")
 	// Tenant resolve must load config.setting_values exactly once per request.
-	testpkg.AssertQueryBudget(t, "api.auth.tenant_resolve.setting_values", queries)
+	querybudgets.AssertQueryBudget(t, "api.auth.tenant_resolve.setting_values", queries)
 }

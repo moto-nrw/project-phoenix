@@ -1,0 +1,11 @@
+{
+  "announcement_published": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "attachment_limit_reached": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "file_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "file_name_invalid": "Nazwa pliku jest niedozwolona. Wybierz plik ponownie.",
+  "file_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "file_type_not_allowed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "file_unreadable": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "folder_name_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "quota_exceeded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+}

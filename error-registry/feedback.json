@@ -1,0 +1,10 @@
+{
+  "codes": [
+    {
+      "code": "feedback.disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "feedback.disabled"
+    }
+  ]
+}

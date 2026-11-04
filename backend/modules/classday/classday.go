@@ -278,6 +278,13 @@ type DayRow struct {
 	// HandoverAbsent is true when the Lehrkraft marked the child "nicht da"
 	// at today's handover of the class (#4794).
 	HandoverAbsent bool `json:"handover_absent,omitempty"`
+	// Unreported is true when the Lehrkraft marked the child absent this
+	// morning and nobody reported it sick, excused or on a class trip
+	// ("fehlt ohne Meldung", #4791).
+	Unreported bool `json:"unreported,omitempty"`
+	// StatusBySchool is true when the Schulverwaltung entered Status
+	// afterwards in moto schule (#4791); only it takes the report back.
+	StatusBySchool bool `json:"status_by_school,omitempty"`
 }
 
 // DayMorningAttendance is one child's school-morning status on the wire.
@@ -374,6 +381,10 @@ type DayReport struct {
 	// CanWriteHomework is true when the caller may enter homework for this
 	// class: the token holds class_day:homework_write. The HTTP layer sets it.
 	CanWriteHomework bool `json:"can_write_homework"`
+	// CanReadSharedNotes is true when the caller is assigned to this class in
+	// education.class_teachers and may open the notes the OGS released for
+	// the school (#4797). class_day:all_classes alone never sets it.
+	CanReadSharedNotes bool `json:"can_read_shared_notes"`
 	// Handover is the class's handover to the OGS on the date (#4794), nil
 	// while the class has not been handed over.
 	Handover *DayHandover `json:"handover,omitempty"`
@@ -382,6 +393,11 @@ type DayReport struct {
 	// school ticked the handover in its write scope, and the token holds
 	// class_day:handover_write.
 	CanHandOver bool `json:"can_hand_over"`
+	// CanReportAbsences is true when the caller may enter a report for a
+	// child missing without one, or take the school's report back (#4791):
+	// the date is today and a school day (projection), and the token holds
+	// class_day:absence_report_write (HTTP adapter).
+	CanReportAbsences bool `json:"can_report_absences"`
 }
 
 // DayHandover is the handover of a class as the class view shows it.
@@ -426,7 +442,10 @@ type MorningAttendanceWrite struct {
 	Date        Date
 	// RecordedBy is the users.staff_school_memberships row of the Lehrkraft.
 	RecordedBy int64
-	Marks      []MorningAttendanceMark
+	// ActorAccountID is the Lehrkraft's account; the notice about children
+	// missing without a report spares it (#4791).
+	ActorAccountID int64
+	Marks          []MorningAttendanceMark
 }
 
 // ArrivalException is one class-wide arrival day exception.
@@ -590,6 +609,101 @@ type SupervisionSheetInput struct {
 	ActorRole         string
 }
 
+// SchoolDayTotals summarize the school-wide day overview (#4802), for the
+// whole school or one class.
+type SchoolDayTotals struct {
+	// DayTotals are the class view's own counts (students, staying, leaving,
+	// absent, list entries), so a class reads the same numbers here and on
+	// its own page.
+	DayTotals
+	// Missing counts the children whose school-morning status is "absent"
+	// (#4790): marked by the Lehrkraft, or filled in from a reported sick,
+	// excused or class-trip day.
+	Missing int `json:"missing"`
+	// Unreported counts the children missing without a report (#4791):
+	// marked absent by the Lehrkraft, with no sick, excused or class-trip
+	// day.
+	Unreported int `json:"unreported"`
+	// Sick, Excused and ClassTrip count the reported day statuses.
+	Sick      int `json:"sick"`
+	Excused   int `json:"excused"`
+	ClassTrip int `json:"class_trip"`
+	// Changes counts the children whose day differs from their plan: a
+	// reported day status or a changed pickup time, as in the class view.
+	Changes int `json:"changes"`
+}
+
+// After-school outcomes of a child in the school-wide day overview.
+const (
+	SchoolDayStays    = "stays"
+	SchoolDayGoesHome = "goes_home"
+)
+
+// SchoolDayChild is one child of the school-wide day overview, reduced to
+// what its numbers count: the name, the day status, the morning status and
+// whether the child stays in the OGS. No times, departures or contacts.
+type SchoolDayChild struct {
+	StudentID int64 `json:"student_id,string,omitempty"`
+	// ListEntry marks a class-list-only entry (#2382); ListEntryID carries
+	// its id as a JSON string.
+	ListEntry   bool   `json:"list_entry,omitempty"`
+	ListEntryID int64  `json:"list_entry_id,string,omitempty"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	// Status is the day status as in the class view ("sick", "excused",
+	// "class_trip", "cancelled"), empty without one.
+	Status string `json:"status,omitempty"`
+	// Missing is true when the school-morning status is "absent".
+	Missing bool `json:"missing,omitempty"`
+	// Unreported is true when the child misses without a report (#4791).
+	Unreported bool `json:"unreported,omitempty"`
+	// StatusBySchool is true when the Schulverwaltung entered Status
+	// afterwards (#4791).
+	StatusBySchool bool `json:"status_by_school,omitempty"`
+	// AfterSchool is SchoolDayStays or SchoolDayGoesHome, empty for a child
+	// with a day status, a class-list-only entry and whenever the totals
+	// leave Staying and Leaving at zero.
+	AfterSchool string `json:"after_school,omitempty"`
+	// Changed marks a day that differs from the child's plan.
+	Changed bool `json:"changed,omitempty"`
+}
+
+// SchoolDayClass is one class of the school-wide day overview.
+type SchoolDayClass struct {
+	SchoolClass string           `json:"school_class"`
+	Totals      SchoolDayTotals  `json:"totals"`
+	Children    []SchoolDayChild `json:"children"`
+}
+
+// SchoolDayReport is the school-wide day overview of moto schule (#4802).
+// Its JSON shape is the wire contract of GET /school/class-day/school-day.
+type SchoolDayReport struct {
+	Date Date `json:"date"`
+	// Weekday is the plan day key ("mon".."fri"), empty on a weekend that
+	// does not follow Friday's plan.
+	Weekday   string `json:"weekday"`
+	SchoolDay bool   `json:"school_day"`
+	// EnrollmentKnown is false when no enrollment phase covers the date.
+	EnrollmentKnown bool             `json:"enrollment_known"`
+	Totals          SchoolDayTotals  `json:"totals"`
+	Classes         []SchoolDayClass `json:"classes"`
+	// CanReportAbsences is true when the caller may enter a report for a
+	// child missing without one (#4791): the date is today and a school day,
+	// and the token holds class_day:absence_report_write.
+	CanReportAbsences bool `json:"can_report_absences"`
+}
+
+// SchoolDay is the school-wide day overview of moto schule (#4802), a facade
+// of its own beside ClassDay. The class rosters, day statuses, plans and
+// morning marks of every class are read once for the whole school, not once
+// per class. The capability ClassDay returns implements it; the HTTP adapter
+// serves it only to holders of class_day:all_classes.
+type SchoolDay interface {
+	// SchoolDayReport builds the overview of every class the caller may see
+	// on the date and records the access in the GDPR log.
+	SchoolDayReport(ctx context.Context, date Date, actor Actor) (*SchoolDayReport, error)
+}
+
 // DayHints is the day-hint write of the school portal (#4795), a facade of its
 // own beside ClassDay: the Lehrkraft writes today's hint for an assigned class
 // or one of its children. The day report carries the hints; this writes them.
@@ -601,4 +715,60 @@ type DayHints interface {
 	SetDayHint(ctx context.Context, in DayHintWrite) error
 	// ClearDayHint removes one of the caller's day hints, today only.
 	ClearDayHint(ctx context.Context, target DayHintTarget) error
+}
+
+// ErrSharedNotesNotConfigured is returned by the shared-notes capability when
+// the projection was composed without its seam (#4797).
+var ErrSharedNotesNotConfigured = errors.New("shared notes are not configured")
+
+// ErrSharedNoteStudentNotInClass refuses the notes of a child that is not in
+// the requested class.
+var ErrSharedNoteStudentNotInClass = errors.New("the child is not in this class")
+
+// SharedNote is one note the OGS released for the school (#4797), reduced to
+// what the Lehrkraft reads. It carries no audience and no group reference:
+// those are the OGS's business, and the Lehrkraft can neither change nor
+// answer the note.
+type SharedNote struct {
+	ID       int64  `json:"id,string"`
+	Kind     string `json:"kind"`
+	Category string `json:"category,omitempty"`
+	Body     string `json:"body"`
+	// SubjectDate is the day a dated entry describes; nil for a durable hint.
+	SubjectDate *calendar.Date `json:"subject_date,omitempty"`
+	// AuthorName is the author's current name, empty when the person is gone.
+	AuthorName string    `json:"author_name,omitempty"`
+	Edited     bool      `json:"edited"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// StudentSharedNotes is the view of one child in moto schule with the notes
+// the OGS released for the school, newest first.
+type StudentSharedNotes struct {
+	StudentID   int64        `json:"student_id,string"`
+	FirstName   string       `json:"first_name"`
+	LastName    string       `json:"last_name"`
+	SchoolClass string       `json:"school_class"`
+	Notes       []SharedNote `json:"notes"`
+}
+
+// SharedNotesRequest names the class and the child whose shared notes the
+// actor opens.
+type SharedNotesRequest struct {
+	SchoolClass string
+	StudentID   int64
+	Actor       Actor
+}
+
+// SharedNotes serves the notes the OGS released for the school (#4797). Only
+// a Lehrkraft assigned to the child's class in education.class_teachers
+// reads them; class_day:all_classes widens nothing here, so the
+// Schulverwaltung sees none. The view is read-only.
+type SharedNotes interface {
+	// StudentSharedNotes returns the shared notes of one child of an
+	// assigned class and writes one GDPR access-log row per call.
+	// ErrClassNotAssigned when the caller is not assigned to the class,
+	// ErrSharedNoteStudentNotInClass when the child is not in it.
+	StudentSharedNotes(ctx context.Context, in SharedNotesRequest) (*StudentSharedNotes, error)
 }

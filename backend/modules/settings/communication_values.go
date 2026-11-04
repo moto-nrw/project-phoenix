@@ -8,9 +8,10 @@ import (
 
 // Existing setting identifiers exposed for platform-contract consumers.
 const (
-	KeyParentMessageStaffNameVisible = configModel.KeyParentMessageStaffNameVisible
-	KeyGDPRStaffMessageRetentionDays = configModel.KeyGDPRStaffMessageRetentionDays
-	KeyNotificationsDispatchEnabled  = configModel.KeyNotificationsDispatchEnabled
+	KeyParentMessageStaffNameVisible  = configModel.KeyParentMessageStaffNameVisible
+	KeyParentMessageLeadershipEnabled = configModel.KeyParentMessageLeadershipEnabled
+	KeyGDPRStaffMessageRetentionDays  = configModel.KeyGDPRStaffMessageRetentionDays
+	KeyNotificationsDispatchEnabled   = configModel.KeyNotificationsDispatchEnabled
 )
 
 // ParentMessagingValueSource is the resolver slice used by ParentMessagingValues.
@@ -22,6 +23,7 @@ type ParentMessagingValueSource interface {
 type ParentMessagingValues interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 	ParentMessageStaffNameVisible(ctx context.Context) (bool, error)
+	ParentMessageLeadershipEnabled(ctx context.Context) (bool, error)
 }
 
 type parentMessagingValues struct{ source ParentMessagingValueSource }
@@ -40,6 +42,10 @@ func (v parentMessagingValues) ResolveBool(ctx context.Context, key string) (boo
 
 func (v parentMessagingValues) ParentMessageStaffNameVisible(ctx context.Context) (bool, error) {
 	return v.source.ResolveBool(ctx, configModel.KeyParentMessageStaffNameVisible)
+}
+
+func (v parentMessagingValues) ParentMessageLeadershipEnabled(ctx context.Context) (bool, error) {
+	return v.source.ResolveBool(ctx, configModel.KeyParentMessageLeadershipEnabled)
 }
 
 // ParentAnnouncementValueSource is the resolver slice used by ParentAnnouncementValues.

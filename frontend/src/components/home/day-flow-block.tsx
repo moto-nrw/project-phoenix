@@ -26,6 +26,8 @@ import {
   useBerlinClock,
   useHomeCardRows,
 } from "~/components/home/home-card-rows";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 /** So viele Blöcke passen in eine Karte dieser Höhe ganz hinein. */
 const MAX_BLOCKS = 3;
@@ -85,7 +87,7 @@ export function DayFlowBlock() {
   return (
     <SectionCard
       title="Ablauf des Tages"
-      leading={<HomeCardIcon concept="carePlan" />}
+      leading={<HomeCardIcon concept={carePlanConcept} />}
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
       inlineActions
@@ -158,7 +160,7 @@ export function DayFlowBlock() {
                             block.roomName ? (
                               <Fragment key="room">
                                 <MotoConceptIcon
-                                  concept="rooms"
+                                  concept={roomsConcept}
                                   size={14}
                                   className="mr-1 inline-block align-[-2px]"
                                 />

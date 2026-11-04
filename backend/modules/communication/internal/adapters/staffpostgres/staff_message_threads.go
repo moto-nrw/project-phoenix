@@ -36,6 +36,8 @@ type staffThreadRow struct {
 	TenantID            int64      `bun:"tenant_id,notnull"`
 	ParticipantKey      string     `bun:"participant_key,notnull"`
 	Kind                string     `bun:"kind,notnull"`
+	Name                *string    `bun:"name"`
+	CreatedByAccountID  *int64     `bun:"created_by_account_id"`
 	LastMessageAt       *time.Time `bun:"last_message_at"`
 	LastMessageID       *int64     `bun:"last_message_id"`
 	LastMessageBody     string     `bun:"last_message_body"`
@@ -43,8 +45,13 @@ type staffThreadRow struct {
 }
 
 func (r *staffThreadRow) value() *communication.StaffThreadRecord {
+	name := ""
+	if r.Name != nil {
+		name = *r.Name
+	}
 	return &communication.StaffThreadRecord{
 		ID: r.ID, TenantID: r.TenantID, ParticipantKey: r.ParticipantKey, Kind: r.Kind,
+		Name: name, CreatedByAccountID: r.CreatedByAccountID,
 		LastMessageAt: r.LastMessageAt, LastMessageID: r.LastMessageID,
 		LastMessageBody: r.LastMessageBody, LastSenderAccountID: r.LastSenderAccountID,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
@@ -57,6 +64,8 @@ type staffParticipantRow struct {
 	ThreadID      int64     `bun:"thread_id,pk"`
 	AccountID     int64     `bun:"account_id,pk"`
 	CreatedAt     time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	// HistoryFrom is when a group member joined (#4776); nil for direct chats.
+	HistoryFrom *time.Time `bun:"history_from"`
 }
 
 // FindByID returns the thread within the current tenant, or nil when absent.
@@ -270,7 +279,7 @@ func (s *ThreadStore) HasStaffParticipant(ctx context.Context, threadID, account
 	return exists, nil
 }
 
-// DeleteEmpty removes threads that hold no messages any more, so retention
+// DeleteEmpty removes direct threads that hold no messages any more, so retention
 // cleanup does not leave orphaned conversations in the inbox. Participant and
 // read-cursor rows follow via ON DELETE CASCADE.
 //
@@ -288,6 +297,10 @@ func (s *ThreadStore) DeleteEmptyStaffThreads(ctx context.Context, createdBefore
 		Model((*staffThreadRow)(nil)).
 		ModelTableExpr(tableExprStaffMessageThreadsAsThread).
 		Where(`"staff_message_thread".created_at < ?`, createdBefore).
+		// A group outlives a quiet month: its name and members are what the
+		// school set up, not message history (#4776). It ends when its last
+		// member leaves.
+		Where(`"staff_message_thread".kind = ?`, domain.StaffMessageThreadKindDirect).
 		Where(`NOT EXISTS (
 			SELECT 1 FROM users.staff_messages m
 			WHERE m.thread_id = "staff_message_thread".id

@@ -104,7 +104,7 @@ func buildArrivalDataResponse(data *careplan.StudentArrivalData) ArrivalDataResp
 //
 // studentID is for the log line only — the event carries no student id (it is
 // a tenant-wide staff broadcast; see the pickup sibling for the GDPR reasoning).
-func (rs *Resource) broadcastArrivalScheduleChanged(studentID int64) {
+func (rs *Resource) broadcastArrivalScheduleChanged(tenantID, studentID int64) {
 	if rs.Broadcaster == nil {
 		return
 	}
@@ -116,7 +116,7 @@ func (rs *Resource) broadcastArrivalScheduleChanged(studentID int64) {
 		"",
 		data,
 	)
-	if err := rs.Broadcaster.BroadcastToAll(event); err != nil && rs.Logger != nil {
+	if err := rs.Broadcaster.BroadcastToTenant(tenantID, event); err != nil && rs.Logger != nil {
 		rs.Logger.Warn(
 			"failed to broadcast arrival schedule change",
 			"student_id", studentID,
@@ -169,7 +169,7 @@ func (rs *Resource) updateStudentArrivalSchedules(w http.ResponseWriter, r *http
 	// already refreshed to it. The guardian fan-out is separate because the
 	// tenant-wide arrival_schedule_changed never reaches the parent SSE stream.
 	tenant.RegisterAfterCommit(r.Context(), func() {
-		rs.broadcastArrivalScheduleChanged(student.ID)
+		rs.broadcastArrivalScheduleChanged(tenantID, student.ID)
 		rs.wakeChildGuardians(tenantID, student.ID)
 	})
 	response := buildArrivalDataResponse(data)
@@ -219,7 +219,7 @@ func (rs *Resource) createStudentArrivalException(w http.ResponseWriter, r *http
 	// The guardian wake is what makes the "Heute" tile reflect a staff arrival
 	// override (a no-show arrival_absent resolves the tile as absent).
 	tenant.RegisterAfterCommit(r.Context(), func() {
-		rs.broadcastArrivalScheduleChanged(student.ID)
+		rs.broadcastArrivalScheduleChanged(tenantID, student.ID)
 		rs.wakeChildGuardians(tenantID, student.ID)
 	})
 	common.Respond(w, r, http.StatusCreated, mapArrivalExceptionToResponse(exception), "Arrival exception created successfully")
@@ -271,7 +271,7 @@ func (rs *Resource) updateStudentArrivalException(w http.ResponseWriter, r *http
 	// nor the guardian wake can make a client refetch the pre-edit override (the
 	// service write runs in a nested tx, not committed on return) (#1725 review).
 	tenant.RegisterAfterCommit(r.Context(), func() {
-		rs.broadcastArrivalScheduleChanged(student.ID)
+		rs.broadcastArrivalScheduleChanged(tenantID, student.ID)
 		rs.wakeChildGuardians(tenantID, student.ID)
 	})
 	common.Respond(w, r, http.StatusOK, mapArrivalExceptionToResponse(exception), "Arrival exception updated successfully")
@@ -305,7 +305,7 @@ func (rs *Resource) deleteStudentArrivalException(w http.ResponseWriter, r *http
 	// not committed yet. The native delete joins the request transaction
 	// (#1725 review).
 	tenant.RegisterAfterCommit(r.Context(), func() {
-		rs.broadcastArrivalScheduleChanged(student.ID)
+		rs.broadcastArrivalScheduleChanged(tenantID, student.ID)
 		rs.wakeChildGuardians(tenantID, student.ID)
 	})
 	common.Respond(w, r, http.StatusOK, nil, "Arrival exception deleted successfully")
@@ -350,7 +350,7 @@ func (rs *Resource) createStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 	// still-open TenantTxMiddleware tx, so a client woken here would read the
 	// note-less day and never be invalidated again (#1725 review).
 	tenant.RegisterAfterCommit(r.Context(), func() {
-		rs.broadcastArrivalScheduleChanged(student.ID)
+		rs.broadcastArrivalScheduleChanged(tenantID, student.ID)
 	})
 	common.Respond(w, r, http.StatusCreated, mapArrivalNoteToResponse(note), "Arrival note created successfully")
 }
@@ -399,7 +399,7 @@ func (rs *Resource) updateStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 
 	// After commit — same nested-tx reason as the create path above.
 	tenant.RegisterAfterCommit(r.Context(), func() {
-		rs.broadcastArrivalScheduleChanged(student.ID)
+		rs.broadcastArrivalScheduleChanged(tenantID, student.ID)
 	})
 	common.Respond(w, r, http.StatusOK, mapArrivalNoteToResponse(note), "Arrival note updated successfully")
 }
@@ -431,7 +431,7 @@ func (rs *Resource) deleteStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 
 	// After commit — same nested-tx reason as the create path above.
 	tenant.RegisterAfterCommit(r.Context(), func() {
-		rs.broadcastArrivalScheduleChanged(student.ID)
+		rs.broadcastArrivalScheduleChanged(tenantID, student.ID)
 	})
 	common.Respond(w, r, http.StatusOK, nil, "Arrival note deleted successfully")
 }
@@ -486,7 +486,7 @@ func (rs *Resource) bulkUpsertArrivalSchedules(w http.ResponseWriter, r *http.Re
 	// #1725) and bounded to the one class.
 	affected := result.AffectedStudentIDs
 	tenant.RegisterAfterCommit(r.Context(), func() {
-		rs.broadcastArrivalScheduleChanged(0)
+		rs.broadcastArrivalScheduleChanged(tenantID, 0)
 		for _, studentID := range affected {
 			rs.wakeChildGuardians(tenantID, studentID)
 		}

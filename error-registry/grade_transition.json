@@ -1,0 +1,34 @@
+{
+  "codes": [
+    {
+      "code": "grade_transition.graduates_checked_in",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "graduates_checked_in"
+    },
+    {
+      "code": "grade_transition.not_applied",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "not_applied"
+    },
+    {
+      "code": "grade_transition.not_draft",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "not_draft"
+    },
+    {
+      "code": "grade_transition.not_latest_transition",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "not_latest_transition"
+    },
+    {
+      "code": "grade_transition.preview_stale",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "preview_stale"
+    }
+  ]
+}

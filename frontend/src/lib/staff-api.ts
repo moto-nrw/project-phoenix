@@ -53,6 +53,8 @@ export interface BackendStaffResponse {
   external_organization?: string | null;
   /** Account state of an external caregiver; absent for everyone else. */
   external_account_status?: ExternalAccountStatus | null;
+  /** Geplanter letzter Arbeitstag, "YYYY-MM-DD" (#4809). */
+  planned_exit_date?: string | null;
 }
 
 /**
@@ -128,6 +130,8 @@ export interface Staff {
   absenceType?: string;
   /** The school's own Abwesenheitsart wording, "" for a standard type (#2403). */
   absenceTypeLabel?: string;
+  /** Geplanter letzter Arbeitstag, "YYYY-MM-DD" (#4809). */
+  plannedExitDate?: string;
   isFinancialProfile?: boolean;
   isLimitedProfile?: boolean;
   /** Externe Betreuungskraft, mit oder ohne moto-Konto (#3823, #4573). */
@@ -412,6 +416,7 @@ function mapStaffMember(
     isExternal: staff.is_external ?? false,
     externalOrganization: staff.external_organization ?? undefined,
     externalAccountStatus: staff.external_account_status ?? null,
+    plannedExitDate: staff.planned_exit_date ?? undefined,
   };
 }
 
@@ -450,6 +455,47 @@ async function fetchActiveGroups(): Promise<ActiveGroupWithId[]> {
   } catch {
     return [];
   }
+}
+
+/** Kopf der Personalakte aus dem Datensatz von GET /api/staff/{id}. */
+export function mapStaffRecord(staff: BackendStaffResponse): Staff {
+  const { currentLocation, supervisionRole } = getSupervisionInfo(
+    staff.staff_id,
+    {},
+    staff.was_present_today,
+    staff.work_status,
+    staff.absence_type,
+  );
+  return {
+    id: staff.id,
+    startedOn: staff.started_on,
+    endedOn: staff.ended_on,
+    name: staff.name,
+    firstName: staff.firstName ?? staff.name?.split(" ")[0] ?? "",
+    lastName: staff.lastName ?? staff.name?.split(" ").slice(1).join(" ") ?? "",
+    email: undefined,
+    avatarUrl: staffAvatarUrl(staff.id, staff.avatar),
+    role: staff.role ?? undefined,
+    accountRole: staff.account_role ?? undefined,
+    specialization: staff.specialization?.trim() ?? undefined,
+    qualifications: staff.qualifications ?? undefined,
+    staffNotes: staff.staff_notes ?? undefined,
+    employmentType: staff.employment_type ?? undefined,
+    hasRfid: !!staff.tag_id,
+    isTeacher: !!staff.teacher_id,
+    isSupervising: false,
+    currentLocation,
+    supervisionRole,
+    supervisions: [],
+    wasPresentToday: staff.was_present_today,
+    workStatus: staff.work_status,
+    absenceType: staff.absence_type,
+    absenceTypeLabel: staff.absence_type_label,
+    isExternal: staff.is_external ?? false,
+    externalOrganization: staff.external_organization ?? undefined,
+    externalAccountStatus: staff.external_account_status ?? null,
+    plannedExitDate: staff.planned_exit_date ?? undefined,
+  };
 }
 
 // Staff service
@@ -573,8 +619,9 @@ class StaffService {
     return mapStaffMember(payload.data, {});
   }
 
-  // Get a single staff member by ID
-  async getStaffById(id: string): Promise<Staff> {
+  // Rohdaten von GET /api/staff/{id}. Kopf der Personalakte (mapStaffRecord)
+  // und Konto-Reiter leiten ihre Abbildungen aus demselben Abruf ab (#4993).
+  async getStaffRecord(id: string): Promise<BackendStaffResponse> {
     const response = await sessionFetch(`/api/staff/${id}`);
     if (!response.ok) {
       throw await apiErrorFromResponse(
@@ -582,47 +629,8 @@ class StaffService {
         `Failed to fetch staff member: ${response.statusText}`,
       );
     }
-    const json = (await response.json()) as {
-      data: BackendStaffResponse & { employment_type?: string | null };
-    };
-    const staff = json.data;
-    const { currentLocation, supervisionRole } = getSupervisionInfo(
-      staff.staff_id,
-      {},
-      staff.was_present_today,
-      staff.work_status,
-      staff.absence_type,
-    );
-    return {
-      id: staff.id,
-      startedOn: staff.started_on,
-      endedOn: staff.ended_on,
-      name: staff.name,
-      firstName: staff.firstName ?? staff.name?.split(" ")[0] ?? "",
-      lastName:
-        staff.lastName ?? staff.name?.split(" ").slice(1).join(" ") ?? "",
-      email: undefined,
-      avatarUrl: staffAvatarUrl(staff.id, staff.avatar),
-      role: staff.role ?? undefined,
-      accountRole: staff.account_role ?? undefined,
-      specialization: staff.specialization?.trim() ?? undefined,
-      qualifications: staff.qualifications ?? undefined,
-      staffNotes: staff.staff_notes ?? undefined,
-      employmentType: staff.employment_type ?? undefined,
-      hasRfid: !!staff.tag_id,
-      isTeacher: !!staff.teacher_id,
-      isSupervising: false,
-      currentLocation,
-      supervisionRole,
-      supervisions: [],
-      wasPresentToday: staff.was_present_today,
-      workStatus: staff.work_status,
-      absenceType: staff.absence_type,
-      absenceTypeLabel: staff.absence_type_label,
-      isExternal: staff.is_external ?? false,
-      externalOrganization: staff.external_organization ?? undefined,
-      externalAccountStatus: staff.external_account_status ?? null,
-    };
+    const json = (await response.json()) as { data: BackendStaffResponse };
+    return json.data;
   }
 
   async getFinancialProfile(id: string): Promise<Staff> {
@@ -2059,6 +2067,8 @@ export interface StammdatenArbeitsvertrag {
 
 export interface StammdatenQualifikation {
   id: string | null;
+  /** Nachweisart (#4808); null ist „Sonstiges“ mit freiem Namen. */
+  typeId: string | null;
   name: string;
   acquiredOn: string | null;
   expiresOn: string | null;
@@ -2109,7 +2119,8 @@ interface BackendStammdaten {
     employment_type: string | null;
   };
   qualifikationen: {
-    id?: number;
+    id?: string;
+    type_id?: string | null;
     name: string;
     acquired_on: string | null;
     expires_on: string | null;
@@ -2142,7 +2153,8 @@ function mapStammdatenResponse(data: BackendStammdaten): StaffStammdaten {
       employmentType: data.arbeitsvertrag.employment_type,
     },
     qualifikationen: (data.qualifikationen ?? []).map((q) => ({
-      id: q.id != null ? q.id.toString() : null,
+      id: q.id ?? null,
+      typeId: q.type_id ?? null,
       name: q.name,
       acquiredOn: q.acquired_on,
       expiresOn: q.expires_on,
@@ -2248,6 +2260,8 @@ class StaffStammdatenService {
   ): Promise<void> {
     await this.putSection(staffId, "qualifikationen", {
       qualifikationen: qualifikationen.map((q) => ({
+        ...(q.id !== null ? { id: q.id } : {}),
+        type_id: q.typeId,
         name: q.name,
         acquired_on: q.acquiredOn,
         expires_on: q.expiresOn,
@@ -2334,3 +2348,41 @@ export const staffMonthSummaryService = new StaffMonthSummaryService();
 export const staffBalanceAdjustmentService =
   new StaffBalanceAdjustmentService();
 export const staffMonthCloseService = new StaffMonthCloseService();
+
+/**
+ * Geplanter Austritt (#4809): die Leitung trägt den letzten Arbeitstag einer
+ * Person ein. Nach dem Ende dieses Tages löscht moto die Person wie über
+ * „Löschen“. Bis zum letzten Arbeitstag lässt sich der Tag ändern oder der
+ * Austritt zurücknehmen.
+ */
+export const staffPlannedExitService = {
+  async plan(staffId: string, lastWorkingDay: string): Promise<string> {
+    const response = await sessionFetch(`/api/staff/${staffId}/planned-exit`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ last_working_day: lastWorkingDay }),
+    });
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        "Der Austritt konnte nicht gespeichert werden",
+      );
+    }
+    const json = (await response.json()) as {
+      data?: { last_working_day?: string };
+    };
+    return json.data?.last_working_day ?? lastWorkingDay;
+  },
+
+  async withdraw(staffId: string): Promise<void> {
+    const response = await sessionFetch(`/api/staff/${staffId}/planned-exit`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        "Der Austritt konnte nicht zurückgenommen werden",
+      );
+    }
+  },
+};

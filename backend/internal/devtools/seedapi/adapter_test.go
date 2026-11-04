@@ -23,6 +23,7 @@ const (
 	seedHTTPStatusCreated             = testpkg.HTTPStatusCreated
 	seedHTTPStatusNoContent           = testpkg.HTTPStatusNoContent
 	seedHTTPStatusUnauthorized        = testpkg.HTTPStatusUnauthorized
+	seedHTTPStatusForbidden           = testpkg.HTTPStatusForbidden
 	seedHTTPStatusNotFound            = testpkg.HTTPStatusNotFound
 	seedHTTPStatusConflict            = testpkg.HTTPStatusConflict
 	seedHTTPStatusInternalServerError = testpkg.HTTPStatusInternalServerError

@@ -207,4 +207,19 @@ describe("SignaturePad", () => {
       /Unterschreiben Sie mit dem Finger.*Bitte noch einmal\./,
     );
   });
+
+  it("marks the pad so a failed form jumps to it (#5217)", () => {
+    const { container, rerender } = render(
+      <Harness onValue={vi.fn()} error="Bitte noch einmal." />,
+    );
+    expect(container.querySelector('[aria-invalid="true"]')).toContainElement(
+      screen.getByRole("img", { name: "Feld zum Unterschreiben" }),
+    );
+
+    rerender(<Harness onValue={vi.fn()} />);
+    expect(
+      screen.getByRole("img", { name: "Feld zum Unterschreiben" }),
+    ).not.toHaveAccessibleDescription(/Bitte noch einmal/);
+    expect(container.querySelector("[aria-invalid]")).toBeNull();
+  });
 });

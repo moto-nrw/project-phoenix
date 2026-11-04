@@ -1,0 +1,7 @@
+POST /traeger/auth/login -> basis
+POST /traeger/auth/mfa/enroll/confirm -> basis
+POST /traeger/auth/mfa/enroll/start -> basis
+POST /traeger/auth/mfa/resend -> basis
+POST /traeger/auth/mfa/verify -> basis
+POST /traeger/auth/password-reset -> basis
+POST /traeger/auth/password-reset/confirm -> basis

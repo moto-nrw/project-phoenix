@@ -87,14 +87,28 @@ type HolidayRegistrationOffer struct {
 	Notes                string
 	Weeks                []HolidayWeek
 	Open                 bool
+	// Form is the current version of the period's form (#5198).
+	Form HolidayPeriodForm
+	// ConsentTexts are the German texts of the fixed declarations the form
+	// shows, in HolidayConsentVersionCurrent (#5626).
+	ConsentTexts HolidayConsentTexts
 }
 
-// HolidayGuardianInput is the parent who registers.
+// HolidayGuardianInput holds the registering or optional second guardian’s contact details.
 type HolidayGuardianInput struct {
-	FirstName string
-	LastName  string
-	Email     string
-	Phone     string
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Email     string `json:"email"`
+	Phone     string `json:"phone"`
+}
+
+// HolidayAddress is the postal address of the parent who registers
+// (#5625): all three parts or none. The form of the period decides whether
+// it is asked.
+type HolidayAddress struct {
+	Street     string `json:"street"`
+	PostalCode string `json:"postal_code"`
+	City       string `json:"city"`
 }
 
 // HolidayBookingInput is the time model a child books in one week.
@@ -115,6 +129,9 @@ type HolidayChildInput struct {
 	Medication      string
 	HealthNotes     string
 	Bookings        []HolidayBookingInput
+	// CustomData are the answers to the questions of the form per child
+	// (#5198), by field key.
+	CustomData HolidayAnswers
 }
 
 // HolidayContactInput is an emergency contact or a person allowed to
@@ -129,16 +146,39 @@ type HolidayContactInput struct {
 // PrivacyConsent is always required, HealthConsent whenever a child carries
 // health information and BindingConfirmed when the period is binding.
 // BenefitsDeclared states that the family receives benefits (#4664); the
-// Träger-Büro checks it before it applies an exemption.
+// Träger-Büro checks it before it applies an exemption. BenefitsProofTokens
+// name the uploaded proofs of the benefits (#5238), which the registration
+// claims; they need BenefitsDeclared. FormVersion names
+// the version of the period's form the parent filled in (0 when the client
+// does not say); CustomData are the answers per family (#5198).
+// CustodyConfirmed and DeclarationName are required for every registration:
+// the parent confirms the custody and gives the declarations with the typed
+// name (#5626).
+// GuardianAddress is the postal address of the parent who registers, when
+// the form asks for it (#5625).
 type HolidayRegistrationInput struct {
 	Guardian          HolidayGuardianInput
+	GuardianAddress   *HolidayAddress
+	SecondGuardian    *HolidayGuardianInput
 	Children          []HolidayChildInput
 	EmergencyContacts []HolidayContactInput
 	PickupPersons     []HolidayContactInput
 	PrivacyConsent    bool
 	HealthConsent     bool
 	BindingConfirmed  bool
+	CustodyConfirmed  bool
+	DeclarationName   string
 	BenefitsDeclared  bool
+	// BenefitsProofTokens are the single-use tokens of the uploaded proofs.
+	BenefitsProofTokens []string
+	FormVersion         int
+	CustomData          HolidayAnswers
+	LegalAcceptances    map[string]bool
+	// ConsentVersion is the version of the consent texts the parent agreed
+	// to (#4722). A new registration names HolidayConsentVersionCurrent
+	// (#5626); from HolidayConsentVersionHostHealth on the hosting OGS sees
+	// the health information.
+	ConsentVersion int
 }
 
 // HolidayRegistrationReceipt confirms a stored registration. It repeats no
@@ -152,12 +192,20 @@ type HolidayRegistrationReceipt struct {
 // ResolveHolidayRegistrationLink runs in the administrative transaction,
 // every other operation in the Träger transaction of the link's Träger.
 type HolidayRegistrations interface {
+	PublicHolidayFormDocument(context.Context, HolidayRegistrationLink, string) (HolidayFormDocument, error)
 	ResolveHolidayRegistrationLink(ctx context.Context, token string) (HolidayRegistrationLink, error)
 	HolidayRegistrationOffer(ctx context.Context, link HolidayRegistrationLink) (HolidayRegistrationOffer, error)
 	// CountHolidayRegistrationAttempt counts one attempt per IP address and
 	// per e-mail address and refuses with ErrRateLimited past the limit.
 	CountHolidayRegistrationAttempt(ctx context.Context, organizationID int64, remoteIP, email string) error
 	SubmitHolidayRegistration(ctx context.Context, link HolidayRegistrationLink, input HolidayRegistrationInput) (HolidayRegistrationReceipt, error)
+	// CountHolidayProofUpload counts one upload per IP address and refuses
+	// with ErrUploadRateLimited past the limit (#5238).
+	CountHolidayProofUpload(ctx context.Context, organizationID int64, remoteIP string) error
+	// UploadHolidayProof stores an unclaimed proof of benefits for the
+	// period of the link while its registration window is open, and returns
+	// the token the submission claims it with (#5238).
+	UploadHolidayProof(ctx context.Context, link HolidayRegistrationLink, upload HolidayProofUpload) (HolidayProofReceipt, error)
 }
 
 // HolidayRegistrationMailKind is the Delivery outbox kind of the receipt
@@ -195,14 +243,16 @@ type HolidayRegistrationMailChild struct {
 }
 
 // HolidayRegistrationMail is the payload of the receipt mail. It carries no
-// health information and no date of birth.
+// health information and no date of birth. Declaration is the parent's copy
+// of the declarations (#5626); a mail enqueued before has none.
 type HolidayRegistrationMail struct {
-	Recipient    string                         `json:"recipient_email"`
-	GuardianName string                         `json:"guardian_name"`
-	TraegerName  string                         `json:"traeger_name"`
-	PeriodName   string                         `json:"period_name"`
-	Binding      bool                           `json:"binding"`
-	Children     []HolidayRegistrationMailChild `json:"children"`
+	Recipient    string                              `json:"recipient_email"`
+	GuardianName string                              `json:"guardian_name"`
+	TraegerName  string                              `json:"traeger_name"`
+	PeriodName   string                              `json:"period_name"`
+	Binding      bool                                `json:"binding"`
+	Children     []HolidayRegistrationMailChild      `json:"children"`
+	Declaration  *HolidayRegistrationMailDeclaration `json:"declaration,omitempty"`
 }
 
 // HolidayRegistrationRetentionDays is how long the registrations of a period

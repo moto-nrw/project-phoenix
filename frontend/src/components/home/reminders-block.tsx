@@ -21,6 +21,7 @@ import {
   HomeMoreRow,
   useHomeCardRows,
 } from "~/components/home/home-card-rows";
+import { pickupConcept } from "~/lib/concepts/pickup";
 
 /** So viele Zeilen passen in eine Karte dieser Höhe ganz hinein. */
 const MAX_ROWS = 3;
@@ -46,7 +47,7 @@ export function RemindersBlock() {
       title="Erinnerungen"
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
-      leading={<HomeCardIcon concept="pickup" />}
+      leading={<HomeCardIcon concept={pickupConcept} />}
       inlineActions
       actions={
         <HomeCardLink

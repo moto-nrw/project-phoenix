@@ -1,10 +1,11 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
 import { loadSeedAccess, type SeedAccess } from "../scripts/seed-state";
+import { frontendPort } from "./frontend-port";
 import { loginToLocalTenant } from "./local-tenant-login";
 
 // Gemeinsamer Tenant-Zugang der E2E-Specs. Der lokale Stack bedient die
-// Tenant-App nur unter {slug}.localhost:3000 (bare localhost ist die
+// Tenant-App nur unter {slug}.localhost:<PORT> (bare localhost ist die
 // Marketing-Seite); die Login-Maske liegt auf der Tenant-Wurzel `/`. Slug und
 // Admin-Zugang stehen in backend/.seed-state.json; E2E_TENANT_SLUG /
 // E2E_TEST_EMAIL / E2E_TEST_PASSWORD überschreiben sie. Ohne verwertbare Werte
@@ -21,7 +22,7 @@ if (process.env.CI && seedAccess === null) {
 }
 
 export const tenantBase = seedAccess
-  ? `http://${seedAccess.slug}.localhost:3000`
+  ? `http://${seedAccess.slug}.localhost:${frontendPort}`
   : "";
 
 export const MISSING_SEED_ACCESS =
@@ -41,12 +42,14 @@ export const MISSING_SEED_ACCESS =
 export async function loginToTenant(
   page: Page,
   access: SeedAccess,
+  // Ein anderes Seed-Profil als das Standardprofil (etwa `manuell`).
+  base = tenantBase,
 ): Promise<void> {
   // `domcontentloaded` statt `load`: der Next-Dev-Server hält über SSE
   // Verbindungen offen, das `load`-Event kann dadurch hängen.
-  await loginToLocalTenant(page, tenantBase, access);
+  await loginToLocalTenant(page, base, access);
 
-  const res = await page.request.get(`${tenantBase}/api/auth/session`);
+  const res = await page.request.get(`${base}/api/auth/session`);
   expect(res.ok(), `Session laden fehlgeschlagen (${res.status()})`).toBe(true);
   const session = (await res.json()) as { user?: { id?: string } };
   const accountId = session.user?.id;

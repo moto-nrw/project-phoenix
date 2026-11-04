@@ -131,6 +131,7 @@ describe("SettingsField", () => {
       ).toBeDisabled();
       fireEvent.change(getByRole("textbox"), { target: { value: "LÖSCHEN" } });
       fireEvent.click(getByRole("button", { name: "Ausschalten und löschen" }));
+      // The API call can precede completion of the async save and render.
       await waitFor(() => {
         if (action === "switch")
           expect(onSave).toHaveBeenCalledExactlyOnceWith(
@@ -141,10 +142,10 @@ describe("SettingsField", () => {
           expect(onReset).toHaveBeenCalledExactlyOnceWith(
             "gdpr.attendance_log_enabled",
           );
+        expect(
+          getByRole("switch", { name: "Anwesenheitsprotokoll" }),
+        ).toHaveAttribute("aria-checked", "false");
       });
-      expect(
-        getByRole("switch", { name: "Anwesenheitsprotokoll" }),
-      ).toHaveAttribute("aria-checked", "false");
       expect(action === "switch" ? onReset : onSave).not.toHaveBeenCalled();
     },
   );
@@ -1475,5 +1476,63 @@ describe("SettingsField", () => {
         ),
       );
     });
+  });
+});
+
+// A text limit of the registry counts characters (code points) like the
+// backend, not UTF-16 units like the browser's maxLength (#5622): an emoji
+// is one character.
+describe("SettingsField text limit", () => {
+  const limited = makeSetting({
+    key: "test.limited_text",
+    type: "textarea",
+    default: "",
+    value: "",
+    validation: { allow_empty: true, max_length: 10 },
+  });
+
+  it("takes as many characters as the limit allows, with an emoji at the end", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={limited}
+        onSave={onSave}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    const field = getByRole("textbox", { name: "Test Setting" });
+    // The browser would count the emoji as two and refuse the last one.
+    expect(field).not.toHaveAttribute("maxlength");
+
+    const text = `${"a".repeat(9)}😀`;
+    expect(text).toHaveLength(11);
+    fireEvent.change(field, { target: { value: text } });
+    fireEvent.blur(field);
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith("test.limited_text", text),
+    );
+    expect(field).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("refuses one character more at the field before saving", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole, findByText } = renderWithProviders(
+      <SettingsField
+        setting={limited}
+        onSave={onSave}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    const field = getByRole("textbox", { name: "Test Setting" });
+    fireEvent.change(field, { target: { value: `${"a".repeat(10)}😀` } });
+    fireEvent.blur(field);
+
+    const hint = await findByText(
+      "Der Text ist zu lang. Erlaubt sind 10 Zeichen.",
+    );
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAttribute("aria-describedby", hint.id);
+    expect(onSave).not.toHaveBeenCalled();
   });
 });

@@ -15,7 +15,7 @@ const logger = createLogger({ component: "SettingsValuesRoute" });
 const VALID_KEY_PATTERN = /^[a-z0-9_.]{1,255}$/;
 
 // Settings whose value rides on /auth/tenant/resolve are tagged with
-// `tenant-${slug}` in the layout fetch (revalidate: 300). A naked
+// `tenant-${slug}` in the layout's cached lookup (revalidate: 300). A naked
 // router.refresh() on the client would still see the cached value until
 // the TTL expires, so we purge the tag here before responding.
 function revalidateTenantIfNeeded(request: NextRequest, key: string): void {

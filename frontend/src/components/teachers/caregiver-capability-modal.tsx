@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { Button } from "~/components/ui/button";
 import { FormModal } from "~/components/ui/form-modal";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
@@ -29,7 +30,9 @@ import {
 } from "~/lib/caregiver-capability-api";
 import { CaregiverBlockerResolutionPanel } from "~/components/teachers/caregiver-blocker-resolution-panel";
 import { createLogger } from "~/lib/logger";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { rolesConcept } from "~/lib/concepts/roles";
+import { staffConcept } from "~/lib/concepts/staff";
 
 const logger = createLogger({ component: "CaregiverCapabilityModal" });
 
@@ -340,44 +343,43 @@ export function CaregiverCapabilityModal({
       error={step === "resolve" ? null : formErrors.error}
       footer={
         step === "resolve" ? (
-          <button
+          <Button
             type="button"
             onClick={() => {
               setStep("overview");
               void loadState();
             }}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            variant="outline"
+            size="md"
           >
             Zurück zur Übersicht
-          </button>
+          </Button>
         ) : (
           <>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-            >
+            <Button type="button" onClick={onClose} variant="outline" size="md">
               Schließen
-            </button>
+            </Button>
             {canDisable ? (
-              <button
+              <Button
                 type="button"
                 onClick={() => void handleDisable()}
                 disabled={saving || loading || state?.disableBlocked}
-                className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red-soft rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                variant="outline_danger"
+                size="md"
               >
                 Betreuung deaktivieren
-              </button>
+              </Button>
             ) : null}
             {showEnableButton ? (
-              <button
+              <Button
                 type="button"
                 onClick={() => void handleEnable()}
                 disabled={saving || loading}
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                variant="primary"
+                size="md"
               >
                 {saving ? "Wird gespeichert..." : "Betreuung aktivieren"}
-              </button>
+              </Button>
             ) : null}
           </>
         )
@@ -398,8 +400,8 @@ export function CaregiverCapabilityModal({
             title="Aktuelle Rolle"
             icon={
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.roles.icon}
-                tone={MOTO_CONCEPTS.roles.tone}
+                icon={rolesConcept.icon}
+                tone={rolesConcept.tone}
                 size={18}
               />
             }
@@ -422,8 +424,8 @@ export function CaregiverCapabilityModal({
               title="Personaldaten anlegen"
               icon={
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.staff.icon}
-                  tone={MOTO_CONCEPTS.staff.tone}
+                  icon={staffConcept.icon}
+                  tone={staffConcept.tone}
                   size={18}
                 />
               }
@@ -469,8 +471,8 @@ export function CaregiverCapabilityModal({
               title="Offene Zuordnungen"
               icon={
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.groups.icon}
-                  tone={MOTO_CONCEPTS.groups.tone}
+                  icon={groupsConcept.icon}
+                  tone={groupsConcept.tone}
                   size={18}
                 />
               }
@@ -495,13 +497,14 @@ export function CaregiverCapabilityModal({
                 ))}
               </ul>
               <div className="mt-3">
-                <button
+                <Button
                   type="button"
                   onClick={() => setStep("resolve")}
-                  className="border-moto-amber/40 bg-moto-amber/20 text-moto-amber-strong hover:bg-moto-amber/30 rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
+                  variant="warning"
+                  size="md"
                 >
                   Zuordnungen auflösen
-                </button>
+                </Button>
               </div>
             </InfoSection>
           ) : null}

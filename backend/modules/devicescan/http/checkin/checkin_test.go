@@ -482,6 +482,66 @@ func TestDeviceCheckin_ActiveStudentsScopedToDeviceSession(t *testing.T) {
 	assert.True(t, testpkg.ActiveGroupLastActivity(t, k.db, deviceGroup.ID).After(stale), "the scan refreshes the session heartbeat")
 }
 
+// TestDeviceCheckin_ActiveStudentsCarriesSessionRevision pins the scan side
+// of #5128: a session-scoped count names its session and the visit revision
+// the scan's own change raised, the same pair a later poll reads.
+func TestDeviceCheckin_ActiveStudentsCarriesSessionRevision(t *testing.T) {
+	t.Parallel()
+	k := setupCheckinRoute(t)
+	device, deviceID := k.deviceRow(t, "revision-count")
+	staff, _, _ := k.staff(t, "Revision", "Room")
+	tag, _, _ := k.studentCard(t, "Arriving", "Student", "3a")
+	present := testpkg.CreateTestStudent(t, k.db, "Present", "Student", "3a")
+	room := testpkg.CreateTestRoom(t, k.db, "Revision Count Room")
+	activity := testpkg.CreateTestActivityGroup(t, k.db, "Revision Session Activity")
+	group := testpkg.CreateTestActiveGroup(t, k.db, activity.ID, room.ID)
+	testpkg.LinkDeviceToActiveGroup(t, k.db, group.ID, deviceID)
+	testpkg.CreateTestVisit(t, k.db, present.ID, group.ID, time.Now().Add(-10*time.Minute), nil)
+
+	rr := k.call(t, "POST", "/checkin", checkinBody(tag, room.ID), device, staff)
+
+	testutil.AssertSuccessResponse(t, rr, 200)
+	data := responseData(t, rr.Body.Bytes())
+	assert.Equal(t, float64(2), data["active_students"])
+	assert.Equal(t, float64(group.ID), data["active_students_session_id"])
+	var stored int64
+	require.NoError(t, k.db.NewRaw("SELECT COALESCE(sum(changes), 0) FROM active.visit_revision_events WHERE active_group_id = ?", group.ID).Scan(testpkg.Ctx(t), &stored))
+	assert.Equal(t, float64(2), data["active_students_revision"], "the fixture visit and the scan each raised the revision")
+	assert.EqualValues(t, stored, data["active_students_revision"], "the answer carries the committed revision")
+	assert.NotContains(t, data, "active_students_room_id", "a session count names no room scope")
+	assert.NotContains(t, data, "active_students_room_revision")
+}
+
+// TestDeviceCheckin_RoomWideCountCarriesRoomRevision pins the room scope of
+// #5205: a device without its own session in the scanned room gets the
+// room-wide count with the room and the room's committed revision, and
+// never a session field, so a kiosk cannot compare it with a session
+// revision.
+func TestDeviceCheckin_RoomWideCountCarriesRoomRevision(t *testing.T) {
+	t.Parallel()
+	k := setupCheckinRoute(t)
+	staff, _, _ := k.staff(t, "Room", "Wide")
+	tag, _, _ := k.studentCard(t, "Room", "Counter", "1a")
+	roomID, _, _ := k.roomWithSession(t, "Room Wide Count Room")
+	presence := k.presence(t)
+	_, before, err := presence.CountOpenVisitsInRoomWithRevision(testpkg.Ctx(t), roomID)
+	require.NoError(t, err)
+
+	rr := k.call(t, "POST", "/checkin", checkinBody(tag, roomID), k.device(t, "room-wide-count"), staff)
+
+	testutil.AssertSuccessResponse(t, rr, 200)
+	data := responseData(t, rr.Body.Bytes())
+	assert.Equal(t, float64(1), data["active_students"])
+	assert.NotContains(t, data, "active_students_revision")
+	assert.NotContains(t, data, "active_students_session_id")
+	assert.Equal(t, float64(roomID), data["active_students_room_id"])
+	count, committed, err := presence.CountOpenVisitsInRoomWithRevision(testpkg.Ctx(t), roomID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+	assert.EqualValues(t, committed, data["active_students_room_revision"], "the answer carries the committed room revision")
+	assert.Greater(t, committed, before, "the scan's check-in raised the room revision")
+}
+
 // backdateLastActivity moves a session's heartbeat an hour into the past, so
 // a later read proves that the request wrote it rather than that no time
 // passed. It returns the stored stale value.

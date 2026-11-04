@@ -4,16 +4,29 @@ import { headers } from "next/headers";
 import { env } from "~/env";
 import { ACCESS_TOKEN_REFRESH_BUFFER_MS } from "~/server/auth/shared";
 import { tenantAuthConfig } from "~/server/auth/tenant-config";
+import {
+  portalOfScope,
+  sessionFamilyState,
+} from "~/server/auth/token-validation";
+
+/**
+ * The tenant layout's read of the session cookie. `session` is serialized
+ * into the HTML and RSC payload and carries no token (#5005); `accessToken`
+ * stays on the server for the shell preload.
+ */
+export interface TenantSessionSnapshot {
+  session: Session;
+  accessToken: string;
+}
 
 /**
  * Reads the encrypted Auth.js JWT without running its refresh callback.
  * Server Components cannot persist a rotated session cookie, so calling
  * auth() here could consume a refresh token and strand the browser on the old
- * cookie (#1938). This snapshot hydrates SessionProvider and the shell preload
- * without exposing the refresh token; later provider polls still use the
- * response-aware /api/auth/session route.
+ * cookie (#1938). The session hydrates SessionProvider without any token;
+ * later provider polls still use the response-aware /api/auth/session route.
  */
-export async function readTenantSessionSnapshot(): Promise<Session | null> {
+export async function readTenantSessionSnapshot(): Promise<TenantSessionSnapshot | null> {
   const cookieName = tenantAuthConfig.cookies?.sessionToken?.name;
   const token = await getToken({
     req: { headers: new Headers(await headers()) },
@@ -34,15 +47,23 @@ export async function readTenantSessionSnapshot(): Promise<Session | null> {
   ) {
     return null;
   }
+  // A cookie a late answer wrote back after its logout must not hydrate a
+  // signed-in page (#5399): only a family Identity & Access confirms live
+  // makes a snapshot; otherwise the provider asks the session route.
+  if (
+    (await sessionFamilyState(token.token, portalOfScope(token.scope))) !==
+    "live"
+  ) {
+    return null;
+  }
 
-  return {
+  const session: Session = {
     expires: new Date((token.exp ?? 0) * 1000).toISOString(),
     user: {
       id: token.id,
       name: token.name,
       email: token.email,
       image: token.picture,
-      token: token.token,
       roles: Array.isArray(token.roles) ? token.roles : undefined,
       permissions: Array.isArray(token.permissions)
         ? token.permissions
@@ -64,4 +85,5 @@ export async function readTenantSessionSnapshot(): Promise<Session | null> {
           : undefined,
     },
   };
+  return { session, accessToken: token.token };
 }

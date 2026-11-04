@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   act,
   fireEvent,
@@ -14,6 +17,14 @@ import { StrictMode } from "react";
 // Anmeldephasen jetzt bearbeitet werden, bliebe im Test leer. Derselbe Ersatz
 // wie in components/ui/slide-over.test.tsx — die Struktur bleibt, nur die
 // Animationsschicht fällt weg.
+// useTenantMutate scopes its keys to the signed-in account (#5006).
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "1" }, expires: "2099-01-01" },
+    status: "authenticated",
+  }),
+}));
+
 vi.mock("vaul", async () => {
   const React = await import("react");
 
@@ -562,7 +573,7 @@ describe("CareOfferingsEditor", () => {
     render(<CareOfferingsEditor />);
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "Erstes Betreuungsangebot anlegen",
+        name: "Neues Betreuungsangebot",
       }),
     );
 
@@ -1412,7 +1423,7 @@ describe("CareOfferingsEditor", () => {
     render(<CareOfferingsEditor />);
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "Erstes Betreuungsangebot anlegen",
+        name: "Neues Betreuungsangebot",
       }),
     );
     fireEvent.click(screen.getByLabelText("Regeltermin"));
@@ -2337,7 +2348,7 @@ describe("PhasesEditor", () => {
     render(<PhasesEditor />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
     );
     fireEvent.change(inputByName("name"), {
       target: { value: "Falsches Fenster" },
@@ -2363,7 +2374,7 @@ describe("PhasesEditor", () => {
     render(<PhasesEditor />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
     );
     fireEvent.change(inputByName("name"), {
       target: { value: "Unvollständiger Zeitraum" },
@@ -2385,6 +2396,26 @@ describe("PhasesEditor", () => {
     expect(mocks.createPhase).not.toHaveBeenCalled();
   });
 
+  it("marks the phase name as required through the kit field (#5217)", async () => {
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
+    );
+    const nameInput = await screen.findByLabelText("Name");
+    expect(nameInput).toHaveAttribute("name", "name");
+    expect(nameInput).toHaveAttribute("aria-required", "true");
+    // The star sits next to the label, not in its text, and is hidden
+    // from screen readers.
+    const label = document.querySelector('label[for="phase-name"]');
+    expect(label).toHaveTextContent(/^Name$/);
+    expect(label?.nextElementSibling).toHaveAttribute("aria-hidden", "true");
+    expect(label?.nextElementSibling).toHaveTextContent("*");
+  });
+
   it("shows a German validation error when the phase name is blank", async () => {
     mocks.listPhases.mockResolvedValue([]);
     mocks.listSchemas.mockResolvedValue([schema()]);
@@ -2392,7 +2423,7 @@ describe("PhasesEditor", () => {
     render(<PhasesEditor />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
     );
     fireEvent.change(await waitForInputByName("name"), {
       target: { value: "   " },
@@ -2447,7 +2478,7 @@ describe("PhasesEditor", () => {
     render(<PhasesEditor />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
     );
     fireEvent.change(await waitForInputByName("name"), {
       target: { value: "Schuljahr 2026/27" },
@@ -2660,7 +2691,7 @@ describe("PhasesEditor", () => {
     render(<PhasesEditor />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
     );
     fireEvent.change(inputByName("name"), { target: { value: "Nur Konto" } });
 
@@ -2969,6 +3000,59 @@ describe("EnrollmentFormEditor", () => {
     } finally {
       HTMLElement.prototype.scrollIntoView = original;
     }
+  });
+
+  // #5027: the label placeholder no longer suggests a question about the
+  // child for a question asked once per enrollment; the per-child switch
+  // names those questions, and stays off until the school switches it on.
+  it("points questions about the child to the per-child switch", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.createSchema.mockResolvedValue(
+      schema({ id: "schema-new", name: "Kontaktformular" }),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "Kontaktformular" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Freie Zusatzfrage" }));
+
+    expect(screen.getByLabelText("Frage im Elternformular")).toHaveAttribute(
+      "placeholder",
+      "z. B. Wie haben Sie von uns erfahren?",
+    );
+    expect(
+      screen.getByText(
+        "Für Fragen zum Kind, etwa zu Allergien oder zum Schwimmen. Die Frage erscheint dann für jedes angemeldete Kind.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Frage im Elternformular"), {
+      target: { value: "Wie haben Sie von uns erfahren?" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.createSchema).toHaveBeenCalledWith(
+        "Kontaktformular",
+        expect.arrayContaining([
+          expect.objectContaining({
+            label: "Wie haben Sie von uns erfahren?",
+            applies_to_child: false,
+          }),
+        ]),
+        {},
+        defaultLegalBlocksForSave,
+      );
+    });
   });
 
   it("creates, previews, updates, and deletes schemas", async () => {
@@ -5081,4 +5165,20 @@ describe("information PDF validation", () => {
       screen.queryByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
     ).not.toBeInTheDocument();
   });
+
+  it.each(schoolDateCases("2026-07-01"))(
+    "defaults the school year from Berlin July in %s",
+    async (zone, instant) => {
+      mocks.listSchemas.mockResolvedValue([schema()]);
+      setSchoolDateClock(zone, instant, "2026-07-01");
+      mocks.listPhases.mockResolvedValue([phase()]);
+      render(<PhasesEditor />);
+      await screen.findByText("Schuljahr 2026/27");
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Neue Anmeldephase" })[0]!,
+      );
+      expect(inputByName("service_start_date")).toHaveValue("2026-09-01");
+      expect(inputByName("service_end_date")).toHaveValue("2027-07-31");
+    },
+  );
 });

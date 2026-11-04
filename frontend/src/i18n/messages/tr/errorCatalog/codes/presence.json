@@ -1,0 +1,5 @@
+{
+  "activity_participant_limit_reached": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "room_capacity_exceeded": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "statistics_range_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
+}

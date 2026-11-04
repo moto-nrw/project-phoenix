@@ -29,10 +29,10 @@ func parentPortalChildIDs(t *testing.T, ctx context.Context, db *bun.DB, module 
 	return ids
 }
 
-func setupAuthModule(t *testing.T) (*bun.DB, api.AuthTestModule) {
+func setupAuthModule(t *testing.T, options ...api.AuthTestOption) (*bun.DB, api.AuthTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), options...)
 	require.NoError(t, err)
 	return db, module
 }

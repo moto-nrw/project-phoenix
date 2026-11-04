@@ -1,0 +1,6 @@
+{
+  "scenario": "api.class_list_entries.list",
+  "max": 8,
+  "exact": false,
+  "description": "api/class-list-entries — GET the class-list-only entries (#2382), 3\nentries each with a namesake student. The \"Zuordnen\" hint is resolved\nper entry (the entry set is a hand-maintained handful per school), so\nthis budget is the fixture-sized total: a third statement per entry, or\na constant read moved inside the loop, fails the test."
+}

@@ -50,7 +50,7 @@ export const roomsConfig = defineEntityConfig<Room>({
     plural: "Räume",
   },
 
-  concept: "rooms",
+  concept: roomsConcept, // import { roomsConcept } from "~/lib/concepts/rooms"
 
   api: {
     basePath: "/api/rooms",
@@ -182,14 +182,18 @@ The configuration and service factory provide the shared CRUD behavior. Each pag
 
 ### Concepts
 
-Each entity config carries a `concept` key instead of a hand-rolled theme
-object. The key indexes `MOTO_CONCEPTS` in `lib/moto-concepts.ts`, which is the
-single source for the icon and color tone a page header, section header and
-card header render — see the `concept` field on `EntityConfig` in `types.ts`.
+Each entity config carries a `concept` definition instead of a hand-rolled
+theme object. The definition comes from its own module in `lib/concepts/`
+(`roomsConcept` from `~/lib/concepts/rooms`), which is the single source for the
+icon and color tone a page header, section header and card header render — see
+the `concept` field on `EntityConfig` in `types.ts`. Import the concept module
+directly so the page carries only that glyph, never the `MOTO_CONCEPTS`
+registry.
 
 The former `lib/database/themes.tsx` and its `databaseThemes` export are gone;
-adding a new entity means picking an existing `MotoConceptKey` or adding one to
-`MOTO_CONCEPTS`, not defining a new color pair.
+adding a new entity means picking an existing concept module or adding one
+under `lib/concepts/` (plus its `MOTO_CONCEPTS` entry), not defining a new color
+pair.
 
 ### Hooks
 

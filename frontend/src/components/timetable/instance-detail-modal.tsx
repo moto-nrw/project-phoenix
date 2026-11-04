@@ -11,7 +11,6 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
-import Link from "~/components/ui/navigation-link";
 import {
   Check,
   CheckCircle2,
@@ -27,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -51,7 +50,11 @@ import {
   type GuardianNoticeDraft,
 } from "./guardian-notice-fields";
 import { OriginChip } from "~/components/ui/origin-chip";
-import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import {
+  GROUP_ROOM_SHADES,
+  LOCATION_COLORS,
+  MOTO_COLOR_PALETTE,
+} from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceWebEnabled,
@@ -73,12 +76,14 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
 import type { InstanceParticipantNames } from "~/lib/timetable-api";
+import type { RosterDeviation } from "~/lib/roster-deviation";
 import type {
   GuardianNoticeInput,
   GuardianNoticeReach,
   TemplateRosterMaintenance,
 } from "~/lib/timetable-types";
 import { RosterMaintenanceBadge } from "./roster-maintenance-badge";
+import { SeriesRosterReview } from "./series-roster-review";
 import {
   instanceRoomLabel,
   getActivityTypeBadge,
@@ -105,6 +110,13 @@ import type {
   InstanceStatus,
 } from "~/lib/timetable-types";
 import { isNotScheduledRow } from "~/lib/timetable-types";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
+import { childrenConcept } from "~/lib/concepts/children";
+import { presentConcept } from "~/lib/concepts/present";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { staffConcept } from "~/lib/concepts/staff";
+import { substitutionConcept } from "~/lib/concepts/substitution";
+import { supervisionConcept } from "~/lib/concepts/supervision";
 
 export type LifecycleAction = "start" | "complete" | "cancel" | "reopen";
 
@@ -205,6 +217,24 @@ interface InstanceDetailModalProps {
   seriesRosterMaintenance?: TemplateRosterMaintenance;
   /** Planungszeitraum, in dem der Termin liegt; nötig für das Nachladen. */
   seriesPeriodId?: string;
+  /** Abweichung der Kinderliste von den Anmeldungen (#5103). */
+  seriesRosterDeviation?: RosterDeviation;
+  /** Die Kinderliste der Serie bleibt bewusst so (#5103). */
+  seriesManualRosterConfirmed?: boolean;
+  /** Eine Entscheidung zur Kinderliste wird gespeichert. */
+  rosterDecisionBusy?: boolean;
+  /** „Mit Angebot verbinden“; fehlt ohne Planungsrecht. */
+  onConnectOffering?: (deviation: RosterDeviation) => void;
+  /** „Liste so lassen“ setzen oder zurücknehmen. */
+  onSetManualRoster?: (confirmed: boolean) => void;
+  /**
+   * Der Aufrufer lädt die Kinderzeilen des Termins noch nach (#4996): die
+   * Wochenliste kommt ohne sie. Bis dahin steht statt der Liste ein
+   * Ladehinweis, nie eine Liste, die alle als „Erwartet“ zeigt.
+   */
+  studentsPending?: boolean;
+  /** Ladefehler der nachgeladenen Kinderzeilen, mit Wiederholen. */
+  studentsLoadError?: ReturnType<typeof useSwrLoadError>;
 }
 
 const EMPTY_STAFF_NAMES = new Map<string, string>();
@@ -279,7 +309,8 @@ function StatusBadge({ status }: StatusBadgeProps) {
       bg: MOTO_COLOR_PALETTE.neutral.soft,
       text: "text-gray-700",
     },
-    active: { bg: LOCATION_COLORS.GROUP_ROOM, text: STATUS_BADGE_ON_CLASS },
+    // Füllton statt GROUP_ROOM: Weiß auf #83CD2D erreicht nur 1,96:1 (#5141).
+    active: { bg: GROUP_ROOM_SHADES.fill, text: STATUS_BADGE_ON_CLASS },
     // Abgeschlossen steht auf derselben neutralen Fläche wie "Geplant", trägt
     // aber die hellere Schrift: erledigt, nicht offen.
     completed: {
@@ -453,16 +484,15 @@ function AssignedStaffSection({
       {onOpenPool && (
         <Button
           type="button"
-          variant="ghost"
+          variant="surface"
           size="compact"
           onClick={() => onOpenPool(instance)}
-          className="border border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
         >
           <span className="inline-flex items-center gap-1.5">
             {canManageStaffPool ? (
               <UserPlus className="h-3.5 w-3.5" />
             ) : (
-              <MotoConceptIcon concept="staff" size={16} />
+              <MotoConceptIcon concept={staffConcept} size={16} />
             )}
             {canManageStaffPool ? "Person hinzuziehen" : "Personalpool ansehen"}
           </span>
@@ -606,7 +636,14 @@ export function InstanceDetailModal({
   canManage = true,
   fetchParticipantNames = false,
   seriesRosterMaintenance,
+  seriesRosterDeviation,
+  seriesManualRosterConfirmed = false,
+  rosterDecisionBusy = false,
+  onConnectOffering,
+  onSetManualRoster,
   seriesPeriodId,
+  studentsPending = false,
+  studentsLoadError = null,
 }: InstanceDetailModalProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const showTimetableCounts = useShowTimetableCounts();
@@ -641,6 +678,21 @@ export function InstanceDetailModal({
     (instance.status === "planned" || instance.status === "active") &&
     instance.date >= today;
   const students = useMemo(() => studentsForInstance(instance), [instance]);
+  // Nachgeladene Kinderzeilen (#4996): bis sie da sind, Ladehinweis oder
+  // Fehler an ihrer Stelle, unter derselben Überschrift wie die Liste. Ein
+  // Dienst hat keine Kinder, also auch nichts nachzuladen.
+  const studentRowsState: React.ReactNode =
+    instance?.activityType === "duty" ? null : studentsLoadError !== null ? (
+      <Section title="Kinder">
+        <LoadErrorAlert error={studentsLoadError} />
+      </Section>
+    ) : studentsPending ? (
+      <Section title="Kinder">
+        <p role="status" className="text-sm text-gray-500">
+          Kinder werden geladen…
+        </p>
+      </Section>
+    ) : null;
   // Same split the header counts use (#1747): an assignment row still reads
   // "expected" when the care plan does not place the child here today, so it
   // gets its own group instead of padding "Erwartet" with children the
@@ -851,15 +903,17 @@ export function InstanceDetailModal({
           (instance.staff.some((row) => row.isAbsent) ||
             (instance.requiredStaffCount > 0 &&
               instance.assignedStaffCount < instance.requiredStaffCount)) && (
-            <Link
+            <ButtonLink
               href={tenantPath(
                 `/vertretung?d=${instance.date}&block=${instance.id}`,
               )}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              variant="outline"
+              size="md"
+              className="gap-2"
             >
-              <MotoConceptIcon concept="substitution" size={18} />
+              <MotoConceptIcon concept={substitutionConcept} size={18} />
               Vertretung eintragen
-            </Link>
+            </ButtonLink>
           )}
         {instance.status === "planned" && !editDeferred && onEdit && (
           <Button
@@ -1038,14 +1092,24 @@ export function InstanceDetailModal({
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   <OriginChip label={regelterminOriginLabel(instance)} />
                   {/* Ein Dienst (#3822) hat keine Kinder, also keine Teilnehmerpflege. */}
-                  {instance.activityType !== "duty" && (
-                    <SeriesRosterMaintenance
-                      templateId={instance.activityGroupId}
-                      periodId={seriesPeriodId}
-                      known={seriesRosterMaintenance}
-                    />
-                  )}
+                  {instance.activityType !== "duty" &&
+                    !seriesRosterDeviation && (
+                      <SeriesRosterMaintenance
+                        templateId={instance.activityGroupId}
+                        periodId={seriesPeriodId}
+                        known={seriesRosterMaintenance}
+                      />
+                    )}
                 </div>
+              )}
+              {instance.activityGroupId && instance.activityType !== "duty" && (
+                <SeriesRosterReview
+                  deviation={seriesRosterDeviation}
+                  manualRosterConfirmed={seriesManualRosterConfirmed}
+                  busy={rosterDecisionBusy}
+                  onConnect={onConnectOffering}
+                  onSetManualRoster={onSetManualRoster}
+                />
               )}
             </div>
             {instance.conflictWarnings.length > 0 && (
@@ -1066,13 +1130,13 @@ export function InstanceDetailModal({
 
             <Section title="Details">
               <Row
-                icon={<MotoConceptIcon concept="careTimes" size={18} />}
+                icon={<MotoConceptIcon concept={careTimesConcept} size={18} />}
                 label="Zeit"
               >
                 {instance.startTime} – {instance.endTime}
               </Row>
               <Row
-                icon={<MotoConceptIcon concept="rooms" size={18} />}
+                icon={<MotoConceptIcon concept={roomsConcept} size={18} />}
                 label="Raum"
               >
                 {instanceRoomLabel(instance)}
@@ -1081,7 +1145,7 @@ export function InstanceDetailModal({
                 {instance.planningTrackName ?? "Keine Planungsspur"}
               </Row>
               <Row
-                icon={<MotoConceptIcon concept="staff" size={18} />}
+                icon={<MotoConceptIcon concept={staffConcept} size={18} />}
                 label={`Personal (${instance.staffCount})`}
               >
                 {instance.staffCount === 0
@@ -1094,7 +1158,7 @@ export function InstanceDetailModal({
               </Row>
               {showTimetableCounts && instance.activityType !== "duty" ? (
                 <Row
-                  icon={<MotoConceptIcon concept="children" size={18} />}
+                  icon={<MotoConceptIcon concept={childrenConcept} size={18} />}
                   label="Kinder"
                 >
                   {instance.expectedStudentsCount +
@@ -1157,15 +1221,17 @@ export function InstanceDetailModal({
                         onOpenPool={poolAvailable ? onOpenPool : undefined}
                         canManageStaffPool={canManageStaffPool}
                       />
-                      <InstanceStudentsSection
-                        groupedStudents={visibleGroupedStudents}
-                        handleAttendancePatch={handleAttendancePatch}
-                        instance={instance}
-                        onAttendancePatch={attendancePatch}
-                        pendingStudentId={pendingStudentId}
-                        studentNames={names.studentNames}
-                        students={visibleStudents}
-                      />
+                      {studentRowsState ?? (
+                        <InstanceStudentsSection
+                          groupedStudents={visibleGroupedStudents}
+                          handleAttendancePatch={handleAttendancePatch}
+                          instance={instance}
+                          onAttendancePatch={attendancePatch}
+                          pendingStudentId={pendingStudentId}
+                          studentNames={names.studentNames}
+                          students={visibleStudents}
+                        />
+                      )}
                     </>
                   );
                 }}
@@ -1178,15 +1244,17 @@ export function InstanceDetailModal({
                   onOpenPool={poolAvailable ? onOpenPool : undefined}
                   canManageStaffPool={canManageStaffPool}
                 />
-                <InstanceStudentsSection
-                  groupedStudents={groupedStudents}
-                  handleAttendancePatch={handleAttendancePatch}
-                  instance={instance}
-                  onAttendancePatch={attendancePatch}
-                  pendingStudentId={pendingStudentId}
-                  studentNames={studentNames}
-                  students={students}
-                />
+                {studentRowsState ?? (
+                  <InstanceStudentsSection
+                    groupedStudents={groupedStudents}
+                    handleAttendancePatch={handleAttendancePatch}
+                    instance={instance}
+                    onAttendancePatch={attendancePatch}
+                    pendingStudentId={pendingStudentId}
+                    studentNames={studentNames}
+                    students={students}
+                  />
+                )}
               </>
             )}
           </div>
@@ -1464,12 +1532,11 @@ interface IconActionButtonProps {
   disabled?: boolean;
 }
 
-const ICON_ACTION_PALETTE: Record<IconActionTone, string> = {
-  green:
-    "border-moto-green/20 bg-white text-moto-green-strong hover:border-moto-green/40 hover:bg-moto-green/10",
-  red: "border-moto-red/20 bg-white text-moto-red-strong hover:border-moto-red/40 hover:bg-moto-red/10",
-  slate:
-    "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50",
+// Die Farbe trägt nur das Symbol; der Knopf selbst ist Kit-`surface`.
+const ICON_ACTION_TONE: Record<IconActionTone, string> = {
+  green: "text-moto-green-strong",
+  red: "text-moto-red-strong",
+  slate: "text-gray-600",
 };
 
 function IconActionButton({
@@ -1483,21 +1550,22 @@ function IconActionButton({
   return (
     <Button
       type="button"
-      variant="ghost"
+      variant="surface"
       size="icon"
       onClick={onClick}
       disabled={disabled || isLoading}
       title={label}
       aria-label={label}
-      className={`rounded-full border ${ICON_ACTION_PALETTE[tone]}`}
     >
       {isLoading ? (
         <span
-          className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+          className={`h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent ${ICON_ACTION_TONE[tone]}`}
           aria-hidden
         />
       ) : (
-        <span aria-hidden>{icon}</span>
+        <span className={ICON_ACTION_TONE[tone]} aria-hidden>
+          {icon}
+        </span>
       )}
     </Button>
   );
@@ -1565,7 +1633,7 @@ function StatsRow({ instance }: StatsRowProps) {
       <div className="flex flex-wrap items-center gap-1.5">
         {showTimetableCounts && instance.activityType !== "duty" && (
           <TimetableRatioPill
-            icon={<MotoConceptIcon concept="present" size={16} />}
+            icon={<MotoConceptIcon concept={presentConcept} size={16} />}
             label="Anwesend"
             value={totalStudents === 0 ? "–" : `${present} / ${totalStudents}`}
             tone={attendanceStudentTone(present, totalStudents)}
@@ -1573,7 +1641,7 @@ function StatsRow({ instance }: StatsRowProps) {
         )}
         {occupancy && (
           <TimetableRatioPill
-            icon={<MotoConceptIcon concept="children" size={16} />}
+            icon={<MotoConceptIcon concept={childrenConcept} size={16} />}
             label="Grenze"
             value={`${occupancy.currentStudentsCount} / ${occupancy.participantLimit}`}
             tone={participantLimitTone(
@@ -1583,7 +1651,7 @@ function StatsRow({ instance }: StatsRowProps) {
           />
         )}
         <TimetableRatioPill
-          icon={<MotoConceptIcon concept="staff" size={16} />}
+          icon={<MotoConceptIcon concept={staffConcept} size={16} />}
           label="Personal"
           value={
             instance.staffCount === 0
@@ -1596,7 +1664,7 @@ function StatsRow({ instance }: StatsRowProps) {
           )}
         />
         <TimetableRatioPill
-          icon={<MotoConceptIcon concept="supervision" size={16} />}
+          icon={<MotoConceptIcon concept={supervisionConcept} size={16} />}
           label="Besetzung"
           value={
             instance.requiredStaffCount === 0

@@ -1,7 +1,6 @@
 // Time tracking API service for check-in/out and history management
 
 import type { ErrorCode } from "~/lib/error-codes.generated";
-import { getCachedSession } from "./session-cache";
 import { unavailableApiError } from "./api-error";
 import { buildApiError } from "./auth-api";
 import {
@@ -111,19 +110,10 @@ interface BackendTimeTrackingConfig {
 class TimeTrackingService {
   private readonly baseUrl = "/api/time-tracking";
 
-  private async getToken(): Promise<string | undefined> {
-    const session = await getCachedSession();
-    return session?.user?.token;
-  }
-
-  private buildHeaders(
-    token: string | undefined,
-    withBody: boolean,
-  ): HeadersInit {
-    return {
-      ...(withBody && { "Content-Type": "application/json" }),
-      ...(token && { Authorization: `Bearer ${token}` }),
-    };
+  // The BFF routes read the session cookie; the browser holds no token
+  // (#5005).
+  private buildHeaders(withBody: boolean): HeadersInit {
+    return withBody ? { "Content-Type": "application/json" } : {};
   }
 
   private async request<T>(
@@ -134,10 +124,9 @@ class TimeTrackingService {
   ): Promise<ApiResponse<T>> {
     let response: Response;
     try {
-      const token = await this.getToken();
       response = await fetch(`${this.baseUrl}${path}`, {
         method,
-        headers: this.buildHeaders(token, body !== undefined),
+        headers: this.buildHeaders(body !== undefined),
         ...(body !== undefined && { body: JSON.stringify(body) }),
       });
     } catch (error) {
@@ -158,10 +147,9 @@ class TimeTrackingService {
   ): Promise<void> {
     let response: Response;
     try {
-      const token = await this.getToken();
       response = await fetch(`${this.baseUrl}${path}`, {
         method,
-        headers: this.buildHeaders(token, false),
+        headers: this.buildHeaders(false),
       });
     } catch (error) {
       throw unavailableApiError(error);

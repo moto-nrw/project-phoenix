@@ -22,7 +22,18 @@ var (
 	// ErrParentAnnouncementReminderSent: the scheduled reminder already went
 	// out; its moment and wording can no longer be changed or removed (#3162).
 	ErrParentAnnouncementReminderSent = errors.New("announcement: the reminder has already been sent")
+	// ErrClassLetterReadOnly: a Lehrkraft wrote this letter in moto schule
+	// (#4800); the OGS reads it but does not change, send or delete it.
+	ErrClassLetterReadOnly = errors.New("announcement: a class letter belongs to the teacher who wrote it")
 )
+
+// ParentLetterSender is the Lehrkraft a class letter comes from (#4800): the
+// name parents read and the class the letter goes to. A nil sender is a
+// letter of the OGS.
+type ParentLetterSender struct {
+	Name        string
+	SchoolClass string
+}
 
 type ParentAnnouncementTargetInput struct {
 	TargetType string
@@ -50,6 +61,9 @@ type ParentAnnouncementInput struct {
 	ReminderText *string
 	// Declaration configures an Erklärung (delivery_mode "declaration", #3430).
 	Declaration ParentDeclarationSettings
+	// Sender makes the announcement a class letter of a Lehrkraft (#4800):
+	// one class target, that class, no poll, the portal audience only.
+	Sender *ParentLetterSender
 }
 
 // ParentAnnouncementReminderInput is the one edit a published announcement
@@ -86,7 +100,30 @@ type ParentAnnouncement struct {
 	Declaration             ParentDeclarationSettings
 	// DeclarationFrozen: a version exists, so the attachments are fixed.
 	DeclarationFrozen bool
+	// CreatedBy is the authoring account; Sender is set for a class letter
+	// of a Lehrkraft (#4800).
+	CreatedBy int64
+	Sender    *ParentLetterSender
 }
+
+type classLetterAuthorKey struct{}
+
+// WithClassLetterAuthor marks a request of moto schule's class-letter routes
+// (#4800): the account writes as a Lehrkraft. Writes then reach only the
+// account's own class letters; without the mark a class letter is read-only.
+func WithClassLetterAuthor(ctx context.Context, accountID int64) context.Context {
+	return context.WithValue(ctx, classLetterAuthorKey{}, accountID)
+}
+
+// ClassLetterAuthorFrom returns the account WithClassLetterAuthor marked.
+func ClassLetterAuthorFrom(ctx context.Context) (int64, bool) {
+	accountID, ok := ctx.Value(classLetterAuthorKey{}).(int64)
+	return accountID, ok
+}
+
+// IsClassLetter reports whether a Lehrkraft wrote the announcement in moto
+// schule (#4800).
+func (a *ParentAnnouncement) IsClassLetter() bool { return a.Sender != nil }
 
 type ParentAnnouncementTarget struct {
 	TargetType string

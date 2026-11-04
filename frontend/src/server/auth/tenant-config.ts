@@ -6,6 +6,9 @@
  * SignIn page: "/" (tenant login, resolved by subdomain proxy)
  */
 
+import "server-only";
+import { tenantSessionCookieName } from "~/lib/session-cookie-exit.server";
+import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
@@ -26,6 +29,9 @@ import {
 } from "./shared";
 
 export const tenantAuthConfig = {
+  // Keep session minting and every BFF reader on the validated application
+  // secret instead of relying on Auth.js process-environment inference.
+  secret: env.NEXTAUTH_SECRET,
   providers: [
     DiscordProvider,
     CredentialsProvider({
@@ -41,6 +47,10 @@ export const tenantAuthConfig = {
       },
       async authorize(credentials, _request) {
         const creds = credentials as Record<string, string> | undefined;
+        // HTTP credentials cannot create a session from caller-supplied tokens.
+        // Only the BFF's in-process mutation context may use this seed path.
+        if (creds?.internalRefresh === "true" && !isServerSessionMutation())
+          return null;
         const isDev = process.env.NODE_ENV === "development";
 
         // Handle internal token refresh
@@ -153,7 +163,7 @@ export const tenantAuthConfig = {
       const cookiePrefix = env.TENANT_DOMAIN.replace(/\./g, "-");
       return {
         sessionToken: {
-          name: `${cookiePrefix}.session-token`,
+          name: tenantSessionCookieName(env.TENANT_DOMAIN),
           options: {
             httpOnly: true,
             sameSite: "lax" as const,

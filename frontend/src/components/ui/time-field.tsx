@@ -2,6 +2,8 @@
 
 import { useId, useRef } from "react";
 
+import { RequiredMark } from "./field-label";
+
 /**
  * Nur Ziffern und der Doppelpunkt; auch einstellige Stunden bleiben gültig.
  * Geteilt mit dem Uhrzeitfeld der Einstellungen (`SettingsTimeField`), damit
@@ -95,7 +97,7 @@ export function TimeField({
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-gray-700">
         {label}
-        {required && <span aria-hidden="true"> *</span>}
+        {required && <RequiredMark />}
       </span>
       <input
         ref={inputRef}

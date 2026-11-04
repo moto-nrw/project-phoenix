@@ -19,8 +19,8 @@
 //
 // `variant="row"` zeigt dieselbe verlinkte Kennzahl als kompakte Listenzeile.
 //
-// InfoCard bleibt die Antwort für die Karte mit Icon, Überschrift und Inhalt;
-// DataField die für ein Label-Wert-Paar in einem Detail-Panel.
+// SectionCard bleibt die Antwort für die Karte mit Icon, Überschrift und
+// Inhalt; DataField die für ein Label-Wert-Paar.
 //
 // Tones use the StatusBadge vocabulary. Callers holding the older "amber"
 // spelling (getDeltaStatus) map it to "orange" at the boundary.
@@ -158,9 +158,12 @@ export function StatCard(props: StatCardProps | StatTileProps) {
     ) : (
       <div
         title={title}
-        className={`moto-content-surface compact:p-4 relative flex h-full flex-col rounded-2xl border p-5 shadow-sm max-sm:p-3 ${
+        // `shadow-md!`: moto-content-surface setzt seinen Schatten unlayered
+        // und schlägt jede normale Utility; nur `!important` hebt die
+        // verlinkte Kachel beim Überfahren an (#5577).
+        className={`moto-content-surface compact:p-4 relative flex h-full flex-col rounded-2xl border p-5 max-sm:p-3 ${
           href
-            ? "transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md"
+            ? "transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md!"
             : ""
         }`}
       >

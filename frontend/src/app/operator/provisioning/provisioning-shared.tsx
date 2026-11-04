@@ -1,11 +1,16 @@
 import { Children, cloneElement, isValidElement } from "react";
 import { Inbox, Plus } from "lucide-react";
+import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState as UIEmptyState } from "~/components/ui/empty-state";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { FieldLabel } from "~/components/ui/field-label";
 
 /**
- * Label, control and its field error (#2519). With `error` the first child
- * element (the control) gets `aria-invalid` and `aria-describedby`, so a screen reader
+ * Label, control and its field error (#2519) for a control without a `label`
+ * prop of its own (`CustomSelect`). A text field uses `Input` with `label`,
+ * `required` and `error` directly. With `error` the first child element (the
+ * control) gets `aria-invalid` and `aria-describedby`, so a screen reader
  * reads the hint with the field.
  */
 export function FormField({
@@ -41,20 +46,11 @@ export function FormField({
     : children;
   return (
     <div>
-      <label
-        id={`${htmlFor}-label`}
-        htmlFor={htmlFor}
-        className="mb-1 block text-sm font-medium text-gray-700"
-      >
+      <FieldLabel id={`${htmlFor}-label`} htmlFor={htmlFor} required={required}>
         {label}
-        {required && <span className="text-moto-red ml-0.5">*</span>}
-      </label>
+      </FieldLabel>
       {control}
-      {error ? (
-        <p id={errorId} className="text-moto-red mt-1 text-xs">
-          {error}
-        </p>
-      ) : null}
+      <FieldErrorHint id={errorId} message={error} />
     </div>
   );
 }
@@ -106,13 +102,9 @@ export function EmptyState({
       title={title}
       description={description}
       action={
-        <button
-          type="button"
-          onClick={onAction}
-          className="rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-        >
+        <Button type="button" variant="primary" size="md" onClick={onAction}>
           {buttonLabel}
-        </button>
+        </Button>
       }
     />
   );

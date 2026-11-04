@@ -15,7 +15,7 @@ import (
 // SchoolRouter mounts the calendar of moto schule (#4798) under
 // /school/calendar: the Lehrkraft's appointments with the closing days and
 // holidays, the own Schultermine, RSVPs and the subscription feed. Every
-// route sits behind calendar:school.
+// route sits behind calendar:school, the Elternsprechtag (#4801) as well.
 func (rs *Resource) SchoolRouter(protectedSchoolRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -29,6 +29,7 @@ func (rs *Resource) SchoolRouter(protectedSchoolRoutes func(chi.Router, func(chi
 		r.With(school, withTx).Put("/appointments/{appointmentId}", rs.updateSchoolAppointment)
 		r.With(school, withTx).Delete("/appointments/{appointmentId}", rs.deleteSchoolAppointment)
 		r.With(school, withTx).Post("/recipients/{recipientId}/response", rs.respondSchoolInvitation)
+		rs.mountSchoolParentConferences(r, school, withTx)
 	})
 	return r
 }

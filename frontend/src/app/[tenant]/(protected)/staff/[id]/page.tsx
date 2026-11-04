@@ -1,5 +1,8 @@
 "use client";
 
+import { createCrudService } from "~/lib/database/service-factory";
+import { teachersConfig } from "~/components/database/configs/teachers.config";
+import { staff as staffKeys } from "~/lib/swr/staff";
 import { isScopeBooked, STAFF_TAB_MODULES } from "~/lib/module-register";
 import { useBookedModules } from "~/lib/tenant-context";
 import {
@@ -12,15 +15,26 @@ import {
 } from "react";
 import { useParams, redirect, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { KeyRound, Trash2, Users } from "lucide-react";
+import { hasSessionAccess } from "~/lib/session-access";
+import {
+  CalendarClock,
+  CalendarX,
+  KeyRound,
+  Trash2,
+  Users,
+} from "lucide-react";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import { staffService } from "~/lib/staff-api";
-import type { Staff } from "~/lib/staff-api";
+import {
+  mapStaffRecord,
+  staffPlannedExitService,
+  staffService,
+  staffStammdatenService,
+} from "~/lib/staff-api";
+import type { BackendStaffResponse, Staff } from "~/lib/staff-api";
 import { teacherService, type Teacher } from "~/lib/teacher-api";
-import { teachersConfig } from "~/components/database/configs/teachers.config";
-import { createCrudService } from "~/lib/database/service-factory";
+import { mapTeacherResponse } from "~/lib/teacher-helpers";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
@@ -29,7 +43,12 @@ import {
   getStaffDisplayType,
   getStaffLocationStatus,
 } from "~/lib/staff-helpers";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import {
+  useSWRAuth,
+  useSWRSeedFrom,
+  useTenantMutate,
+  useTenantMutateMatching,
+} from "~/lib/swr";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import {
   loadAccountRoleAssignment,
@@ -38,7 +57,13 @@ import {
 } from "~/lib/account-role-assignment";
 import { Avatar } from "~/components/ui/avatar";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { ConfirmationModal } from "~/components/ui/modal";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { PlannedExitModal } from "~/components/staff/planned-exit-modal";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
@@ -60,16 +85,11 @@ import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { staffAbsenceService } from "~/lib/staff-api";
-import { isValidISODate } from "~/lib/date-helpers";
+import { formatDate, isValidISODate, berlinTodayISO } from "~/lib/date-helpers";
 import { DetailSkeleton } from "~/components/ui/page-skeletons";
 import { StaffDetailSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "StaffDetailPage" });
-
-/** SWR-Schlüssel des Personal-Datensatzes (Konto-Reiter, Bearbeiten). */
-function staffRecordKey(staffId: string): string {
-  return `staff-record-${staffId}`;
-}
 
 /** SWR-Schlüssel der Systemrolle des Kontos (Konto-Bearbeiten, #3116). */
 function roleAssignmentKey(accountId: string): string {
@@ -106,8 +126,9 @@ export default function StaffDetailContent() {
   const handleDeleteRecordRef = useRef<() => Promise<void>>(
     async () => undefined,
   );
-  const tenantMutate = useTenantMutate();
   const recordService = useMemo(() => createCrudService(teachersConfig), []);
+  const tenantMutate = useTenantMutate();
+  const refreshStaffFamily = useTenantMutateMatching([staffKeys.family]);
   // Effective admin: the backend grants everything to `admin:*` / `*:*`
   // holders regardless of the role name, so a custom role carrying the
   // wildcard must see the same admin-gated UI as the literal admin role
@@ -181,30 +202,67 @@ export default function StaffDetailContent() {
   // bestimmt statt einmalig im useState-Initialwert eingefroren.
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
 
-  const {
-    data: staff,
-    isLoading,
-    error,
-    mutate: mutateStaff,
-  } = useSWRAuth<Staff>(`staff-detail-${staffId}`, () =>
+  // Wer nur das Finanz- oder Dokumentprofil sehen darf, bekommt dessen
+  // schmalen Endpunkt; alle anderen den vollen Datensatz.
+  const limitedProfile =
     canViewFinancial && !canViewStammdatenSections
-      ? staffService.getFinancialProfile(staffId)
+      ? "financial"
       : canViewDocuments && !canViewTimeTracking && !canViewStammdaten
-        ? staffService.getDocumentProfile(staffId)
-        : staffService.getStaffById(staffId),
+        ? "document"
+        : null;
+  const profileRequest = useSWRAuth<Staff>(
+    limitedProfile ? staffKeys.profileKey(staffId) : null,
+    () =>
+      limitedProfile === "financial"
+        ? staffService.getFinancialProfile(staffId)
+        : staffService.getDocumentProfile(staffId),
+    { keepPreviousData: false },
   );
+  const profile = profileRequest.data;
 
-  // Der Datensatz für den Reiter „Konto" und das Bearbeiten: dieselbe
-  // Abbildung wie das Register der Datenverwaltung (Systemrolle, RFID-Karte,
-  // Notizen, Konto-ID), damit beide Seiten dieselben Felder kennen.
-  const {
-    data: record,
-    error: recordError,
-    mutate: mutateRecord,
-  } = useSWRAuth<Teacher>(
-    canViewRecord && staff && !staff.endedOn ? staffRecordKey(staffId) : null,
-    () => recordService.getOne(staffId),
+  // Der Datensatz kommt mit EINEM Abruf je Seite (#4993). Daraus entstehen
+  // der Kopf der Personalakte und die Abbildung des Reiters „Konto": dieselbe
+  // wie im Register der Datenverwaltung (Systemrolle, RFID-Karte, Notizen,
+  // Konto-ID), damit beide Seiten dieselben Felder kennen. Neben einem
+  // schmalen Profil lädt er nur für den Reiter „Konto".
+  const recordRequest = useSWRAuth<BackendStaffResponse>(
+    limitedProfile === null || (canViewRecord && profile && !profile.endedOn)
+      ? staffKeys.recordKey(staffId)
+      : null,
+    () => staffService.getStaffRecord(staffId),
+    { keepPreviousData: false },
   );
+  const recordData = recordRequest.data;
+  const fullStaff = useMemo(
+    () => (recordData ? mapStaffRecord(recordData) : undefined),
+    [recordData],
+  );
+  const record = useMemo<Teacher | undefined>(
+    () =>
+      canViewRecord && recordData ? mapTeacherResponse(recordData) : undefined,
+    [canViewRecord, recordData],
+  );
+  const staffRequest = limitedProfile ? profileRequest : recordRequest;
+  const staff = limitedProfile ? profile : fullStaff;
+  const { isLoading, error } = staffRequest;
+  const seedFrom = useSWRSeedFrom();
+  const detailKey = limitedProfile
+    ? staffKeys.profileKey(staffId)
+    : staffKeys.recordKey(staffId);
+  const preview = useMemo(
+    () =>
+      isLoading
+        ? seedFrom(staffKeys.previewSources, detailKey, (data: unknown) =>
+            staffKeys.preview(data, staffId),
+          )
+        : undefined,
+    [isLoading, seedFrom, detailKey, staffId],
+  );
+  const mutateStaff = staffRequest.mutate;
+  // Ohne schmales Profil ist ein Fehler des Datensatzes der Ladefehler der
+  // ganzen Seite, nicht des Reiters.
+  const recordError = limitedProfile ? recordRequest.error : undefined;
+  const mutateRecord = recordRequest.mutate;
   // Ladefehler stehen dort, wo die Daten fehlen, mit Wiederholen (#2514).
   // Ein 404 ist kein Ladefehler, sondern eine Person, die es nicht mehr gibt.
   const staffNotFound = error instanceof ApiError && error.status === 404;
@@ -226,11 +284,8 @@ export default function StaffDetailContent() {
   // bearbeitet.
   const [kontoEditing, setKontoEditing] = useState(false);
   const { data: staffDirectory } = useSWRAuth<Teacher[]>(
-    kontoEditing && canManageStaffRecords ? "database-teachers-list" : null,
-    async () => {
-      const data = await recordService.getList({ page: 1, pageSize: 1000 });
-      return Array.isArray(data.data) ? data.data : [];
-    },
+    kontoEditing && canManageStaffRecords ? staffKeys.teachersKey() : null,
+    () => staffKeys.teachersFetcher(recordService),
   );
   const existingPositions = useMemo(() => {
     const positions = new Set<string>();
@@ -246,17 +301,25 @@ export default function StaffDetailContent() {
     );
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Geplanter Austritt (#4809): eintragen, ändern, zurücknehmen.
+  const [showPlannedExitModal, setShowPlannedExitModal] = useState(false);
+  const [showWithdrawExitModal, setShowWithdrawExitModal] = useState(false);
+  const [withdrawingExit, setWithdrawingExit] = useState(false);
+  // Wie beim Löschen steht ein Fehler im offenen Dialog (#2514).
+  const withdrawExitErrors = useApiFormError();
+  const { clear: clearWithdrawExitError, show: showWithdrawExitError } =
+    withdrawExitErrors;
   const [caregiverModalOpen, setCaregiverModalOpen] = useState(false);
   const [mfaModalOpen, setMfaModalOpen] = useState(false);
-  const accessToken = session?.user?.token ?? "";
+  const hasAccess = hasSessionAccess(session);
 
   const refreshRecord = useCallback(async () => {
     await Promise.all([
-      tenantMutate(staffRecordKey(staffId)),
-      tenantMutate(`staff-detail-${staffId}`),
-      tenantMutate("database-teachers-list"),
+      tenantMutate(staffKeys.recordKey(staffId)),
+      tenantMutate(staffKeys.profileKey(staffId)),
+      refreshStaffFamily(),
     ]);
-  }, [staffId, tenantMutate]);
+  }, [staffId, tenantMutate, refreshStaffFamily]);
 
   // EIN Speichern für Name, Position, Notizen und Systemrolle (Bauart 2
   // Regel 4). Der Datensatz geht zuerst; scheitert danach der Rollenwechsel,
@@ -267,7 +330,8 @@ export default function StaffDetailContent() {
       const hasRecordChanges = Object.keys(recordData).length > 0;
       if (hasRecordChanges) {
         try {
-          await teacherService.updateTeacher(staffId, recordData);
+          if (!record) throw new Error("Staff record is not loaded");
+          await teacherService.updateTeacher(staffId, recordData, record);
         } catch (err) {
           logger.error("failed to update staff record", {
             staff_id: staffId,
@@ -299,7 +363,7 @@ export default function StaffDetailContent() {
       toastSuccess("Die Änderungen sind gespeichert.");
       await refreshRecord();
     },
-    [accountId, refreshRecord, staffId, tenantMutate, toastSuccess],
+    [accountId, record, refreshRecord, staffId, tenantMutate, toastSuccess],
   );
 
   const handleDeleteRecord = useCallback(async () => {
@@ -308,7 +372,7 @@ export default function StaffDetailContent() {
     try {
       await teacherService.deleteTeacher(staffId);
       toastSuccess("Die Person ist gelöscht.");
-      await tenantMutate("database-teachers-list");
+      await refreshStaffFamily();
       setShowDeleteModal(false);
       router.push(referrer);
     } catch (err) {
@@ -329,12 +393,58 @@ export default function StaffDetailContent() {
     router,
     showDeleteError,
     staffId,
-    tenantMutate,
+    refreshStaffFamily,
     toastSuccess,
   ]);
   useLayoutEffect(() => {
     handleDeleteRecordRef.current = handleDeleteRecord;
   });
+
+  // Das Vertragsende ist der Vorschlag für den letzten Arbeitstag. Es lädt
+  // erst mit dem Dialog und nur mit dem Recht auf die Stammdaten; ohne bleibt
+  // das Feld leer, das ist kein Fehler.
+  const { data: plannedExitStammdaten } = useSWRAuth(
+    showPlannedExitModal && canViewStammdatenSections
+      ? `staff-stammdaten-${staffId}`
+      : null,
+    () => staffStammdatenService.get(staffId),
+  );
+
+  const handlePlannedExitSaved = useCallback(
+    async (lastWorkingDay: string) => {
+      setShowPlannedExitModal(false);
+      toastSuccess(
+        `Der Austritt ist für den ${formatDate(lastWorkingDay)} geplant.`,
+      );
+      await refreshRecord();
+    },
+    [refreshRecord, toastSuccess],
+  );
+
+  const handleWithdrawExit = useCallback(async () => {
+    setWithdrawingExit(true);
+    clearWithdrawExitError();
+    try {
+      await staffPlannedExitService.withdraw(staffId);
+      setShowWithdrawExitModal(false);
+      toastSuccess("Der Austritt ist zurückgenommen.");
+      await refreshRecord();
+    } catch (err) {
+      logger.error("planned_exit_withdraw_failed", {
+        staff_id: staffId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await showWithdrawExitError(err, { object: "den Austritt" });
+    } finally {
+      setWithdrawingExit(false);
+    }
+  }, [
+    clearWithdrawExitError,
+    refreshRecord,
+    showWithdrawExitError,
+    staffId,
+    toastSuccess,
+  ]);
 
   // Counter for the "Abwesenheiten" tab — shows MA-Pending only.
   // The /staff dashboard inbox (Tranche 4c) will count across all staff.
@@ -343,7 +453,7 @@ export default function StaffDetailContent() {
       ? `staff-pending-absences-${staffId}`
       : null,
     async () => {
-      const year = new Date().getFullYear();
+      const year = Number(berlinTodayISO().slice(0, 4));
       const rows = await staffAbsenceService.getAbsences(
         staffId,
         `${year}-01-01`,
@@ -518,8 +628,9 @@ export default function StaffDetailContent() {
   const recordLabel = record
     ? `${record.first_name} ${record.last_name}`.trim()
     : "";
+  const plannedExitDate = staff?.plannedExitDate;
   const recordMenuItems: OverflowMenuItem[] = [
-    ...(canManageUsers && hasAccount && accessToken
+    ...(canManageUsers && hasAccount && hasAccess
       ? [
           {
             label: "Zwei-Faktor-Authentifizierung verwalten",
@@ -534,6 +645,29 @@ export default function StaffDetailContent() {
             label: "Betreuung verwalten",
             icon: <Users className="size-4" aria-hidden />,
             onClick: () => setCaregiverModalOpen(true),
+          },
+        ]
+      : []),
+    ...(canDeleteStaff && record && !plannedExitDate
+      ? [
+          {
+            label: "Austritt planen",
+            icon: <CalendarClock className="size-4" aria-hidden />,
+            onClick: () => setShowPlannedExitModal(true),
+          },
+        ]
+      : []),
+    ...(canDeleteStaff && record && plannedExitDate
+      ? [
+          {
+            label: "Austritt ändern",
+            icon: <CalendarClock className="size-4" aria-hidden />,
+            onClick: () => setShowPlannedExitModal(true),
+          },
+          {
+            label: "Austritt zurücknehmen",
+            icon: <CalendarX className="size-4" aria-hidden />,
+            onClick: () => setShowWithdrawExitModal(true),
           },
         ]
       : []),
@@ -553,9 +687,13 @@ export default function StaffDetailContent() {
     <TenantPage
       // Der Entitätskopf IST die Kopfkarte: Avatar links, Name als Titel,
       // Statuszeile darunter, Status und Kebab als Aktionen.
-      title={staff ? `${staff.firstName} ${staff.lastName}` : "Mitarbeiter"}
-      stats={statusLine}
-      statsLoading={!staff}
+      title={
+        staff
+          ? `${staff.firstName} ${staff.lastName}`
+          : (preview?.name ?? "Mitarbeiter")
+      }
+      stats={staff ? statusLine : preview?.context}
+      statsLoading={!staff && !preview?.context}
       back
       backHref={referrer}
       backLabel={backLabel}
@@ -581,6 +719,12 @@ export default function StaffDetailContent() {
             <StatusColorBadge
               label={locationStatus.label}
               color={locationStatus.customBgColor}
+            />
+          ) : null}
+          {plannedExitDate ? (
+            <StatusBadge
+              label={`Austritt am ${formatDate(plannedExitDate)}`}
+              tone="orange"
             />
           ) : null}
           {recordMenuItems.length > 0 ? (
@@ -628,6 +772,40 @@ export default function StaffDetailContent() {
               }}
               loading={deleting}
             />
+            {canDeleteStaff ? (
+              <>
+                <PlannedExitModal
+                  isOpen={showPlannedExitModal}
+                  staffId={staffId}
+                  staffName={recordLabel}
+                  plannedDay={plannedExitDate}
+                  contractEndDate={
+                    plannedExitStammdaten?.arbeitsvertrag?.contractEndDate
+                  }
+                  onClose={() => setShowPlannedExitModal(false)}
+                  onSaved={(day) => void handlePlannedExitSaved(day)}
+                />
+                <ConfirmationModal
+                  isOpen={showWithdrawExitModal}
+                  onClose={() => {
+                    clearWithdrawExitError();
+                    setShowWithdrawExitModal(false);
+                  }}
+                  onConfirm={() => void handleWithdrawExit()}
+                  title="Austritt zurücknehmen?"
+                  confirmText="Zurücknehmen"
+                  isConfirmLoading={withdrawingExit}
+                >
+                  <div className="space-y-3">
+                    <FormErrorAlert message={withdrawExitErrors.error} />
+                    <p>
+                      {recordLabel} bleibt im Team und behält den Zugang zu
+                      moto.
+                    </p>
+                  </div>
+                </ConfirmationModal>
+              </>
+            ) : null}
             {hasAccount ? (
               <>
                 <CaregiverCapabilityModal
@@ -638,11 +816,10 @@ export default function StaffDetailContent() {
                   accountLabel={recordLabel}
                   onUpdated={refreshRecord}
                 />
-                {accessToken ? (
+                {hasAccess ? (
                   <MFAAdminOverrideModal
                     isOpen={mfaModalOpen}
                     onClose={() => setMfaModalOpen(false)}
-                    bearerToken={accessToken}
                     accountId={accountId}
                     accountLabel={recordLabel}
                   />

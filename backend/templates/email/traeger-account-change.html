@@ -1,0 +1,45 @@
+{{define "traeger-account-change.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "moto-brand" .}}
+    {{if .Removed}}
+    <h1>Sie sind nicht mehr im Träger-Büro</h1>
+    <p>Guten Tag,</p>
+    {{if .Self}}
+    <p>Sie wurden aus dem Träger-Büro von <strong>{{.TraegerName}}</strong> entfernt. Das geschah am {{.Date}} um {{.Time}} Uhr mit Ihrem eigenen Konto.</p>
+    {{else}}
+    <p><strong>{{.ActorEmail}}</strong> hat Sie am {{.Date}} um {{.Time}} Uhr aus dem Träger-Büro von <strong>{{.TraegerName}}</strong> entfernt.</p>
+    {{end}}
+
+    <div class="highlight-box">
+        <p>Bisher: <strong>{{.RolesBefore}}</strong></p>
+    </div>
+
+    <p>Sie können sich im Träger-Portal nicht mehr anmelden. Ihr moto-Konto bleibt bestehen.</p>
+    {{else}}
+    <h1>Ihre Rollen haben sich geändert</h1>
+    <p>Guten Tag,</p>
+    {{if .Self}}
+    <p>Ihre Rollen im Träger-Büro von <strong>{{.TraegerName}}</strong> wurden geändert. Das geschah am {{.Date}} um {{.Time}} Uhr mit Ihrem eigenen Konto.</p>
+    {{else}}
+    <p><strong>{{.ActorEmail}}</strong> hat am {{.Date}} um {{.Time}} Uhr Ihre Rollen im Träger-Büro von <strong>{{.TraegerName}}</strong> geändert.</p>
+    {{end}}
+
+    <div class="highlight-box">
+        <p>Vorher: <strong>{{.RolesBefore}}</strong></p>
+        <p>Jetzt: <strong>{{.RolesAfter}}</strong></p>
+    </div>
+
+    <p>Die neuen Rollen gelten nach wenigen Minuten.</p>
+    {{end}}
+
+    {{if not .Self}}
+    <p>Sie haben Fragen dazu? Dann wenden Sie sich an {{.ActorEmail}}.</p>
+    {{end}}
+
+    <p class="security-note">Sie haben das nicht erwartet? Dann sagen Sie es der Leitung Ihres Träger-Büros. Oder schreiben Sie sofort an <a href="mailto:{{.ContactAddress}}">{{.ContactAddress}}</a>.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

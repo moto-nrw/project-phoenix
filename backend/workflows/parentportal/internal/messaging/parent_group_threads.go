@@ -61,7 +61,7 @@ type GroupThreads interface {
 	ListGroupThreads(ctx context.Context, accountID int64, studentIDs, tenantIDs []int64) ([]GroupThreadSummary, error)
 	CountUnreadGroupThreads(ctx context.Context, accountID int64, studentIDs, tenantIDs []int64) (int, error)
 	ReadGroupThread(ctx context.Context, threadID, accountID int64, studentIDs []int64) (*GroupThreadView, bool, error)
-	GroupReplyTarget(ctx context.Context, threadID, accountID, studentID int64) (*GroupThread, error)
+	GroupReplyTarget(ctx context.Context, threadID, accountID, studentID int64, sendIDs ...string) (*GroupThread, error)
 	GroupThreadTitles(ctx context.Context, threadIDs []int64) (map[int64]string, error)
 }
 
@@ -204,7 +204,7 @@ func (s *Service) GetGroupThread(ctx context.Context, accountID, threadID int64,
 			// WithinTenant committed the cursor before returning. The staff group-
 			// thread detail subscribes to this existing read receipt trigger, which
 			// deliberately carries no identifiers through the staff SSE fan-out.
-			s.broadcastReadReceipt(tenantID, accountID, 0, 0)
+			s.broadcastReadReceipt(tenantID, accountID, conversationRef{Audience: AudienceTeam}, 0)
 		}
 		detail := &GroupThreadDetail{GroupThreadView: *view}
 		detail.Children, detail.SchoolName = pickChildren(byID, view.StudentIDs)
@@ -233,7 +233,7 @@ func (s *Service) requireGroupReply(ctx context.Context, child *Child, accountID
 		return ErrGroupThreadNotFound
 	}
 	return s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		_, err := s.GroupThreads.GroupReplyTarget(txCtx, threadID, accountID, studentID)
+		_, err := s.GroupThreads.GroupReplyTarget(txCtx, threadID, accountID, studentID, messageSendID(ctx))
 		return err
 	})
 }

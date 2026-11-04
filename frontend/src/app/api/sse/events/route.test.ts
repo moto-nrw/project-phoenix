@@ -33,6 +33,7 @@ function createAbortableRequest(
 ): NextRequest {
   return {
     nextUrl: new URL(path, "http://localhost:3000"),
+    headers: new Headers(),
     signal,
   } as unknown as NextRequest;
 }

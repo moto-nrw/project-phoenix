@@ -1,0 +1,11 @@
+{
+  "announcement_published": "{object} could not be changed. Please check its current status.",
+  "attachment_limit_reached": "{object} could not be changed. Please check its current status.",
+  "file_missing": "{object} could not be saved. Please check your entries.",
+  "file_name_invalid": "This file name is not allowed. Please choose the file again.",
+  "file_too_large": "{object} could not be saved. Please check your entries.",
+  "file_type_not_allowed": "{object} could not be saved. Please check your entries.",
+  "file_unreadable": "{object} could not be saved. Please check your entries.",
+  "folder_name_taken": "{object} could not be changed. Please check its current status.",
+  "quota_exceeded": "{object} could not be changed. Please check its current status."
+}

@@ -19,9 +19,9 @@ import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { isSystemActivity, type Activity } from "@/lib/activity-helpers";
 import { buildActivityFormSections } from "./activity-form-sections";
+import { activitiesConcept } from "~/lib/concepts/activities";
 
 interface ActivitiesMasterDetailProps {
   activities: Activity[];
@@ -167,8 +167,8 @@ function ActivityDetailContent({
         <DatabaseDetailHeader
           icon={
             <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.activities.icon}
-              tone={MOTO_CONCEPTS.activities.tone}
+              icon={activitiesConcept.icon}
+              tone={activitiesConcept.tone}
               size={36}
             />
           }
@@ -242,7 +242,7 @@ function ActivitySummary({ activity }: { activity: Activity }) {
   const isSystem = isSystemActivity(activity);
 
   return (
-    <section className="moto-content-surface rounded-xl border p-4 shadow-sm">
+    <section className="moto-content-surface rounded-xl border p-4">
       <div className="flex flex-wrap items-center gap-2">
         {activity.category_name ? (
           <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">

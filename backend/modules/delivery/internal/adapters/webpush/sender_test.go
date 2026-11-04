@@ -2,6 +2,8 @@ package webpush
 
 import (
 	"context"
+	"errors"
+	"net/url"
 	"testing"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
@@ -43,4 +45,31 @@ func TestPushOptionsFollowPersistedPriority(t *testing.T) {
 			assert.Equal(t, testCase.urgency, pushUrgency(testCase.priority))
 		})
 	}
+}
+
+// Sentry BACKEND-Y carries the send error of a dead letter. The endpoint path
+// is the device's push token and must not reach Sentry or logs.
+func TestWithoutPushTokenKeepsOnlyThePushServiceOrigin(t *testing.T) {
+	t.Parallel()
+	refused := errors.New("dial tcp: connection refused")
+
+	err := withoutPushToken(&url.Error{Op: "Post", URL: "https://fcm.googleapis.com/fcm/send/device-token-123", Err: refused})
+
+	assert.EqualError(t, err, `Post "https://fcm.googleapis.com": dial tcp: connection refused`)
+	assert.ErrorIs(t, err, refused)
+	var urlErr *url.Error
+	assert.ErrorAs(t, err, &urlErr, "transport errors keep their type")
+}
+
+func TestSendPushKeepsPushTokenOutOfInvalidEndpointErrors(t *testing.T) {
+	t.Parallel()
+	sender := New(deliveryContract.WebPushConfig{Subscriber: "mailto:push@example.test", PublicKey: "public", PrivateKey: "private"}, nil)
+
+	_, err := sender.SendPush(context.Background(), deliveryContract.ClaimedIntent{
+		PushRecipient: deliveryContract.PushRecipient{Endpoint: "https://fcm.googleapis.com/fcm/send/device-token-123\x7f"},
+	})
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "invalid push endpoint")
+	assert.NotContains(t, err.Error(), "device-token-123")
 }

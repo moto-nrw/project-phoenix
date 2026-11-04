@@ -28,7 +28,7 @@ func TestAccountSessionRuntimeEvidence(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "session-runtime")
 	tenantID := testpkg.Tenant(t)
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	testpkg.AttachLockWaitEvidence(db)
+	testpkg.AttachLockWaitEvidence(t, db)
 	ctx, events := testpkg.CaptureUnitOfWorkEvidence(counter.Context(testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db)))
 	var version string
 	require.NoError(t, db.NewRaw("SHOW server_version").Scan(ctx, &version))
@@ -89,7 +89,7 @@ func TestAccountSessionRuntimeEvidence(t *testing.T) {
 				if err := access.DeleteExpiredRotatedAccountSessions(txCtx, account.ID, time.Now()); err != nil {
 					return err
 				}
-				_, err = access.EnforceAccountSessionCap(txCtx, account.ID, "tenant", 5)
+				_, err = access.EnforceAccountSessionCap(txCtx, account.ID, "tenant", 5, 0)
 				return err
 			})
 		})
@@ -136,7 +136,7 @@ func TestAccountSessionRuntimeEvidence(t *testing.T) {
 				if err := access.DeleteExpiredRotatedAccountSessions(txCtx, account.ID, time.Now()); err != nil {
 					return err
 				}
-				if _, err := access.EnforceAccountSessionCap(txCtx, account.ID, "tenant", 5); err != nil {
+				if _, err := access.EnforceAccountSessionCap(txCtx, account.ID, "tenant", 5, 0); err != nil {
 					return err
 				}
 				session = switched

@@ -3,6 +3,65 @@ import { ApiError } from "./api-error";
 import { presentError } from "./error-presentation";
 
 describe("presentError", () => {
+  it.each([
+    [
+      "display.manage_forbidden",
+      "Sie dürfen Info-Displays ansehen, aber nicht ändern. Bitte fragen Sie Ihre Schulleitung.",
+    ],
+    [
+      "meals.participation_manage_denied",
+      "Sie dürfen die Essensanmeldung ansehen, aber nicht ändern. Bitte wenden Sie sich an die OGS.",
+    ],
+  ] as const)(
+    "explains read-only access for %s without retry",
+    (code, message) => {
+      const error = new ApiError("internal permission diagnostic", 403, {
+        code,
+      });
+      expect(presentError(error, "Änderung")).toMatchObject({
+        kind: "api",
+        errorClass: "permission",
+        message,
+        retryable: false,
+        requiresLogin: false,
+      });
+      for (const locale of ["en", "pl", "ru", "sq", "tr", "uk"] as const) {
+        const translated = presentError(error, "Änderung", locale);
+        expect(translated.retryable).toBe(false);
+        expect(translated.message).not.toBe(message);
+        expect(translated.message).not.toContain(
+          "internal permission diagnostic",
+        );
+      }
+    },
+  );
+
+  it.each(["de", "en", "pl", "ru", "sq", "tr", "uk"] as const)(
+    "names the rejected upload in %s without exposing backend diagnostics",
+    (locale) => {
+      const error = new ApiError("unsupported magic bytes", 400, {
+        code: "enrollment.upload_content_mismatch",
+        details: { filename: "Bescheid.pdf" },
+      });
+      const result = presentError(error, "Nachweis", locale);
+      expect(result.kind).toBe("api");
+      expect(result.message).toContain("Bescheid.pdf");
+      expect(result.message).not.toContain("unsupported magic bytes");
+      expect(result.message).not.toContain("{filename}");
+      expect(result.retryable).toBe(false);
+    },
+  );
+
+  it("explains a disguised proof and the next step in plain German", () => {
+    const error = new ApiError("unsupported magic bytes", 400, {
+      code: "enrollment.upload_content_mismatch",
+      details: { filename: "Bescheid.pdf" },
+    });
+    expect(presentError(error, "Nachweis").message).toBe(
+      "Der Inhalt von „Bescheid.pdf“ passt nicht zur Dateiart. Bitte wählen Sie eine andere Datei. Umbenennen reicht nicht.",
+    );
+  });
+
   it("uses structured details, never the backend sentence", () => {
     const error = new ApiError("This is a backend diagnostic", 409, {
       code: "iot.room_capacity_exceeded",

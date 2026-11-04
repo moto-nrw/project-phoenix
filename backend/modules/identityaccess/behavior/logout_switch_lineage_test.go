@@ -1,0 +1,350 @@
+package behavior_test
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+// switchLineageFixture is an account signed in at its home school with a
+// mapping at a second school it can switch to.
+type switchLineageFixture struct {
+	db             *bun.DB
+	module         identityaccess.Owner
+	service        testAuthService
+	accountID      int64
+	homeTenantID   int64
+	targetTenantID int64
+	access         string
+	refresh        string
+}
+
+func newSwitchLineageFixture(t *testing.T, prefix string) switchLineageFixture {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module := setupAuthFactory(t, db)
+	service := newFixtureAuthService(t, db, module)
+	homeTenantID := testpkg.Tenant(t)
+	ctx := testpkg.Ctx(t)
+	email, username := uniqueTestCredentials(prefix)
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, homeTenantID)
+	targetTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, targetTenantID)
+	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
+	access, refresh, err := service.IssueTokensForAuthenticatedAccount(ctx, account.ID, homeTenantID, "", "")
+	require.NoError(t, err)
+	return switchLineageFixture{
+		db: db, module: module, service: service, accountID: account.ID,
+		homeTenantID: homeTenantID, targetTenantID: targetTenantID, access: access, refresh: refresh,
+	}
+}
+
+func (f switchLineageFixture) switchToTarget(ctx context.Context, sourceFamilyID string) (string, string, error) {
+	return f.service.SwitchTenant(ctx, f.accountID, fmt.Sprintf("t%d", f.targetTenantID), sourceFamilyID)
+}
+
+// TestLogoutRevokesAFamilySwitchedFromIt pins #5422: a school switch that
+// committed before the logout of its source family leaves no live family.
+// Its answer may reach the browser after the logout deleted the cookie;
+// the family it names must already be gone, so neither the access token,
+// the refresh token nor the cookie gate's family check keeps it alive.
+func TestLogoutRevokesAFamilySwitchedFromIt(t *testing.T) {
+	t.Parallel()
+	f := newSwitchLineageFixture(t, "logout-switched")
+	ctx := testpkg.Ctx(t)
+	source := accessSessionOf(t, f.access)
+	switchedAccess, switchedRefresh, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err)
+	switched := accessSessionOf(t, switchedAccess)
+	require.NotEqual(t, source.FamilyID, switched.FamilyID, "a switch mints a family of its own")
+	require.NoError(t, f.module.VerifyAccessSession(ctx, switched))
+
+	require.NoError(t, f.service.LogoutWithAudit(ctx, f.refresh, "", ""))
+
+	require.ErrorIs(t, f.module.VerifyAccessSession(ctx, switched), identityaccess.ErrInvalidToken, "the switched family ends with the logout")
+	assert.Zero(t, familyRowCount(t, f.db, switched.FamilyID))
+	_, _, err = f.service.RefreshToken(ctx, switchedRefresh)
+	require.Error(t, err, "the switched family's refresh token is worthless")
+	assert.Empty(t, liveTokens(t, f.db, f.accountID), "no family of the lineage survives")
+}
+
+// TestLogoutOfSwitchedFamilyRevokesItsRetiredSource pins the other
+// direction: the retired source family lives on through its grace, and a
+// logout of the family switched to must not leave it usable.
+func TestLogoutOfSwitchedFamilyRevokesItsRetiredSource(t *testing.T) {
+	t.Parallel()
+	f := newSwitchLineageFixture(t, "logout-source")
+	ctx := testpkg.Ctx(t)
+	source := accessSessionOf(t, f.access)
+	_, switchedRefresh, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err)
+	require.NoError(t, f.module.VerifyAccessSession(ctx, source), "the retired source lives through its grace")
+
+	require.NoError(t, f.service.LogoutWithAudit(ctx, switchedRefresh, "", ""))
+
+	require.ErrorIs(t, f.module.VerifyAccessSession(ctx, source), identityaccess.ErrInvalidToken)
+	assert.Zero(t, familyRowCount(t, f.db, source.FamilyID))
+	assert.Empty(t, liveTokens(t, f.db, f.accountID))
+}
+
+// TestLogoutRevokesSwitchesAcrossTheWholeLineage covers a stale tab that
+// switches from the retired source again: every family that descends from
+// the same login ends, whichever of them is logged out.
+func TestLogoutRevokesSwitchesAcrossTheWholeLineage(t *testing.T) {
+	t.Parallel()
+	f := newSwitchLineageFixture(t, "logout-lineage")
+	ctx := testpkg.Ctx(t)
+	source := accessSessionOf(t, f.access)
+	firstAccess, firstRefresh, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err)
+	secondAccess, _, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err, "the retired source still switches within its grace")
+	thirdAccess, _, err := f.service.SwitchTenant(ctx, f.accountID, fmt.Sprintf("t%d", f.homeTenantID), accessSessionOf(t, secondAccess).FamilyID)
+	require.NoError(t, err)
+
+	other := newOtherDeviceSession(t, f)
+
+	require.NoError(t, f.service.LogoutWithAudit(ctx, firstRefresh, "", ""))
+
+	for name, access := range map[string]string{"source": f.access, "first": firstAccess, "second": secondAccess, "third": thirdAccess} {
+		require.ErrorIs(t, f.module.VerifyAccessSession(ctx, accessSessionOf(t, access)), identityaccess.ErrInvalidToken, name)
+	}
+	require.NoError(t, f.module.VerifyAccessSession(ctx, other), "another login of the account keeps its session")
+}
+
+func newOtherDeviceSession(t *testing.T, f switchLineageFixture) identityaccess.AccessSession {
+	t.Helper()
+	access, _, err := f.service.IssueTokensForAuthenticatedAccount(testpkg.Ctx(t), f.accountID, f.homeTenantID, "", "")
+	require.NoError(t, err)
+	return accessSessionOf(t, access)
+}
+
+// TestLogoutWaitsForAConcurrentSwitch drives the #5422 race with both real
+// commands. An open transaction holds the account lock both take; the
+// switch queues on it first, the logout behind it. Released, the switch
+// commits its family and the logout, granted the lock next, must read and
+// revoke it. A logout that read the account's sessions before the switch
+// committed would leave the switched family alive.
+func TestLogoutWaitsForAConcurrentSwitch(t *testing.T) {
+	t.Parallel()
+	f := newSwitchLineageFixture(t, "logout-switch-race")
+	ctx := testpkg.Ctx(t)
+	source := accessSessionOf(t, f.access)
+
+	holder, err := f.db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	var holderPID int
+	require.NoError(t, holder.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&holderPID))
+	_, err = holder.ExecContext(ctx, `SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, f.accountID)
+	require.NoError(t, err)
+
+	type switchResult struct {
+		access string
+		err    error
+	}
+	switched := make(chan switchResult, 1)
+	go func() {
+		access, _, err := f.switchToTarget(context.WithoutCancel(ctx), source.FamilyID)
+		switched <- switchResult{access: access, err: err}
+	}()
+	switchPID := waitForBlockedBackend(t, f.db, []int{holderPID}, "the switch must wait for the account lock")
+
+	logout := make(chan error, 1)
+	go func() { logout <- f.service.LogoutWithAudit(context.WithoutCancel(ctx), f.refresh, "", "") }()
+	waitForBlockedBackend(t, f.db, []int{holderPID, switchPID}, "the logout must queue behind the switch")
+	require.NoError(t, holder.Commit())
+
+	var result switchResult
+	select {
+	case result = <-switched:
+	case <-time.After(10 * time.Second):
+		t.Fatal("switch did not finish after the lock was released")
+	}
+	select {
+	case err := <-logout:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("logout did not finish after the switch committed")
+	}
+	require.NoError(t, result.err, "the switch held the lock first and committed")
+	require.ErrorIs(t, f.module.VerifyAccessSession(ctx, accessSessionOf(t, result.access)), identityaccess.ErrInvalidToken,
+		"the family the switch committed before the logout is revoked with it")
+	assert.Empty(t, liveTokens(t, f.db, f.accountID))
+}
+
+// waitForBlockedBackend waits until a backend other than blockers waits on
+// one of them and returns its pid.
+func waitForBlockedBackend(t *testing.T, db *bun.DB, blockers []int, message string) int {
+	t.Helper()
+	var pid int
+	require.Eventually(t, func() bool {
+		err := db.QueryRowContext(context.Background(), `
+			SELECT pid FROM pg_stat_activity
+			WHERE NOT (pid = ANY(?::int[])) AND pg_blocking_pids(pid) && ?::int[]
+			ORDER BY pid LIMIT 1`, intArray(blockers), intArray(blockers)).Scan(&pid)
+		return err == nil && pid > 0
+	}, 5*time.Second, 10*time.Millisecond, message)
+	return pid
+}
+
+func intArray(values []int) string {
+	parts := "{"
+	for i, value := range values {
+		if i > 0 {
+			parts += ","
+		}
+		parts += fmt.Sprint(value)
+	}
+	return parts + "}"
+}
+
+// TestLogoutAuditsSwitchedFamiliesInTheirOwnSchool pins the tenant
+// boundary of the lineage logout: each school's ledger records the
+// revocation of its own session, and none records another school's.
+func TestLogoutAuditsSwitchedFamiliesInTheirOwnSchool(t *testing.T) {
+	t.Parallel()
+	f := newSwitchLineageFixture(t, "logout-switch-audit")
+	ctx := testpkg.Ctx(t)
+	source := accessSessionOf(t, f.access)
+	_, _, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err)
+
+	require.NoError(t, f.service.LogoutWithAudit(ctx, f.refresh, "192.0.2.11", "lineage-test"))
+
+	for _, tenantID := range []int64{f.homeTenantID, f.targetTenantID} {
+		var events []authEventRow
+		require.NoError(t, f.db.NewSelect().Model(&events).
+			Where(`"auth_event".account_id = ?`, f.accountID).
+			Where(`"auth_event".tenant_id = ?`, tenantID).
+			Where(`"auth_event".event_type = ?`, authEventTokenRevoked).
+			Scan(ctx))
+		var logoutEvents int
+		for _, event := range events {
+			if event.Metadata["reason"] == "logout" {
+				logoutEvents++
+			}
+		}
+		assert.Equal(t, 1, logoutEvents, "school %d records the logout revocation of its own session once", tenantID)
+	}
+}
+
+// Cleanup must not sever either a sibling fork or a deeper switch lineage.
+func TestLogoutRevokesSwitchedSiblingAfterSourceCleanup(t *testing.T) {
+	t.Parallel()
+	assertLogoutAfterAncestorCleanup(t, false)
+}
+
+func TestLogoutRevokesSwitchLineageAfterIntermediateCleanup(t *testing.T) {
+	t.Parallel()
+	assertLogoutAfterAncestorCleanup(t, true)
+}
+
+func assertLogoutAfterAncestorCleanup(t *testing.T, intermediate bool) {
+	t.Helper()
+	testpkg.SetupIsolatedTestDB(t)
+	f := newSwitchLineageFixture(t, "logout-cleaned-lineage")
+	ctx := testpkg.Ctx(t)
+	source := accessSessionOf(t, f.access)
+	_, firstRefresh, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err)
+	siblingAccess, siblingRefresh, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err)
+	expiredFamilies := []string{source.FamilyID}
+	if intermediate {
+		expiredFamilies = append(expiredFamilies, accessSessionOf(t, siblingAccess).FamilyID)
+		siblingAccess, siblingRefresh, err = f.service.SwitchTenant(ctx, f.accountID,
+			fmt.Sprintf("t%d", f.homeTenantID), accessSessionOf(t, siblingAccess).FamilyID)
+		require.NoError(t, err)
+	}
+	other := newOtherDeviceSession(t, f)
+	_, err = f.db.NewUpdate().TableExpr("auth.tokens").Set("expiry = ?", time.Now().Add(-time.Minute)).
+		Where("account_id = ?", f.accountID).Where("family_id IN (?)", bun.List(expiredFamilies)).Exec(ctx)
+	require.NoError(t, err)
+	for _, tenantID := range []int64{f.homeTenantID, f.targetTenantID} {
+		_, err = f.service.CleanupExpiredTokens(testpkg.TenantContext(tenantID))
+		require.NoError(t, err)
+	}
+	for _, familyID := range expiredFamilies {
+		require.Zero(t, familyRowCount(t, f.db, familyID), "cleanup removed the ancestor")
+	}
+	sibling := accessSessionOf(t, siblingAccess)
+	require.NoError(t, f.module.VerifyAccessSession(ctx, sibling), "the descendant is still live before logout")
+
+	require.NoError(t, f.service.LogoutWithAudit(ctx, firstRefresh, "", ""))
+
+	require.ErrorIs(t, f.module.VerifyAccessSession(ctx, sibling), identityaccess.ErrInvalidToken)
+	assert.Zero(t, familyRowCount(t, f.db, sibling.FamilyID))
+	_, _, err = f.service.RefreshToken(ctx, siblingRefresh)
+	require.Error(t, err, "the descendant's refresh token is revoked")
+	require.NoError(t, f.module.VerifyAccessSession(ctx, other), "another login remains valid")
+}
+
+// fillSessionCap gives the account further logins at its home school until
+// the tenant portal holds the cap minus free sessions.
+func fillSessionCap(t *testing.T, f switchLineageFixture, free int) []identityaccess.AccessSession {
+	t.Helper()
+	others := make([]identityaccess.AccessSession, 0, 4)
+	for len(liveTokens(t, f.db, f.accountID)) < 5-free {
+		others = append(others, newOtherDeviceSession(t, f))
+	}
+	return others
+}
+
+// TestLogoutAfterSessionCapEvictedTheSwitchSource pins the review finding on
+// #5422: at the session cap a switch evicts its just-retired source family,
+// whose rows a logout with the source's refresh token then no longer finds.
+// That logout must still end the family the switch minted.
+func TestLogoutAfterSessionCapEvictedTheSwitchSource(t *testing.T) {
+	t.Parallel()
+	f := newSwitchLineageFixture(t, "logout-cap-evicted")
+	ctx := testpkg.Ctx(t)
+	source := accessSessionOf(t, f.access)
+	fillSessionCap(t, f, 0)
+	switchedAccess, _, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err)
+	require.Zero(t, familyRowCount(t, f.db, source.FamilyID), "the cap evicted the retired source")
+	switched := accessSessionOf(t, switchedAccess)
+	require.NoError(t, f.module.VerifyAccessSession(ctx, switched))
+	others := liveTokens(t, f.db, f.accountID)
+
+	require.NoError(t, f.service.LogoutWithAudit(ctx, f.refresh, "", ""))
+
+	require.ErrorIs(t, f.module.VerifyAccessSession(ctx, switched), identityaccess.ErrInvalidToken, "the switched family ends with the logout")
+	assert.Len(t, liveTokens(t, f.db, f.accountID), len(others)-1, "only the switched family ends; the other logins stay")
+}
+
+// TestLogoutAfterSessionCapEvictedTheSourceOfTwoSwitches covers two tabs
+// that both switched from the same login before it was logged out: the
+// second switch pushes the source out of the cap, and the logout with the
+// source's token still ends both switched families.
+func TestLogoutAfterSessionCapEvictedTheSourceOfTwoSwitches(t *testing.T) {
+	t.Parallel()
+	f := newSwitchLineageFixture(t, "logout-cap-two-switches")
+	ctx := testpkg.Ctx(t)
+	source := accessSessionOf(t, f.access)
+	others := fillSessionCap(t, f, 1)
+	firstAccess, _, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err)
+	secondAccess, _, err := f.switchToTarget(ctx, source.FamilyID)
+	require.NoError(t, err)
+	require.Zero(t, familyRowCount(t, f.db, source.FamilyID), "the second switch pushed the source out of the cap")
+
+	require.NoError(t, f.service.LogoutWithAudit(ctx, f.refresh, "", ""))
+
+	for name, access := range map[string]string{"first": firstAccess, "second": secondAccess} {
+		require.ErrorIs(t, f.module.VerifyAccessSession(ctx, accessSessionOf(t, access)), identityaccess.ErrInvalidToken, name)
+	}
+	for _, other := range others {
+		require.NoError(t, f.module.VerifyAccessSession(ctx, other), "another login keeps its session")
+	}
+}

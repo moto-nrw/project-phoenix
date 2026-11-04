@@ -34,8 +34,8 @@ const {
   mockTenant: { messagingEnabled: true },
 }));
 
-vi.mock("swr", () => ({
-  default: () => ({
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: () => ({
     data: mockInbox.threads,
     error: undefined,
     isLoading: false,

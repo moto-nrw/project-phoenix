@@ -34,6 +34,7 @@ func NewMFADependencies(codec identityPorts.MFAChallengeCodec, settings settings
 		Codec:         codec,
 		Codes:         shortCodeHasher{},
 		Mail:          mail,
+		ResetNotice:   mail,
 		OperatorAudit: operatorActionLog{ledger: operatorAuditLog, logger: logger},
 		JWTSecret:     jwtSecret,
 		Passkeys:      passkeys,
@@ -49,9 +50,19 @@ func mfaSettingsFor(settings settingsCompose.SettingsService) identityPorts.MFAS
 	return mfaSettings{settings: settings}
 }
 
-// mfaSettings resolves the gate's parameters from the school settings.
+// mfaSettings resolves the gate's parameters from the school settings. The
+// trusted-device and lockout policy of a second factor without a school
+// (the Träger-Portal, the caterer portal, #4497) is the registry default,
+// never the school a context happens to carry: the caterer's session row is
+// kept at a supplied school, whose settings do not reach the caterer (ADR
+// 0077 point 7).
 type mfaSettings struct {
 	settings settingsCompose.SettingsService
+}
+
+// withoutSchool is the context of a second factor without a school.
+func withoutSchool(ctx context.Context) context.Context {
+	return tenant.ContextWithoutTenant(ctx)
 }
 
 func (s mfaSettings) MFAMode(ctx context.Context, tenantID int64) (string, error) {
@@ -75,21 +86,21 @@ func (s mfaSettings) TrustedDeviceEnabled(ctx context.Context, tenantID int64) (
 		}
 		return s.settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyMFATrustedDeviceEnabled)
 	}
-	return s.settings.ResolveBool(ctx, configModel.KeyMFATrustedDeviceEnabled)
+	return s.settings.ResolveBool(withoutSchool(ctx), configModel.KeyMFATrustedDeviceEnabled)
 }
 
 func (s mfaSettings) TrustedDeviceDays(ctx context.Context, tenantID int64) (int, error) {
 	if tenantID > 0 {
 		return s.settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyMFATrustedDeviceDays)
 	}
-	return s.settings.ResolveInt(ctx, configModel.KeyMFATrustedDeviceDays)
+	return s.settings.ResolveInt(withoutSchool(ctx), configModel.KeyMFATrustedDeviceDays)
 }
 
 func (s mfaSettings) LockoutThreshold(ctx context.Context, tenantID int64) (int, error) {
 	if tenantID > 0 {
 		return s.settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyAccountLockoutThreshold)
 	}
-	return s.settings.ResolveInt(ctx, configModel.KeyAccountLockoutThreshold)
+	return s.settings.ResolveInt(withoutSchool(ctx), configModel.KeyAccountLockoutThreshold)
 }
 
 func (s mfaSettings) LockoutDuration(ctx context.Context, tenantID int64) (time.Duration, error) {
@@ -100,7 +111,7 @@ func (s mfaSettings) LockoutDuration(ctx context.Context, tenantID int64) (time.
 	if tenantID > 0 {
 		minutes, err = s.settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyAccountLockoutDurationMinutes)
 	} else {
-		minutes, err = s.settings.ResolveInt(ctx, configModel.KeyAccountLockoutDurationMinutes)
+		minutes, err = s.settings.ResolveInt(withoutSchool(ctx), configModel.KeyAccountLockoutDurationMinutes)
 	}
 	if err != nil {
 		return 0, err
@@ -201,6 +212,22 @@ func (m MFAMailer) NotifyTrustedDeviceAdded(ctx context.Context, message identit
 	_, err := m.Enqueue(ctx, DurableMail{
 		IdempotencyKey: fmt.Sprintf("%s:%d", deliveryType, deviceID),
 		Message:        *identityMessage(m.From, email.NewEmail(message.RecipientName, message.Recipient), identityaccess.TrustedDeviceAddedMailContent(message, m.FrontendURL)),
+		Type:           deliveryType, ReferenceID: message.ReferenceID, Backoff: m.Backoff,
+	})
+	return err
+}
+
+// NotifyCatererMFAReset queues the caterer's notice of an operator's reset
+// (#4497) in the reset's administrative transaction, as a global identity
+// mail without a school.
+func (m MFAMailer) NotifyCatererMFAReset(ctx context.Context, message identityaccess.CatererMFAResetMail, resetKey string) error {
+	if m.Enqueue == nil {
+		return email.ErrDeliveryUnavailable
+	}
+	const deliveryType = "caterer_mfa_reset"
+	_, err := m.Enqueue(ctx, DurableMail{
+		IdempotencyKey: fmt.Sprintf("%s:%s", deliveryType, resetKey),
+		Message:        *identityMessage(m.From, email.NewEmail("", message.Recipient), identityaccess.CatererMFAResetMailContent(message, m.FrontendURL)),
 		Type:           deliveryType, ReferenceID: message.ReferenceID, Backoff: m.Backoff,
 	})
 	return err

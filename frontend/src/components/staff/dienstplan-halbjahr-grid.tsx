@@ -579,7 +579,7 @@ export function DienstplanHalbjahrGrid({
 
   if (periodsLoading || (!periods && !periodsError)) {
     return (
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+      <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
         <div className="space-y-2">
           <Skeleton className="h-8 w-full" />
           <Skeleton className="h-8 w-full" />
@@ -592,7 +592,7 @@ export function DienstplanHalbjahrGrid({
   if (periodsError) {
     // Ohne Zeiträume gibt es keine Spalten; der Fehler steht an ihrer Stelle.
     return (
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+      <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
         {periodsLoad.error ? (
           <LoadErrorAlert error={periodsLoad.error} />
         ) : (
@@ -608,7 +608,7 @@ export function DienstplanHalbjahrGrid({
   // card with a jump to the calendar-period management. No artwork.
   if (!period) {
     return (
-      <div className="moto-content-surface rounded-2xl border p-6 shadow-sm sm:p-8">
+      <div className="moto-content-surface rounded-2xl border p-6 sm:p-8">
         <div className="flex flex-col items-center gap-3 py-6 text-center">
           <p className="text-sm font-semibold text-gray-900">
             Kein Planungszeitraum für dieses Datum

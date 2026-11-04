@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // TestFlowE_StudentDayWithUnplannedVisit validates the student-day aggregation:
@@ -155,7 +156,7 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	// instead of strict-assert, but guard against pathological fan-out
 	// (e.g. per-day loop) with a generous upper bound of 25.
 	t.Logf("query-budget /student/%d/week (14 days): %d queries (PR target ≤ 12 handler-queries only)", studentB.ID, len(weekQueries))
-	testpkg.AssertQueryBudget(t, "e2e.timetable.student_week.14d", weekQueries)
+	querybudgets.AssertQueryBudget(t, "e2e.timetable.student_week.14d", weekQueries)
 
 	// --- Tenant isolation -------------------------------------------------
 	rr = s.do("GET", fmt.Sprintf("/student/%d/day?date=%s", studentB.ID, fromS), nil, s.secondaryAdminClaims())

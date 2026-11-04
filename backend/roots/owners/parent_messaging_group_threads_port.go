@@ -54,8 +54,8 @@ func (p parentGroupThreads) ReadGroupThread(ctx context.Context, threadID, accou
 	return &parentportal.GroupThreadView{Thread: parentGroupThread(view.Thread), Messages: messages, StudentIDs: view.StudentIDs}, advanced, nil
 }
 
-func (p parentGroupThreads) GroupReplyTarget(ctx context.Context, threadID, accountID, studentID int64) (*parentportal.GroupThread, error) {
-	thread, err := p.source.PortalGroupReplyTarget(ctx, threadID, accountID, studentID)
+func (p parentGroupThreads) GroupReplyTarget(ctx context.Context, threadID, accountID, studentID int64, sendIDs ...string) (*parentportal.GroupThread, error) {
+	thread, err := p.source.PortalGroupReplyTarget(ctx, threadID, accountID, studentID, sendIDs...)
 	if err != nil {
 		return nil, parentGroupThreadError(err)
 	}

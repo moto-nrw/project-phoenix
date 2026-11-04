@@ -1,0 +1,11 @@
+{
+  "api/traeger/master-data": [
+    "GET traeger /traeger/master-data/"
+  ],
+  "api/traeger/master-data/bank-accounts": [
+    "POST traeger /traeger/master-data/bank-accounts"
+  ],
+  "api/traeger/master-data/contact": [
+    "PUT traeger /traeger/master-data/contact"
+  ]
+}

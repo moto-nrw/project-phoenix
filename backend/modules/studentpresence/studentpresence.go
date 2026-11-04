@@ -127,6 +127,7 @@ type Owner interface {
 	AttendanceRetention
 	MorningAttendance
 	MorningAttendanceRetention
+	MorningAbsenceGuard
 	ClassHandovers
 	DemoVisits
 }

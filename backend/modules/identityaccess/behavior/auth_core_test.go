@@ -50,6 +50,7 @@ func authTestFactoryConfig(rateLimitEnabled bool) owners.ServiceConfig {
 		TenantDomain:     "localhost",
 		OperatorHostname: "operator.localhost:3000",
 		RateLimitEnabled: rateLimitEnabled,
+		HealthDataKeys:   testpkg.TestHealthDataKeys,
 	}
 }
 

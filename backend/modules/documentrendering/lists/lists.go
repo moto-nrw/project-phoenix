@@ -107,10 +107,15 @@ type (
 // rendered.
 var ErrLetterheadTooLong = records.ErrLetterheadTooLong
 
-// LetterRenderer renders a letter as a PDF. Like Renderer it neither stores
-// the file nor decides who may read it.
+// ErrNoLetters reports a combination without any letter.
+var ErrNoLetters = renderer.ErrNoLetters
+
+// LetterRenderer renders a letter as a PDF and combines rendered letters
+// into one PDF to print (#4670). Like Renderer it neither stores the file
+// nor decides who may read it.
 type LetterRenderer interface {
 	RenderLetter(letter Letter, filenameBase string) (File, error)
+	CombineLetters(letters [][]byte, title, filenameBase string) (File, error)
 }
 
 var _ LetterRenderer = (*renderer.RendererService)(nil)

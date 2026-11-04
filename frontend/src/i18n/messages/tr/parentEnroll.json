@@ -1,0 +1,20 @@
+{
+  "errorObject": "kayıt dönemleri listesi",
+  "back": "Veli portalına dön",
+  "kicker": "OGS bakımı için kayıt",
+  "title": "Yeni kayıt",
+  "description": "Çocuğunuzu kaydetmek için bir okul ve bir kayıt dönemi seçin.",
+  "loading": "Kayıt dönemleri yükleniyor …",
+  "empty": "Şu anda açık kayıt dönemi yok.",
+  "yourSchools": "Okullarınız",
+  "otherSchools": "Diğer okullar",
+  "kindSchoolYear": "Eğitim yılı",
+  "kindHoliday": "Tatil bakımı",
+  "kindCustom": "Diğer",
+  "closesAt": "Kayıt {date} tarihine kadar",
+  "audienceNewStudents": "Yalnızca yeni çocuklar",
+  "audienceExistingStudents": "Yalnızca zaten kayıtlı çocuklar",
+  "audienceLinkedParents": "Yalnızca bağlı veliler için",
+  "rangeConnector": "ila",
+  "openPhase": "Kaydı aç"
+}

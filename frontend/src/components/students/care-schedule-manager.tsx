@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { mutate } from "swr";
+import { mutate } from "~/lib/swr/mutate";
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,9 +18,10 @@ import {
   X,
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import type { MotoConcept } from "~/lib/moto-concepts";
+import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   type CareExceptionSubmit,
   CarePlanEditorModal,
@@ -53,10 +54,13 @@ import {
   formatDateISO,
   formatShortDate,
   getDayData as getArrivalDayData,
-  getWeekDays,
+  getWeekDaysForStart,
+  getWeekStart,
   mergeSchedulesWithTemplate as mergeArrivalSchedulesWithTemplate,
   arrivalScheduleSourceLabel,
 } from "~/lib/arrival-schedule-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 import {
   createStudentPickupException,
   createStudentPickupNote,
@@ -90,10 +94,18 @@ import {
   pickupScheduleSourceLabel,
 } from "~/lib/pickup-schedule-helpers";
 import { createLogger } from "~/lib/logger";
+import { mapRosterImpact, type RosterImpact } from "~/lib/roster-impact";
+import { CarePlanImpact } from "~/components/students/care-plan-impact";
 import type {
   StudentStatusDay,
   StudentStatusKind,
 } from "~/lib/student-status-days-api";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
+import { parentsConcept } from "~/lib/concepts/parents";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { classTripConcept } from "~/lib/concepts/classTrip";
+import { sickConcept } from "~/lib/concepts/sick";
+import { excusedConcept } from "~/lib/concepts/excused";
 
 const logger = createLogger({ component: "CareScheduleManager" });
 const statusDayDateFormatter = new Intl.DateTimeFormat("de-DE", {
@@ -118,8 +130,8 @@ function weeklyArrivalPayload(data: CarePlanWeeklySubmit) {
 
 function weeklyPickupAdjustmentPayload(
   data: CarePlanWeeklySubmit,
-  adjustment?: CarePlanWeeklyAdjustment,
-  effectiveFrom = formatDateISO(new Date()),
+  adjustment: CarePlanWeeklyAdjustment | undefined,
+  effectiveFrom: string,
 ): PickupAdjustmentPayload {
   return {
     schedules: data.pickupSchedules.map((schedule) => ({
@@ -138,18 +150,19 @@ async function applyWeeklyPickupAdjustment(
   studentId: string,
   payload: PickupAdjustmentPayload,
   adjustment?: CarePlanWeeklyAdjustment,
+  onRosterImpact?: (impact: RosterImpact | null) => void,
 ): Promise<PickupAdjustmentPreview | undefined> {
   let preview = adjustment?.preview;
   if (!preview) {
     preview = await previewStudentPickupAdjustment(studentId, payload);
     if (
       preview.resolution_required ||
-      payload.effective_from > formatDateISO(new Date())
+      payload.effective_from > berlinTodayISO()
     ) {
       return preview;
     }
   }
-  await applyStudentPickupAdjustment(studentId, {
+  const applied = await applyStudentPickupAdjustment(studentId, {
     ...payload,
     preview_token: preview.preview_token,
     resolution: adjustment?.resolution ?? "exception",
@@ -158,6 +171,7 @@ async function applyWeeklyPickupAdjustment(
       ? { complete_withdrawal_confirmed: true }
       : {}),
   });
+  onRosterImpact?.(mapRosterImpact(applied?.roster_impact));
 }
 
 interface CareScheduleManagerProps {
@@ -193,6 +207,12 @@ interface CareBoundaryItem {
   readonly value: string;
   readonly description?: string;
   readonly marker: string | null;
+  /**
+   * Eine Abweichung, die jemand prüfen sollte, steht als Warnung statt als
+   * graue Herkunft; `markerTitle` nennt dann beide Zeiten.
+   */
+  readonly markerTone?: "warning";
+  readonly markerTitle?: string;
   readonly icon: React.ReactNode;
   readonly onEdit?: () => void;
 }
@@ -299,7 +319,6 @@ export function CareScheduleManager({
   const load = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = load;
   const deleteErrors = useApiFormError();
-  const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   // The day exception slide-over. null = closed; { date } = opened from a day
   // card for that date.
@@ -307,21 +326,39 @@ export function CareScheduleManager({
   // The section's Bearbeiten-Zustand (BAUARTEN-SPEC Bauart 2 Regel 3, #3119):
   // the weekly grid replaces the day cards in place, no overlay.
   const [isEditingWeekly, setIsEditingWeekly] = useState(false);
+  // Was ein Angebotswechsel im Betreuungsplan bewirkt hat (#5102).
+  const [rosterImpact, setRosterImpact] = useState<RosterImpact | null>(null);
   const [statusDayToDelete, setStatusDayToDelete] =
     useState<StudentStatusDay | null>(null);
   const [deletingStatusDayId, setDeletingStatusDayId] = useState<string | null>(
     null,
   );
+  const todayISO = useBerlinToday();
+  const currentWeekStartISO = useMemo(
+    () => formatDateISO(getWeekStart(0, todayISO)),
+    [todayISO],
+  );
+  const [weekStartISO, setWeekStartISO] = useState(currentWeekStartISO);
+  const previousCurrentWeekStartISO = useRef(currentWeekStartISO);
+
+  useLayoutEffect(() => {
+    const previous = previousCurrentWeekStartISO.current;
+    previousCurrentWeekStartISO.current = currentWeekStartISO;
+    if (previous === currentWeekStartISO) return;
+    setWeekStartISO((selected) =>
+      selected === previous ? currentWeekStartISO : selected,
+    );
+  }, [currentWeekStartISO]);
 
   const weekDays = useMemo(
-    () => getWeekDays(weekOffset, weekendFollowsFriday),
-    [weekOffset, weekendFollowsFriday],
+    () => getWeekDaysForStart(weekStartISO, weekendFollowsFriday, todayISO),
+    [todayISO, weekStartISO, weekendFollowsFriday],
   );
   const weekRange = useMemo(
     () =>
       formatWeekRange(
-        weekDays[0] ?? new Date(),
-        weekDays[weekDays.length - 1] ?? new Date(),
+        weekDays[0] ?? parseISODate(berlinTodayISO()),
+        weekDays[weekDays.length - 1] ?? parseISODate(berlinTodayISO()),
       ),
     [weekDays],
   );
@@ -330,13 +367,25 @@ export function CareScheduleManager({
   const isEditingWeeklyView =
     isEditingWeekly && careDaysSource !== null && !readOnly;
 
-  function showWeek(offset: number): void {
-    setWeekOffset(offset);
-    const visibleDays = getWeekDays(offset, weekendFollowsFriday);
-    const firstDay = visibleDays[0];
-    const lastDay = visibleDays[visibleDays.length - 1];
+  useEffect(() => {
+    const firstDay = weekDays[0];
+    const lastDay = weekDays[weekDays.length - 1];
     if (!firstDay || !lastDay) return;
     onVisibleDateRangeChange?.(formatDateISO(firstDay), formatDateISO(lastDay));
+  }, [onVisibleDateRangeChange, weekDays]);
+
+  const isCurrentWeek = weekStartISO === currentWeekStartISO;
+
+  function showCurrentWeek(): void {
+    setWeekStartISO(currentWeekStartISO);
+  }
+
+  function moveWeek(direction: -1 | 1): void {
+    setWeekStartISO((selected) => {
+      const next = parseISODate(selected);
+      next.setDate(next.getDate() + direction * 7);
+      return formatDateISO(next);
+    });
   }
 
   const statusDayByDate = useMemo(() => {
@@ -371,6 +420,7 @@ export function CareScheduleManager({
           isExcused,
           statusForDate,
           weekendFollowsFriday,
+          todayISO,
         );
         const pickup = getPickupDayData(
           date,
@@ -383,6 +433,7 @@ export function CareScheduleManager({
           pickupData.effectiveSchedules,
           weekendFollowsFriday,
           pickupData.departureExceptions,
+          todayISO,
         );
         return {
           date,
@@ -409,6 +460,7 @@ export function CareScheduleManager({
       isSick,
       isExcused,
       weekendFollowsFriday,
+      todayISO,
     ],
   );
   const selectedMobileDay = useMemo(() => {
@@ -644,8 +696,10 @@ export function CareScheduleManager({
         }
         return;
       }
-      const today = formatDateISO(new Date());
-      const weekStart = formatDateISO(weekDays[0] ?? new Date());
+      const today = berlinTodayISO();
+      const weekStart = formatDateISO(
+        weekDays[0] ?? parseISODate(berlinTodayISO()),
+      );
       const basePayload = weeklyPickupAdjustmentPayload(
         data,
         adjustment,
@@ -661,6 +715,7 @@ export function CareScheduleManager({
           studentId,
           basePayload,
           adjustment,
+          setRosterImpact,
         );
         // A returned preview means the plan still waits for a decision, so
         // nothing is written yet, the notes included.
@@ -695,6 +750,7 @@ export function CareScheduleManager({
       isExcused,
       statusByDate.get(dateKey) ?? null,
       weekendFollowsFriday,
+      todayISO,
     );
   }, [
     editingDayDate,
@@ -703,6 +759,7 @@ export function CareScheduleManager({
     isExcused,
     statusByDate,
     weekendFollowsFriday,
+    todayISO,
   ]);
 
   const currentEditingPickupDay = useMemo(() => {
@@ -719,6 +776,7 @@ export function CareScheduleManager({
       pickupData.effectiveSchedules,
       weekendFollowsFriday,
       pickupData.departureExceptions,
+      todayISO,
     );
   }, [
     editingDayDate,
@@ -727,6 +785,7 @@ export function CareScheduleManager({
     isExcused,
     statusByDate,
     weekendFollowsFriday,
+    todayISO,
   ]);
 
   /**
@@ -931,7 +990,7 @@ export function CareScheduleManager({
 
   if (isLoading && arrivalData.schedules.length === 0) {
     return (
-      <div className="moto-content-surface flex items-center justify-center rounded-2xl border border-gray-200 py-12 shadow-sm">
+      <div className="moto-content-surface flex items-center justify-center rounded-2xl border py-12">
         <Loader2 className="h-7 w-7 animate-spin text-gray-500" />
       </div>
     );
@@ -942,87 +1001,106 @@ export function CareScheduleManager({
   }
 
   return (
-    <section className="moto-content-surface @container overflow-hidden rounded-xl border border-gray-200 shadow-sm backdrop-blur-md sm:rounded-2xl">
-      <div className="border-b border-gray-100 p-4 sm:p-5">
-        <ConceptSectionHeader
-          title="Betreuungszeiten"
-          concept="careTimes"
-          subtitle={weekRange}
-          actions={
-            // While the section is in its edit state the week controls step
-            // aside: the plan applies to every week, and the only ways out are
-            // Speichern and Abbrechen at the bottom (Bauart 2 Regel 4).
-            isEditingWeeklyView ? undefined : (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => showWeek(0)}
-                  disabled={weekOffset === 0}
-                  className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:hidden"
-                >
-                  Heute
-                </button>
-                {/* Labelled on purpose, on every layout: an unlabelled pencil
+    <SectionCard
+      className="@container"
+      title="Betreuungszeiten"
+      concept={careTimesConcept}
+      description={weekRange}
+      // Die Wochennavigation gehört zum Kopf, eine Linie über die volle Breite
+      // trennt ihn vom Inhalt; beide bringen ihr eigenes Polster mit.
+      flush
+      bodyClassName=""
+      actions={
+        // While the section is in its edit state the week controls step
+        // aside: the plan applies to every week, and the only ways out are
+        // Speichern and Abbrechen at the bottom (Bauart 2 Regel 4).
+        isEditingWeeklyView ? undefined : (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={showCurrentWeek}
+              disabled={isCurrentWeek}
+              className="disabled:hidden"
+            >
+              Heute
+            </Button>
+            {/* Labelled on purpose, on every layout: an unlabelled pencil
                   here was indistinguishable from the per-day pencils below,
                   which is the confusion issue #893 reports. The word
                   „bearbeiten“ names the edit state it switches to. */}
-                {!readOnly ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    className="gap-1.5"
-                    onClick={() => setIsEditingWeekly(true)}
-                  >
-                    <SquarePen
-                      className="h-4 w-4 shrink-0"
-                      aria-hidden="true"
-                    />
-                    Wochenplan bearbeiten
-                  </Button>
-                ) : null}
-              </div>
-            )
-          }
-        />
-        {isEditingWeeklyView ? null : (
-          <div className="relative mt-4 hidden items-center justify-between gap-2 @4xl:flex">
-            <div>
-              <WeekNavButton
-                ariaLabel="Vorherige Woche"
-                onClick={() => showWeek(weekOffset - 1)}
-              >
-                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Vorherige Woche</span>
-              </WeekNavButton>
-            </div>
-            {weekOffset === 0 ? (
-              <span className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-500 sm:inline-flex">
-                Aktuelle Woche
-              </span>
-            ) : (
-              <button
+            {!readOnly ? (
+              <Button
                 type="button"
-                onClick={() => showWeek(0)}
-                className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:inline-flex"
+                variant="outline"
+                size="md"
+                className="gap-1.5"
+                onClick={() => {
+                  setRosterImpact(null);
+                  setIsEditingWeekly(true);
+                }}
               >
-                Zurück zur aktuellen Woche
-              </button>
-            )}
-            <div>
-              <WeekNavButton
-                ariaLabel="Nächste Woche"
-                onClick={() => showWeek(weekOffset + 1)}
-              >
-                <span className="hidden sm:inline">Nächste Woche</span>
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              </WeekNavButton>
-            </div>
+                <SquarePen className="h-4 w-4 shrink-0" aria-hidden="true" />
+                Wochenplan bearbeiten
+              </Button>
+            ) : null}
           </div>
-        )}
-      </div>
+        )
+      }
+    >
+      {isEditingWeeklyView ? null : (
+        <div className="compact:px-4 relative mt-4 hidden items-center justify-between gap-2 px-5 max-sm:px-4 @4xl:flex">
+          <div>
+            <Button
+              type="button"
+              variant="surface"
+              size="md"
+              aria-label="Vorherige Woche"
+              onClick={() => moveWeek(-1)}
+              className="gap-1.5"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Vorherige Woche</span>
+            </Button>
+          </div>
+          {isCurrentWeek ? (
+            <span className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-500 sm:inline-flex">
+              Aktuelle Woche
+            </span>
+          ) : (
+            <Button
+              type="button"
+              variant="surface"
+              size="md"
+              onClick={showCurrentWeek}
+              className="absolute left-1/2 hidden -translate-x-1/2 sm:inline-flex"
+            >
+              Zurück zur aktuellen Woche
+            </Button>
+          )}
+          <div>
+            <Button
+              type="button"
+              variant="surface"
+              size="md"
+              aria-label="Nächste Woche"
+              onClick={() => moveWeek(1)}
+              className="gap-1.5"
+            >
+              <span className="hidden sm:inline">Nächste Woche</span>
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+      )}
 
-      <div className="p-3 sm:p-4">
+      <div className="compact:mt-4 mt-5 border-t border-gray-100 p-3 max-sm:mt-4 sm:p-4">
+        {rosterImpact && !isEditingWeeklyView ? (
+          <div className="mb-3">
+            <CarePlanImpact impact={rosterImpact} studentId={studentId} />
+          </div>
+        ) : null}
         {isEditingWeeklyView && careDaysSource ? (
           // Mounted only while editing: the form seeds its draft once, so a
           // refresh of arrivalData / pickupData cannot overwrite the typing.
@@ -1054,8 +1132,8 @@ export function CareScheduleManager({
                 selectedDay={selectedMobileDay}
                 readOnly={readOnly}
                 deletingStatusDayId={deletingStatusDayId}
-                onPreviousWeek={() => showWeek(weekOffset - 1)}
-                onNextWeek={() => showWeek(weekOffset + 1)}
+                onPreviousWeek={() => moveWeek(-1)}
+                onNextWeek={() => moveWeek(1)}
                 onSelectDay={(day) =>
                   setSelectedDateKey(formatDateISO(day.date))
                 }
@@ -1132,28 +1210,7 @@ export function CareScheduleManager({
         }
         error={deleteErrors.error?.message ?? ""}
       />
-    </section>
-  );
-}
-
-function WeekNavButton({
-  ariaLabel,
-  children,
-  onClick,
-}: {
-  readonly ariaLabel: string;
-  readonly children: React.ReactNode;
-  readonly onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      onClick={onClick}
-      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
-      {children}
-    </button>
+    </SectionCard>
   );
 }
 
@@ -1185,15 +1242,27 @@ function MobileCareWeek({
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2">
-        <WeekIconButton ariaLabel="Vorherige Woche" onClick={onPreviousWeek}>
+        <Button
+          type="button"
+          variant="surface"
+          size="icon"
+          aria-label="Vorherige Woche"
+          onClick={onPreviousWeek}
+        >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-        </WeekIconButton>
+        </Button>
         <div className="min-w-0 text-center text-lg font-semibold text-gray-800">
           {weekMonth}
         </div>
-        <WeekIconButton ariaLabel="Nächste Woche" onClick={onNextWeek}>
+        <Button
+          type="button"
+          variant="surface"
+          size="icon"
+          aria-label="Nächste Woche"
+          onClick={onNextWeek}
+        >
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </WeekIconButton>
+        </Button>
       </div>
 
       <div
@@ -1231,27 +1300,6 @@ function MobileCareWeek({
   );
 }
 
-function WeekIconButton({
-  ariaLabel,
-  children,
-  onClick,
-}: {
-  readonly ariaLabel: string;
-  readonly children: React.ReactNode;
-  readonly onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      onClick={onClick}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
-      {children}
-    </button>
-  );
-}
-
 function MobileDayButton({
   day,
   isSelected,
@@ -1282,7 +1330,7 @@ function MobileDayButton({
       <span
         className={`mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold ${
           day.isToday
-            ? "bg-moto-orange text-white"
+            ? "bg-moto-orange-strong text-white"
             : isSelected
               ? "bg-white text-gray-900"
               : "bg-gray-100 text-gray-700"
@@ -1338,7 +1386,7 @@ function CareDayCard({
 
   return (
     <article
-      className={`moto-content-surface flex flex-col rounded-xl border p-3 shadow-sm ${
+      className={`moto-content-surface flex flex-col rounded-xl border p-3 ${
         isMobileDetail ? "min-h-[236px]" : "min-h-[260px]"
       }`}
     >
@@ -1353,7 +1401,7 @@ function CareDayCard({
             ) : null}
             {parentChanged ? (
               <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
-                <MotoConceptIcon concept="parents" size={14} />
+                <MotoConceptIcon concept={parentsConcept} size={14} />
                 Von Eltern
               </span>
             ) : null}
@@ -1361,7 +1409,7 @@ function CareDayCard({
           <div className="mt-1 flex items-center gap-1 text-sm text-gray-500">
             {day.isToday ? (
               <>
-                <span className="bg-moto-orange flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold text-white">
+                <span className="bg-moto-orange-strong flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold text-white">
                   {day.date.getDate()}
                 </span>
                 <span>.</span>
@@ -1380,15 +1428,16 @@ function CareDayCard({
               pencils per card that both opened the same dialog, plus a third
               nameless one for the week, is the confusion #893 reports. */}
           {!readOnly && !hasStatus ? (
-            <button
+            <Button
               type="button"
+              variant="surface"
+              size="compact"
               onClick={() => onEditDay(day.date)}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               title={hasException ? "Ausnahme ändern" : "Ausnahme eintragen"}
             >
               <SquarePen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               Ausnahme
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
@@ -1435,12 +1484,12 @@ function AbsencePlaceholder({
   readonly onRequestDeleteStatusDay: (statusDay: StudentStatusDay) => void;
 }) {
   if (!status) return null;
-  const concept: MotoConceptKey =
+  const concept: MotoConcept =
     status === "class_trip"
-      ? "classTrip"
+      ? classTripConcept
       : status === "sick"
-        ? "sick"
-        : "excused";
+        ? sickConcept
+        : excusedConcept;
   const label =
     status === "class_trip"
       ? "Ganztägig Klassenfahrt"
@@ -1470,7 +1519,7 @@ function AbsencePlaceholder({
         type="button"
         onClick={() => onRequestDeleteStatusDay(statusDay)}
         disabled={isDeleting}
-        className="moto-content-surface group relative flex min-h-[134px] w-full items-center rounded-lg border border-gray-200 p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-70"
+        className="moto-content-surface moto-hover-elevated group relative flex min-h-[134px] w-full items-center rounded-lg border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400 disabled:cursor-not-allowed disabled:opacity-70"
         aria-label={`${label} entfernen`}
       >
         <span className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors group-hover:bg-gray-100 group-hover:text-gray-700">
@@ -1482,7 +1531,7 @@ function AbsencePlaceholder({
   }
 
   return (
-    <div className="moto-content-surface flex min-h-[134px] items-center rounded-lg border border-gray-200 p-3 shadow-sm">
+    <div className="moto-content-surface flex min-h-[134px] items-center rounded-lg border p-3">
       {content}
     </div>
   );
@@ -1535,7 +1584,7 @@ function CareBoundaryRow({
     <div className="flex flex-1 px-3 py-2.5">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         {/* Neutrale Kachel, wie bei AbsencePlaceholder in derselben Datei:
-            MotoConceptIcon setzt seine Farbe selbst aus MOTO_CONCEPTS und
+            MotoConceptIcon setzt seine Farbe selbst aus dem Konzept und
             ueberschreibt ein geerbtes color. Eine getoente Kachel ergab
             deshalb eine indigofarbene Uhr auf Gruen und ein petrolfarbenes
             Auto auf Orange. */}
@@ -1551,7 +1600,14 @@ function CareBoundaryRow({
               whenever the value wrapped ("Keine Abholung" in a day column). */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-5 font-semibold text-gray-900">
             <span className="min-w-0 break-words">{boundary.value}</span>
-            {boundary.marker ? (
+            {boundary.marker && boundary.markerTone === "warning" ? (
+              <StatusBadge
+                tone="orange"
+                compact
+                label={boundary.marker}
+                title={boundary.markerTitle}
+              />
+            ) : boundary.marker ? (
               <span
                 className="max-w-full shrink-0 truncate rounded-full bg-white px-1.5 py-0.5 text-sm font-semibold text-gray-500 shadow-sm"
                 title={boundary.marker}
@@ -1652,16 +1708,44 @@ function getArrivalMarker(day: ArrivalDayData): string | null {
 
 function getPickupMarker(day: PickupDayData): string | null {
   if (day.isException) return "Ausnahme";
-  if (
-    day.baseSchedule?.source !== "care_offering" &&
-    day.offeringSchedule &&
-    day.baseSchedule?.pickupTime !== day.offeringSchedule.pickupTime
-  ) {
-    return day.offeringSchedule.careOfferingName
-      ? `Andere Zeit als im Angebot „${day.offeringSchedule.careOfferingName}“`
-      : "Andere Zeit als im Angebot";
-  }
   return pickupScheduleSourceLabel(day.baseSchedule);
+}
+
+/**
+ * Die gebuchte Abholzeit, wenn eine von Hand eingetragene Zeit sie an diesem
+ * Tag verdeckt. Die eingetragene Zeit gewinnt, deshalb muss die Abweichung
+ * in der Woche auffallen, nicht nur im Tageseditor (#5618).
+ */
+function hiddenBookedPickup(day: PickupDayData): string | null {
+  if (
+    day.isException ||
+    !day.baseSchedule ||
+    day.baseSchedule.source === "care_offering" ||
+    !day.offeringSchedule ||
+    day.baseSchedule.pickupTime === day.offeringSchedule.pickupTime
+  ) {
+    return null;
+  }
+  return formatPickupTime(day.offeringSchedule.pickupTime);
+}
+
+function pickupBoundary(day: PickupDayData) {
+  const booked = hiddenBookedPickup(day);
+  if (booked === null || !day.baseSchedule) {
+    return {
+      description: getPickupDescription(day),
+      marker: getPickupMarker(day),
+    };
+  }
+  const offering = day.offeringSchedule?.careOfferingName;
+  return {
+    description: "Von Hand eingetragen, gilt statt der gebuchten Zeit.",
+    marker: `Gebucht ${booked} Uhr`,
+    markerTone: "warning" as const,
+    markerTitle: `Von Hand eingetragen: ${formatPickupTime(day.baseSchedule.pickupTime)} Uhr. Gebucht${
+      offering ? ` im Angebot „${offering}“` : ""
+    }: ${booked} Uhr.`,
+  };
 }
 
 function sameWeekdays(
@@ -1721,16 +1805,15 @@ function getCareBoundaries(
       value: getArrivalValue(day.arrival),
       description: getArrivalDescription(day.arrival),
       marker: getArrivalMarker(day.arrival),
-      icon: <MotoConceptIcon concept="careTimes" size={18} />,
+      icon: <MotoConceptIcon concept={careTimesConcept} size={18} />,
       onEdit: actions.onEditArrival,
     },
     {
       key: "pickup",
       label: "Abholung",
       value: getPickupValue(day.pickup),
-      description: getPickupDescription(day.pickup),
-      marker: getPickupMarker(day.pickup),
-      icon: <MotoConceptIcon concept="pickup" size={18} />,
+      ...pickupBoundary(day.pickup),
+      icon: <MotoConceptIcon concept={pickupConcept} size={18} />,
       onEdit: actions.onEditPickup,
     },
     // Die Abholart erscheint nur an einem Tag, an dem sie vom Wochenplan
@@ -1748,7 +1831,7 @@ function getCareBoundaries(
               ? `Grund: ${day.pickup.departureException.reason}`
               : "Nur an diesem Tag",
             marker: "Ausnahme",
-            icon: <MotoConceptIcon concept="pickup" size={18} />,
+            icon: <MotoConceptIcon concept={pickupConcept} size={18} />,
             onEdit: actions.onEditPickup,
           },
         ]

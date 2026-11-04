@@ -10,14 +10,13 @@ import type {
   PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
 } from "@simplewebauthn/browser";
+import { hasSessionAccess } from "./session-access";
 import { getCachedSession } from "./session-cache";
 
-export type PasskeyScope = "tenant" | "operator";
+export type PasskeyScope = "tenant" | "operator" | "caterer";
 
-export interface PasskeyTokenResponse {
+interface PasskeyLoginResponse {
   status: "authenticated";
-  access_token: string;
-  refresh_token: string;
 }
 
 export interface PasskeyCredentialSummary {
@@ -38,9 +37,14 @@ interface EnrollmentChallengeResponse {
 }
 
 function basePath(scope: PasskeyScope): string {
-  return scope === "operator"
-    ? "/api/operator/auth/passkeys"
-    : "/api/auth/passkeys";
+  switch (scope) {
+    case "operator":
+      return "/api/operator/auth/passkeys";
+    case "caterer":
+      return "/api/caterer/auth/passkeys";
+    default:
+      return "/api/auth/passkeys";
+  }
 }
 
 function extractOptions<TOptions>(
@@ -50,25 +54,24 @@ function extractOptions<TOptions>(
   return maybeWrapped.publicKey ?? (response.options as TOptions);
 }
 
-async function currentBearerToken(): Promise<string> {
-  const session = await getCachedSession();
-  const token = session?.user?.token;
-  if (!token) {
+/**
+ * Passkey management acts for the signed-in account. Its BFF routes read the
+ * session cookie; the browser holds no token (#5005).
+ */
+async function requireSession(): Promise<void> {
+  if (!hasSessionAccess(await getCachedSession())) {
     throw new ApiError("Nicht angemeldet.", 401);
   }
-  return token;
 }
 
 async function requestJson<T>(
   url: string,
   body?: unknown,
-  token?: string,
   method: "GET" | "POST" | "DELETE" = "POST",
 ): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (token) headers.Authorization = `Bearer ${token}`;
 
   // A request that never reaches the API is general.unavailable (#2517);
   // an AbortError stays an AbortError.
@@ -117,7 +120,7 @@ export function isPasskeySupported(): boolean {
 export async function loginWithPasskey(
   scope: PasskeyScope,
   params: { tenantSlug?: string } = {},
-): Promise<PasskeyTokenResponse> {
+): Promise<PasskeyLoginResponse> {
   const start = await requestJson<
     CeremonyResponse<PublicKeyCredentialRequestOptionsJSON>
   >(`${basePath(scope)}/login/options`, {
@@ -133,8 +136,8 @@ async function finishPasskeyLogin(
   scope: PasskeyScope,
   sessionID: string,
   response: AuthenticationResponseJSON,
-): Promise<PasskeyTokenResponse> {
-  return requestJson<PasskeyTokenResponse>(`${basePath(scope)}/login/verify`, {
+): Promise<PasskeyLoginResponse> {
+  return requestJson<PasskeyLoginResponse>(`${basePath(scope)}/login/verify`, {
     session_id: sessionID,
     response,
   });
@@ -143,11 +146,10 @@ async function finishPasskeyLogin(
 export async function startPasskeyEnrollment(
   scope: PasskeyScope,
 ): Promise<EnrollmentChallengeResponse> {
-  const token = await currentBearerToken();
+  await requireSession();
   return requestJson<EnrollmentChallengeResponse>(
     `${basePath(scope)}/enrollment/challenge`,
     {},
-    token,
   );
 }
 
@@ -155,18 +157,17 @@ export async function registerPasskey(
   scope: PasskeyScope,
   params: { code: string; name: string },
 ): Promise<PasskeyCredentialSummary> {
-  const token = await currentBearerToken();
+  await requireSession();
   const start = await requestJson<
     CeremonyResponse<PublicKeyCredentialCreationOptionsJSON>
-  >(
-    `${basePath(scope)}/register/options`,
-    { code: params.code, name: params.name },
-    token,
-  );
+  >(`${basePath(scope)}/register/options`, {
+    code: params.code,
+    name: params.name,
+  });
   const registration = await startRegistration({
     optionsJSON: extractOptions(start),
   });
-  return finishPasskeyRegistration(scope, token, start.session_id, {
+  return finishPasskeyRegistration(scope, start.session_id, {
     name: params.name,
     response: registration,
   });
@@ -174,7 +175,6 @@ export async function registerPasskey(
 
 async function finishPasskeyRegistration(
   scope: PasskeyScope,
-  token: string,
   sessionID: string,
   params: { name: string; response: RegistrationResponseJSON },
 ): Promise<PasskeyCredentialSummary> {
@@ -185,18 +185,16 @@ async function finishPasskeyRegistration(
       name: params.name,
       response: params.response,
     },
-    token,
   );
 }
 
 export async function listPasskeys(
   scope: PasskeyScope,
 ): Promise<PasskeyCredentialSummary[]> {
-  const token = await currentBearerToken();
+  await requireSession();
   return requestJson<PasskeyCredentialSummary[]>(
     basePath(scope),
     undefined,
-    token,
     "GET",
   );
 }
@@ -205,11 +203,6 @@ export async function revokePasskey(
   scope: PasskeyScope,
   id: string,
 ): Promise<void> {
-  const token = await currentBearerToken();
-  await requestJson<void>(
-    `${basePath(scope)}/${id}`,
-    undefined,
-    token,
-    "DELETE",
-  );
+  await requireSession();
+  await requestJson<void>(`${basePath(scope)}/${id}`, undefined, "DELETE");
 }

@@ -127,6 +127,7 @@ export function MasterDataReviewItem({
 }>) {
   const { show: showError } = useApiErrorDisplay();
   const [reason, setReason] = useState("");
+  const [reasonError, setReasonError] = useState(false);
   const [busy, setBusy] = useState(false);
   // „Wiederholen“ entscheidet mit der aktuellen Begründung.
   const decideRef = useRef<(approve: boolean) => Promise<void>>(
@@ -134,12 +135,17 @@ export function MasterDataReviewItem({
   );
 
   const decide = async (approve: boolean) => {
+    const trimmed = reason.trim();
+    if (!approve && trimmed === "") {
+      setReasonError(true);
+      return;
+    }
     setBusy(true);
     try {
       await decideMasterDataChangeRequest(
         row.id,
         approve,
-        reason.trim() || undefined,
+        trimmed || undefined,
         // Nur mitschicken, wenn die Liste eine Fassung kennt.
         ...(expectedVersion ? ([expectedVersion] as const) : ([] as const)),
       );
@@ -173,9 +179,17 @@ export function MasterDataReviewItem({
       summary={fieldLabel(row.field_key)}
       submittedAt={row.created_at}
       reason={reason}
-      onReasonChange={setReason}
-      reasonPlaceholder={
-        approveReasonRequired ? "Begründung" : "Begründung (optional)"
+      onReasonChange={(value) => {
+        setReason(value);
+        setReasonError(false);
+      }}
+      // Ablehnen braucht immer einen Grund; die Pflicht beim Freigeben setzt
+      // die Karte selbst als „Begründung (Pflicht)“ (#5024).
+      reasonPlaceholder="Begründung (Pflicht bei Ablehnung)"
+      reasonError={
+        reasonError
+          ? "Für eine Ablehnung ist eine Begründung erforderlich."
+          : undefined
       }
       approveReasonRequired={approveReasonRequired}
       decisionDisabledReason={decisionDisabledReason}

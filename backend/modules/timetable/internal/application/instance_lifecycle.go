@@ -101,8 +101,12 @@ func (s *InstanceLifecycleService) acquireTenantDayLock(ctx context.Context, ten
 }
 
 // LockDeviationDays takes the substitute day lock of every date in
-// [from, to] inclusive, in ascending order, so two overlapping windows can
-// never deadlock (#1840).
+// [from, to] inclusive. Before locking/writing an instance or its participant
+// rows, callers must hold its day. Acquire additional days only in ascending
+// order. A recurrence writer takes recurrence first; day-only writers must
+// not acquire recurrence afterwards. Split/resync must lock its entire write
+// footprint before resync starts, not only the later materialization window
+// (see lockSplitDays, #1840, #5378).
 func (s *InstanceLifecycleService) LockDeviationDays(ctx context.Context, tenantID int64, from, to calendar.Date) error {
 	for d := from; !d.After(to); d = d.AddDays(1) {
 		if err := s.acquireTenantDayLock(ctx, tenantID, d); err != nil {

@@ -22,10 +22,25 @@ type feedRow struct {
 	ResponseDeadline        *time.Time `bun:"response_deadline"`
 	DeliveryMode            string     `bun:"delivery_mode"`
 	SystemKind              *string    `bun:"system_kind"`
+	SenderName              *string    `bun:"sender_name"`
+	SenderSchoolClass       *string    `bun:"sender_school_class"`
 	ReminderSentAt          *time.Time `bun:"reminder_sent_at"`
 	ReminderText            *string    `bun:"reminder_text"`
 	ReadAt                  *time.Time `bun:"read_at"`
 	AcknowledgedAt          *time.Time `bun:"acknowledged_at"`
+}
+
+// item is the feed row as the contract names it.
+func (row feedRow) item() *contract.ParentAnnouncementFeedItem {
+	return &contract.ParentAnnouncementFeedItem{
+		ID: row.ID, TenantID: row.TenantID, Title: row.Title, Body: row.Body, Priority: row.Priority,
+		LinkURL: row.LinkURL, RequiresAcknowledgement: row.RequiresAcknowledgement,
+		PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt, ResponseType: row.ResponseType,
+		ResponseDeadline: row.ResponseDeadline, DeliveryMode: row.DeliveryMode, SystemKind: row.SystemKind,
+		ReminderSentAt: row.ReminderSentAt, ReminderText: row.ReminderText,
+		SenderName: row.SenderName, SenderSchoolClass: row.SenderSchoolClass,
+		ReadAt: row.ReadAt, AcknowledgedAt: row.AcknowledgedAt,
+	}
 }
 
 // ListFeedForAccount returns the guardian's cross-school feed. Run it under
@@ -53,14 +68,7 @@ func (p *Projection) ListFeedForAccount(ctx context.Context, accountID int64, sc
 	}
 	items := make([]*contract.ParentAnnouncementFeedItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, &contract.ParentAnnouncementFeedItem{
-			ID: row.ID, TenantID: row.TenantID, Title: row.Title, Body: row.Body, Priority: row.Priority,
-			LinkURL: row.LinkURL, RequiresAcknowledgement: row.RequiresAcknowledgement,
-			PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt, ResponseType: row.ResponseType,
-			ResponseDeadline: row.ResponseDeadline, DeliveryMode: row.DeliveryMode, SystemKind: row.SystemKind,
-			ReminderSentAt: row.ReminderSentAt, ReminderText: row.ReminderText,
-			ReadAt: row.ReadAt, AcknowledgedAt: row.AcknowledgedAt,
-		})
+		items = append(items, row.item())
 	}
 	return items, nil
 }

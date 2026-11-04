@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import en from "~/i18n/messages/en.json";
+import en from "~/i18n/messages/en.generated";
 import {
   SCHOOL_ANALYTICS_CONSENT_COPY,
   TENANT_ANALYTICS_CONSENT_COPY,

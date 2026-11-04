@@ -23,6 +23,19 @@ export const NOTE_ORIGIN_MASTER_DATA = "master_data";
 /** Hinweis der Lehrkraft für einen Tag, geschrieben in moto schule (#4795). */
 export const NOTE_ORIGIN_SCHOOL = "school";
 
+/**
+ * Kennzeichen einer Notiz, die die Lehrkraft der Klasse in moto schule liest
+ * (#4797): die Props des `StatusBadge` an der Notiz, in der Chronik wie bei
+ * den dauerhaften Hinweisen.
+ */
+export const NOTE_SHARED_WITH_SCHOOL_BADGE = {
+  compact: true,
+  tone: "green",
+  label: "Für die Schule freigegeben",
+  accessibleLabel:
+    "Für die Schule freigegeben: Die Lehrkraft der Klasse liest diese Notiz.",
+} as const;
+
 export interface StudentNote {
   id: string;
   studentId: string;
@@ -36,6 +49,8 @@ export interface StudentNote {
   subjectDate: string;
   activityGroupId: string;
   educationGroupId: string;
+  /** Für die Schule freigegeben: die Lehrkraft der Klasse liest sie in moto schule (#4797). */
+  sharedWithSchool: boolean;
   canEdit: boolean;
   canDelete: boolean;
   /** The wording changed after the note was written. */
@@ -52,6 +67,8 @@ export interface StudentNoteDraft {
   subjectDate?: string;
   activityGroupId?: string;
   educationGroupId?: string;
+  /** Für die Schule freigeben (#4797); fehlt der Wert, bleibt die Freigabe aus. */
+  sharedWithSchool?: boolean;
 }
 
 /** An activity (Angebot) of the child that a new note may refer to. */
@@ -76,6 +93,7 @@ interface BackendStudentNote {
   subject_date?: string;
   activity_group_id?: string;
   education_group_id?: string;
+  shared_with_school?: boolean;
   can_edit: boolean;
   can_delete: boolean;
   edited?: boolean;
@@ -96,6 +114,7 @@ function mapNote(data: BackendStudentNote): StudentNote {
     subjectDate: data.subject_date ?? "",
     activityGroupId: data.activity_group_id ?? "",
     educationGroupId: data.education_group_id ?? "",
+    sharedWithSchool: data.shared_with_school ?? false,
     canEdit: data.can_edit,
     canDelete: data.can_delete,
     edited: data.edited ?? false,
@@ -113,6 +132,7 @@ function toPayload(draft: StudentNoteDraft): Record<string, unknown> {
     subject_date: draft.subjectDate ?? null,
     activity_group_id: draft.activityGroupId ?? null,
     education_group_id: draft.educationGroupId ?? null,
+    shared_with_school: draft.sharedWithSchool ?? false,
   };
 }
 

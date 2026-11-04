@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import {
   canonicalForwardedFor,
+  clientIdentityHeaders,
   getClientForwardHeaders,
   hostnameFromAuthority,
 } from "./client-headers.server";
@@ -177,5 +178,27 @@ describe("canonicalForwardedFor", () => {
   it("returns an empty string when no client IP headers are present", () => {
     expect(canonicalForwardedFor(new Headers())).toBe("");
     expect(canonicalForwardedFor(null)).toBe("");
+  });
+});
+
+describe("clientIdentityHeaders", () => {
+  it("forwards the canonical client IP, never the raw chain", () => {
+    expect(
+      clientIdentityHeaders(
+        new Headers({
+          "user-agent": "browser",
+          "x-forwarded-for": "198.51.100.1, 203.0.113.10",
+          "x-posthog-session-id": "0190b5a4-7f3c-7a2e-9b1d-3c4e5f6a7b8c",
+        }),
+      ),
+    ).toEqual({
+      "X-Forwarded-For": "203.0.113.10",
+      "User-Agent": "browser",
+      "X-POSTHOG-SESSION-ID": "0190b5a4-7f3c-7a2e-9b1d-3c4e5f6a7b8c",
+    });
+  });
+
+  it("sends only what the client carried", () => {
+    expect(clientIdentityHeaders(new Headers())).toEqual({});
   });
 });

@@ -1,0 +1,48 @@
+{
+  "days": {
+    "label": "On which days?",
+    "all": "Every day",
+    "some": "Only on certain days",
+    "pickOne": "Please choose at least one day."
+  },
+  "weekday": {
+    "1": "Mon",
+    "2": "Tue",
+    "3": "Wed",
+    "4": "Thu",
+    "5": "Fri"
+  },
+  "weekdayLong": {
+    "1": "Monday",
+    "2": "Tuesday",
+    "3": "Wednesday",
+    "4": "Thursday",
+    "5": "Friday"
+  },
+  "signature": {
+    "title": "Your permission",
+    "procedure": "You sign with a simple electronic signature with a drawn signature.",
+    "missing": "Please sign and tap “Confirm signature”."
+  },
+  "statement": {
+    "permissionAll": "I allow {person} to pick up the child from the OGS on every day.",
+    "permissionSome": "I allow {person} to pick up the child from the OGS on these days: {days}.",
+    "day": "I allow {person} to pick up the child from the OGS on {date}.",
+    "aloneDay": "I allow the child to walk home alone on {date}.",
+    "aloneWeekly": "I allow the child to walk home alone on these days: {days}."
+  },
+  "waitsForOgs": "The OGS confirms the permission. Until then it does not apply.",
+  "pendingBadge": "Waiting for the OGS",
+  "pending": "Waiting for the OGS: {days}",
+  "onlyDays": "Only {days}",
+  "requestSent": "Your request is with the OGS. You will see here when it is confirmed.",
+  "proofPdf": "Proof (PDF)",
+  "errorObjectProof": "The proof",
+  "errorObjectRequest": "The pickup permission",
+  "pickupPerson": {
+    "label": "Who picks up?",
+    "none": "As usual",
+    "hint": "Only people you have added to your contacts.",
+    "manageLink": "Add a new person to your contacts"
+  }
+}

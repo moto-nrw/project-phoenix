@@ -298,3 +298,5 @@ func TestMoveToOpenRoomKeepsTheSchulhofOnItsOwnActivity(t *testing.T) {
 	assert.Empty(t, s.systemActivities(t, ctx, timetable.OpenRoomActivityName),
 		"the Schulhof does not need the shared activity")
 }
+
+func (p *recordingPresence) PrepareOpenRoomMove(context.Context, []int64, int64) error { return nil }

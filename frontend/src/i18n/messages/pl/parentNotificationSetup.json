@@ -1,0 +1,19 @@
+{
+  "title": "Nie przegapią Państwo żadnej ważnej wiadomości",
+  "intro": "Proszę włączyć powiadomienia. moto poinformuje wtedy Państwa o nowych wiadomościach i ważnych zmianach dotyczących dziecka.",
+  "enable": "Włącz powiadomienia",
+  "later": "Przypomnij później",
+  "enableError": "Nie udało się włączyć powiadomień. Proszę spróbować ponownie.",
+  "denied": "Powiadomienia są zablokowane w przeglądarce. Proszę otworzyć ustawienia przeglądarki, zezwolić moto na powiadomienia, a potem spróbować ponownie w ustawieniach.",
+  "installTitle": "Dodaj moto do ekranu początkowego",
+  "installAndroidTitle": "Zainstaluj moto jako aplikację",
+  "installAndroidIntro": "Proszę zainstalować moto na ekranie głównym. Potem otwierają Państwo moto jak aplikację i mogą włączyć powiadomienia.",
+  "installAndroidManual": "Proszę otworzyć menu przeglądarki i wybrać „Zainstaluj aplikację” lub „Dodaj do ekranu głównego”.",
+  "installApp": "Zainstaluj aplikację",
+  "installing": "Instalowanie …",
+  "installError": "Nie udało się zainstalować moto. Proszę spróbować ponownie.",
+  "understood": "Rozumiem",
+  "closeGuide": "Zamknij instrukcję",
+  "close": "Zamknij okno",
+  "introStaff": "Proszę włączyć powiadomienia. moto powiadomi wtedy o ważnych zdarzeniach, nawet gdy aplikacja jest zamknięta."
+}

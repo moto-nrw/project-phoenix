@@ -97,7 +97,9 @@ describe("DatabaseSelect", () => {
 
     it("shows required indicator when required", () => {
       render(<DatabaseSelect {...defaultProps} label="Auswahl" required />);
-      expect(screen.getByText("Auswahl*")).toBeInTheDocument();
+      expect(screen.getByText("Auswahl").parentElement).toHaveTextContent(
+        "Auswahl *",
+      );
     });
 
     it("uses id prop for label association", () => {
@@ -235,7 +237,7 @@ describe("DatabaseSelect", () => {
 
     it("applies disabled styles", () => {
       render(<DatabaseSelect {...defaultProps} disabled />);
-      expect(screen.getByRole("combobox")).toHaveClass("disabled:bg-gray-100");
+      expect(screen.getByRole("combobox")).toHaveClass("disabled:bg-gray-100!");
       expect(screen.getByRole("combobox")).toHaveClass(
         "disabled:cursor-not-allowed",
       );
@@ -250,7 +252,7 @@ describe("DatabaseSelect", () => {
 
     it("applies error styles to select", () => {
       render(<DatabaseSelect {...defaultProps} error="Error" />);
-      expect(screen.getByRole("combobox")).toHaveClass("border-moto-red");
+      expect(screen.getByRole("combobox")).toHaveClass("border-moto-red!");
     });
   });
 
@@ -398,7 +400,8 @@ describe("DatabaseSelect", () => {
     it("uses the standard kit focus styling", () => {
       render(<DatabaseSelect {...defaultProps} />);
       expect(screen.getByRole("combobox")).toHaveClass(
-        "focus-visible:ring-gray-400",
+        "focus-visible:outline-2",
+        "focus-visible:outline-gray-400",
       );
     });
   });

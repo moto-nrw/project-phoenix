@@ -1,6 +1,8 @@
+import { SWRConfig } from "~/lib/swr/testing";
+vi.unmock("swr");
 import {
   fireEvent,
-  render,
+  render as rtlRender,
   screen,
   waitFor,
   within,
@@ -51,7 +53,10 @@ function renderPage() {
 }
 
 function sessionWith(permissions: string[]) {
-  return { data: { user: { permissions } }, status: "authenticated" };
+  return {
+    data: { user: { id: "A", scope: "org", orgId: 7, permissions } },
+    status: "authenticated",
+  };
 }
 
 import TraegerSchoolsPage from "./page";
@@ -87,11 +92,15 @@ describe("TraegerSchoolsPage", () => {
     expect(within(table).getByText("Bissendorf")).toBeInTheDocument();
     // A school without a city shows the empty-value glyph.
     expect(within(table).getByText("–")).toBeInTheDocument();
+    // Die Erklärung steht hinter dem Info-Knopf am Titel (#5146).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Erklärung zu Schulen" }),
+    );
     expect(
-      screen.getByText(
-        "Alle Schulen Ihres Trägers. Neue Schulen ordnet das moto-Team zu.",
-      ),
-    ).toBeInTheDocument();
+      screen.getByRole("dialog", { name: "Erklärung zu Schulen" }),
+    ).toHaveTextContent(
+      "Alle Schulen Ihres Trägers. Neue Schulen ordnet das moto-Team zu.",
+    );
     // Anker: die Tabelle ist geladen; Zeilen sind reine Anzeige.
     expect(within(table).getByText("OGS Lindenweg")).toBeInTheDocument();
     expect(within(table).queryAllByRole("button", { name: /OGS/ })).toEqual([]);
@@ -140,6 +149,21 @@ describe("TraegerSchoolsPage", () => {
     expect(mockFetchSchools).toHaveBeenCalledTimes(2);
   });
 
+  it("says which role opens a school when the person lacks the right (#5473)", async () => {
+    mockFetchSchools.mockResolvedValue([AM_BACH]);
+    renderPage();
+
+    const table = await screen.findByRole("table");
+    expect(
+      screen.getByText(
+        "Eine Schule öffnen Sie nur mit der Rolle „Schulzugang“. Diese Rolle gibt Ihnen eine Person mit der Rolle „Leitung“.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(table).queryAllByRole("button", { name: /öffnen/ })).toEqual(
+      [],
+    );
+  });
+
   it("opens a school in a new tab for a person with the right to switch (#4654)", async () => {
     mockUseSession.mockReturnValue(
       sessionWith(["traeger_overview:read", "traeger_school:switch"]),
@@ -152,10 +176,14 @@ describe("TraegerSchoolsPage", () => {
       .mockReturnValue(tab as unknown as Window);
     renderPage();
 
-    expect(
-      await screen.findByText(/„Öffnen“ zeigt die Schule in einem neuen Tab/),
-    ).toBeInTheDocument();
     const table = await screen.findByRole("table");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Erklärung zu Schulen" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Erklärung zu Schulen" }),
+    ).toHaveTextContent(/„Öffnen“ zeigt die Schule in einem neuen Tab/);
+    expect(screen.queryByText(/nur mit der Rolle/)).not.toBeInTheDocument();
     fireEvent.click(
       within(table).getByRole("button", { name: "OGS Am Bach öffnen" }),
     );
@@ -200,3 +228,9 @@ describe("TraegerSchoolsPage", () => {
     open.mockRestore();
   });
 });
+
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <SWRConfig value={{ provider: () => new Map() }}>{ui}</SWRConfig>,
+  );
+}

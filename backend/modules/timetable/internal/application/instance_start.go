@@ -83,6 +83,9 @@ func (s *InstanceLifecycleService) Start(ctx context.Context, instanceID, starte
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "start instance: load instance_staff", Err: err}
 	}
+	if err := s.deps.Presence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{RoomID: instance.RoomID, RoomVisits: true}); err != nil {
+		return nil, &ports.ScheduleError{Op: "start instance: prepare visit writes", Err: err}
+	}
 	if _, _, err := s.deps.Rooms.LockRoom(ctx, instance.RoomID); err != nil {
 		return nil, &ports.ScheduleError{Op: "start instance: lock room", Err: err}
 	}

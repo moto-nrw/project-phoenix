@@ -83,17 +83,20 @@ type SessionTimeoutInfoResponse struct {
 }
 
 type SessionCurrentResponse struct {
-	ActiveGroupID  *int64           `json:"active_group_id,omitempty"`
-	ActivityID     *int64           `json:"activity_id,omitempty"`
-	ActivityName   *string          `json:"activity_name,omitempty"`
-	RoomID         *int64           `json:"room_id,omitempty"`
-	RoomName       *string          `json:"room_name,omitempty"`
-	DeviceID       int64            `json:"device_id"`
-	StartTime      *time.Time       `json:"start_time,omitempty"`
-	Duration       *string          `json:"duration,omitempty"`
-	IsActive       bool             `json:"is_active"`
-	ActiveStudents *int             `json:"active_students,omitempty"`
-	Supervisors    []SupervisorInfo `json:"supervisors,omitempty"`
+	ActiveGroupID  *int64     `json:"active_group_id,omitempty"`
+	ActivityID     *int64     `json:"activity_id,omitempty"`
+	ActivityName   *string    `json:"activity_name,omitempty"`
+	RoomID         *int64     `json:"room_id,omitempty"`
+	RoomName       *string    `json:"room_name,omitempty"`
+	DeviceID       int64      `json:"device_id"`
+	StartTime      *time.Time `json:"start_time,omitempty"`
+	Duration       *string    `json:"duration,omitempty"`
+	IsActive       bool       `json:"is_active"`
+	ActiveStudents *int       `json:"active_students,omitempty"`
+	// ActiveStudentsRevision orders ActiveStudents of the session
+	// ActiveGroupID (#5128); present exactly when the count is.
+	ActiveStudentsRevision *int64           `json:"active_students_revision,omitempty"`
+	Supervisors            []SupervisorInfo `json:"supervisors,omitempty"`
 }
 
 type UpdateSupervisorsResponse struct {

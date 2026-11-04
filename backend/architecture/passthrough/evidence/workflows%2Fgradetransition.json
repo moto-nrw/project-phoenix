@@ -1,0 +1,18 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (w *Workflow) FindTransition(ctx context.Context, id int64) (result schoolstructure.Transition, err error) {\n\terr = w.run(ctx, \"find\", OperationRead, id, func(txCtx context.Context, _ Actor) error {\n\t\tfound, err := w.deps.Structure.FindTransition(txCtx, id)\n\t\tif err != nil {\n\t\t\treturn translateStructureError(err)\n\t\t}\n\t\tresult = found\n\t\treturn nil\n\t})\n\tif err != nil {\n\t\treturn schoolstructure.Transition{}, err\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/gradetransition/Workflow.FindTransition",
+      "owner": "workflows/gradetransition"
+    },
+    {
+      "build": "production",
+      "evidence": "func (w *Workflow) ListClasses(ctx context.Context) (result []string, err error) {\n\terr = w.run(ctx, \"list_classes\", OperationRead, 0, func(txCtx context.Context, _ Actor) error {\n\t\tclasses, err := w.deps.Directory.ListSchoolClasses(txCtx)\n\t\tif err != nil {\n\t\t\treturn err\n\t\t}\n\t\tresult = classes\n\t\treturn nil\n\t})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/gradetransition/Workflow.ListClasses",
+      "owner": "workflows/gradetransition"
+    }
+  ]
+}

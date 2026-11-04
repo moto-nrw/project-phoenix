@@ -613,6 +613,29 @@ describe("card head without stacked mini-headings (#3719)", () => {
   });
 });
 
+describe("sender of a class letter (#4800)", () => {
+  it("names the Lehrkraft, her class and the school", () => {
+    render(
+      <NewsCard
+        item={announcement({
+          sender_name: "Lena Lehrerin",
+          sender_school_class: "3b",
+        })}
+        onOpen={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(/Lena Lehrerin, Klasse 3b, OGS Am Berg/),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the school alone on a letter of the OGS", () => {
+    render(<NewsCard item={announcement()} onOpen={vi.fn()} />);
+    expect(screen.getByText(/^OGS Am Berg/)).toBeInTheDocument();
+    expect(screen.queryByText(/Klasse/)).not.toBeInTheDocument();
+  });
+});
+
 describe("announcement detail presentation", () => {
   it("leads with the message from the school and presents it as a mobile sheet", () => {
     render(

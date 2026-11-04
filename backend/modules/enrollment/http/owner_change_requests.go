@@ -64,6 +64,8 @@ type ChangeRequestAggregate struct {
 	Children      []*RequestChild
 	Messages      []*capability.ChangeRequestMessage
 	Phase         *capability.Phase
+	// RosterImpacts are set by an approval that changed bookings (#5102).
+	RosterImpacts []capability.ChildRosterImpact
 }
 
 // CreateChangeRequestInput is a family's proposed correction of its request.
@@ -165,7 +167,7 @@ func changeRequestCase(value *capability.ChangeRequestCase, err error) (*ChangeR
 	}
 	return &ChangeRequestAggregate{
 		ChangeRequest: changeRequest, Request: request, Children: children,
-		Messages: value.Messages, Phase: value.Phase,
+		Messages: value.Messages, Phase: value.Phase, RosterImpacts: value.RosterImpacts,
 	}, nil
 }
 

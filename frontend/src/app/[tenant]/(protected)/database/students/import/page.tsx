@@ -213,7 +213,7 @@ export default function StudentImportPage() {
     try {
       await downloadImportTemplate(
         `/api/import/students/template?format=${templateFormat}`,
-        session?.user?.token,
+        session,
         templateFormat === "xlsx"
           ? "schueler-import-vorlage.xlsx"
           : "schueler-import-vorlage.csv",
@@ -250,7 +250,7 @@ export default function StudentImportPage() {
 
         const response = await postImportFile(
           "/api/import/students/preview",
-          session?.user?.token,
+          session,
           formData,
         );
         const result = response.body;
@@ -368,7 +368,7 @@ export default function StudentImportPage() {
 
       const response = await postImportFile(
         "/api/import/students/import",
-        session?.user?.token,
+        session,
         formData,
       );
       const result = response.body;
@@ -621,9 +621,9 @@ export default function StudentImportPage() {
             <Button
               type="button"
               variant="primary"
-              size="sm"
+              size="field"
               onClick={() => void handleDownloadTemplate()}
-              className="h-10 w-full gap-2"
+              className="w-full gap-2"
             >
               <Download className="h-5 w-5" aria-hidden="true" />
               Vorlage herunterladen

@@ -165,6 +165,8 @@ func (rs *Resource) resolvePickupExtension(w http.ResponseWriter, r *http.Reques
 		renderPickupExtensionError(w, r, err)
 		return
 	}
+	// Resolving rewrites the rosters of the assigned blocks (#5017).
+	rs.broadcastStaffingDeviationChanged(ctx, "pickup_extension")
 	common.Respond(w, r, http.StatusOK, resolvePickupExtensionResponse{
 		StudentID:      result.StudentID,
 		Kind:           result.Kind,

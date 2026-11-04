@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { CloseIcon } from "~/components/ui/close-icon";
 import type { MouseEventHandler } from "react";
 import { Alert, type AlertType } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -64,12 +64,12 @@ export function Toast({
         {action ? (
           <Button
             type="button"
-            variant="ghost"
+            variant="ghost_tone"
             size="compact"
             aria-label={action.accessibleLabel}
             onClick={action.onClick}
             className={cn(
-              "shrink-0 self-center text-current underline underline-offset-2 hover:bg-black/5 hover:text-current",
+              "shrink-0 self-center underline underline-offset-2",
               touchFriendly ? "h-11 px-3 text-sm" : "",
             )}
           >
@@ -94,16 +94,17 @@ export function Toast({
   const close = (
     <Button
       type="button"
-      variant="ghost"
+      variant="ghost_tone"
       size="icon"
+      touchTarget={touchFriendly}
       aria-label={closeLabel}
       onClick={onClose}
       className={cn(
-        "absolute shrink-0 text-current hover:bg-black/5 hover:text-current",
-        touchFriendly ? "top-1 right-1 h-11 w-11" : "top-2.5 right-2.5",
+        "absolute shrink-0",
+        touchFriendly ? "top-1 right-1" : "top-2.5 right-2.5",
       )}
     >
-      <X className="h-4 w-4" aria-hidden="true" />
+      <CloseIcon />
     </Button>
   );
 

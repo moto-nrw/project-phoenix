@@ -10,6 +10,7 @@ import { ActivitiesPanel } from "./activities-panel";
 import { PickupTimesPanel } from "./pickup-times-panel";
 import { DisplayClock } from "./display-clock";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { infoDisplaysConcept } from "~/lib/concepts/infoDisplays";
 
 const logger = createLogger({ component: "DisplayDashboardView" });
 
@@ -111,7 +112,7 @@ export function DisplayDashboardView({ token }: DisplayDashboardViewProps) {
       <header className="mb-8 flex flex-wrap items-end justify-between gap-6">
         <div className="flex items-center gap-4 lg:gap-6">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gray-100 lg:h-20 lg:w-20">
-            <MotoConceptIcon concept="infoDisplays" size={40} />
+            <MotoConceptIcon concept={infoDisplaysConcept} size={40} />
           </div>
           <div>
             <h1 className="text-4xl font-bold text-gray-900 lg:text-6xl">

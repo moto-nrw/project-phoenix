@@ -297,6 +297,10 @@ func (s *TemplateSplitService) createStudentRoster(
 		},
 	)
 	rows := buildSuccessorStudentRows(in, manual, protectedCoverage, segmentValidUntil)
+	decisions := collectKeptDecisions(manual, in.EffectiveDate)
+	for _, row := range rows {
+		row.KeptWithoutBooking = decisions.forRow(row.StudentID, row.Weekday, row.SelectedWeekdays)
+	}
 	if err := s.persistSuccessorStudentRows(ctx, groupID, in, rows, tenantID, segmentValidUntil); err != nil {
 		return err
 	}
@@ -442,6 +446,7 @@ func (s *TemplateSplitService) persistProtectedStudentRows(
 			EnrollmentRequestChildID: cloneOptionalInt64(source.EnrollmentRequestChildID),
 			SelectedWeekdays:         append([]int(nil), source.SelectedWeekdays...),
 			Weekday:                  weekdayScopePtr(source.Weekday),
+			KeptWithoutBooking:       cloneKept(source.KeptWithoutBooking),
 		}
 		row.SetTenantID(tenantID)
 		if err := createLegacyStudentEnrollment(ctx, s.deps.EnrollmentRepo, row); err != nil {

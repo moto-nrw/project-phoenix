@@ -30,6 +30,7 @@ func toPublicNote(note domain.StudentNote) peopledirectory.StudentNote {
 		ID: note.ID, StudentID: note.StudentID, AuthorAccountID: note.AuthorAccountID,
 		Origin: note.Origin, Kind: note.Kind, Visibility: note.Visibility,
 		Category: note.Category, Body: note.Body, AuthorName: note.AuthorName,
+		SharedWithSchool: note.SharedWithSchool,
 		Subject: peopledirectory.StudentNoteSubject{
 			Date:             note.Subject.Date,
 			ActivityGroupID:  note.Subject.ActivityGroupID,

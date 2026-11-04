@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
 )
 
 // Site identifies a method independent of its source filename. Evidence pins its
@@ -114,7 +116,7 @@ func CompareSites(registered, measured []Site) []string {
 // Only package metadata is read, never policy permissions or architecture
 // internals. The scan itself does not depend on package classification.
 func sourcePackages(root string) (map[string]string, error) {
-	data, err := os.ReadFile(filepath.Join(root, "architecture/policy.json"))
+	data, err := artifacts.ReadPolicy(filepath.Join(root, "architecture/policy.json"))
 	if os.IsNotExist(err) {
 		return nil, nil
 	}

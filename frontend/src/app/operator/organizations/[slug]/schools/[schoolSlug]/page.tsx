@@ -1,9 +1,10 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { Suspense, use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
-import Link from "next/link";
+import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -31,7 +32,7 @@ import { TransferDeviceModal } from "~/components/operator/transfer-device-modal
 import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
@@ -53,6 +54,7 @@ import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import { useSoftDeletable } from "~/app/operator/provisioning/soft-delete-shared";
 import { SchoolSoftDeleteModal } from "~/app/operator/provisioning/operator-entity-modals";
 import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
+import { schoolsConcept } from "~/lib/concepts/schools";
 
 const logger = createLogger({ component: "OperatorSchoolDetailPage" });
 
@@ -82,8 +84,8 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
 
 function OperatorSchoolDetailPageContent({ params }: PageProps) {
   const { slug, schoolSlug } = use(params);
-  const { status, data: session } = useSession();
-  const operatorBearerToken = session?.user?.token ?? "";
+  const { status } = useSession();
+  const invalidate = useInvalidateMatching();
   const isAuthenticated = status === "authenticated";
   const router = useRouter();
   const pathname = usePathname();
@@ -138,10 +140,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     data: organizations,
     error: organizationsError,
     mutate: mutateOrganizations,
-  } = useSWR(
-    isAuthenticated ? "operator-organization-summaries" : null,
+  } = useSWRAuth(
+    isAuthenticated ? operatorProvisioningKeys.organizationSummaries() : null,
     () => operatorProvisioningService.listOrganizationSummaries(),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const organization: OrganizationSummary | undefined = useMemo(
@@ -162,27 +168,39 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     error: schoolsError,
     isLoading: schoolsLoading,
     mutate: mutateSchools,
-  } = useSWR(
-    isAuthenticated && organization
-      ? ["operator-organization-schools", organization.id]
-      : null,
-    () =>
-      operatorProvisioningService.listOrganizationSchools(
-        organization?.id ?? "",
-      ),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+  } = useSWRAuth(
+    isAuthenticated ? operatorProvisioningKeys.schoolSummaries() : null,
+    () => operatorProvisioningService.listSchoolSummaries(),
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const school: SchoolSummary | undefined = useMemo(
-    () => schools?.find((item) => item.slug === schoolSlug),
-    [schoolSlug, schools],
+    () =>
+      schools?.find(
+        (item) =>
+          item.slug === schoolSlug && item.organizationId === organization?.id,
+      ),
+    [schoolSlug, schools, organization?.id],
   );
 
   useSetBreadcrumb({ pageTitle: school?.name ?? "Schule" });
 
   const refreshSchoolDetail = useCallback(async () => {
-    await Promise.all([mutateOrganizations(), mutateSchools()]);
-  }, [mutateOrganizations, mutateSchools]);
+    await Promise.all([
+      mutateOrganizations(),
+      mutateSchools(),
+      invalidate(
+        (key) =>
+          operatorProvisioningKeys.summaryChanges(key) &&
+          key !== operatorProvisioningKeys.organizationSummaries() &&
+          key !== operatorProvisioningKeys.schoolSummaries(),
+      ),
+    ]);
+  }, [mutateOrganizations, mutateSchools, invalidate]);
 
   const accountsActive =
     activeTab === "konten" && isAuthenticated && school != null;
@@ -191,10 +209,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     error: accountsError,
     isLoading: accountsLoading,
     mutate: mutateSchoolAccounts,
-  } = useSWR(
-    accountsActive ? ["operator-school-accounts", school?.id] : null,
+  } = useSWRAuth(
+    accountsActive ? operatorProvisioningKeys.schoolAccounts(school?.id) : null,
     () => operatorProvisioningService.listSchoolAccounts(school?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const devicesActive =
@@ -204,10 +226,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     error: devicesError,
     isLoading: devicesLoading,
     mutate: mutateSchoolDevices,
-  } = useSWR(
-    devicesActive ? ["operator-school-devices", school?.id] : null,
+  } = useSWRAuth(
+    devicesActive ? operatorProvisioningKeys.schoolDevices(school?.id) : null,
     () => operatorProvisioningService.listSchoolDevices(school?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const personsActive =
@@ -217,10 +243,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     error: personsError,
     isLoading: personsLoading,
     mutate: mutateSchoolPersons,
-  } = useSWR(
-    personsActive ? ["operator-school-persons", school?.id] : null,
+  } = useSWRAuth(
+    personsActive ? operatorProvisioningKeys.schoolPersons(school?.id) : null,
     () => operatorProvisioningService.listSchoolPersons(school?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   // PWA standalone usage (#2189): shown in the header, so it loads with the
@@ -229,12 +259,16 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     data: pwaUsage,
     error: pwaUsageError,
     mutate: mutatePwaUsage,
-  } = useSWR(
+  } = useSWRAuth(
     isAuthenticated && school != null
-      ? ["operator-school-pwa-usage", school.id]
+      ? operatorProvisioningKeys.schoolPwaUsage(school.id)
       : null,
     () => operatorProvisioningService.getSchoolPWAUsage(school?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   // One alert for the page head: the provider and school lists it is built
@@ -273,9 +307,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   const transferSchools = useMemo(
     () =>
       (schools ?? [])
-        .filter((item) => item.active && item.deletedAt == null)
+        .filter(
+          (item) =>
+            item.organizationId === organization?.id &&
+            item.active &&
+            item.deletedAt == null,
+        )
         .map(summaryToSchool),
-    [schools],
+    [schools, organization?.id],
   );
 
   const openCaregiverModal = useCallback(
@@ -427,22 +466,25 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         >
           <DataTableStatusBadge active={school?.active ?? false} />
         </button>
-        <button
-          type="button"
-          onClick={() => setEditSchoolOpen(true)}
-          className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-        >
-          Bearbeiten
-        </button>
         <Button
           type="button"
-          variant="secondary"
+          variant="outline"
+          size="compact"
+          onClick={() => setEditSchoolOpen(true)}
+        >
+          Bearbeiten
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
           size="compact"
           onClick={() => setChildQuotaOpen(true)}
         >
           Kinderkontingent
         </Button>
-        <Link
+        <ButtonLink
+          variant="outline"
+          size="compact"
           href={
             school
               ? `/operator/schools/${school.id}/settings?back=${encodeURIComponent(
@@ -450,21 +492,21 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
                 )}`
               : "#"
           }
-          className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
         >
           Einstellungen
-        </Link>
-        <button
+        </ButtonLink>
+        <Button
           type="button"
+          variant="outline_danger"
+          size="compact"
           onClick={() => {
             if (school) {
               schoolDelete.setDeleteTarget(school);
             }
           }}
-          className="bg-moto-red/10 text-moto-red-strong hover:bg-moto-red/15 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
         >
           Löschen
-        </button>
+        </Button>
       </>
     ),
     [handleToggleSchoolActive, school, schoolDelete, schoolSlug, slug],
@@ -474,35 +516,38 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     if (activeTab === "konten") {
       return (
         <>
-          <button
+          <Button
             type="button"
+            variant="primary"
+            size="compact"
             onClick={() => setCreateAccountOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
           >
             <PlusIcon />
             Konto erstellen
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
+            size="compact"
             onClick={() => setInviteOpen(true)}
-            className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
           >
             Admin einladen
-          </button>
+          </Button>
         </>
       );
     }
 
     if (activeTab === "geraete") {
       return (
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size="compact"
           onClick={() => setCreateDeviceOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
         >
           <PlusIcon />
           Neues Gerät
-        </button>
+        </Button>
       );
     }
 
@@ -539,7 +584,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
           href="/operator/organizations"
           label="Zurück zu den Trägern"
         />
-        <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center shadow-sm">
+        <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center">
           <p className="text-gray-600">Träger nicht gefunden.</p>
         </div>
       </div>
@@ -551,7 +596,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     return (
       <div className="w-full">
         <BackLink {...organizationBack} />
-        <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center shadow-sm">
+        <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center">
           <p className="text-gray-600">Schule nicht gefunden.</p>
         </div>
       </div>
@@ -563,7 +608,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       <EntityHeaderCard
         back={organizationBack}
         title={school.name}
-        concept="schools"
+        concept={schoolsConcept}
         subdomain={school.subdomain}
         active={school.active}
         createdAt={school.createdAt}
@@ -672,7 +717,6 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
           }}
           scope="operator"
           schoolId={mfaSchoolContext.id}
-          bearerToken={operatorBearerToken}
           accountId={mfaAccount.accountId}
           accountLabel={`${mfaAccount.firstName} ${mfaAccount.lastName}`.trim()}
         />

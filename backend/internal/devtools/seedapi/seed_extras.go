@@ -106,6 +106,8 @@ func (seedPrivacyConsentsStep) Run(ctx context.Context, rt *Runtime) error {
 // scenario so a fresh demo tenant can show the Statistik page immediately.
 type seedStatisticsDemoStep struct{}
 
+const statisticsDemoOverrunStudentIndex = 1
+
 func (seedStatisticsDemoStep) Name() string { return "Seeding statistics demo data" }
 
 func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) (err error) {
@@ -141,26 +143,68 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) (err error) {
 		}
 		err = errors.Join(err, cleanupErr)
 	}()
+	seeded, err := seedStatisticsDemoRecords(rt, deviceKey, roomID)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("  %d attendance records and room visits seeded for Statistik\n", seeded)
+	return nil
+}
+
+func seedStatisticsDemoRecords(rt *Runtime, deviceKey string, roomID int64) (int, error) {
 	seeded := 0
 	for i := 0; i < 3 && i < len(DemoStudents); i++ {
-		studentID, ok := rt.FixedSeeder.studentIDByIndex[i]
-		if !ok {
-			return fmt.Errorf("student ID not available for statistics demo index %d", i)
-		}
-		// RFID identifiers must be hexadecimal.
-		rfid := fmt.Sprintf("57A7%08X", studentID)
-		if _, err := rt.Client.DevicePost(fmt.Sprintf("/api/students/%d/rfid", studentID), map[string]string{"rfid_tag": rfid}, deviceKey, rt.StaffPIN); err != nil {
-			return fmt.Errorf("assign statistics demo RFID: %w", err)
-		}
-		if _, err := rt.Client.DevicePost("/api/iot/attendance/toggle", map[string]string{"rfid": rfid, "action": "confirm"}, deviceKey, rt.StaffPIN); err != nil {
-			return fmt.Errorf("record statistics demo attendance: %w", err)
-		}
-		if _, err := rt.Client.DevicePost("/api/iot/checkin", map[string]any{"student_rfid": rfid, "action": "checkin", "room_id": roomID}, deviceKey, rt.StaffPIN); err != nil {
-			return fmt.Errorf("record statistics demo room visit: %w", err)
+		if err := seedStatisticsDemoRecord(rt, deviceKey, roomID, i); err != nil {
+			return 0, err
 		}
 		seeded++
 	}
-	fmt.Printf("  %d attendance records and room visits seeded for Statistik\n", seeded)
+	return seeded, nil
+}
+
+func seedStatisticsDemoRecord(rt *Runtime, deviceKey string, roomID int64, index int) error {
+	studentID, ok := rt.FixedSeeder.studentIDByIndex[index]
+	if !ok {
+		return fmt.Errorf("student ID not available for statistics demo index %d", index)
+	}
+	// One completed attendance intentionally runs past its dated pickup time.
+	// The first demo student remains checked in because the parent engagement
+	// scenario later creates a collector permission for that child today.
+	if index == statisticsDemoOverrunStudentIndex {
+		if err := seedStatisticsDemoOverrun(rt, studentID); err != nil {
+			return err
+		}
+	}
+	// RFID identifiers must be hexadecimal.
+	rfid := fmt.Sprintf("57A7%08X", studentID)
+	if _, err := rt.Client.DevicePost(fmt.Sprintf("/api/students/%d/rfid", studentID), map[string]string{"rfid_tag": rfid}, deviceKey, rt.StaffPIN); err != nil {
+		return fmt.Errorf("assign statistics demo RFID: %w", err)
+	}
+	if _, err := rt.Client.DevicePost("/api/iot/attendance/toggle", map[string]string{"rfid": rfid, "action": "confirm"}, deviceKey, rt.StaffPIN); err != nil {
+		return fmt.Errorf("record statistics demo attendance: %w", err)
+	}
+	if _, err := rt.Client.DevicePost("/api/iot/checkin", map[string]any{"student_rfid": rfid, "action": "checkin", "room_id": roomID}, deviceKey, rt.StaffPIN); err != nil {
+		return fmt.Errorf("record statistics demo room visit: %w", err)
+	}
+	if index != statisticsDemoOverrunStudentIndex {
+		return nil
+	}
+	if _, err := rt.Client.DevicePost("/api/iot/attendance/toggle", map[string]string{"rfid": rfid, "action": "confirm"}, deviceKey, rt.StaffPIN); err != nil {
+		return fmt.Errorf("complete statistics demo overrun attendance: %w", err)
+	}
+	return nil
+}
+
+func seedStatisticsDemoOverrun(rt *Runtime, studentID int64) error {
+	pickupTime := time.Now().In(seedBerlinLocation()).Add(-30 * time.Minute).Format("15:04")
+	_, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/pickup-exceptions", studentID), map[string]any{
+		"exception_date": todaySeedDate().String(),
+		"pickup_time":    pickupTime,
+		"reason":         "Späte Abholung",
+	})
+	if err != nil {
+		return fmt.Errorf("create statistics demo pickup exception: %w", err)
+	}
 	return nil
 }
 
@@ -228,16 +272,16 @@ func hasOpenWorkSession(rt *Runtime) (bool, error) {
 // usable for every demo and for `simulate full-day`, and the API refuses a
 // retroactive exit anyway. The archive view ("Beendete Betreuungen") fills up
 // by itself from the day after the first of them.
-type seedCareExitsStep struct{}
+type seedCareExitsStep struct{ now func() time.Time }
 
 func (seedCareExitsStep) Name() string { return "Seeding planned care exits" }
 
-func (seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
+func (s seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
 	if rt.FixedSeeder == nil {
 		return fmt.Errorf("fixed seeder not available")
 	}
 
-	today := todaySeedDate()
+	today := s.today()
 	// Two children from the tail of the demo cohort, so the exits never
 	// collide with the children the other steps mark sick or check in.
 	plans := []struct {

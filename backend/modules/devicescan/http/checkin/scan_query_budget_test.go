@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // Query budgets of the three kiosk scans (#5004): a check-in, a checkout at
@@ -75,15 +76,15 @@ func measureScan(t *testing.T, before stayBefore, action string) []string {
 
 func TestScanQueryBudget_CheckIn(t *testing.T) {
 	t.Parallel()
-	testpkg.AssertQueryBudget(t, "api.iot.checkin.check_in", measureScan(t, noStay, "checked_in"))
+	querybudgets.AssertQueryBudget(t, "api.iot.checkin.check_in", measureScan(t, noStay, "checked_in"))
 }
 
 func TestScanQueryBudget_CheckOut(t *testing.T) {
 	t.Parallel()
-	testpkg.AssertQueryBudget(t, "api.iot.checkin.check_out", measureScan(t, stayInKioskRoom, "checked_out"))
+	querybudgets.AssertQueryBudget(t, "api.iot.checkin.check_out", measureScan(t, stayInKioskRoom, "checked_out"))
 }
 
 func TestScanQueryBudget_RoomChange(t *testing.T) {
 	t.Parallel()
-	testpkg.AssertQueryBudget(t, "api.iot.checkin.room_change", measureScan(t, stayInOtherRoom, "transferred"))
+	querybudgets.AssertQueryBudget(t, "api.iot.checkin.room_change", measureScan(t, stayInOtherRoom, "transferred"))
 }

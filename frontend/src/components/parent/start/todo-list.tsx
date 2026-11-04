@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 
 const INITIAL_TODO_COUNT = 5;
 
@@ -26,7 +26,7 @@ const INITIAL_TODO_COUNT = 5;
 
 export interface TodoItem {
   readonly key: string;
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   readonly title: string;
   readonly context: string;
   readonly meta?: Readonly<{
@@ -47,7 +47,7 @@ export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
     return (
       <section
         aria-labelledby="parent-todo-empty-heading"
-        className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md"
+        className="moto-content-surface rounded-2xl border p-5"
       >
         <h2
           id="parent-todo-empty-heading"
@@ -68,7 +68,7 @@ export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
   return (
     <section
       aria-labelledby="parent-todo-heading"
-      className="moto-content-surface overflow-hidden rounded-2xl border p-5 shadow-sm backdrop-blur-md"
+      className="moto-content-surface overflow-hidden rounded-2xl border p-5"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
@@ -98,7 +98,7 @@ export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
           type="button"
           variant="ghost"
           size="md"
-          className="mt-2 min-h-11 w-full px-3 text-sm font-medium"
+          className="mt-2 w-full"
           aria-expanded={expanded}
           aria-controls="parent-todo-items"
           onClick={() => setExpanded((current) => !current)}

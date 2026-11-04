@@ -1,0 +1,109 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (q careScheduleQueue) OpenCount(ctx context.Context, today requestreview.Date) (int, error) {\n\titems, _, err := q.query.ListPending(ctx, careplan.RequestQueueFilter{UrgentDate: today.String()})\n\treturn len(items), err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/careScheduleQueue.OpenCount",
+      "owner": "modules/requestreview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q excusedQueue) History(ctx context.Context, filter requestreview.QueueFilter) ([]requestreview.Row, *requestreview.Cursor, error) {\n\titems, next, err := q.service.ListHistory(ctx, careQueueFilter(filter))\n\tif err != nil {\n\t\treturn nil, nil, err\n\t}\n\treturn mapRows(items, excusedHistoryRow), careQueueCursor(next), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/excusedQueue.History",
+      "owner": "modules/requestreview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q excusedQueue) Open(ctx context.Context, filter requestreview.QueueFilter) ([]requestreview.Row, *requestreview.Cursor, error) {\n\titems, next, err := q.service.ListPending(ctx, careQueueFilter(filter))\n\tif err != nil {\n\t\treturn nil, nil, err\n\t}\n\ttoday, parseErr := excusedrequests.ParseDate(filter.UrgentDate)\n\tif parseErr != nil {\n\t\ttoday = q.today()\n\t}\n\treturn mapRows(items, func(item *excusedrequests.ReviewItem) requestreview.Row {\n\t\treturn excusedPendingRow(item, today)\n\t}), careQueueCursor(next), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/excusedQueue.Open",
+      "owner": "modules/requestreview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q excusedQueue) OpenCount(ctx context.Context, today requestreview.Date) (int, error) {\n\titems, _, err := q.service.ListPending(ctx, excusedrequests.QueueFilter{UrgentDate: today.String()})\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn len(items), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/excusedQueue.OpenCount",
+      "owner": "modules/requestreview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q masterDataQueue) History(ctx context.Context, filter requestreview.QueueFilter) ([]requestreview.Row, *requestreview.Cursor, error) {\n\titems, next, err := q.service.ListHistory(ctx, careQueueFilter(filter))\n\tif err != nil {\n\t\treturn nil, nil, err\n\t}\n\treturn mapRows(items, masterDataHistoryRow), careQueueCursor(next), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/masterDataQueue.History",
+      "owner": "modules/requestreview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q masterDataQueue) Open(ctx context.Context, filter requestreview.QueueFilter) ([]requestreview.Row, *requestreview.Cursor, error) {\n\titems, next, err := q.service.ListPending(ctx, careQueueFilter(filter))\n\tif err != nil {\n\t\treturn nil, nil, err\n\t}\n\treturn mapRows(items, masterDataPendingRow), careQueueCursor(next), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/masterDataQueue.Open",
+      "owner": "modules/requestreview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q masterDataQueue) OpenCount(ctx context.Context, today requestreview.Date) (int, error) {\n\titems, _, err := q.service.ListPending(ctx, excusedrequests.QueueFilter{UrgentDate: today.String()})\n\treturn len(items), err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/masterDataQueue.OpenCount",
+      "owner": "modules/requestreview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q offeringQueue) History(ctx context.Context, filter requestreview.QueueFilter) ([]requestreview.Row, *requestreview.Cursor, error) {\n\titems, cursor, err := q.query.ListHistory(ctx, careQueueFilter(filter))\n\tif err != nil {\n\t\treturn nil, nil, err\n\t}\n\trows := make([]requestreview.Row, 0, len(items))\n\tfor _, item := range items {\n\t\trow := item.Request\n\t\trows = append(rows, requestreview.Row{Type: requestreview.TypeOffering, SortTime: row.UpdatedAt, ID: row.ID, StudentID: row.StudentID, StudentName: item.StudentName, SubmittedBy: row.SubmittedBy, Status: row.Status, Version: excusedrequests.ParentRequestVersion(row.UpdatedAt), DecidedAt: requestreview.HistoryDecidedAt(row.ReviewedAt, row.UpdatedAt), Data: ToOfferingRequestHistoryResponse(item)})\n\t}\n\treturn rows, careQueueCursor(cursor), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/offeringQueue.History",
+      "owner": "modules/requestreview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q offeringQueue) OpenCount(ctx context.Context, today requestreview.Date) (int, error) {\n\treturn q.query.PendingCount(ctx, careplan.Date(today.String()))\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/offeringQueue.OpenCount",
+      "owner": "modules/requestreview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e offeringReviewEnrollmentRows) Phases(ctx context.Context, ids []int64) ([]careplan.OfferingReviewPhase, error) {\n\trows, err := e.query.PhasesByID(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]careplan.OfferingReviewPhase, 0, len(rows))\n\tfor _, row := range rows {\n\t\tif row != nil {\n\t\t\tresult = append(result, careplan.OfferingReviewPhase{ID: row.ID, Start: careplan.Date(row.ServiceStartDate), End: careplan.Date(row.ServiceEndDate), SelectionMode: row.CareOfferingSelectionMode})\n\t\t}\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/offeringReviewEnrollmentRows.Phases",
+      "owner": "modules/requestreview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e offeringReviewEnrollmentRows) Requests(ctx context.Context, ids []int64) ([]careplan.OfferingReviewRequest, error) {\n\trows, err := e.query.RequestsByID(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]careplan.OfferingReviewRequest, 0, len(rows))\n\tfor _, row := range rows {\n\t\tif row != nil {\n\t\t\tresult = append(result, careplan.OfferingReviewRequest{ID: row.ID, PhaseID: row.PhaseID})\n\t\t}\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/offeringReviewEnrollmentRows.Requests",
+      "owner": "modules/requestreview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e offeringReviewSelectionRows) Selections(ctx context.Context, dates map[int64]careplan.Date) ([]careplan.OfferingReviewBooking, error) {\n\trows, err := e.bookings.CareOfferingBookingsAtDates(ctx, dates)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]careplan.OfferingReviewBooking, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, careplan.OfferingReviewBooking{ChildID: row.RequestChildID, OfferingID: row.CareOfferingID, SelectedDays: row.EffectiveSelectedDays(), ManualDays: row.ManualSelectedDays, AutomaticDays: row.AutomaticSelectedDays})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/offeringReviewSelectionRows.Selections",
+      "owner": "modules/requestreview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d reviewDirectory) FindStudents(ctx context.Context, ids []int64) (map[int64]careplan.ReviewStudent, error) {\n\tstudents, err := d.people.ListStudentsByID(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]careplan.ReviewStudent, len(students))\n\tfor _, student := range students {\n\t\tresult[student.ID] = reviewStudent(student)\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/reviewDirectory.FindStudents",
+      "owner": "modules/requestreview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d reviewDirectory) PersonNames(ctx context.Context, ids []int64) (map[int64]careplan.PersonName, error) {\n\tpersons, err := d.people.ListPersonsByID(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tnames := make(map[int64]careplan.PersonName, len(persons))\n\tfor _, person := range persons {\n\t\tnames[person.ID] = careplan.PersonName{FirstName: person.FirstName, LastName: person.LastName}\n\t}\n\treturn names, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/reviewDirectory.PersonNames",
+      "owner": "modules/requestreview"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d reviewDirectory) ReviewerNames(ctx context.Context, ids []int64) (map[int64]careplan.PersonName, error) {\n\tpersons, err := d.people.ListPersonsByAccount(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tnames := make(map[int64]careplan.PersonName, len(persons))\n\tfor _, person := range persons {\n\t\tif person.AccountID != nil {\n\t\t\tnames[*person.AccountID] = careplan.PersonName{FirstName: person.FirstName, LastName: person.LastName}\n\t\t}\n\t}\n\treturn names, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/requestreviewbinding/reviewDirectory.ReviewerNames",
+      "owner": "modules/requestreview"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 "use client";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import React, {
   Suspense,
@@ -25,7 +26,7 @@ import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
-import { berlinTodayISO, todayISO } from "~/lib/date-helpers";
+
 import {
   type AttendanceHistory,
   type AttendanceHistoryDay,
@@ -47,7 +48,9 @@ import {
 import { hasPermission } from "~/lib/auth-utils";
 import { RoomHistorySkeleton } from "./page-skeleton";
 import type { HistoryChartPoint } from "./history-charts";
+import { Button } from "~/components/ui/button";
 import { AttendanceExportDialog } from "~/components/students/attendance-export-dialog";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 
 const logger = createLogger({ component: "StudentRoomHistoryPage" });
 
@@ -99,7 +102,7 @@ function formatWeekday(dateKey: string): string {
 }
 
 function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
-  const todayKey = todayISO();
+  const todayKey = useBerlinToday();
 
   const chartData = useMemo<HistoryChartPoint[]>(() => {
     return days
@@ -252,8 +255,10 @@ function DayCard({
                       Instanzstatus synthetischer "Ohne Zuordnung"-Zeilen
                       schließt sie ebenfalls aus. */}
                   {canCorrect && slot.instanceStatus === "completed" && (
-                    <button
+                    <Button
                       type="button"
+                      variant="link"
+                      size="md"
                       onClick={() =>
                         onCorrect({
                           instanceId: slot.instanceId,
@@ -266,10 +271,10 @@ function DayCard({
                           note: slot.note,
                         })
                       }
-                      className="mt-0.5 pl-1 text-gray-500 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+                      className="mt-0.5 ml-1"
                     >
                       Korrigieren
-                    </button>
+                    </Button>
                   )}
                 </div>
               ))}
@@ -352,7 +357,7 @@ function HistoryTable({
   readonly onCorrected: () => void;
 }) {
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
-  const todayKey = todayISO();
+  const todayKey = useBerlinToday();
   // Korrigieren darf nur, wer den Plan verwaltet (#2898) — dieselbe
   // Berechtigung, die das Backend auf der Korrektur-Route verlangt.
   const { data: session } = useSession();
@@ -361,13 +366,13 @@ function HistoryTable({
 
   return (
     <>
-      {/* bodyClassName hebt die Kartenpolsterung wieder auf: die Tabelle bringt
-          ihre eigene Zellpolsterung mit und läuft randlos bis zur Kartenkante. */}
+      {/* flush: die Tabelle bringt ihre eigene Zellpolsterung mit und läuft
+          bis zur Kartenkante. */}
       <SectionCard
         title="Anwesenheitsprotokoll"
         description={`${ROOM_HISTORY_DESCRIPTION} Letzte ${caps.attendanceDays} Tage · Raumdetails für ${caps.roomDetailDays} Tage`}
-        leading={<ConceptIconTile concept="changeHistory" variant="section" />}
-        bodyClassName="mt-4 -mx-5 -mb-5"
+        concept={changeHistoryConcept}
+        flush
       >
         {days.length === 0 ? null : (
           <>
@@ -507,8 +512,10 @@ function HistoryTable({
                                 )}
                                 {canCorrect &&
                                   slot.instanceStatus === "completed" && (
-                                    <button
+                                    <Button
                                       type="button"
+                                      variant="link"
+                                      size="md"
                                       onClick={() =>
                                         setCorrecting({
                                           instanceId: slot.instanceId,
@@ -521,10 +528,10 @@ function HistoryTable({
                                           note: slot.note,
                                         })
                                       }
-                                      className="mt-1 pl-4 text-gray-500 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+                                      className="mt-1 ml-4"
                                     >
                                       Korrigieren
-                                    </button>
+                                    </Button>
                                   )}
                               </td>
                               <td className="px-6 py-2 text-gray-500 tabular-nums">
@@ -691,6 +698,7 @@ export default function StudentRoomHistoryPage() {
 }
 
 function StudentRoomHistoryPageContent() {
+  const today = useBerlinToday();
   const params = useParams();
   const searchParams = useSearchParams();
   const studentId = params.id as string;
@@ -813,7 +821,9 @@ function StudentRoomHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={<ConceptIconTile concept="changeHistory" variant="page" />}
+        leading={
+          <ConceptIconTile concept={changeHistoryConcept} variant="page" />
+        }
         title={displayName || "Anwesenheitsprotokoll"}
         stats={studentMeta || dayLine}
         statsLoading={loading}
@@ -871,7 +881,7 @@ function StudentRoomHistoryPageContent() {
           onClose={() => setExportOpen(false)}
           studentId={studentId}
           studentName={displayName}
-          today={berlinTodayISO()}
+          today={today}
           visibleDays={history.caps.attendanceDays}
         />
       ) : null}

@@ -98,6 +98,9 @@ type reportResponse struct {
 	CourseTotals   courseResponse          `json:"course_totals"`
 	CourseDataDays int                     `json:"course_data_days"`
 	CourseDataFrom string                  `json:"course_data_from"`
+
+	// Occupancy is only present when the section was computed.
+	Occupancy *occupancyResponse `json:"occupancy,omitempty"`
 }
 
 func toReportResponse(report *studentpresence.StatisticsReport) reportResponse {
@@ -125,6 +128,7 @@ func toReportResponse(report *studentpresence.StatisticsReport) reportResponse {
 		CourseDataDays: report.CourseDataDays,
 		CourseDataFrom: report.CourseDataFrom.String(),
 	}
+	out.Occupancy = toOccupancyResponse(report.Occupancy)
 	appendReportStudents(&out, report)
 	for _, g := range report.Groups {
 		out.Groups = append(out.Groups, toGroupResponse(g))

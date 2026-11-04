@@ -7,7 +7,6 @@ import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { formatCount } from "~/lib/format-utils";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -23,6 +22,7 @@ import {
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
+import { permissionsConcept } from "~/lib/concepts/permissions";
 
 const logger = createLogger({ component: "DatabasePermissionsPage" });
 
@@ -185,8 +185,8 @@ function PermissionsPageContent() {
                 : "Berechtigungen legt das System an. Bitte wenden Sie sich an moto.",
               icon: (
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.permissions.icon}
-                  tone={MOTO_CONCEPTS.permissions.tone}
+                  icon={permissionsConcept.icon}
+                  tone={permissionsConcept.tone}
                   size={48}
                 />
               ),
@@ -205,8 +205,8 @@ function PermissionsPageContent() {
           badge={{
             icon: (
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.permissions.icon}
-                tone={MOTO_CONCEPTS.permissions.tone}
+                icon={permissionsConcept.icon}
+                tone={permissionsConcept.tone}
                 size={20}
               />
             ),

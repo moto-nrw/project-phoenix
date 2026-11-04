@@ -324,6 +324,28 @@ func TestScan_CheckinOpensVisitInRoomSession(t *testing.T) {
 	assert.Equal(t, fixedNow, result.ProcessedAt)
 }
 
+// TestScan_RoomWideCountCarriesRoomRevision pins the room scope of #5205: a
+// device without a session in the scanned room answers the room's count
+// with the room and its revision, never with a session revision.
+func TestScan_RoomWideCountCarriesRoomRevision(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.presence.roomCounts[testRoomID] = 3
+	h.presence.roomRevisions[testRoomID] = 17
+
+	result, err := h.service().Scan(context.Background(), scanCommand(ptr(testRoomID)))
+
+	require.NoError(t, err)
+	require.NotNil(t, result.ActiveStudents)
+	assert.Equal(t, 3, *result.ActiveStudents)
+	require.NotNil(t, result.ActiveStudentsRoomID)
+	assert.Equal(t, testRoomID, *result.ActiveStudentsRoomID)
+	require.NotNil(t, result.ActiveStudentsRoomRevision)
+	assert.Equal(t, int64(17), *result.ActiveStudentsRoomRevision)
+	assert.Nil(t, result.ActiveStudentsSessionID, "a room count names no session")
+	assert.Nil(t, result.ActiveStudentsRevision, "a room count carries no session revision")
+}
+
 func TestScan_CheckoutClosesCurrentVisit(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
@@ -356,6 +378,33 @@ func TestScan_TransferMovesBetweenRooms(t *testing.T) {
 	assert.Equal(t, "Musikraum", result.PreviousRoomName)
 	assert.Equal(t, []int64{55}, h.visits.ended)
 	require.Len(t, h.visits.recorded, 1)
+}
+
+// TestScan_LocksStudentBeforeItsVisit pins the order of #5278: the scan locks
+// the child before it reads and ends the child's visit.
+func TestScan_LocksStudentBeforeItsVisit(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.visits.current = &ports.CurrentVisit{ID: 55, EntryTime: fixedNow.Add(-time.Hour), Session: &ports.SessionRef{ID: 150, RoomID: 7, StartTime: fixedNow.Add(-time.Hour), Room: &ports.Room{ID: 7, Name: "Musikraum"}}}
+
+	_, err := h.service().Scan(context.Background(), scanCommand(ptr(testRoomID)))
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"lock", "current", "end"}, h.visits.steps)
+}
+
+func TestScan_StudentLockFailureStopsBeforeTheVisit(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.visits.current = &ports.CurrentVisit{ID: 55, EntryTime: fixedNow.Add(-time.Hour), Session: &ports.SessionRef{ID: 150, RoomID: 7, StartTime: fixedNow.Add(-time.Hour), Room: &ports.Room{ID: 7, Name: "Musikraum"}}}
+	h.visits.lockErr = errors.New("lock failed")
+
+	_, err := h.service().Scan(context.Background(), scanCommand(ptr(testRoomID)))
+
+	requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageInternalServerError)
+	assert.Equal(t, []string{"lock"}, h.visits.steps)
+	assert.Empty(t, h.visits.ended)
+	assert.Empty(t, h.visits.recorded)
 }
 
 func TestScan_SameRoomScanOnlyChecksOut(t *testing.T) {
@@ -598,6 +647,8 @@ func TestScan_ActiveStudentsCountFailuresAreOmitted(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, result.ActiveStudents)
+	assert.Nil(t, result.ActiveStudentsRoomID, "a failed count carries no room")
+	assert.Nil(t, result.ActiveStudentsRoomRevision, "a failed count carries no revision")
 }
 
 func TestScan_PickupTimeIsBestEffort(t *testing.T) {

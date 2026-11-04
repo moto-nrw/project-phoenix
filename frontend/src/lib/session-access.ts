@@ -1,14 +1,33 @@
 import type { Session } from "next-auth";
 
 /**
- * Whether a signed-in session still grants access. The session callback
- * strips a session whose refresh failed down to an empty token. A portal
- * layout's server snapshot carries no token at all (#4990, #4991, #5005):
- * the server already checked that cookie, and BFF routes read the cookie
- * themselves, so a missing token does not mean signed out.
+ * Whether a signed-in session still grants access. The browser never sees
+ * a token (#5005): BFF routes read it from the session cookie themselves.
+ * A session whose access token is gone (refresh failed or expired) always
+ * carries an error, so the error is the signal.
  */
 export function hasSessionAccess(
   session: Session | null | undefined,
 ): session is Session {
-  return session?.user !== undefined && session.user.token !== "";
+  return session?.user !== undefined && session.error === undefined;
+}
+
+/**
+ * Identifies whose data a session shows: account, school, scope and rights.
+ * Providers that once used the access token as their change signal key on
+ * this instead (#5005); a token rotation that changes none of it reloads
+ * nothing. Null while the session grants no access.
+ */
+export function sessionIdentityKey(
+  session: Session | null | undefined,
+): string | null {
+  if (!hasSessionAccess(session)) return null;
+  const { id, tenantId, scope, roles, permissions } = session.user;
+  return JSON.stringify([
+    id,
+    tenantId ?? null,
+    scope ?? "",
+    roles ?? [],
+    permissions ?? [],
+  ]);
 }

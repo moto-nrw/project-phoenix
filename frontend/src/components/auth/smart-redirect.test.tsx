@@ -11,7 +11,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     data: {
-      user: { id: "1", token: "valid-token" },
+      user: { id: "1" },
     },
     status: "authenticated",
   })),
@@ -56,7 +56,7 @@ describe("SmartRedirect", () => {
     vi.clearAllMocks();
     vi.mocked(useSession).mockReturnValue({
       data: {
-        user: { id: "1", token: "valid-token" },
+        user: { id: "1" },
         expires: "",
       },
       status: "authenticated",
@@ -106,9 +106,11 @@ describe("SmartRedirect", () => {
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
-  it("does not redirect when token is missing", () => {
+  // The browser session carries no token (#5005): a session the callback
+  // stripped is marked with an error instead.
+  it("does not redirect when the session was stripped", () => {
     vi.mocked(useSession).mockReturnValue({
-      data: { user: { id: "1", token: "" }, expires: "" },
+      data: { user: { id: "1" }, error: "RefreshTokenError", expires: "" },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -132,7 +134,7 @@ describe("SmartRedirect", () => {
   it("calls onRedirect callback instead of router.push when provided", async () => {
     const onRedirect = vi.fn();
     vi.mocked(useSession).mockReturnValue({
-      data: { user: { id: "1", token: "valid-token" }, expires: "" },
+      data: { user: { id: "1" }, expires: "" },
       status: "authenticated",
       update: vi.fn(),
     });
@@ -151,7 +153,7 @@ describe("SmartRedirect", () => {
 
   it("uses redirect path from useSmartRedirectPath", async () => {
     vi.mocked(useSession).mockReturnValue({
-      data: { user: { id: "1", token: "valid-token" }, expires: "" },
+      data: { user: { id: "1" }, expires: "" },
       status: "authenticated",
       update: vi.fn(),
     });

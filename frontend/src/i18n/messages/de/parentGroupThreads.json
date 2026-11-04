@@ -1,0 +1,19 @@
+{
+  "sectionTitle": "Gruppennachrichten der OGS",
+  "sectionDescription": "Die OGS schreibt hier an die Gruppe, Klasse oder AG Ihres Kindes.",
+  "closed": "Geschlossen",
+  "forChildren": "Für {names}",
+  "privacyNote": "Ihre Antwort geht nur an die OGS. Andere Eltern sehen sie nicht.",
+  "replyTitle": "Antwort an die OGS",
+  "replyChildLabel": "Antwort für",
+  "replyPlaceholder": "Antwort an die OGS schreiben",
+  "replyFieldLabel": "Antwort",
+  "sentConfirmation": "Ihre Antwort ist bei der OGS.",
+  "toChat": "Zum Chat mit der OGS",
+  "closedNote": "Diese Gruppennachricht ist geschlossen. Sie können der OGS weiter im Chat zu Ihrem Kind schreiben.",
+  "writingDisabled": "Sie können auf diese Nachricht nicht antworten. Lesen können Sie sie weiterhin.",
+  "answerTo": "Antwort auf: {title}",
+  "errorObjectThread": "die Gruppennachricht",
+  "errorObjectAnswer": "die Antwort",
+  "errorObjectList": "die Gruppennachrichten"
+}

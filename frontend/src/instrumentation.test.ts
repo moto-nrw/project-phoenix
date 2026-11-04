@@ -4,6 +4,10 @@ const mockCaptureRequestError = vi.fn();
 vi.mock("@sentry/nextjs", () => ({
   captureRequestError: mockCaptureRequestError,
 }));
+const mockInstallSessionCookieExit = vi.hoisted(() => vi.fn());
+vi.mock("./lib/session-cookie-exit.server", () => ({
+  installSessionCookieExit: mockInstallSessionCookieExit,
+}));
 
 describe("instrumentation", () => {
   beforeEach(() => {
@@ -26,6 +30,20 @@ describe("instrumentation", () => {
     vi.doUnmock("./sentry.server.config");
   });
 
+  it("locks the session cookie exit before the Node server handles a request (#5520)", async () => {
+    vi.stubEnv("NEXT_RUNTIME", "nodejs");
+    stubValidRuntimeEnv();
+    vi.doMock("./sentry.server.config", () => ({}));
+
+    const { register } = await import("./instrumentation");
+    await register();
+
+    expect(mockInstallSessionCookieExit).toHaveBeenCalledOnce();
+    expect(mockInstallSessionCookieExit).toHaveBeenCalledWith();
+
+    vi.doUnmock("./sentry.server.config");
+  });
+
   it("imports sentry.edge.config when NEXT_RUNTIME is edge", async () => {
     vi.stubEnv("NEXT_RUNTIME", "edge");
 
@@ -36,6 +54,7 @@ describe("instrumentation", () => {
     await register();
 
     expect(edgeMod).toHaveBeenCalled();
+    expect(mockInstallSessionCookieExit).not.toHaveBeenCalled();
 
     vi.doUnmock("./sentry.edge.config");
   });

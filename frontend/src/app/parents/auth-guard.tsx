@@ -1,14 +1,15 @@
 "use client";
 
+import { parentKeys } from "~/lib/swr/parent-keys";
 import { redirect, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useLocale } from "next-intl";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { Alert } from "~/components/ui/alert";
 import { normalizeLocale } from "~/i18n/locales";
 import { notBookedModuleOf } from "~/lib/module-not-booked";
 import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
-import { fetchParentProfile, parentProfileCacheKey } from "~/lib/parent-api";
+import { fetchParentProfile } from "~/lib/parent-api";
 import { parentPath } from "~/lib/parent-url";
 import { ParentShellProvider } from "~/lib/shell-auth-context";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
@@ -62,11 +63,12 @@ export function ParentAuthGuard({
   const { data: session, status } = useSession();
   // Der Name der Kopfzeile kommt aus dem Elternprofil (#3891).
   const locale = normalizeLocale(useLocale());
-  const { data: profile, error: profileError } = useSWR(
+  const { data: profile, error: profileError } = useSWRAuth(
     !isPublicPage && status === "authenticated" && session?.user?.id
-      ? parentProfileCacheKey(session.user.id)
+      ? parentKeys.profile()
       : null,
     fetchParentProfile,
+    { keepPreviousData: false },
   );
 
   // Login page: render without auth guards.

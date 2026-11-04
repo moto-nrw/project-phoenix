@@ -1,6 +1,7 @@
 import { captureBffException } from "~/lib/sentry-bff.server";
 import type { NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { clientIdentityHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { withInvitationOwnerSession } from "~/lib/invitation-owner-session.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
@@ -45,6 +46,7 @@ async function POSTHandler(request: NextRequest) {
         {
           method: "POST",
           headers: {
+            ...clientIdentityHeaders(request.headers),
             "Content-Type": "application/json",
             ...(ownerToken ? { Authorization: `Bearer ${ownerToken}` } : {}),
           },

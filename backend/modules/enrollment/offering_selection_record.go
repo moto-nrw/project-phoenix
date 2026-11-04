@@ -43,6 +43,7 @@ type ApprovedOfferingChild struct {
 // current one for a child that is enrolled across several school years
 // (#1665).
 type StudentCarePeriodRecord struct {
+	StudentID         int64
 	RequestChildID    int64
 	RequestID         int64
 	PhaseID           int64
@@ -140,6 +141,22 @@ func StudentCarePeriodRecords(ctx context.Context, owner interface {
 	if err != nil {
 		return nil, err
 	}
+	return studentCarePeriodRecords(periods)
+}
+
+// StudentCarePeriodRecordsByStudentIDs reads the approved care periods of
+// several students and normalizes their dates at the Enrollment boundary.
+func StudentCarePeriodRecordsByStudentIDs(ctx context.Context, owner interface {
+	StudentCarePeriodsByStudentIDs(context.Context, []int64) ([]*StudentCarePeriod, error)
+}, studentIDs []int64) ([]*StudentCarePeriodRecord, error) {
+	periods, err := owner.StudentCarePeriodsByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	return studentCarePeriodRecords(periods)
+}
+
+func studentCarePeriodRecords(periods []*StudentCarePeriod) ([]*StudentCarePeriodRecord, error) {
 	result := make([]*StudentCarePeriodRecord, 0, len(periods))
 	for _, period := range periods {
 		start, err := calendar.ParseDate(string(period.ServiceStartDate))
@@ -151,7 +168,7 @@ func StudentCarePeriodRecords(ctx context.Context, owner interface {
 			return nil, err
 		}
 		result = append(result, &StudentCarePeriodRecord{
-			RequestChildID: period.RequestChildID, RequestID: period.RequestID, PhaseID: period.PhaseID,
+			StudentID: period.StudentID, RequestChildID: period.RequestChildID, RequestID: period.RequestID, PhaseID: period.PhaseID,
 			PhaseName: period.PhaseName, ServiceStartDate: start, ServiceEndDate: end,
 			TargetGradeLevel: period.TargetGradeLevel, TargetSchoolClass: period.TargetSchoolClass,
 		})

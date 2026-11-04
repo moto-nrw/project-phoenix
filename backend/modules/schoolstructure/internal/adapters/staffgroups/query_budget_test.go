@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,5 +55,5 @@ func TestStaffGroupReadsQueryBudget(t *testing.T) {
 	small := read()
 	add(3)
 	require.Equal(t, small, read(), "statement count must not grow with the rows")
-	testpkg.AssertQueryBudget(t, "modules.schoolstructure.staff_group_reads", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.schoolstructure.staff_group_reads", counter.Queries())
 }

@@ -30,6 +30,10 @@ type BookingMaterializationDependencies struct {
 	Withdrawals ports.BookingWithdrawals
 	Audit       ports.AdjustmentAudit
 	Pickup      ports.BookingPickup
+	// ManualPlans names the hand-maintained Regeltermine an adjustment
+	// leaves the child in (#5102). Focused tests may leave it nil; the
+	// impact then lists no such Regeltermin.
+	ManualPlans ports.BookingManualPlans
 
 	// RunInTx joins the ambient tenant transaction or opens one.
 	RunInTx func(context.Context, func(context.Context) error) error
@@ -48,6 +52,10 @@ type BookingMaterializationDependencies struct {
 	// and guardians after the tenant transaction commits. Tests may leave it
 	// nil.
 	AnnouncePickupChange func(ctx context.Context, studentIDs []int64)
+	// PlanningStaffing hears about every booking change in its transaction
+	// and wakes the hints that compare the planning with the bookings after
+	// commit (#5498). Tests may leave it nil.
+	PlanningStaffing ports.BookingPlanningStaffing
 
 	Today  func() calendar.Date
 	Logger *slog.Logger

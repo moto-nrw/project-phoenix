@@ -18,6 +18,107 @@ describe("Modal", () => {
     vi.useRealTimers();
   });
 
+  // #5579: Kopf mit Symbol und Untertitel, ohne eigenen Kopf im Inhalt.
+  it("names the dialog by its title and describes it with the subtitle next to the icon", async () => {
+    render(
+      <TestWrapper>
+        <Modal
+          isOpen={true}
+          onClose={vi.fn()}
+          title="Neue Funktionen"
+          icon={<span data-testid="modal-icon" />}
+          description="Was ist neu?"
+        >
+          <p>Inhalt</p>
+        </Modal>
+      </TestWrapper>,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Neue Funktionen" });
+    expect(dialog).toHaveAccessibleDescription("Was ist neu?");
+    const header = screen.getByRole("heading", { name: "Neue Funktionen" })
+      .parentElement?.parentElement;
+    expect(header).toContainElement(screen.getByTestId("modal-icon"));
+    expect(
+      screen.getByRole("button", { name: "Modal schließen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides a suspended dialog without unmounting its children and ignores Escape", async () => {
+    const onClose = vi.fn();
+    const modal = (suspended: boolean) => (
+      <TestWrapper>
+        <Modal
+          isOpen={true}
+          onClose={onClose}
+          title="Formular"
+          suspended={suspended}
+        >
+          <input aria-label="Entwurf" defaultValue="" />
+        </Modal>
+      </TestWrapper>
+    );
+    const { rerender } = render(modal(false));
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Entwurf" }), {
+      target: { value: "bleibt" },
+    });
+
+    rerender(modal(true));
+    expect(screen.queryByRole("dialog", { name: "Formular" })).toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+
+    rerender(modal(false));
+    expect(
+      screen.getByRole("dialog", { name: "Formular" }),
+    ).toBeInTheDocument();
+    expect(screen.getByDisplayValue("bleibt")).toBeInTheDocument();
+
+    // Anker: sichtbar schließt dieselbe Taste den Dialog wieder.
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    fireEvent.keyDown(document, { key: "Escape" });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("caps the dialog at the requested size, also as a phone sheet", async () => {
+    render(
+      <TestWrapper>
+        <Modal
+          isOpen={true}
+          onClose={vi.fn()}
+          title="Breit"
+          size="xl"
+          mobileSheet
+        >
+          <p>Inhalt</p>
+        </Modal>
+      </TestWrapper>,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    expect(screen.getByRole("dialog", { name: "Breit" })).toHaveClass(
+      "max-w-4xl",
+      "max-sm:max-w-none",
+      "rounded-t-2xl",
+    );
+  });
+
   it("should not render when isOpen is false", async () => {
     const { unmount } = render(
       <TestWrapper>
@@ -144,10 +245,19 @@ describe("Modal", () => {
       "flex-1",
       "wrap-anywhere",
     );
+    // #5531: Das X ist der Kit-Knopf `ghost` `icon` — 32 px mit Maus, unter
+    // Fingerbedienung mindestens 44 × 44 px.
     expect(screen.getByRole("button", { name: "Modal schließen" })).toHaveClass(
-      "size-11",
+      "h-8",
+      "aspect-square",
+      "pointer-coarse:min-h-11",
+      "pointer-coarse:min-w-11",
+      "hover:bg-gray-100",
       "shrink-0",
     );
+    expect(
+      screen.getByRole("button", { name: "Modal schließen" }).className,
+    ).not.toMatch(/scale-/);
   });
 
   it("should render close button in header when title is provided", async () => {
@@ -965,7 +1075,11 @@ describe("ConfirmationModal", () => {
     const closeButton = screen.getByRole("button", {
       name: "Modal schließen",
     });
-    expect(closeButton).toHaveClass("size-11");
+    // #5531: Auf dem Telefon trägt die Fingerregel des Kits die 44 px.
+    expect(closeButton).toHaveClass(
+      "pointer-coarse:min-h-11",
+      "pointer-coarse:min-w-11",
+    );
     expect(screen.getByRole("button", { name: "Abbrechen" })).toHaveClass(
       "hidden",
     );

@@ -26,7 +26,11 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 		if err := s.lockActiveGroupForSupervisorUpdate(txCtx, activeGroupID); err != nil {
 			return err
 		}
-		return s.replaceSupervisorsInTransaction(txCtx, activeGroupID, uniqueSupervisors)
+		if err := s.replaceSupervisorsInTransaction(txCtx, activeGroupID, uniqueSupervisors); err != nil {
+			return err
+		}
+		s.queueSupervisionRefresh(txCtx, activeGroupID, activeSupervisionReasonSupervisorsChanged)
+		return nil
 	}); err != nil {
 		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: err}
 	}

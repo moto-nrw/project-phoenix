@@ -798,7 +798,7 @@ function SelectionBar({
   const [adding, setAdding] = useState(false);
 
   return (
-    <div className="moto-content-surface flex flex-wrap items-center gap-3 rounded-2xl border p-4 shadow-lg">
+    <div className="moto-content-surface flex flex-wrap items-center gap-3 rounded-2xl border p-4">
       {definition && placement ? (
         <>
           <span className="flex items-center gap-2">

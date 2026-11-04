@@ -10,8 +10,12 @@ import {
   SlideOverFooter,
   SlideOverCloseButton,
 } from "~/components/ui/slide-over";
+import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FieldLabel } from "~/components/ui/field-label";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import type {
   GuardianFormData,
@@ -586,15 +590,17 @@ export default function GuardianFormModal({
                     <h4 className="text-sm font-medium text-gray-700">
                       Person {index + 1}
                     </h4>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost_danger"
+                      size="compact"
                       onClick={() => removeEntry(entry.id)}
                       disabled={isLoading}
-                      className="text-moto-red hover:bg-moto-red-soft flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors disabled:opacity-50"
+                      className="gap-1"
                     >
                       <X className="h-3 w-3" />
                       Entfernen
-                    </button>
+                    </Button>
                   </div>
                 )}
 
@@ -619,25 +625,30 @@ export default function GuardianFormModal({
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                     <div>
                       <div className="mb-1 flex items-center gap-1">
-                        <label
+                        <FieldLabel
                           htmlFor={`guardian-first-name-${entry.id}`}
-                          className={`block text-xs font-medium ${hasFieldError(entry.id, "firstName") ? "text-moto-red" : "text-gray-700"}`}
+                          required
+                          invalid={hasFieldError(entry.id, "firstName")}
+                          className="mb-0 text-xs"
                         >
-                          Vorname <span className="text-moto-red">*</span>
-                        </label>
+                          Vorname
+                        </FieldLabel>
                         <ParentVisibleBadge
                           compact
                           hint={PARENT_VISIBLE_HINTS.guardianName}
                         />
                       </div>
-                      <input
+                      <Input
+                        controlSize="compact"
                         id={`guardian-first-name-${entry.id}`}
                         type="text"
                         value={entry.firstName}
                         onChange={(e) =>
                           updateEntry(entry.id, "firstName", e.target.value)
                         }
-                        className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "firstName") ? "border-moto-red/40" : "border-gray-200"}`}
+                        aria-invalid={
+                          hasFieldError(entry.id, "firstName") || undefined
+                        }
                         placeholder="Max"
                         required
                         disabled={isLoading}
@@ -647,25 +658,30 @@ export default function GuardianFormModal({
 
                     <div>
                       <div className="mb-1 flex items-center gap-1">
-                        <label
+                        <FieldLabel
                           htmlFor={`guardian-last-name-${entry.id}`}
-                          className={`block text-xs font-medium ${hasFieldError(entry.id, "lastName") ? "text-moto-red" : "text-gray-700"}`}
+                          required
+                          invalid={hasFieldError(entry.id, "lastName")}
+                          className="mb-0 text-xs"
                         >
-                          Nachname <span className="text-moto-red">*</span>
-                        </label>
+                          Nachname
+                        </FieldLabel>
                         <ParentVisibleBadge
                           compact
                           hint={PARENT_VISIBLE_HINTS.guardianName}
                         />
                       </div>
-                      <input
+                      <Input
+                        controlSize="compact"
                         id={`guardian-last-name-${entry.id}`}
                         type="text"
                         value={entry.lastName}
                         onChange={(e) =>
                           updateEntry(entry.id, "lastName", e.target.value)
                         }
-                        className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "lastName") ? "border-moto-red/40" : "border-gray-200"}`}
+                        aria-invalid={
+                          hasFieldError(entry.id, "lastName") || undefined
+                        }
                         placeholder="Mustermann"
                         required
                         disabled={isLoading}
@@ -721,14 +737,17 @@ export default function GuardianFormModal({
                     >
                       E-Mail
                     </label>
-                    <input
+                    <Input
+                      controlSize="compact"
                       id={`guardian-email-${entry.id}`}
                       type="email"
                       value={entry.email}
                       onChange={(e) =>
                         updateEntry(entry.id, "email", e.target.value)
                       }
-                      className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:ring-1 ${hasFieldError(entry.id, "email") ? "border-moto-red/40" : "border-gray-200"}`}
+                      aria-invalid={
+                        hasFieldError(entry.id, "email") || undefined
+                      }
                       placeholder="max.mustermann@example.com"
                       disabled={isLoading}
                       maxLength={255}
@@ -772,7 +791,8 @@ export default function GuardianFormModal({
 
                         {/* Phone Number Input */}
                         <div className="flex-1">
-                          <input
+                          <Input
+                            controlSize="compact"
                             id={`phone-number-${entry.id}-${phone.id}`}
                             type="tel"
                             value={phone.phoneNumber}
@@ -784,7 +804,9 @@ export default function GuardianFormModal({
                                 e.target.value,
                               )
                             }
-                            className={`focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border bg-white px-3 py-1.5 text-sm transition-colors focus:ring-1 ${hasPhoneError(entry.id, phone.id) ? "border-moto-red/40" : "border-gray-200"}`}
+                            aria-invalid={
+                              hasPhoneError(entry.id, phone.id) || undefined
+                            }
                             placeholder="+49 170 1234567"
                             disabled={isLoading}
                             aria-label={`Telefonnummer ${phoneIndex + 1}`}
@@ -794,7 +816,8 @@ export default function GuardianFormModal({
 
                         {/* Label Input (optional) */}
                         <div className="w-full sm:w-28">
-                          <input
+                          <Input
+                            controlSize="compact"
                             id={`phone-label-${entry.id}-${phone.id}`}
                             type="text"
                             value={phone.label}
@@ -806,7 +829,6 @@ export default function GuardianFormModal({
                                 e.target.value,
                               )
                             }
-                            className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm transition-colors focus:ring-1"
                             placeholder="Notiz"
                             disabled={isLoading}
                             aria-label={`Notiz für Nummer ${phoneIndex + 1}`}
@@ -817,15 +839,13 @@ export default function GuardianFormModal({
                         {/* Action Buttons */}
                         <div className="flex items-center gap-1">
                           {/* Primary Star */}
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="icon"
                             onClick={() => setPhonePrimary(entry.id, phone.id)}
-                            disabled={isLoading || phone.isPrimary}
-                            className={`rounded p-1.5 transition-colors ${
-                              phone.isPrimary
-                                ? "text-moto-amber"
-                                : "hover:text-moto-amber text-gray-300"
-                            }`}
+                            disabled={isLoading}
+                            aria-pressed={phone.isPrimary}
                             title={
                               phone.isPrimary
                                 ? "Primär"
@@ -838,38 +858,41 @@ export default function GuardianFormModal({
                             }
                           >
                             <Star
-                              className="h-4 w-4"
+                              className={`h-4 w-4 ${phone.isPrimary ? "text-moto-amber" : ""}`}
                               fill={phone.isPrimary ? "currentColor" : "none"}
                             />
-                          </button>
+                          </Button>
 
                           {/* Delete Button */}
                           {entry.phoneNumbers.length > 1 && (
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon"
                               onClick={() => removePhone(entry.id, phone.id)}
                               disabled={isLoading}
-                              className="hover:bg-moto-red-soft hover:text-moto-red rounded p-1.5 text-gray-400 transition-colors"
                               title="Entfernen"
                               aria-label={`Telefonnummer ${phoneIndex + 1} entfernen`}
                             >
                               <Trash2 className="h-4 w-4" />
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </div>
                     ))}
 
                     {/* Add Phone Button */}
-                    <button
+                    <Button
                       type="button"
+                      variant="dashed"
+                      size="compact"
                       onClick={() => addPhone(entry.id)}
                       disabled={isLoading}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-100 disabled:opacity-50"
+                      className="w-full gap-1.5"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       Weitere Nummer hinzufügen
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
@@ -908,14 +931,14 @@ export default function GuardianFormModal({
                       >
                         Straße und Hausnummer
                       </label>
-                      <input
+                      <Input
+                        controlSize="compact"
                         id={`guardian-street-${entry.id}`}
                         type="text"
                         value={entry.addressStreet}
                         onChange={(e) =>
                           updateEntry(entry.id, "addressStreet", e.target.value)
                         }
-                        className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
                         placeholder="Musterstr. 1"
                         disabled={isLoading}
                         maxLength={255}
@@ -928,7 +951,8 @@ export default function GuardianFormModal({
                       >
                         PLZ
                       </label>
-                      <input
+                      <Input
+                        controlSize="compact"
                         id={`guardian-postal-${entry.id}`}
                         type="text"
                         value={entry.addressPostalCode}
@@ -939,7 +963,6 @@ export default function GuardianFormModal({
                             e.target.value,
                           )
                         }
-                        className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
                         placeholder="50667"
                         maxLength={5}
                         disabled={isLoading}
@@ -952,14 +975,14 @@ export default function GuardianFormModal({
                       >
                         Ort
                       </label>
-                      <input
+                      <Input
+                        controlSize="compact"
                         id={`guardian-city-${entry.id}`}
                         type="text"
                         value={entry.addressCity}
                         onChange={(e) =>
                           updateEntry(entry.id, "addressCity", e.target.value)
                         }
-                        className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
                         placeholder="Köln"
                         disabled={isLoading}
                         maxLength={255}
@@ -1013,13 +1036,12 @@ export default function GuardianFormModal({
                       >
                         Notizen
                       </label>
-                      <textarea
+                      <Textarea
                         id={`guardian-notes-${entry.id}`}
                         value={entry.notes}
                         onChange={(e) =>
                           updateEntry(entry.id, "notes", e.target.value)
                         }
-                        className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-colors focus:ring-1"
                         placeholder="Interne Notizen zum Erziehungsberechtigten"
                         rows={2}
                         disabled={isLoading}
@@ -1049,11 +1071,13 @@ export default function GuardianFormModal({
 
             {/* Add More Button (only in create mode) */}
             {mode === "create" && (
-              <button
+              <Button
                 type="button"
+                variant="dashed"
+                size="md"
                 onClick={addEntry}
                 disabled={isLoading}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                className="w-full gap-2"
               >
                 <svg
                   className="h-4 w-4"
@@ -1069,37 +1093,41 @@ export default function GuardianFormModal({
                   />
                 </svg>
                 Weiteren hinzufügen
-              </button>
+              </Button>
             )}
           </div>
           <SlideOverFooter className="flex-row items-center justify-between gap-2 md:gap-3">
             {/* Delete button (only in edit mode) */}
             {mode === "edit" && onDelete ? (
-              <button
+              <Button
                 type="button"
+                variant="outline_danger"
+                size="md"
                 onClick={onDelete}
                 disabled={isLoading}
-                className="text-moto-red hover:bg-moto-red-soft rounded-lg px-3 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
               >
                 Entfernen
-              </button>
+              </Button>
             ) : (
               <div />
             )}
             <div className="flex gap-2 md:gap-3">
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="md"
                 onClick={onClose}
                 disabled={isLoading}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
               >
                 Abbrechen
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
+                variant="primary"
+                size="md"
                 data-setup-tour="guardian-submit"
                 disabled={isLoading}
-                className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
+                className="flex-1"
               >
                 {(() => {
                   if (isLoading) {
@@ -1135,7 +1163,7 @@ export default function GuardianFormModal({
                   }
                   return "Speichern";
                 })()}
-              </button>
+              </Button>
             </div>
           </SlideOverFooter>
         </form>

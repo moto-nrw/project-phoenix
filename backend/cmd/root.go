@@ -74,8 +74,9 @@ func loadConfig(config *viper.Viper, configFile string, docker bool) {
 }
 
 // propagateDatabaseConfig makes the effective local Viper configuration
-// available to persistence adapters, which intentionally depend only on the
-// process environment.
+// available to persistence adapters and migrations, which intentionally depend
+// only on the process environment. The health data key ring belongs here
+// because the holiday health migration seals and opens with it (#4722).
 func propagateDatabaseConfig() {
 	propagateDatabaseConfigFrom(viper.GetViper(), os.Setenv)
 }
@@ -84,6 +85,7 @@ func propagateDatabaseConfigFrom(config *viper.Viper, setenv func(string, string
 	for _, key := range []string{
 		"app_env", "db_dsn", "demo_db_dsn", "test_db_dsn", "phoenix_auth_password", "phoenix_demo_password",
 		"db_max_open_conns", "db_max_idle_conns", "db_conn_max_lifetime", "db_conn_max_idle_time",
+		"health_data_keys",
 	} {
 		if value := config.GetString(key); value != "" {
 			if err := setenv(strings.ToUpper(key), value); err != nil {

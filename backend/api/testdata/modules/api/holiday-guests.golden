@@ -1,0 +1,2 @@
+GET /api/holiday-guests/ -> basis
+GET /api/holiday-guests/{studentId} -> basis

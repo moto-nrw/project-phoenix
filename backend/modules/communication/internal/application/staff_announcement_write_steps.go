@@ -138,3 +138,14 @@ func (s *service) finishAnnouncementPublication(ctx context.Context, id int64) e
 	}
 	return nil
 }
+
+func dedupeKey(t *StaffParentAnnouncementTarget) string {
+	switch {
+	case t.TargetRefID != nil:
+		return fmt.Sprintf("%s:id:%d", t.TargetType, *t.TargetRefID)
+	case t.TargetRefText != nil:
+		return fmt.Sprintf("%s:txt:%s", t.TargetType, *t.TargetRefText)
+	default:
+		return t.TargetType
+	}
+}

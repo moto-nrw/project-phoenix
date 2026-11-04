@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.offering_sources.suggestion",
+  "max": 0,
+  "exact": true,
+  "description": "modules/timetable — GET /api/timetable/offering-sources/suggestion and\n/preview (#5104): a Regeltermin still being planned sends its children,\nso the suggestion issues no statement of its own: it reads only Care\nPlan's bookings (stubbed here, budgeted as\nservices.enrollment.offering_weekday_bookings.reads). The preview adds\nthe two name reads (student persons, person names). Flat from 3 to 8\nchildren."
+}

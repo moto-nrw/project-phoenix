@@ -9,7 +9,7 @@ import {
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { EmptyState } from "~/components/ui/empty-state";
-import { InfoCard } from "~/components/ui/info-card";
+import { SectionCard } from "~/components/ui/section-card";
 import Link from "~/components/ui/navigation-link";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -28,6 +28,8 @@ import {
 import { ownShiftService } from "~/lib/shift-api";
 import type { OwnAssignment } from "~/lib/shift-helpers";
 import { useSWRAuth } from "~/lib/swr";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 // Heute geplante Betreuungsplan-Einsätze der eingeloggten Person ("Mein Tag",
 // #1844): Ort (Raum) + Aufgabe (Aktivität) + Zeit, plus die Vertretungsplan-
@@ -36,6 +38,13 @@ import { useSWRAuth } from "~/lib/swr";
 // pflegt (leere Liste), damit die Seite nicht mit einer leeren Karte zusteht.
 // Ein Ladefehler zeigt dagegen eine Fehlerkarte, damit er nicht wie "keine
 // Einsätze" aussieht.
+// Auf der Startseite steht die Karte in einer Zelle fester Höhe: Rumpf und
+// Liste schrumpfen mit (flex-1, min-h-0), statt über den Rahmen zu wachsen.
+const CARD_LAYOUT = {
+  className: "flex h-full flex-col",
+  bodyClassName: "compact:mt-3 mt-4 flex min-h-0 flex-1 flex-col space-y-3",
+} as const;
+
 export function BetreuungsplanHeuteCard({
   title = "Heute geplant",
   showEmpty = false,
@@ -118,12 +127,9 @@ export function BetreuungsplanHeuteCard({
 
   if (error) {
     return (
-      <InfoCard
-        title={title}
-        icon={<MotoConceptIcon concept="carePlan" size={20} />}
-      >
+      <SectionCard title={title} concept={carePlanConcept} {...CARD_LAYOUT}>
         <LoadErrorAlert error={load.error} />
-      </InfoCard>
+      </SectionCard>
     );
   }
 
@@ -135,9 +141,11 @@ export function BetreuungsplanHeuteCard({
   if (blocks.length === 0) {
     if (!showEmpty) return null;
     return (
-      <InfoCard
+      <SectionCard
         title={title}
-        icon={<MotoConceptIcon concept="carePlan" size={20} />}
+        concept={carePlanConcept}
+        {...CARD_LAYOUT}
+        inlineActions
         actions={
           href ? (
             <Link
@@ -156,7 +164,7 @@ export function BetreuungsplanHeuteCard({
           title="Heute ist für Sie nichts geplant"
           description="Ihre Einsätze aus dem Betreuungsplan erscheinen hier."
         />
-      </InfoCard>
+      </SectionCard>
     );
   }
 
@@ -195,9 +203,11 @@ export function BetreuungsplanHeuteCard({
   ));
 
   return (
-    <InfoCard
+    <SectionCard
       title={title}
-      icon={<MotoConceptIcon concept="carePlan" size={20} />}
+      concept={carePlanConcept}
+      {...CARD_LAYOUT}
+      inlineActions
       actions={
         href ? (
           <Link
@@ -242,7 +252,7 @@ export function BetreuungsplanHeuteCard({
             : `Noch ${hidden} Einsätze ansehen`}
         </Link>
       )}
-    </InfoCard>
+    </SectionCard>
   );
 }
 
@@ -317,7 +327,7 @@ function AssignmentRow({
           </p>
           {block.roomName && (
             <p className="mt-0.5 flex items-center gap-1 text-xs text-gray-500">
-              <MotoConceptIcon concept="rooms" size={16} />
+              <MotoConceptIcon concept={roomsConcept} size={16} />
               {block.roomName}
             </p>
           )}

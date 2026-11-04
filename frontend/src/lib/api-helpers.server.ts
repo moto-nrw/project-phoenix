@@ -1,11 +1,7 @@
 // lib/api-helpers.server.ts
 import type { NextRequest } from "next/server";
 import { recordBackendProxyMetric } from "./backend-proxy-metrics";
-import { analyticsSessionHeaders } from "./analytics-session-header.server";
-import {
-  canonicalForwardedFor,
-  requestIdHeaders,
-} from "./client-headers.server";
+import { incomingClientForwardHeaders } from "./client-headers.server";
 import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
 import type { ProblemBody } from "./api-error";
@@ -53,26 +49,6 @@ interface ServerFetchOptions {
   signal?: AbortSignal;
 }
 
-async function getIncomingForwardHeaders(): Promise<Record<string, string>> {
-  try {
-    const { headers } = await import("next/headers");
-    const incomingHeaders = await headers();
-    const userAgent = incomingHeaders.get("user-agent");
-    const forwardedFor = canonicalForwardedFor(incomingHeaders);
-
-    return {
-      ...(forwardedFor && {
-        "X-Forwarded-For": forwardedFor,
-      }),
-      ...(userAgent && { "User-Agent": userAgent }),
-      ...analyticsSessionHeaders(incomingHeaders),
-      ...requestIdHeaders(incomingHeaders),
-    };
-  } catch {
-    return {};
-  }
-}
-
 /**
  * Server-side fetch against the backend API.
  * Route-level 401 retry with a refreshed session happens in route-wrapper.ts.
@@ -84,7 +60,7 @@ async function serverFetchWithRetry<T>(
 ): Promise<T> {
   const { getServerApiUrl } = await import("~/lib/server-api-url");
   const url = `${getServerApiUrl()}${endpoint}`;
-  const forwardHeaders = await getIncomingForwardHeaders();
+  const forwardHeaders = await incomingClientForwardHeaders();
   const startedAt = Date.now();
   const requestBytes = estimateRequestBytes(options.body);
   const tokenContext = extractTokenContext(token);

@@ -25,7 +25,10 @@ type ErrResponse struct {
 	Code           string `json:"code"`
 }
 
-const codeGeneralPermission = "general.permission"
+const (
+	codeGeneralPermission  = "general.permission"
+	codeGeneralUnavailable = "general.unavailable"
+)
 
 // Render sets the response status.
 func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
@@ -37,4 +40,9 @@ func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
 // ErrUnauthorized renders status 401 Unauthorized with custom error message.
 func ErrUnauthorized(err error) render.Renderer {
 	return &ErrResponse{Err: err, HTTPStatusCode: http.StatusUnauthorized, Detail: err.Error(), Code: codeGeneralPermission}
+}
+
+// ErrServiceUnavailable renders status 503 for a check that could not run.
+func ErrServiceUnavailable(err error) render.Renderer {
+	return &ErrResponse{Err: err, HTTPStatusCode: http.StatusServiceUnavailable, Detail: err.Error(), Code: codeGeneralUnavailable}
 }

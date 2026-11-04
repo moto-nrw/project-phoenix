@@ -47,6 +47,12 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// Powers the "Anmeldungen in Bearbeitung" section on the
 	// dashboard.
 	r.Get("/me/enrollments", rs.listMyEnrollments)
+
+	// Document inbox (#4671): the documents the Träger of the account's
+	// schools sent to its address, and the PDF of one of them. Account
+	// from the claims; the Träger only from the account's relationships.
+	r.Get("/me/documents", rs.listBillingDocuments)
+	r.Get("/me/documents/{organizationId}/{documentId}/pdf", rs.billingDocumentPDF)
 }
 
 func (rs *Resource) mountCalendarRoutes(r chi.Router) {
@@ -56,6 +62,11 @@ func (rs *Resource) mountCalendarRoutes(r chi.Router) {
 	r.Get("/me/calendar/feed", rs.calendarFeedURL)
 	r.Post("/me/calendar/feed/rotate", rs.rotateCalendarFeed)
 	r.Post("/me/calendar/recipients/{recipientId}/response", rs.respondToCalendarInvitation)
+	// Elternsprechtag (#4801): the coming days of the child's class, and
+	// booking, moving or cancelling the child's slot.
+	r.Get("/me/children/{studentId}/parent-conferences", rs.listChildParentConferences)
+	r.Put("/me/children/{studentId}/parent-conferences/{conferenceId}/booking", rs.bookChildParentConference)
+	r.Delete("/me/children/{studentId}/parent-conferences/{conferenceId}/booking", rs.cancelChildParentConference)
 }
 
 func (rs *Resource) mountEnrollmentRoutes(r chi.Router) {

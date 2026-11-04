@@ -5,6 +5,8 @@ import "encoding/json"
 // These are HTTP contract values, kept at the dev-tool boundary because the
 // architecture policy forbids CLI packages from importing a domain model.
 const (
+	profileSettingSchoolWriteScope      = "operations.school_portal_write_scope"
+	profileSettingSchoolMorning         = "operations.school_portal_morning_attendance"
 	profileSettingAnalyticsEnabled      = "analytics.enabled"
 	profileSettingPresenceMode          = "operations.presence_mode"
 	profileSettingAttendanceNFC         = "module.nfc_anwesenheit"
@@ -32,10 +34,35 @@ const (
 	profileSettingStudentPhotos         = "operations.student_photos_enabled"
 	profileSettingWeekendFollowsFriday  = "operations.weekend_follows_friday"
 	profileSettingBirthdayIncludeStaff  = "operations.birthday_display_include_staff"
+	profileSettingAttendanceLog         = "gdpr.attendance_log_enabled"
+	profileSettingFeedbackEnabled       = "feedback.enabled"
 	profilePresenceDetailed             = "detailed"
 	profilePresenceBinary               = "binary"
 	profileGroupModeFixed               = "fixed_groups"
 	profileGroupModeOpenCare            = "open_care"
+)
+
+// The payroll keys of the Abrechnung page (#5032), HTTP contract values like
+// the ones above.
+const (
+	profileSettingPayrollRegelarbeit        = "payroll.lohnart_regelarbeit"
+	profileSettingPayrollPlusStunden        = "payroll.lohnart_plus_stunden"
+	profileSettingPayrollAuszahlung         = "payroll.lohnart_auszahlung"
+	profileSettingPayrollFreizeitausgleich  = "payroll.lohnart_freizeitausgleich"
+	profileSettingPayrollKrank              = "payroll.lohnart_krank"
+	profileSettingPayrollUrlaub             = "payroll.lohnart_urlaub"
+	profileSettingPayrollFortbildung        = "payroll.lohnart_fortbildung"
+	profileSettingPayrollEinheitKrank       = "payroll.einheit_krank"
+	profileSettingPayrollEinheitUrlaub      = "payroll.einheit_urlaub"
+	profileSettingPayrollEinheitFortbildung = "payroll.einheit_fortbildung"
+	profileSettingPayrollBeraternummer      = "payroll.datev_beraternummer"
+	profileSettingPayrollMandantennummer    = "payroll.datev_mandantennummer"
+	profileSettingPayrollDispatchAuto       = "payroll.dispatch_auto"
+	profileSettingPayrollDispatchChannel    = "payroll.dispatch_channel"
+	profileSettingPayrollDispatchFormat     = "payroll.dispatch_format"
+	profileSettingPayrollDispatchEmail      = "payroll.dispatch_email"
+	profilePayrollUnitHours                 = "stunden"
+	profilePayrollUnitDays                  = "tage"
 )
 
 type demoProfileDefinition struct {
@@ -61,8 +88,56 @@ func fullOperationProfileDefinition() demoProfileDefinition {
 		// first person; the reserved TLD .example never receives mail.
 		SchoolAdminEmail:    "ines.lindner@ganztag-nord.example",
 		SchoolAdminPassword: "Vollbetrieb1234%",
-		Settings:            fullOperationSettings(),
+		Settings:            fullOperationProfileSettings(),
 		Expected:            fullOperationExpectedState(),
+	}
+}
+
+// fullOperationProfileSettings adds histories and the payroll configuration
+// to the Vollbetrieb school only. The Anmeldung profiles reuse
+// fullOperationSettings but seed neither history nor Personalnummern, so a
+// complete DATEV setup there would still report every colleague as missing
+// (#5032).
+func fullOperationProfileSettings() map[string]SeedSetting {
+	settings := fullOperationSettings()
+	settings[profileSettingSchoolWriteScope] = SeedSetting{Value: json.RawMessage(`["class_arrival_exceptions","class_handover","class_trips","day_hints"]`), ManagedBy: SettingManagedByTenant}
+	settings[profileSettingSchoolMorning] = SeedSetting{Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant}
+	for key, setting := range demoHistorySettings() {
+		settings[key] = setting
+	}
+	for key, setting := range demoPayrollSettings() {
+		settings[key] = setting
+	}
+	return settings
+}
+
+// demoPayrollSettings completes the Abrechnung page with invented numbers
+// (#5032). The registry defaults stay empty, since real numbers belong to
+// each Träger's DATEV; every payroll key is admin-only, so the school writes
+// them. The Lohnbüro (#4805) gets the automatic send by e-mail to an address
+// of the reserved example domain, so a month close on a demo stack sends no
+// payroll data anywhere real.
+func demoPayrollSettings() map[string]SeedSetting {
+	text := func(value string) SeedSetting {
+		return SeedSetting{Value: json.RawMessage(`"` + value + `"`), ManagedBy: SettingManagedByTenant}
+	}
+	return map[string]SeedSetting{
+		profileSettingPayrollRegelarbeit:        text("9001"),
+		profileSettingPayrollPlusStunden:        text("9002"),
+		profileSettingPayrollAuszahlung:         text("9003"),
+		profileSettingPayrollFreizeitausgleich:  text("9004"),
+		profileSettingPayrollKrank:              text("9005"),
+		profileSettingPayrollUrlaub:             text("9006"),
+		profileSettingPayrollFortbildung:        text("9007"),
+		profileSettingPayrollEinheitKrank:       text(profilePayrollUnitHours),
+		profileSettingPayrollEinheitUrlaub:      text(profilePayrollUnitDays),
+		profileSettingPayrollEinheitFortbildung: text(profilePayrollUnitHours),
+		profileSettingPayrollBeraternummer:      text("9900001"),
+		profileSettingPayrollMandantennummer:    text("90001"),
+		profileSettingPayrollDispatchAuto:       {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},
+		profileSettingPayrollDispatchChannel:    text("email"),
+		profileSettingPayrollDispatchFormat:     text("datev_lodas"),
+		profileSettingPayrollDispatchEmail:      text("lohnbuero@example.com"),
 	}
 }
 
@@ -72,6 +147,19 @@ func fullOperationSettings() map[string]SeedSetting {
 		settings[key] = setting
 	}
 	return settings
+}
+
+// demoHistorySettings switch on the histories the seed fills. The registry
+// keeps both off for real schools.
+func demoHistorySettings() map[string]SeedSetting {
+	return map[string]SeedSetting{
+		// The Statistik's rooms and a child's room history show the seeded
+		// past (#5031); without the log the nightly cleanup deletes it.
+		profileSettingAttendanceLog: {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},
+		// The Feedbackhistorie of a child shows the seeded feedback (#5029);
+		// the feedback API refuses to store entries while it is off.
+		profileSettingFeedbackEnabled: {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},
+	}
 }
 
 // notOfferedModuleSettings cancels the modules moto does not offer yet, so

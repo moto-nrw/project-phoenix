@@ -163,6 +163,13 @@ func (c *Client) PostFileWithFields(path, fieldName, filename string, contents [
 	return c.uploadFile(c.authRef(), "POST", path, fieldName, filename, contents, fields)
 }
 
+// PostPublicFile makes an unauthenticated multipart POST with a single file
+// part, such as the proof of benefits of the public holiday registration
+// (#5238).
+func (c *Client) PostPublicFile(path, fieldName, filename string, contents []byte) ([]byte, error) {
+	return c.uploadFile(AuthRef{}, "POST", path, fieldName, filename, contents, nil)
+}
+
 // PutFileWithAuth makes a multipart PUT with a single file part under the
 // given session, such as the Träger logo upload (#4653).
 func (c *Client) PutFileWithAuth(auth AuthRef, path, fieldName, filename string, contents []byte) ([]byte, error) {

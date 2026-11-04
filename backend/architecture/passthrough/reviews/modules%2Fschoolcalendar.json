@@ -1,0 +1,89 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/http/Resource.ServeCalDAV",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/internal/application/CalendarPeriodIDs.ListCalendarPeriodIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/internal/application/NonWorkingDays.HolidayDates",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/internal/application/Service.CreateClosingDay",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/internal/application/Service.CreateDateframe",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/internal/application/Service.DeleteCalendarPeriod",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/internal/application/Service.DeleteClosingDay",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/internal/application/Service.DeleteDateframe",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/internal/application/Service.HolidayDates",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/internal/application/Service.ListHolidays",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/internal/application/Service.RenderCalendar",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/internal/application/Service.RenderCalendarObject",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/internal/application/TenantClosingDays.ClosingDayDates",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/internal/application/TenantHolidays.HolidayDates",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/portal/internal/application/calendarRenderer.RenderCalendar",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/portal/internal/application/calendarRenderer.RenderCalendarObject",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolcalendar/portal/internal/application/service.CleanupExpiredFeedTombstones",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

@@ -61,9 +61,11 @@ export function ContextHelpLink({
       ? "parent"
       : mode === "school"
         ? "teacher"
-        : user?.roles.includes("admin")
-          ? "lead"
-          : "caregiver";
+        : mode === "traeger"
+          ? "traeger"
+          : user?.roles.includes("admin")
+            ? "lead"
+            : "caregiver";
   const groupMode = openCareGroupMode ? "open_care" : "fixed_groups";
 
   // Nicht jede Seite hat fuer jede Rolle eine passende Anleitung: `/settings`
@@ -101,7 +103,7 @@ export function ContextHelpLink({
         variant="ghost"
         size="icon"
         aria-label="Hilfe zu dieser Seite"
-        className={cn("size-11 shrink-0 rounded-full lg:size-10", className)}
+        className={cn("shrink-0", className)}
       >
         <QuestionIcon className="size-5" weight="bold" aria-hidden="true" />
       </ButtonLink>

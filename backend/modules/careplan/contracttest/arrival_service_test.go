@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -243,6 +244,10 @@ func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) 
 	})
 }
 
+// The bulk write must queue on a held student lock before it writes. The
+// holder asks PostgreSQL for a backend waiting on it; the writer's statements
+// at that moment show where it waits. A writer without the student lock still
+// blocks, but only at the foreign-key check of its INSERT, after its DELETE.
 func TestArrivalScheduleService_UpsertBulkWaitsForStudentLock(t *testing.T) {
 	t.Parallel()
 
@@ -253,41 +258,49 @@ func TestArrivalScheduleService_UpsertBulkWaitsForStudentLock(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "ArrivalLock", "Student", "1a")
 	staffID := createArrivalServiceTestStaffID(t, db)
 
-	locked := make(chan struct{})
+	var running sync.WaitGroup
 	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseLock := func() { releaseOnce.Do(func() { close(release) }) }
+	// Failure paths end both transactions before the test returns.
+	t.Cleanup(func() {
+		releaseLock()
+		running.Wait()
+	})
+
+	locked := make(chan studentLockHolder, 1)
 	lockDone := make(chan error, 1)
+	running.Add(1)
 	go func() {
-		lockDone <- testpkg.WithTenantTx(t, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		defer running.Done()
+		lockDone <- testpkg.WithTenantTx(t, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, tx bun.Tx) error {
 			if _, err := testpkg.TenantQuery1(t, txCtx, db, repos.Student.FindByIDForUpdate, student.ID); err != nil {
 				return err
 			}
-			close(locked)
+			holder := studentLockHolder{tx: tx}
+			if err := tx.NewRaw("SELECT pg_backend_pid()").Scan(txCtx, &holder.pid); err != nil {
+				return err
+			}
+			locked <- holder
 			<-release
 			return nil
 		})
 	}()
 
+	var holder studentLockHolder
 	select {
-	case <-locked:
+	case holder = <-locked:
 	case err := <-lockDone:
 		require.NoError(t, err)
 		t.Fatal("student transaction ended before holding the lock")
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out while acquiring the student lock")
 	}
 
-	released := false
-	releaseLock := func() {
-		if !released {
-			close(release)
-			released = true
-		}
-	}
-	defer releaseLock()
-
+	writerQueries := testpkg.CaptureQueriesForContext(t, db)
 	writeDone := make(chan error, 1)
+	running.Add(1)
 	go func() {
-		writeDone <- testpkg.TenantCommand2(t, ctx, db, service.UpsertBulkStudentArrivalSchedules, student.ID, []*careplan.ArrivalSchedule{
+		defer running.Done()
+		writeDone <- testpkg.TenantCommand2(t, writerQueries.Context(ctx), db, service.UpsertBulkStudentArrivalSchedules, student.ID, []*careplan.ArrivalSchedule{
 			{
 				Weekday:         timetable.WeekdayMonday,
 				ExpectedArrival: time.Date(2024, 1, 1, 8, 15, 0, 0, time.UTC),
@@ -296,20 +309,44 @@ func TestArrivalScheduleService_UpsertBulkWaitsForStudentLock(t *testing.T) {
 		})
 	}()
 
-	select {
-	case err := <-writeDone:
-		require.NoError(t, err)
-		t.Fatal("arrival write bypassed the held student lock")
-	case <-time.After(150 * time.Millisecond):
+	holder.awaitWaiter(t, ctx, writeDone)
+	for _, operation := range []string{"INSERT", "UPDATE", "DELETE", "MERGE"} {
+		require.Empty(t, writerQueries.Operation(operation), "arrival write must wait for the student lock before it writes")
 	}
 
 	releaseLock()
 	require.NoError(t, <-lockDone)
-	select {
-	case err := <-writeDone:
-		require.NoError(t, err)
-	case <-time.After(2 * time.Second):
-		t.Fatal("arrival write did not resume after the student lock was released")
+	require.NoError(t, <-writeDone, "arrival write must finish after the student lock is released")
+	results, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentArrivalSchedules, student.ID)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, timetable.WeekdayMonday, results[0].Weekday)
+}
+
+type studentLockHolder struct {
+	tx  bun.Tx
+	pid int
+}
+
+// awaitWaiter returns once PostgreSQL reports a backend waiting on the holder.
+// It fails when the write finishes first. Only the go test timeout bounds a
+// writer that never queues; no local deadline decides the result.
+func (h studentLockHolder) awaitWaiter(t *testing.T, ctx context.Context, writeDone <-chan error) {
+	t.Helper()
+	poll := time.NewTicker(10 * time.Millisecond)
+	defer poll.Stop()
+	for {
+		var waiting bool
+		require.NoError(t, h.tx.NewRaw(`SELECT EXISTS (SELECT 1 FROM pg_locks l WHERE NOT l.granted AND ? = ANY(pg_blocking_pids(l.pid)))`, h.pid).Scan(ctx, &waiting))
+		if waiting {
+			return
+		}
+		select {
+		case err := <-writeDone:
+			require.NoError(t, err)
+			t.Fatal("arrival write bypassed the held student lock")
+		case <-poll.C:
+		}
 	}
 }
 

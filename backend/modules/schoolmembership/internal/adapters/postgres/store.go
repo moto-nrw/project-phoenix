@@ -58,6 +58,10 @@ type staffRow struct {
 	// reads fill them, writes never send them.
 	HasExternalCaregiverRecord bool   `bun:"has_external_caregiver_record,scanonly"`
 	ExternalOrganization       string `bun:"external_organization,scanonly"`
+	// PlannedExitDay is the planned last working day (#4809); the planned
+	// exit commands write it with plannedExitDetails.
+	PlannedExitDay *calendar.Date `bun:"planned_exit_day,scanonly,type:date"`
+	plannedExitDetails
 }
 
 type teacherRow struct {
@@ -157,6 +161,9 @@ func (s *Store) ListStaff(ctx context.Context, filter schoolmembership.StaffFilt
 		}
 		query = query.Where(`"staff".tenant_id IN (?)`, bun.List(filter.TenantIDs))
 	}
+	if filter.PlannedExitOnly {
+		query = query.Where(`"staff".planned_exit_day IS NOT NULL`)
+	}
 	stats, err := scanAll(ctx, query.OrderExpr(`"staff".id ASC`), "list staff")
 	if err != nil {
 		return nil, stats, err
@@ -227,8 +234,11 @@ func (s *Store) SoftDeleteStaff(ctx context.Context, id int64) (domain.Operation
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	query := withTenant(db.NewUpdate().Model((*staffRow)(nil)).
-		ModelTableExpr(`users.staff_school_memberships AS "staff"`).
+	// A planned exit belongs to the live membership only (#4809): the
+	// retirement clears it, whether the scheduler or an immediate deletion
+	// retires the member.
+	query := withTenant(clearPlannedExit(db.NewUpdate().Model((*staffRow)(nil)).
+		ModelTableExpr(`users.staff_school_memberships AS "staff"`)).
 		Set(`deleted_at = NOW()`).
 		Set(`updated_at = NOW()`).
 		Where(`"staff".id = ?`, id).
@@ -669,6 +679,7 @@ func staffToPublic(row staffRow) schoolmembership.Staff {
 		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		PersonID: row.PersonID, DeletedAt: row.DeletedAt, PersonalDataErasedAt: row.PersonalDataErasedAt,
 		HasExternalCaregiverRecord: row.HasExternalCaregiverRecord, ExternalOrganization: row.ExternalOrganization,
+		PlannedExit: plannedExitOf(row),
 	}
 }
 

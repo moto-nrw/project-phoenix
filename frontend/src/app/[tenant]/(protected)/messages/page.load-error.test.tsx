@@ -16,8 +16,8 @@ const { mockInbox } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("swr", () => ({
-  default: () => ({
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: () => ({
     data: mockInbox.threads,
     error: mockInbox.error,
     isLoading: false,

@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // ClassArrivalExceptionInput is what a person enters for one class and date.
@@ -85,12 +86,9 @@ func (e *ClassArrivalException) Validate() error {
 
 // Label distinguishes class-wide changes from a child's individual plan.
 func (e *ClassArrivalException) Label() string {
-	class := strings.TrimSpace(e.SchoolClass)
-	if len(class) > 7 && strings.EqualFold(class[:7], "klasse ") {
-		class = strings.TrimSpace(class[7:])
-	}
+	class := collation.SchoolClassLabel(e.SchoolClass)
 	if e.Reason != nil && strings.TrimSpace(*e.Reason) != "" {
-		return "Klasse " + class + ": " + strings.TrimSpace(*e.Reason)
+		return class + ": " + strings.TrimSpace(*e.Reason)
 	}
-	return "Klasse " + class + ": andere Ankunftszeit"
+	return class + ": andere Ankunftszeit"
 }

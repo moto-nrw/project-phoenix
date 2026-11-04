@@ -2,7 +2,14 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { gotoTolerant, loadAccess, login, tenantBaseUrl } from "./access";
+import {
+  dismissNotificationHint,
+  gotoTolerant,
+  loadAccess,
+  login,
+  PERF_ACTION_TIMEOUT,
+  tenantBaseUrl,
+} from "./access";
 import { metricsBearerToken } from "./env.mjs";
 import {
   installVitalsObserver,
@@ -12,6 +19,7 @@ import {
   type RequestSummary,
   type Vitals,
 } from "./recorder";
+import { withPerfCleanup } from "./cleanup";
 import { PERF_TARGETS, type PerfTarget } from "./targets";
 
 // Prod-Server-Messung (#2938): pro Screen ein kalter und ein warmer Aufruf
@@ -124,6 +132,9 @@ async function measureOnce(
     storageState,
     serviceWorkers: "block",
   });
+  context.setDefaultTimeout(PERF_ACTION_TIMEOUT);
+  // Das bestehende Gesamtbudget begrenzt Navigationen, nicht das Aktionslimit.
+  context.setDefaultNavigationTimeout(0);
   const page = await context.newPage();
   // Schul-Hardware ist deutlich schwächer als ein Entwickler-Mac; ohne
   // Drosselung liefert der Long-Task-Beobachter hier schlicht Nullen.
@@ -136,10 +147,13 @@ async function measureOnce(
     snapshots: true,
     sources: false,
   });
-  try {
-    const cold = await navigate(page, recorder, target);
-    const interaction = await interact(page, recorder, target);
-    const warm = await navigate(page, recorder, target);
+  return withPerfCleanup(async () => {
+    const cold = await test.step("cold navigation", () =>
+      navigate(page, recorder, target));
+    const interaction = await test.step("interaction", () =>
+      interact(page, recorder, target));
+    const warm = await test.step("warm navigation", () =>
+      navigate(page, recorder, target));
     return {
       target: target.name,
       path: target.path,
@@ -148,12 +162,13 @@ async function measureOnce(
       warm,
       interaction,
     };
-  } finally {
-    await context.tracing.stop({
-      path: join(OUT_DIR, "traces", `${target.name}-${repeat}.zip`),
-    });
-    await context.close();
-  }
+  }, [
+    () =>
+      context.tracing.stop({
+        path: join(OUT_DIR, "traces", `${target.name}-${repeat}.zip`),
+      }),
+    () => context.close(),
+  ]);
 }
 
 test.beforeAll(() => {
@@ -162,6 +177,7 @@ test.beforeAll(() => {
 
 test("login and metrics baseline", async ({ page }) => {
   await login(page, access);
+  await dismissNotificationHint(page, base);
   await page.context().storageState({
     path: join(OUT_DIR, "storage-state.json"),
   });

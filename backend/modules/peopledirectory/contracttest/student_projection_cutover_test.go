@@ -88,12 +88,12 @@ func TestParentInboxWithoutStudentCompatibilityView(t *testing.T) {
 	membershipID := testpkg.SeparateStudentMembership(t, db, chain.StudentID)
 	testpkg.AssertStudentCompatibilityStorageAbsent(t, db)
 
-	rows, err := testpkg.TenantQuery3(t, ctx, db, repos.Read.ListInboxForStaff, staff.ID, true, false)
+	rows, err := testpkg.TenantQuery3(t, ctx, db, repos.Read.ListInboxForStaff, staff.ID, api.ParentMessageReachAllStudents, false)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	require.Equal(t, chain.StudentID, rows[0].StudentID)
 	require.Equal(t, "1a", rows[0].SchoolClass)
-	count, err := testpkg.TenantQuery2(t, ctx, db, repos.Read.UnreadMessageCountForStaff, staff.ID, true)
+	count, err := testpkg.TenantQuery2(t, ctx, db, repos.Read.UnreadMessageCountForStaff, staff.ID, api.ParentMessageReachAllStudents)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 	header, err := testpkg.TenantQuery1(t, ctx, db, repos.Read.FindThreadHeader, thread.ID)
@@ -107,10 +107,10 @@ func TestParentInboxWithoutStudentCompatibilityView(t *testing.T) {
 	})
 
 	testpkg.AssertMissingStudentProjectionStates(t, db, membershipID, func() {
-		rows, err := testpkg.TenantQuery3(t, ctx, db, repos.Read.ListInboxForStaff, staff.ID, true, false)
+		rows, err := testpkg.TenantQuery3(t, ctx, db, repos.Read.ListInboxForStaff, staff.ID, api.ParentMessageReachAllStudents, false)
 		require.NoError(t, err)
 		require.Empty(t, rows)
-		count, err := testpkg.TenantQuery2(t, ctx, db, repos.Read.UnreadMessageCountForStaff, staff.ID, true)
+		count, err := testpkg.TenantQuery2(t, ctx, db, repos.Read.UnreadMessageCountForStaff, staff.ID, api.ParentMessageReachAllStudents)
 		require.NoError(t, err)
 		require.Zero(t, count)
 		header, err := testpkg.TenantQuery1(t, ctx, db, repos.Read.FindThreadHeader, thread.ID)

@@ -1,0 +1,93 @@
+{
+  "switcherLabel": "Zgjidhni fëmijën",
+  "overviewKicker": "Fëmijët me një vështrim",
+  "overviewDescription": "Zgjidhni një fëmijë për të parë kujdesin, të dhënat dhe kontaktet.",
+  "ogsLabel": "OGS",
+  "careEnded": {
+    "title": "Kujdesi ka përfunduar",
+    "body": "Fëmija juaj nuk kujdeset më në këtë shkollë. Gjithçka e mëparshme mund ta shihni ende. Njoftime të reja nuk janë më të mundura."
+  },
+  "notFound": "Në këtë adresë nuk ka asnjë fëmijë në llogarinë tuaj. Ju lutemi zgjidhni fëmijën tuaj te përmbledhja.",
+  "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. OGS-ja e shkollës suaj mund ta rregullojë këtë.",
+  "sections": {
+    "today": "Sot",
+    "care": "Kujdesi në OGS",
+    "data": "Të dhënat e fëmijës",
+    "people": "Prindërit dhe personat që marrin fëmijën"
+  },
+  "areas": {
+    "label": "Seksionet e fëmijës",
+    "open": "Shiko",
+    "openLabel": "Shiko {area}",
+    "back": "Kthehu te përmbledhja",
+    "care": {
+      "title": "Kujdesi dhe plani javor",
+      "shortTitle": "Kujdesi",
+      "description": "Rezervimet, oraret e rregullta të marrjes dhe kthimi në shtëpi."
+    },
+    "data": {
+      "title": "Të dhënat e fëmijës",
+      "shortTitle": "Të dhënat",
+      "description": "Të dhënat personale, klasa dhe informacioni shëndetësor."
+    },
+    "contacts": {
+      "title": "Kontaktet dhe marrja",
+      "shortTitle": "Kontaktet",
+      "description": "Kujdestarët, lejet e marrjes dhe qasja në aplikacion."
+    }
+  },
+  "today": {
+    "pickupLabel": "Marrja",
+    "pickup": "Marrja sot në orën {time}",
+    "pickupChanged": "Marrja sot në orën {time}, e ndryshuar për sot",
+    "pickupAbsent": "Sot i çregjistruar, pa marrje",
+    "pickupNone": "Për sot nuk është regjistruar asnjë marrje",
+    "pickupUnknown": "Ora e marrjes nuk është e disponueshme për momentin"
+  },
+  "care": {
+    "weekTitle": "Plani javor i OGS-së",
+    "absenceTitle": "Mungesat"
+  },
+  "consents": {
+    "title": "Pëlqimet dhe konfirmimet",
+    "description": "Këtu shihni pëlqimet për fëmijën tuaj.",
+    "staffDescription": "Vetëm për informacion. Prindërit e ndryshojnë pëlqimin për fotografinë në portalin e prindërve.",
+    "photoDescription": "Këtu mund të ndryshoni pëlqimin për fotografinë.",
+    "items": {
+      "agb": "Kushtet e përgjithshme",
+      "data_processing": "Informacioni për privatësinë u pranua",
+      "email_contact": "Kontakti me email lejohet",
+      "photo": "Pëlqimi për fotografinë"
+    },
+    "states": {
+      "granted": "Ruajtur",
+      "withdrawn": "Tërhequr",
+      "not_recorded": "Nuk është ruajtur"
+    },
+    "dates": {
+      "granted": "Ruajtur më {date}",
+      "withdrawn": "Tërhequr më {date}",
+      "not_recorded": "Nuk është ruajtur"
+    },
+    "withdrawButton": "Tërhiq pëlqimin për fotografinë",
+    "withdrawButtonShort": "Tërhiq",
+    "confirmTitle": "Të tërhiqet pëlqimi për fotografinë?",
+    "confirmBody": "Pëlqimi përfundon menjëherë. Nëse ka një fotografi të ruajtur, ajo do të fshihet.",
+    "confirmButton": "Tërhiq tani",
+    "withdrawing": "Po tërhiqet",
+    "cancel": "Anulo",
+    "close": "Mbyll dialogun",
+    "success": "Pëlqimi për fotografinë u tërhoq. Nëse kishte një fotografi të ruajtur, ajo u fshi.",
+    "grantButton": "Jep përsëri pëlqimin për fotografinë",
+    "grantButtonShort": "Jep përsëri",
+    "grantConfirmTitle": "Të jepet përsëri pëlqimi për fotografinë?",
+    "grantConfirmBody": "Më pas OGS-ja mund të ruajë përsëri një fotografi.",
+    "grantConfirmButton": "Jep pëlqimin",
+    "granting": "Po ruhet",
+    "grantSuccess": "Pëlqimi për fotografinë u dha përsëri.",
+    "errorObjectList": "lista e pëlqimeve",
+    "errorObjectPhoto": "pëlqimi për fotografinë"
+  },
+  "errorObject": "lista e fëmijëve tuaj",
+  "errorObjectCare": "përmbledhja e kujdesit"
+}

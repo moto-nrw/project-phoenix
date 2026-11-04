@@ -1,6 +1,7 @@
 package email
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"html/template"
@@ -94,6 +95,18 @@ func (m *SMTPMailer) buildMessage(message mailcontract.Message) (*mail.Msg, erro
 	// central noreply sender would lead nowhere (#2872).
 	msg.SetBodyString(mail.TypeTextPlain, email.text)
 	msg.AddAlternativeString(mail.TypeTextHTML, email.html)
+	for _, attachment := range email.Attachments {
+		if attachment.Filename == "" || len(attachment.Data) == 0 {
+			return nil, fmt.Errorf("attachment %q is empty", attachment.Filename)
+		}
+		contentType := mail.TypeAppOctetStream
+		if attachment.ContentType != "" {
+			contentType = mail.ContentType(attachment.ContentType)
+		}
+		if err := msg.AttachReader(attachment.Filename, bytes.NewReader(attachment.Data), mail.WithFileContentType(contentType)); err != nil {
+			return nil, fmt.Errorf("failed to attach %q: %w", attachment.Filename, err)
+		}
+	}
 	return msg, nil
 }
 

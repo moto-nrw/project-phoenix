@@ -141,21 +141,21 @@ func TestListInboxForStaff_ScopeFlag(t *testing.T) {
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, msgRepo.Create, api.ParentStoreMessage(testpkg.Tenant(t), thread.ID, chain.StudentID, chain.AccountID, owner0.ParentMessageSenderGuardian, "Frage")))
 
 	// Verified staff → sees the conversation regardless of the child's group.
-	inbox, err := testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, true, false)
+	inbox, err := testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, api.ParentMessageReachAllStudents, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, 1, inbox[0].UnreadCount)
 
-	count, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, true)
+	count, err := testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, api.ParentMessageReachAllStudents)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 
 	// Not admitted → the 1=0 guard yields nothing, never the whole tenant inbox.
-	inbox, err = testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, false, false)
+	inbox, err = testpkg.TenantQuery3(t, ctx, db, readRepo.ListInboxForStaff, staffAccount.ID, api.ParentMessageReachNone, false)
 	require.NoError(t, err)
 	assert.Empty(t, inbox, "a caller outside the staff scope must not read the tenant inbox")
 
-	count, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, false)
+	count, err = testpkg.TenantQuery2(t, ctx, db, readRepo.UnreadMessageCountForStaff, staffAccount.ID, api.ParentMessageReachNone)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
 }

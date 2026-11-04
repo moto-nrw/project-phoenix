@@ -20,6 +20,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { todayISO } from "~/lib/date-helpers";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
@@ -963,12 +964,12 @@ function TextInput({
           <ParentVisibleBadge compact hint={parentVisibleHint} />
         )}
       </div>
-      <input
+      <Input
         id={id}
         type="text"
+        controlSize="compact"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="focus:ring-moto-blue w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:ring-2 focus:outline-none"
         maxLength={255}
       />
     </div>

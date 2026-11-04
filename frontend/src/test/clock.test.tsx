@@ -60,28 +60,27 @@ describe("deterministic test clock", () => {
     expect(berlinTodayISO()).toBe(TEST_CLOCK_TODAY);
   });
 
-  it("keeps the calendar library on the test clock whatever the host date is", async () => {
+  it("keeps explicit Berlin calendar today independent of the frozen Date clock", async () => {
     render(<ClockProbe />);
     fireEvent.click(screen.getByRole("button", { name: "08.09.2026" }));
 
-    // react-day-picker derives "today" from its own `new Date()`. On the frozen
-    // clock the selected day (the hook's "today") is a plain day and the
-    // frozen day carries the today label — independent of when CI runs, even
-    // when the host date coincides with either of them. The kit loads the
-    // calendar lazily, so wait for its grid.
+    // #5379: the kit now supplies the school's day explicitly. Mocking that
+    // hook must affect the calendar marker, but must not unfreeze Date or
+    // silently change its instant. The selected day is also the supplied day.
     expect(
       await screen.findByRole("button", {
-        name: "Dienstag, 8. September 2026, selected",
+        name: "Today, Dienstag, 8. September 2026, selected",
       }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: "Today, Mittwoch, 9. September 2026",
+        name: "Mittwoch, 9. September 2026",
       }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /^Today, Dienstag/ }),
+      screen.queryByRole("button", { name: /^Today, Mittwoch/ }),
     ).not.toBeInTheDocument();
+    expect(Date.now()).toBe(TEST_CLOCK_INSTANT.getTime());
   });
 
   it("moves time with setTestClock for Berlin midnight and the DST switch", () => {

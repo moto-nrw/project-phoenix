@@ -1,5 +1,6 @@
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import { NavSceneIcon } from "~/components/ui/nav-scene-icon/nav-scene-icon";
+import type { MotoConcept } from "~/lib/moto-concepts";
 
 /**
  * Das Navigations-Icon der Portal-Hüllen.
@@ -10,26 +11,42 @@ import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
  * die Farbe die Aussage "hier bin ich gerade".
  *
  * Eltern-Portal (#1671) und Schul-Portal (#2207) rendern beide daraus.
+ *
+ * `scene` zeichnet das Icon als Szene, die beim Überfahren der Zeile spielt
+ * (`nav-scene-icon/README.md`). Jede Seitenleiste setzt es.
  */
 export function MotoNavIcon({
   concept,
   iconConcept,
   active,
+  scene = false,
   className,
 }: Readonly<{
-  concept: MotoConceptKey;
-  iconConcept?: MotoConceptKey;
+  concept: MotoConcept;
+  iconConcept?: MotoConcept;
   active: boolean;
+  scene?: boolean;
   className?: string;
 }>) {
-  const definition = MOTO_CONCEPTS[concept];
-  const Icon = MOTO_CONCEPTS[iconConcept ?? concept].icon;
+  const Icon = (iconConcept ?? concept).icon;
+
+  if (scene) {
+    return (
+      <NavSceneIcon
+        icon={Icon}
+        tone={concept.tone}
+        active={active}
+        size={22}
+        className={className}
+      />
+    );
+  }
 
   if (active) {
     return (
       <MotoDuotoneIcon
         icon={Icon}
-        tone={definition.tone}
+        tone={concept.tone}
         size={22}
         className={className}
       />

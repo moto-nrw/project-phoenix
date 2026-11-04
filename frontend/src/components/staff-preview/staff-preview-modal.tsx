@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useSession } from "next-auth/react";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { formErrorMessage } from "~/components/ui/form-error";
@@ -39,7 +38,6 @@ function candidateLabel(candidate: StaffPreviewCandidate): string {
  * Person der eigenen Schule, danach zeigt moto deren Ansicht — nur lesend.
  */
 export function StaffPreviewModal({ isOpen, onClose }: StaffPreviewModalProps) {
-  const { update } = useSession();
   const tenantPath = useTenantAwarePath();
   const [candidates, setCandidates] = useState<StaffPreviewCandidate[] | null>(
     null,
@@ -93,7 +91,7 @@ export function StaffPreviewModal({ isOpen, onClose }: StaffPreviewModalProps) {
     setIsStarting(true);
     startError.clear();
     try {
-      await performStartStaffPreview(selectedId, update, mutate);
+      await performStartStaffPreview(selectedId, mutate);
       // Volle Neuladung auf der Startseite: ab jetzt rendert alles mit den
       // Rechten der gewählten Person, und nichts aus der Seite davor (Filter
       // in der Adresse, geladene Listen) gilt für sie (#5000).

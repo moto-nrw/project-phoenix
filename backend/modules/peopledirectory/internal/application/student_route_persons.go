@@ -76,13 +76,34 @@ func (p StudentRoutePersons) ListStudentsForDay(ctx context.Context, groupIDs []
 	if err != nil {
 		return nil, err
 	}
+	return studentRouteRecords(students), nil
+}
+
+// ListSchoolStudentsForDay returns every child of the school whose care
+// covers the day, with a group or without one, each once: a school in open
+// care keeps no fixed groups, so its weekly protocol counts them all (#5401).
+// The unfiltered class roster is every child of the school, graduates
+// included, and the group roster's participation rule decides them.
+func (p StudentRoutePersons) ListSchoolStudentsForDay(ctx context.Context, date, today calendar.Date) ([]peopleModule.StudentRecord, error) {
+	candidates, err := p.persons.StudentRows().ListClassRoster(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	students, err := p.persons.FilterEligibleStudentsOnDate(ctx, candidates, date, today)
+	if err != nil {
+		return nil, err
+	}
+	return studentRouteRecords(students), nil
+}
+
+func studentRouteRecords(students []*peopleModule.StudentState) []peopleModule.StudentRecord {
 	records := make([]peopleModule.StudentRecord, 0, len(students))
 	for _, student := range students {
 		if student != nil {
 			records = append(records, studentRouteRecord(student))
 		}
 	}
-	return records, nil
+	return records
 }
 
 // StaffIDForPerson resolves the staff member of a person; a person who is no

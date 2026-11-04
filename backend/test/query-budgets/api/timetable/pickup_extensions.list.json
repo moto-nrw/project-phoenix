@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.pickup_extensions.list",
+  "max": 9,
+  "exact": false,
+  "description": "modules/timetable/http — GET /pickup-extensions (#3261), day tasks only: tenant\ntransaction and tenant setup, task read, one batched block read,\nstudent and person names. Flat in the number of open tasks."
+}

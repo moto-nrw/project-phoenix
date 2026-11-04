@@ -41,10 +41,16 @@ type lifecycleSupervisionQuery interface {
 	ActiveSupervisions(context.Context, int64) ([]devicescan.Supervision, error)
 }
 
-// lifecycleStore promotes CountActiveVisitsByActiveGroupID unchanged; the
-// other lifecycle steps go through active, the same service.
+// OpenVisitCounts is the Student Presence read of a session count with its
+// visit revision (#5128).
+type OpenVisitCounts interface {
+	CountOpenVisitsInGroupWithRevision(context.Context, int64) (int, int64, error)
+}
+
+// lifecycleStore promotes CountOpenVisitsInGroupWithRevision unchanged; the
+// other lifecycle steps go through active.
 type lifecycleStore struct {
-	studentpresence.Presence
+	OpenVisitCounts
 	active   studentpresence.Presence
 	presence lifecycleSupervisionQuery
 }

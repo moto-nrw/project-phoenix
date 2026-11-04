@@ -300,13 +300,14 @@ describe("fetchOgsGroupLive", () => {
     fetchMock.mockRestore();
   });
 
-  it("GETs /api/ogs-group-live with the token and group_id query param", async () => {
+  // The route reads the session cookie; the browser holds no token (#5005).
+  it("GETs /api/ogs-group-live with the cookie and group_id query param", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({ success: true, data: wireResponse() }),
     } as Response);
 
-    await fetchOgsGroupLive("test-token", "5");
+    await fetchOgsGroupLive("5");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0]!;
@@ -314,10 +315,10 @@ describe("fetchOgsGroupLive", () => {
     expect(init).toMatchObject({
       credentials: "include",
       headers: {
-        Authorization: "Bearer test-token",
         "Content-Type": "application/json",
       },
     });
+    expect(init?.headers).not.toHaveProperty("Authorization");
   });
 
   it("omits the group_id query param when groupId is null", async () => {
@@ -326,7 +327,7 @@ describe("fetchOgsGroupLive", () => {
       json: async () => ({ success: true, data: wireResponse() }),
     } as Response);
 
-    await fetchOgsGroupLive("test-token", null);
+    await fetchOgsGroupLive(null);
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/ogs-group-live",
@@ -342,7 +343,7 @@ describe("fetchOgsGroupLive", () => {
         json: async () => ({ success: true, data: wireResponse() }),
       } as Response);
 
-      await fetchOgsGroupLive("test-token", invalidGroupId);
+      await fetchOgsGroupLive(invalidGroupId);
 
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(fetchMock).toHaveBeenCalledWith(
@@ -363,7 +364,7 @@ describe("fetchOgsGroupLive", () => {
         }),
       } as Response);
 
-    const result = await fetchOgsGroupLive("test-token", "999");
+    const result = await fetchOgsGroupLive("999");
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
@@ -376,17 +377,13 @@ describe("fetchOgsGroupLive", () => {
   it("does not retry a 403 when no group_id was requested", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 403 } as Response);
 
-    await expect(fetchOgsGroupLive("test-token", null)).rejects.toThrow(
-      "API error: 403",
-    );
+    await expect(fetchOgsGroupLive(null)).rejects.toThrow("API error: 403");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("throws 'API error: <status>' for a non-ok response", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 500 } as Response);
 
-    await expect(fetchOgsGroupLive("test-token", null)).rejects.toThrow(
-      "API error: 500",
-    );
+    await expect(fetchOgsGroupLive(null)).rejects.toThrow("API error: 500");
   });
 });

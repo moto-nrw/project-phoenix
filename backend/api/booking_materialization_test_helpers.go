@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -13,6 +14,8 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -59,6 +62,21 @@ type BookingMaterializationTestModule struct {
 // NewBookingMaterializationTestModule composes the booking materialization
 // over the test database.
 func NewBookingMaterializationTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, options BookingMaterializationTestOptions) (BookingMaterializationTestModule, error) {
+	return newBookingMaterializationTestModule(db, unit, options, nil)
+}
+
+// NewAnnouncingBookingMaterialization composes the booking materialization
+// like NewBookingMaterialization, with the staff announcements the server
+// sends through the realtime hub after commit going to broadcaster.
+func NewAnnouncingBookingMaterialization(db transactionruntime.Database, unit tenant.UnitOfWork, broadcaster realtime.Broadcaster, options ...BookingMaterializationOption) (BookingMaterializationTestModule, error) {
+	var chosen BookingMaterializationTestOptions
+	for _, option := range options {
+		option(&chosen)
+	}
+	return newBookingMaterializationTestModule(db, unit, chosen, broadcaster)
+}
+
+func newBookingMaterializationTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, options BookingMaterializationTestOptions, broadcaster realtime.Broadcaster) (BookingMaterializationTestModule, error) {
 	auditCommand, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
@@ -95,6 +113,7 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	deps, err := owners.BookingMaterializationOwners(
 		reposTimetable.Timetable, reposTimetable.RosterMaintenance(slog.Default(), nil), people, reposCalendar.SchoolCalendar(), repos.Enrollment(),
 		approved, NewStudentAuditRows(db, auditCommand).EnrollmentOfferingAdjustment, repos.Person, accounts, pickup, students.CarePlan,
+		mustStudentTemplateDays(db, reposTimetable, options.Today, bookingTestStaffing(broadcaster)...),
 	)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
@@ -109,7 +128,7 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	deps.PickupGuardians = options.GuardianNotifier
 	deps.Today = options.Today
 	deps.Logger = slog.Default()
-	bookings, err := newBookingMaterialization(deps, nil)
+	bookings, err := newBookingMaterialization(deps, broadcaster)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
@@ -227,4 +246,37 @@ func newBookingMaterialization(deps careplanCompose.BookingMaterializationDepend
 		deps.PickupStaff = owners.PickupScheduleBroadcaster{Broadcaster: broadcaster}
 	}
 	return careplanCompose.NewBookingMaterialization(deps)
+}
+
+// bookingTestStaffing sends the staffing wake-ups of the booking hints
+// (#5498) to broadcaster; without one nothing is announced.
+func bookingTestStaffing(broadcaster realtime.Broadcaster) []timetablePorts.StaffingAnnouncer {
+	if broadcaster == nil {
+		return nil
+	}
+	return []timetablePorts.StaffingAnnouncer{owners.NewStaffingAnnouncer(broadcaster)}
+}
+
+// NewStudentTemplateDaysTestModule composes Timetable's student template days
+// (#5102) over the test database; today bounds the removal, nil is the real
+// calendar day. An optional staffing announcer records the wake-ups.
+func NewStudentTemplateDaysTestModule(db transactionruntime.Database, today func() calendar.Date, staffing ...timetablePorts.StaffingAnnouncer) timetable.StudentTemplateDays {
+	return mustStudentTemplateDays(db, NewEnrollmentTimetableRows(db), today, staffing...)
+}
+
+// mustStudentTemplateDays binds the student template days over the test
+// rows; a nil today is the real calendar day.
+func mustStudentTemplateDays(db transactionruntime.Database, rows owners.TimetableTestRepositories, today func() calendar.Date, staffing ...timetablePorts.StaffingAnnouncer) timetable.StudentTemplateDays {
+	if today == nil {
+		today = calendar.TodayDate
+	}
+	var announcer timetablePorts.StaffingAnnouncer
+	if len(staffing) > 0 {
+		announcer = staffing[0]
+	}
+	days, err := owners.NewTimetableStudentTemplateDays(rows.Repositories, rows.CalendarPeriod, owners.MustNewTimetableRecurrenceLock(db), today, slog.Default(), announcer)
+	if err != nil {
+		panic(fmt.Sprintf("student template days test module: %v", err))
+	}
+	return days
 }

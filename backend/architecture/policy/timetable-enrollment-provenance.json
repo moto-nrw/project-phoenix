@@ -1,0 +1,31 @@
+{
+  "packages": [
+    {
+      "path": "modules/timetableenrollmentprovenance/internal/adapters/postgres",
+      "owner": "timetable-enrollment-provenance",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetableenrollmentprovenance/compose",
+      "owner": "timetable-enrollment-provenance",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "read_projections": [
+    {
+      "id": "timetable-enrollment-provenance",
+      "package": "modules/timetableenrollmentprovenance/internal/adapters/postgres",
+      "data_objects": [
+        "activities.student_enrollments",
+        "enrollment.phases",
+        "enrollment.request_children",
+        "enrollment.requests"
+      ],
+      "tenant_safe": true
+    }
+  ]
+}

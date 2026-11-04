@@ -191,14 +191,29 @@ export async function uploadEnrollmentFile(params: {
     body.append("status_token", params.statusToken.trim());
   }
   body.append("file", params.file);
+  return postUpload(
+    params.uploadEndpoint ??
+      `/api/enrollment/${encodeURIComponent(params.tenantSlug)}/uploads`,
+    body,
+    params.file,
+    params.signal,
+  );
+}
 
+/**
+ * Posts one multipart upload and reads the single-use token of the stored
+ * file. The proof of benefits of the holiday registration (#5238) uses the
+ * same answer.
+ */
+export async function postUpload(
+  url: string,
+  body: FormData,
+  file: File,
+  signal?: AbortSignal,
+): Promise<NewUploadValue> {
   let response: Response;
   try {
-    response = await fetch(
-      params.uploadEndpoint ??
-        `/api/enrollment/${encodeURIComponent(params.tenantSlug)}/uploads`,
-      { method: "POST", body, signal: params.signal },
-    );
+    response = await fetch(url, { method: "POST", body, signal });
   } catch (cause) {
     throw unavailableApiError(cause);
   }
@@ -220,14 +235,11 @@ export async function uploadEnrollmentFile(params: {
   }
   return {
     token: data.token,
-    filename:
-      typeof data.filename === "string" ? data.filename : params.file.name,
+    filename: typeof data.filename === "string" ? data.filename : file.name,
     size_bytes:
-      typeof data.size_bytes === "number" ? data.size_bytes : params.file.size,
+      typeof data.size_bytes === "number" ? data.size_bytes : file.size,
     content_type:
-      typeof data.content_type === "string"
-        ? data.content_type
-        : params.file.type,
+      typeof data.content_type === "string" ? data.content_type : file.type,
   };
 }
 

@@ -1,0 +1,84 @@
+{
+  "entries": [
+    {
+      "binding": "interface{FeedbackEnabled(context.Context) (bool, error); FeedbackRetentionDays(context.Context) (int, error)}.FeedbackEnabled",
+      "binding_digest": "415072974534cbc8987dd56e1d963592",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Settings.FeedbackEnabled",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "interface{FeedbackEnabled(context.Context) (bool, error); FeedbackRetentionDays(context.Context) (int, error)}.FeedbackEnabled",
+      "binding_digest": "ddeaaf2a71b3503d0f256b9bb2baa01a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Settings.FeedbackEnabled",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "interface{FeedbackEnabled(context.Context) (bool, error); FeedbackRetentionDays(context.Context) (int, error)}.FeedbackRetentionDays",
+      "binding_digest": "afa557fffa7dcd1854bc89d45d520be3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Settings.FeedbackRetentionDays",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "interface{FeedbackEnabled(context.Context) (bool, error); FeedbackRetentionDays(context.Context) (int, error)}.FeedbackRetentionDays",
+      "binding_digest": "cea7aa93d2bf1321eec11cdd5aceceb5",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Settings.FeedbackRetentionDays",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveInt",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.CountForStudent",
+      "binding_digest": "22103b87f703e8079d39717c5af1b5ec",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.CountForStudent",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.Create",
+      "binding_digest": "22103b87f703e8079d39717c5af1b5ec",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.Create",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.Delete",
+      "binding_digest": "22103b87f703e8079d39717c5af1b5ec",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.Delete",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.DeleteOlderThan",
+      "binding_digest": "22103b87f703e8079d39717c5af1b5ec",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.DeleteOlderThan",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.Get",
+      "binding_digest": "22103b87f703e8079d39717c5af1b5ec",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.Get",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.List",
+      "binding_digest": "22103b87f703e8079d39717c5af1b5ec",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.List",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    }
+  ]
+}

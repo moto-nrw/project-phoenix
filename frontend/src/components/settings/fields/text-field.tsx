@@ -1,5 +1,7 @@
 "use client";
 
+import { Input } from "~/components/ui/input";
+
 interface TextFieldProps {
   readonly ariaLabel?: string;
   readonly value: string;
@@ -16,9 +18,13 @@ export function TextField({
   disabled = false,
 }: TextFieldProps) {
   return (
-    <input
+    <Input
       aria-label={ariaLabel}
+      controlSize="compact"
       type="text"
+      // A text setting had no length limit before the kit field (#5217);
+      // keep URLs and longer texts typeable instead of the kit's 255.
+      maxLength={2000}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
@@ -28,7 +34,7 @@ export function TextField({
         }
       }}
       disabled={disabled}
-      className="block w-full max-w-xs rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+      className="max-w-xs"
     />
   );
 }

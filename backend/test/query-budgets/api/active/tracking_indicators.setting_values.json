@@ -1,0 +1,6 @@
+{
+  "scenario": "api.active.tracking_indicators.setting_values",
+  "max": 1,
+  "exact": true,
+  "description": "api/active — #2065: toggle + three labels share one settings read."
+}

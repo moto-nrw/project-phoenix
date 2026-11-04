@@ -132,9 +132,20 @@ func (v rosterFeedValidation) period(calendarPeriodID *int64) (*careplan.LinkedP
 	return &period, nil
 }
 
-// offeringFits reports whether the offering's phase is known and lies within
-// the period (nil period passes).
-func (v rosterFeedValidation) offeringFits(offering *careplan.CareOffering, period *careplan.LinkedPeriod) bool {
+// sourceFits reports whether a source offering's phase is known and overlaps
+// the period, as the resync accepts it (nil period passes).
+func (v rosterFeedValidation) sourceFits(offering *careplan.CareOffering, period *careplan.LinkedPeriod) bool {
+	phase, ok := v.phases[offering.PhaseID]
+	if !ok {
+		return false
+	}
+	_, err := careplan.ClipPhaseToPeriod(phase, period)
+	return err == nil
+}
+
+// linkedFits reports whether a legacy linked offering's phase is known and
+// lies within the period, as the legacy feed requires (nil period passes).
+func (v rosterFeedValidation) linkedFits(offering *careplan.CareOffering, period *careplan.LinkedPeriod) bool {
 	phase, ok := v.phases[offering.PhaseID]
 	return ok && careplan.ValidatePhaseWithinPeriod(phase, period) == nil
 }
@@ -154,8 +165,8 @@ func (i invalidOfferings) forTemplate(templateID int64) map[int64]bool {
 }
 
 // invalidSources marks the source offerings of each template that resync
-// rejects: an unknown phase, a phase outside the period pin, or a source rule
-// mixing phases, which invalidates every source of the template.
+// rejects: an unknown phase, a phase without overlap with the period pin, or
+// a source rule mixing phases, which invalidates every source of the template.
 func (v rosterFeedValidation) invalidSources(templates []careplan.TemplateRosterFeedQuery, offerings map[int64]*careplan.CareOffering) (invalidOfferings, error) {
 	invalid := make(invalidOfferings)
 	for _, query := range templates {
@@ -195,7 +206,7 @@ func (v rosterFeedValidation) markInvalidSources(invalid invalidOfferings, query
 		if sourcePhaseID == 0 {
 			sourcePhaseID = offering.PhaseID
 		}
-		if !isInvalid && !v.offeringFits(offering, period) {
+		if !isInvalid && !v.sourceFits(offering, period) {
 			isInvalid = true
 		}
 		if isInvalid {
@@ -259,7 +270,7 @@ func (v rosterFeedValidation) templateFeeds(
 	// A linked offering resync cannot use is marked before the sources are
 	// read, so a source that is also linked carries the same verdict.
 	for _, feed := range linked {
-		if offering := offerings[feed.ID]; offering != nil && !v.offeringFits(offering, period) {
+		if offering := offerings[feed.ID]; offering != nil && !v.linkedFits(offering, period) {
 			invalid = markLinkedInvalid(invalid, feed.ID)
 		}
 	}

@@ -1,0 +1,10 @@
+{
+  "codes": [
+    {
+      "code": "billing.invalid_key_day",
+      "class": "input",
+      "parameters": [],
+      "legacy": "billing.invalid_key_day"
+    }
+  ]
+}

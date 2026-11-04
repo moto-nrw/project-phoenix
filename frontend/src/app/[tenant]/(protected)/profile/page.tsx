@@ -9,6 +9,7 @@ import {
   useRef,
 } from "react";
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import { Camera, Pencil } from "lucide-react";
@@ -36,6 +37,7 @@ import { TenantAnalyticsConsentSection } from "~/components/settings/analytics-c
 import { MessageCountSection } from "~/components/settings/message-count-section";
 import { BirthdayVisibilitySection } from "~/components/settings/birthday-visibility-section";
 import { PushNotificationSection } from "~/components/settings/push-notification-section";
+import { OwnQualificationsSection } from "~/components/settings/own-qualifications-section";
 import { getInitials } from "~/lib/format-utils";
 
 const logger = createLogger({ component: "ProfilePage" });
@@ -95,7 +97,7 @@ function ProfileContent() {
   }, [resetFormFromProfile]);
 
   const handleSaveProfile = async () => {
-    if (!session?.user?.token || !profile) return;
+    if (!hasSessionAccess(session) || !profile) return;
 
     setIsSaving(true);
     formErrors.clear();
@@ -134,7 +136,7 @@ function ProfileContent() {
   };
 
   const handleAvatarChange = async (file: File) => {
-    if (!session?.user?.token) return;
+    if (!hasSessionAccess(session)) return;
 
     try {
       setIsSaving(true);
@@ -231,9 +233,10 @@ function ProfileContent() {
           isEditing ? undefined : (
             <Button
               type="button"
-              variant="ghost"
-              size="compact"
+              variant="outline"
+              size="md"
               onClick={() => setIsEditing(true)}
+              className="gap-1.5"
             >
               <Pencil className="h-3.5 w-3.5" />
               Bearbeiten
@@ -320,6 +323,9 @@ function ProfileContent() {
           </Button>
         }
       />
+
+      {/* Eigene Nachweise wie Erste Hilfe am Kind, mit Ablauf (#4808). */}
+      <OwnQualificationsSection />
 
       {/* „Was" vor „wo": erst die Themen, dann das Gerät. */}
       <NotificationPreferencesSection />

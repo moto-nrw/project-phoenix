@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
@@ -389,6 +390,34 @@ func TestSMTPMailer_Send_SpecialCharacterDisplayName(t *testing.T) {
 		built, err = mailer.buildMessage(message)
 		require.NoError(t, err)
 		assert.Empty(t, built.GetAddrHeaderString(mail.HeaderReplyTo))
+	})
+	// The confirmation letter of a Träger travels as a PDF attachment
+	// (#4670); an empty attachment is refused instead of sent.
+	t.Run("attachments", func(t *testing.T) {
+		message := mailcontract.Message{
+			From:     mailcontract.NewEmail("Ganztag e.V.", "noreply@moto-ogs.de"),
+			To:       mailcontract.NewEmail("Erika Muster", "erika@example.test"),
+			Subject:  "Bestätigung",
+			Template: "regression.html",
+			Content:  map[string]string{"Message": "Hallo"},
+			Attachments: []mailcontract.Attachment{
+				{Filename: "bestaetigung-fe-2026-0001.pdf", ContentType: "application/pdf", Data: []byte("%PDF-1.4 letter")},
+			},
+		}
+		built, err := mailer.buildMessage(message)
+		require.NoError(t, err)
+		attachments := built.GetAttachments()
+		require.Len(t, attachments, 1)
+		assert.Equal(t, "bestaetigung-fe-2026-0001.pdf", attachments[0].Name)
+		assert.Equal(t, mail.ContentType("application/pdf"), attachments[0].ContentType)
+		var wire strings.Builder
+		_, err = built.WriteTo(&wire)
+		require.NoError(t, err)
+		assert.Contains(t, wire.String(), `filename="bestaetigung-fe-2026-0001.pdf"`)
+
+		message.Attachments[0].Data = nil
+		_, err = mailer.buildMessage(message)
+		require.Error(t, err)
 	})
 	// A mailto on the central noreply sender would lead nowhere (#2872).
 	t.Run("no list-unsubscribe header", func(t *testing.T) {

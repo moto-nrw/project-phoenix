@@ -20,12 +20,13 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
+import { Radio } from "~/components/ui/radio";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -48,6 +49,7 @@ import {
 } from "~/lib/class-list-entries-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
+import { schoolClassName } from "~/lib/school-class-label";
 import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -173,10 +175,7 @@ function rowClass(row: RosterRow): string {
 // Sort key that keeps "Klasse 1a" ≡ "1a" together and orders grades
 // numerically (1a before 10a) — the same equivalence the exports use.
 function classSortKey(schoolClass: string): string {
-  const normalized = schoolClass
-    .trim()
-    .toLowerCase()
-    .replace(/^klasse\s+/, "");
+  const normalized = schoolClassName(schoolClass).toLowerCase();
   return normalized.replace(/^\d+/, (digits) => digits.padStart(3, "0"));
 }
 
@@ -505,12 +504,13 @@ export default function ClassListEntriesPage() {
         if (row.kind === "student") {
           return (
             <div className="flex items-center justify-end">
-              <Link
-                href={`/students/${row.student.id}`}
-                className="rounded-md px-2.5 py-1 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              <ButtonLink
+                href={tenantPath(`/students/${row.student.id}`)}
+                variant="ghost"
+                size="compact"
               >
                 Öffnen
-              </Link>
+              </ButtonLink>
             </div>
           );
         }
@@ -583,13 +583,15 @@ export default function ClassListEntriesPage() {
       actions={
         canCreate ? (
           <div className="flex flex-wrap items-center gap-2">
-            <Link
+            <ButtonLink
               href={tenantPath("/database/students/class-list/import")}
-              className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              variant="outline"
+              size="md"
+              className="gap-2"
             >
               <Upload className="h-4 w-4" aria-hidden="true" />
               Sammelimport
-            </Link>
+            </ButtonLink>
             <DatabaseCreateAction
               label="Eintrag"
               ariaLabel="Klassenlisteneintrag anlegen"
@@ -770,13 +772,13 @@ export default function ClassListEntriesPage() {
                     {modal.entry.matchingStudentIds.map((studentId) => (
                       <label
                         key={studentId}
+                        htmlFor={`assign-target-${studentId}`}
                         className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
                       >
                         <span className="flex items-center gap-2">
-                          <input
-                            type="radio"
+                          <Radio
+                            id={`assign-target-${studentId}`}
                             name="assign-target"
-                            className="accent-moto-green"
                             checked={assignTarget === studentId}
                             onChange={() => setAssignTarget(studentId)}
                           />
@@ -831,18 +833,6 @@ export default function ClassListEntriesPage() {
                   : "Keine Kinder in dieser Klasse"
               }
               description="Legen Sie Kinder ohne OGS-Betreuung mit Name und Klasse an, damit Klassenlisten den vollständigen Klassenverband zeigen."
-              action={
-                canCreate ? (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    onClick={openCreate}
-                  >
-                    Eintrag anlegen
-                  </Button>
-                ) : undefined
-              }
             />
           }
         />

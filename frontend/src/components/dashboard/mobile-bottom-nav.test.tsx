@@ -146,6 +146,7 @@ import {
   useStaffMessagingEnabled,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
+  useTimetableEnabled,
 } from "~/lib/tenant-context";
 import useSWR from "swr";
 
@@ -600,6 +601,24 @@ describe("MobileBottomNav", () => {
       expect(mockGet).toHaveBeenCalledWith("from");
     });
 
+    it("marks Suchen on Unterwegs opened from Alle Kinder", () => {
+      // #5026: die Karte „Unterwegs“ auf „Alle Kinder“ führt hierher.
+      mockUsePathname.mockReturnValue("/rooms/unterwegs");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) =>
+          key === "from" ? "/students/search?status=unterwegs" : null,
+        ),
+      );
+
+      render(<MobileBottomNav />);
+
+      // Anker: „Suchen“ ist aktiv, nur dort erscheint die Bezeichnung.
+      expect(screen.getByText("Suchen")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Mehr" })).not.toHaveClass(
+        "bg-gray-100",
+      );
+    });
+
     it("highlights the Eltern group when a child page was reached via one of its activePaths", () => {
       // A grouped item (Eltern) owns several routes through activePaths. A
       // child page opened with ?from=/messages must still light up the "Mehr"
@@ -855,9 +874,7 @@ describe("MobileBottomNav", () => {
     });
 
     it("highlights Dienstplan without also highlighting Mitarbeiter in the overflow menu", () => {
-      // /staff/dienstplan ist nur noch der Redirect-Frame des Dienstplans
-      // (Planung-Redesign) und gehört nicht mehr zur Mitarbeiter-Sektion.
-      mockUsePathname.mockReturnValue("/staff/dienstplan");
+      mockUsePathname.mockReturnValue("/dienstplan");
 
       render(<MobileBottomNav />);
 
@@ -1931,24 +1948,13 @@ describe("MobileBottomNav", () => {
     });
 
     it("keeps calendar periods and payroll reachable when timetable.enabled is false", () => {
-      mockUseSWRDefault.mockReturnValue({
-        data: {
-          tabs: [
-            {
-              categories: [
-                { items: [{ key: "timetable.enabled", value: false }] },
-              ],
-            },
-          ],
-        },
-        error: undefined,
-        isLoading: false,
-        isValidating: false,
-        mutate: vi.fn(),
-      } as unknown as ReturnType<typeof useSWR>);
-
-      render(<MobileBottomNav />);
-      openDrawer();
+      vi.mocked(useTimetableEnabled).mockReturnValue(false);
+      try {
+        render(<MobileBottomNav />);
+        openDrawer();
+      } finally {
+        vi.mocked(useTimetableEnabled).mockReturnValue(true);
+      }
 
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       // Der Dienstplan folgt seit #4894 seinem Modul, nicht dem
@@ -1960,13 +1966,15 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Übergaben")).toBeInTheDocument();
     });
 
-    it("reads timetable.enabled from the tenant-scoped SWR key", () => {
+    it("reads its switches from the tenant resolve, not the settings schema (#4996)", () => {
       render(<MobileBottomNav />);
+      openDrawer();
 
-      expect(mockUseSWRDefault).toHaveBeenCalledWith(
+      expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
+      expect(mockUseSWRDefault).not.toHaveBeenCalledWith(
         "test-tenant:settings-schema",
-        expect.any(Function),
-        expect.any(Object),
+        expect.anything(),
+        expect.anything(),
       );
     });
   });

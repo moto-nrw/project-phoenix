@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
@@ -221,6 +223,72 @@ describe("CSP security boundaries", () => {
   );
 });
 
+const SANDBOX_CSP =
+  "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'";
+
+/** The host a BFF route is served on in production. */
+function hostFor(route: string): string {
+  if (route.startsWith("/api/parent/")) return PARENTS_HOSTNAME;
+  if (route.startsWith("/api/traeger/")) return TRAEGER_HOSTNAME;
+  return "school-a.localhost:3000";
+}
+
+describe("sandbox CSP of uploaded files (#5275)", () => {
+  it.each([
+    "/api/enrollment/admin/requests/7/uploads/9",
+    "/api/traeger/holiday-periods/1/registrations/2/proofs/3",
+    "/api/files/folders/4/files/5/download",
+    "/api/announcement-attachments/6/7/download",
+    "/api/parent/me/news/8/attachments/9/download",
+  ])("runs %s in the sandbox, not under the app CSP", (route) => {
+    const host = hostFor(route);
+    const res = proxy(makeRequest(`http://${host}${route}?inline=1`, host));
+    expect(res.headers.get("Content-Security-Policy")).toBe(SANDBOX_CSP);
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+  });
+
+  it.each([
+    "/api/enrollment/admin/requests/7",
+    "/api/files/folders/4/files",
+    "/api/parent/me/news/8/attachments/9/download/extra",
+  ])("keeps the app CSP on %s", (route) => {
+    const host = hostFor(route);
+    const res = proxy(makeRequest(`http://${host}${route}`, host));
+    const csp = res.headers.get("Content-Security-Policy") ?? "";
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).not.toContain("sandbox");
+  });
+
+  it("covers every BFF route that forwards the backend's CSP", () => {
+    const apiDir = path.join(__dirname, "app", "api");
+    const routes = readdirSync(apiDir, { recursive: true, encoding: "utf8" })
+      .filter((file) => file.endsWith("route.ts"))
+      .filter((file) =>
+        /content-security-policy/i.test(
+          readFileSync(path.join(apiDir, file), "utf8"),
+        ),
+      )
+      .map(
+        (file) =>
+          "/api/" +
+          path
+            .dirname(file)
+            .split(path.sep)
+            .map((segment) => (segment.startsWith("[") ? "1" : segment))
+            .join("/"),
+      );
+    expect(routes.length).toBeGreaterThan(0);
+    for (const route of routes) {
+      const host = hostFor(route);
+      const res = proxy(makeRequest(`http://${host}${route}`, host));
+      expect(res.headers.get("Content-Security-Policy"), route).toBe(
+        SANDBOX_CSP,
+      );
+    }
+  });
+});
+
 describe("Turnstile CSP", () => {
   it.each([
     ["school-a.localhost:3000", "/anmeldung/5"],
@@ -389,6 +457,22 @@ describe("proxy", () => {
     );
   });
 
+  // #5130: the tenant layout sends path mode to the school's subdomain and
+  // needs the address the browser asked for.
+  it("passes the requested path and query on, not a client-forged one", () => {
+    const req = new NextRequest(
+      "http://localhost:3000/school-a/anmeldung/phase-1?late_invite=x",
+    );
+    req.headers.set("host", "localhost:3000");
+    req.headers.set("x-moto-original-path", "/evil");
+
+    const res = proxy(req);
+
+    expect(getForwardedRequestHeader(res, "x-moto-original-path")).toBe(
+      "/school-a/anmeldung/phase-1?late_invite=x",
+    );
+  });
+
   it("gives every API request a fresh Vorgangskennung instead of the client's", () => {
     const makeApiRequest = () => {
       const req = new NextRequest("http://school.localhost:3000/api/students");
@@ -411,6 +495,123 @@ describe("proxy", () => {
     expect(first).toMatch(uuid);
     expect(second).toMatch(uuid);
     expect(first).not.toBe(second);
+  });
+
+  describe("retired tenant routes (#5001)", () => {
+    function redirectOf(url: string, host: string) {
+      const response = proxy(makeRequest(url, host));
+      const location = response.headers.get("location");
+      return {
+        status: response.status,
+        location: location ? new URL(location) : null,
+      };
+    }
+
+    it.each([
+      ["/invitations", "/database/personal", ""],
+      ["/staff/dienstplan", "/dienstplan", ""],
+      [
+        "/vertretungsplan?history=1&instance=4",
+        "/vertretung",
+        "?block=4&verlauf=1",
+      ],
+      [
+        "/timetables?day=2026-09-14&view=month",
+        "/betreuungsplan",
+        "?d=2026-09-14&view=monat",
+      ],
+      ["/planung?tab=dienstplan", "/dienstplan", ""],
+      ["/planung", "/betreuungsplan", ""],
+    ])(
+      "answers %s in every tenant URL form with a server redirect",
+      (source, pathname, search) => {
+        for (const [host, prefix] of [
+          ["school-a.localhost:3000", ""],
+          ["school-a.localhost:3000", "/school-a"],
+          ["localhost:3000", "/school-a"],
+        ] as const) {
+          const { status, location } = redirectOf(
+            `http://${host}${prefix}${source}`,
+            host,
+          );
+
+          expect(status).toBe(307);
+          expect(location?.host).toBe(host);
+          expect(location?.pathname).toBe(`${prefix}${pathname}`);
+          expect(location?.search).toBe(search);
+        }
+      },
+    );
+
+    it("keeps the tenant prefix in path routing on the bare domain", () => {
+      const { status, location } = redirectOf(
+        "http://localhost:3000/school-a/timetables?instance=9",
+        "localhost:3000",
+      );
+
+      expect(status).toBe(307);
+      expect(location?.pathname).toBe("/school-a/betreuungsplan");
+      expect(location?.search).toBe("?block=9");
+    });
+
+    it("keeps a slug-prefixed path on the tenant subdomain", () => {
+      const { location } = redirectOf(
+        "http://school-a.localhost:3000/school-a/invitations",
+        "school-a.localhost:3000",
+      );
+
+      expect(location?.pathname).toBe("/school-a/database/personal");
+    });
+
+    it("anchors a week offset on the Berlin calendar day", () => {
+      // The test clock stands on Wednesday 2026-09-09; next week starts on
+      // Monday 14 September.
+      const { location } = redirectOf(
+        "http://school-a.localhost:3000/vertretungsplan?week=1",
+        "school-a.localhost:3000",
+      );
+
+      expect(location?.search).toBe("?d=2026-09-14");
+    });
+
+    it("leaves the new areas and unrelated paths to the tenant rewrite", () => {
+      const response = proxy(
+        makeRequest(
+          "http://school-a.localhost:3000/betreuungsplan",
+          "school-a.localhost:3000",
+        ),
+      );
+
+      // Anker: the request reached the tenant rewrite instead of a redirect.
+      expect(
+        new URL(response.headers.get("x-middleware-rewrite")!).pathname,
+      ).toBe("/school-a/betreuungsplan");
+      expect(response.headers.get("location")).toBeNull();
+    });
+
+    it("does not treat a bare-domain first segment as a retired route", () => {
+      // Without a tenant subdomain the first segment is the tenant slug, so
+      // /staff/dienstplan means tenant "staff", page /dienstplan.
+      const response = proxy(
+        makeRequest("http://localhost:3000/staff/dienstplan", "localhost:3000"),
+      );
+
+      // Anker: the request passed through to the App Router.
+      expect(response.headers.get("x-middleware-next")).toBe("1");
+      expect(response.headers.get("location")).toBeNull();
+    });
+
+    it("keeps the portal host guard for a retired path on the parents host", () => {
+      const { location } = redirectOf(
+        `http://${PARENTS_HOSTNAME}/planung`,
+        PARENTS_HOSTNAME,
+      );
+
+      // The parents host sends unknown paths to its root, never into the
+      // tenant portal.
+      expect(location?.host).toBe(PARENTS_HOSTNAME);
+      expect(location?.pathname).toBe("/");
+    });
   });
 
   describe("operator subdomain", () => {
@@ -541,6 +742,7 @@ describe("proxy", () => {
       "/devices",
       "/persons",
       "/unregistered-tags",
+      "/caterers",
     ])("rewrites %s to /operator%s", (path) => {
       const res = proxy(
         makeRequest(`http://${OPERATOR_HOSTNAME}${path}`, OPERATOR_HOSTNAME),
@@ -698,6 +900,12 @@ describe("proxy", () => {
       }
     });
 
+    it("rewrites the account page (#4496)", () => {
+      expect(caterer("/konto").headers.get("x-middleware-rewrite")).toContain(
+        "/caterer/konto",
+      );
+    });
+
     it("serves only the caterer API on its host", () => {
       expect(caterer("/api/caterer/schools").status).toBe(200);
       for (const path of [
@@ -845,6 +1053,28 @@ describe("proxy", () => {
 
       expect(res.headers.get("x-middleware-rewrite")).toContain(
         "/school/tagesinformationen",
+      );
+    });
+
+    it("rewrites the parent letters to /school/elternbriefe (#4800)", () => {
+      for (const path of ["/elternbriefe", "/elternbriefe/14"]) {
+        const res = proxy(
+          makeRequest(`http://${SCHOOL_HOSTNAME}${path}`, SCHOOL_HOSTNAME),
+        );
+
+        expect(res.headers.get("x-middleware-rewrite")).toContain(
+          `/school${path}`,
+        );
+      }
+    });
+
+    it("rewrites /fehlzeiten to /school/fehlzeiten (#4793)", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/fehlzeiten`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/fehlzeiten",
       );
     });
 
@@ -1002,6 +1232,20 @@ describe("proxy", () => {
       expect(res.headers.get("location")).toBeNull();
       expect(res.headers.get("x-middleware-rewrite")).toContain(
         "/traeger/login",
+      );
+    });
+
+    it("rewrites the reset link to /traeger/reset-password (#5149)", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TRAEGER_HOSTNAME}/reset-password?token=abc`,
+          TRAEGER_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/reset-password",
       );
     });
 
@@ -1297,6 +1541,32 @@ describe("proxy", () => {
         makeRequest(
           `http://help.localhost:3000/dashboard`,
           "help.localhost:3000",
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toBeNull();
+    });
+
+    it("serves the payroll download page on the bare domain without a tenant rewrite (#4805)", () => {
+      // The e-mail to the payroll office links FRONTEND_URL/lohnbuero/<link>;
+      // the static app/lohnbuero segment must not be read as a tenant slug.
+      const res = proxy(
+        makeRequest(
+          `http://localhost:3000/lohnbuero/7.abcdefghijklmnopqrstuvwxyz`,
+          "localhost:3000",
+        ),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+    });
+
+    it("returns null slug for the reserved 'lohnbuero' subdomain so it never rewrites to /lohnbuero/*", () => {
+      const res = proxy(
+        makeRequest(
+          `http://lohnbuero.localhost:3000/dashboard`,
+          "lohnbuero.localhost:3000",
         ),
       );
 

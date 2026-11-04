@@ -5,11 +5,19 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/uptrace/bun"
 )
 
 func (r *Store) StudentCarePeriods(ctx context.Context, studentID int64) ([]*enrollment.StudentCarePeriod, error) {
 	if studentID <= 0 {
 		return nil, fmt.Errorf("student id must be positive")
+	}
+	return r.StudentCarePeriodsByStudentIDs(ctx, []int64{studentID})
+}
+
+func (r *Store) StudentCarePeriodsByStudentIDs(ctx context.Context, studentIDs []int64) ([]*enrollment.StudentCarePeriod, error) {
+	if len(studentIDs) == 0 {
+		return []*enrollment.StudentCarePeriod{}, nil
 	}
 	tenantID, err := r.tenantID(ctx)
 	if err != nil {
@@ -20,6 +28,7 @@ func (r *Store) StudentCarePeriods(ctx context.Context, studentID int64) ([]*enr
 		return nil, err
 	}
 	var rows []struct {
+		StudentID         int64           `bun:"student_id"`
 		RequestChildID    int64           `bun:"request_child_id"`
 		RequestID         int64           `bun:"request_id"`
 		PhaseID           int64           `bun:"phase_id"`
@@ -32,8 +41,8 @@ func (r *Store) StudentCarePeriods(ctx context.Context, studentID int64) ([]*enr
 	err = db.NewSelect().TableExpr("enrollment.request_children AS child").
 		Join("JOIN enrollment.requests AS request ON request.id = child.request_id AND request.tenant_id = child.tenant_id").
 		Join("JOIN enrollment.phases AS phase ON phase.id = request.phase_id AND phase.tenant_id = request.tenant_id").
-		ColumnExpr("child.id AS request_child_id, request.id AS request_id, phase.id AS phase_id, phase.name AS phase_name, phase.service_start_date, phase.service_end_date, child.target_grade_level, child.target_school_class").
-		Where("child.tenant_id = ? AND child.created_student_id = ? AND child.status = ?", tenantID, studentID, "approved").
+		ColumnExpr("child.created_student_id AS student_id, child.id AS request_child_id, request.id AS request_id, phase.id AS phase_id, phase.name AS phase_name, phase.service_start_date, phase.service_end_date, child.target_grade_level, child.target_school_class").
+		Where("child.tenant_id = ? AND child.created_student_id IN (?) AND child.status = ?", tenantID, bun.List(studentIDs), "approved").
 		OrderExpr("phase.service_start_date DESC, child.id DESC").Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list care periods by student: %w", err)
@@ -41,7 +50,7 @@ func (r *Store) StudentCarePeriods(ctx context.Context, studentID int64) ([]*enr
 	periods := make([]*enrollment.StudentCarePeriod, 0, len(rows))
 	for _, row := range rows {
 		periods = append(periods, &enrollment.StudentCarePeriod{
-			RequestChildID: row.RequestChildID, RequestID: row.RequestID, PhaseID: row.PhaseID, PhaseName: row.PhaseName,
+			StudentID: row.StudentID, RequestChildID: row.RequestChildID, RequestID: row.RequestID, PhaseID: row.PhaseID, PhaseName: row.PhaseName,
 			ServiceStartDate: row.ServiceStartDate, ServiceEndDate: row.ServiceEndDate,
 			TargetGradeLevel: row.TargetGradeLevel, TargetSchoolClass: row.TargetSchoolClass,
 		})

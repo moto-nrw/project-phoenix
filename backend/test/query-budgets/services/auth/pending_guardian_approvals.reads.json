@@ -1,0 +1,6 @@
+{
+  "scenario": "services.auth.pending_guardian_approvals.reads",
+  "max": 6,
+  "exact": false,
+  "description": "#2941: list/read enrichment stays flat as result rows grow."
+}

@@ -11,7 +11,7 @@ import {
 } from "~/lib/date-helpers";
 
 /** Query-Parameter, unter dem der angezeigte Tag in der Adresse steht. */
-const CLASS_DAY_DATE_PARAM = "tag";
+export const CLASS_DAY_DATE_PARAM = "tag";
 
 /**
  * Query-Parameter, unter dem die angezeigte Klasse in der Adresse steht.
@@ -47,6 +47,23 @@ export function classDayDateParam(
 export function classDayPath(schoolClass: string, dateISO: string): string {
   const klass = encodeURIComponent(schoolClass);
   return `/school/klasse?${CLASS_DAY_CLASS_PARAM}=${klass}&${CLASS_DAY_DATE_PARAM}=${dateISO}`;
+}
+
+/** Query-Parameter, unter dem das Kind der Kind-Ansicht in der Adresse steht. */
+export const CLASS_DAY_CHILD_PARAM = "kind";
+
+/**
+ * Adresse der Beobachtungen der OGS zu einem Kind (#4797). Klasse und Tag
+ * reisen mit, damit der Rückweg in dieselbe Klassenseite führt.
+ */
+export function classDayChildPath(
+  schoolClass: string,
+  studentId: string,
+  dateISO: string,
+): string {
+  const klass = encodeURIComponent(schoolClass);
+  const kind = encodeURIComponent(studentId);
+  return `/school/klasse/kind?${CLASS_DAY_CLASS_PARAM}=${klass}&${CLASS_DAY_CHILD_PARAM}=${kind}&${CLASS_DAY_DATE_PARAM}=${dateISO}`;
 }
 
 /** Adresse der Tagesübersicht für denselben Tag. */

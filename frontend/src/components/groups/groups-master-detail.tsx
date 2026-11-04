@@ -16,10 +16,10 @@ import { DatabaseForm } from "~/components/ui/database/database-form";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { groupsConfig } from "@/components/database/configs/groups.config";
 import { configToFormSection } from "@/lib/database/types";
 import type { Group } from "@/lib/group-helpers";
+import { groupsConcept } from "~/lib/concepts/groups";
 
 interface GroupsMasterDetailProps {
   groups: Group[];
@@ -141,8 +141,8 @@ function GroupDetailContent({
         <DatabaseDetailHeader
           icon={
             <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.groups.icon}
-              tone={MOTO_CONCEPTS.groups.tone}
+              icon={groupsConcept.icon}
+              tone={groupsConcept.tone}
               size={36}
             />
           }
@@ -206,7 +206,7 @@ function GroupSummary({ group }: { group: Group }) {
       : "Keine Gruppenleitung zugewiesen";
 
   return (
-    <section className="moto-content-surface rounded-xl border p-4 shadow-sm">
+    <section className="moto-content-surface rounded-xl border p-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
           {group.room_name ?? "Kein Gruppenraum"}

@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -143,10 +144,10 @@ func (e SubstitutionEntries) End(ctx context.Context, caller education.Caller, r
 // buildEmergencySnapshot binds the Notfallliste (#2704): the owner facades
 // are its tenant-safe reads, the retained student and guardian repositories,
 // the presence-mode read and the renderer its compatibility bindings.
-func buildEmergencySnapshot(env owners.RootEnvironment, presence owners.PresenceOwner, active studentpresence.Presence, people owners.PeopleRows, persons peopledirectory.Capability, rooms facilitiesModule.Catalog, renderer *lists.RendererService) (emergencysnapshot.Query, error) {
+func buildEmergencySnapshot(env owners.RootEnvironment, presence owners.PresenceOwner, active studentpresence.Presence, people owners.PeopleRows, persons peopledirectory.Capability, rooms facilitiesModule.Catalog, renderer *lists.RendererService, accessLog owners.DataAccessAppender) (emergencysnapshot.Query, error) {
 	emergency, err := newEmergencySnapshot(emergencySnapshotSources{
 		Presence: presence.Presence, PresenceMode: active, Students: people.Students, Persons: persons,
-		Contacts: people.StudentGuardians, Rooms: rooms, Renderer: renderer, Now: env.Now,
+		Contacts: people.StudentGuardians, Rooms: rooms, Renderer: renderer, AccessLog: accessLog, Now: env.Now,
 		Logger: env.Logger.With("module", "emergency-snapshot"),
 	})
 	if err != nil {
@@ -170,12 +171,22 @@ func buildClassDayViews(
 	settings settingsCompose.BatchSettingsService, operations timetable.OperationCapability, presence owners.PresenceOwner,
 	persons peopledirectory.Capability, groups schoolstructure.Query, rooms facilitiesModule.Catalog, renderer *lists.RendererService,
 	homework timetable.HomeworkBook,
-	emitter presenceStudentsHTTP.GuardianWake,
+	emitter presenceStudentsHTTP.GuardianWake, classTeachers schoolstructure.StaffGroupQuery,
+	notifications owners.DeliveryNotifications,
+	schoolDays schoolcalendar.Days,
 ) (ClassDayViews, error) {
 	classDayReads, err := arrivalTimetable.NewPresenceReads(owners.NewTimetablePresenceProjection(db))
 	if err != nil {
 		return ClassDayViews{}, fmt.Errorf("compose class day timetable reads: %w", err)
 	}
+	morning := withClassDayAbsenceReports(classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
+		presenceStudentsHTTP.NewSchoolAbsenceReports(presenceStudentsHTTP.ResourceConfig{
+			AbsenceNotifier: studentAbsenceNotifier{notifier: notifications.AbsenceNotifier},
+			Broadcaster:     hub, Logger: env.Logger.With("service", "class-day-absence-reports"), ParentEventEmitter: emitter,
+			PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
+		}, presence.Presence), audit.Persistence.StudentFieldEdit, notifications.UnreportedAbsences)
+	// The absence list (#4793) counts the morning marks of a period.
+	morning = withClassDayAbsenceList(morning, presence.Presence, carePlanRows.StatusDays, schoolDays, audit.Persistence.DataAccessLog, renderer, settings, schedules.Lifecycle, reports)
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: caller, PickupTimes: schedules.Pickups, ArrivalTimes: schedules.Arrivals, CareDays: schedules.CareDay,
 		Companions: owners.NewStudentCompanionRepository(carePlan), ClassArrivalExceptions: schedules.Arrivals,
@@ -183,9 +194,14 @@ func buildClassDayViews(
 			Broadcaster: hub, Logger: env.Logger.With("service", "class-day-class-trips"), ParentEventEmitter: emitter,
 			PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
 		})),
-		BlockStarts:                   operations,
-		DayHintDependencies:           classdayCompose.DayHintDependencies{DayHints: persons, Today: calendar.CalendarDateClock(env.Now)},
-		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
+		BlockStarts: operations,
+		// The day hints (#4795) and the notes the OGS released for the
+		// school (#4797), read only by the staff member School Structure
+		// assigns to the child's class.
+		StudentNoteDependencies: classdayCompose.StudentNoteDependencies{
+			DayHints: persons, Today: calendar.CalendarDateClock(env.Now), SharedNotes: persons, ClassTeachers: classTeachers,
+		},
+		MorningAttendanceDependencies: morning,
 		HomeworkDependencies:          classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(homework)},
 		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
 			Handovers: presence.Presence, HandoverStaffNames: classHandoverStaffNames(people.Staff),

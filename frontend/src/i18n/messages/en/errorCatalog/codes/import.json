@@ -1,0 +1,13 @@
+{
+  "file_columns_missing": "{object} could not be saved. Please check your entries.",
+  "file_missing": "{object} could not be saved. Please check your entries.",
+  "file_no_rows": "{object} could not be saved. Please check your entries.",
+  "file_row_invalid": "{object} could not be saved. Please check your entries.",
+  "file_too_large": "{object} could not be saved. Please check your entries.",
+  "file_type_invalid": "{object} could not be saved. Please check your entries.",
+  "file_unreadable": "{object} could not be saved. Please check your entries.",
+  "import_batch_failed": "{object} could not be processed. Please try again later.",
+  "mode_forbidden": "You cannot access {object}. Please contact the school.",
+  "not_test_traeger": "{object} could not be changed. Please check its current status.",
+  "test_traeger_inactive": "{object} could not be changed. Please check its current status."
+}

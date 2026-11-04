@@ -1,0 +1,5 @@
+{
+  "api/enrollment/phases/expiry-warnings": [
+    "GET tenant /api/enrollment/phases/expiry-warnings"
+  ]
+}

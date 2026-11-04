@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
 )
 
 type effectBase struct {
@@ -67,7 +69,7 @@ func loadBaseCommandEffects(project string, base effectBase) (*commandEffectMani
 	if err != nil {
 		return nil, false, err
 	}
-	listing, err := gitOutput(base.root, "ls-tree", "--name-only", base.sha, "--", filepath.ToSlash(relative))
+	listing, err := gitOutput(base.root, "ls-tree", "--name-only", base.sha, "--", filepath.ToSlash(relative), filepath.ToSlash(strings.TrimSuffix(relative, ".json")))
 	if err != nil {
 		return nil, false, err
 	}
@@ -77,11 +79,12 @@ func loadBaseCommandEffects(project string, base effectBase) (*commandEffectMani
 		}
 		return &commandEffectManifest{SchemaVersion: 1}, true, nil
 	}
-	blob, err := readGitBlob(base.root, project, base.sha, commandEffectInventory)
+
+	stored, err := artifacts.ReadInventoryAtRevision(base.root, base.sha, filepath.ToSlash(filepath.Dir(relative)), filepath.Base(relative), artifacts.CommandEffects, false)
 	if err != nil {
 		return nil, false, err
 	}
-	manifest, err := decodeCommandEffects(blob)
+	manifest, err := decodeCommandEffects(stored.Document)
 	return manifest, false, err
 }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { Z_LAYER } from "./overlay-styles";
 import { ChevronDown } from "lucide-react";
 import { useCallback, useId, useRef, useState } from "react";
 
@@ -47,7 +48,7 @@ interface MultiCheckboxSelectProps {
 }
 
 const TRIGGER_CLASS =
-  "moto-content-surface flex h-10 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 disabled:opacity-80";
+  "moto-content-surface flex h-10 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 disabled:cursor-not-allowed disabled:text-gray-500 disabled:opacity-80";
 
 const defaultMultipleLabel = (count: number) => `${count} ausgewählt`;
 
@@ -196,7 +197,7 @@ export function MultiCheckboxSelect({
           aria-label={ariaLabel}
           onKeyDown={handleKeyDown}
           className={cn(
-            "moto-popover-surface absolute top-full z-50 mt-1 min-w-full overflow-hidden rounded-xl border py-2",
+            `moto-popover-surface absolute top-full ${Z_LAYER.dropdown} mt-1 min-w-full overflow-hidden rounded-xl border py-2`,
             menuAlign === "end" ? "right-0" : "left-0",
             menuClassName,
           )}

@@ -14,6 +14,8 @@
 
 "use client";
 
+import { me as meKeys } from "~/lib/swr/me";
+import { rooms as roomsKeys } from "~/lib/swr/rooms";
 import {
   useEffect,
   useLayoutEffect,
@@ -28,7 +30,6 @@ import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
-import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
@@ -39,7 +40,7 @@ import {
 } from "~/components/ui/form-error-alert";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import { roomService, studentService } from "~/lib/api";
+import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import {
   activeService,
@@ -48,7 +49,6 @@ import {
 import type { ActiveGroup, Supervisor, Visit } from "~/lib/active-helpers";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import type { Room } from "~/lib/room-helpers";
-import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
@@ -58,8 +58,7 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
-const DETAIL_CARD_CLASS =
-  "moto-content-surface rounded-2xl border p-5 shadow-sm sm:p-6";
+const DETAIL_CARD_CLASS = "moto-content-surface rounded-2xl border p-5 sm:p-6";
 
 function canUseAllMoveTargets(session: Session | null): boolean {
   const permissions = session?.user?.permissions ?? [];
@@ -93,7 +92,7 @@ export function StudentsInRoomSection({
     "room-students-",
     "room-bulk-source-visits-",
     "room-detail-",
-    ...ROOM_LIST_CACHE_KEYS,
+    roomsKeys.family,
     "search-students-",
     "database-students-list",
   ]);
@@ -150,8 +149,8 @@ export function StudentsInRoomSection({
     () => activeService.getActiveGroups({ active: true }),
   );
   const { data: currentStaff } = useSWRAuth<Staff>(
-    showAllTargets ? null : "room-bulk-current-staff",
-    () => userContextService.getCurrentStaff(),
+    showAllTargets ? null : meKeys.key(),
+    meKeys.fetcher,
   );
   const { data: activeSupervisions = [] } = useSWRAuth<Supervisor[]>(
     showAllTargets || !currentStaff?.id
@@ -160,8 +159,8 @@ export function StudentsInRoomSection({
     () => activeService.getStaffActiveSupervisions(currentStaff?.id ?? ""),
   );
   const { data: rooms = [], mutate: refreshMoveRooms } = useSWRAuth<Room[]>(
-    "room-bulk-rooms",
-    () => roomService.getRooms(),
+    roomsKeys.key(),
+    roomsKeys.fetcher,
   );
 
   // Ladefehler mit Katalogtext, Wiederholen und Vorgangskennung (#2517).
@@ -465,8 +464,7 @@ export function StudentsInRoomSection({
   return (
     // Quiet section header to match the other slide-over blocks
     // (Rauminformationen / Belegungshistorie). Section element +
-    // aria-label preserve the "info-card" landmark contract the tests
-    // / a11y tooling expect from the previous InfoCard wrapper.
+    // aria-label keep the named landmark the tests and a11y tooling expect.
     <section aria-label="Kinder im Raum" className={DETAIL_CARD_CLASS}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
@@ -476,11 +474,11 @@ export function StudentsInRoomSection({
           <Button
             type="button"
             variant="outline"
-            size="sm"
+            size="compact"
             onClick={openInSearch}
             aria-label="Alle Kinder öffnen"
             title="Alle Kinder öffnen"
-            className="h-8 shrink-0 gap-1.5 rounded-full px-2.5 py-0 text-xs font-medium shadow-none"
+            className="shrink-0"
           >
             Alle Kinder
             <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
@@ -718,10 +716,10 @@ function BulkMoveToolbar({
         <Button
           type="button"
           variant="outline"
-          size="sm"
+          size="compact"
           onClick={allSelected ? onClearSelection : onSelectAll}
           disabled={isMoving}
-          className="h-8 shrink-0 rounded-full px-3 py-0 text-xs shadow-none"
+          className="shrink-0"
         >
           {allSelected ? "Aufheben" : "Alle auswählen"}
         </Button>
@@ -747,12 +745,12 @@ function BulkMoveToolbar({
         <Button
           type="button"
           variant="primary"
-          size="sm"
+          size="md"
           isLoading={isMoving}
           loadingText="Bewege..."
           onClick={onMoveSelected}
           disabled={!canMove}
-          className="h-9 w-full px-3 py-2 text-xs shadow-sm sm:w-auto"
+          className="w-full sm:w-auto"
         >
           In Raum setzen
         </Button>
@@ -836,7 +834,7 @@ function StudentsInRoomBody({
     // room.
     return (
       <div className="flex flex-col gap-2">
-        <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500 shadow-sm">
+        <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500">
           Aktuell keine Kinder im Raum.
         </div>
       </div>
@@ -931,11 +929,11 @@ function SelectableStudentRow({
       <Button
         type="button"
         variant="outline"
-        size="sm"
+        size="compact"
         onClick={onOpen}
         aria-label={`${fullName} Profil öffnen`}
         title="Profil öffnen"
-        className="h-8 shrink-0 gap-1.5 rounded-full px-2.5 py-0 text-xs font-medium shadow-none"
+        className="shrink-0"
       >
         Profil
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />

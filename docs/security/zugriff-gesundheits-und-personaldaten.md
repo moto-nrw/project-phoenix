@@ -45,6 +45,7 @@ die tatsächliche Rechtevergabe einer Schule.
 | `users:read` oder Admin-Wildcard | `health_info`, `extra_info`, Begleitnotiz sowie Krank-/Entschuldigtstatus in Kind-Listen/Details. **Keine eigene Gesundheitsstufe.** Die Befüllung hängt von `canReadSensitiveStudentData` ab, nicht von `has_full_access`. Adressen und Planung haben eine zusätzliche Personal-/Adminprüfung. Personalzugriff ist grundsätzlich schulweit, nicht auf die eigene Gruppe beschränkt. | [K1], [K2], [K3] |
 | `users:read` am Exportpfad | Gesundheitsliste mit Gesundheitsfreitext, ohne zusätzliches `student_documents:health`. Fehlender Audit-Dienst oder Schreibfehler verweigert die Dateifreigabe. | [K1], [K8], [T2] |
 | `student_documents:health` plus Kindzugriffsprüfung | Attest, Impfnachweis, Medikamentenplan. Kategorieprüfung für Liste, Lesen, Upload und Löschen. Sorgerechtsdokumente: `student_documents:legal`; andere Dokumente: `users:update`. Sensible Downloads verlangen ein erfolgreiches Zugriffsprotokoll. | [K9], [K10], [T3] |
+| `student_accidents:read` / `student_accidents:manage` plus Kindzugriffsprüfung | Unfallanzeigen (#4771) mit Hergang und Verletzungen. Lesen und PDF-Abruf mit `:read`, Erfassen, Ändern, Unterschreiben und Korrigieren zusätzlich mit `:manage`; beide in der Rolle Leitung. Jede Änderung schreibt die Änderungshistorie, jeder PDF-Abruf vorher einen Eintrag in `audit.data_access_log`; ohne Eintrag kein PDF. Eine unterschriebene Anzeige sperrt ein Datenbank-Trigger gegen Änderung. | #4771 |
 | `enrollment_uploads:read` plus `config:manage` | Dateien, die Eltern in der Anmeldung hochladen, etwa Einkommensnachweise (#4783). Die Anmeldungsdetails mit `config:manage` zeigen nur Dateinamen; Öffnen verlangt das eigene Recht. Jeder Abruf schreibt vorher einen Eintrag in `audit.data_access_log` (`enrollment_upload_view`); ohne Eintrag keine Datei. Ablage privat und schulgebunden, gelöscht nach `enrollment.upload_retention_days` ab der Entscheidung. | #4783 |
 | `staff:stammdaten` oder `time_tracking:manage` beim Lesen; `staff:stammdaten` für Abschnittsänderungen | Personalstammdaten mit Geburtstag, privaten Kontakten, Vertrag und Qualifikationen anderer Beschäftigter. Personalnummer und Arbeitszeitverwaltung haben eigene Routen mit `time_tracking:manage`. Bank-/Steuerdaten bleiben getrennt. | [K4] |
 | `staff:financial` | Bankverbindung, Steuer-ID, Sozialversicherungsnummer und Lohnabrechnungen. Finanzansicht zunächst maskiert; Offenlegung separat. Beide Finanzlesewege protokolliert und bei Auditfehler verweigert. Tatsächlicher Bezeichner: `staff:financial`, nicht `staff_financial`. | [K4], [K5], [K6], [T4] |
@@ -81,7 +82,8 @@ Kontoübernahme. Grundlage: [K2], [K3], [K9], [legal].
    eine Sitzung aus. Reale Verdrahtung und Betrieb bleiben nachzuweisen.
    [K15], [K16], [K17], [K18], [K19]
 4. **MFA-Vorschlag #4835:** Die Klassifikation umfasst u. a. Admin-/Verwaltungsrechte,
-   `staff:financial`, `staff_documents:health`, `student_documents:health`
+   `staff:financial`, `staff_documents:health`, `student_documents:health`,
+   `student_accidents:read`, `student_accidents:manage`
    und Rechte mit Aktion `health`. `users:read`, `staff:stammdaten`,
    `time_tracking:manage` und `vacation:approve` allein fallen nicht darunter.
    Deshalb benötigen insbesondere Gesundheitsfreitexte und

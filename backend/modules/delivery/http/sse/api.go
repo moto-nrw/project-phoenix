@@ -31,6 +31,7 @@ func (rs *Resource[E, C]) StaffEvents(w http.ResponseWriter, r *http.Request) {
 	identity := rs.runtime.Identity(ctx)
 	conn.tenantID = identity.TenantID
 	conn.isAdmin = identity.IsAdmin
+	conn.readsLeadership = identity.ReadsLeadershipMessages
 	// The login account, needed to address this person individually. Already in
 	// the claims, so no extra lookup.
 	conn.accountID = identity.AccountID

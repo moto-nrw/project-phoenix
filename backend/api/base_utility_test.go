@@ -825,8 +825,8 @@ func checkTimetableConflictWiring(t *testing.T, graph *goldenRuntime) {
 
 	_, _, _, _, _, _, _, _, settings, _, services, schedules, requests, _, _, lifecycle, planning, materialization, _, _, _, _, _, _, _, _, _, err := composeTestRoot(graph.db, slog.Default(), currentTestServiceConfig())
 	require.NoError(t, err)
-	timetable := newTimetableResource(nil, nil, materialization, lifecycle, planning, nil, services.Users, schedules, nil, settings.Service,
-		requests.CareOfferings, ClassDayViews{}, nil, nil, nil, slog.Default())
+	timetable := newTimetableResource(nil, nil, nil, nil, materialization, lifecycle, planning, nil, services.Users, schedules, nil, settings.Service,
+		requests.CareOfferings, ClassDayViews{}, nil, nil, nil, nil, slog.Default())
 	require.NotNil(t, timetable)
 	require.NotNil(t, timetable.ConflictDetection, "api/timetable must hold the owner's conflict detection")
 	assert.Same(t, planning.Planning.ConflictDetection, timetable.ConflictDetection,
@@ -835,11 +835,37 @@ func checkTimetableConflictWiring(t *testing.T, graph *goldenRuntime) {
 	// The mounted routes reach it too: an unwired conflict probe answers 500.
 	db := testpkg.SetupTestDB(t)
 	_, staff := testpkg.CreateTestTeacherWithAccount(t, db, "Conflict", "Probe")
-	token := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
+	token := testpkg.MintLiveSessionJWT(t, db, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
 	probe := checkpointRequest(graph, checkpointScenario{
 		Method: http.MethodGet, Path: "/api/timetable/exception-conflicts?date=2099-01-05", Authenticated: true,
 	}, token)
 	require.Equal(t, http.StatusOK, probe.Code, probe.Body.String())
+}
+
+// The auth limiters' burst follows the per-minute budget (minimum 10), so a
+// school whose staff share one public IP can sign in together.
+func TestBuildAuthRateLimitersBurstFollowsLimit(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		limit string
+		burst int
+	}{{"5", 10}, {"30", 30}} {
+		limiters := buildAuthRateLimiters(nil, tc.limit, false)
+		handler := limiters.auth.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		codes := make([]int, 0, tc.burst+1)
+		for range tc.burst + 1 {
+			req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
+			req.RemoteAddr = "203.0.113.7:54321"
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			codes = append(codes, rr.Code)
+		}
+		assert.Equal(t, http.StatusNoContent, codes[tc.burst-1], "limit %s: request %d is within the burst", tc.limit, tc.burst)
+		assert.Equal(t, http.StatusTooManyRequests, codes[tc.burst], "limit %s: request %d exceeds the burst", tc.limit, tc.burst+1)
+	}
 }
 
 // The demo exempts its demo process (a loopback peer) from the auth limiters;

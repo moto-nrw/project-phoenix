@@ -26,6 +26,7 @@ type overviewAPIContext struct {
 	get     func(path string, perms ...string) *httptest.ResponseRecorder
 	post    func(path, body string, perms ...string) *httptest.ResponseRecorder
 	put     func(path, body string, perms ...string) *httptest.ResponseRecorder
+	do      func(req *http.Request, perms ...string) *httptest.ResponseRecorder
 }
 
 func setupOverviewAPI(t *testing.T) *overviewAPIContext {
@@ -57,6 +58,12 @@ func setupOverviewAPI(t *testing.T) *overviewAPIContext {
 			req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 			req.Header.Set("Authorization", "Bearer "+token(perms...))
 			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			tc.router.ServeHTTP(rec, req)
+			return rec
+		},
+		do: func(req *http.Request, perms ...string) *httptest.ResponseRecorder {
+			req.Header.Set("Authorization", "Bearer "+token(perms...))
 			rec := httptest.NewRecorder()
 			tc.router.ServeHTTP(rec, req)
 			return rec

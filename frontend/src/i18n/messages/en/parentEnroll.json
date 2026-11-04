@@ -1,0 +1,20 @@
+{
+  "errorObject": "the list of enrollment phases",
+  "back": "Back to the parent portal",
+  "kicker": "Enrollment for after-school care",
+  "title": "New enrollment",
+  "description": "Choose a school and enrollment phase to register your child.",
+  "loading": "Loading enrollment phases …",
+  "empty": "There are currently no enrollment phases available.",
+  "yourSchools": "Your schools",
+  "otherSchools": "Other schools",
+  "kindSchoolYear": "School year",
+  "kindHoliday": "Holiday care",
+  "kindCustom": "Other",
+  "closesAt": "Registration until {date}",
+  "audienceNewStudents": "New children only",
+  "audienceExistingStudents": "Enrolled children only",
+  "audienceLinkedParents": "Linked parents only",
+  "rangeConnector": "to",
+  "openPhase": "Open enrollment"
+}

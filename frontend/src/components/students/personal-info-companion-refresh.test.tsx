@@ -1,3 +1,9 @@
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "account-1" }, expires: "2099-01-01" },
+    status: "authenticated",
+  }),
+}));
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, act } from "@testing-library/react";
 

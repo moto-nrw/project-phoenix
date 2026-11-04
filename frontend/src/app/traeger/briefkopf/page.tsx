@@ -12,9 +12,10 @@ import { TraegerBankAccountsCard } from "~/components/traeger/traeger-bank-accou
 import { TraegerContactCard } from "~/components/traeger/traeger-contact-card";
 import { TraegerLetterheadPreview } from "~/components/traeger/traeger-letterhead-preview";
 import { TraegerLogoCard } from "~/components/traeger/traeger-logo-card";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { CardSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { Alert } from "~/components/ui/alert";
+import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
@@ -22,11 +23,11 @@ import type { ResolvedSetting, SchemaTab } from "~/lib/settings-api";
 import {
   clearTraegerSettingValue,
   fetchTraegerMasterData,
-  fetchTraegerSettingsSchema,
   saveTraegerSettingValue,
   type TraegerMasterData,
   traegerLogoSrc,
 } from "~/lib/traeger-api";
+import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
 import { TRAEGER_BRANDING_TAB } from "~/lib/traeger-branding";
 
 const logger = createLogger({ component: "TraegerBriefkopfPage" });
@@ -51,8 +52,17 @@ export default function TraegerBriefkopfPage() {
   const { data: session } = useSession();
   const canEdit = hasPermission(session ?? null, SETTINGS_RIGHT);
   const [masterData, setMasterData] = useState<TraegerMasterData>(EMPTY);
-  const [branding, setBranding] = useState<SchemaTab | null>(null);
+  const {
+    data: schema,
+    isLoading: schemaLoading,
+    loadError: schemaError,
+    error: schemaFailure,
+    mutate: refreshSchema,
+  } = useTraegerSettingsSchema();
+  const branding =
+    schema?.tabs.find((tab) => tab.key === TRAEGER_BRANDING_TAB) ?? null;
   const [loading, setLoading] = useState(true);
+  const [masterFailure, setMasterFailure] = useState<unknown>();
   // The cards show only after one complete read: empty forms after a failed
   // load would overwrite stored values on save.
   const [loaded, setLoaded] = useState(false);
@@ -60,14 +70,9 @@ export default function TraegerBriefkopfPage() {
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
 
   const read = useCallback(async () => {
-    const [data, schema] = await Promise.all([
-      fetchTraegerMasterData(),
-      fetchTraegerSettingsSchema(),
-    ]);
+    const data = await fetchTraegerMasterData();
     setMasterData(data);
-    setBranding(
-      schema.tabs.find((tab) => tab.key === TRAEGER_BRANDING_TAB) ?? null,
-    );
+    setMasterFailure(undefined);
     setLoaded(true);
     clearLoadError();
   }, [clearLoadError]);
@@ -77,6 +82,7 @@ export default function TraegerBriefkopfPage() {
     try {
       await read();
     } catch (err) {
+      setMasterFailure(err);
       logger.error("traeger_briefkopf_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -93,8 +99,13 @@ export default function TraegerBriefkopfPage() {
   // values and says so.
   const refresh = useCallback(async () => {
     try {
-      await read();
+      await Promise.all([
+        read(),
+        // The shared schema reader owns its error and retry, not master data.
+        refreshSchema().catch(() => undefined),
+      ]);
     } catch (err) {
+      setMasterFailure(err);
       logger.warn("traeger_briefkopf_refresh_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -103,7 +114,7 @@ export default function TraegerBriefkopfPage() {
         retry: () => void load(),
       });
     }
-  }, [load, read, showLoadError]);
+  }, [load, read, showLoadError, refreshSchema]);
 
   useEffect(() => {
     void load();
@@ -129,34 +140,30 @@ export default function TraegerBriefkopfPage() {
   const defaultAccount =
     masterData.bankAccounts.find((account) => account.isDefault) ?? null;
 
+  // Ein fehlgeschlagenes Nachladen lässt die gezeigten Angaben stehen; die
+  // Meldung steht dann über ihnen statt an ihrer Stelle.
+  const error = metadataLoadError(
+    pageLoad.error ?? schemaError,
+    loaded && schema !== undefined,
+    masterFailure,
+    schemaFailure,
+  );
+
   return (
-    <div className="w-full space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-          Briefkopf
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Diese Angaben stehen auf allen Briefen und Rechnungen Ihres Trägers.
-        </p>
-        {!canEdit ? (
-          <p className="mt-1 text-sm text-gray-500">
-            Sie können die Angaben nur ansehen. Ändern kann, wer im Träger-Büro
-            das Recht „Einstellungen“ hat.
-          </p>
-        ) : null}
-      </div>
-
-      <LoadErrorAlert error={pageLoad.error} />
-
-      {loading ? (
-        <SkeletonRegion label="Briefkopf wird geladen" className="space-y-6">
-          <CardSkeleton rows={4} />
-          <CardSkeleton rows={3} />
-        </SkeletonRegion>
-      ) : null}
-
-      {!loading && loaded ? (
+    <TenantPage
+      title="Briefkopf"
+      info="Diese Angaben stehen auf allen Briefen und Rechnungen Ihres Trägers."
+      error={error}
+      loading={loading || schemaLoading}
+    >
+      {loaded && schema ? (
         <>
+          {!canEdit ? (
+            <Alert
+              type="info"
+              message="Sie können die Angaben nur ansehen. Ändern kann, wer im Träger-Büro das Recht „Einstellungen“ hat."
+            />
+          ) : null}
           <SectionCard
             title="Vorschau"
             description="So sehen Kopf und Fuß eines Briefs aus. Die Vorschau ändert sich mit Ihren Angaben."
@@ -204,6 +211,6 @@ export default function TraegerBriefkopfPage() {
           />
         </>
       ) : null}
-    </div>
+    </TenantPage>
   );
 }

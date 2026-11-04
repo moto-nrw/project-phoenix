@@ -286,8 +286,7 @@ export function StudentPaymentCard({
           <Button
             type="button"
             size="md"
-            variant="outline"
-            className="bg-white"
+            variant="surface"
             onClick={() => void handleStartEdit()}
             disabled={isRevealing || isLoading}
           >

@@ -1,0 +1,104 @@
+{
+  "entries": [
+    {
+      "binding": "interface{FeedbackEnabled(context.Context) (bool, error); FeedbackRetentionDays(context.Context) (int, error)}.FeedbackEnabled",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Settings.FeedbackEnabled",
+      "reason": "Read-only newly exposed target: feedback reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through interface{FeedbackEnabled(context.Context) (bool, error); FeedbackRetentionDays(context.Context) (int, error)}.FeedbackEnabled. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "interface{FeedbackEnabled(context.Context) (bool, error); FeedbackRetentionDays(context.Context) (int, error)}.FeedbackEnabled",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Settings.FeedbackEnabled",
+      "reason": "Read-only newly exposed target: feedback reaches modules/settings/records.SettingsService.ResolveBool (settings-platform) through interface{FeedbackEnabled(context.Context) (bool, error); FeedbackRetentionDays(context.Context) (int, error)}.FeedbackEnabled. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "interface{FeedbackEnabled(context.Context) (bool, error); FeedbackRetentionDays(context.Context) (int, error)}.FeedbackRetentionDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Settings.FeedbackRetentionDays",
+      "reason": "Read-only newly exposed target: feedback reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through interface{FeedbackEnabled(context.Context) (bool, error); FeedbackRetentionDays(context.Context) (int, error)}.FeedbackRetentionDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "interface{FeedbackEnabled(context.Context) (bool, error); FeedbackRetentionDays(context.Context) (int, error)}.FeedbackRetentionDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Settings.FeedbackRetentionDays",
+      "reason": "Read-only newly exposed target: feedback reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through interface{FeedbackEnabled(context.Context) (bool, error); FeedbackRetentionDays(context.Context) (int, error)}.FeedbackRetentionDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveInt",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.CountForStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.CountForStudent",
+      "reason": "Read-only newly exposed target: feedback reaches tenant.TenantFromContext (tenant-runtime) through modules/feedback/internal/adapters/postgres.Store.CountForStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.Create",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.Create",
+      "reason": "Read-only newly exposed target: feedback reaches tenant.TenantFromContext (tenant-runtime) through modules/feedback/internal/adapters/postgres.Store.Create. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.Delete",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.Delete",
+      "reason": "Read-only newly exposed target: feedback reaches tenant.TenantFromContext (tenant-runtime) through modules/feedback/internal/adapters/postgres.Store.Delete. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.DeleteOlderThan",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.DeleteOlderThan",
+      "reason": "Read-only newly exposed target: feedback reaches tenant.TenantFromContext (tenant-runtime) through modules/feedback/internal/adapters/postgres.Store.DeleteOlderThan. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.Get",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.Get",
+      "reason": "Read-only newly exposed target: feedback reaches tenant.TenantFromContext (tenant-runtime) through modules/feedback/internal/adapters/postgres.Store.Get. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.List",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.List",
+      "reason": "Read-only newly exposed target: feedback reaches tenant.TenantFromContext (tenant-runtime) through modules/feedback/internal/adapters/postgres.Store.List. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    }
+  ]
+}

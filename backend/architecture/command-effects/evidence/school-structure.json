@@ -1,0 +1,2900 @@
+{
+  "entries": [
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.GroupRepository.FindByTeacher",
+      "binding_digest": "8453f508deb9d74922f2ee430990edaf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.FindByTeacher",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.GroupRepository.FindByTeacher",
+      "binding_digest": "4d60a2cae08aa693fddb42c25202b768",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.FindByTeacher",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.FindByTeacher",
+      "binding_digest": "8453f508deb9d74922f2ee430990edaf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.FindByTeacher",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.FindByTeacher",
+      "binding_digest": "4d60a2cae08aa693fddb42c25202b768",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.FindByTeacher",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.GroupRepository.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "8453f508deb9d74922f2ee430990edaf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.GroupRepository.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "9c6bad41e2799d455a345dd23dcdab26",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.GroupRepository.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "79c35ea5a0d2009276c42f3bebc721e4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListTeachers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.GroupRepository.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "4d60a2cae08aa693fddb42c25202b768",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.GroupRepository.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "8e3626dbe249936c21d06736fce6e45d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.GroupRepository.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "9c26f65a0394e7828404b2b440ace363",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListTeachers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.GroupRepository.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "a4e4881f51dd23a8c93772424733a158",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.GroupRepository.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "e40f2cf51f5048ae3f158df1b0b1b8ea",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListTeachers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.GroupRepository.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "386e566aa18be9f722c8912dc52e7413",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.ListGroupSubstitutions",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.GroupRepository.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "173e5432c12f8e9e5b3e7c0393eff928",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListGroupSubstitutions",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "8453f508deb9d74922f2ee430990edaf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "9c6bad41e2799d455a345dd23dcdab26",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "79c35ea5a0d2009276c42f3bebc721e4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListTeachers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "4d60a2cae08aa693fddb42c25202b768",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "8e3626dbe249936c21d06736fce6e45d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "9c26f65a0394e7828404b2b440ace363",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListTeachers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "a4e4881f51dd23a8c93772424733a158",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "e40f2cf51f5048ae3f158df1b0b1b8ea",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListTeachers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "386e566aa18be9f722c8912dc52e7413",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.ListGroupSubstitutions",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.ListStaffIDsByEducationGroupIDs",
+      "binding_digest": "173e5432c12f8e9e5b3e7c0393eff928",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.ListStaffIDsByEducationGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListGroupSubstitutions",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.Assign",
+      "binding_digest": "ef14192a105d34582fc3f89eccdbde89",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/auth/authorize/permissions.Principal.HasPermission",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.Assign",
+      "binding_digest": "1d44b601e5b434f4857acf115a436395",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.Assign",
+      "binding_digest": "f5feab78f0eec5cf8f8d332609492f83",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.Assign",
+      "binding_digest": "2aca8dad78db6b40e43e675d26662785",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.CanSeeAllSubstitutions",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.Assign",
+      "binding_digest": "3f5a79ffd4a19262ef4bf0f3975ac907",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "source_owner": "school-structure",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.End",
+      "binding_digest": "ef14192a105d34582fc3f89eccdbde89",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.End",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/auth/authorize/permissions.Principal.HasPermission",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.End",
+      "binding_digest": "3f5a79ffd4a19262ef4bf0f3975ac907",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.End",
+      "source_owner": "school-structure",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.Overview",
+      "binding_digest": "ef14192a105d34582fc3f89eccdbde89",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/auth/authorize/permissions.Principal.HasPermission",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.Overview",
+      "binding_digest": "1d44b601e5b434f4857acf115a436395",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.Overview",
+      "binding_digest": "f5feab78f0eec5cf8f8d332609492f83",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.Overview",
+      "binding_digest": "2aca8dad78db6b40e43e675d26662785",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.CanSeeAllSubstitutions",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.Overview",
+      "binding_digest": "3f5a79ffd4a19262ef4bf0f3975ac907",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
+      "source_owner": "school-structure",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CallerRows.GetMyGroups",
+      "binding_digest": "5e6b8c64147be0de02f955b67fe42e5d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http.CallerGroups.GetMyGroups",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerContext.MyGroupIDs",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.GroupRoutePeople.CountByGroupIDs",
+      "binding_digest": "04a98a9500a193d2e4258f0a151bf69e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http.GroupPeople.CountByGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.GroupRoutePeople.CountByGroupIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.GroupRoutePeople.FindPerson",
+      "binding_digest": "9aa67b6f0c45acd1461d0de27f4b9ab6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http.GroupPeople.FindPerson",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.GroupRoutePeople.FindPerson",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.GroupRoutePeople.GroupStudents",
+      "binding_digest": "f18b0c4b420d94e74af554e9cb96b604",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http.GroupPeople.GroupStudents",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.GroupRoutePeople.GroupStudents",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.GroupRoutePeople.ListPersonsByID",
+      "binding_digest": "0797e7110b04accd0ec6fe4a94609e16",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http.GroupPeople.ListPersonsByID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.GroupRoutePeople.ListPersonsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.educationRoomDirectory.ListRoomsByID",
+      "binding_digest": "adc96c6f4571f296a4707318fa2d57c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.RoomDirectory.ListRoomsByID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.educationRoomDirectory.ListRoomsByID",
+      "binding_digest": "e0f133cd5254d14ebee18d8d933f1a8f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.RoomDirectory.ListRoomsByID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.educationRoomDirectory.ListRoomsByID",
+      "binding_digest": "d3eab837414bc6ecb2d18fb797814fca",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.RoomDirectory.ListRoomsByID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListGroupSubstitutions",
+      "binding_digest": "87c8ea7e10cad232a78f272825e5d2d2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/staffgroups.GroupSubstitutions.ListGroupSubstitutions",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListGroupSubstitutions",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListClassAssignments",
+      "binding_digest": "bf8de15ca53ee13b85e09a7123d52d50",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/staffgroups.TeachingAssignments.ListClassAssignments",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListClassAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListClassAssignments",
+      "binding_digest": "7dfa368fdfbed0fef0aca050609d0cdf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/staffgroups.TeachingAssignments.ListClassAssignments",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListClassAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListClassAssignments",
+      "binding_digest": "7dfa368fdfbed0fef0aca050609d0cdf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/staffgroups.TeachingAssignments.ListClassAssignments",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListClassAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListGroupAssignments",
+      "binding_digest": "7d2740d22f576225dc77e5cd95ff6347",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/staffgroups.TeachingAssignments.ListGroupAssignments",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListGroupAssignments",
+      "binding_digest": "a6b9d83906ac4c985520da3cd0e15b28",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/staffgroups.TeachingAssignments.ListGroupAssignments",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListGroupAssignments",
+      "binding_digest": "a6b9d83906ac4c985520da3cd0e15b28",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/staffgroups.TeachingAssignments.ListGroupAssignments",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CreateGroupSupervisor",
+      "binding_digest": "c77cebe353aca55adfd3f762c0e830fa",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ActiveSupervisorCreator.CreateGroupSupervisor",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CreateGroupSupervisor",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.SubstitutionActorResolver.ResolveActor",
+      "binding_digest": "e65b0087ff507da94797f36984a9d113",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ActorResolver.ResolveActor",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerIdentities.StaffID",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.SubstitutionActorResolver.ResolveActor",
+      "binding_digest": "ed43acfd8e1561a5e4106a106c96e25b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ActorResolver.ResolveActor",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerIdentities.TeacherID",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationCaregivers.FindActiveCaregiverByAccountID",
+      "binding_digest": "7f1d4ca45b159b92a84b657c63f765f1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.CaregiverDirectory.FindActiveCaregiverByAccountID",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.ActiveCaregiver.FullName",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationCaregivers.FindActiveCaregiverByAccountID",
+      "binding_digest": "05abe55961ca7ccf9aae1ae30017b1f3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.CaregiverDirectory.FindActiveCaregiverByAccountID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.FindActiveCaregiverByAccountID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationCaregivers.FindActiveCaregiverByAccountID",
+      "binding_digest": "e9c67d73a7d6093dde4f4ac877deeba4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.CaregiverDirectory.FindActiveCaregiverByAccountID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ActiveCaregivers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationCaregivers.FindActiveCaregiverByAccountID",
+      "binding_digest": "7d37730600e56b0f68893de6a1a0378e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.CaregiverDirectory.FindActiveCaregiverByAccountID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.CrossSchoolActiveCaregivers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationCaregivers.FindActiveCaregiverByAccountID",
+      "binding_digest": "404c6ee953331328b2471c7c113eb0fa",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.CaregiverDirectory.FindActiveCaregiverByAccountID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.SortActiveCaregivers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationCaregivers.FindActiveCaregiverByAccountID",
+      "binding_digest": "045968186f1294ac9424b567c029a4be",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.CaregiverDirectory.FindActiveCaregiverByAccountID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationCaregivers.FindActiveCaregiverByAccountID",
+      "binding_digest": "78adcf1824655584b0557ed43c2b4898",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.CaregiverDirectory.FindActiveCaregiverByAccountID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantID.Int64",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationCaregivers.ListActiveCaregivers",
+      "binding_digest": "55d06e22b72a6e26368075f8bd147f13",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.CaregiverDirectory.ListActiveCaregivers",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.ActiveCaregiver.FullName",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationCaregivers.ListActiveCaregivers",
+      "binding_digest": "4204b2d5205a218dac34a970158944fd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.CaregiverDirectory.ListActiveCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.ListActiveCaregivers",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationCaregivers.ListActiveCaregivers",
+      "binding_digest": "9b9e11753461fd609c19b520910d4bd6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.CaregiverDirectory.ListActiveCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ActiveCaregivers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationCaregivers.ListActiveCaregivers",
+      "binding_digest": "ea29a58032985ffae8ae6051ea623a38",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.CaregiverDirectory.ListActiveCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.CrossSchoolActiveCaregivers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationCaregivers.ListActiveCaregivers",
+      "binding_digest": "ce49fb6911d43e8d23f2bcfadbeda424",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.CaregiverDirectory.ListActiveCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.SortActiveCaregivers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationCaregivers.ListActiveCaregivers",
+      "binding_digest": "df69a5b7d46bce7870a3ee37e2847dc2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.CaregiverDirectory.ListActiveCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationCaregivers.ListActiveCaregivers",
+      "binding_digest": "00b24a3f8ffd90479da6780e68f32ab4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.CaregiverDirectory.ListActiveCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantID.Int64",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.EducationClassAssignmentAudit.RecordSchoolClassChange",
+      "binding_digest": "0f3f1edc9b0e99dddc02f2a61135cde8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ClassAssignmentAudit.RecordSchoolClassChange",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.StaffMasterDataChangeCreator.Create",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ClassTeacherRepository.AssignSchoolClass",
+      "binding_digest": "56ca16fc3667049b0860d02b6abd2aab",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ClassTeacherStore.AssignSchoolClass",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.CreateClassAssignment",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ClassTeacherRepository.AssignSchoolClass",
+      "binding_digest": "59d27b8c74dc365f45297b8bf5c6f686",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ClassTeacherStore.AssignSchoolClass",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.CreateClassAssignment",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ClassTeacherRepository.AssignSchoolClass",
+      "binding_digest": "b15b1af03f70a18d4d654906085cc627",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ClassTeacherStore.AssignSchoolClass",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ValidateClassAssignment",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ClassTeacherRepository.RemoveSchoolClass",
+      "binding_digest": "f1dfaed2b4f1ea1f2a723e3e45bc30c2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ClassTeacherStore.RemoveSchoolClass",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.DeleteClassAssignment",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ClassTeacherRepository.RemoveSchoolClass",
+      "binding_digest": "929a01be9a803985ce60c11e8e7bf3d9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ClassTeacherStore.RemoveSchoolClass",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.DeleteClassAssignment",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ClassTeacherRepository.RenameSchoolClass",
+      "binding_digest": "b126cbb3a9a55ec3eb7ac349be3a6dbb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ClassTeacherStore.RenameSchoolClass",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.UpdateClassAssignment",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ClassTeacherRepository.RenameSchoolClass",
+      "binding_digest": "af96573b50ce2d029549d000f2062b3e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ClassTeacherStore.RenameSchoolClass",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.UpdateClassAssignment",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ClassTeacherRepository.RenameSchoolClass",
+      "binding_digest": "ddd337cd19fa528a948704e7afed5d89",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ClassTeacherStore.RenameSchoolClass",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ValidateClassAssignment",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ClassTeacherRepository.SchoolClassAssignmentsOfStaff",
+      "binding_digest": "d868d8684d8e850a67f1591c89e0e0c0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ClassTeacherStore.SchoolClassAssignmentsOfStaff",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListClassAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ClassTeacherRepository.SchoolClassAssignmentsOfStaff",
+      "binding_digest": "455ebde54d5b9c0bb550537d2c61ff8f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ClassTeacherStore.SchoolClassAssignmentsOfStaff",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListClassAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "binding_digest": "3ab25be59259741051b65d91c97995ba",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.ExternalCaregiverRecord.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "binding_digest": "05ae1ae67ddbcb64760e0874957bcf3d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "binding_digest": "0e82b5d8997dc37269c658f546134108",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListPendingSchoolInvitations",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "binding_digest": "24de27543b0d9c0513dc6268992ef9d1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.PendingInvitationsByPerson",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "binding_digest": "93f2e1b2417ddd2df32e20415b98340f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.ListPendingSchoolInvitations",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "binding_digest": "9dad041d0c53af3a0f419d7165d38ca0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.ExternalCaregiverRecordRepository.ActiveExternalCaregiverRecords",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "binding_digest": "82bc4ccfdac16711482f7954dfac6eed",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "binding_digest": "a968cc7ad16a06d4135caac6857d14c1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListAllWithPerson",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "binding_digest": "e73c4c51d790a07a3948d3bf9d588af1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ActiveExternalCaregivers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "binding_digest": "896d300e11062ec01882e22c5af02e6a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListExternalCaregiverRecords",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "binding_digest": "2694de89746a8201affed98a63af92db",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "binding_digest": "c6bd13b326cf18aa470aa3886dfaf436",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ExternalCaregiver",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "binding_digest": "41fc00409184a68068d3d8843210af19",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListExternalCaregiverRecords",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationExternalCaregivers.ListExternalCaregivers",
+      "binding_digest": "e0d7aaef1bd7b5b1da85523f2ac3c87a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.ExternalCaregiverDirectory.ListExternalCaregivers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.EducationHandovers.Create",
+      "binding_digest": "0097af3f54a6d55822bc9f15d71cd37e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupHandoverStore.Create",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.CreateGroupSubstitution",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.EducationHandovers.Create",
+      "binding_digest": "f8597342aadd09270f49158d32f3c0c5",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupHandoverStore.Create",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.CreateGroupSubstitution",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.EducationHandovers.Delete",
+      "binding_digest": "6cf5e5e809c32be2925e84a3e7eda36a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupHandoverStore.Delete",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.DeleteGroupSubstitution",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.EducationHandovers.Delete",
+      "binding_digest": "3b3e95c3a47bc59377e581b54df524ef",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupHandoverStore.Delete",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.DeleteGroupSubstitution",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.EducationHandovers.FindByID",
+      "binding_digest": "9c8bb044ba436a5d883c5a12a434ebee",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupHandoverStore.FindByID",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/substitutions.groupSubstitutionRepository.FindByID",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.EducationHandovers.FindByIDForUpdate",
+      "binding_digest": "be2e9a328286b7b570aa6947724e2c7a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupHandoverStore.FindByIDForUpdate",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/substitutions.groupSubstitutionRepository.FindByIDForUpdate",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.EducationHandovers.ListHandovers",
+      "binding_digest": "1bf2ede45987e3e67d33ba9d35c7634a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupHandoverStore.ListHandovers",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/substitutions.groupSubstitutionRepository.ListWithFilter",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.EducationHandovers.ListHandoversWithRelations",
+      "binding_digest": "cebe815a671d79e52e8c9396155fc8a4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupHandoverStore.ListHandoversWithRelations",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/substitutions.groupSubstitutionRepository.ListWithFilter",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.EducationHandovers.ListHandoversWithRelations",
+      "binding_digest": "4a51657e92ffbf3f3936514aa93ff800",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupHandoverStore.ListHandoversWithRelations",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.EducationHandovers.ListHandoversWithRelations",
+      "binding_digest": "f03f20fb843c22d43c0cfd2ee1f83e51",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupHandoverStore.ListHandoversWithRelations",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.EducationHandovers.ListHandoversWithRelations",
+      "binding_digest": "22daaf69d0eb3cdc4c65c0a76ab9715c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupHandoverStore.ListHandoversWithRelations",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "interface{QueueActiveSupervisionChanged(context.Context, int64, string); QueueGroupAccessChanged(context.Context, string)}.QueueActiveSupervisionChanged",
+      "binding_digest": "a338c424c6af0d0c54e0b57a04d6d92b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupPublisher.QueueActiveSupervisionChanged",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/realtimeevents.GroupEvents.QueueActiveSupervisionChanged",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "interface{QueueActiveSupervisionChanged(context.Context, int64, string); QueueGroupAccessChanged(context.Context, string)}.QueueGroupAccessChanged",
+      "binding_digest": "05f7ef5ec116edc829b8cdd1b2192b00",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupPublisher.QueueGroupAccessChanged",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/realtimeevents.GroupEvents.QueueGroupAccessChanged",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.FindByTeacher",
+      "binding_digest": "8453f508deb9d74922f2ee430990edaf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupRecords.FindByTeacher",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.FindByTeacher",
+      "binding_digest": "4d60a2cae08aa693fddb42c25202b768",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupRecords.FindByTeacher",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.FindByTeacher",
+      "binding_digest": "8453f508deb9d74922f2ee430990edaf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupStore.FindByTeacher",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationGroupRows.FindByTeacher",
+      "binding_digest": "4d60a2cae08aa693fddb42c25202b768",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupStore.FindByTeacher",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GroupTeacherRepository.AssignTeacher",
+      "binding_digest": "b31d157ed9dc18dd6b7ef32baf524521",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupTeacherStore.AssignTeacher",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.CreateGroupAssignment",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GroupTeacherRepository.AssignTeacher",
+      "binding_digest": "c58e7effd1170800cf7b6f3bea8849de",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupTeacherStore.AssignTeacher",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.CreateGroupAssignment",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GroupTeacherRepository.AssignTeacher",
+      "binding_digest": "e9a030f8b016ada930af19e0ae624109",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupTeacherStore.AssignTeacher",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ValidateGroupAssignment",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GroupTeacherRepository.RemoveTeacherAssignment",
+      "binding_digest": "ccf6802fb3ce12e23dd2fb1766dafbe2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupTeacherStore.RemoveTeacherAssignment",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.DeleteGroupAssignment",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GroupTeacherRepository.RemoveTeacherAssignment",
+      "binding_digest": "7094aec618cfa88747b8f5ba9dde96e3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupTeacherStore.RemoveTeacherAssignment",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.DeleteGroupAssignment",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GroupTeacherRepository.TeacherAssignmentIDs",
+      "binding_digest": "453b1ee98ba3da405d86d18743a97381",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupTeacherStore.TeacherAssignmentIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GroupTeacherRepository.TeacherAssignmentIDs",
+      "binding_digest": "c587a5173cc3a5e1ea0bbd8905698e0e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupTeacherStore.TeacherAssignmentIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GroupTeacherRepository.TeacherIDsByGroup",
+      "binding_digest": "3a9ab4d3cd58730dbdf42cdf910904d6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupTeacherStore.TeacherIDsByGroup",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GroupTeacherRepository.TeacherIDsByGroup",
+      "binding_digest": "b939686fdf6f9d7508b331a57cf968ff",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.GroupTeacherStore.TeacherIDsByGroup",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListGroupAssignments",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.GroupSubstitutions.FindGroupHandovers",
+      "binding_digest": "12985fad77bd4d89a872126ee422d235",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.HandoverReader.FindGroupHandovers",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/substitutions.groupSubstitutionRepository.FindByGroup",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ResyncOfferingSourcedTemplates",
+      "binding_digest": "ad8316d39a9003c4d000edd7d1bf420e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.OfferingSourceResyncer.ResyncOfferingSourcedTemplates",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ResyncOfferingSourcedTemplates",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.educationPersonQuery.ListPersonsByID",
+      "binding_digest": "92f4144a0c2efc63a0d3ecf49224633f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.PersonQuery.ListPersonsByID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListPersonsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.educationPersonQuery.ListPersonsByID",
+      "binding_digest": "09d1bf83382b0be37da3f1ac75c6785c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.PersonQuery.ListPersonsByID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListPersonsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.educationPersonQuery.ListPersonsByID",
+      "binding_digest": "f940442657c7224ffd5d707a66678315",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.PersonQuery.ListPersonsByID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Query.ListPersonsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationRooms.FindRoom",
+      "binding_digest": "d4d4412e5b11557e30856125428ab697",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.RoomDirectory.FindRoom",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationRooms.FindRoom",
+      "binding_digest": "c86b7c3dac11a1809a30b37cf934d4e4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.RoomDirectory.FindRoom",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationRooms.FindRoom",
+      "binding_digest": "53c968d26c1a1d799c0e82731d4b948b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.RoomDirectory.FindRoom",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationStaff.StaffExists",
+      "binding_digest": "0a39b2192895fc73a27a47dc5dd42e62",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffDirectory.StaffExists",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationStaff.StaffExists",
+      "binding_digest": "6067d88c5b6704252f45106799a6c767",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffDirectory.StaffExists",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.IsRepositoryNoRows",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationStaff.StaffExists",
+      "binding_digest": "e9c2b2ddd8a1eedec32a0772801e41bb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffDirectory.StaffExists",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationStaff.StaffExists",
+      "binding_digest": "722445cc7807465352dcab21580770c4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffDirectory.StaffExists",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationStaff.StaffExists",
+      "binding_digest": "28eb662827b3acaed5c5ed75566cf577",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffDirectory.StaffExists",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "interface{github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffDirectory; github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffLockStore}.StaffExists",
+      "binding_digest": "0a39b2192895fc73a27a47dc5dd42e62",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffDirectory.StaffExists",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "interface{github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffDirectory; github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffLockStore}.StaffExists",
+      "binding_digest": "6067d88c5b6704252f45106799a6c767",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffDirectory.StaffExists",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.IsRepositoryNoRows",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "interface{github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffDirectory; github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffLockStore}.StaffExists",
+      "binding_digest": "e9c2b2ddd8a1eedec32a0772801e41bb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffDirectory.StaffExists",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "interface{github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffDirectory; github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffLockStore}.StaffExists",
+      "binding_digest": "722445cc7807465352dcab21580770c4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffDirectory.StaffExists",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "interface{github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffDirectory; github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffLockStore}.StaffExists",
+      "binding_digest": "28eb662827b3acaed5c5ed75566cf577",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffDirectory.StaffExists",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationStaff.LockStaff",
+      "binding_digest": "d099e6556f613db872863b12ec6cff3e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffLockStore.LockStaff",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationStaff.LockStaff",
+      "binding_digest": "d64fd19e664ba49640d577b3d6cc40ba",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffLockStore.LockStaff",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindByIDForUpdate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationStaff.LockStaff",
+      "binding_digest": "880991ac941cda808b2d3614f387bbdc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffLockStore.LockStaff",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationStaff.LockStaff",
+      "binding_digest": "19a8b91a15ffd8c25f30dc8a9867f6d7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffLockStore.LockStaff",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "interface{github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffDirectory; github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffLockStore}.LockStaff",
+      "binding_digest": "d099e6556f613db872863b12ec6cff3e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffLockStore.LockStaff",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "interface{github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffDirectory; github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffLockStore}.LockStaff",
+      "binding_digest": "d64fd19e664ba49640d577b3d6cc40ba",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffLockStore.LockStaff",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindByIDForUpdate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "interface{github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffDirectory; github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffLockStore}.LockStaff",
+      "binding_digest": "880991ac941cda808b2d3614f387bbdc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffLockStore.LockStaff",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "interface{github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffDirectory; github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.StaffLockStore}.LockStaff",
+      "binding_digest": "19a8b91a15ffd8c25f30dc8a9867f6d7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StaffLockStore.LockStaff",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.CountByGroupIDs",
+      "binding_digest": "497f638b236f414296dbf9f82d923722",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.StudentCounter.CountByGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.CountByGroupIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.EducationSubstitutionAudit.RecordSubstitutionChange",
+      "binding_digest": "6f8f89851e04ba81d032c62d96874d29",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.SubstitutionAudit.RecordSubstitutionChange",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.SubstitutionChangeCreator.Create",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "binding_digest": "0fe09244fcbefae3accbd48a40c0248a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.SupervisionRelease.ReleaseSupervision",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.FindTeacher",
+      "binding_digest": "b74d154cc298e7746102366237281f07",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.FindTeacher",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Teacher.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.FindTeacher",
+      "binding_digest": "41eac5f6c0ad0310e0dd1b2a474d8b2c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.FindTeacher",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.FindByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.FindTeacher",
+      "binding_digest": "9af1a7a3615a682fb97fabbd3d27d10d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.FindTeacher",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindTeacher",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.FindTeacher",
+      "binding_digest": "62cade9cc08ec3b0d20056571b2accf4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.FindTeacher",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindTeacher",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.ListTeachers",
+      "binding_digest": "d59c0d88822b3803c90ee2bc99cba499",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.ListTeachers",
+      "binding_digest": "3e8c7ddca8b7a92ecc337b49f7455e1a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Teacher.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.ListTeachers",
+      "binding_digest": "80bc7cda638671f527b07611c6072930",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.ListTeachers",
+      "binding_digest": "c718ebc321f9216a939d2c9f03936ffd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.TeacherRepository.FindWithStaffAndPersonByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.ListTeachers",
+      "binding_digest": "0806754e59a989ba123f12a5d0d9bacc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.ListTeachers",
+      "binding_digest": "1e287429daf0944db54801a4ffdf5653",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListTeachers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.ListTeachers",
+      "binding_digest": "37b216dd98221f643c064fcdf1b444db",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.ListTeachers",
+      "binding_digest": "b8473c8c9566ca7d4f23ba04c838cea0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.ListTeachers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListTeachers",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CheckActivityConflict",
+      "binding_digest": "20b624f986d66308d5280c5f44b1a3fd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckActivityConflict",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CheckActivityConflict",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckActivityConflict",
+      "binding_digest": "b95660fc722000db06a870a2a3e99e48",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckActivityConflict",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckActivityConflict",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CheckInStudent",
+      "binding_digest": "23e437f9a50a708be2417df3f8a1b0c7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckInStudent",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CheckInStudent",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckInStudent",
+      "binding_digest": "f3fe15b2acf04fc46fad33e67210f7cd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckInStudent",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckInStudent",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CheckOutStudent",
+      "binding_digest": "1f8db72648aae443629f5fa89b8e313c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudent",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CheckOutStudent",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudent",
+      "binding_digest": "3334038d29380838f132dbed06ce36a4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudent",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudent",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CheckOutStudentWithNote",
+      "binding_digest": "50c564d2d99316c38c930b0b49e2eb7f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudentWithNote",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CheckOutStudentWithNote",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudentWithNote",
+      "binding_digest": "3c43905b0662eff8f2cbffe940c8d3d1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudentWithNote",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudentWithNote",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CleanupAbandonedSessions",
+      "binding_digest": "5644329b94e8250661e50b7a9adc794f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CleanupAbandonedSessions",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CleanupAbandonedSessions",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CleanupAbandonedSessions",
+      "binding_digest": "93b6538e1b519c02197879bf07dfb566",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CleanupAbandonedSessions",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CleanupAbandonedSessions",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ConfirmDailyCheckout",
+      "binding_digest": "4a23a708f3dfa8685ec7d5a2ca7701c4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ConfirmDailyCheckout",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ConfirmDailyCheckout",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ConfirmDailyCheckout",
+      "binding_digest": "d658ca08f31f6b00608948f076c115cc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ConfirmDailyCheckout",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ConfirmDailyCheckout",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CountActiveVisitsByActiveGroupID",
+      "binding_digest": "1b6fc7b46700b75bc7aa3abb1dade321",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CountActiveVisitsByActiveGroupID",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CountActiveVisitsByActiveGroupID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CountActiveVisitsByActiveGroupID",
+      "binding_digest": "06cf6f79fa42d9effeceeaf62f1552e0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CountActiveVisitsByActiveGroupID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CountActiveVisitsByActiveGroupID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CreateActiveGroup",
+      "binding_digest": "8315f2fe2766b8e874c4a6c0222298ee",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CreateActiveGroup",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CreateActiveGroup",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CreateActiveGroup",
+      "binding_digest": "08efefe227173258ff7e45e2b7fee791",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CreateActiveGroup",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CreateActiveGroup",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CreateGroupSupervisor",
+      "binding_digest": "dc209a82bf1c06cb2b347a8bca6374fb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CreateGroupSupervisor",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CreateGroupSupervisor",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CreateGroupSupervisor",
+      "binding_digest": "c77cebe353aca55adfd3f762c0e830fa",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CreateGroupSupervisor",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CreateGroupSupervisor",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CreateVisit",
+      "binding_digest": "2c6f83b95fca6109f76e3d424a02c94e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CreateVisit",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CreateVisit",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CreateVisit",
+      "binding_digest": "636f7eb76639d3fa37a89f714fefb3e9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CreateVisit",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CreateVisit",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.DeleteActiveGroup",
+      "binding_digest": "358aefff184b5c58a4c88a8a854ec38c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.DeleteActiveGroup",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.DeleteActiveGroup",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.DeleteActiveGroup",
+      "binding_digest": "91e3c5d34ed5c4b4d9e7afad9999facb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.DeleteActiveGroup",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.DeleteActiveGroup",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.EndActiveGroupSession",
+      "binding_digest": "44def92d2e02cb8cad7130cb25b9f1c2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndActiveGroupSession",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.EndActiveGroupSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndActiveGroupSession",
+      "binding_digest": "aa449b60df4783a0178c491a3001abf5",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndActiveGroupSession",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndActiveGroupSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.EndActivitySession",
+      "binding_digest": "bd9282af60e26f5ef75d8e8496107071",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndActivitySession",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.EndActivitySession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndActivitySession",
+      "binding_digest": "0801e72d346f5631ef2a8ef9c14c447e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndActivitySession",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndActivitySession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.EndDailySessions",
+      "binding_digest": "c8d30ca9111c9f7e0f8473b773d6784e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndDailySessions",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.EndDailySessions",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndDailySessions",
+      "binding_digest": "f983490441f9c5c656b9ac8cb835c57c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndDailySessions",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndDailySessions",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.EndVisit",
+      "binding_digest": "8ba73a4f5c84d2d27ba63dc35d9ad008",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndVisit",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.EndVisit",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndVisit",
+      "binding_digest": "03f2b7859df636ff6afec3e17371a3e9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndVisit",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EndVisit",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.EnsureOpenRoomSession",
+      "binding_digest": "6ff4afbf5a5e71cb5d6014fe627b705e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EnsureOpenRoomSession",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.EnsureOpenRoomSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EnsureOpenRoomSession",
+      "binding_digest": "f4cf6ad21ee19ee13ab7c19f4241f2cd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EnsureOpenRoomSession",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.EnsureOpenRoomSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.FindDeviceActiveGroupInRoom",
+      "binding_digest": "1ffee56567f08c377cf1800bfbb30576",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.FindDeviceActiveGroupInRoom",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.FindDeviceActiveGroupInRoom",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.FindDeviceActiveGroupInRoom",
+      "binding_digest": "890f87a397195580823f6be8fa13300d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.FindDeviceActiveGroupInRoom",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.FindDeviceActiveGroupInRoom",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.FindVisitsByStudentID",
+      "binding_digest": "b278d9f002263d4c8914ff1594890564",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.FindVisitsByStudentID",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.FindVisitsByStudentID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.FindVisitsByStudentID",
+      "binding_digest": "89bea2d1560b1b95cd2e5845aa39b507",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.FindVisitsByStudentID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.FindVisitsByStudentID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ForceStartActivitySessionWithSupervisors",
+      "binding_digest": "71fe17f1887f9c3f9c2f84eac7f35983",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ForceStartActivitySessionWithSupervisors",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ForceStartActivitySessionWithSupervisors",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ForceStartActivitySessionWithSupervisors",
+      "binding_digest": "0cc286483557c9f207d352d88590a7f6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ForceStartActivitySessionWithSupervisors",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ForceStartActivitySessionWithSupervisors",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetActiveGroup",
+      "binding_digest": "2bbcf7edec2f48849f305a09f4a7de88",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroup",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetActiveGroup",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroup",
+      "binding_digest": "e43bd838d6a3f89c63edcab899c24ee5",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroup",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroup",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetActiveGroupVisitsWithDisplay",
+      "binding_digest": "3d4d65ff2488953f1440608d4cd5d3ad",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroupVisitsWithDisplay",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetActiveGroupVisitsWithDisplay",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroupVisitsWithDisplay",
+      "binding_digest": "5a3df8f44e9b630ba36b987fc126e0b8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroupVisitsWithDisplay",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroupVisitsWithDisplay",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetActiveGroupVisitsWithDisplayForGroups",
+      "binding_digest": "470a3f46f67a8639080a732346480519",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroupVisitsWithDisplayForGroups",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetActiveGroupVisitsWithDisplayForGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroupVisitsWithDisplayForGroups",
+      "binding_digest": "f0b11cf9d1a48c43d6f3f53e4b2997c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroupVisitsWithDisplayForGroups",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroupVisitsWithDisplayForGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetActiveGroupsByIDs",
+      "binding_digest": "a9f6470ababa988cb7b2ff1144cff991",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroupsByIDs",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetActiveGroupsByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroupsByIDs",
+      "binding_digest": "b9490363de93c0d597c2d873535223dc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroupsByIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetActiveGroupsByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetDeviceCurrentSession",
+      "binding_digest": "addfff9bb5f8e5dee04c2fa3f4cabf46",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetDeviceCurrentSession",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetDeviceCurrentSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetDeviceCurrentSession",
+      "binding_digest": "a2da4bc68f9f9e9f2cc489d7f3853e11",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetDeviceCurrentSession",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetDeviceCurrentSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetPresenceMode",
+      "binding_digest": "e1f286255f1a3ce57f65df159024d93e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetPresenceMode",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetPresenceMode",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetPresenceMode",
+      "binding_digest": "76264532665fead94e40275000f900ed",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetPresenceMode",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetPresenceMode",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetRoomsByIDs",
+      "binding_digest": "a1710f4868cc00b904d0cc8c91693dfb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetRoomsByIDs",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetRoomsByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetRoomsByIDs",
+      "binding_digest": "a67fbcf8b32d2f898298a79f9d0d9518",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetRoomsByIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetRoomsByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetSessionTimeoutInfo",
+      "binding_digest": "c517fd7ee1ccae655904c7438d70a5b3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetSessionTimeoutInfo",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetSessionTimeoutInfo",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetSessionTimeoutInfo",
+      "binding_digest": "c7ab76a7d03403f757d7fadc7db1cdc3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetSessionTimeoutInfo",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetSessionTimeoutInfo",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetStudentAttendanceStatus",
+      "binding_digest": "918fecb82baa9beb79e4871ca09f17b9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentAttendanceStatus",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetStudentAttendanceStatus",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentAttendanceStatus",
+      "binding_digest": "ceaad5bbea28143186f92ccdae2e5182",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentAttendanceStatus",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentAttendanceStatus",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetStudentCurrentVisit",
+      "binding_digest": "6c691a3355579c19b2a95a6195e0c22d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentCurrentVisit",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetStudentCurrentVisit",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentCurrentVisit",
+      "binding_digest": "9b997285d076150207612517ad0488f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentCurrentVisit",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentCurrentVisit",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetStudentCurrentVisitWithRoom",
+      "binding_digest": "ea13a0e766a4e311e205dd7435380cf0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentCurrentVisitWithRoom",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetStudentCurrentVisitWithRoom",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentCurrentVisitWithRoom",
+      "binding_digest": "7cbeee4045c7e7a579d02d96e1b960c0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentCurrentVisitWithRoom",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentCurrentVisitWithRoom",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetStudentsAttendanceStatuses",
+      "binding_digest": "7cc1c4b756772767f313b8ba66b3ec04",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentsAttendanceStatuses",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetStudentsAttendanceStatuses",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentsAttendanceStatuses",
+      "binding_digest": "57f55bddb308c1d6cf7c6ba00c775121",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentsAttendanceStatuses",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentsAttendanceStatuses",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetStudentsCurrentVisits",
+      "binding_digest": "b186f1c97bdd2f458310cc7136b1e59d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentsCurrentVisits",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetStudentsCurrentVisits",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentsCurrentVisits",
+      "binding_digest": "38bf69616813019cca1228fb59be455c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentsCurrentVisits",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetStudentsCurrentVisits",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetTrackingIndicators",
+      "binding_digest": "98ba66ed6fd47143b8701f9c5de1fc03",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetTrackingIndicators",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetTrackingIndicators",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetTrackingIndicators",
+      "binding_digest": "46b18a423dc80eacdb8d7bbc728d3902",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetTrackingIndicators",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetTrackingIndicators",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetUnclaimedActiveGroups",
+      "binding_digest": "c49173db655ac133ccd86459ad8c4f71",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetUnclaimedActiveGroups",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.GetUnclaimedActiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetUnclaimedActiveGroups",
+      "binding_digest": "48ec509124fe4ac509229c4a00a09768",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetUnclaimedActiveGroups",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.GetUnclaimedActiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.HasOpenAttendanceOn",
+      "binding_digest": "6b9527c6a2332bb165923c7efc4b13f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.HasOpenAttendanceOn",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.HasOpenAttendanceOn",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.HasOpenAttendanceOn",
+      "binding_digest": "70264844e30fd5b4659d331b6985f42e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.HasOpenAttendanceOn",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.HasOpenAttendanceOn",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ListOpenVisitStudentIDsByRoom",
+      "binding_digest": "883a6260095690eb80e4e18be8a7239f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListOpenVisitStudentIDsByRoom",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ListOpenVisitStudentIDsByRoom",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListOpenVisitStudentIDsByRoom",
+      "binding_digest": "37318569a71b0b9371bdccd188e4d4c2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListOpenVisitStudentIDsByRoom",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListOpenVisitStudentIDsByRoom",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ListStudentsInTransit",
+      "binding_digest": "91d025fef858412ebabe2129a44dd72c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListStudentsInTransit",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ListStudentsInTransit",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListStudentsInTransit",
+      "binding_digest": "b2d85e92b22be4f2960e5de1b859a3d9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListStudentsInTransit",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListStudentsInTransit",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ListStudentsPresentInRoom",
+      "binding_digest": "368f6b132afca8a7413a3d9fbb070b0e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListStudentsPresentInRoom",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ListStudentsPresentInRoom",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListStudentsPresentInRoom",
+      "binding_digest": "f38a4e9ea9271e128415c48b3ca428f3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListStudentsPresentInRoom",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListStudentsPresentInRoom",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ListStudentsPresentToday",
+      "binding_digest": "dba2811ee1891f817148a819ce740cae",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListStudentsPresentToday",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ListStudentsPresentToday",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListStudentsPresentToday",
+      "binding_digest": "52e51b76cf63e9f00859dccb09c1cda5",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListStudentsPresentToday",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ListStudentsPresentToday",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.LockStudent",
+      "binding_digest": "2e3fc6fe23c5c8b952846f6d38e774b1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.LockStudent",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.LockStudent",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.LockStudent",
+      "binding_digest": "7fd63902bd4197db8df53dc8a7c5bde4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.LockStudent",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.LockStudent",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.MoveStudentsToActiveGroupAuthorized",
+      "binding_digest": "53e81a2187d3c5b69395f6a57b1931c4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.MoveStudentsToActiveGroupAuthorized",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.MoveStudentsToActiveGroupAuthorized",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.MoveStudentsToActiveGroupAuthorized",
+      "binding_digest": "6708fca5b830d59f34172d29dd7f2d23",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.MoveStudentsToActiveGroupAuthorized",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.MoveStudentsToActiveGroupAuthorized",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.MoveStudentsToOpenRoomSessionAuthorized",
+      "binding_digest": "da1d553e768c7239609cf51ad21fe5f0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.MoveStudentsToOpenRoomSessionAuthorized",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.MoveStudentsToOpenRoomSessionAuthorized",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.MoveStudentsToOpenRoomSessionAuthorized",
+      "binding_digest": "34253705f22ae783cb4881a198d0870b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.MoveStudentsToOpenRoomSessionAuthorized",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.MoveStudentsToOpenRoomSessionAuthorized",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.PrepareOpenRoomMove",
+      "binding_digest": "6e9cfc3fba77c5c0fbb7d1b979c6ab72",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.PrepareOpenRoomMove",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.PrepareOpenRoomMove",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.PrepareOpenRoomMove",
+      "binding_digest": "39361fbe31a9bd7f7f955505bd1e43e1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.PrepareOpenRoomMove",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.PrepareOpenRoomMove",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ProcessSchoolCheckinBatch",
+      "binding_digest": "4d30ff8e5591e804a884662ff09ba956",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSchoolCheckinBatch",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ProcessSchoolCheckinBatch",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSchoolCheckinBatch",
+      "binding_digest": "7093832f806db675284b0de356c8bbc6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSchoolCheckinBatch",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSchoolCheckinBatch",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ProcessSessionTimeout",
+      "binding_digest": "014cf390f0235ae4956808ca8f19a189",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSessionTimeout",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ProcessSessionTimeout",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSessionTimeout",
+      "binding_digest": "ff55bae4774a7e0a2b46f5da4280389d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSessionTimeout",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSessionTimeout",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ReleaseSupervision",
+      "binding_digest": "a0b5a36fca9dbb17ddac7d83196a773b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ReleaseSupervision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "binding_digest": "0fe09244fcbefae3accbd48a40c0248a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ResolveSchulhofRoomColor",
+      "binding_digest": "efff63c399e8dcc2466fafb4cff0299d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ResolveSchulhofRoomColor",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ResolveSchulhofRoomColor",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ResolveSchulhofRoomColor",
+      "binding_digest": "a74f8cdd495dae317fb576fa28cb5ed4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ResolveSchulhofRoomColor",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ResolveSchulhofRoomColor",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.StartActivitySessionWithSupervisors",
+      "binding_digest": "7ada03a40591a421cdc357d72ca7b9f2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.StartActivitySessionWithSupervisors",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.StartActivitySessionWithSupervisors",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.StartActivitySessionWithSupervisors",
+      "binding_digest": "8c45d844ac20cb8f946d894518010e31",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.StartActivitySessionWithSupervisors",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.StartActivitySessionWithSupervisors",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ToggleStudentAttendance",
+      "binding_digest": "373cf6d0d37544d7f6fe86d854f7e01d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ToggleStudentAttendance",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ToggleStudentAttendance",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ToggleStudentAttendance",
+      "binding_digest": "e3b07b730e889cceb4b2fec64d081f8d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ToggleStudentAttendance",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ToggleStudentAttendance",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.UpdateActiveGroupSupervisors",
+      "binding_digest": "29cdf212f76e759b81657ee98bda2c04",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.UpdateActiveGroupSupervisors",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.UpdateActiveGroupSupervisors",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.UpdateActiveGroupSupervisors",
+      "binding_digest": "c790a09479d60a31daa22c3195a59819",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.UpdateActiveGroupSupervisors",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.UpdateActiveGroupSupervisors",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.UpdateSessionActivity",
+      "binding_digest": "8be26ca69dff37b527c6398b472f5023",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.UpdateSessionActivity",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.UpdateSessionActivity",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.UpdateSessionActivity",
+      "binding_digest": "4d8af381a216cade9c4a10cfe65f4572",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.UpdateSessionActivity",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.UpdateSessionActivity",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ValidateSessionTimeout",
+      "binding_digest": "c82fd7d58eee0ac99f3fda02cf3e3ba4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ValidateSessionTimeout",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ValidateSessionTimeout",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ValidateSessionTimeout",
+      "binding_digest": "dc112b20cb9ddf522265752edc9b929d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ValidateSessionTimeout",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ValidateSessionTimeout",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.CheckRoomConflict",
+      "binding_digest": "4a140e37ccaecc9ad97dbdbc1d484a27",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.CheckRoomConflict",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "binding_digest": "6f798088f06a540ee618df4c1e9a6d6c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "binding_digest": "1282822a778a6aea3a7aaae395003e2d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CheckRoomConflict",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CheckRoomConflict",
+      "binding_digest": "1282822a778a6aea3a7aaae395003e2d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CheckRoomConflict",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CheckRoomConflict",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.CreateSession",
+      "binding_digest": "9114491fa4ad2456b9ba42345b37fd70",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.CreateSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "binding_digest": "1f0af036f5b9b1d1a67dab9af7225473",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "binding_digest": "e5590d028128afc259092b39b0f91f72",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CreateSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CreateSession",
+      "binding_digest": "e5590d028128afc259092b39b0f91f72",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.CreateSession",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CreateSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveByDeviceIDWithNames",
+      "binding_digest": "fda14230df5fbb5ab011bf131fde58e1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveByDeviceIDWithNames",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "binding_digest": "aad5b7a17db43780571e0ff63b584926",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "binding_digest": "7cdada6d3b6391a578621fe51987a6e7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByDeviceIDWithNames",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByDeviceIDWithNames",
+      "binding_digest": "7cdada6d3b6391a578621fe51987a6e7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByDeviceIDWithNames",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByDeviceIDWithNames",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveByRoomID",
+      "binding_digest": "295b2a1321887aa0a4473435c0f93f3f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveByRoomID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "binding_digest": "8a0b1b378b2e91ea6b699b32f95f7f32",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "binding_digest": "7d8671da4d193bc87390eab01bb54c35",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByRoomID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByRoomID",
+      "binding_digest": "7d8671da4d193bc87390eab01bb54c35",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveByRoomID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByRoomID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveGroups",
+      "binding_digest": "31dbb23d7da48824f4d9502de5f96ccf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "binding_digest": "d2eed0c974d77b2ad9fa97b3f2119d22",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "binding_digest": "f1cd274a3fdfbd31a8f9c7977e9c5c01",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveGroups",
+      "binding_digest": "f1cd274a3fdfbd31a8f9c7977e9c5c01",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindActiveGroups",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByIDForUpdate",
+      "binding_digest": "927b328dc97244ef369efe72bd1e9f2d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByIDForUpdate",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "binding_digest": "1e65887d184ae2a492dfe2d5651bcfaa",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "binding_digest": "1cbfb3055e770dd803b05883d3191d4f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDForUpdate",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDForUpdate",
+      "binding_digest": "1cbfb3055e770dd803b05883d3191d4f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDForUpdate",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDForUpdate",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByIDs",
+      "binding_digest": "8ca889214374dc24fd74bbf4dac95a76",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "binding_digest": "8e78264b4e0a2d9784d5cf39517b005f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "binding_digest": "c4df231139b921abedda219b1a51d024",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDs",
+      "binding_digest": "c4df231139b921abedda219b1a51d024",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindByIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindSession",
+      "binding_digest": "fca2613738ed1bdf6bee4c75e0485f6b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "binding_digest": "b00a871ddc1c30fbf791fc70768cdcd4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "binding_digest": "aa903fbfb38288cf28faca9049fa3df1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindSession",
+      "binding_digest": "aa903fbfb38288cf28faca9049fa3df1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.FindSession",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindSession",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.GetOccupiedActivityGroupIDs",
+      "binding_digest": "ae5356d33aac6790a25213ba898be075",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.GetOccupiedActivityGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "binding_digest": "bc3c07d65671793aee43c841326e1a09",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "binding_digest": "a43b70fa64bb81444db20d34f8d9e8c4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.GetOccupiedActivityGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.GetOccupiedActivityGroupIDs",
+      "binding_digest": "a43b70fa64bb81444db20d34f8d9e8c4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.GetOccupiedActivityGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.GetOccupiedActivityGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.SessionRows",
+      "binding_digest": "763b4a8e24c91c0ff958985f38c5f40a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.SessionRows",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "binding_digest": "6cb789338f8a02929fa6755e69292379",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "binding_digest": "eaea039b330df3bddbe1dbf0a9f35fcc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.SessionRows",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.SessionRows",
+      "binding_digest": "eaea039b330df3bddbe1dbf0a9f35fcc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.SessionRows",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.SessionRows",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.UpdateLastActivity",
+      "binding_digest": "37537cbf19b99f7ad0f8249f97bacd92",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.UpdateLastActivity",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "binding_digest": "1d9239c1d98a1022faf4dbd19e50c50f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "binding_digest": "d1d79e40267083d305960dc1f5e9fa30",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.UpdateLastActivity",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.UpdateLastActivity",
+      "binding_digest": "d1d79e40267083d305960dc1f5e9fa30",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionRecords.UpdateLastActivity",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.UpdateLastActivity",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.CreateSupervision",
+      "binding_digest": "0f2e89388887ce213f282863b3463708",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.CreateSupervision",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.CreateSupervision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.CreateSupervision",
+      "binding_digest": "45e059ad1c3c501ac11ba7e610d29c1e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.CreateSupervision",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.CreateSupervision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.CreateSupervision",
+      "binding_digest": "54fd2112852ec964633fff47dc8348ba",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.CreateSupervision",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CreateSupervision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CreateSupervision",
+      "binding_digest": "54fd2112852ec964633fff47dc8348ba",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.CreateSupervision",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CreateSupervision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.CreateSupervision",
+      "binding_digest": "45e059ad1c3c501ac11ba7e610d29c1e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.CreateSupervision",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.CreateSupervision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.CreateSupervision",
+      "binding_digest": "54fd2112852ec964633fff47dc8348ba",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.CreateSupervision",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CreateSupervision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.EndAllActiveByStaffID",
+      "binding_digest": "00792d8c2524d816bd4e84950292b673",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndAllActiveByStaffID",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.EndAllActiveByStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndAllActiveByStaffID",
+      "binding_digest": "9e883181c556b086fa516d2cf3f83f95",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndAllActiveByStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndAllActiveByStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndAllActiveByStaffID",
+      "binding_digest": "c26790a3b2461793e6819e47e10c6081",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndAllActiveByStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.EndAllActiveByStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.EndAllActiveByStaffID",
+      "binding_digest": "c26790a3b2461793e6819e47e10c6081",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndAllActiveByStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.EndAllActiveByStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.EndAllActiveByStaffID",
+      "binding_digest": "9e883181c556b086fa516d2cf3f83f95",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndAllActiveByStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndAllActiveByStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.EndAllActiveByStaffID",
+      "binding_digest": "c26790a3b2461793e6819e47e10c6081",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndAllActiveByStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.EndAllActiveByStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.EndByActiveGroupAndStaffID",
+      "binding_digest": "ea1eb6f2f12a70dd7792b3b0d2ff0575",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndByActiveGroupAndStaffID",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.EndByActiveGroupAndStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndByActiveGroupAndStaffID",
+      "binding_digest": "b49c290e8b84007b2ee62652dadf4fbb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndByActiveGroupAndStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndByActiveGroupAndStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndByActiveGroupAndStaffID",
+      "binding_digest": "ddcb4e399e2d9568af03494ba5a47fbf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndByActiveGroupAndStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.EndByActiveGroupAndStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.EndByActiveGroupAndStaffID",
+      "binding_digest": "ddcb4e399e2d9568af03494ba5a47fbf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndByActiveGroupAndStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.EndByActiveGroupAndStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.EndByActiveGroupAndStaffID",
+      "binding_digest": "b49c290e8b84007b2ee62652dadf4fbb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndByActiveGroupAndStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndByActiveGroupAndStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.EndByActiveGroupAndStaffID",
+      "binding_digest": "ddcb4e399e2d9568af03494ba5a47fbf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.EndByActiveGroupAndStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.EndByActiveGroupAndStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveByStaffID",
+      "binding_digest": "d4e5c9b814f94f129891e48095b811c0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindActiveByStaffID",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindActiveByStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindActiveByStaffID",
+      "binding_digest": "89d0b5afad5a2a788ccf8a7e283a8fd2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindActiveByStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindActiveByStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindActiveByStaffID",
+      "binding_digest": "9d465fa09b5f75fbe450f89b471a702e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindActiveByStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByStaffID",
+      "binding_digest": "9d465fa09b5f75fbe450f89b471a702e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindActiveByStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.FindActiveByStaffID",
+      "binding_digest": "89d0b5afad5a2a788ccf8a7e283a8fd2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindActiveByStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindActiveByStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.FindActiveByStaffID",
+      "binding_digest": "9d465fa09b5f75fbe450f89b471a702e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindActiveByStaffID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindActiveByStaffID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByActiveGroupID",
+      "binding_digest": "3b2bf1b9d2458b2eac785fb7eee087e4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupID",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByActiveGroupID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupID",
+      "binding_digest": "33759226b6a3cf12207e0adf57f2cd0e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupID",
+      "binding_digest": "4200b043d3223555c0fc48833334f6ba",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByActiveGroupID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByActiveGroupID",
+      "binding_digest": "4200b043d3223555c0fc48833334f6ba",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByActiveGroupID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.FindByActiveGroupID",
+      "binding_digest": "33759226b6a3cf12207e0adf57f2cd0e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.FindByActiveGroupID",
+      "binding_digest": "4200b043d3223555c0fc48833334f6ba",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupID",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByActiveGroupID",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByActiveGroupIDs",
+      "binding_digest": "60c20b3085333454520b6d7e3554b220",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupIDs",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.FindByActiveGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupIDs",
+      "binding_digest": "e08d2f4b948aa2cc3d2acfa068104426",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupIDs",
+      "binding_digest": "12df61f7b8142adb1b26ed1d62478e8a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByActiveGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByActiveGroupIDs",
+      "binding_digest": "12df61f7b8142adb1b26ed1d62478e8a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByActiveGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.FindByActiveGroupIDs",
+      "binding_digest": "e08d2f4b948aa2cc3d2acfa068104426",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.FindByActiveGroupIDs",
+      "binding_digest": "12df61f7b8142adb1b26ed1d62478e8a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.FindByActiveGroupIDs",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.FindByActiveGroupIDs",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.GetStaffIDsWithSupervisionToday",
+      "binding_digest": "7ec3b48171a6ab82a20b45c578e45b27",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.GetStaffIDsWithSupervisionToday",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.GetStaffIDsWithSupervisionToday",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.GetStaffIDsWithSupervisionToday",
+      "binding_digest": "70d317149c0a95f14b87bceea8353179",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.GetStaffIDsWithSupervisionToday",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.GetStaffIDsWithSupervisionToday",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.GetStaffIDsWithSupervisionToday",
+      "binding_digest": "0cdcbfcc4dd8345d7fc981c742c09105",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.GetStaffIDsWithSupervisionToday",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.GetStaffIDsWithSupervisionToday",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.GetStaffIDsWithSupervisionToday",
+      "binding_digest": "0cdcbfcc4dd8345d7fc981c742c09105",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.GetStaffIDsWithSupervisionToday",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.GetStaffIDsWithSupervisionToday",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.GetStaffIDsWithSupervisionToday",
+      "binding_digest": "70d317149c0a95f14b87bceea8353179",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.GetStaffIDsWithSupervisionToday",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.GetStaffIDsWithSupervisionToday",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.GetStaffIDsWithSupervisionToday",
+      "binding_digest": "0cdcbfcc4dd8345d7fc981c742c09105",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.GetStaffIDsWithSupervisionToday",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.GetStaffIDsWithSupervisionToday",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.ListActiveSupervisedRooms",
+      "binding_digest": "c9f1716f66fda4f714b017f4ac4be2f1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisedRooms",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.ListActiveSupervisedRooms",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisedRooms",
+      "binding_digest": "dde32f231d0fbb533e1e20831c24538b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisedRooms",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisedRooms",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisedRooms",
+      "binding_digest": "2bb53c485c9e3c02666404f0b2368e2f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisedRooms",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.ListActiveSupervisedRooms",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.ListActiveSupervisedRooms",
+      "binding_digest": "2bb53c485c9e3c02666404f0b2368e2f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisedRooms",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.ListActiveSupervisedRooms",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.ListActiveSupervisedRooms",
+      "binding_digest": "dde32f231d0fbb533e1e20831c24538b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisedRooms",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisedRooms",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.ListActiveSupervisedRooms",
+      "binding_digest": "2bb53c485c9e3c02666404f0b2368e2f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisedRooms",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.ListActiveSupervisedRooms",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.ListActiveSupervisionBlockers",
+      "binding_digest": "9a5beb3c0dc41ddd566be76cd3560b4c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisionBlockers",
+      "source_owner": "school-structure",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.SessionRecords.ListActiveSupervisionBlockers",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisionBlockers",
+      "binding_digest": "70318ed7f3aa67be38e42d5621a8a1da",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisionBlockers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisionBlockers",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisionBlockers",
+      "binding_digest": "04f30ef58e37bae652a609295f917ba6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisionBlockers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.ListActiveSupervisionBlockers",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.ListActiveSupervisionBlockers",
+      "binding_digest": "04f30ef58e37bae652a609295f917ba6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisionBlockers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.ListActiveSupervisionBlockers",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.ListActiveSupervisionBlockers",
+      "binding_digest": "6cdbb99fc8ef6cb03beaede9e20a7340",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisionBlockers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisionBlockers",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupSupervisorRepository.ListActiveSupervisionBlockers",
+      "binding_digest": "c17a7a68f33fd15b08d262c7627b6584",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SupervisionRecords.ListActiveSupervisionBlockers",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.ListActiveSupervisionBlockers",
+      "target_owner": "student-presence"
+    }
+  ]
+}

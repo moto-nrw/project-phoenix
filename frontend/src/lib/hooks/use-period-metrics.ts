@@ -25,7 +25,7 @@ import {
   toDateKey,
   type PeriodTotals,
 } from "~/lib/staff-metrics-helpers";
-import { useSWRAuth } from "~/lib/swr";
+import { useLiveRefreshInterval, useSWRAuth } from "~/lib/swr";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import {
   OPEN_MONTH_REFRESH_MS,
@@ -84,6 +84,9 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   const today = useMemo(() => parseISODate(todayISO), [todayISO]);
   const year = Number(todayISO.slice(0, 4));
   const monthNumber = Number(todayISO.slice(5, 7));
+  // staff_time_tracking_changed invalidates every key here; the interval
+  // follows the growing Ist of an open block (#5017).
+  const openMonthRefreshMs = useLiveRefreshInterval(OPEN_MONTH_REFRESH_MS);
 
   // The month card reads the same aggregate as the Monatskarte, under the same
   // key. No config gating: the backend resolves the account anchor itself, and
@@ -103,7 +106,7 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
         : timeTrackingService.getMonthSummary(year, monthNumber),
     // The current month is always open: a running session grows Ist
     // server-side, so the card has to keep up.
-    { refreshInterval: OPEN_MONTH_REFRESH_MS },
+    { refreshInterval: openMonthRefreshMs },
   );
 
   const weekStart = useMemo(() => startOfWeek(today), [today]);
@@ -160,7 +163,7 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   // the Zeiterfassung table, which shows the same open session and benefits.
   const refreshInterval = (
     latest: readonly StaffHistorySession[] | undefined,
-  ) => (latest?.some((s) => !s.check_out_time) ? OPEN_MONTH_REFRESH_MS : 0);
+  ) => (latest?.some((s) => !s.check_out_time) ? openMonthRefreshMs : 0);
 
   // Same key and payload as the Zeiterfassung table (getHistoryDetails), so
   // SWR keeps one entry with one shape for both readers.
@@ -193,9 +196,7 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     () => timeTrackingService.getHistory(weekHistoryFromKey, weekToKey),
     {
       refreshInterval: (latest) =>
-        latest?.sessions.some((s) => !s.checkOutTime)
-          ? OPEN_MONTH_REFRESH_MS
-          : 0,
+        latest?.sessions.some((s) => !s.checkOutTime) ? openMonthRefreshMs : 0,
     },
   );
 

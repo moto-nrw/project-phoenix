@@ -15,8 +15,9 @@ type TraegerAccountStore interface {
 	// InsertTraegerInvitation stores the hash of invitation.Token and returns
 	// the invitation with the raw token.
 	InsertTraegerInvitation(ctx context.Context, invitation domain.TraegerInvitation) (domain.TraegerInvitation, domain.OperationStats, error)
-	// RevokeOpenTraegerInvitationsForEmail spends every open invitation of the
-	// address at the Träger.
+	// RevokeOpenTraegerInvitationsForEmail takes the address lock of the
+	// Träger until the caller's transaction ends, then spends every open
+	// invitation of the address there.
 	RevokeOpenTraegerInvitationsForEmail(ctx context.Context, organizationID int64, email string, at time.Time) (domain.OperationStats, error)
 	// RevokeTraegerInvitation spends one open invitation of the Träger and
 	// returns it; found is false for an unknown, foreign or spent one.
@@ -33,11 +34,11 @@ type TraegerAccountStore interface {
 	// ReplaceTraegerRoles makes roles the account's exact role set at the
 	// Träger; an empty set removes every role.
 	ReplaceTraegerRoles(ctx context.Context, organizationID, accountID int64, roles []string) (domain.OperationStats, error)
-	// LockTraegerAdministrators locks the Verwaltung role rows of the Träger
+	// LockTraegerLeaders locks the Leitung role rows of the Träger
 	// whose accounts can sign in (active, not erased) and returns those
 	// accounts: every change that could remove the last one queues behind
 	// the others.
-	LockTraegerAdministrators(ctx context.Context, organizationID int64) ([]int64, domain.OperationStats, error)
+	LockTraegerLeaders(ctx context.Context, organizationID int64) ([]int64, domain.OperationStats, error)
 	// DeleteTraegerAccountSessions ends every session of the account at the Träger.
 	DeleteTraegerAccountSessions(ctx context.Context, organizationID, accountID int64) (domain.OperationStats, error)
 	FindLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error)

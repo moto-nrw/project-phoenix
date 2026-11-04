@@ -70,7 +70,7 @@ func (rs *Resource) startStaffPreview(w http.ResponseWriter, r *http.Request) {
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	session, err := rs.AuthService.StartStaffPreview(
 		r.Context(), int64(claims.ID), claims.TenantID, req.AccountID,
-		req.PreviousToken, getClientIP(r), r.Header.Get(headerUserAgent),
+		claims.FamilyID, req.PreviousToken, getClientIP(r), r.Header.Get(headerUserAgent),
 	)
 	if err != nil {
 		renderStaffPreviewError(w, r, err)

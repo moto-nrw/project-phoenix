@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.classday.absence_list",
+  "max": 19,
+  "exact": false,
+  "description": "modules/classday — GET /school/class-day/absence-list (#4793): one\nroster, one read of the morning marks and one of the status days for\nthe whole period, 2 and then 5 children. The count must not move with\nthe children."
+}

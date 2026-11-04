@@ -37,7 +37,13 @@ import { useNFCEnabled } from "~/lib/tenant-context";
 import { useTenantMutate } from "~/lib/swr/hooks";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
+import { devicesConcept } from "~/lib/concepts/devices";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { mealPlanConcept } from "~/lib/concepts/mealPlan";
+import { notificationsConcept } from "~/lib/concepts/notifications";
+import { permissionsConcept } from "~/lib/concepts/permissions";
+import { settingsConcept } from "~/lib/concepts/settings";
 
 // Settings whose value affects the supervision context (sidebar / mobile nav)
 // and therefore require an immediate re-fetch after save/reset instead of
@@ -55,8 +61,10 @@ function tabLabel(tab: SchemaTab): string {
 // Payroll settings (#1417) have their own maintenance page under /payroll —
 // rendering the auto-generated tab here would create a second, worse surface
 // for the same values. The birthday switches (#3737) live on the hand-written
-// "Startseite für alle" tab next to the birthday card. Search skips both.
-const TABS_RENDERED_ELSEWHERE = new Set(["abrechnung", "startseite"]);
+// "Startseite für alle" tab next to the birthday card. The holiday settings
+// of the Träger (#5621) concern only the Träger-Büro and live in the
+// Träger-Portal. Search skips all three.
+const TABS_RENDERED_ELSEWHERE = new Set(["abrechnung", "startseite", "ferien"]);
 
 // Every field on "Geräte" configures the NFC tablets (#3735). A school without
 // NFC does not see the tab at all instead of an empty one.
@@ -234,7 +242,7 @@ function SettingsTabContent({
 
       {isFiltering ? (
         hits.length === 0 ? (
-          <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+          <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
             <EmptyState
               variant="compact"
               icon={<SearchX className="h-5 w-5" aria-hidden="true" />}
@@ -288,10 +296,7 @@ function SettingsSkeleton() {
         <Skeleton className="h-8 w-32 rounded-md" />
       </div>
       {Array.from({ length: 5 }).map((_, idx) => (
-        <div
-          key={idx}
-          className="moto-content-surface rounded-2xl border p-5 shadow-sm"
-        >
+        <div key={idx} className="moto-content-surface rounded-2xl border p-5">
           <div className="flex items-start gap-3">
             <div className="flex-1 space-y-2">
               <Skeleton className="h-5 w-40 rounded" />
@@ -331,7 +336,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
   // Reminders settings decide whether the header reminders bell shows at all.
   // After saving/resetting one, revalidate THIS tenant's /api/reminders cache
   // so the bell's `enabled` flag flips immediately instead of waiting for the
-  // poll. The reminders SWR key is tenant-prefixed ("{slug}:reminders");
+  // poll. The reminders SWR key is scoped ("{slug}:{account}:reminders");
   // useTenantMutate applies that prefix, so a different tenant's cache held in
   // another tab is left untouched (no cross-tenant revalidation).
   const revalidateRemindersIfNeeded = useCallback(
@@ -453,7 +458,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
  * NFC tablets (#3735), so the page can say why instead of landing nowhere.
  */
 export function useSettingsTabs(): {
-  tabs: { id: string; label: string; icon: MotoConceptKey }[];
+  tabs: { id: string; label: string; icon: MotoConcept }[];
   renderTab: (tabId: string) => React.ReactNode;
   highlightTabId: string | null;
   highlightNeedsNfc: boolean;
@@ -469,18 +474,18 @@ export function useSettingsTabs(): {
   }
 
   // Tab icon mapping (MOTO-Konzepte statt SVG-Pfaden)
-  const defaultTabConcept: MotoConceptKey = "settings";
-  const tabConcepts: Record<string, MotoConceptKey> = {
-    operations: "settings",
-    meals: "mealPlan",
-    reminders: "notifications",
-    notifications: "notifications",
-    gdpr: "permissions",
-    devices: "devices",
-    enrollment: "enrollments",
-    system: "settings",
-    general: "settings",
-    security: "permissions",
+  const defaultTabConcept: MotoConcept = settingsConcept;
+  const tabConcepts: Record<string, MotoConcept> = {
+    operations: settingsConcept,
+    meals: mealPlanConcept,
+    reminders: notificationsConcept,
+    notifications: notificationsConcept,
+    gdpr: permissionsConcept,
+    devices: devicesConcept,
+    enrollment: enrollmentsConcept,
+    system: settingsConcept,
+    general: settingsConcept,
+    security: permissionsConcept,
   };
 
   // When the schema fetch failed, render placeholder tabs so SettingsContent
@@ -505,11 +510,11 @@ export function useSettingsTabs(): {
   const personalizationTab: {
     id: string;
     label: string;
-    icon: MotoConceptKey;
+    icon: MotoConcept;
   } = {
     id: "settings-personalisierung",
     label: "Personalisierung",
-    icon: "settings",
+    icon: settingsConcept,
   };
 
   // "Startseite für alle" is what the school prescribes for everybody (#2875).
@@ -527,11 +532,11 @@ export function useSettingsTabs(): {
   const homeBlocksTab: {
     id: string;
     label: string;
-    icon: MotoConceptKey;
+    icon: MotoConcept;
   } = {
     id: "settings-startseite",
     label: "Startseite für alle",
-    icon: "settings",
+    icon: settingsConcept,
   };
 
   const tabs = [

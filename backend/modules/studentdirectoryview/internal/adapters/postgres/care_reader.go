@@ -11,8 +11,12 @@ import (
 // Care Plan and People Directory (ADR 0058). Its signatures carry only the
 // shared kernel and the transaction, so the projection names no consumer type
 // and no consumer names a projection type. Every read takes the caller's
-// transaction.
-type Reader struct{}
+// transaction. The health field of a row is sealed (#5472): Reader seals and
+// opens it with the cipher the root binds (NewReader).
+type Reader struct{ health HealthCipher }
+
+// NewReader builds the reader over the health cipher.
+func NewReader(health HealthCipher) Reader { return Reader{health: health} }
 
 // StudentRows is the directory row source the consumers embed in their
 // statements.

@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { clientIdentityHeaders } from "~/lib/client-headers.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { withPrivateNoStore } from "~/lib/private-no-store";
 
@@ -14,7 +15,7 @@ async function GETHandler(
   const { token } = await context.params;
   const upstream = await fetch(
     `${getServerApiUrl()}/public/request-feed/${encodeURIComponent(token)}`,
-    { cache: "no-store" },
+    { headers: clientIdentityHeaders(_request.headers), cache: "no-store" },
   );
   if (!upstream.ok) {
     const response = forwardBackendResponse(upstream, _request);

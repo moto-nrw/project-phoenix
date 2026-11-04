@@ -9,7 +9,10 @@ import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { fetchTodaysNotices } from "~/lib/staff-notices-api";
+import {
+  fetchTodaysNotices,
+  staffNoticesTodayKey,
+} from "~/lib/staff-notices-api";
 import type { StaffNotice } from "~/lib/staff-notices-api";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -18,6 +21,7 @@ import {
   HomeMoreRow,
   useHomeCardRows,
 } from "~/components/home/home-card-rows";
+import { announcementsConcept } from "~/lib/concepts/announcements";
 
 /**
  * Baustein „Tagesinformationen" der Startseite (#2180): die Hinweise der
@@ -42,9 +46,15 @@ export function StaffNoticesBlock() {
     isLoading,
     mutate,
   } = useSWRAuth<StaffNotice[]>(
-    `staff-notices-today:${accountId}`,
+    staffNoticesTodayKey(accountId),
     fetchTodaysNotices,
-    { revalidateOnFocus: false },
+    {
+      revalidateOnFocus: false,
+      // Die App-Hülle legt den Eintrag aus dem Server-Seed an und hält ihn
+      // mit dem Badge der Seitenleiste aktuell; der Besuch der Startseite
+      // zeigt ihn, statt ihn neu zu laden (#4989).
+      revalidateIfStale: false,
+    },
   );
   const { shown, hidden } = useHomeCardRows(notices ?? [], MAX_NOTICES);
   const loadError = useSwrLoadError(
@@ -60,7 +70,7 @@ export function StaffNoticesBlock() {
       // stünde sie kürzer als ihre Nachbarn und die Reihe wirkt kaputt.
       className="flex h-full flex-col"
       bodyClassName={HOME_CARD_BODY}
-      leading={<HomeCardIcon concept="announcements" />}
+      leading={<HomeCardIcon concept={announcementsConcept} />}
       inlineActions
       actions={
         <HomeCardLink

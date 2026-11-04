@@ -1264,7 +1264,8 @@ describe("active-service", () => {
       expect(result).toEqual({ labels: [], results: {} });
     });
 
-    it("includes authorization header from session token", async () => {
+    // The route reads the session cookie; the browser holds no token (#5005).
+    it("sends no Authorization header", async () => {
       const { clearSessionCache } = await import("./session-cache");
       clearSessionCache();
 
@@ -1281,7 +1282,7 @@ describe("active-service", () => {
       ) as [string, RequestInit] | undefined;
       expect(callBody).toBeDefined();
       const headers = callBody![1].headers as Record<string, string>;
-      expect(headers.Authorization).toBe("Bearer test-token");
+      expect(headers).not.toHaveProperty("Authorization");
       expect(headers["Content-Type"]).toBe("application/json");
     });
   });

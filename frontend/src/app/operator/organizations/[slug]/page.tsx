@@ -1,8 +1,10 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { Suspense, use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -51,6 +53,7 @@ import { CreateSchoolModal } from "~/app/operator/provisioning/create-school-mod
 import { EditOrganizationModal } from "~/app/operator/provisioning/edit-organization-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { AssignTraegerMemberModal } from "~/app/operator/provisioning/assign-traeger-member-modal";
+import { InviteTraegerAccountModal } from "~/components/traeger/traeger-account-modals";
 import { TraegerErasureOrderSection } from "./traeger-erasure-order-section";
 import { TestTraegerSection } from "./test-traeger-section";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -59,12 +62,14 @@ import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-mod
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import {
   DeletedEntityCard,
+  TrashToggleButton,
   useSoftDeletable,
 } from "~/app/operator/provisioning/soft-delete-shared";
 import {
   OrgSoftDeleteModal,
   SchoolRestoreModal,
 } from "~/app/operator/provisioning/operator-entity-modals";
+import { organizationsConcept } from "~/lib/concepts/organizations";
 
 const logger = createLogger({ component: "OperatorOrganizationDetailPage" });
 
@@ -102,8 +107,7 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
 
 function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   const { slug } = use(params);
-  const { status, data: session } = useSession();
-  const operatorBearerToken = session?.user?.token ?? "";
+  const { status } = useSession();
   const isAuthenticated = status === "authenticated";
   const router = useRouter();
   const pathname = usePathname();
@@ -127,6 +131,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   );
   const [deleteDevice, setDeleteDevice] = useState<OperatorDevice | null>(null);
   const [assignTraegerOpen, setAssignTraegerOpen] = useState(false);
+  const [inviteTraegerOpen, setInviteTraegerOpen] = useState(false);
   const [mfaResetMember, setMfaResetMember] = useState<TraegerMember | null>(
     null,
   );
@@ -153,11 +158,11 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     error: organizationsError,
     isLoading,
     mutate: mutateOrganizations,
-  } = useSWR(
-    isAuthenticated ? "operator-organization-summaries" : null,
+  } = useSWRAuth(
+    isAuthenticated ? operatorProvisioningKeys.organizationSummaries() : null,
     () => operatorProvisioningService.listOrganizationSummaries(),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -168,6 +173,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     [organizations, slug],
   );
   const organizationId = organization?.id;
+  const invalidate = useInvalidateMatching();
 
   const activeOrganizations = useMemo(
     () =>
@@ -184,14 +190,18 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     error: schoolsError,
     isLoading: schoolsLoading,
     mutate: mutateSchoolSummaries,
-  } = useSWR(
+  } = useSWRAuth(
     isAuthenticated && organizationId
-      ? ["operator-organization-school-summaries", organizationId]
+      ? operatorProvisioningKeys.organizationSchoolSummaries(organizationId)
       : null,
-    () =>
-      operatorProvisioningService.listOrganizationSchools(organizationId ?? ""),
+    async () =>
+      (
+        await operatorProvisioningService.listOrganizationSchools(
+          organizationId ?? "",
+        )
+      ).filter((item) => item.organizationId === organizationId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -214,8 +224,20 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   );
 
   const refreshOrganizationDrillIn = useCallback(async () => {
-    await Promise.all([mutateOrganizations(), mutateSchoolSummaries()]);
-  }, [mutateOrganizations, mutateSchoolSummaries]);
+    await Promise.all([
+      mutateOrganizations(),
+      mutateSchoolSummaries(),
+      invalidate(
+        (key) =>
+          operatorProvisioningKeys.summaryChanges(key) &&
+          key !== operatorProvisioningKeys.organizationSummaries() &&
+          key !==
+            operatorProvisioningKeys.organizationSchoolSummaries(
+              organizationId,
+            ),
+      ),
+    ]);
+  }, [mutateOrganizations, mutateSchoolSummaries, invalidate, organizationId]);
 
   const accountsActive =
     activeTab === "konten" && isAuthenticated && organization != null;
@@ -224,13 +246,19 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     error: accountsError,
     isLoading: accountsLoading,
     mutate: mutateOrgAccounts,
-  } = useSWR(
-    accountsActive ? ["operator-org-accounts", organization?.id] : null,
+  } = useSWRAuth(
+    accountsActive
+      ? operatorProvisioningKeys.orgAccounts(organization?.id)
+      : null,
     () =>
       operatorProvisioningService.listOrganizationAccounts(
         organization?.id ?? "",
       ),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const devicesActive =
@@ -240,13 +268,19 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     error: devicesError,
     isLoading: devicesLoading,
     mutate: mutateOrgDevices,
-  } = useSWR(
-    devicesActive ? ["operator-org-devices", organization?.id] : null,
+  } = useSWRAuth(
+    devicesActive
+      ? operatorProvisioningKeys.orgDevices(organization?.id)
+      : null,
     () =>
       operatorProvisioningService.listOrganizationDevices(
         organization?.id ?? "",
       ),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const personsActive =
@@ -256,13 +290,19 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     error: personsError,
     isLoading: personsLoading,
     mutate: mutateOrgPersons,
-  } = useSWR(
-    personsActive ? ["operator-org-persons", organization?.id] : null,
+  } = useSWRAuth(
+    personsActive
+      ? operatorProvisioningKeys.orgPersons(organization?.id)
+      : null,
     () =>
       operatorProvisioningService.listOrganizationPersons(
         organization?.id ?? "",
       ),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const traegerMembersActive =
@@ -272,13 +312,17 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     error: traegerMembersError,
     isLoading: traegerMembersLoading,
     mutate: mutateTraegerMembers,
-  } = useSWR(
+  } = useSWRAuth(
     traegerMembersActive
-      ? ["operator-org-traeger-members", organization?.id]
+      ? operatorProvisioningKeys.orgTraegerMembers(organization?.id)
       : null,
     () =>
       operatorProvisioningService.listTraegerMembers(organization?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const organizationsLoadError = useSwrLoadError(
@@ -455,24 +499,26 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         >
           <DataTableStatusBadge active={organization?.active ?? false} />
         </button>
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="compact"
           onClick={() => setEditOrgOpen(true)}
-          className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
         >
           Bearbeiten
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline_danger"
+          size="compact"
           onClick={() => {
             if (organization) {
               orgDelete.setDeleteTarget(organization);
             }
           }}
-          className="bg-moto-red/10 text-moto-red-strong hover:bg-moto-red/15 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
         >
           Löschen
-        </button>
+        </Button>
       </>
     ),
     [handleToggleOrgActive, orgDelete, organization],
@@ -490,54 +536,62 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       return (
         <>
           {deletedSchools.length > 0 && (
-            <button
-              type="button"
-              onClick={() => schoolDelete.setShowTrash(!schoolDelete.showTrash)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                schoolDelete.showTrash
-                  ? "bg-moto-red/15 text-moto-red-strong hover:bg-moto-red/20"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              Papierkorb ({deletedSchools.length})
-            </button>
+            <TrashToggleButton
+              count={deletedSchools.length}
+              active={schoolDelete.showTrash}
+              onToggle={() =>
+                schoolDelete.setShowTrash(!schoolDelete.showTrash)
+              }
+            />
           )}
-          <button
+          <Button
             type="button"
+            variant="primary"
+            size="compact"
             onClick={() => setCreateSchoolOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
           >
             <PlusIcon />
             Neue Schule
-          </button>
+          </Button>
         </>
       );
     }
 
     if (activeTab === "traeger-buero") {
       return (
-        <Button
-          type="button"
-          variant="primary"
-          size="compact"
-          onClick={() => setAssignTraegerOpen(true)}
-        >
-          <PlusIcon />
-          Person zuordnen
-        </Button>
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            onClick={() => setAssignTraegerOpen(true)}
+          >
+            Person zuordnen
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="compact"
+            onClick={() => setInviteTraegerOpen(true)}
+          >
+            <PlusIcon />
+            Person einladen
+          </Button>
+        </>
       );
     }
 
     if (activeTab === "geraete") {
       return (
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size="compact"
           onClick={() => setCreateDeviceOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
         >
           <PlusIcon />
           Neues Gerät
-        </button>
+        </Button>
       );
     }
 
@@ -569,7 +623,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     return (
       <div className="w-full">
         <BackLink {...ORGANIZATIONS_BACK} />
-        <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center shadow-sm">
+        <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center">
           <p className="text-gray-600">Träger nicht gefunden.</p>
         </div>
       </div>
@@ -581,7 +635,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       <EntityHeaderCard
         back={ORGANIZATIONS_BACK}
         title={organization.name}
-        concept="organizations"
+        concept={organizationsConcept}
         subdomain={organization.slug}
         active={organization.active}
         createdAt={organization.createdAt}
@@ -728,7 +782,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
               traegerMembers?.length === 0 ? (
               <SimpleEmptyState
                 title="Noch niemand im Träger-Büro"
-                description="Noch niemand hat Zugang zum Träger-Portal dieses Trägers."
+                description="Noch niemand hat Zugang zum Träger-Portal dieses Trägers. Laden Sie die erste Person oben mit „Person einladen“ ein."
               />
             ) : (
               <DataTable
@@ -777,13 +831,27 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         onAssigned={() => mutateTraegerMembers()}
       />
 
+      <InviteTraegerAccountModal
+        isOpen={inviteTraegerOpen}
+        onClose={() => setInviteTraegerOpen(false)}
+        onInvited={() => mutateTraegerMembers()}
+        invite={(input) =>
+          operatorProvisioningService.inviteTraegerMember(organization.id, {
+            email: input.email,
+            roles: [...input.roles],
+          })
+        }
+        title="Person ins Träger-Büro einladen"
+        hint={`Die Person bekommt eine E-Mail mit einem Link zum Träger-Portal von ${organization.name}. Dort legt sie ein Passwort fest oder meldet sich mit ihrem moto-Konto an. Ein Schulkonto braucht sie nicht.`}
+        successText="Die Einladung ist verschickt. Das Träger-Büro sieht sie bei den offenen Einladungen."
+      />
+
       {mfaResetMember ? (
         <MFAAdminOverrideModal
           isOpen={true}
           onClose={() => setMfaResetMember(null)}
           scope="traeger"
           organizationId={organization.id}
-          bearerToken={operatorBearerToken}
           accountId={mfaResetMember.accountId}
           accountLabel={mfaResetMember.email}
         />

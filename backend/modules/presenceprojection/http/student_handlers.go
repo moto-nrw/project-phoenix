@@ -85,12 +85,22 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to load students", err))
 		return
 	}
+	if err := rs.writeStudentHealthViewAudit(r, student.ID, response.HealthInfo); err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to record student health access", err))
+		return
+	}
 
 	// Add supervisor contacts for users without full access
 	if !response.HasFullAccess && group != nil && canReadSensitiveStudentData(r.Context()) {
 		response.GroupSupervisors = rs.buildSupervisorContacts(r.Context(), group.ID)
 	}
 
+	if r.URL.Query().Get("include_privacy_consent") == "true" {
+		if err := rs.enrichPrivacyConsent(r.Context(), &response, student.ID); err != nil {
+			renderError(w, r, common.ErrorInternalServerWrap("failed to load privacy consent", err))
+			return
+		}
+	}
 	common.Respond(w, r, http.StatusOK, response, "Student retrieved successfully")
 }
 
@@ -204,5 +214,33 @@ func (rs *Resource) enrichStudentConsents(
 			ChangedAt: consent.ChangedAt,
 		})
 	}
+	return nil
+}
+
+// Child lookup and authorization finish first. These owner reads join the same
+// tenant transaction and consume no second HTTP read-budget unit.
+func (rs *Resource) enrichPrivacyConsent(ctx context.Context, response *StudentDetailResponse, studentID int64) error {
+	response.PrivacyConsent = &StudentPrivacyConsentResponse{DataRetentionDays: studentpresence.DefaultPrivacyConsentRetentionDays}
+	if !response.HasFullAccess {
+		// Same defaults as the BFF's former consent 403, without reading data.
+		return nil
+	}
+	if rs.PrivacyConsents == nil {
+		return errors.New("privacy consent reader not wired")
+	}
+	consents, err := rs.PrivacyConsents.ListPrivacyConsents(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	if consent := studentpresence.LatestAcceptedPrivacyConsent(consents); consent != nil {
+		response.PrivacyConsent.Accepted = consent.Accepted
+		response.PrivacyConsent.DataRetentionDays = consent.DataRetentionDays
+		return nil
+	}
+	days, err := rs.SettingsService.ResolveInt(ctx, settingPrivacyConsentRetentionDays)
+	if err != nil {
+		return err
+	}
+	response.PrivacyConsent.DataRetentionDays = days
 	return nil
 }

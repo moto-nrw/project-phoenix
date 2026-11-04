@@ -73,6 +73,7 @@ import {
   respondParentCalendar,
   type CalendarEvent,
 } from "~/lib/personal-calendar-api";
+import { childrenConcept } from "~/lib/concepts/children";
 
 const logger = createLogger({ component: "ParentCalendarPage" });
 const MAX_CALENDAR_WINDOW_OFFSET = 91;
@@ -342,7 +343,7 @@ export function ParentCalendarPage() {
               onRespond={respond}
             />
           ) : (
-            <section className="moto-content-surface h-full rounded-2xl border p-5 shadow-sm sm:p-6">
+            <section className="moto-content-surface h-full rounded-2xl border p-5 sm:p-6">
               <EmptyState
                 icon={<CalendarDotsIcon className="size-8" />}
                 title={t("empty")}
@@ -387,7 +388,7 @@ function CalendarPageSkeleton() {
         className="grid items-stretch gap-5 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]"
         aria-hidden="true"
       >
-        <section className="moto-content-surface h-full space-y-5 rounded-2xl border p-4 shadow-sm">
+        <section className="moto-content-surface h-full space-y-5 rounded-2xl border p-4">
           {[2, 1].map((rowCount) => (
             <div key={rowCount} className="space-y-3">
               <Skeleton className="h-6 w-32" />
@@ -397,7 +398,7 @@ function CalendarPageSkeleton() {
             </div>
           ))}
         </section>
-        <section className="moto-content-surface hidden h-full overflow-hidden rounded-2xl border shadow-sm lg:block">
+        <section className="moto-content-surface hidden h-full overflow-hidden rounded-2xl border lg:block">
           <div className="flex items-center justify-between border-b border-gray-200 p-4">
             <Skeleton className="size-8 rounded-md" />
             <Skeleton className="h-5 w-36" />
@@ -432,7 +433,7 @@ function CalendarEventList({
   const t = useTranslations("parentCalendar");
   const groupOrder: EventGroupKey[] = ["thisWeek", "nextWeek", "later"];
   return (
-    <section className="moto-content-surface h-full space-y-5 rounded-2xl border p-4 shadow-sm">
+    <section className="moto-content-surface h-full space-y-5 rounded-2xl border p-4">
       {groupOrder.map((groupKey) => {
         const group = groups[groupKey];
         if (group.length === 0) return null;
@@ -548,7 +549,7 @@ function CalendarListEvent({
             ref={ref}
             type="button"
             variant="ghost"
-            size="touch"
+            size="md"
             onClick={toggle}
             aria-label={`${event.title}, ${eventTime(event, t("allDay"))}`}
             aria-expanded={open}
@@ -657,7 +658,7 @@ function CalendarMonthPanel({
   return (
     <section
       data-testid="parent-calendar-month-grid"
-      className="moto-content-surface h-full overflow-hidden rounded-2xl border shadow-sm"
+      className="moto-content-surface h-full overflow-hidden rounded-2xl border"
       aria-labelledby="parent-calendar-month"
     >
       <div className="grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-2 border-b border-gray-200 p-3 sm:p-4">
@@ -999,7 +1000,7 @@ function CalendarEventDetails({
           />
           {event.student_name ? (
             <DetailRow
-              icon={<MotoConceptIcon concept="children" size={16} />}
+              icon={<MotoConceptIcon concept={childrenConcept} size={16} />}
               label={t("forChild", { name: event.student_name })}
             />
           ) : null}

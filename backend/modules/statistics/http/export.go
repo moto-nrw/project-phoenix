@@ -59,6 +59,8 @@ func buildSectionDocument(report *studentpresence.StatisticsReport, section stri
 		return buildCourseExportDocument(report), "kurse"
 	case sectionCourseStudents:
 		return buildCourseStudentExportDocument(report), "kurse-je-kind"
+	case sectionOccupancy:
+		return buildOccupancyExportDocument(report), "belegung-nach-uhrzeit"
 	default:
 		return buildExportDocument(report), "statistik"
 	}

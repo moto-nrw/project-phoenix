@@ -9,6 +9,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -22,10 +23,28 @@ func newRootEnvironment(cfg owners.ServiceConfig, logger *slog.Logger, clock fun
 	if err != nil {
 		return owners.RootEnvironment{}, err
 	}
+	healthData, err := HealthDataCipher(cfg.HealthDataKeys)
+	if err != nil {
+		return owners.RootEnvironment{}, err
+	}
 	return owners.RootEnvironment{
 		Logger: logger, Config: cfg, Now: clock, Today: timezone.CalendarDateClock(clock),
-		Links: links, Observe: observe,
+		Links: links, Observe: observe, HealthData: healthData,
 	}, nil
+}
+
+// HealthDataCipher builds the cipher of the holiday registrations' health
+// information from HEALTH_DATA_KEYS (#4722). The key ring is required: a
+// root without it does not start.
+func HealthDataCipher(keys string) (owners.HealthDataCipher, error) {
+	if strings.TrimSpace(keys) == "" {
+		return nil, fmt.Errorf("root environment: HEALTH_DATA_KEYS is required")
+	}
+	cipher, err := securityRuntimeCompose.NewFieldCipher(keys)
+	if err != nil {
+		return nil, fmt.Errorf("root environment: HEALTH_DATA_KEYS: %w", err)
+	}
+	return cipher, nil
 }
 
 // resolveServiceLinks validates the staff, API, parents-portal,

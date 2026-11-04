@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { releaseFakeTimers, setTestClock } from "~/test/clock";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook, act, waitFor as waitForDOM } from "@testing-library/react";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import {
@@ -8,6 +8,12 @@ import {
   useSupervision,
   useOptionalSupervision,
 } from "./supervision-context";
+
+// renderHook updates result.current without a DOM mutation, so waitFor only
+// rechecks on its interval. Poll the same assertions more promptly; keep
+// Testing Library's timeout and real timers.
+const waitFor: typeof waitForDOM = (callback, options) =>
+  waitForDOM(callback, { interval: 5, ...options });
 
 // Mock next-auth
 vi.mock("next-auth/react", () => ({
@@ -94,20 +100,20 @@ function setupFetchMock(overrides?: {
 // Helper to create wrapper with session
 // Default test subject is a real supervisor, who carries `groups:read` — the
 // permission the overview endpoint requires. Pass an empty array to model a
-// limited account (e.g. the `guest` role).
+// limited account (e.g. the `guest` role). `signedIn` only decides whether a
+// session exists: the browser session carries no token (#5005).
 function createWrapper(
-  token?: string,
+  signedIn?: string,
   roles?: string[],
   permissions: string[] = ["groups:read"],
   includePermissions = true,
 ) {
   return function Wrapper({ children }: { children: ReactNode }) {
     vi.mocked(useSession).mockReturnValue(
-      (token
+      (signedIn
         ? {
             data: {
               user: {
-                token,
                 id: "1",
                 email: "test@example.com",
                 name: "Test User",
@@ -2071,16 +2077,18 @@ describe("useOptionalSupervision", () => {
 
 // #3375: after a school switch the sidebar kept the previous school's groups.
 describe("SupervisionProvider school switch (#3375)", () => {
-  function sessionFor(tenantId: number | undefined, token: string | undefined) {
+  function sessionFor(
+    tenantId: number | undefined,
+    permissions: string[] = ["groups:read"],
+  ) {
     return {
       data: {
         user: {
-          token,
           tenantId,
           id: "1",
           email: "test@example.com",
           name: "Test User",
-          permissions: ["groups:read"],
+          permissions,
         },
         expires: "2099-12-31",
       },
@@ -2139,7 +2147,7 @@ describe("SupervisionProvider school switch (#3375)", () => {
   it("fetches nothing while the session belongs to another school", async () => {
     await mockUrlTenant(2);
     setupFetchMock({ groups: { groups: [{ id: 1, name: "Andere Schule" }] } });
-    vi.mocked(useSession).mockReturnValue(sessionFor(1, "token-a"));
+    vi.mocked(useSession).mockReturnValue(sessionFor(1));
 
     const { result } = renderHook(() => useSupervision(), {
       wrapper: ({ children }: { children: ReactNode }) => (
@@ -2161,7 +2169,7 @@ describe("SupervisionProvider school switch (#3375)", () => {
     // The first load runs for school 2; the switch follows inside the
     // five-second throttle window, which used to swallow the reload.
     setupFetchMock({ groups: { groups: [{ id: 1, name: "Schule 2" }] } });
-    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+    vi.mocked(useSession).mockReturnValue(sessionFor(2));
 
     const { result, rerender } = renderHook(() => useSupervision(), {
       wrapper: ({ children }: { children: ReactNode }) => (
@@ -2175,7 +2183,7 @@ describe("SupervisionProvider school switch (#3375)", () => {
 
     await mockUrlTenant(3);
     setupFetchMock({ groups: { groups: [{ id: 9, name: "Schule 3" }] } });
-    vi.mocked(useSession).mockReturnValue(sessionFor(3, "token-3"));
+    vi.mocked(useSession).mockReturnValue(sessionFor(3));
     rerender();
 
     await waitFor(() => {
@@ -2187,7 +2195,7 @@ describe("SupervisionProvider school switch (#3375)", () => {
   it("reloads a server snapshot when the resolved URL school changes", async () => {
     await mockUrlTenant(null);
     setupFetchMock({ groups: { groups: [{ id: 2, name: "Schule 2" }] } });
-    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+    vi.mocked(useSession).mockReturnValue(sessionFor(2));
 
     const { result, rerender } = renderHook(() => useSupervision(), {
       wrapper: ({ children }: { children: ReactNode }) => (
@@ -2219,7 +2227,7 @@ describe("SupervisionProvider school switch (#3375)", () => {
   it("masks a server snapshot while URL tenant metadata is still stale", async () => {
     await mockUrlTenant(2, { tenantSlug: "school-a" });
     setupFetchMock({ groups: { groups: [{ id: 1, name: "Schule A" }] } });
-    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+    vi.mocked(useSession).mockReturnValue(sessionFor(2));
 
     const { result, rerender } = renderHook(() => useSupervision(), {
       wrapper: ({ children }: { children: ReactNode }) => (
@@ -2264,7 +2272,7 @@ describe("SupervisionProvider school switch (#3375)", () => {
       groups: { groups: [{ id: 2, name: "Schule im Pfad" }] },
       supervised: { data: [] },
     });
-    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+    vi.mocked(useSession).mockReturnValue(sessionFor(2));
 
     const { result } = renderHook(() => useSupervision(), {
       wrapper: ({ children }: { children: ReactNode }) => (
@@ -2293,7 +2301,7 @@ describe("SupervisionProvider school switch (#3375)", () => {
       }
       return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
     });
-    vi.mocked(useSession).mockReturnValue(sessionFor(1, "token-1"));
+    vi.mocked(useSession).mockReturnValue(sessionFor(1));
 
     const observedGroups: string[][] = [];
     function Probe() {
@@ -2318,7 +2326,7 @@ describe("SupervisionProvider school switch (#3375)", () => {
     expect(observedGroups.flat()).not.toContain("Schule 1");
     expect(mockFetch).not.toHaveBeenCalled();
 
-    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+    vi.mocked(useSession).mockReturnValue(sessionFor(2));
     rerender(
       <SupervisionProvider
         initial={{
@@ -2362,7 +2370,7 @@ describe("SupervisionProvider school switch (#3375)", () => {
       }
       return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
     });
-    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+    vi.mocked(useSession).mockReturnValue(sessionFor(2));
 
     const { result, rerender } = renderHook(() => useSupervision(), {
       wrapper: ({ children }: { children: ReactNode }) => (
@@ -2385,7 +2393,9 @@ describe("SupervisionProvider school switch (#3375)", () => {
     });
   });
 
-  it("discards an in-flight response when the session token changes", async () => {
+  // The browser session carries no token (#5005): the session's identity
+  // (account, school, rights) is the change signal.
+  it("discards an in-flight response when the session's rights change", async () => {
     await mockUrlTenant(2);
     let releaseOld: (() => void) | undefined;
     let releaseNew: (() => void) | undefined;
@@ -2418,7 +2428,7 @@ describe("SupervisionProvider school switch (#3375)", () => {
       }
       return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
     });
-    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-old"));
+    vi.mocked(useSession).mockReturnValue(sessionFor(2));
 
     const { result, rerender } = renderHook(() => useSupervision(), {
       wrapper: ({ children }: { children: ReactNode }) => (
@@ -2440,7 +2450,9 @@ describe("SupervisionProvider school switch (#3375)", () => {
     expect(result.current.groups[0]?.name).toBe("Bestehende Gruppe");
     expect(result.current.isLoadingGroups).toBe(false);
 
-    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-new"));
+    vi.mocked(useSession).mockReturnValue(
+      sessionFor(2, ["groups:read", "users:read"]),
+    );
     rerender();
 
     expect(result.current.groups[0]?.name).toBe("Bestehende Gruppe");
@@ -2489,7 +2501,7 @@ describe("SupervisionProvider school switch (#3375)", () => {
             : { data: [] },
       });
     });
-    vi.mocked(useSession).mockReturnValue(sessionFor(2, "token-2"));
+    vi.mocked(useSession).mockReturnValue(sessionFor(2));
 
     const { result, rerender } = renderHook(() => useSupervision(), {
       wrapper: ({ children }: { children: ReactNode }) => (
@@ -2499,7 +2511,7 @@ describe("SupervisionProvider school switch (#3375)", () => {
     await waitFor(() => expect(releaseOld).toBeDefined());
 
     await mockUrlTenant(3);
-    vi.mocked(useSession).mockReturnValue(sessionFor(3, "token-3"));
+    vi.mocked(useSession).mockReturnValue(sessionFor(3));
     rerender();
 
     await act(async () => {

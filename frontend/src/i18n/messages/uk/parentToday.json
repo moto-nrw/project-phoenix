@@ -1,0 +1,36 @@
+{
+  "today": "Сьогодні",
+  "sectionTitle": "Сьогодні",
+  "sectionDescription": "Статус на сьогодні та важливі дії одним поглядом.",
+  "statusLabel": "Поточний статус",
+  "atOgs": "В OGS",
+  "notAtOgs": "Не в OGS",
+  "state": {
+    "present": "В OGS з {time}",
+    "presentNoTime": "Сьогодні в OGS",
+    "left": "Дитина пішла додому о {time}",
+    "leftNoTime": "Сьогодні дитина пішла додому",
+    "expected": "Сьогодні прийде о {time}",
+    "expectedNoTime": "Сьогодні прийде",
+    "notArrived": "Очікується з {time}",
+    "notArrivedNoTime": "Очікується",
+    "absent": "Сьогодні повідомлено про відсутність",
+    "noCare": "Сьогодні без догляду",
+    "unknown": "Статус зараз недоступний"
+  },
+  "actions": {
+    "profile": "Переглянути профіль",
+    "sick": "Повідомити про відсутність: {name}",
+    "sickCompact": "Повідомити про відсутність",
+    "sickHint": "Повідомити про хворобу або відпросити дитину",
+    "pickup": "Змінити час забирання: {name}",
+    "pickupCompact": "Змінити час забирання",
+    "pickupHint": "Змінити час забирання на один день",
+    "message": "Написати повідомлення",
+    "messageCompact": "Написати повідомлення",
+    "messageHint": "Зв'язатися з OGS: {name}",
+    "pickupWithMode": "Змінити забирання: {name}",
+    "pickupCompactWithMode": "Змінити забирання",
+    "pickupHintWithMode": "Змінити час або спосіб забирання на один день"
+  }
+}

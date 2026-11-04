@@ -12,6 +12,7 @@ import (
 	common "github.com/moto-nrw/project-phoenix/api/common"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -169,8 +170,8 @@ func (rs *Resource) previewCareExit(w http.ResponseWriter, r *http.Request) {
 // confirmCareExit ends the care for exactly the previewed state, or changes
 // nothing at all.
 func (rs *Resource) confirmCareExit(w http.ResponseWriter, r *http.Request) {
-	if rs.CareLifecycleService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("care lifecycle service not configured")))
+	if rs.CareExitRestoration == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("care exit restoration not configured")))
 		return
 	}
 	body := new(careExitRequest)
@@ -184,7 +185,7 @@ func (rs *Resource) confirmCareExit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	actorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
-	result, err := rs.CareLifecycleService.Confirm(r.Context(), body.Token, input, actorID)
+	result, err := rs.CareExitRestoration.Confirm(r.Context(), body.Token, input, actorID)
 	if err != nil {
 		renderError(w, r, careExitErrorRenderer(err))
 		return
@@ -259,13 +260,52 @@ func (rs *Resource) listCareWithdrawals(w http.ResponseWriter, r *http.Request) 
 		renderError(w, r, careExitErrorRenderer(err))
 		return
 	}
+	respondCareWithdrawalPage(w, r, rows, total, filter, "Offene Abmeldungen geladen")
+}
+
+// respondCareWithdrawalPage writes one page of withdrawal tasks in the
+// response type that never carries the exit reason.
+func respondCareWithdrawalPage(w http.ResponseWriter, r *http.Request, rows []careplan.WithdrawalCompletion, total int, filter careplan.CareWithdrawalFilter, message string) {
 	out := make([]careWithdrawalResponse, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, toCareWithdrawalResponse(row))
 	}
 	common.Respond(w, r, http.StatusOK, map[string]any{
 		"items": out, "total": total, "page": filter.Page, "page_size": filter.PageSize,
-	}, "Offene Abmeldungen geladen")
+	}, message)
+}
+
+// listStudentResolvedCareWithdrawals pages the completed withdrawals of one child for
+// its Änderungsprotokoll (#5025). It carries the request log's gate instead of
+// the tenant list's users:delete, so it stays narrower than that list in every
+// other way: the child the caller may read, resolved tasks only, no search,
+// and the response type that never carries the exit reason.
+func (rs *Resource) listStudentResolvedCareWithdrawals(w http.ResponseWriter, r *http.Request) {
+	if rs.CareLifecycleService == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("care lifecycle service not configured")))
+		return
+	}
+	if !securityruntime.CanReviewExcusedAbsenceRequests(sessiontoken.PermissionsFromCtx(r.Context())) {
+		renderError(w, r, common.ErrorForbidden(errors.New("users:absence requires users:read to view the child's withdrawals")))
+		return
+	}
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
+		return
+	}
+	if !rs.checkStudentReadAccess(r, student) {
+		renderError(w, r, common.ErrorForbidden(errors.New("read access required to view the child's withdrawals")))
+		return
+	}
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+	filter := careplan.CareWithdrawalFilter{StudentID: student.ID, Page: page, PageSize: pageSize}.Normalized()
+	rows, total, err := rs.CareLifecycleService.ListResolvedWithdrawals(r.Context(), filter)
+	if err != nil {
+		renderError(w, r, careExitErrorRenderer(err))
+		return
+	}
+	respondCareWithdrawalPage(w, r, rows, total, filter, "Abgeschlossene Abmeldungen geladen")
 }
 
 func optionalPositiveQueryID(r *http.Request, key string) (int64, error) {
@@ -308,8 +348,8 @@ func (rs *Resource) previewWithdrawalCareEnd(w http.ResponseWriter, r *http.Requ
 }
 
 func (rs *Resource) confirmWithdrawalCareEnd(w http.ResponseWriter, r *http.Request) {
-	if rs.CareLifecycleService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("care lifecycle service not configured")))
+	if rs.CareExitRestoration == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("care exit restoration not configured")))
 		return
 	}
 	id, ok := common.ParsePositiveInt64IDWithError(w, r, "completionId", "invalid completion ID")
@@ -326,7 +366,7 @@ func (rs *Resource) confirmWithdrawalCareEnd(w http.ResponseWriter, r *http.Requ
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	result, err := rs.CareLifecycleService.ConfirmWithdrawalCareEnd(
+	result, err := rs.CareExitRestoration.ConfirmWithdrawalCareEnd(
 		r.Context(), id, body.Token, input, int64(sessiontoken.ClaimsFromCtx(r.Context()).ID),
 	)
 	if err != nil {
@@ -352,8 +392,8 @@ func (b *careExitCancelRequest) Bind(_ *http.Request) error {
 
 // cancelCareExit withdraws exits that have not taken effect yet.
 func (rs *Resource) cancelCareExit(w http.ResponseWriter, r *http.Request) {
-	if rs.CareLifecycleService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("care lifecycle service not configured")))
+	if rs.CareExitRestoration == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("care exit restoration not configured")))
 		return
 	}
 	body := new(careExitCancelRequest)
@@ -371,7 +411,7 @@ func (rs *Resource) cancelCareExit(w http.ResponseWriter, r *http.Request) {
 		ids = append(ids, id)
 	}
 	actorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
-	cancelled, err := rs.CareLifecycleService.Cancel(r.Context(), ids, actorID)
+	cancelled, err := rs.CareExitRestoration.Cancel(r.Context(), ids, actorID)
 	if err != nil {
 		renderError(w, r, careExitErrorRenderer(err))
 		return

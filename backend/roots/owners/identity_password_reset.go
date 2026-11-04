@@ -22,6 +22,7 @@ type PasswordResetWiring struct {
 	ParentsURL       string
 	SchoolURL        string
 	CatererURL       string
+	TraegerURL       string
 	Expiry           time.Duration
 	RateLimitEnabled bool
 	// Backoff spaces the send retries; nil uses the production spacing.
@@ -41,6 +42,7 @@ func PasswordResetDependencies(wiring *PasswordResetWiring, logger *slog.Logger)
 		identityaccess.PasswordResetScopeParent:  wiring.ParentsURL,
 		identityaccess.PasswordResetScopeSchool:  wiring.SchoolURL,
 		identityaccess.PasswordResetScopeCaterer: wiring.CatererURL,
+		identityaccess.PasswordResetScopeTraeger: wiring.TraegerURL,
 	}
 	return &identityaccessCompose.PasswordResetDependencies{
 		DeliveryFor: func(records identityaccess.PasswordResetDeliveryRecorder) identityPorts.PasswordResetDelivery {

@@ -29,6 +29,7 @@ import {
   type ChildCourses,
   type CourseItem,
 } from "~/lib/parent-api";
+import { activitiesConcept } from "~/lib/concepts/activities";
 
 const logger = createLogger({ component: "CoursesSection" });
 
@@ -197,7 +198,7 @@ export function CoursesSection({
 
   if (loadFailed) {
     return (
-      <ParentSection title={t("courses.title")} concept="activities">
+      <ParentSection title={t("courses.title")} concept={activitiesConcept}>
         <LoadErrorAlert error={loadError} />
       </ParentSection>
     );
@@ -227,7 +228,7 @@ export function CoursesSection({
     <ParentSection
       title={t("courses.title")}
       description={t("courses.description")}
-      concept="activities"
+      concept={activitiesConcept}
     >
       <FormErrorAlert message={actionErrors.error} />
       {courses.items.length === 0 ? (
@@ -244,7 +245,7 @@ export function CoursesSection({
           {courses.items.map((course) => (
             <li
               key={course.id}
-              className="moto-content-surface flex flex-wrap items-start justify-between gap-3 rounded-xl border p-3 shadow-sm"
+              className="moto-content-surface flex flex-wrap items-start justify-between gap-3 rounded-xl border p-3"
             >
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">
@@ -400,7 +401,6 @@ function CourseAction({
         type="button"
         variant="outline"
         size="md"
-        className="max-sm:min-h-11"
         disabled={busy}
         onClick={onWithdraw}
       >
@@ -414,7 +414,6 @@ function CourseAction({
       type="button"
       variant="surface"
       size="md"
-      className="max-sm:min-h-11"
       disabled={busy || reasonMissing}
       onClick={onRequest}
     >

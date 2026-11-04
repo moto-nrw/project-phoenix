@@ -1,0 +1,4 @@
+DELETE /traeger/contribution-rules/{id}
+GET /traeger/contribution-rules/
+POST /traeger/contribution-rules/
+PUT /traeger/contribution-rules/{id}

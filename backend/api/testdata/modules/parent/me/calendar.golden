@@ -1,0 +1,6 @@
+GET /parent/me/calendar -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+GET /parent/me/calendar/appointments/{appointmentId}/ics -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+GET /parent/me/calendar/appointments/{appointmentId}/overview -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+GET /parent/me/calendar/feed -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+POST /parent/me/calendar/feed/rotate -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+POST /parent/me/calendar/recipients/{recipientId}/response -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)

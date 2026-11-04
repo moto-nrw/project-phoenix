@@ -10,6 +10,9 @@
  * BasePath: "/api/caterer/auth"
  */
 
+import "server-only";
+import { PORTAL_SESSION_COOKIE_NAMES } from "~/lib/session-cookie-exit.server";
+import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -49,6 +52,10 @@ export const catererAuthConfig = {
       },
       async authorize(credentials, request) {
         const creds = credentials as Record<string, string> | undefined;
+        // HTTP credentials cannot create a session from caller-supplied tokens.
+        // Only the BFF's in-process mutation context may use this seed path.
+        if (creds?.internalRefresh === "true" && !isServerSessionMutation())
+          return null;
 
         // Internal token refresh, as in the other portals.
         if (
@@ -134,7 +141,7 @@ export const catererAuthConfig = {
     // Host-only and SameSite=Strict, like the parents portal: the caterer
     // portal has no cross-site flow that needs the session cookie.
     sessionToken: {
-      name: "caterer.session-token",
+      name: PORTAL_SESSION_COOKIE_NAMES.caterer,
       options: sessionCookie("strict", true),
     },
     callbackUrl: {

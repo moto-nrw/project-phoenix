@@ -1,0 +1,9 @@
+{
+  "api/substitutions": [
+    "GET tenant /api/substitutions",
+    "POST tenant /api/substitutions"
+  ],
+  "api/substitutions/end": [
+    "POST tenant /api/substitutions/end"
+  ]
+}

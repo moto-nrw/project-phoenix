@@ -249,6 +249,8 @@ func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID 
 		challengeScope = identityaccess.MFAChallengeScopeSchool
 	case domain.ScopeOrg:
 		challengeScope = identityaccess.MFAChallengeScopeOrg
+	case domain.ScopeCaterer:
+		challengeScope = identityaccess.MFAChallengeScopeCaterer
 	}
 	return g.Capability.StartMFAChallenge(ctx, accountID, tenantID, challengeScope, parseGateIP(ipAddress))
 }

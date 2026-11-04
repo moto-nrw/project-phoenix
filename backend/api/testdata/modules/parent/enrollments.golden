@@ -1,0 +1,4 @@
+GET /parent/enrollments/{tenantSlug}/bootstrap/{phaseId} -> online_anmeldung  (#4895 Elternportal: Eltern-Sitzung, Anmeldung über enrollment.enabled)
+GET /parent/enrollments/{tenantSlug}/profile -> online_anmeldung  (#4895 Elternportal: Eltern-Sitzung, Anmeldung über enrollment.enabled)
+POST /parent/enrollments/{tenantSlug}/submit -> online_anmeldung  (#4895 Elternportal: Eltern-Sitzung, Anmeldung über enrollment.enabled)
+POST /parent/enrollments/{tenantSlug}/uploads -> online_anmeldung  (#4895 Elternportal: Eltern-Sitzung, Anmeldung über enrollment.enabled)

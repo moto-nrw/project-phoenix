@@ -137,7 +137,15 @@ Usage:
 			StatePath:          statePath,
 			ReadMailLink:       FetchLatestMailLink,
 			ProductScreenshots: productScreenshots,
+			SeedWeekProtocols:  true,
 		}
+
+		history, closeHistory, err := openPresenceHistory()
+		if err != nil {
+			return err
+		}
+		defer closeHistory()
+		options.PresenceHistory = history
 
 		return defaultSeedRoot.run(cmd.Context(), url, verbose, options, email, password, pin)
 	},

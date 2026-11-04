@@ -11,11 +11,13 @@ vi.mock("./session-cache", () => {
     getCachedSession,
     clearSessionCache: vi.fn(),
     sessionFetch: vi.fn(async (url: string, init?: RequestInit) => {
+      // Same gate as the real sessionFetch (hasSessionAccess, #5005).
       const session = (await getCachedSession()) as {
-        user?: { token?: string };
+        user?: { id?: string };
+        error?: string;
       } | null;
-      const token = session?.user?.token;
-      if (!token) throw new Error("No authentication token available");
+      if (!session?.user || session.error)
+        throw new Error("No authentication token available");
       return fetch(url, {
         ...init,
         headers: {
@@ -30,6 +32,7 @@ vi.mock("./session-cache", () => {
 // Import after mocks are set up
 import { getCachedSession } from "./session-cache";
 import {
+  mapStaffRecord,
   staffAbsenceService,
   staffBalanceAdjustmentService,
   staffHistoryService,
@@ -1438,7 +1441,7 @@ describe("staff-api", () => {
     });
   });
 
-  describe("staffService.getStaffById", () => {
+  describe("staffService.getStaffRecord + mapStaffRecord", () => {
     it("maps the retained employment period without converting calendar dates", async () => {
       vi.mocked(globalThis.fetch).mockResolvedValueOnce({
         ok: true,
@@ -1451,7 +1454,7 @@ describe("staff-api", () => {
             },
           }),
       } as Response);
-      const staff = await staffService.getStaffById("1");
+      const staff = mapStaffRecord(await staffService.getStaffRecord("1"));
       expect(staff.startedOn).toBe("2024-09-02");
       expect(staff.endedOn).toBe("2026-07-31");
     });
@@ -1471,7 +1474,7 @@ describe("staff-api", () => {
           }),
       } as Response);
 
-      const result = await staffService.getStaffById("1");
+      const result = mapStaffRecord(await staffService.getStaffRecord("1"));
 
       expect(mockFetch).toHaveBeenCalledWith(
         "/api/staff/1",
@@ -1496,7 +1499,7 @@ describe("staff-api", () => {
           }),
       } as Response);
 
-      const staff = await staffService.getStaffById("1");
+      const staff = mapStaffRecord(await staffService.getStaffRecord("1"));
 
       expect(staff.avatarUrl).toBe("/api/staff/1/avatar");
     });
@@ -1508,7 +1511,7 @@ describe("staff-api", () => {
           Promise.resolve({ data: { ...sampleBackendStaff, avatar: null } }),
       } as Response);
 
-      const staff = await staffService.getStaffById("1");
+      const staff = mapStaffRecord(await staffService.getStaffRecord("1"));
 
       expect(staff.avatarUrl).toBeUndefined();
     });
@@ -1520,7 +1523,7 @@ describe("staff-api", () => {
         statusText: "Not Found",
       } as Response);
 
-      await expect(staffService.getStaffById("404")).rejects.toThrow(
+      await expect(staffService.getStaffRecord("404")).rejects.toThrow(
         "Failed to fetch staff member: Not Found",
       );
     });
@@ -3210,7 +3213,8 @@ describe("staff-api", () => {
       },
       qualifikationen: [
         {
-          id: 3,
+          id: "9007199254740993",
+          type_id: "9007199254740995",
           name: "Erste-Hilfe-Kurs",
           acquired_on: "2023-03-10",
           expires_on: "2026-03-10",
@@ -3251,13 +3255,15 @@ describe("staff-api", () => {
       // Persisted rows carry an id, a freshly typed one does not.
       expect(result.qualifikationen).toEqual([
         {
-          id: "3",
+          id: "9007199254740993",
+          typeId: "9007199254740995",
           name: "Erste-Hilfe-Kurs",
           acquiredOn: "2023-03-10",
           expiresOn: "2026-03-10",
         },
         {
           id: null,
+          typeId: null,
           name: "Schwimmschein",
           acquiredOn: null,
           expiresOn: null,
@@ -3379,7 +3385,7 @@ describe("staff-api", () => {
       });
     });
 
-    it("sends the full qualification list without client-side ids", async () => {
+    it("sends the full qualification list with the row ids and kinds (#4808)", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValue({ ok: true } as Response);
 
@@ -3387,13 +3393,15 @@ describe("staff-api", () => {
         "7",
         [
           {
-            id: "3",
-            name: "Erste-Hilfe-Kurs",
+            id: "9007199254740993",
+            typeId: "9007199254740995",
+            name: "",
             acquiredOn: "2023-03-10",
             expiresOn: "2026-03-10",
           },
           {
             id: null,
+            typeId: null,
             name: "Schwimmschein",
             acquiredOn: null,
             expiresOn: null,
@@ -3407,11 +3415,18 @@ describe("staff-api", () => {
       expect(JSON.parse(init.body as string)).toEqual({
         qualifikationen: [
           {
-            name: "Erste-Hilfe-Kurs",
+            id: "9007199254740993",
+            type_id: "9007199254740995",
+            name: "",
             acquired_on: "2023-03-10",
             expires_on: "2026-03-10",
           },
-          { name: "Schwimmschein", acquired_on: null, expires_on: null },
+          {
+            type_id: null,
+            name: "Schwimmschein",
+            acquired_on: null,
+            expires_on: null,
+          },
         ],
         note: "Nachweise",
       });

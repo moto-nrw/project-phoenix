@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.mealplan.weekly_participants",
+  "max": 24,
+  "exact": false,
+  "description": "modules/mealplan — GET /api/meal-plan/participants/week (#3164): the\ntenant settings, then per school day one candidate read and the\nparticipation reads of the Tagesliste. Flat in the number of children."
+}

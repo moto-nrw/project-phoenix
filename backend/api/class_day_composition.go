@@ -16,7 +16,6 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -44,6 +43,13 @@ func NewClassDay(
 	accessLog owners.AccessLogLedger, settings classDayWriteScopeSettings, broadcaster realtime.Broadcaster, logger *slog.Logger,
 ) classday.ClassDay {
 	deps.WriteScope = newClassDayWriteScope(settings)
+	deps.MorningChanged = func(ctx context.Context) {
+		if broadcaster != nil {
+			deliveryCompose.QueueArrivalScheduleChanged(ctx, classDayMorningBroadcaster{
+				broadcaster: broadcaster,
+			}, logger)
+		}
+	}
 	if settings != nil {
 		// operations.school_portal_morning_attendance (#4790): on unless the
 		// school switched it off.
@@ -99,10 +105,7 @@ func NewClassDayTripStatusDays(recorder classDayTripRecorder) classdayCompose.Cl
 type classDayTripStatusDays struct{ recorder classDayTripRecorder }
 
 func (b classDayTripStatusDays) RecordClassTrip(ctx context.Context, schoolClass string, studentIDs []int64, dates []timezone.Date, reason string) error {
-	want := schoolstructure.NormalizeClass(schoolClass)
-	err := b.recorder.RecordClassTrip(ctx, studentIDs, dates, reason, func(class string) bool {
-		return schoolstructure.NormalizeClass(class) == want
-	})
+	err := b.recorder.RecordClassTrip(ctx, studentIDs, dates, reason, sameClass(schoolClass))
 	var conflict *studentpresence.StudentStatusDayConflictError
 	switch {
 	case err == nil:
@@ -138,8 +141,19 @@ type classDayRosters struct{ reports enrollmentOwner.Reports }
 
 func (b classDayRosters) ClassRosterDay(ctx context.Context, schoolClass string, date timezone.Date) (*classdayCompose.DayRoster, error) {
 	roster, err := b.reports.ClassRosterDay(ctx, schoolClass, date)
-	if err != nil || roster == nil {
-		return nil, err
+	return classDayRoster(roster), err
+}
+
+// SchoolRosterDay reads the roster of every class of the day (#4802).
+func (b classDayRosters) SchoolRosterDay(ctx context.Context, date timezone.Date) (*classdayCompose.DayRoster, error) {
+	roster, err := b.reports.SchoolRosterDay(ctx, date)
+	return classDayRoster(roster), err
+}
+
+// classDayRoster maps Enrollment's day roster onto the projection's port.
+func classDayRoster(roster *enrollmentOwner.ClassRosterDay) *classdayCompose.DayRoster {
+	if roster == nil {
+		return nil
 	}
 	out := &classdayCompose.DayRoster{
 		PhaseNames: roster.PhaseNames,
@@ -148,7 +162,7 @@ func (b classDayRosters) ClassRosterDay(ctx context.Context, schoolClass string,
 	}
 	for _, row := range roster.Rows {
 		out.Rows = append(out.Rows, classdayCompose.DayRosterRow{
-			StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName,
+			StudentID: row.StudentID, SchoolClass: row.SchoolClass, FirstName: row.FirstName, LastName: row.LastName,
 			ListEntry: row.ListEntry, ListEntryID: row.ListEntryID, GroupName: row.GroupName, Registered: row.Registered,
 			OfferingsByDay: row.OfferingsByDay, ArrivalByDay: row.ArrivalByDay, PickupByDay: row.PickupByDay,
 		})
@@ -160,7 +174,7 @@ func (b classDayRosters) ClassRosterDay(ctx context.Context, schoolClass string,
 		}
 		out.Students = append(out.Students, classdayCompose.DayRosterStudent{ID: student.ID, DepartureModes: modes})
 	}
-	return out, nil
+	return out
 }
 
 // classDayStatusDays reads the active scheduled day statuses.
@@ -181,7 +195,10 @@ func (b classDayStatusDays) ActiveStatusDays(ctx context.Context, studentIDs []i
 	out := make([]classdayCompose.StatusDayEntry, 0, len(entries))
 	for _, entry := range entries {
 		if entry != nil {
-			out = append(out, classdayCompose.StatusDayEntry{StudentID: entry.StudentID, Status: entry.Status, ReportedAt: entry.ReportedAt})
+			out = append(out, classdayCompose.StatusDayEntry{
+				StudentID: entry.StudentID, Status: entry.Status, ReportedAt: entry.ReportedAt,
+				BySchool: entry.Source == absencerecords.StudentStatusSourceSchool,
+			})
 		}
 	}
 	return out, nil
@@ -269,6 +286,19 @@ func (l classDayAccessLog) RecordClassDayView(ctx context.Context, entry classda
 	return l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeClassDayView, entry))
 }
 
+func (l classDayAccessLog) SchoolDayViewSeenSince(ctx context.Context, actorAccountID int64, date string, since time.Time) (bool, error) {
+	return l.repo.ExistsSince(ctx, actorAccountID, auditModels.ResourceTypeSchoolDayView,
+		map[string]string{"date": date}, since)
+}
+
+func (l classDayAccessLog) RecordSchoolDayView(ctx context.Context, entry classdayCompose.AccessRecord) error {
+	return l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeSchoolDayView, entry))
+}
+
+func (l classDayAccessLog) RecordSharedNotes(ctx context.Context, entry classdayCompose.AccessRecord) error {
+	return l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeSchoolSharedNotes, entry))
+}
+
 func (l classDayAccessLog) RecordSupervisionSheet(ctx context.Context, entry classdayCompose.AccessRecord) error {
 	return l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeSupervisionStudentSheet, entry))
 }
@@ -330,4 +360,16 @@ func classHandoverStaffNames(staff classHandoverStaffRows) func(context.Context,
 		}
 		return names, nil
 	}
+}
+
+// classDayMorningBroadcaster reuses Delivery's queued school invalidation,
+// routing the notice to this school's student-update channel. The hub derives
+// class_day_changed for school clients; no notification preferences or child
+// data participate. The existing queue owns the after-commit boundary.
+type classDayMorningBroadcaster struct {
+	broadcaster realtime.Broadcaster
+}
+
+func (b classDayMorningBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {
+	return b.broadcaster.BroadcastToTenant(tenantID, realtime.NewEvent(realtime.EventStudentUpdated, "", event.Data))
 }

@@ -37,6 +37,8 @@ interface BackendStaffResponse {
   is_external?: boolean;
   external_organization?: string;
   external_account_status?: ExternalAccountStatus;
+  // Geplanter letzter Arbeitstag (#4809), "YYYY-MM-DD".
+  planned_exit_date?: string;
   person?: {
     id: number;
     first_name: string;
@@ -157,6 +159,7 @@ export const GET = createGetHandler(
         is_external: staff.is_external ?? false,
         external_organization: staff.external_organization ?? null,
         external_account_status: staff.external_account_status ?? null,
+        planned_exit_date: staff.planned_exit_date ?? null,
         // Include person object if available
         person: staff.person,
       };

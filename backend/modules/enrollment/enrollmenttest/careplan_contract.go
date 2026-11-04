@@ -54,6 +54,7 @@ const (
 var (
 	ErrCareOfferingInvalid                    = enrollment.ErrCareOfferingInvalid
 	ErrCareOfferingNotFound                   = enrollment.ErrCareOfferingNotFound
+	ErrCareOfferingSourceConflict             = enrollment.ErrCareOfferingSourceConflict
 	ErrCareOfferingsDisabled                  = enrollment.ErrCareOfferingsDisabled
 	ErrCareOfferingGroupRuleConflict          = enrollment.ErrCareOfferingGroupRuleConflict
 	ErrCareOfferingPickupTimesRequired        = enrollment.ErrCareOfferingPickupTimesRequired

@@ -1,0 +1,5 @@
+{
+  "activity_participant_limit_reached": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "room_capacity_exceeded": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "statistics_range_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+}

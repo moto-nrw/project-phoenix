@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Dateiablage (#2596): authenticated proxy streaming file bytes. Mirrors the
 // child document download proxy: inject the JWT server-side, refresh once on
@@ -73,4 +74,4 @@ async function GETHandler(
   return new NextResponse(upstream.body, { status: 200, headers });
 }
 
-export const GET = withTenantAuth(GETHandler);
+export const GET = withPrivateDownloadNoStore(withTenantAuth(GETHandler));

@@ -84,6 +84,7 @@ import {
   type GuardianNoticeDraft,
 } from "./guardian-notice-fields";
 import type { GuardianNoticeReach } from "~/lib/timetable-types";
+import { substitutionConcept } from "~/lib/concepts/substitution";
 
 interface StaffOption {
   id: string;
@@ -624,7 +625,7 @@ export function SubstitutionSlideOver({
                     </legend>
                     <label
                       htmlFor="vp-action-edit"
-                      className="moto-content-surface flex items-start gap-2 rounded-xl border p-3 shadow-sm"
+                      className="moto-content-surface flex items-start gap-2 rounded-xl border p-3"
                     >
                       <Radio
                         id="vp-action-edit"
@@ -644,7 +645,7 @@ export function SubstitutionSlideOver({
                     </label>
                     <label
                       htmlFor="vp-action-cancel"
-                      className="moto-content-surface flex items-start gap-2 rounded-xl border p-3 shadow-sm"
+                      className="moto-content-surface flex items-start gap-2 rounded-xl border p-3"
                     >
                       <Radio
                         id="vp-action-cancel"
@@ -816,7 +817,7 @@ export function SubstitutionSlideOver({
                                       ) : (
                                         <>
                                           <MotoConceptIcon
-                                            concept="substitution"
+                                            concept={substitutionConcept}
                                             size={14}
                                             className="mr-1"
                                           />
@@ -841,7 +842,7 @@ export function SubstitutionSlideOver({
                                         {restored ? (
                                           <>
                                             <MotoConceptIcon
-                                              concept="substitution"
+                                              concept={substitutionConcept}
                                               size={14}
                                               className="mr-1"
                                             />

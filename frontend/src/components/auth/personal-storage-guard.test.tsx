@@ -134,6 +134,27 @@ describe("PersonalStorageGuard (#5000)", () => {
     expect(localStorage.getItem("sidebar-collapsed")).toBe("true");
   });
 
+  it.each(["RefreshTokenError", "RefreshTokenExpired"])(
+    "does not bind an authenticated-looking ended session (%s)",
+    (error) => {
+      seedPreviousAccount();
+      mocks.useSession.mockReturnValue(signedIn("7", 1));
+      const { rerender } = render(<PersonalStorageGuard homeHref={home} />);
+      expect(localStorage.getItem("moto:personal-storage-owner")).toBe("1:7");
+
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { id: "7", roles: [], permissions: [] }, error },
+      });
+      rerender(<PersonalStorageGuard homeHref={home} />);
+
+      expect(localStorage.getItem("moto:personal-storage-owner")).toBeNull();
+      expect(sessionStorage.getItem("moto:personal-storage-owner")).toBeNull();
+      expect(localStorage.getItem(LAST_ROOM_NAME)).toBeNull();
+      expect(localStorage.getItem("sidebar-collapsed")).toBe("true");
+    },
+  );
+
   it("leaves everything in place while the session loads", () => {
     seedPreviousAccount();
     mocks.useSession.mockReturnValue({ data: null, status: "loading" });

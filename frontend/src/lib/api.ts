@@ -1,6 +1,7 @@
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import {
   ApiError,
+  apiErrorFromBody,
   apiErrorFromText,
   enrichApiError,
   problemDetail,
@@ -394,44 +395,35 @@ function buildStudentQueryParams(filters?: {
 }
 
 /**
- * Current session token via the deduplicating session cache.
+ * Headers for the raw fetch() call sites in the services below. The BFF
+ * routes authenticate through the session cookie; the browser holds no
+ * token (#5005).
  */
-async function getSessionToken(): Promise<string | undefined> {
-  const session = await getCachedSession();
-  return session?.user?.token;
-}
+const JSON_HEADERS: Record<string, string> = {
+  "Content-Type": "application/json",
+};
 
 /**
- * Auth headers for the raw fetch() call sites in the services below.
- * Undefined when unauthenticated, so the request goes out without an
- * Authorization header.
+ * Re-read the session after a 401 → refresh (helper for fetchWithRetry).
+ * The cached session is stale by definition — drop it first, or this (and
+ * every concurrent caller for up to 10s) would skip the lookup that persists
+ * the rotated cookie before the retry.
  */
-async function getAuthHeaders(): Promise<Record<string, string> | undefined> {
-  const token = await getSessionToken();
-  return token
-    ? {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      }
-    : undefined;
-}
-
-/**
- * Get new token from session (helper for fetchWithRetry).
- * Called after a 401 → token refresh, so the cached session is stale by
- * definition — drop it first, or this (and every concurrent caller for up to
- * 10s) would retry with the dead token.
- */
-async function getNewTokenFromSession(): Promise<string | undefined> {
+async function reloadSession(): Promise<void> {
   clearSessionCache();
-  return getSessionToken();
+  await getCachedSession();
 }
 
-function accessDeniedApiError(status?: 401 | 403): ApiError {
+/**
+ * The refusal fetchWithRetry reported, with code, details and request ID of
+ * the backend envelope when its body carried one (ADR 0006).
+ */
+function accessDeniedApiError(status?: 401 | 403, body?: unknown): ApiError {
   const accessDeniedStatus = status ?? 401;
-  return new ApiError(
+  return apiErrorFromBody(
     accessDeniedStatus === 403 ? "Access denied" : "Authentication failed",
     accessDeniedStatus,
+    body,
   );
 }
 
@@ -471,6 +463,7 @@ function buildRoomQueryParams(filters?: {
   category?: string;
   occupied?: boolean;
   search?: string;
+  includeSystem?: boolean;
   page?: number;
   pageSize?: number;
 }): URLSearchParams {
@@ -486,6 +479,8 @@ function buildRoomQueryParams(filters?: {
     params.append("page", filters.page.toString());
   if (filters?.pageSize !== undefined)
     params.append("page_size", filters.pageSize.toString());
+  if (filters?.includeSystem !== undefined)
+    params.append("include_system", String(filters.includeSystem));
   return params;
 }
 
@@ -923,7 +918,6 @@ function parseConflictMessage(body: string): string {
 
 export const studentService = {
   // Get all students
-  // Pass token to skip redundant getSession() call (saves ~600ms per request)
   getStudents: async (filters?: {
     search?: string;
     inHouse?: boolean;
@@ -945,7 +939,6 @@ export const studentService = {
     includeCompanions?: boolean;
     /** Wire projection (#2097) — see buildStudentQueryParams. */
     view?: "slim";
-    token?: string; // Optional: pass token to skip getSession()
   }): Promise<StudentsResult> => {
     const params = buildStudentQueryParams(filters);
     const useProxyApi = globalThis.window !== undefined;
@@ -955,23 +948,14 @@ export const studentService = {
 
     try {
       if (useProxyApi) {
-        // Use provided token or fall back to getSession()
-        let authToken = filters?.token;
-        if (!authToken) {
-          authToken = await getSessionToken();
-        }
-
-        const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
-          url,
-          authToken,
-          {
+        const { data, accessDeniedStatus, accessDeniedBody } =
+          await fetchWithRetry<unknown>(url, {
             onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
-          },
-        );
+            beforeRetry: reloadSession,
+          });
 
         if (data === null) {
-          throw accessDeniedApiError(accessDeniedStatus);
+          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
         }
 
         return parseStudentsPaginatedResponse(data);
@@ -990,28 +974,20 @@ export const studentService = {
     }
   },
 
-  getSchoolClasses: async (filters?: { token?: string }): Promise<string[]> => {
+  getSchoolClasses: async (): Promise<string[]> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = await resolveApiUrl("/api/students/school-classes");
 
     try {
       if (useProxyApi) {
-        let authToken = filters?.token;
-        if (!authToken) {
-          authToken = await getSessionToken();
-        }
-
-        const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
-          url,
-          authToken,
-          {
+        const { data, accessDeniedStatus, accessDeniedBody } =
+          await fetchWithRetry<unknown>(url, {
             onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
-          },
-        );
+            beforeRetry: reloadSession,
+          });
 
         if (data === null) {
-          throw accessDeniedApiError(accessDeniedStatus);
+          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
         }
 
         return parseSchoolClassesResponse(data);
@@ -1034,18 +1010,14 @@ export const studentService = {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
         // Route handler already maps response, so applyMapping=false
-        const token = await getSessionToken();
-        const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
-          url,
-          token,
-          {
+        const { data, accessDeniedStatus, accessDeniedBody } =
+          await fetchWithRetry<unknown>(url, {
             onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
-          },
-        );
+            beforeRetry: reloadSession,
+          });
 
         if (data === null) {
-          throw accessDeniedApiError(accessDeniedStatus);
+          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
         }
 
         return parseSingleStudentResponse(data, false);
@@ -1072,7 +1044,7 @@ export const studentService = {
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify(student),
         });
 
@@ -1124,7 +1096,7 @@ export const studentService = {
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify(student),
         });
 
@@ -1219,9 +1191,16 @@ export const studentService = {
 // Group service for API operations
 export const groupService = {
   // Get all groups
-  getGroups: async (filters?: { search?: string }): Promise<Group[]> => {
+  getGroups: async (
+    filters?: { search?: string; page?: number; pageSize?: number },
+    options?: { strict?: boolean },
+  ): Promise<Group[]> => {
     const params = new URLSearchParams();
     if (filters?.search) params.append("search", filters.search);
+
+    if (filters?.page !== undefined) params.set("page", String(filters.page));
+    if (filters?.pageSize !== undefined)
+      params.set("page_size", String(filters.pageSize));
 
     const useProxyApi = globalThis.window !== undefined;
     const queryString = params.toString();
@@ -1231,15 +1210,17 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const token = await getSessionToken();
-        const { response, data } = await fetchWithRetry<unknown>(url, token, {
-          onAuthFailure: handleAuthFailure,
-          getNewToken: getNewTokenFromSession,
-        });
+        const { response, data, accessDeniedStatus, accessDeniedBody } =
+          await fetchWithRetry<unknown>(url, {
+            onAuthFailure: handleAuthFailure,
+            beforeRetry: reloadSession,
+          });
 
         // Handle errors: null response means auth failed or permission denied
         // Return empty array for graceful degradation
         if (response === null || data === null) {
+          if (options?.strict)
+            throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
           return [];
         }
 
@@ -1267,15 +1248,14 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const token = await getSessionToken();
-        const { response, data, accessDeniedStatus } =
-          await fetchWithRetry<unknown>(url, token, {
+        const { response, data, accessDeniedStatus, accessDeniedBody } =
+          await fetchWithRetry<unknown>(url, {
             onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
+            beforeRetry: reloadSession,
           });
 
         if (response === null) {
-          throw accessDeniedApiError(accessDeniedStatus);
+          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
         }
 
         const groupData = extractBackendGroup(data);
@@ -1313,7 +1293,7 @@ export const groupService = {
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify(backendGroup),
         });
 
@@ -1355,7 +1335,7 @@ export const groupService = {
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify(backendUpdates),
         });
 
@@ -1398,7 +1378,7 @@ export const groupService = {
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {
@@ -1433,7 +1413,7 @@ export const groupService = {
         // Browser environment: use fetch with our Next.js API route
         const response = await fetch(url, {
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {
@@ -1490,7 +1470,7 @@ export const groupService = {
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify({
             supervisor_id: Number.parseInt(supervisorId, 10),
           }),
@@ -1539,7 +1519,7 @@ export const groupService = {
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {
@@ -1581,7 +1561,7 @@ export const groupService = {
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify({
             representative_id: Number.parseInt(representativeId, 10),
           }),
@@ -1618,15 +1598,19 @@ export const groupService = {
 // Room service for API operations
 export const roomService = {
   // Get all rooms
-  getRooms: async (filters?: {
-    building?: string;
-    floor?: number;
-    category?: string;
-    occupied?: boolean;
-    search?: string;
-    page?: number;
-    pageSize?: number;
-  }): Promise<Room[]> => {
+  getRooms: async (
+    filters?: {
+      building?: string;
+      floor?: number;
+      category?: string;
+      occupied?: boolean;
+      search?: string;
+      includeSystem?: boolean;
+      page?: number;
+      pageSize?: number;
+    },
+    options?: { strict?: boolean },
+  ): Promise<Room[]> => {
     const params = buildRoomQueryParams(filters);
     const queryString = params.toString();
 
@@ -1637,11 +1621,15 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const token = await getSessionToken();
-        const { data } = await fetchWithRetry<unknown>(url, token, {
-          onAuthFailure: handleAuthFailure,
-          getNewToken: getNewTokenFromSession,
-        });
+        const { response, data, accessDeniedStatus, accessDeniedBody } =
+          await fetchWithRetry<unknown>(url, {
+            onAuthFailure: handleAuthFailure,
+            beforeRetry: reloadSession,
+          });
+
+        if (options?.strict && (response === null || data === null)) {
+          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
+        }
 
         const rooms = parseRoomsResponse(data);
         return mapRoomsResponse(rooms);
@@ -1667,15 +1655,14 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const token = await getSessionToken();
-        const { response, data, accessDeniedStatus } =
-          await fetchWithRetry<unknown>(url, token, {
+        const { response, data, accessDeniedStatus, accessDeniedBody } =
+          await fetchWithRetry<unknown>(url, {
             onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
+            beforeRetry: reloadSession,
           });
 
         if (response === null) {
-          throw accessDeniedApiError(accessDeniedStatus);
+          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
         }
 
         const roomData = extractBackendRoom(data);
@@ -1711,7 +1698,7 @@ export const roomService = {
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify(backendRoom),
         });
 
@@ -1753,7 +1740,7 @@ export const roomService = {
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify(backendUpdates),
         });
 
@@ -1796,7 +1783,7 @@ export const roomService = {
         const response = await transportFetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {
@@ -1838,7 +1825,7 @@ export const roomService = {
         // Browser environment: use fetch with our Next.js API route
         const response = await fetch(url, {
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {

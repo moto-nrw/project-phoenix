@@ -1,0 +1,39 @@
+{
+  "sites": [
+    {
+      "decision": "0123",
+      "id": "modules/parentbilling/internal/adapters/rendering/Renderer.CombineLetters",
+      "reason": "ADR 0123 (#4670): Adapter of the Elternabrechnung onto the letter contract of Document Rendering; it translates a combination without letters into ErrBillingLettersMissing."
+    },
+    {
+      "decision": "0119",
+      "id": "modules/parentbilling/internal/application/BillingRuns.ListBillingRuns",
+      "reason": "ADR 0119 (#4668): lists the billing runs of the session's Träger after refusing a missing Träger; the Träger transaction is the caller's."
+    },
+    {
+      "decision": "0115",
+      "id": "modules/parentbilling/internal/application/HolidayContributions.ResolveHolidayLink",
+      "reason": "ADR 0115 (#4664): refuses an empty key and a link without Träger or period before the public contribution opens the Träger transaction; the administrative transaction is the caller's."
+    },
+    {
+      "decision": "0115",
+      "id": "modules/parentbilling/internal/application/Rules.CreateContributionRule",
+      "reason": "ADR 0115 (#4664): checks the Träger and validates the rule as a whole (kind, parameters, validity) before the store inserts it; the Träger transaction is the caller's."
+    },
+    {
+      "decision": "0115",
+      "id": "modules/parentbilling/internal/application/Rules.DeleteContributionRule",
+      "reason": "ADR 0115 (#4664): checks the Träger and the rule ID before the store removes the rule; a frozen contribution keeps what it froze."
+    },
+    {
+      "decision": "0115",
+      "id": "modules/parentbilling/internal/application/Rules.ListContributionRules",
+      "reason": "ADR 0115 (#4664): lists the holiday rules of the session's Träger after refusing a missing Träger; the Träger transaction is the caller's."
+    },
+    {
+      "decision": "0115",
+      "id": "modules/parentbilling/internal/application/Rules.UpdateContributionRule",
+      "reason": "ADR 0115 (#4664): checks the Träger and the rule ID and validates the rule as a whole before the store changes it; a frozen contribution keeps what it froze."
+    }
+  ]
+}

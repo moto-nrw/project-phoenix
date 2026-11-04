@@ -77,6 +77,7 @@ type enrollmentDeletionAppender interface {
 
 type offeringChangeStudentRows interface {
 	FindByID(ctx context.Context, id any) (*peopleValues.StudentState, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.StudentState, error)
 	FindByIDForUpdate(ctx context.Context, id int64) (*peopleValues.StudentState, error)
 }
 

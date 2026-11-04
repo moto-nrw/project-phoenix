@@ -1,0 +1,4 @@
+DELETE /operator/invitations/{id} -> basis
+GET /operator/invitations/ -> basis
+POST /operator/invitations/ -> basis
+POST /operator/invitations/{id}/resend -> basis

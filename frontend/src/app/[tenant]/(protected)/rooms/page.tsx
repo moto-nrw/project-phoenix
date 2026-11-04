@@ -1,5 +1,6 @@
 "use client";
 
+import { rooms as roomKeys } from "~/lib/swr/rooms";
 import {
   useState,
   useEffect,
@@ -24,27 +25,17 @@ import type {
   ActiveFilter,
   OverflowMenuItem,
 } from "~/components/ui/page-header/types";
-import {
-  formatFloor,
-  getRoomCategoryColor,
-  mapRoomsResponse,
-} from "~/lib/room-helpers";
-import type { BackendRoom } from "~/lib/room-helpers";
+import { formatFloor, getRoomCategoryColor } from "~/lib/room-helpers";
 import { useSWRAuth } from "~/lib/swr";
+import { dashboardKeys } from "~/lib/swr/shell-keys";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
-import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import {
-  ArrowRight,
-  ChevronRight,
-  FileSpreadsheet,
-  FileText,
-} from "lucide-react";
+import { ChevronRight, FileSpreadsheet, FileText } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { SectionHeader } from "~/components/ui/concept-section-header";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { RoomStatusBadge } from "~/components/rooms/room-status-badge";
+import { TransitAssignmentCard } from "~/components/rooms/transit-assignment-card";
 
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
@@ -54,6 +45,9 @@ import {
   type RoomSnapshotExportFormat,
 } from "~/lib/room-export-api";
 import { RoomsGridSkeleton } from "./page-skeleton";
+import { childrenConcept } from "~/lib/concepts/children";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { staffConcept } from "~/lib/concepts/staff";
 
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
@@ -77,36 +71,6 @@ interface Room {
 /** Die Sammlung dieser Seite, für den Rückweg aus der Raumseite (`?from=`). */
 const COLLECTION_PATH = "/rooms";
 const TRANSIT_PATH = "/rooms/unterwegs";
-
-function TransitAssignmentCard({
-  count,
-  href,
-}: {
-  readonly count: number;
-  readonly href: string;
-}) {
-  return (
-    <TileCard href={href} className="flex items-center justify-between gap-4">
-      <SectionHeader
-        className="min-w-0 flex-1"
-        title="Unterwegs"
-        icon={<MotoConceptIcon concept="transit" size={22} />}
-        subtitle={
-          <>
-            <span className="font-medium text-gray-900">{count}</span>{" "}
-            {count === 1 ? "Kind" : "Kinder"} ohne Raumzuweisung
-          </>
-        }
-        actions={
-          <span className="moto-content-surface inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium text-gray-700 transition-colors group-hover:border-gray-300 group-hover:bg-gray-50">
-            Zuweisen
-            <ArrowRight className="h-4 w-4 text-gray-500" aria-hidden="true" />
-          </span>
-        }
-      />
-    </TileCard>
-  );
-}
 
 function RoomTile({
   room,
@@ -161,14 +125,14 @@ function RoomTile({
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
                   {room.studentCount !== undefined && room.studentCount > 0 && (
                     <span className="flex items-center gap-1">
-                      <MotoConceptIcon concept="children" size={16} />
+                      <MotoConceptIcon concept={childrenConcept} size={16} />
                       {room.studentCount}{" "}
                       {room.studentCount === 1 ? "Kind" : "Kinder"}
                     </span>
                   )}
                   {room.supervisorName && (
                     <span className="flex items-center gap-1">
-                      <MotoConceptIcon concept="staff" size={16} />
+                      <MotoConceptIcon concept={staffConcept} size={16} />
                       {room.supervisorName}
                     </span>
                   )}
@@ -298,47 +262,29 @@ function RoomsPageContent() {
   // Fetch rooms with SWR (automatic caching, deduplication, revalidation)
   // Global SSE in TenantAuthWrapper handles cache invalidation automatically
   const {
-    data: roomsData,
+    data: rawRoomsData,
     isLoading: loading,
     error: roomsError,
     mutate: reloadRooms,
   } = useSWRAuth<Room[]>(
-    "rooms-list",
-    async () => {
-      // include_system: this page is the live occupancy view — system rooms
-      // (Schulhof, WC) must stay visible here and in the Wer-ist-wo export.
-      const response = await transportFetch("/api/rooms?include_system=true");
-      if (!response.ok) {
-        throw await apiErrorFromResponse(response, "rooms list failed");
-      }
-
-      const data = (await response.json()) as
-        BackendRoom[] | { data: BackendRoom[] };
-
-      // Use mapping helper to transform backend data to frontend format
-      let roomsData: Room[];
-      if (data && Array.isArray(data)) {
-        roomsData = mapRoomsResponse(data);
-      } else if (data?.data && Array.isArray(data.data)) {
-        roomsData = mapRoomsResponse(data.data);
-      } else {
-        throw new Error("unexpected rooms response shape");
-      }
-
-      // Apply color defaults
-      return roomsData.map((room) => ({
-        ...room,
-        color: room.color ?? getRoomCategoryColor(room.category),
-      }));
-    },
+    roomKeys.key({ includeSystem: true }),
+    () => roomKeys.fetcher({ includeSystem: true }),
     {
       keepPreviousData: true,
       revalidateOnFocus: false,
     },
   );
+  const roomsData = useMemo(
+    () =>
+      rawRoomsData?.map((room) => ({
+        ...room,
+        color: room.color ?? getRoomCategoryColor(room.category),
+      })),
+    [rawRoomsData],
+  );
 
   const { data: dashboardData } = useSWRAuth<DashboardAnalytics>(
-    "dashboard-analytics",
+    dashboardKeys.analytics(),
     fetchDashboardAnalyticsClient,
     { refreshInterval: 5 * 60 * 1000 },
   );
@@ -586,7 +532,7 @@ function RoomsPageContent() {
     !showSkeleton && !showTransitAssignment && filteredRooms.length === 0
       ? hasActiveFilters
         ? {
-            icon: <MotoConceptIcon concept="rooms" size={48} />,
+            icon: <MotoConceptIcon concept={roomsConcept} size={48} />,
             title: "Keine Räume gefunden",
             description:
               "Zu Suche und Filtern passt kein Raum. Setzen Sie die Filter zurück, um alle Räume zu sehen.",
@@ -597,7 +543,7 @@ function RoomsPageContent() {
             ),
           }
         : {
-            icon: <MotoConceptIcon concept="rooms" size={48} />,
+            icon: <MotoConceptIcon concept={roomsConcept} size={48} />,
             title: "Keine Räume gefunden",
             description:
               "Für diese Schule ist noch kein Raum angelegt. Räume legen Sie in der Datenverwaltung an.",

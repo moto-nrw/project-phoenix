@@ -1,0 +1,3 @@
+GET /api/substitutions/ -> basis
+POST /api/substitutions/ -> basis
+POST /api/substitutions/end -> basis

@@ -2,6 +2,7 @@ package catererportalhttp
 
 import (
 	"errors"
+	"net/http"
 
 	"github.com/go-chi/render"
 
@@ -45,4 +46,48 @@ var errorRules = []common.ErrorRule{
 	{Target: identityaccess.ErrInvalidCredentials, Render: common.FixedCodedRenderer(common.ErrorUnauthorizedWithCode, errInvalidCredentials, common.CodeIdentityInvalidCredentials)},
 	{Target: identityaccess.ErrAccountNotFound, Render: common.FixedCodedRenderer(common.ErrorUnauthorizedWithCode, errInvalidCredentials, common.CodeIdentityInvalidCredentials)},
 	{Target: identityaccess.ErrAccountNotCaterer, Render: common.FixedCodedRenderer(common.ErrorUnauthorizedWithCode, errInvalidCredentials, common.CodeIdentityInvalidCredentials)},
+}
+
+// secondFactorRules map the second factor of the caterer (#4497) like the
+// school portals' MFA and passkey routes: one code for a wrong code and an
+// unusable challenge, a lock and a send cap as blocked, an unreadable status
+// as unavailable.
+var secondFactorRules = []common.ErrorRule{
+	{Target: identityaccess.ErrMFAChallengeTokenInvalid, Render: common.FixedCodedRenderer(common.ErrorUnauthorizedWithCode, identityaccess.ErrMFACodeInvalid, common.CodeIdentityMfaCodeInvalid)},
+	{Target: identityaccess.ErrMFACodeInvalid, Render: common.FixedCodedRenderer(common.ErrorUnauthorizedWithCode, identityaccess.ErrMFACodeInvalid, common.CodeIdentityMfaCodeInvalid)},
+	{Target: identityaccess.ErrMFAUnsupportedScope, Render: common.FixedCodedRenderer(common.ErrorUnauthorizedWithCode, identityaccess.ErrMFACodeInvalid, common.CodeIdentityMfaCodeInvalid)},
+	// A proof an operator's reset revoked between the code and the mint.
+	{Target: identityaccess.ErrInvalidToken, Render: common.FixedCodedRenderer(common.ErrorUnauthorizedWithCode, identityaccess.ErrMFACodeInvalid, common.CodeIdentityMfaCodeInvalid)},
+	{Target: identityaccess.ErrMFALocked, Render: common.FixedCodedRenderer(common.ErrorTooManyRequestsWithCode, identityaccess.ErrMFALocked, common.CodeIdentityMfaBlocked)},
+	{Target: identityaccess.ErrMFARateLimited, Render: common.FixedCodedRenderer(common.ErrorTooManyRequestsWithCode, identityaccess.ErrMFARateLimited, common.CodeIdentityMfaBlocked)},
+	{Target: identityaccess.ErrMFAStatusUnavailable, Render: common.FixedRenderer(common.ErrorServiceUnavailable, identityaccess.ErrMFAStatusUnavailable)},
+	{Target: identityaccess.ErrAccountMFAUnavailable, Render: common.FixedRenderer(common.ErrorServiceUnavailable, identityaccess.ErrAccountMFAUnavailable)},
+	{Target: identityaccess.ErrPasskeyFlowsUnavailable, Render: common.FixedRenderer(common.ErrorServiceUnavailable, identityaccess.ErrPasskeyFlowsUnavailable)},
+	{Target: identityaccess.ErrMFAAlreadyEnrolled, Render: common.FixedRenderer(common.ErrorConflict, identityaccess.ErrMFAAlreadyEnrolled)},
+	{Target: identityaccess.ErrCatererMFANotEnabled, Render: common.FixedRenderer(common.ErrorConflict, identityaccess.ErrCatererMFANotEnabled)},
+	{Target: identityaccess.ErrMFAPermissionDenied, Render: common.FixedRenderer(common.ErrorForbidden, identityaccess.ErrMFAPermissionDenied)},
+	{Target: identityaccess.ErrPasskeyNotFound, Render: common.FixedRenderer(common.ErrorNotFound, identityaccess.ErrPasskeyNotFound)},
+	{Target: identityaccess.ErrPasskeySessionInvalid, Render: common.FixedRenderer(common.ErrorUnauthorized, identityaccess.ErrInvalidCredentials)},
+	{Target: identityaccess.ErrPasskeyOriginInvalid, Render: common.FixedRenderer(common.ErrorUnauthorized, identityaccess.ErrPasskeyOriginInvalid)},
+}
+
+// passkeyLoginRules answer every refused passkey sign-in with one code, so
+// the login page says the same for an unknown passkey, a foreign ceremony
+// and an account that is no caterer's.
+var passkeyLoginRules = []common.ErrorRule{
+	{Target: identityaccess.ErrInvalidCredentials, Render: common.FixedCodedRenderer(common.ErrorUnauthorizedWithCode, identityaccess.ErrInvalidCredentials, common.CodeIdentityPasskeyLoginFailed)},
+	{Target: identityaccess.ErrPasskeySessionInvalid, Render: common.FixedCodedRenderer(common.ErrorUnauthorizedWithCode, identityaccess.ErrInvalidCredentials, common.CodeIdentityPasskeyLoginFailed)},
+	{Target: identityaccess.ErrAccountNotFound, Render: common.FixedCodedRenderer(common.ErrorUnauthorizedWithCode, identityaccess.ErrInvalidCredentials, common.CodeIdentityPasskeyLoginFailed)},
+	{Target: identityaccess.ErrAccountNotCaterer, Render: common.FixedCodedRenderer(common.ErrorUnauthorizedWithCode, identityaccess.ErrInvalidCredentials, common.CodeIdentityPasskeyLoginFailed)},
+	{Target: identityaccess.ErrPasskeyOriginInvalid, Render: common.FixedCodedRenderer(common.ErrorUnauthorizedWithCode, identityaccess.ErrPasskeyOriginInvalid, common.CodeIdentityPasskeyLoginFailed)},
+}
+
+func renderSecondFactorFailure(w http.ResponseWriter, r *http.Request, err error) {
+	rules := append(append([]common.ErrorRule{}, secondFactorRules...), errorRules...)
+	common.RenderError(w, r, common.RenderWithRules(err, rules, common.ErrorInternalServerRenderer("caterer second factor failed")))
+}
+
+func renderPasskeyLoginFailure(w http.ResponseWriter, r *http.Request, err error) {
+	rules := append(append(append([]common.ErrorRule{}, passkeyLoginRules...), secondFactorRules...), errorRules...)
+	common.RenderError(w, r, common.RenderWithRules(err, rules, common.ErrorInternalServerRenderer("caterer passkey sign-in failed")))
 }

@@ -35,6 +35,8 @@ type ChangeRequestResponse struct {
 	ReviewedBy        *int64                         `json:"reviewed_by_account_id,omitempty"`
 	Request           *AdminRequestSummary           `json:"request,omitempty"`
 	Messages          []ChangeRequestMessageResponse `json:"messages,omitempty"`
+	// RosterImpacts answer an approval that changed bookings (#5102).
+	RosterImpacts []childRosterImpactResponse `json:"roster_impacts,omitempty"`
 }
 
 type ChangeRequestMessageResponse struct {
@@ -293,6 +295,7 @@ func toChangeRequestResponse(agg *ChangeRequestAggregate, includeRequest bool, i
 	}
 	if includeInternal {
 		resp.ReviewedBy = row.ReviewedByAccountID
+		resp.RosterImpacts = newChildRosterImpactResponses(agg.RosterImpacts)
 	}
 	for _, msg := range agg.Messages {
 		out := ChangeRequestMessageResponse{

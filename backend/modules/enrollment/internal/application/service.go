@@ -55,6 +55,7 @@ type Store interface {
 	ChildrenByPhaseStatuses(ctx context.Context, phaseID int64, statuses []string) ([]*enrollment.RequestChild, error)
 	UpdateChildData(ctx context.Context, child *enrollment.RequestChild) error
 	StudentCarePeriods(context.Context, int64) ([]*enrollment.StudentCarePeriod, error)
+	StudentCarePeriodsByStudentIDs(context.Context, []int64) ([]*enrollment.StudentCarePeriod, error)
 	UpdateChildActivationPlan(context.Context, int64, string, *enrollment.Date) error
 	LinkCreatedStudent(context.Context, int64, int64) error
 	SetChildClassSwitch(context.Context, int64, *enrollment.ClassSwitch) error

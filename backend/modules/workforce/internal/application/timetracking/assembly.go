@@ -83,6 +83,13 @@ type Ports struct {
 	TargetModels    TargetModelReader
 	Shifts          ShiftReader
 	Holidays        HolidayDatesReader
+	// StatutoryHolidays are the public holidays of the school's federal
+	// state alone, without closing days: the holiday surcharge (#4807)
+	// counts on them.
+	StatutoryHolidays HolidayDatesReader
+	// PayrollRules is the school's wage types and surcharge rules in force
+	// (#4807): the export books with them, the month close freezes them.
+	PayrollRules workforce.PayrollRuleSetReader
 
 	Settings Settings
 	Payroll  PayrollConfigurationReader
@@ -140,12 +147,13 @@ func NewClock(deps Dependencies) (*Clock, error) {
 	ledger := deps.ledger(months, snapshots, logger)
 	// Monatsabschluss (#1417): freezes a month's closing balance so a
 	// retroactive correction can no longer rewrite every later Übertrag.
-	closing := NewStaffMonthCloseService(snapshots, months, deps.MonthCloseStaff, deps.Settings, logger, WithMonthCloseEvents(deps.Events), WithMonthCloseUnitOfWork(runTimeTrackingUnit))
+	closing := NewStaffMonthCloseService(snapshots, months, deps.MonthCloseStaff, deps.Settings, logger, WithMonthCloseEvents(deps.Events), WithMonthCloseUnitOfWork(runTimeTrackingUnit), WithMonthClosePayrollRules(deps.PayrollRules))
 	overview := deps.overview(snapshots, logger)
 	// Cross-staff payroll/evidence export (#1417 2b): rows via the overview's
 	// prefetch (month) and the single-staff export cells (day); every download
 	// writes an audit.data_access_logs row or fails.
 	export := NewStaffTimeExportService(overview, sessions, deps.ExportStaff, deps.DataAccessAudit, deps.Payroll, logger, deps.RenderWorkbook)
+	export.payrollRules = deps.PayrollRules
 	// Cross-staff audit feed (#1417): merges the four change trails into one
 	// keyset-paginated view. Read-only; permission gating at the route.
 	auditLog := NewTimeTrackingAuditLogService(deps.AuditReader, deps.StaffNames, deps.Settings)
@@ -231,6 +239,7 @@ func (deps Dependencies) overview(snapshots MonthSnapshots, logger *slog.Logger)
 		snapshots, deps.ScheduleTargets, deps.TargetModels, deps.Shifts, deps.Settings, logger,
 		WithOverviewHolidays(deps.Holidays),
 		WithOverviewTargetOverrides(deps.TargetOverrides),
+		WithOverviewPayrollRules(deps.PayrollRules, deps.StatutoryHolidays),
 		// Vacation takeover (#2132): the Resturlaub column subtracts
 		// pre-introduction days exactly like the /staff/{id} detail view.
 		WithOverviewVacationOpenings(deps.VacationOpenings),
@@ -280,8 +289,8 @@ func (deps Dependencies) validate() error {
 	case deps.Schedules == nil || deps.TimeModels == nil || deps.ScheduleTargets == nil || deps.TargetModels == nil ||
 		deps.Shifts == nil || deps.Holidays == nil:
 		return errors.New("time tracking: the schedule, model, shift and holiday readers are required")
-	case deps.Settings == nil || deps.Payroll == nil:
-		return errors.New("time tracking: the settings and payroll configuration are required")
+	case deps.Settings == nil || deps.Payroll == nil || deps.PayrollRules == nil || deps.StatutoryHolidays == nil:
+		return errors.New("time tracking: the settings, payroll configuration, payroll rules and statutory holidays are required")
 	case deps.RenderPDF == nil || deps.RenderWorkbook == nil || deps.Events == nil:
 		return errors.New("time tracking: the document renderers and the change notification are required")
 	}

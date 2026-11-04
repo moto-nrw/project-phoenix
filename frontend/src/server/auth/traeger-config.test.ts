@@ -1,3 +1,4 @@
+import { withServerSessionMutation } from "./session-mutation";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { User } from "next-auth";
 
@@ -67,11 +68,13 @@ describe("traegerAuthConfig", () => {
       exp: Math.floor(Date.now() / 1000) + 900,
     });
 
-    const user = await authorize()({
-      internalRefresh: "true",
-      token: "access",
-      refreshToken: "refresh",
-    });
+    const user = await withServerSessionMutation(() =>
+      authorize()({
+        internalRefresh: "true",
+        token: "access",
+        refreshToken: "refresh",
+      }),
+    );
 
     expect(mockValidate).toHaveBeenCalledWith("access", "org", "refresh");
     expect(user).toMatchObject({
@@ -87,11 +90,13 @@ describe("traegerAuthConfig", () => {
     mockValidate.mockResolvedValue(null);
 
     await expect(
-      authorize()({
-        internalRefresh: "true",
-        token: "school-token",
-        refreshToken: "refresh",
-      }),
+      withServerSessionMutation(() =>
+        authorize()({
+          internalRefresh: "true",
+          token: "school-token",
+          refreshToken: "refresh",
+        }),
+      ),
     ).resolves.toBeNull();
   });
 

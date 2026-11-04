@@ -13,7 +13,11 @@ func NativeFacadeRows() values.ParentMessageRows[InboxThread, ThreadDetail, Pare
 		Message:  func(row *ParentMessage) *values.ParentMessage { return (*values.ParentMessage)(row) },
 		Guardian: func(row *MessageableGuardian) *values.MessageableGuardian { return (*values.MessageableGuardian)(row) },
 		Thread: func(row *ThreadDetail) (values.InboxThread, []*ParentMessage) {
-			return values.InboxThread{ThreadID: row.ThreadID, StudentID: row.StudentID, StudentName: row.StudentName, GuardianName: row.GuardianName, RelationshipType: row.RelationshipType}, row.Messages
+			return values.InboxThread{
+				ThreadID: row.ThreadID, StudentID: row.StudentID, StudentName: row.StudentName,
+				GuardianAccountID: row.GuardianAccountID, GuardianName: row.GuardianName, RelationshipType: row.RelationshipType,
+				Audience: row.Audience, LeadershipReaders: row.LeadershipReaders,
+			}, row.Messages
 		},
 	}
 }

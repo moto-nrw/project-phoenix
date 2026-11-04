@@ -8,6 +8,7 @@ import {
   parseMaxParticipants,
   plannedStudentIds,
   sourceScopesOverlap,
+  withSourcePrefill,
 } from "./form-model";
 
 function template(
@@ -237,5 +238,58 @@ describe("plannedStudentIds (#2482)", () => {
       },
     };
     expect(plannedStudentIds(form).sort()).toEqual(["1", "2", "3"]);
+  });
+});
+
+describe("withSourcePrefill", () => {
+  it("starts a new Regeltermin fed by the offering on its booked days", () => {
+    const form = withSourcePrefill(emptyForm("2026-09-09", "5", "weekly"), {
+      careOfferingIds: ["7"],
+      title: "Randstunde",
+      weekdays: [1, 2, 3],
+    });
+
+    expect(form.targetGroupType).toBe("angebot");
+    expect(form.sourceCareOfferingIds).toEqual(["7"]);
+    expect(form.title).toBe("Randstunde");
+    expect(form.weekdays).toEqual([1, 2, 3]);
+    expect(form.studentIds).toEqual([]);
+    expect(form.calendarPeriodId).toBe("5");
+    expect(form.repeat).toBe("weekly");
+  });
+
+  it("keeps a new Regeltermin to the listed classes (#5343)", () => {
+    const form = withSourcePrefill(emptyForm("2026-09-09", "5", "weekly"), {
+      careOfferingIds: ["7"],
+      title: "Randstunde",
+      weekdays: [2],
+      schoolClasses: ["1a", "1b"],
+    });
+
+    expect(form.sourceSchoolClasses).toEqual(["1a", "1b"]);
+    expect(form.sourceGradeLevels).toEqual([]);
+    expect(form.sourceFilterMode).toBe("klasse");
+  });
+
+  it("takes every child of the offering without listed classes", () => {
+    const form = withSourcePrefill(emptyForm("2026-09-09", "5", "weekly"), {
+      careOfferingIds: ["7"],
+      title: "Randstunde",
+      weekdays: [2],
+      schoolClasses: [],
+    });
+
+    expect(form.sourceSchoolClasses).toEqual([]);
+    expect(form.sourceFilterMode).toBe("alle");
+  });
+
+  it("keeps the default weekday when the offering names none", () => {
+    const form = withSourcePrefill(emptyForm("2026-09-09"), {
+      careOfferingIds: ["7"],
+      title: "Randstunde",
+      weekdays: [],
+    });
+
+    expect(form.weekdays).toEqual([3]);
   });
 });

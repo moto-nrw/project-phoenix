@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import { useTranslations } from "next-intl";
 import { MobilePageHelpTarget } from "~/components/help/mobile-page-help-target";
 import { BackLink } from "~/components/ui/back-link";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -60,7 +61,7 @@ export function ParentPageHeader({
   prominent?: boolean;
 }>) {
   return (
-    <header className="moto-content-surface space-y-3 rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+    <header className="moto-content-surface space-y-3 rounded-2xl border p-5">
       {backHref && backLabel && <BackLink href={backHref} label={backLabel} />}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 basis-0 gap-3">
@@ -104,20 +105,22 @@ export function ParentPageHeader({
  * whole block.
  */
 export function ParentPageSkeleton({ rows = 2 }: Readonly<{ rows?: number }>) {
+  const t = useTranslations("parentNav");
   return (
     <ParentPage>
       <div
         data-testid="parent-page-header-skeleton"
-        className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md"
-        aria-hidden="true"
+        className="moto-content-surface rounded-2xl border p-5"
+        role="status"
       >
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="mt-2 h-7 w-56 max-w-3/4" />
-        <Skeleton className="mt-2 h-4 w-full max-w-xl" />
-        <Skeleton className="mt-2 h-4 w-2/3 max-w-md" />
+        <span className="sr-only">{t("sectionLoading")}</span>
+        <Skeleton aria-hidden="true" className="h-3 w-24" />
+        <Skeleton aria-hidden="true" className="mt-2 h-7 w-56 max-w-3/4" />
+        <Skeleton aria-hidden="true" className="mt-2 h-4 w-full max-w-xl" />
+        <Skeleton aria-hidden="true" className="mt-2 h-4 w-2/3 max-w-md" />
       </div>
       {Array.from({ length: rows }, (_, index) => (
-        <ParentSectionSkeleton key={index} />
+        <ParentSectionSkeleton key={index} announce={false} />
       ))}
     </ParentPage>
   );
@@ -127,40 +130,50 @@ export function ParentSectionSkeleton({
   rows = 3,
   showHeader = true,
   className = "",
+  announce = true,
 }: Readonly<{
   rows?: number;
   showHeader?: boolean;
   className?: string;
+  /** False only when another status covers the same loading phase. */
+  announce?: boolean;
 }>) {
+  const t = useTranslations("parentNav");
+  // Die Fläche selbst ist nur Grafik. Der Status sagt Screenreadern, dass
+  // hier noch Inhalt kommt, etwa beim ersten Öffnen eines Reiters (#4994).
   return (
     <div
       data-testid="parent-page-section-skeleton"
-      className={`moto-content-surface overflow-hidden rounded-2xl border shadow-sm ${className}`}
-      aria-hidden="true"
+      className={`moto-content-surface overflow-hidden rounded-2xl border ${className}`}
+      role={announce ? "status" : undefined}
+      aria-hidden={announce ? undefined : true}
     >
-      {showHeader ? (
-        <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-5">
-          <Skeleton className="size-10 shrink-0 rounded-xl" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-5 w-40 max-w-2/3" />
-            <Skeleton className="h-3 w-56 max-w-full" />
-          </div>
-        </div>
-      ) : null}
-      <div className="divide-y divide-gray-100 px-4 sm:px-5">
-        {Array.from({ length: rows }, (_, rowIndex) => (
-          <div
-            key={rowIndex}
-            data-testid="parent-page-section-row-skeleton"
-            className="flex min-h-16 items-center gap-3 py-3"
-          >
+      {announce ? <span className="sr-only">{t("sectionLoading")}</span> : null}
+      <div aria-hidden="true">
+        {showHeader ? (
+          <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-5">
+            <Skeleton className="size-10 shrink-0 rounded-xl" />
             <div className="min-w-0 flex-1 space-y-2">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className="h-5 w-40 max-w-2/3" />
+              <Skeleton className="h-3 w-56 max-w-full" />
             </div>
-            <Skeleton className="h-8 w-12 shrink-0 rounded-lg" />
           </div>
-        ))}
+        ) : null}
+        <div className="divide-y divide-gray-100 px-4 sm:px-5">
+          {Array.from({ length: rows }, (_, rowIndex) => (
+            <div
+              key={rowIndex}
+              data-testid="parent-page-section-row-skeleton"
+              className="flex min-h-16 items-center gap-3 py-3"
+            >
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-3 w-1/2" />
+              </div>
+              <Skeleton className="h-8 w-12 shrink-0 rounded-lg" />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

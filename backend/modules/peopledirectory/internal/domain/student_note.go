@@ -154,6 +154,9 @@ type StudentNote struct {
 	Category        string
 	Body            string
 	Subject         StudentNoteSubject
+	// SharedWithSchool releases the note to the Lehrkraft of the child's
+	// class in moto schule (#4797). Off by default; only the OGS sets it.
+	SharedWithSchool bool
 	// AuthorName is resolved on read, not stored: a note carries the account
 	// that wrote it, and the name follows that person's current record.
 	AuthorName string
@@ -174,6 +177,7 @@ type CreateStudentNote struct {
 	Category          string
 	Body              string
 	Subject           StudentNoteSubject
+	SharedWithSchool  bool
 	RevalidateSubject func(context.Context) error
 }
 
@@ -191,6 +195,9 @@ type UpdateStudentNote struct {
 	Category       string
 	Body           string
 	SubjectDate    *calendar.Date
+	// SharedWithSchool changes the release for the school (#4797); nil keeps
+	// the stored value.
+	SharedWithSchool *bool
 }
 
 // DeleteStudentNote soft-deletes one entry. Who may ask is the caller's

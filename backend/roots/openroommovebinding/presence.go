@@ -12,6 +12,7 @@ import (
 // Presence is the Student Presence move facade the workflow binds to:
 // the room session lookup-or-create and the move into it.
 type Presence interface {
+	PrepareOpenRoomMove(context.Context, []int64, int64) error
 	EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*studentpresence.SessionDetail, error)
 	MoveStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error)
 }
@@ -26,10 +27,10 @@ func (r roomSessions) EnsureOpenRoomSession(ctx context.Context, roomID, activit
 	return session.ID, nil
 }
 
-type moves struct{ presence Presence }
+type moves struct{ Presence }
 
 func (m moves) MoveIntoRoomSession(ctx context.Context, roomSessionID int64, studentIDs []int64, actor openroommove.Actor) (ports.MoveOutcome, error) {
-	result, err := m.presence.MoveStudentsToOpenRoomSessionAuthorized(ctx, studentIDs, roomSessionID, studentpresence.StudentMoveAuthorization{
+	result, err := m.MoveStudentsToOpenRoomSessionAuthorized(ctx, studentIDs, roomSessionID, studentpresence.StudentMoveAuthorization{
 		StaffID:                      actor.StaffID,
 		BypassResourceChecks:         actor.BypassResourceChecks,
 		SchoolWideAttendanceEligible: actor.SchoolWideAttendanceEligible,
@@ -54,5 +55,5 @@ func NewMoves(presence Presence) ports.Moves {
 	if presence == nil {
 		return nil
 	}
-	return moves{presence: presence}
+	return moves{Presence: presence}
 }

@@ -175,7 +175,8 @@ func (s *Signatures) recordHash(row *signatureRow) string {
 
 func validSignatureEntry(entry auditlog.SignatureEntry) error {
 	switch entry.Purpose {
-	case auditlog.SignaturePurposeDeclaration, auditlog.SignaturePurposeEnrollment, auditlog.SignaturePurposePickupPermission:
+	case auditlog.SignaturePurposeDeclaration, auditlog.SignaturePurposeEnrollment, auditlog.SignaturePurposePickupPermission,
+		auditlog.SignaturePurposeAccidentReport:
 	default:
 		return fmt.Errorf("%w: unknown purpose %q", auditlog.ErrSignatureInvalid, entry.Purpose)
 	}

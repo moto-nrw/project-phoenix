@@ -1,0 +1,238 @@
+{
+  "codes": [
+    {
+      "code": "iot.activity_capacity_exceeded",
+      "class": "business_rejection",
+      "parameters": [
+        "activity_id",
+        "activity_name",
+        "current_occupancy",
+        "max_capacity"
+      ],
+      "legacy": "ACTIVITY_CAPACITY_EXCEEDED"
+    },
+    {
+      "code": "iot.deviation_reason_required",
+      "class": "input",
+      "parameters": [
+        "action",
+        "planned_time",
+        "actual_time",
+        "deviation_minutes"
+      ],
+      "legacy": "deviation_reason_required"
+    },
+    {
+      "code": "iot.device_api_key_format_invalid",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "iot.device_api_key_format_invalid"
+    },
+    {
+      "code": "iot.device_api_key_invalid",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "iot.device_api_key_invalid"
+    },
+    {
+      "code": "iot.device_api_key_required",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "iot.device_api_key_required"
+    },
+    {
+      "code": "iot.device_id_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "iot.device_id_taken"
+    },
+    {
+      "code": "iot.device_inactive",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "iot.device_inactive"
+    },
+    {
+      "code": "iot.device_pin_invalid",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "iot.device_pin_invalid"
+    },
+    {
+      "code": "iot.device_pin_required",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "iot.device_pin_required"
+    },
+    {
+      "code": "iot.invalid_rfid_tag",
+      "class": "input",
+      "parameters": [],
+      "legacy": "invalid_rfid_tag"
+    },
+    {
+      "code": "iot.invalid_staff_clock_request",
+      "class": "input",
+      "parameters": [],
+      "legacy": "invalid_staff_clock_request"
+    },
+    {
+      "code": "iot.invalid_staff_clock_state",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "invalid_staff_clock_state"
+    },
+    {
+      "code": "iot.no_active_groups_in_room",
+      "class": "input",
+      "parameters": [],
+      "legacy": "iot.no_active_groups_in_room"
+    },
+    {
+      "code": "iot.no_active_session",
+      "class": "input",
+      "parameters": [],
+      "legacy": "iot.no_active_session"
+    },
+    {
+      "code": "iot.no_attendance_record_today",
+      "class": "input",
+      "parameters": [],
+      "legacy": "iot.no_attendance_record_today"
+    },
+    {
+      "code": "iot.no_room_available",
+      "class": "input",
+      "parameters": [],
+      "legacy": "iot.no_room_available"
+    },
+    {
+      "code": "iot.no_session_to_end",
+      "class": "input",
+      "parameters": [],
+      "legacy": "iot.no_session_to_end"
+    },
+    {
+      "code": "iot.open_room_binary_mode",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "open_room_binary_mode"
+    },
+    {
+      "code": "iot.person_not_student",
+      "class": "input",
+      "parameters": [],
+      "legacy": "iot.person_not_student"
+    },
+    {
+      "code": "iot.pickup_student_rfid_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "iot.pickup_student_rfid_required"
+    },
+    {
+      "code": "iot.planned_start_not_reached",
+      "class": "business_rejection",
+      "parameters": [
+        "planned_start_time",
+        "current_time"
+      ],
+      "legacy": "planned_start_not_reached"
+    },
+    {
+      "code": "iot.rfid_tag_inactive",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "rfid_tag_inactive"
+    },
+    {
+      "code": "iot.rfid_tag_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "rfid_tag_not_found"
+    },
+    {
+      "code": "iot.rfid_tag_not_staff",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "rfid_tag_not_staff"
+    },
+    {
+      "code": "iot.rfid_tag_not_student_or_staff",
+      "class": "input",
+      "parameters": [],
+      "legacy": "iot.rfid_tag_not_student_or_staff"
+    },
+    {
+      "code": "iot.rfid_tag_unassigned",
+      "class": "input",
+      "parameters": [],
+      "legacy": "iot.rfid_tag_unassigned"
+    },
+    {
+      "code": "iot.room_capacity_exceeded",
+      "class": "business_rejection",
+      "parameters": [
+        "room_id",
+        "room_name",
+        "current_occupancy",
+        "max_capacity"
+      ],
+      "legacy": "ROOM_CAPACITY_EXCEEDED"
+    },
+    {
+      "code": "iot.room_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "room_not_found"
+    },
+    {
+      "code": "iot.schulhof_not_configured",
+      "class": "server",
+      "parameters": [],
+      "legacy": "iot.schulhof_not_configured"
+    },
+    {
+      "code": "iot.staff_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "iot.staff_not_found"
+    },
+    {
+      "code": "iot.staff_rfid_tag_unassigned",
+      "class": "input",
+      "parameters": [],
+      "legacy": "iot.staff_rfid_tag_unassigned"
+    },
+    {
+      "code": "iot.student_already_active",
+      "class": "business_rejection",
+      "parameters": [
+        "student_id",
+        "existing_visit_id",
+        "entry_time",
+        "room_id",
+        "room_name"
+      ],
+      "legacy": "STUDENT_ALREADY_ACTIVE"
+    },
+    {
+      "code": "iot.student_not_present",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "student_not_present"
+    },
+    {
+      "code": "iot.wc_needs_staff",
+      "class": "server",
+      "parameters": [],
+      "legacy": "iot.wc_needs_staff"
+    },
+    {
+      "code": "iot.wc_not_configured",
+      "class": "server",
+      "parameters": [],
+      "legacy": "iot.wc_not_configured"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "file_columns_missing": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "file_missing": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "file_no_rows": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "file_row_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "file_too_large": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "file_type_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "file_unreadable": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "import_batch_failed": "{object} işlenemedi. Daha sonra yeniden deneyin.",
+  "mode_forbidden": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "not_test_traeger": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "test_traeger_inactive": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+}

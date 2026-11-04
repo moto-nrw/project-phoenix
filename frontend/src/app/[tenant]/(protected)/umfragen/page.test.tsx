@@ -171,7 +171,9 @@ describe("Umfragen (#4781)", () => {
     expect(
       (await screen.findAllByText("Elternzufriedenheit")).length,
     ).toBeGreaterThan(0);
-    expect(screen.getAllByText("Umfrage anlegen").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("button", { name: "Umfrage anlegen" }),
+    ).toHaveLength(1);
     expect(screen.getAllByText("3 Teilnahmen").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Eltern: Ganze Schule").length).toBeGreaterThan(
       0,

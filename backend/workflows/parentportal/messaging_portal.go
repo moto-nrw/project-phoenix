@@ -10,12 +10,13 @@ func (p *Portal) ListMessageThreads(ctx context.Context, accountID int64) ([]*In
 func (p *Portal) ListChildThreads(ctx context.Context, accountID, studentID int64) ([]*InboxThread, error) {
 	return p.MessagingFlows.ListChildThreads(ctx, accountID, studentID)
 }
-func (p *Portal) GetChildConversation(ctx context.Context, accountID, studentID int64) (*MessageThreadView, error) {
-	return p.MessagingFlows.GetChildConversation(ctx, accountID, studentID)
+func (p *Portal) GetChildConversation(ctx context.Context, accountID, studentID int64, audience ...string) (*MessageThreadView, error) {
+	return p.MessagingFlows.GetChildConversation(ctx, accountID, studentID, audience...)
 }
 func (p *Portal) PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error) {
-	return p.MessagingFlows.PostChildMessage(ctx, accountID, studentID, body, 0)
+	return p.MessagingFlows.PostChildMessage(ctx, accountID, studentID, body)
 }
+
 func (p *Portal) ListAnnouncements(ctx context.Context, accountID int64) ([]*AnnouncementFeedItem, error) {
 	return p.MessagingFlows.ListAnnouncements(ctx, accountID)
 }

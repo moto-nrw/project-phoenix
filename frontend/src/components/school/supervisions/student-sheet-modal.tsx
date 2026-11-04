@@ -29,6 +29,9 @@ import {
   type SupervisionContact,
   type SupervisionStudentSheet,
 } from "~/lib/school-supervisions-api";
+import { classDayConcept } from "~/lib/concepts/classDay";
+import { emergencyConcept } from "~/lib/concepts/emergency";
+import { pickupConcept } from "~/lib/concepts/pickup";
 
 const logger = createLogger({ component: "SchoolStudentSheetModal" });
 
@@ -179,7 +182,7 @@ export function StudentSheetModal({
 
             <InfoSection
               title="Heute"
-              icon={<MotoConceptIcon concept="classDay" size={16} />}
+              icon={<MotoConceptIcon concept={classDayConcept} size={16} />}
             >
               {/* DataField statt StatTile: die InfoSection-Fläche ist selbst
                   schon gray-50, eine graue Kachel darauf verschwindet. */}
@@ -198,7 +201,7 @@ export function StudentSheetModal({
 
             <InfoSection
               title="Darf abholen"
-              icon={<MotoConceptIcon concept="pickup" size={16} />}
+              icon={<MotoConceptIcon concept={pickupConcept} size={16} />}
             >
               <ContactRows
                 contacts={sheet.pickupContacts}
@@ -209,7 +212,7 @@ export function StudentSheetModal({
 
             <InfoSection
               title="Im Notfall anrufen"
-              icon={<MotoConceptIcon concept="emergency" size={16} />}
+              icon={<MotoConceptIcon concept={emergencyConcept} size={16} />}
             >
               <ContactRows
                 contacts={sheet.emergencyContacts}

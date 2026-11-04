@@ -47,6 +47,11 @@ type Broadcaster interface {
 	// family's app. Fire-and-forget.
 	BroadcastParentMessage(tenantID, guardianAccountID int64, event Event) error
 
+	// BroadcastLeadershipParentMessage is BroadcastParentMessage for a
+	// conversation only the leadership reads: the staff copy reaches only the
+	// connections whose account holds parent_messages:leadership. Fire-and-forget.
+	BroadcastLeadershipParentMessage(tenantID, guardianAccountID int64, event Event) error
+
 	// BroadcastToGuardian wakes ONLY the addressed guardian's own portal clients
 	// — no staff copy. Used for a message-INDEPENDENT guardian invalidation
 	// (parent_child_updated) that staff must never receive; fanning it through

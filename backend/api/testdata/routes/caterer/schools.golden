@@ -1,0 +1,3 @@
+GET /caterer/schools
+GET /caterer/schools/{schoolId}/orders
+POST /caterer/schools/{schoolId}/orders/{orderId}/confirm

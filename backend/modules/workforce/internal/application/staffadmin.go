@@ -209,6 +209,9 @@ func (a *StaffAdmin) ReplaceStaffQualifications(ctx context.Context, staffID int
 		}
 		apply := func() error {
 			_, err := a.records.ReplaceStaffQualifications(ctx, staffID, qualificationsToPublic(rows))
+			if errors.Is(err, workforce.ErrInvalidStaffRecord) {
+				return fmt.Errorf("%w: %s", domain.ErrStaffStammdatenInvalid, err)
+			}
 			return err
 		}
 		return domain.QualificationChanges(qualificationsToDomain(existing), rows), apply, nil

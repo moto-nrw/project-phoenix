@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
@@ -36,7 +37,7 @@ func (s *Sender) SendPush(ctx context.Context, intent deliveryContract.ClaimedIn
 		return deliveryContract.ProviderResult{}, errors.New("delivery provider: web push is not configured")
 	}
 	if err := deliveryContract.ValidatePushEndpoint(intent.PushRecipient.Endpoint); err != nil {
-		return deliveryContract.ProviderResult{}, fmt.Errorf("delivery provider: invalid push endpoint: %w", err)
+		return deliveryContract.ProviderResult{}, fmt.Errorf("delivery provider: invalid push endpoint: %w", withoutPushToken(err))
 	}
 	payload, err := json.Marshal(intent.PushPayload)
 	if err != nil {
@@ -50,7 +51,7 @@ func (s *Sender) SendPush(ctx context.Context, intent deliveryContract.ClaimedIn
 		VAPIDPrivateKey: s.config.PrivateKey, TTL: pushTTL(intent.PushPayload.Priority), Urgency: pushUrgency(intent.PushPayload.Priority), HTTPClient: s.client,
 	})
 	if err != nil {
-		return deliveryContract.ProviderResult{}, fmt.Errorf("delivery provider: send push: %w", err)
+		return deliveryContract.ProviderResult{}, fmt.Errorf("delivery provider: send push: %w", withoutPushToken(err))
 	}
 	defer func() { _ = response.Body.Close() }()
 	_, _ = io.Copy(io.Discard, response.Body)
@@ -67,6 +68,20 @@ func (s *Sender) SendPush(ctx context.Context, intent deliveryContract.ClaimedIn
 		return deliveryContract.ProviderResult{StatusCode: response.StatusCode}, fmt.Errorf("delivery provider: push service returned %s", response.Status)
 	}
 	return deliveryContract.ProviderResult{StatusCode: response.StatusCode}, nil
+}
+
+// withoutPushToken drops the endpoint path, the device's push token, from a
+// transport error. Dead-letter errors reach Sentry and logs.
+func withoutPushToken(err error) error {
+	var urlErr *url.Error
+	if !errors.As(err, &urlErr) {
+		return err
+	}
+	origin := "push service"
+	if parsed, parseErr := url.Parse(urlErr.URL); parseErr == nil {
+		origin = parsed.Scheme + "://" + parsed.Host
+	}
+	return &url.Error{Op: urlErr.Op, URL: origin, Err: urlErr.Err}
 }
 
 func pushTTL(priority string) int {

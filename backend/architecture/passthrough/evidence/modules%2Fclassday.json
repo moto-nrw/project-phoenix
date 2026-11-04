@@ -1,0 +1,102 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (b BlockStartBinding) EarliestPlannedBlockStartForClass(ctx context.Context, schoolClass string, date calendar.Date) (string, error) {\n\tstart, err := b.Starts.EarliestPlannedBlockStartForClass(ctx, schoolClass, date)\n\tif err != nil {\n\t\treturn \"\", MapArrivalExceptionError(err)\n\t}\n\treturn start, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/classday/internal/application/BlockStartBinding.EarliestPlannedBlockStartForClass",
+      "owner": "modules/classday"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b CallerBinding) CurrentStaffID(ctx context.Context) (int64, error) {\n\tstaffID, found, err := b.CallerReader.CurrentStaffID(ctx)\n\tswitch {\n\tcase err != nil:\n\t\treturn 0, err\n\tcase !found:\n\t\treturn 0, classday.ErrStaffRecordRequired\n\t}\n\treturn staffID, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/classday/internal/application/CallerBinding.CurrentStaffID",
+      "owner": "modules/classday"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b CareDayBinding) ResolveForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]ports.CareDay, error) {\n\tverdicts, err := b.Resolver.ResolveForDate(ctx, studentIDs, date)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tout := make(map[int64]ports.CareDay, len(verdicts))\n\tfor studentID, verdict := range verdicts {\n\t\tout[studentID] = ports.CareDay(verdict)\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/classday/internal/application/CareDayBinding.ResolveForDate",
+      "owner": "modules/classday"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b ClassArrivalExceptionBinding) DeleteClassArrivalException(ctx context.Context, schoolClass string, date calendar.Date) error {\n\treturn MapArrivalExceptionError(b.Store.DeleteClassArrivalException(ctx, schoolClass, date))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/classday/internal/application/ClassArrivalExceptionBinding.DeleteClassArrivalException",
+      "owner": "modules/classday"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b ClassArrivalExceptionBinding) ListClassArrivalExceptions(ctx context.Context, schoolClass string, from, to calendar.Date) ([]ClassArrivalException, error) {\n\trows, err := b.Store.ListClassArrivalExceptions(ctx, schoolClass, from, to)\n\tif err != nil {\n\t\treturn nil, MapArrivalExceptionError(err)\n\t}\n\tout := make([]ClassArrivalException, 0, len(rows))\n\tfor _, row := range rows {\n\t\tif row != nil {\n\t\t\tout = append(out, mapClassArrivalException(row))\n\t\t}\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/classday/internal/application/ClassArrivalExceptionBinding.ListClassArrivalExceptions",
+      "owner": "modules/classday"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b ClassArrivalExceptionBinding) UpsertClassArrivalException(ctx context.Context, in ClassArrivalExceptionWrite) (ClassArrivalException, error) {\n\trow, err := b.Store.UpsertClassArrivalException(ctx, careplan.ClassArrivalExceptionInput{SchoolClass: in.SchoolClass, Date: in.Date, ArrivalTime: in.ArrivalTime, Reason: in.Reason, Origin: in.Origin}, in.CreatedBy)\n\tif err != nil {\n\t\treturn ClassArrivalException{}, MapArrivalExceptionError(err)\n\t}\n\treturn mapClassArrivalException(row), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/classday/internal/application/ClassArrivalExceptionBinding.UpsertClassArrivalException",
+      "owner": "modules/classday"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b EffectiveTimeBinding) ArrivalTimes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*time.Time, error) {\n\teffective, err := b.Arrivals.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, date)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tout := make(map[int64]*time.Time, len(effective))\n\tfor studentID, entry := range effective {\n\t\tif entry != nil {\n\t\t\tout[studentID] = entry.ArrivalTime\n\t\t}\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/classday/internal/application/EffectiveTimeBinding.ArrivalTimes",
+      "owner": "modules/classday"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b EffectiveTimeBinding) PickupTimes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*time.Time, error) {\n\teffective, err := b.Pickups.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tout := make(map[int64]*time.Time, len(effective))\n\tfor studentID, entry := range effective {\n\t\tif entry != nil {\n\t\t\tout[studentID] = entry.PickupTime\n\t\t}\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/classday/internal/application/EffectiveTimeBinding.PickupTimes",
+      "owner": "modules/classday"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e MappedError) Error() string {\n\treturn e.err.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/classday/internal/application/MappedError.Error",
+      "owner": "modules/classday"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b PickupBaselineBinding) RegularPickupTimes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]string, error) {\n\tprojection, err := b.Baselines.Project(ctx, studentIDs, date, date)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tout := make(map[int64]string, len(studentIDs))\n\tfor _, studentID := range studentIDs {\n\t\tif row := projection.ForDate(studentID, date); row != nil {\n\t\t\tout[studentID] = row.PickupTime.Format(\"15:04\")\n\t\t}\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/classday/internal/application/PickupBaselineBinding.RegularPickupTimes",
+      "owner": "modules/classday"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a arrivalExceptions) ClearArrivalException(ctx context.Context, schoolClass string, date classday.Date) error {\n\tif a.schedule == nil {\n\t\treturn classday.ErrArrivalExceptionsNotConfigured\n\t}\n\tday, err := parseDate(date)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif err := a.schedule.DeleteClassArrivalException(ctx, schoolClass, day); err != nil {\n\t\treturn err\n\t}\n\ta.announce(ctx)\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/classday/internal/application/arrivalExceptions.ClearArrivalException",
+      "owner": "modules/classday"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a arrivalExceptions) EarliestBlockStart(ctx context.Context, schoolClass string, date classday.Date) (string, error) {\n\tif a.schedule == nil {\n\t\treturn \"\", classday.ErrArrivalExceptionsNotConfigured\n\t}\n\tday, err := parseDate(date)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\tif a.blockStarts == nil {\n\t\treturn \"\", errors.New(\"class day arrival exceptions: block starts not configured\")\n\t}\n\treturn a.blockStarts.EarliestPlannedBlockStartForClass(ctx, schoolClass, day)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/classday/internal/application/arrivalExceptions.EarliestBlockStart",
+      "owner": "modules/classday"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a arrivalExceptions) MayWriteArrivalExceptions(ctx context.Context) (bool, error) {\n\tif a.schedule == nil {\n\t\treturn false, classday.ErrArrivalExceptionsNotConfigured\n\t}\n\tif a.writeScope == nil {\n\t\treturn false, errors.New(\"class day arrival exceptions: settings not configured\")\n\t}\n\tmay, err := a.writeScope.SchoolMayWriteClassArrivalExceptions(ctx)\n\tif err != nil {\n\t\treturn false, fmt.Errorf(\"class day arrival exceptions: resolve school portal write scope: %w\", err)\n\t}\n\treturn may, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/classday/internal/application/arrivalExceptions.MayWriteArrivalExceptions",
+      "owner": "modules/classday"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *classDayService) ResolveClass(ctx context.Context, requested string) (string, error) {\n\tassigned, err := s.caller.GetMySchoolClasses(ctx)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn resolveRequestedClass(requested, assigned)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/classday/internal/application/classDayService.ResolveClass",
+      "owner": "modules/classday"
+    }
+  ]
+}

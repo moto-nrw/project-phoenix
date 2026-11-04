@@ -12,6 +12,7 @@ import { Field } from "./field";
 import {
   conflictWarningText,
   shiftCoverageWarningText,
+  targetCohortExtraText,
   type EventFormState,
   rosterForWeekday,
   type PersonOption,
@@ -19,6 +20,18 @@ import {
   type WeekdayRosterState,
 } from "./form-model";
 import { MultiSelectField } from "./multi-select-field";
+import {
+  DraftOfferingSourcePreview,
+  OfferingSourcePreview,
+} from "./offering-source-preview";
+import {
+  buildDraftRoster,
+  draftRosterSize,
+  draftTargetFilter,
+  targetAudienceText,
+} from "./offering-suggestion-model";
+import { OfferingSuggestionRow } from "./offering-suggestion-row";
+import { useOfferingSuggestion } from "./use-offering-suggestion";
 import { WeekdayRosterSection } from "./weekday-roster-section";
 import {
   CONFLICT_CHECK_FAILED_HINT,
@@ -33,6 +46,13 @@ import type {
   TargetGroupType,
 } from "~/lib/timetable-types";
 import { normalizeSchoolClass } from "~/lib/timetable-helpers";
+import { schoolClassLabel } from "~/lib/school-class-label";
+import { berlinTodayISO } from "~/lib/date-helpers";
+import type {
+  DraftRoster,
+  OfferingSuggestion,
+} from "~/lib/offering-suggestion";
+import { useState } from "react";
 import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-entry";
 import type { Staff } from "~/lib/staff-api";
 
@@ -106,6 +126,13 @@ export interface StepPersonalKinderProps {
   sourceCountsError: FormError | null;
   /** Namentliche Abweichung zur bisher manuell gepflegten Kinderliste. */
   sourceRosterDiff: { added: string[]; removed: string[] } | null;
+  /**
+   * Bestehender Regeltermin (#5103): mit ihm zeigt der Schritt pro Wochentag,
+   * wer beim Wechsel auf ein Angebot dazukommt und wer wegfällt.
+   */
+  sourcePreviewTemplateId?: string;
+  /** Datum von „Ab jetzt dauerhaft“; sonst ab dem nächsten Termin. */
+  sourcePreviewFrom?: string;
   /** Advisory when series start is before the offering phase service start. */
   sourcePhaseKidsFromWarning: string | null;
   sourceOverlapWarnings: string[];
@@ -175,6 +202,8 @@ export function StepPersonalKinder({
   sourceCountsFailed,
   sourceCountsError,
   sourceRosterDiff,
+  sourcePreviewTemplateId,
+  sourcePreviewFrom,
   sourcePhaseKidsFromWarning,
   sourceOverlapWarnings,
   changeSourceOfferings,
@@ -196,6 +225,49 @@ export function StepPersonalKinder({
 }: Readonly<StepPersonalKinderProps>) {
   // Ein Dienst (#3822) hat nur Personal: keine Zielgruppe, keine Kinder.
   const isDuty = form.type === "duty";
+  // „Angebot übernehmen“ (#5104): die Kinder vor dem Wechsel, gegen die die
+  // Vorschau eines neuen Regeltermins vergleicht.
+  const [suggestedRoster, setSuggestedRoster] = useState<DraftRoster | null>(
+    null,
+  );
+  const draftRoster = buildDraftRoster(form, targetCohort.memberIds);
+  const offeringSuggestion = useOfferingSuggestion(
+    expanded &&
+      isSeriesFlow &&
+      !isDuty &&
+      form.targetGroupType !== "angebot" &&
+      form.calendarPeriodId !== "" &&
+      !loadingStudents &&
+      draftRosterSize(draftRoster) >= 3
+      ? {
+          periodId: form.calendarPeriodId,
+          type: form.type,
+          ...(form.listKind ? { listKind: form.listKind } : {}),
+          ...(form.endTime ? { endTime: form.endTime } : {}),
+          roster: draftRoster,
+          ...draftTargetFilter(form),
+        }
+      : null,
+  );
+  const applyOfferingSuggestion = (
+    suggestion: OfferingSuggestion,
+    offeringIds: string[],
+  ) => {
+    setSuggestedRoster(draftRoster);
+    changeTargetGroupType("angebot");
+    changeSourceOfferings(offeringIds);
+    if (suggestion.schoolClasses.length > 0) {
+      changeSourceFilterMode("klasse");
+      update("sourceSchoolClasses", suggestion.schoolClasses);
+    } else if (suggestion.gradeLevels.length > 0) {
+      changeSourceFilterMode("jahrgang");
+      update("sourceGradeLevels", suggestion.gradeLevels);
+    }
+  };
+  const audienceText = targetAudienceText(form, groups);
+  const showCohortButton = Boolean(
+    targetCohort.label && !loadingStudents && !studentLoadFailed,
+  );
   const hasOfferingSource =
     isSeriesFlow &&
     form.targetGroupType === "angebot" &&
@@ -282,18 +354,28 @@ export function StepPersonalKinder({
       </div>
     );
   } else {
+    const cohortExtra = targetCohortExtraText(
+      targetCohort,
+      form.studentIds,
+      students,
+    );
     studentRosterField = (
-      <MultiSelectField
-        label="Kinder"
-        options={students}
-        value={form.studentIds}
-        onChange={(ids) => update("studentIds", ids)}
-        metadata="student"
-        bulkOptions={studentBulkOptions}
-        protectedValues={form.protectedStudentAssignments.flatMap(
-          (assignment) => assignment.studentIds,
-        )}
-      />
+      <div className="flex flex-col gap-1">
+        <MultiSelectField
+          label="Kinder"
+          options={students}
+          value={form.studentIds}
+          onChange={(ids) => update("studentIds", ids)}
+          metadata="student"
+          bulkOptions={studentBulkOptions}
+          protectedValues={form.protectedStudentAssignments.flatMap(
+            (assignment) => assignment.studentIds,
+          )}
+        />
+        {cohortExtra ? (
+          <p className="text-xs text-gray-600">{cohortExtra}</p>
+        ) : null}
+      </div>
     );
   }
 
@@ -603,7 +685,7 @@ export function StepPersonalKinder({
                                 toggleSourceSchoolClass(schoolClass)
                               }
                             />
-                            Klasse {schoolClass} (
+                            {schoolClassLabel(schoolClass)} (
                             {sourceClassCounts[
                               normalizeSchoolClass(schoolClass)
                             ] ?? 0}
@@ -650,7 +732,22 @@ export function StepPersonalKinder({
                       automatisch auf zukünftige Planungen aus.
                     </p>
                   )}
-                  {sourceRosterDiff ? (
+                  {sourcePreviewTemplateId ? (
+                    <OfferingSourcePreview
+                      templateId={sourcePreviewTemplateId}
+                      form={form}
+                      from={sourcePreviewFrom}
+                    />
+                  ) : suggestedRoster ? (
+                    <DraftOfferingSourcePreview
+                      periodId={form.calendarPeriodId}
+                      roster={suggestedRoster}
+                      form={form}
+                      from={
+                        form.date >= berlinTodayISO() ? form.date : undefined
+                      }
+                    />
+                  ) : sourceRosterDiff ? (
                     <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
                       <p className="text-xs font-semibold text-gray-700">
                         Das ändert sich gegenüber Ihrer bisherigen Kinderliste
@@ -693,16 +790,19 @@ export function StepPersonalKinder({
             </div>
           )}
 
-          {form.targetGroupType !== "none" &&
-            form.targetGroupType !== "angebot" && (
-              <div className="mt-2">
-                <Alert
-                  type="info"
-                  message="Die Kinderliste wird bei der Planung aus allen ausgewählten Zielgruppen gebildet. Überschneidungen werden automatisch entfernt, spätere Gruppenwechsel werden bei einer Neuplanung berücksichtigt. Mit der Schaltfläche darunter können Sie die aktuell passenden Kinder zusätzlich fest auswählen."
-                />
-              </div>
-            )}
-          {targetCohort.label && !loadingStudents && !studentLoadFailed ? (
+          {audienceText ? (
+            <div className="mt-2">
+              <Alert
+                type="info"
+                message={
+                  showCohortButton
+                    ? `${audienceText} Mit der Schaltfläche darunter können Sie die aktuell passenden Kinder zusätzlich fest auswählen.`
+                    : audienceText
+                }
+              />
+            </div>
+          ) : null}
+          {showCohortButton ? (
             <Button
               type="button"
               variant="outline"
@@ -716,6 +816,14 @@ export function StepPersonalKinder({
             >
               {targetCohortButtonLabel}
             </Button>
+          ) : null}
+          {offeringSuggestion ? (
+            <OfferingSuggestionRow
+              suggestion={offeringSuggestion}
+              onApply={(offeringIds) =>
+                applyOfferingSuggestion(offeringSuggestion, offeringIds)
+              }
+            />
           ) : null}
         </div>
       )}
@@ -733,6 +841,7 @@ export function StepPersonalKinder({
           staff={staff}
           students={students}
           studentBulkOptions={studentBulkOptions}
+          targetCohort={targetCohort}
         />
       )}
 

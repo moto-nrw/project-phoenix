@@ -180,7 +180,10 @@ func TestErasureCLISeparatesSchoolsAndResumesBothPhases(t *testing.T) {
 	require.Equal(t, beforeB, erasureTableCounts(t, db, b))
 	// A DB/upload snapshot is not atomic. Restored files must be removable even
 	// when the restored DB already contains the completed receipt, not a school.
+	// The erasure removed the emptied school directory too (#5544); the
+	// restore brings it back with the file.
 	restoredFile := filepath.Join(root, fmt.Sprintf("files/%d/restored.bin", a))
+	require.NoError(t, os.MkdirAll(filepath.Dir(restoredFile), 0700))
 	require.NoError(t, os.WriteFile(restoredFile, []byte("synthetic"), 0600))
 	repeated, err := service.Run(t.Context(), request)
 	require.NoError(t, err)
@@ -247,8 +250,9 @@ func TestErasureCLITimeoutAndRoleBoundaries(t *testing.T) {
 func TestErasureCLIOrganizationNeedsItsDueOrderAndThenErasesTheRoot(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	// A single-connection pool also proves role/session cleanup between phases.
-	db.SetMaxOpenConns(1)
+	// The smallest supported pool reserves one coordination session and one
+	// work session, exercising role/session cleanup between phases.
+	db.SetMaxOpenConns(2)
 	ctx := t.Context()
 	a := testpkg.Tenant(t)
 	b, _ := testpkg.CreateTestTenant(t, db)

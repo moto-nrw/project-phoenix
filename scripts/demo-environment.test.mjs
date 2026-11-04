@@ -43,7 +43,7 @@ for (const [event, ref, target, expected] of [
   ['workflow_dispatch', 'main', 'demo', 'demo'],
   ['workflow_dispatch', 'main', 'production', 'production'],
   ['workflow_dispatch', 'development', 'staging', 'staging'],
-  ['workflow_dispatch', 'development', 'demo', null],
+  ['workflow_dispatch', 'development', 'demo', 'demo'],
   ['workflow_dispatch', 'feature', 'demo', null],
   ['workflow_dispatch', 'development', 'production', null],
   ['workflow_dispatch', 'main', 'unknown', null],
@@ -63,26 +63,35 @@ for (const [event, ref, target, expected] of [
   });
 }
 
-test('demo job rejects push events and non-main refs independently of routing', t => {
+test('demo job rejects push events and refs other than main and development independently of routing', t => {
   const script = stepRun(build, 'Guard demo source');
   for (const [event, ref, status] of [
-    ['push', 'refs/heads/main', 1], ['workflow_dispatch', 'refs/heads/development', 1],
-    ['workflow_dispatch', 'refs/heads/main', 0],
+    ['push', 'refs/heads/main', 1], ['push', 'refs/heads/development', 1],
+    ['workflow_dispatch', 'refs/heads/feature', 1],
+    ['workflow_dispatch', 'refs/heads/main', 0], ['workflow_dispatch', 'refs/heads/development', 0],
   ]) {
     assert.equal(runStep(t, script, { EVENT_NAME: event, REF_NAME: ref }).status, status);
   }
   const job = build.split('  deploy-demo:\n')[1].split('\n  # Summary job')[0];
-  assert.match(job, /if: github.event_name == 'workflow_dispatch' && github.ref == 'refs\/heads\/main'/);
+  assert.match(job, /if: github.event_name == 'workflow_dispatch' && \(github.ref == 'refs\/heads\/main' \|\| github.ref == 'refs\/heads\/development'\)/);
   assert.match(job, /group: deploy-demo/);
   assert.match(job, /ref: \$\{\{ github.sha \}\}/);
 });
 
-test('demo rollback accepts only main and selects its own directory', t => {
+test('demo rollback accepts main and development and selects its own directory', t => {
   const script = stepRun(rollback, 'Set environment config');
-  assert.equal(runStep(t, script, { ENVIRONMENT: 'demo', REF_NAME: 'refs/heads/development' }).status, 1);
-  const result = runStep(t, script, { ENVIRONMENT: 'demo', REF_NAME: 'refs/heads/main' });
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.output, 'dir=demo\n');
+  assert.equal(runStep(t, script, { ENVIRONMENT: 'demo', REF_NAME: 'refs/heads/feature' }).status, 1);
+  for (const ref of ['refs/heads/main', 'refs/heads/development']) {
+    const result = runStep(t, script, { ENVIRONMENT: 'demo', REF_NAME: ref });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.output, 'dir=demo\n');
+  }
+});
+
+test('production rollback still accepts only main', t => {
+  const script = stepRun(rollback, 'Set environment config');
+  assert.equal(runStep(t, script, { ENVIRONMENT: 'production', REF_NAME: 'refs/heads/development' }).status, 1);
+  assert.equal(runStep(t, script, { ENVIRONMENT: 'production', REF_NAME: 'refs/heads/main' }).status, 0);
 });
 
 for (const environment of ['demo', 'production', 'staging']) {

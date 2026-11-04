@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
 )
 
 const compositionEvidenceCommit = "8dc3a9ca8ac7cb8edbfa3c17760d92c02751bc3e"
@@ -282,7 +284,7 @@ func loadCompositionInventory(t *testing.T, path string) compositionInventory {
 
 func loadCompositionPolicy(t *testing.T, path string) *compositionPolicy {
 	t.Helper()
-	content, err := os.ReadFile(path) // #nosec G304 -- fixed repository policy
+	content, err := artifacts.ReadPolicy(path)
 	if err != nil {
 		t.Fatal(err)
 	}

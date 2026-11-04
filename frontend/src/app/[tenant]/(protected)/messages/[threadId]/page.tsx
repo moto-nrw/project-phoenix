@@ -1,5 +1,9 @@
 "use client";
 
+import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+
+import { messageKeys } from "~/lib/swr/portal-keys";
+
 import {
   useCallback,
   useEffect,
@@ -10,7 +14,9 @@ import {
 } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import useSWR, { unstable_serialize, useSWRConfig } from "swr";
+import { useSWRSeedFrom } from "~/lib/swr";
+import { PARENT_THREAD_SEND_REFUSALS } from "~/lib/message-send-refusals";
+import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
@@ -32,8 +38,9 @@ import { RequestStatusBadge } from "~/components/messaging/request-status-badge"
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useSwitchedOffWhileOpen } from "~/lib/hooks/use-switched-off-while-open";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
-import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
+import { useTenant } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
@@ -41,11 +48,14 @@ import {
   type Message,
   type ThreadDetail,
   fetchThread,
+  isParentMessagingDisabled,
   markThreadUnread,
   postMessage,
+  readersLabel,
   relationshipLabel,
 } from "~/lib/parent-messages-api";
 import {
+  LEADERSHIP_AUDIENCE_LABEL,
   pickupRequestRef,
   requestPillCoveredByReview,
   staffRequestStatusLabel,
@@ -61,6 +71,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
 import { ThreadSkeleton, ThreadMessagesSkeleton } from "./page-skeleton";
+import { childrenConcept } from "~/lib/concepts/children";
 
 const logger = createLogger({ component: "MessageThreadPage" });
 
@@ -102,15 +113,19 @@ function MessageThreadContent() {
   // the new tenant until revalidation 403/404s. Mirrors the inbox key, which is
   // also tenant-prefixed (frontend convention: useTenantSlugSafe for cache-key
   // prefixing).
-  const tenantSlug = useTenantSlugSafe();
   // When the school has parent-OGS messaging turned off, replying hits a
   // backend 403 (PostMessage → requireEnabled). The inbox already hides the
   // "Neue Nachricht" entry on the same flag; mirror it here so an existing
   // thread renders read-only instead of dead-ending staff on send. History
   // stays visible.
-  const messagingEnabled = tenant?.messagingEnabled === true;
+  const flagSaysEnabled = tenant?.messagingEnabled === true;
+  const { switchedOff, markSwitchedOff } = useSwitchedOffWhileOpen(
+    flagSaysEnabled,
+    threadId,
+  );
+  const messagingEnabled = flagSaysEnabled && !switchedOff;
 
-  const { cache } = useSWRConfig();
+  const seedFrom = useSWRSeedFrom();
   const leavingAsUnreadRef = useRef(false);
   const pendingThreadLoadsRef = useRef(new Set<Promise<ThreadDetail>>());
 
@@ -121,32 +136,37 @@ function MessageThreadContent() {
     // The inbox is keyed ["messages-inbox", onlyUnread], so the seed must search
     // every filter combination that may be cached.
     for (const unread of [false, true]) {
-      const entry = cache.get(
-        unstable_serialize([`${tenantSlug ?? ""}:messages-inbox`, unread]),
-      ) as { data?: InboxThread[] } | undefined;
-      const row = entry?.data?.find((t) => t.thread_id === threadId);
-      if (row) {
-        return {
-          thread_id: row.thread_id,
-          student_id: row.student_id,
-          student_name: row.student_name,
-          guardian_name: row.guardian_name,
-          relationship_type: row.relationship_type,
-          messages: [],
-        };
-      }
+      const seeded = seedFrom(
+        messageKeys.messagesInbox(unread),
+        messageKeys.messageThread(threadId),
+        (inbox: InboxThread[]): ThreadDetail | undefined => {
+          const row = inbox.find((t) => t.thread_id === threadId);
+          return row
+            ? {
+                thread_id: row.thread_id,
+                student_id: row.student_id,
+                student_name: row.student_name,
+                guardian_name: row.guardian_name,
+                relationship_type: row.relationship_type,
+                audience: row.audience,
+                messages: [],
+              }
+            : undefined;
+        },
+      );
+      if (seeded) return seeded;
     }
     return undefined;
-  }, [cache, threadId, tenantSlug]);
+  }, [seedFrom, threadId]);
 
   const {
-    data: thread,
-    error: loadError,
+    data: confirmedThread,
+    error: readerError,
     isLoading,
     isValidating,
     mutate,
-  } = useSWR(
-    [`${tenantSlug ?? ""}:message-thread`, threadId],
+  } = useSWRAuth(
+    messageKeys.messageThread(threadId),
     async () => {
       const load = fetchThread(threadId);
       pendingThreadLoadsRef.current.add(load);
@@ -157,6 +177,7 @@ function MessageThreadContent() {
       }
     },
     {
+      keepPreviousData: false,
       revalidateOnFocus: false,
       isPaused: () => leavingAsUnreadRef.current,
       fallbackData: seed,
@@ -167,6 +188,25 @@ function MessageThreadContent() {
         }),
     },
   );
+
+  // Eine gesendete Nachricht steht sofort im Verlauf (#5011), markiert, bis
+  // die Antwort sie bestätigt oder ihr Fehlschlag sie als nicht gesendet
+  // zeigt.
+  const send = useOptimisticAction(
+    messageKeys.messageThread(threadId),
+    confirmedThread,
+  );
+  const thread = send.data;
+  // Lehnt der Server beim Senden die Unterhaltung ab, ist sie verworfen
+  // (#5011). Die Ablehnung steht dann dort, wo der Verlauf fehlt, bis ein
+  // neuer Abruf wieder Daten liefert.
+  const [refusal, setRefusal] = useState<{
+    readonly id: string;
+    readonly error: unknown;
+  }>();
+  const loadError =
+    readerError ??
+    (thread || refusal?.id !== threadId ? undefined : refusal.error);
 
   // The thread is readable school-wide, the request detail and queue only
   // within the review scope (#3886). Ask the backend whether that scope
@@ -269,7 +309,8 @@ function MessageThreadContent() {
   };
 
   const [draft, setDraft] = useState("");
-  const [isSending, setIsSending] = useState(false);
+  const draftRevision = useRef(0);
+  const isSending = send.pending;
   // Ein Sendefehler steht direkt über dem Eingabefeld (#2517).
   const sendError = useApiFormError();
   const latestSendRef = useRef<() => void>(() => undefined);
@@ -303,53 +344,117 @@ function MessageThreadContent() {
   // the badge against the STILL-stale (lit) count before the read cursor advanced.
   // isValidating stays true until the GET resolves, so this fires only once the
   // real read has happened (mirrors the messagesLoading gate above).
+  // Only the server's data counts: a message on its way marks nothing read.
   useEffect(() => {
-    if (thread && !isValidating && typeof window !== "undefined") {
+    if (confirmedThread && !isValidating && typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
     }
-  }, [thread, isValidating]);
+  }, [confirmedThread, isValidating]);
 
   // Keep the newest message in view when the list changes.
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [thread]);
+    // A send error shrinks the list; keep the bubble marked as not sent in
+    // view (#5011).
+  }, [thread, sendError.error]);
 
+  const attempt = useMessageSendAttempt(messageKeys.messageThread(threadId));
   const handleSend = async () => {
     const body = draft.trim();
-    if (!body || isSending) return;
+    if (!body || isSending || !messagingEnabled) return;
     if (snapshotUnavailable) {
       sendError.invalid(
         "Bitte warten Sie, bis der Nachrichtenverlauf geladen ist.",
       );
       return;
     }
-    setIsSending(true);
+    const clientMessageId = attempt.begin(body);
     sendError.clear();
-    try {
-      const updated = await postMessage(threadId, body, messages.at(-1)?.id);
-      // Show the sent message immediately. The postMessage response now carries
-      // the rebuilt "current → requested" diff inline on every still-open request
-      // (like the GET path), so the optimistic replace keeps the review card's
-      // comparison intact even before the revalidate lands — staff can't end up
-      // confirming without the preview. Revalidate stays as a freshness backstop.
-      await mutate((prev) => (prev ? { ...prev, messages: updated } : prev), {
-        revalidate: true,
-      });
-      setDraft("");
-    } catch (err) {
-      logger.error("thread_message_send_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        thread_id: threadId,
-      });
-      void sendError.show(err, {
-        object: "die Nachricht",
-        retry: () => latestSendRef.current(),
-      });
-    } finally {
-      setIsSending(false);
+    // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
+    send.dismiss();
+    // The handled boundary is the last message the server confirmed, never
+    // a bubble still on its way.
+    const lastConfirmedId = confirmedThread?.messages.at(-1)?.id;
+    setDraft("");
+    const sentDraftRevision = draftRevision.current;
+    let failed = false;
+    const outcome = await send.run({
+      onConfirmed: () => {
+        attempt.complete(clientMessageId);
+        // Only the restored draft belongs to this failed send. User edits,
+        // including retyping identical text, are a separate intent.
+        if (failed && draftRevision.current === sentDraftRevision) {
+          setDraft((current) => (current === body ? "" : current));
+        }
+        sendError.clear();
+      },
+      confirmed: (current) =>
+        current.messages.some(
+          (message) => message.client_message_id === clientMessageId,
+        ),
+      optimistic: (current, { id }) => ({
+        ...current,
+        messages: [
+          ...current.messages,
+          {
+            id,
+            kind: "message",
+            sender_kind: "staff",
+            sender_name: "",
+            body,
+            created_at: "",
+          },
+        ],
+      }),
+      request: () =>
+        postMessage(threadId, body, lastConfirmedId, clientMessageId),
+      // The postMessage response carries the rebuilt "current → requested"
+      // diff inline on every still-open request (like the GET path), so the
+      // review card keeps its comparison before the revalidate lands.
+      // Revalidate stays as a freshness backstop.
+      commit: (updated) =>
+        void mutate((prev) => (prev ? { ...prev, messages: updated } : prev), {
+          revalidate: true,
+        }),
+      keepFailed: true,
+      refusal: {
+        codes: PARENT_THREAD_SEND_REFUSALS,
+        matches: (key) =>
+          key === messageKeys.messageThread(threadId) ||
+          key.startsWith(messageKeys.messagesInboxFamily()),
+      },
+    });
+    if (outcome.status === "done") attempt.complete(clientMessageId);
+    if (
+      outcome.status !== "failed" ||
+      (!outcome.refused && !attempt.isActive(clientMessageId))
+    )
+      return;
+    failed = true;
+    const mayRestoreDraft =
+      attempt.isActive(clientMessageId) &&
+      draftRevision.current === sentDraftRevision;
+    const err = outcome.error;
+    // Der Text kommt zurück ins Feld, außer dort steht schon ein neuer.
+    setDraft((current) => (mayRestoreDraft && current === "" ? body : current));
+    logger.error("thread_message_send_failed", {
+      error: err instanceof Error ? err.message : String(err),
+      thread_id: threadId,
+    });
+    if (outcome.refused) {
+      setRefusal({ id: threadId, error: err });
+      return;
     }
+    if (isParentMessagingDisabled(err)) {
+      markSwitchedOff();
+      return;
+    }
+    void sendError.show(err, {
+      object: "die Nachricht",
+      retry: () => latestSendRef.current(),
+    });
   };
   // „Wiederholen“ sendet den Text, der dann im Feld steht.
   useLayoutEffect(() => {
@@ -408,11 +513,14 @@ function MessageThreadContent() {
 
   // Statuszeile unter dem Titel: Beziehung, Kind und die Zahl der geladenen
   // Nachrichten.
+  // Eine Leitungs-Unterhaltung trägt das vorne in der Statuszeile (#5200).
+  // Gezählt wird, was angekommen ist, nicht die Blase auf dem Weg (#5011).
+  const sentCount = confirmedThread?.messages.length ?? 0;
   const statusLine = thread
-    ? `${relationshipLabel(thread.relationship_type)} von ${thread.student_name} · ${
+    ? `${thread.audience === "leadership" ? `${LEADERSHIP_AUDIENCE_LABEL} · ` : ""}${relationshipLabel(thread.relationship_type)} von ${thread.student_name} · ${
         messagesLoading
           ? "Nachrichten werden geladen"
-          : `${messages.length} ${messages.length === 1 ? "Nachricht" : "Nachrichten"}`
+          : `${sentCount} ${sentCount === 1 ? "Nachricht" : "Nachrichten"}`
       }`
     : null;
 
@@ -452,7 +560,7 @@ function MessageThreadContent() {
               className="flex-shrink-0"
             >
               <MotoConceptIcon
-                concept="children"
+                concept={childrenConcept}
                 size={18}
                 className="mr-1.5"
               />
@@ -514,6 +622,7 @@ function MessageThreadContent() {
                         own={message.sender_kind === "staff"}
                         senderName={message.sender_name}
                         createdAt={message.created_at}
+                        pending={send.stateOf(message.id)}
                         readReceiptLabel={
                           message.sender_kind === "staff" &&
                           message.read_by_guardian
@@ -541,11 +650,24 @@ function MessageThreadContent() {
 
           <FormErrorAlert message={sendError.error} className="mt-3" />
 
+          {/* Wer mitliest, steht direkt über dem Schreibfeld (#5200). Die
+              Angabe kommt vom Backend, das Frontend rät sie nie. */}
           <div className="mt-4">
+            {thread?.readers ? (
+              <p
+                className="mb-2 text-sm text-gray-500"
+                data-testid="thread-readers"
+              >
+                {readersLabel(thread.readers)}
+              </p>
+            ) : null}
             {messagingEnabled ? (
               <MessageComposer
                 value={draft}
-                onChange={setDraft}
+                onChange={(value) => {
+                  draftRevision.current += 1;
+                  setDraft(value);
+                }}
                 onSend={() => void handleSend()}
                 sending={isSending}
                 disabled={snapshotUnavailable}

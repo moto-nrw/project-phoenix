@@ -67,6 +67,23 @@ describe("request.ts getRequestConfig resolver", () => {
     expect(messages.language).toBeDefined();
   });
 
+  it.each([
+    ["de", "Sprache"],
+    ["en", "Language"],
+    ["pl", "Język"],
+    ["ru", "Язык"],
+    ["sq", "Gjuha"],
+    ["tr", "Dil"],
+    ["uk", "Мова"],
+  ])("loads the selected %s runtime catalog", async (code, label) => {
+    headerStore.set(LOCALE_SCOPE_HEADER, "1");
+    cookieStore.set(LOCALE_COOKIE_NAME, code);
+    const resolve = await loadResolver();
+    const { locale, messages } = await resolve();
+    expect(locale).toBe(code);
+    expect(messages.language).toMatchObject({ label });
+  });
+
   it("falls back to Accept-Language when localized with no cookie", async () => {
     headerStore.set(LOCALE_SCOPE_HEADER, "1");
     headerStore.set("accept-language", "ru,en;q=0.8");

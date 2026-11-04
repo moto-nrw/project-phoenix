@@ -13,6 +13,7 @@ import { Loader2 } from "lucide-react";
 
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import { RequiredMark } from "~/components/ui/field-label";
 import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
@@ -445,7 +446,7 @@ export function OfferingChangeRequestModal({
             <Button
               type="button"
               size="md"
-              className="w-full gap-2 max-sm:min-h-11 sm:w-auto"
+              className="w-full gap-2 sm:w-auto"
               onClick={() => void handleSubmit()}
               disabled={submitting || loading || !catalog || emptyCatalog}
             >
@@ -618,7 +619,7 @@ export function OfferingChangeRequestModal({
               <label className="block">
                 <span className="mb-1 block text-sm font-medium text-gray-700">
                   {t("careOfferingsModal.noteLabel")}
-                  {reasonRequired && <span aria-hidden="true"> *</span>}
+                  {reasonRequired && <RequiredMark />}
                 </span>
                 <textarea
                   name="note"

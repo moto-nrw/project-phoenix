@@ -183,4 +183,36 @@ describe("anonymous enrollment PDF actions", () => {
     await waitFor(() => expect(mocks.show).toHaveBeenCalledOnce());
     expect(mocks.fetch).not.toHaveBeenCalled();
   });
+  it("uses explicit portal labels and a period document route without enrollment translations", async () => {
+    mocks.fetch.mockResolvedValueOnce(pdf("%PDF holiday"));
+    render(
+      <AttachmentList
+        attachments={[{ label: "Ferienhinweis", document_url: "81" }]}
+        documentURL={(id) =>
+          `/api/traeger/holiday-periods/5/form/documents/${id}`
+        }
+        labels={{
+          open: "PDF öffnen",
+          download: "PDF speichern",
+          openLabel: (label) => `${label} lesen`,
+          downloadLabel: (label) => `${label} speichern`,
+          popupBlocked: "Bitte erlauben Sie neue Fenster.",
+          errorObject: "die PDF-Datei",
+        }}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Ferienhinweis lesen" }),
+    ).toHaveTextContent("PDF öffnen");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ferienhinweis speichern" }),
+    );
+    await waitFor(() =>
+      expect(mocks.fetch).toHaveBeenCalledWith(
+        "/api/traeger/holiday-periods/5/form/documents/81",
+        { cache: "no-store" },
+      ),
+    );
+    await waitFor(() => expect(mocks.download).toHaveBeenCalled());
+  });
 });

@@ -116,7 +116,8 @@ export function PastBlocksSection() {
       defaultCollapsed
       onCollapsedChange={(collapsed) => setExpanded(!collapsed)}
       className="mt-5"
-      bodyClassName="-mx-5 -mb-5 mt-5 border-t border-gray-100 bg-gray-50/50 p-5"
+      flush
+      bodyClassName="compact:p-4 mt-5 border-t border-gray-100 bg-gray-50/50 p-5 max-sm:p-4"
     >
       {isLoading && blocks === null ? (
         <SkeletonRegion label="Vergangene Blöcke werden geladen">
@@ -198,6 +199,70 @@ function PastBlockCard({
         )
       }
       bodyClassName="mt-2"
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            size="md"
+            onClick={toggleRoster}
+            className="w-full justify-between"
+            aria-expanded={expanded}
+          >
+            <span>Kinder</span>
+            <ChevronDown
+              className={`h-4 w-4 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+              aria-hidden="true"
+            />
+          </Button>
+
+          {expanded ? (
+            <div className="mt-3">
+              {isLoading ? (
+                <SkeletonRegion label="Kinderliste wird geladen">
+                  <ListSkeleton rows={4} avatar={false} />
+                </SkeletonRegion>
+              ) : loadError ? (
+                <LoadErrorAlert error={loadError} />
+              ) : roster !== null ? (
+                <div className="space-y-2">
+                  {!completed ? (
+                    <p className="text-moto-amber-strong text-xs">
+                      Keine Anwesenheit erfasst: Der Block wurde nicht
+                      gestartet.
+                    </p>
+                  ) : null}
+                  {roster.rows.length === 0 ? (
+                    <p className="text-sm text-gray-600">
+                      Keine Kinder eingeplant.
+                    </p>
+                  ) : (
+                    <>
+                      {roster.pickupTimesLoaded === false &&
+                      !roster.pickupTimesRedacted ? (
+                        <Alert
+                          type="warning"
+                          announce="polite"
+                          message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
+                        />
+                      ) : null}
+                      {roster.rows.map((row) => (
+                        <PastRosterRow
+                          key={row.studentId}
+                          row={row}
+                          pickupTimesLoaded={roster.pickupTimesLoaded}
+                          pickupTimesRedacted={roster.pickupTimesRedacted}
+                          showStatus={completed}
+                        />
+                      ))}
+                    </>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </>
+      }
     >
       <div className="flex flex-wrap gap-3 text-sm text-gray-600">
         <span>
@@ -208,68 +273,6 @@ function PastBlockCard({
           {block.assignedStaffIds.length}{" "}
           {block.assignedStaffIds.length === 1 ? "Betreuer" : "Betreuende"}
         </span>
-      </div>
-
-      <div className="-mx-5 mt-4 -mb-5 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
-        <Button
-          type="button"
-          variant="ghost"
-          size="compact"
-          onClick={toggleRoster}
-          className="w-full justify-between text-sm"
-          aria-expanded={expanded}
-        >
-          <span>Kinder</span>
-          <ChevronDown
-            className={`h-4 w-4 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
-            aria-hidden="true"
-          />
-        </Button>
-
-        {expanded ? (
-          <div className="mt-3">
-            {isLoading ? (
-              <SkeletonRegion label="Kinderliste wird geladen">
-                <ListSkeleton rows={4} avatar={false} />
-              </SkeletonRegion>
-            ) : loadError ? (
-              <LoadErrorAlert error={loadError} />
-            ) : roster !== null ? (
-              <div className="space-y-2">
-                {!completed ? (
-                  <p className="text-moto-amber-strong text-xs">
-                    Keine Anwesenheit erfasst: Der Block wurde nicht gestartet.
-                  </p>
-                ) : null}
-                {roster.rows.length === 0 ? (
-                  <p className="text-sm text-gray-600">
-                    Keine Kinder eingeplant.
-                  </p>
-                ) : (
-                  <>
-                    {roster.pickupTimesLoaded === false &&
-                    !roster.pickupTimesRedacted ? (
-                      <Alert
-                        type="warning"
-                        announce="polite"
-                        message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
-                      />
-                    ) : null}
-                    {roster.rows.map((row) => (
-                      <PastRosterRow
-                        key={row.studentId}
-                        row={row}
-                        pickupTimesLoaded={roster.pickupTimesLoaded}
-                        pickupTimesRedacted={roster.pickupTimesRedacted}
-                        showStatus={completed}
-                      />
-                    ))}
-                  </>
-                )}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
       </div>
     </SectionCard>
   );

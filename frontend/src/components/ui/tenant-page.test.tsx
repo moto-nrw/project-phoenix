@@ -3,6 +3,7 @@ import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import Link from "next/link";
 import { TenantPage, TenantPageStats } from "./tenant-page";
+import { Button, ButtonLink } from "./button";
 
 // Der Zustand für nicht gebuchte Module liest die Sitzung (#4894).
 vi.mock("next-auth/react", () => ({
@@ -87,6 +88,47 @@ describe("TenantPage", () => {
     expect(screen.getByText("Inhalt")).toBeInTheDocument();
   });
 
+  // #5531: Die Kopfkarte setzt ihre Bedienhöhe über Nachfahren-Selektoren.
+  // Ein Link in Button-Optik muss davon genauso erfasst sein wie ein Knopf,
+  // sonst steht er mit 32 oder 36 px neben 40-px-Knöpfen.
+  it("bringt einen ButtonLink in der Kopfkarte auf die Höhe des Knopfs daneben", () => {
+    render(
+      <TenantPage
+        title="Kinder"
+        actions={
+          <>
+            <ButtonLink href="/students/import" variant="outline" size="md">
+              Importieren
+            </ButtonLink>
+            <Button type="button" size="md">
+              Kind anlegen
+            </Button>
+          </>
+        }
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "Importieren" });
+    const button = screen.getByRole("button", { name: "Kind anlegen" });
+    const container = button.parentElement!;
+    expect(link.parentElement).toBe(container);
+
+    const selectorsFor = (prefix: string, height: string) =>
+      [...container.classList]
+        .map((c) => new RegExp(`^${prefix}\\[&_(.+)\\]:${height}$`).exec(c))
+        .filter((m): m is RegExpExecArray => m !== null)
+        .map((m) => m[1]!.replaceAll("_", " "));
+
+    for (const [prefix, height] of [
+      ["", "h-10"],
+      ["max-sm:", "h-11"],
+    ] as const) {
+      const selectors = selectorsFor(prefix, height);
+      expect(selectors.some((sel) => button.matches(sel))).toBe(true);
+      expect(selectors.some((sel) => link.matches(sel))).toBe(true);
+    }
+  });
+
   it("bleibt auf dem Telefon eine Karte mit engerem Innenrand", () => {
     const { container } = render(
       <TenantPage title="Kinder">
@@ -99,7 +141,6 @@ describe("TenantPage", () => {
       "moto-content-surface",
       "rounded-2xl",
       "border",
-      "shadow-sm",
       "max-sm:p-4",
     );
     expect(header).not.toHaveClass(
@@ -459,6 +500,28 @@ describe("TenantPage", () => {
     expect(screen.getByText("krank")).toBeInTheDocument();
     expect(screen.getByText("·")).toBeInTheDocument();
   });
+
+  it("zeigt mehrere Werte ohne Label ohne doppelten Schlüssel", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    try {
+      render(
+        <TenantPageStats
+          items={[
+            { value: "Bären", label: "" },
+            { value: "07.09. bis 13.09.2026", label: "" },
+          ]}
+        />,
+      );
+
+      expect(screen.getByText("Bären")).toBeInTheDocument();
+      expect(screen.getByText("07.09. bis 13.09.2026")).toBeInTheDocument();
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
   it("zeigt die Reiter auf jeder Breite als ein Band, nie als Auswahlliste", () => {
     render(
       <TenantPage
@@ -585,5 +648,65 @@ describe("TenantPage mit nicht gebuchtem Modul", () => {
     expect(screen.getByText("Dienstplan ist nicht gebucht")).toBeVisible();
     expect(screen.queryByText("Inhalt")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  // #5034: Der Leerzustand wiederholt keine Kopfaktion. Das Gerüst meldet
+  // eine Wiederholung außerhalb der Produktion.
+  describe("Leerzustand neben einer Kopfaktion", () => {
+    it("meldet einen Leerzustand-Knopf, der die Kopfaktion wiederholt", () => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+      const { rerender } = render(
+        <TenantPage
+          title="Räume"
+          actions={<button type="button">+ Raum</button>}
+          empty={{
+            title: "Keine Räume vorhanden",
+            action: <button type="button">Raum</button>,
+          }}
+        />,
+      );
+      rerender(
+        <TenantPage
+          title="Räume"
+          actions={<button type="button">+ Raum</button>}
+          empty={{
+            title: "Keine Räume vorhanden",
+            action: <button type="button">Raum</button>,
+          }}
+        />,
+      );
+      expect(consoleError).toHaveBeenCalledWith(
+        "tenant_page_empty_action_repeats_head_action",
+        expect.objectContaining({ page: "Räume", action: "raum" }),
+      );
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      consoleError.mockRestore();
+    });
+
+    it("lässt eine Leerzustand-Aktion für eine andere Handlung zu", () => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+      render(
+        <TenantPage
+          title="Räume"
+          actions={<button type="button">+ Raum</button>}
+          empty={{
+            title: "Keine passenden Räume",
+            action: <button type="button">Filter zurücksetzen</button>,
+          }}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Filter zurücksetzen" }),
+      ).toBeInTheDocument();
+      expect(consoleError).not.toHaveBeenCalledWith(
+        "tenant_page_empty_action_repeats_head_action",
+        expect.anything(),
+      );
+      consoleError.mockRestore();
+    });
   });
 });

@@ -7,6 +7,7 @@ import {
   useEffectEvent,
   useLayoutEffect,
   useRef,
+  useId,
 } from "react";
 import {
   ExternalLink,
@@ -30,14 +31,22 @@ import {
 } from "~/lib/api-error";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { Button, buttonClassName } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Textarea } from "~/components/ui/textarea";
 import { MODULE_SETTING_KEYS } from "~/lib/modules";
+import {
+  BUILT_IN_PAYMENT_TEXT,
+  PAYMENT_TEXT_KEY,
+  paymentTextProblem,
+} from "~/lib/traeger-payment-text";
+import { textTooLong } from "~/lib/text-length";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
 import { SettingsTimeField } from "./fields/time-field";
 import { DateField } from "./fields/date-field";
 import { TextField } from "./fields/text-field";
+import { type ColorPreset, ColorField } from "./fields/color-field";
 import { TextareaField } from "./fields/textarea-field";
 import { PasswordField } from "./fields/password-field";
 import { SelectField } from "./fields/select-field";
@@ -182,6 +191,18 @@ function validateLocally(
     ) {
       return REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR;
     }
+  }
+
+  // The payment text of the Träger takes only its placeholders (#5622).
+  if (setting.key === PAYMENT_TEXT_KEY) {
+    return paymentTextProblem(typeof value === "string" ? value : "");
+  }
+
+  // A text limit counts characters like the backend (#5622).
+  const maxLength = setting.validation?.max_length;
+  if (maxLength != null && typeof value === "string") {
+    const tooLong = textTooLong(value, maxLength);
+    if (tooLong) return tooLong;
   }
 
   if (setting.type === "number") {
@@ -340,9 +361,11 @@ export function SettingsField({
   const { success: toastSuccess } = useToast();
   const [localValue, setLocalValue] = useState<unknown>(setting.value);
   const [isDirty, setIsDirty] = useState(false);
+  const [serverValue, setServerValue] = useState<unknown>(setting.value);
   // Hint from a check before sending (range, missing legal text, a setting
   // that must change first). Server errors go through the shared path.
   const [hint, setHint] = useState<string | null>(null);
+  const hintId = useId();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [historyDeletion, setHistoryDeletion] = useState<
     "save" | "reset" | null
@@ -447,11 +470,13 @@ export function SettingsField({
     };
   }, [categoryItems, isDirty, localValue, setting]);
 
-  // Sync local state when setting value changes from server.
-  useEffect(() => {
-    setLocalValue(setting.value);
-    setIsDirty(false);
-  }, [setting.value]);
+  // A schema revalidation may arrive while this field is being edited.
+  // Observe each server value once; only pristine fields adopt it. Clearing
+  // isDirty after a save must not restore an older server value.
+  if (!Object.is(serverValue, setting.value)) {
+    setServerValue(setting.value);
+    if (!isDirty) setLocalValue(setting.value);
+  }
 
   const cleanupPendingSave = useEffectEvent((pending: PendingSettingSave) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -1032,6 +1057,9 @@ export function SettingsField({
     return null;
   }
 
+  const hasColorPresets =
+    setting.type === "color" && colorPresets(setting).length > 0;
+  const fieldLayout = hasColorPresets ? "" : "sm:flex-row sm:justify-between";
   const fieldAlignment =
     setting.type === "boolean" ? "sm:items-center" : "sm:items-start";
 
@@ -1039,7 +1067,7 @@ export function SettingsField({
     <div
       ref={fieldRef}
       id={settingsFieldId(setting.key)}
-      className={`flex scroll-mt-24 flex-col gap-3 rounded-xl border px-3 py-4 transition-[background-color,border-color,box-shadow] sm:flex-row sm:justify-between sm:gap-4 ${fieldAlignment} ${
+      className={`flex scroll-mt-24 flex-col gap-3 rounded-xl border px-3 py-4 transition-[background-color,border-color,box-shadow] sm:gap-4 ${fieldLayout} ${fieldAlignment} ${
         showHighlight
           ? "border-moto-green/35 bg-moto-green/10 shadow-sm duration-500"
           : "border-transparent"
@@ -1083,10 +1111,18 @@ export function SettingsField({
         {legalTextStoredStatus && (
           <p className="mt-1 text-xs text-gray-500">{legalTextStoredStatus}</p>
         )}
-        {hint && <p className="text-moto-red mt-1 text-xs">{hint}</p>}
+        {hint && (
+          <p id={hintId} className="text-moto-red mt-1 text-xs">
+            {hint}
+          </p>
+        )}
       </div>
 
-      <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-3 sm:flex-nowrap">
+      <div
+        className={`flex min-w-0 flex-wrap items-center gap-3 ${
+          hasColorPresets ? "w-full" : "shrink-0 sm:flex-nowrap"
+        }`}
+      >
         {isEnrollmentLegalTextSetting
           ? renderEnrollmentLegalTextEditor(
               localValue,
@@ -1103,13 +1139,15 @@ export function SettingsField({
               handleLocalChange,
               handleBlur,
               revealFn,
+              hint ? hintId : undefined,
             )}
 
         {offersReset(setting, audience, deletesRoomHistory) && (
-          <button
+          <Button
             type="button"
+            variant="surface"
+            size="compact"
             onClick={handleReset}
-            className="moto-content-surface inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 active:bg-gray-100"
             title={
               restoresTraegerValue
                 ? "Auf den Wert des Trägers zurücksetzen"
@@ -1118,7 +1156,7 @@ export function SettingsField({
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
             <span className="hidden sm:inline">Zurücksetzen</span>
-          </button>
+          </Button>
         )}
       </div>
 
@@ -1597,11 +1635,14 @@ function renderAGBSourceEditor({
             <div className="flex flex-wrap items-center gap-2 text-xs">
               {documentManagementDisabledReason == null && (
                 <label
-                  className={`border-moto-blue/25 hover:bg-moto-blue/10 text-moto-blue-hover inline-flex cursor-pointer items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium shadow-sm transition-colors ${
-                    !canManageDocument || documentSaving
-                      ? "pointer-events-none opacity-50"
-                      : ""
-                  }`}
+                  className={buttonClassName({
+                    variant: "surface",
+                    size: "compact",
+                    className:
+                      !canManageDocument || documentSaving
+                        ? "pointer-events-none cursor-pointer opacity-50"
+                        : "cursor-pointer",
+                  })}
                 >
                   <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>{hasDocument ? "PDF ersetzen" : "PDF hochladen"}</span>
@@ -1622,7 +1663,11 @@ function renderAGBSourceEditor({
                   href={publicLegalDocumentURL(documentURL)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900"
+                  className={buttonClassName({
+                    variant: "surface",
+                    size: "compact",
+                    className: "",
+                  })}
                 >
                   <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Öffnen</span>
@@ -1631,15 +1676,16 @@ function renderAGBSourceEditor({
               {hasDocument &&
                 canManageDocument &&
                 documentDeleteDisabledReason == null && (
-                  <button
+                  <Button
                     type="button"
+                    variant="outline_danger"
+                    size="compact"
                     onClick={onDocumentDelete}
                     disabled={documentSaving}
-                    className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/5 inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Entfernen</span>
-                  </button>
+                  </Button>
                 )}
             </div>
           </div>
@@ -1741,15 +1787,17 @@ function renderEnrollmentLegalTextEditor(
               </p>
             )}
           </div>
-          <button
+          <Button
             type="button"
+            variant="primary"
+            size="compact"
             onClick={onEdit}
             disabled={!writable}
-            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="shrink-0"
           >
             <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
             <span>{isAGB ? "AGB überarbeiten" : "Rechtstext bearbeiten"}</span>
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -1851,6 +1899,15 @@ async function persistSetting(
   }
 }
 
+/** The preset colours a colour setting offers (registry `options.static`). */
+function colorPresets(setting: ResolvedSetting): ColorPreset[] {
+  return (setting.options?.static ?? []).flatMap((option) =>
+    typeof option.value === "string"
+      ? [{ label: option.label, value: option.value }]
+      : [],
+  );
+}
+
 function renderField(
   setting: ResolvedSetting,
   localValue: unknown,
@@ -1858,6 +1915,7 @@ function renderField(
   onLocalChange: (value: unknown) => void,
   onBlur: () => Promise<void>,
   revealFn?: (key: string) => Promise<string | null>,
+  errorId?: string,
 ) {
   const disabled = !setting.writable;
 
@@ -1917,6 +1975,18 @@ function renderField(
           disabled={disabled}
         />
       );
+    case "color":
+      return (
+        <ColorField
+          ariaLabel={setting.label}
+          value={toStr(localValue)}
+          fallback={toStr(setting.default)}
+          onChange={onLocalChange}
+          onBlur={onBlur}
+          disabled={disabled}
+          presets={colorPresets(setting)}
+        />
+      );
     case "textarea":
       return (
         <TextareaField
@@ -1925,6 +1995,10 @@ function renderField(
           onChange={onLocalChange}
           onBlur={onBlur}
           disabled={disabled}
+          placeholder={
+            setting.key === PAYMENT_TEXT_KEY ? BUILT_IN_PAYMENT_TEXT : undefined
+          }
+          errorId={errorId}
         />
       );
     case "password":

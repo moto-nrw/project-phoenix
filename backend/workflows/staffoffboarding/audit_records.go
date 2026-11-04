@@ -31,8 +31,12 @@ func NewStaffDeletion(actor Actor, result Result) StaffDeletion {
 		// sessions without a display name, including the API seeder.
 		deletedBy = "system"
 	}
+	reason := "staff offboarding"
+	if actor.PlannedExitDay != nil {
+		reason = "planned staff exit after last working day " + actor.PlannedExitDay.String()
+	}
 	return StaffDeletion{
 		TenantID: actor.TenantID, StaffID: result.StaffID, RecordsDeleted: records,
-		DeletedBy: deletedBy, Reason: "staff offboarding", Counts: counts,
+		DeletedBy: deletedBy, Reason: reason, Counts: counts,
 	}
 }

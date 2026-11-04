@@ -103,6 +103,16 @@ type fakeCalendar struct{}
 
 func (fakeCalendar) DayOf(at time.Time) Date { return Date(at.Format("2006-01-02")) }
 
+type fakeAccessLog struct {
+	at  []time.Time
+	err error
+}
+
+func (f *fakeAccessLog) RecordEmergencyListExport(_ context.Context, at time.Time) error {
+	f.at = append(f.at, at)
+	return f.err
+}
+
 type fakeRenderer struct {
 	doc  Document
 	base string
@@ -127,14 +137,15 @@ func collateASCIIFold(a, b string) int {
 
 func fullDeps() Dependencies {
 	return Dependencies{
-		Presence: &fakePresence{},
-		Rooms:    &fakeRooms{},
-		Students: fakeStudents{},
-		Persons:  &fakePersons{},
-		Contacts: fakeContacts{},
-		Calendar: fakeCalendar{},
-		Renderer: &fakeRenderer{},
-		Collate:  collateASCIIFold,
+		Presence:  &fakePresence{},
+		Rooms:     &fakeRooms{},
+		Students:  fakeStudents{},
+		Persons:   &fakePersons{},
+		Contacts:  fakeContacts{},
+		Calendar:  fakeCalendar{},
+		Renderer:  &fakeRenderer{},
+		AccessLog: &fakeAccessLog{},
+		Collate:   collateASCIIFold,
 	}
 }
 
@@ -180,6 +191,11 @@ func TestNewRejectsMissingPorts(t *testing.T) {
 	deps.Collate = nil
 	_, err = New(deps)
 	require.ErrorIs(t, err, ErrIncompleteDependencies)
+
+	deps = fullDeps()
+	deps.AccessLog = nil
+	_, err = New(deps)
+	require.ErrorIs(t, err, ErrIncompleteDependencies, "the access log of the health information is required")
 
 	_, err = New(fullDeps())
 	require.NoError(t, err)
@@ -292,6 +308,37 @@ func TestExportRendersThroughTheRendererPort(t *testing.T) {
 	renderer.err = errors.New("renderer down")
 	_, err = projection.Export(context.Background())
 	require.ErrorIs(t, err, renderer.err)
+}
+
+// An export that prints a child's health field is recorded in the access log
+// first (#5472): no record, no list. A list without one records nothing.
+func TestExportRecordsTheHealthInformationItPrints(t *testing.T) {
+	t.Parallel()
+	deps := twoChildren()
+	log := &fakeAccessLog{}
+	deps.AccessLog = log
+	deps.Now = func() time.Time { return generatedAt }
+	_, err := newProjection(t, deps).Export(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, log.at, "no health field, no record")
+
+	deps = twoChildren()
+	students := deps.Students.(fakeStudents)
+	child := students.students[101]
+	child.HealthInfo = "Erdnussallergie"
+	students.students[101] = child
+	renderer := &fakeRenderer{}
+	deps.Renderer, deps.AccessLog, deps.Now = renderer, log, func() time.Time { return generatedAt }
+	projection := newProjection(t, deps)
+	_, err = projection.Export(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []time.Time{generatedAt}, log.at)
+
+	log.err = errors.New("audit down")
+	renderer.doc = Document{}
+	_, err = projection.Export(context.Background())
+	require.ErrorIs(t, err, log.err)
+	assert.Empty(t, renderer.doc.Rows, "without the record the list is not rendered")
 }
 
 // One owner-query failure surfaces unchanged, whichever port fails, and stops

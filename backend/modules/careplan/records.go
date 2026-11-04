@@ -87,6 +87,14 @@ type CareDocument struct {
 	DeletedAt       *time.Time
 	DeletedBy       *int64
 	FileDeletedAt   *time.Time
+	// The accident report of an unfallanzeige document (#4771): what was
+	// recorded, the report it corrects, and how and when it was signed. A
+	// report without a paper copy has no stored file.
+	AccidentReport       *AccidentReport
+	AccidentSupersedesID *int64
+	AccidentSignatureID  *int64
+	AccidentSignedAt     *time.Time
+	AccidentSignedBy     *int64
 }
 
 type CareDocumentCleanup struct {
@@ -204,6 +212,10 @@ type CompanionsCommand interface {
 // CareDocumentsCommand writes care documents and drives their file cleanup.
 type CareDocumentsCommand interface {
 	CreateCareDocument(context.Context, CareDocument) (CareDocument, error)
+	// UpdateOpenCareAccidentReport rewrites the report, signature and paper
+	// copy of an accident report that is neither signed nor deleted; a report
+	// that is no longer open is ErrAccidentReportSigned.
+	UpdateOpenCareAccidentReport(context.Context, CareDocument) (CareDocument, error)
 	SoftDeleteCareDocument(context.Context, int64, int64) (time.Time, error)
 	MarkCareDocumentFileDeleted(context.Context, int64) error
 	QueueCareDocumentCleanup(context.Context, CareDocumentCleanup) (CareDocumentCleanup, error)
@@ -239,8 +251,14 @@ func NormalizeCareExitReason(reason string, note *string) (*string, error) {
 
 // ValidateCareDocument checks that one metadata row is storable.
 func ValidateCareDocument(value CareDocument) error {
-	if value.StudentID <= 0 || strings.TrimSpace(value.Category) == "" || strings.TrimSpace(value.FilenameDisplay) == "" || strings.TrimSpace(value.FilenameStored) == "" || value.SizeBytes < 0 || strings.TrimSpace(value.ContentType) == "" || value.UploadedBy <= 0 {
+	// Only an accident report may be stored without a file: its PDF is
+	// rendered from the report.
+	fileMissing := strings.TrimSpace(value.FilenameStored) == "" && value.AccidentReport == nil
+	if value.StudentID <= 0 || strings.TrimSpace(value.Category) == "" || strings.TrimSpace(value.FilenameDisplay) == "" || fileMissing || value.SizeBytes < 0 || strings.TrimSpace(value.ContentType) == "" || value.UploadedBy <= 0 {
 		return &InvalidError{Kind: ErrInvalidCareDocument, Reason: "care document metadata is invalid"}
+	}
+	if value.AccidentReport != nil && value.Category != StudentDocumentCategoryUnfallanzeige {
+		return &InvalidError{Kind: ErrInvalidCareDocument, Reason: "only an unfallanzeige document carries an accident report"}
 	}
 	return nil
 }

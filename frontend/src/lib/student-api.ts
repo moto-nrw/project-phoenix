@@ -7,6 +7,7 @@ import {
   transportFetch,
 } from "./api-error";
 // lib/student-api.ts
+import { hasSessionAccess } from "./session-access";
 import { getCachedSession, sessionFetch } from "./session-cache";
 import { createLogger } from "~/lib/logger";
 import { isAxiosError } from "axios";
@@ -48,6 +49,12 @@ export interface StudentFilters {
    * are not signed off for it (#4571). Needs `location_state: "present"`.
    */
   care_offering_id?: string;
+  /**
+   * Wire projection. "slim" (#2097) drops address, health, guardian and
+   * schedule fields; "names" (#4996) keeps only ID and name, for callers that
+   * only show who a child is.
+   */
+  view?: "slim" | "names";
 }
 
 /** An active care offering that counts as care, as a selection lists it. */
@@ -144,6 +151,7 @@ async function buildStudentUrl(
     params.append("include_pickup_times", "true");
   if (filters.care_offering_id)
     params.append("care_offering_id", filters.care_offering_id);
+  if (filters.view) params.append("view", filters.view);
 
   const queryString = params.toString();
   return { url: queryString ? `${baseUrl}?${queryString}` : baseUrl, useProxy };
@@ -167,12 +175,11 @@ export async function fetchStudents(filters?: StudentFilters): Promise<{
 
   try {
     if (useProxy) {
-      const session = await getCachedSession();
       const responseData = await authFetch<
         | Student[]
         | PaginatedResponse<Student>
         | WrappedPaginatedResponse<Student>
-      >(url, { token: session?.user?.token });
+      >(url);
 
       // Next.js API routes wrap GET responses once more:
       // { status, data: { data: students, pagination } }.
@@ -250,10 +257,9 @@ export async function fetchCareOfferingOptions(): Promise<
   CareOfferingOption[]
 > {
   try {
-    const session = await getCachedSession();
     const responseData = await authFetch<
       ApiResponse<CareOfferingOption[]> | CareOfferingOption[]
-    >("/api/students/care-offerings", { token: session?.user?.token });
+    >("/api/students/care-offerings");
     const data = extractApiData(responseData);
     return Array.isArray(data) ? data : [];
   } catch (error) {
@@ -270,13 +276,7 @@ export async function fetchStudent(id: string): Promise<Student> {
 
   try {
     if (useProxy) {
-      const session = await getCachedSession();
-      const responseData = await authFetch<ApiResponse<Student> | Student>(
-        url,
-        {
-          token: session?.user?.token,
-        },
-      );
+      const responseData = await authFetch<ApiResponse<Student> | Student>(url);
       return extractApiData(responseData);
     }
 
@@ -297,13 +297,10 @@ export async function fetchStudentEnrollmentExtraFields(
 
   try {
     if (useProxy) {
-      const session = await getCachedSession();
       const responseData = await authFetch<
         | ApiResponse<StudentEnrollmentExtraFieldGroup[]>
         | StudentEnrollmentExtraFieldGroup[]
-      >(url, {
-        token: session?.user?.token,
-      });
+      >(url);
       const data = extractApiData(responseData);
       return Array.isArray(data) ? data : [];
     }
@@ -369,13 +366,11 @@ export async function schoolCheckinStudent(
   // only with "out" and stores nothing for a blank note.
   const note = action === "out" ? checkoutNote?.trim() : undefined;
   try {
-    const session = await getCachedSession();
     const response = await authFetch<
       ApiResponse<BackendSchoolCheckinResponse> | BackendSchoolCheckinResponse
     >(url, {
       method: "POST",
       body: note ? { action, note } : { action },
-      token: session?.user?.token,
     });
 
     const data = extractApiData<BackendSchoolCheckinResponse>(response);
@@ -445,7 +440,6 @@ const SCHOOL_CHECKIN_BATCH_CHUNK_SIZE = 1000;
 async function postSchoolCheckinBatchChunk(
   studentIds: string[],
   action: SchoolCheckinAction,
-  token: string | undefined,
 ): Promise<BackendSchoolCheckinBatchResponse> {
   const response = await authFetch<
     | ApiResponse<BackendSchoolCheckinBatchResponse>
@@ -455,7 +449,6 @@ async function postSchoolCheckinBatchChunk(
     // IDs stay strings on the wire (see BackendSchoolCheckinBatchResponse) —
     // never convert them with Number(), which is lossy above 2^53-1.
     body: { action, student_ids: studentIds },
-    token,
   });
   return extractApiData<BackendSchoolCheckinBatchResponse>(response);
 }
@@ -484,9 +477,6 @@ export async function schoolCheckinStudentsBatch(
     failed: 0,
   };
 
-  const session = await getCachedSession();
-  const token = session?.user?.token;
-
   for (
     let offset = 0;
     offset < studentIds.length;
@@ -497,7 +487,7 @@ export async function schoolCheckinStudentsBatch(
       offset + SCHOOL_CHECKIN_BATCH_CHUNK_SIZE,
     );
     try {
-      const data = await postSchoolCheckinBatchChunk(chunk, action, token);
+      const data = await postSchoolCheckinBatchChunk(chunk, action);
       outcome.succeeded += data.succeeded;
       outcome.failed += data.failed;
       outcome.results.push(
@@ -664,21 +654,18 @@ export async function uploadStudentPhoto(
     formData.append("consent_acknowledged", "true");
   }
 
-  const session = await getCachedSession();
-  const token = session?.user?.token;
-  if (!token) {
+  if (!hasSessionAccess(await getCachedSession())) {
     // 401 sends the person to the login screen on the shared error path.
     throw new ApiError("Authentifizierung erforderlich", 401);
   }
 
   // Use raw fetch — authFetch wraps JSON bodies, but this endpoint expects
-  // multipart/form-data. We forward the cookie-derived JWT manually.
+  // multipart/form-data. The route reads the session cookie (#5005).
   let response: Response;
   try {
     response = await fetch(url, {
       method: "POST",
       body: formData,
-      headers: { Authorization: `Bearer ${token}` },
     });
   } catch (error) {
     throw unavailableApiError(error);
@@ -707,10 +694,8 @@ export async function uploadStudentPhoto(
 /** Remove a student's photo (idempotent — succeeds even with no photo set). */
 export async function deleteStudentPhoto(studentId: string): Promise<void> {
   const url = `/api/students/${studentId}/photo`;
-  const session = await getCachedSession();
   await authFetch<void>(url, {
     method: "DELETE",
-    token: session?.user?.token,
   });
 }
 

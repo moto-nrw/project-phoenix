@@ -312,3 +312,47 @@ func TestStaffAvatarStaysInsideTheSchool(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, foreign.Code, foreign.Body.String())
 	assert.NotContains(t, foreign.Body.String(), "staff-avatar")
 }
+
+// A planned exit (#4809) takes the deletion's permission, refuses a day in
+// the past with its own code and shows its state to a caller who may change it.
+func TestPlannedExitRoutesFollowTheDeletionPermission(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffCompositionRoute(t)
+	subjectID, _ := ctx.createStaff("Gehende", "Kollegin")
+	_, leadAccountID := ctx.createStaffWithAccount("Planende", "Leitung")
+	claims := testutil.DefaultTestClaims()
+	claims.ID = int(leadAccountID)
+	claims.Permissions = []string{"users:delete", "users:read"}
+	lead := testutil.WithJWTBearer(testutil.MintTestJWT(t, claims))
+	path := fmt.Sprintf("/staff/%d/planned-exit", subjectID)
+	day := time.Now().AddDate(0, 1, 0).Format("2006-01-02")
+
+	rr := testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodPut, path,
+		map[string]any{"last_working_day": day}, testutil.WithJWTBearer(staffCompositionToken(t, betreuerPermissions...))))
+	assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
+
+	rr = testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodPut, path,
+		map[string]any{"last_working_day": "2020-01-01"}, lead))
+	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"staff.exit_day_in_past"`)
+
+	rr = testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodPut, path,
+		map[string]any{"last_working_day": day}, lead))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	rr = testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d", subjectID), nil, lead))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"planned_exit_date":"`+day+`"`)
+
+	rr = testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d", subjectID), nil,
+		testutil.WithJWTBearer(staffCompositionToken(t, betreuerPermissions...))))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.NotContains(t, rr.Body.String(), "planned_exit_date", "colleagues see no personnel data")
+
+	rr = testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodDelete, path, nil, lead))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	rr = testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodDelete, path, nil, lead))
+	assert.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"staff.exit_not_planned"`)
+}

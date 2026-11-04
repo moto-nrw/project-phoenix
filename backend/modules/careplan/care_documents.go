@@ -22,6 +22,7 @@ const (
 	StudentDocumentCategoryImpfnachweis      = "impfnachweis"
 	StudentDocumentCategoryMedikamentenplan  = "medikamentenplan"
 	StudentDocumentCategorySorgerecht        = "sorgerecht"
+	StudentDocumentCategoryUnfallanzeige     = "unfallanzeige"
 	StudentDocumentCategorySonstiges         = "sonstiges"
 )
 
@@ -34,6 +35,7 @@ var StudentDocumentCategories = []string{
 	StudentDocumentCategoryImpfnachweis,
 	StudentDocumentCategoryMedikamentenplan,
 	StudentDocumentCategorySorgerecht,
+	StudentDocumentCategoryUnfallanzeige,
 	StudentDocumentCategorySonstiges,
 }
 
@@ -47,6 +49,7 @@ var StudentDocumentCategoryLabels = map[string]string{
 	StudentDocumentCategoryImpfnachweis:      "Impfnachweis",
 	StudentDocumentCategoryMedikamentenplan:  "Medikamentenplan",
 	StudentDocumentCategorySorgerecht:        "Sorgerechtsnachweis",
+	StudentDocumentCategoryUnfallanzeige:     "Unfallanzeige",
 	StudentDocumentCategorySonstiges:         "Sonstiges",
 }
 
@@ -72,10 +75,17 @@ func IsLegalStudentDocumentCategory(v string) bool {
 	return v == StudentDocumentCategorySorgerecht
 }
 
+// IsAccidentStudentDocumentCategory reports whether the category holds
+// accident reports (#4771). They describe a child's injuries, Art. 9 GDPR
+// health data, and have permissions of their own.
+func IsAccidentStudentDocumentCategory(v string) bool {
+	return v == StudentDocumentCategoryUnfallanzeige
+}
+
 // IsSensitiveStudentDocumentCategory reports whether serving the category's
 // content requires a data-access log row.
 func IsSensitiveStudentDocumentCategory(v string) bool {
-	return IsHealthStudentDocumentCategory(v) || IsLegalStudentDocumentCategory(v)
+	return IsHealthStudentDocumentCategory(v) || IsLegalStudentDocumentCategory(v) || IsAccidentStudentDocumentCategory(v)
 }
 
 // StudentDocumentUploadDeadline bounds every step an upload request may still

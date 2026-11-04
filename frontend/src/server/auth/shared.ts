@@ -6,13 +6,18 @@
  * callbacks, and NextAuth module augmentation.
  */
 
+import "server-only";
+import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { JwtPayload } from "./jwt-payload";
-import type { DefaultSession, NextAuthConfig, User } from "next-auth";
+import type { DefaultSession, NextAuthConfig, Session, User } from "next-auth";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHmac, randomBytes } from "node:crypto";
 import { env } from "~/env";
-import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
-import { canonicalForwardedFor } from "~/lib/client-headers.server";
+import {
+  canonicalForwardedFor,
+  incomingClientForwardHeaders,
+} from "~/lib/client-headers.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -33,11 +38,16 @@ export type { JwtPayload } from "./jwt-payload";
 // ---------------------------------------------------------------------------
 
 declare module "next-auth" {
+  // The browser's view of a session (#5005): useSession(), getSession(),
+  // the session routes and the layout snapshots. It carries no access or
+  // refresh token; server code reads them through ServerSession. The user
+  // lists DefaultSession's fields itself, so no User field reaches it.
   interface Session extends DefaultSession {
     user: {
       id: string;
-      token?: string;
-      refreshToken?: string;
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
       roles?: string[];
       roleIsSystem?: boolean[];
       permissions?: string[];
@@ -53,13 +63,13 @@ declare module "next-auth" {
       isPreview?: boolean;
       previewTargetName?: string;
       previewTargetAccountId?: string;
-    } & DefaultSession["user"];
+    };
     error?: "RefreshTokenExpired" | "RefreshTokenError";
   }
 
+  // Importable from client code too, so it carries no token (#5005); the
+  // credentials providers return AuthUser.
   interface User {
-    token?: string;
-    refreshToken?: string;
     roles?: string[];
     roleIsSystem?: boolean[];
     permissions?: string[];
@@ -69,7 +79,11 @@ declare module "next-auth" {
     orgId?: number;
     scope?: string;
   }
+}
 
+// The encrypted session cookie's content. next-auth/jwt is server-only; the
+// browser token ratchet refuses its import outside server code (#5005).
+declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
     token?: string;
@@ -99,6 +113,19 @@ declare module "next-auth" {
     previewAdminEmail?: string;
   }
 }
+
+/**
+ * The session as server code sees it: what the session callback returns,
+ * including the access and refresh token. Only a portal's auth() and its
+ * route wrappers hand it out; the session routes strip it to Session before
+ * it reaches the browser (browser-session.ts, #5005).
+ */
+export type ServerSession = Session & {
+  user: Session["user"] & { token?: string; refreshToken?: string };
+};
+
+/** What the credentials providers return: the user with its token pair. */
+export type AuthUser = User & { token?: string; refreshToken?: string };
 
 // ---------------------------------------------------------------------------
 // Utility functions
@@ -196,7 +223,7 @@ export function buildAuthUser(
   refreshToken: string,
   email: string,
   scope?: string,
-): User {
+): AuthUser {
   const roles =
     payload.roles && Array.isArray(payload.roles) ? payload.roles : [];
   const permissions =
@@ -558,7 +585,7 @@ export async function performLogin(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(await incomingAnalyticsSessionHeaders()),
+        ...(await incomingClientForwardHeaders()),
       },
       body: JSON.stringify(body),
     });
@@ -591,6 +618,30 @@ export async function performLogin(
     });
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Forced renewal after a backend 401
+// ---------------------------------------------------------------------------
+
+// The backend refuses an unexpired access token once its refresh-token family
+// is revoked (#5194): logout in another tab, or a cookie a late response wrote
+// back. Inside this scope the JWT callback renews at once instead of waiting
+// for the expiry. A revoked family then fails its refresh and ends the session
+// (RefreshTokenError), so the browser is sent to the login instead of being
+// shown a session that opens nothing; a live family continues with fresh
+// tokens.
+const forcedRenewal = new AsyncLocalStorage<true>();
+
+/** Runs a session read that must renew the session first. */
+export function withForcedSessionRenewal<T>(
+  read: () => Promise<T>,
+): Promise<T> {
+  return forcedRenewal.run(true, read);
+}
+
+function isRenewalForced(): boolean {
+  return forcedRenewal.getStore() === true;
 }
 
 // ---------------------------------------------------------------------------
@@ -784,6 +835,19 @@ function isKnownTerminalRefresh(refreshKey: string): boolean {
   return expiresAt !== undefined && Date.now() < expiresAt;
 }
 
+function refreshAlreadyRefused(token: Record<string, unknown>): boolean {
+  const refreshToken = token.refreshToken;
+  if (typeof refreshToken !== "string" || refreshToken.length === 0) {
+    return false;
+  }
+  const proof =
+    typeof token.refreshRecoveryProof === "string" &&
+    token.refreshRecoveryProof.length > 0
+      ? token.refreshRecoveryProof
+      : deriveRefreshRecoveryProof(refreshToken);
+  return isKnownTerminalRefresh(`${refreshToken}\0${proof}`);
+}
+
 /** @internal Exposed for unit testing only */
 export const _testHelpers = {
   parseJwtPayload,
@@ -849,9 +913,8 @@ async function applyPreviewStart(
       : null;
   // Only genuine read-only preview tokens may be injected here — anything
   // else would smuggle a full session under the preview flag. The session
-  // stays as it is, so the session object returned to the client carries no
-  // preview; performStartStaffPreview reads that, closes the just-recorded
-  // preview in the audit trail, and reports the failure instead of reloading.
+  // stays as it is. The BFF checks the server update result and closes the
+  // just-recorded preview if the session did not enter the requested target.
   if (
     !payload?.read_only ||
     !admin ||
@@ -1063,13 +1126,19 @@ async function maintainPreviewSession(
   now: number,
 ): Promise<boolean> {
   const previewExpiry = (token.tokenExpiry as number | undefined) ?? 0;
-  if (now < previewExpiry - PREVIEW_REFRESH_BUFFER_MS) return true;
+  // A forced renewal re-proves the admin session the preview rests on.
+  const forced = isRenewalForced();
+  if (!forced && now < previewExpiry - PREVIEW_REFRESH_BUFFER_MS) return true;
 
   // Step 1: a fresh admin access token to re-mint with.
   let adminAccessToken = token.previewAdminToken as string | undefined;
   const adminExpiry =
     (token.previewAdminTokenExpiry as number | undefined) ?? 0;
-  if (!adminAccessToken || now > adminExpiry - PREVIEW_ADMIN_TOKEN_MIN_TTL_MS) {
+  if (
+    forced ||
+    !adminAccessToken ||
+    now > adminExpiry - PREVIEW_ADMIN_TOKEN_MIN_TTL_MS
+  ) {
     const attempt = await refreshAdminTokenForPreview(token);
     if (attempt.status === "success") {
       token.refreshToken = attempt.result.refresh_token;
@@ -1258,7 +1327,30 @@ export const schoolRedirectCallback: NonNullable<
 
 export const sharedJwtCallback: NonNullable<
   NonNullable<NextAuthConfig["callbacks"]>["jwt"]
-> = async ({ token, user, trigger, session }) => {
+> = async (params) => {
+  const update = params.session as Record<string, unknown> | undefined;
+  const previewStart =
+    params.trigger === "update" &&
+    isServerSessionMutation() &&
+    !isPreviewActive(params.token) &&
+    isPreviewStartUpdate(update?.previewStart)
+      ? update.previewStart
+      : undefined;
+  const token = await maintainSessionJwt(params);
+  // unstable_update reads the original request cookie. Renew it (or reuse
+  // the outer wrapper's cached renewal) before validating and parking admin state.
+  if (token && !token.error && previewStart) {
+    await applyPreviewStart(token, previewStart);
+  }
+  return token;
+};
+
+const maintainSessionJwt: typeof sharedJwtCallback = async ({
+  token,
+  user,
+  trigger,
+  session,
+}) => {
   const isDev = process.env.NODE_ENV === "development";
 
   if (isDev) {
@@ -1276,13 +1368,14 @@ export const sharedJwtCallback: NonNullable<
     });
   }
 
-  // Initial sign in
+  // Initial sign in. The credentials providers return AuthUser.
   if (user) {
+    const authUser: AuthUser = user;
     token.id = user.id;
     token.name = user.name;
     token.email = user.email;
-    token.token = user.token ?? "";
-    token.refreshToken = user.refreshToken ?? "";
+    token.token = authUser.token ?? "";
+    token.refreshToken = authUser.refreshToken ?? "";
     token.roles = user.roles;
     token.roleIsSystem = user.roleIsSystem;
     token.permissions = user.permissions;
@@ -1291,7 +1384,9 @@ export const sharedJwtCallback: NonNullable<
     token.tenantId = user.tenantId;
     token.orgId = user.orgId;
     token.scope = user.scope;
-    const accessClaims = user.token ? parseJwtPayload(user.token) : null;
+    const accessClaims = authUser.token
+      ? parseJwtPayload(authUser.token)
+      : null;
     token.tokenExpiry =
       typeof accessClaims?.exp === "number"
         ? accessClaims.exp * 1000
@@ -1334,17 +1429,7 @@ export const sharedJwtCallback: NonNullable<
       token.tokenExpiry =
         Date.now() + (ACCESS_TOKEN_REFRESH_BUFFER_MS - 60_000);
     }
-    // Admin staff-view preview (#2893): enter with the freshly minted
-    // read-only token, leave by restoring the parked admin state. A start
-    // while a preview is already active is ignored — it would overwrite the
-    // parked admin tokens with preview tokens.
-    if (
-      update.previewStart !== undefined &&
-      !isPreviewActive(token) &&
-      isPreviewStartUpdate(update.previewStart)
-    ) {
-      await applyPreviewStart(token, update.previewStart);
-    }
+    // Leave preview before maintenance so a stale restored admin can renew.
     if (update.previewEnd === true && isPreviewActive(token)) {
       restoreAdminFromPreview(token);
     }
@@ -1380,6 +1465,16 @@ export const sharedJwtCallback: NonNullable<
     return token;
   }
 
+  // A cookie the backend already refused to renew ends here too, without a
+  // backend call: a late response may have written it back after a forced
+  // renewal ended it (#5194).
+  if (refreshAlreadyRefused(token)) {
+    if (isPreviewActive(token)) await endPreviewOnSessionLoss(token);
+    token.error = "RefreshTokenError";
+    token.needsRefresh = true;
+    return token;
+  }
+
   // Admin staff-view preview (#2893): while active, the preview branch owns
   // token maintenance (admin refresh + preview re-mint). Only when the
   // preview just ended does control fall through, so the restored admin
@@ -1400,7 +1495,7 @@ export const sharedJwtCallback: NonNullable<
     token.tokenExpiry &&
     token.refreshToken &&
     token.refreshTokenExpiry &&
-    now > tokenExpiry - ACCESS_TOKEN_REFRESH_BUFFER_MS &&
+    (isRenewalForced() || now > tokenExpiry - ACCESS_TOKEN_REFRESH_BUFFER_MS) &&
     now < (token.refreshTokenExpiry as number)
   ) {
     const currentRefreshToken = token.refreshToken as string;
@@ -1568,9 +1663,15 @@ export const sharedJwtCallback: NonNullable<
   return token;
 };
 
+/**
+ * Builds the ServerSession. The browser never receives this object as is:
+ * the session routes and layout snapshots map it to Session, which carries
+ * no token (#5005). A session without an access token always carries an
+ * error, so the browser can tell a dead session apart without the token.
+ */
 export const sharedSessionCallback: NonNullable<
   NonNullable<NextAuthConfig["callbacks"]>["session"]
-> = ({ session, token }) => {
+> = ({ session, token }): ServerSession => {
   if (
     token.error === "RefreshTokenExpired" ||
     token.error === "RefreshTokenError" ||
@@ -1591,7 +1692,7 @@ export const sharedSessionCallback: NonNullable<
         isAdmin: false,
         scope: token.scope as string | undefined,
       },
-      error: token.error,
+      error: (token.error as Session["error"]) ?? "RefreshTokenError",
     };
   }
 

@@ -45,14 +45,22 @@ func statusRank(status string) int {
 // classDayStatuses loads the scheduled day statuses of the listed students
 // with the report time of the winning status.
 func (s *dayReports) classDayStatuses(ctx context.Context, studentIDs []int64, date calendar.Date) (statuses map[int64]string, reportedAt map[int64]time.Time, err error) {
+	statuses, reportedAt, _, err = s.classDayStatusFacts(ctx, studentIDs, date)
+	return statuses, reportedAt, err
+}
+
+// classDayStatusFacts is classDayStatuses plus the children whose winning
+// status the Schulverwaltung entered afterwards in moto schule (#4791).
+func (s *dayReports) classDayStatusFacts(ctx context.Context, studentIDs []int64, date calendar.Date) (statuses map[int64]string, reportedAt map[int64]time.Time, bySchool map[int64]bool, err error) {
 	out := make(map[int64]string, len(studentIDs))
 	stamps := make(map[int64]time.Time, len(studentIDs))
+	school := make(map[int64]bool)
 	if s.statusDays == nil || len(studentIDs) == 0 {
-		return out, stamps, nil
+		return out, stamps, school, nil
 	}
 	entries, err := s.statusDays.ActiveStatusDays(ctx, studentIDs, date)
 	if err != nil {
-		return nil, nil, fmt.Errorf("class day report: load status days: %w", err)
+		return nil, nil, nil, fmt.Errorf("class day report: load status days: %w", err)
 	}
 	for _, entry := range entries {
 		if entry.Status == "" || statusRank(entry.Status) <= statusRank(out[entry.StudentID]) {
@@ -66,8 +74,9 @@ func (s *dayReports) classDayStatuses(ctx context.Context, studentIDs []int64, d
 		} else {
 			delete(stamps, entry.StudentID)
 		}
+		school[entry.StudentID] = entry.BySchool
 	}
-	return out, stamps, nil
+	return out, stamps, school, nil
 }
 
 // classDayEffectiveTimes loads the effective arrival/pickup times of the
@@ -76,6 +85,25 @@ func (s *dayReports) classDayStatuses(ctx context.Context, studentIDs []int64, d
 // may lag behind. Times only: the "kommt heute nicht" decision belongs to
 // classDayCancellations.
 func (s *dayReports) classDayEffectiveTimes(ctx context.Context, studentIDs []int64, date calendar.Date, facts *classDayFacts) error {
+	if err := s.classDayEffectivePickups(ctx, studentIDs, date, facts); err != nil {
+		return err
+	}
+	if len(studentIDs) == 0 || s.times == nil {
+		return nil
+	}
+	arrivals, err := s.times.EffectiveArrivals(ctx, studentIDs, date)
+	if err != nil {
+		return fmt.Errorf("class day report: load effective arrival times: %w", err)
+	}
+	for studentID, entry := range arrivals {
+		applyClassDayArrival(facts, studentID, entry)
+	}
+	return nil
+}
+
+// classDayEffectivePickups loads the effective pickup times alone: the
+// school-wide overview (#4802) needs only whether a pickup changed.
+func (s *dayReports) classDayEffectivePickups(ctx context.Context, studentIDs []int64, date calendar.Date, facts *classDayFacts) error {
 	if len(studentIDs) == 0 || s.times == nil {
 		return nil
 	}
@@ -85,13 +113,6 @@ func (s *dayReports) classDayEffectiveTimes(ctx context.Context, studentIDs []in
 	}
 	for studentID, entry := range pickups {
 		applyClassDayPickup(facts, studentID, entry)
-	}
-	arrivals, err := s.times.EffectiveArrivals(ctx, studentIDs, date)
-	if err != nil {
-		return fmt.Errorf("class day report: load effective arrival times: %w", err)
-	}
-	for studentID, entry := range arrivals {
-		applyClassDayArrival(facts, studentID, entry)
 	}
 	return nil
 }

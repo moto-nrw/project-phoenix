@@ -96,7 +96,7 @@ describe("InviteContent", () => {
     await waitFor(() => {
       expect(screen.getByText("Operator-Konto erstellen")).toBeInTheDocument();
     });
-    const input = screen.getByLabelText("Anzeigename *") as HTMLInputElement;
+    const input = screen.getByLabelText("Anzeigename") as HTMLInputElement;
     expect(input.value).toBe("Pre-filled Name");
   });
 
@@ -165,10 +165,10 @@ describe("InviteContent", () => {
     render(<InviteContent />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Passwort *")).toBeInTheDocument();
+      expect(screen.getByLabelText("Passwort")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("Passwort *"), {
+    fireEvent.change(screen.getByLabelText("Passwort"), {
       target: { value: "a" },
     });
 
@@ -189,13 +189,13 @@ describe("InviteContent", () => {
     render(<InviteContent />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Passwort *")).toBeInTheDocument();
+      expect(screen.getByLabelText("Passwort")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("Passwort *"), {
+    fireEvent.change(screen.getByLabelText("Passwort"), {
       target: { value: "Test1234!" },
     });
-    fireEvent.change(screen.getByLabelText("Passwort bestätigen *"), {
+    fireEvent.change(screen.getByLabelText("Passwort bestätigen"), {
       target: { value: "Different" },
     });
 
@@ -216,16 +216,16 @@ describe("InviteContent", () => {
     render(<InviteContent />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Passwort *")).toBeInTheDocument();
+      expect(screen.getByLabelText("Passwort")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("Anzeigename *"), {
+    fireEvent.change(screen.getByLabelText("Anzeigename"), {
       target: { value: "New Operator" },
     });
-    fireEvent.change(screen.getByLabelText("Passwort *"), {
+    fireEvent.change(screen.getByLabelText("Passwort"), {
       target: { value: "Str0ng!Pass" },
     });
-    fireEvent.change(screen.getByLabelText("Passwort bestätigen *"), {
+    fireEvent.change(screen.getByLabelText("Passwort bestätigen"), {
       target: { value: "Str0ng!Pass" },
     });
 
@@ -259,16 +259,16 @@ describe("InviteContent", () => {
     render(<InviteContent />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Passwort *")).toBeInTheDocument();
+      expect(screen.getByLabelText("Passwort")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("Anzeigename *"), {
+    fireEvent.change(screen.getByLabelText("Anzeigename"), {
       target: { value: "Test" },
     });
-    fireEvent.change(screen.getByLabelText("Passwort *"), {
+    fireEvent.change(screen.getByLabelText("Passwort"), {
       target: { value: "Str0ng!Pass" },
     });
-    fireEvent.change(screen.getByLabelText("Passwort bestätigen *"), {
+    fireEvent.change(screen.getByLabelText("Passwort bestätigen"), {
       target: { value: "Str0ng!Pass" },
     });
 
@@ -279,7 +279,7 @@ describe("InviteContent", () => {
         catalogText("identity.password_too_weak", "die Erstellung des Kontos"),
       ),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Passwort *")).toHaveAttribute(
+    expect(screen.getByLabelText("Passwort")).toHaveAttribute(
       "aria-invalid",
       "true",
     );
@@ -296,22 +296,22 @@ describe("InviteContent", () => {
     render(<InviteContent />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Passwort *")).toBeInTheDocument();
+      expect(screen.getByLabelText("Passwort")).toBeInTheDocument();
     });
 
     // Clear display name and fill passwords
-    fireEvent.change(screen.getByLabelText("Anzeigename *"), {
+    fireEvent.change(screen.getByLabelText("Anzeigename"), {
       target: { value: "" },
     });
-    fireEvent.change(screen.getByLabelText("Passwort *"), {
+    fireEvent.change(screen.getByLabelText("Passwort"), {
       target: { value: "Str0ng!Pass" },
     });
-    fireEvent.change(screen.getByLabelText("Passwort bestätigen *"), {
+    fireEvent.change(screen.getByLabelText("Passwort bestätigen"), {
       target: { value: "Str0ng!Pass" },
     });
 
     // Submit button is disabled when display name is empty, so submit via form
-    const form = screen.getByLabelText("Passwort *").closest("form")!;
+    const form = screen.getByLabelText("Passwort").closest("form")!;
     fireEvent.submit(form);
 
     await waitFor(() => {
@@ -319,7 +319,7 @@ describe("InviteContent", () => {
         screen.getAllByText("Bitte geben Sie einen Anzeigenamen ein.").length,
       ).toBeGreaterThan(0);
     });
-    expect(screen.getByLabelText("Anzeigename *")).toHaveAttribute(
+    expect(screen.getByLabelText("Anzeigename")).toHaveAttribute(
       "aria-invalid",
       "true",
     );
@@ -338,16 +338,16 @@ describe("InviteContent", () => {
     render(<InviteContent />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Passwort *")).toBeInTheDocument();
+      expect(screen.getByLabelText("Passwort")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("Anzeigename *"), {
+    fireEvent.change(screen.getByLabelText("Anzeigename"), {
       target: { value: "Test" },
     });
-    fireEvent.change(screen.getByLabelText("Passwort *"), {
+    fireEvent.change(screen.getByLabelText("Passwort"), {
       target: { value: "Str0ng!Pass" },
     });
-    fireEvent.change(screen.getByLabelText("Passwort bestätigen *"), {
+    fireEvent.change(screen.getByLabelText("Passwort bestätigen"), {
       target: { value: "Str0ng!Pass" },
     });
 

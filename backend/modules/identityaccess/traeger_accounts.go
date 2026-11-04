@@ -27,9 +27,9 @@ var (
 	// ErrTraegerMemberNotFound reports an account without an active
 	// membership at the Träger of the session.
 	ErrTraegerMemberNotFound = errors.New("the person does not belong to the Träger-Büro")
-	// ErrTraegerLastAdministrator refuses a change that would leave the
-	// Träger-Büro without a person holding the role Verwaltung.
-	ErrTraegerLastAdministrator = errors.New("the Träger-Büro needs at least one person with the role Verwaltung")
+	// ErrTraegerLastLeader refuses a change that would leave the
+	// Träger-Büro without a usable person holding the role Leitung (#5471).
+	ErrTraegerLastLeader = errors.New("the Träger-Büro needs at least one person with the role Leitung")
 	// ErrTraegerInvalidEmail reports an invitation address that cannot
 	// receive mail.
 	ErrTraegerInvalidEmail = errors.New("invalid e-mail address")
@@ -102,6 +102,48 @@ type TraegerAccountChange struct {
 	RolesAfter      []string
 }
 
+// TraegerAccountHistoryEntry is one change of the Träger-Büro as its history
+// shows it (#5474): who did what, when, to whom, with the roles before and
+// after. ActorEmail is empty for an account erased since.
+type TraegerAccountHistoryEntry struct {
+	ID              int64
+	OccurredAt      time.Time
+	Action          string
+	ActorAccountID  int64
+	ActorEmail      string
+	TargetAccountID *int64
+	TargetEmail     string
+	RolesBefore     []string
+	RolesAfter      []string
+}
+
+// TraegerAccountHistory is one page of the history, newest first. HasMore
+// reports older entries; the next page starts before the last entry.
+type TraegerAccountHistory struct {
+	Entries []TraegerAccountHistoryEntry
+	HasMore bool
+}
+
+// TraegerAccountHistoryPageSize is the number of entries on one page.
+const TraegerAccountHistoryPageSize = 25
+
+// TraegerAccountChangeNotice is the mail to the person whose roles another
+// person changed or who was removed from the Träger-Büro (#5474). It goes
+// also when a person changes their own roles: a taken-over account would do
+// exactly that.
+type TraegerAccountChangeNotice struct {
+	OrganizationID  int64
+	TraegerName     string
+	Action          string
+	TargetAccountID int64
+	TargetEmail     string
+	ActorAccountID  int64
+	ActorEmail      string
+	RolesBefore     []string
+	RolesAfter      []string
+	OccurredAt      time.Time
+}
+
 // The actions of the Träger account ledger.
 const (
 	TraegerAccountInvitationCreated  = "invitation_created"
@@ -115,7 +157,8 @@ const (
 // TraegerAccountManagement serves the Träger-Büro account routes. Role sets
 // are validated against the Träger roles; an empty set is invalid. A change
 // that would leave the Träger-Büro without a person holding the role
-// Verwaltung is refused with ErrTraegerLastAdministrator. Changed roles reach
+// Leitung is refused with ErrTraegerLastLeader; only a person with
+// Leitung grants, withdraws or removes Leitung (#5471). Changed roles reach
 // a session at its next refresh; a removal ends the person's Träger sessions
 // at once.
 type TraegerAccountManagement interface {
@@ -124,7 +167,24 @@ type TraegerAccountManagement interface {
 	RevokeTraegerInvitation(ctx context.Context, actor TraegerActor, invitationID int64) error
 	ChangeTraegerRoles(ctx context.Context, actor TraegerActor, accountID int64, roles []string) (TraegerMember, error)
 	RemoveTraegerMember(ctx context.Context, actor TraegerActor, accountID int64) error
+	// ListTraegerAccountHistory lists the changes of the Träger-Büro older
+	// than the entry beforeID, newest first; beforeID 0 starts at the newest.
+	ListTraegerAccountHistory(ctx context.Context, actor TraegerActor, beforeID int64) (TraegerAccountHistory, error)
 	PreviewTraegerInvitation(ctx context.Context, token string) (TraegerInvitationPreview, error)
 	// AcceptTraegerInvitation returns the address the invitee signs in with.
 	AcceptTraegerInvitation(ctx context.Context, token string, acceptance TraegerInvitationAcceptance) (string, error)
+}
+
+// TraegerOperatorInvitation lets the moto team invite a person into a
+// Träger-Büro from the operator portal (spec #4611 user story 2, #5144),
+// also the first one: the same invitation, mail and acceptance as the
+// Träger-Büro's own, so the Träger-Büro sees it among its open invitations.
+// It participates in the caller's administrative transaction and refuses
+// without one (ErrTraegerTransactionRequired); the operator audit of the
+// caller records the step. A Träger that is not live is
+// ErrNoTraegerMembership. While the Träger has no usable person with
+// Leitung, the invitation adds Leitung to the chosen roles: the first person
+// the moto team invites can manage the Träger-Büro (#5471).
+type TraegerOperatorInvitation interface {
+	InviteTraegerAccountForOperator(ctx context.Context, organizationID int64, email string, roles []string) (TraegerInvitation, error)
 }

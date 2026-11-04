@@ -1,0 +1,93 @@
+{
+  "switcherLabel": "Kind auswählen",
+  "overviewKicker": "Kinder im Überblick",
+  "overviewDescription": "Wählen Sie ein Kind aus, um Betreuung, Daten und Kontakte zu sehen.",
+  "ogsLabel": "OGS",
+  "careEnded": {
+    "title": "Betreuung beendet",
+    "body": "Ihr Kind wird in dieser OGS nicht mehr betreut. Alles Bisherige können Sie weiter ansehen. Neue Meldungen sind nicht mehr möglich."
+  },
+  "notFound": "Zu dieser Adresse gibt es kein Kind in Ihrem Konto. Bitte wählen Sie Ihr Kind in der Übersicht.",
+  "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten.",
+  "sections": {
+    "today": "Heute",
+    "care": "Betreuung in der OGS",
+    "data": "Angaben zum Kind",
+    "people": "Eltern und Abholberechtigte"
+  },
+  "areas": {
+    "label": "Bereiche zum Kind",
+    "open": "Ansehen",
+    "openLabel": "{area} ansehen",
+    "back": "Zur Übersicht",
+    "care": {
+      "title": "Betreuung & Wochenplan",
+      "shortTitle": "Betreuung",
+      "description": "Buchungen, regelmäßige Abholzeiten und Heimweg."
+    },
+    "data": {
+      "title": "Angaben zum Kind",
+      "shortTitle": "Angaben",
+      "description": "Persönliche Angaben, Klasse und Gesundheit."
+    },
+    "contacts": {
+      "title": "Kontakte & Abholung",
+      "shortTitle": "Kontakte",
+      "description": "Erziehungsberechtigte, Abholrechte und App-Zugänge."
+    }
+  },
+  "today": {
+    "pickupLabel": "Abholung",
+    "pickup": "Abholung heute um {time} Uhr",
+    "pickupChanged": "Abholung heute um {time} Uhr, geändert für heute",
+    "pickupAbsent": "Heute abgemeldet, keine Abholung",
+    "pickupNone": "Für heute ist keine Abholung eingetragen",
+    "pickupUnknown": "Die Abholzeit ist gerade nicht abrufbar"
+  },
+  "care": {
+    "weekTitle": "Dein OGS Wochenplan",
+    "absenceTitle": "Abwesenheiten"
+  },
+  "consents": {
+    "title": "Einwilligungen und Bestätigungen",
+    "description": "Hier sehen Sie, was für Ihr Kind gespeichert ist.",
+    "staffDescription": "Nur zur Information. Eltern ändern die Foto-Einwilligung im Elternportal.",
+    "photoDescription": "Die Foto-Einwilligung können Sie hier ändern.",
+    "items": {
+      "agb": "Allgemeine Geschäftsbedingungen (AGB)",
+      "data_processing": "Datenschutz zur Kenntnis genommen",
+      "email_contact": "Kontakt per E-Mail erlaubt",
+      "photo": "Foto-Einwilligung"
+    },
+    "states": {
+      "granted": "Hinterlegt",
+      "withdrawn": "Widerrufen",
+      "not_recorded": "Nicht hinterlegt"
+    },
+    "dates": {
+      "granted": "Hinterlegt am {date}",
+      "withdrawn": "Widerrufen am {date}",
+      "not_recorded": "Nicht hinterlegt"
+    },
+    "withdrawButton": "Foto-Einwilligung widerrufen",
+    "withdrawButtonShort": "Widerrufen",
+    "confirmTitle": "Foto-Einwilligung widerrufen?",
+    "confirmBody": "Die Einwilligung endet sofort. Falls ein Foto gespeichert ist, wird es gelöscht.",
+    "confirmButton": "Jetzt widerrufen",
+    "withdrawing": "Wird widerrufen",
+    "cancel": "Abbrechen",
+    "close": "Dialog schließen",
+    "success": "Die Foto-Einwilligung wurde widerrufen. Falls ein Foto gespeichert war, wurde es gelöscht.",
+    "grantButton": "Foto-Einwilligung erneut geben",
+    "grantButtonShort": "Erneut geben",
+    "grantConfirmTitle": "Foto-Einwilligung erneut geben?",
+    "grantConfirmBody": "Die OGS darf danach wieder ein Foto hinterlegen.",
+    "grantConfirmButton": "Einwilligung geben",
+    "granting": "Wird gespeichert",
+    "grantSuccess": "Die Foto-Einwilligung wurde erneut gegeben.",
+    "errorObjectList": "die Liste der Einwilligungen",
+    "errorObjectPhoto": "die Foto-Einwilligung"
+  },
+  "errorObject": "die Liste Ihrer Kinder",
+  "errorObjectCare": "die Übersicht zur Betreuung"
+}

@@ -31,7 +31,7 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 
 	t.Run("staff catalogue is grouped and ordered", func(t *testing.T) {
 		defs := notifications.TypesForPortal(notifications.PortalStaff)
-		require.Len(t, defs, 10)
+		require.Len(t, defs, 13)
 
 		keys := make([]string, len(defs))
 		for i, def := range defs {
@@ -48,12 +48,15 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 			notifications.TypeStaffParentMessage,
 			notifications.TypeStaffMessage,
 			notifications.TypeStaffSurvey,
+			notifications.TypeStaffPlannedExit,
+			notifications.TypeStaffQualificationExpiry,
+			notifications.TypeStaffQualificationOwnExpiry,
 		}, keys, "order is fixed by group then SortOrder, not by registration order")
 	})
 
 	t.Run("parent catalogue is separate", func(t *testing.T) {
 		defs := notifications.TypesForPortal(notifications.PortalParent)
-		require.Len(t, defs, 6)
+		require.Len(t, defs, 7)
 
 		keys := make([]string, len(defs))
 		for i, def := range defs {
@@ -63,6 +66,7 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 			notifications.TypeParentRequestDecided,
 			notifications.TypeParentAnnouncement,
 			notifications.TypeParentMessage,
+			notifications.TypeParentBillingDocument,
 			notifications.TypeParentAppointment,
 			notifications.TypeParentAppointmentReminder,
 			notifications.TypeParentCareCancelled,

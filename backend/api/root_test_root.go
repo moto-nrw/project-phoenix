@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
-
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -72,8 +70,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 	activities activityContract.ActivityService, structureViews StructureServices, facilitiesRooms FacilitiesRooms,
 	deviceFleet devicefleetModule.Capability, notices owners.EnrollmentNotices, settingsWrites SettingsWrites, outbox *deliveryModule.Worker, statusDays studentpresence.StatusDays, err error,
 ) {
-	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
-	documentPermissions := carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback}
+	documentPermissions := studentDocumentPermissions()
 	env, err = newRootEnvironment(cfg, logger, OptionalClock(clocks), observe)
 	if err != nil {
 		return
@@ -83,7 +80,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 	if err != nil {
 		return
 	}
-	hub = deliveryCompose.NewRealtimeHub(logger.With("component", "sse-hub"))
+	hub = realtime.NewHub(logger.With("component", "sse-hub"))
 	unit := db.UnitOfWork()
 	var (
 		yard             FacilitiesYard
@@ -203,7 +200,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return nil
 		},
 		func() (err error) {
-			timetableRows, err = owners.BuildTimetableOwner(db, env.Logger, env.Now, timetableOwner, timetableRepos, calendar, bookings, structure.Groups)
+			timetableRows, err = owners.BuildTimetableOwner(db, env.Logger, env.Now, timetableOwner, timetableRepos, calendar, bookings, structure.Groups, hub)
 			return
 		},
 		func() (err error) { classArrivals, err = owners.BuildClassArrivals(db, env.Logger); return },
@@ -238,8 +235,8 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return
 		},
 		func() (err error) {
-			notifications, err = owners.BuildDeliveryNotifications(db, unit, env, pushVAPID, hub, owners.DeliveryModuleOf(delivery), settings.Service,
-				consent, identity, people, structure, workTime, messaging)
+			notifications, err = owners.BuildDeliveryNotifications(db, unit, env, pushVAPID, hub, delivery, settings.Service,
+				consent, identity, people, structure, workTime, messaging, membership)
 			return
 		},
 		func() (err error) {
@@ -254,7 +251,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		},
 		func() (err error) {
 			schedules, err = owners.BuildCarePlanSchedules(db, env.Logger, carePlan, persons, carePlanRows, classArrivals,
-				enrollment.ApprovedOfferings, settings.Service, timetableRows.RecurrenceLock.LockRecurrenceWrites, presence.Presence)
+				enrollment.ApprovedOfferings, settings.Service, timetableRows.RecurrenceLock.LockRecurrenceWrites, presence.Presence, timetableRows.StudentTemplateDays)
 			return
 		},
 		func() error {
@@ -310,7 +307,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		},
 		func() error {
 			reports = owners.BuildPresenceReports(db, env, presence, carePlanRows, carePlan, services.Users, timetableRows, rooms, calendar,
-				people, audit, settings.Service)
+				people, audit, settings.Service, schedules.CareDay)
 			return nil
 		},
 		func() (err error) {
@@ -347,7 +344,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		},
 		func() (err error) {
 			outbox, err = owners.BuildDeliveryWorker(db, env, mailSender, mailFrom, pushVAPID, mailIdentity, delivery, owners.BuildCalendarAppointmentRenderer(db, mailFrom, people),
-				owners.IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), nil, settings.Service)
+				owners.IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), nil, settings.Service, owners.BuildParentDocumentNotices(env, portalReads, organizations, identity, people, notifications))
 			return
 		},
 		func() error { statusDays = presence.StatusDays; return nil },
@@ -434,6 +431,17 @@ func NewTestTimetable(db transactionruntime.Database, logger *slog.Logger, clock
 	_, _, _, _, _, _, _, _, _, _, _, schedules, requests, active, _, lifecycle, planning, materialization, _, _, _, _, _, _, _, _, statusDays, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
 	return lifecycle, planning, materialization, active, schedules, requests.CareOfferings, statusDays, err
 }
+
+// NewTestTimetableWithHub is NewTestTimetable plus the realtime hub its
+// writes announce on, so a test can listen for their after-commit events.
+func NewTestTimetableWithHub(db transactionruntime.Database, logger *slog.Logger, clocks ...func() time.Time) (
+	owners.TimetableLifecycle, TimetablePlanning, timetable.MaterializationCapability, studentpresence.Presence, owners.CarePlanSchedules,
+	carePlanModule.CareOfferingCapability, studentpresence.StatusDays, *realtime.Hub, error,
+) {
+	_, _, _, _, _, hub, _, _, _, _, _, schedules, requests, active, _, lifecycle, planning, materialization, _, _, _, _, _, _, _, _, statusDays, err := composeTestRoot(db, logger, currentTestServiceConfig(), clocks...)
+	return lifecycle, planning, materialization, active, schedules, requests.CareOfferings, statusDays, hub, err
+}
+
 func currentTestServiceConfig() owners.ServiceConfig {
 	cfg := CurrentServiceConfig()
 	cfg.PublicAPIURL = "http://api.test"

@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
 import { UserPlus } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { sessionIdentityKey } from "~/lib/session-access";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -90,6 +91,7 @@ import {
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
 import {
@@ -98,6 +100,7 @@ import {
 } from "~/components/active-supervisions/hand-over-supervision-modal";
 import { OwnSupervisionView } from "~/components/active-supervisions/own-supervision-view";
 import { useSidebarMemory } from "~/lib/sidebar-memory";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 function hasSameGroupNames(
   previous: readonly string[] | undefined,
@@ -139,7 +142,7 @@ function MeinRaumPageContent() {
   // SWR refetch inside useSupervisionDashboard. Do NOT call useGlobalSSE()
   // here - it's already called in TenantAuthWrapper.
   const dashboard = useSupervisionDashboard({
-    sessionToken: session?.user?.token,
+    sessionKey: sessionIdentityKey(session),
     sessionParam,
     roomParam,
   });
@@ -605,6 +608,7 @@ function MeinRaumPageContent() {
   // Aufsicht und der offenen Räume; die Stundenplan-Liste hat ihre eigene
   // Form und bleibt, wie sie ist.
   const { enabled: photosEnabled } = useStudentPhotosEnabled();
+  const holidayGuestLabel = useHolidayGuestLabels(students);
   const tableColumns = useMemo(
     () =>
       buildSupervisionTableColumns({
@@ -617,6 +621,7 @@ function MeinRaumPageContent() {
         photosEnabled,
         hrefFor: (student) =>
           `/students/${student.id}?from=/active-supervisions`,
+        classLabel: holidayGuestLabel,
       }),
     [
       dashboard.pickupTimesData,
@@ -626,6 +631,7 @@ function MeinRaumPageContent() {
       dashboard.myGroupRooms,
       now,
       photosEnabled,
+      holidayGuestLabel,
     ],
   );
   const tableColumnDefaults = useMemo(
@@ -870,7 +876,7 @@ function MeinRaumPageContent() {
       empty={
         hasNoAccess
           ? {
-              icon: <MotoConceptIcon concept="rooms" size={48} />,
+              icon: <MotoConceptIcon concept={roomsConcept} size={48} />,
               title: "Keine aktive Raum-Aufsicht",
               description: `Sie sind aktuell in keinem Raum als Live-Aktivität registriert. Starten Sie eine Aktivität ${
                 nfcEnabled ? "an einem Terminal" : "in der Web-App"

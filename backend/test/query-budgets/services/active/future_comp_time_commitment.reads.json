@@ -1,0 +1,6 @@
+{
+  "scenario": "services.active.future_comp_time_commitment.reads",
+  "max": 3,
+  "exact": true,
+  "description": "#2941: list/read enrichment stays flat as result rows grow."
+}

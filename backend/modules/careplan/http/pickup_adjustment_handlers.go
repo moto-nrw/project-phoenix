@@ -191,10 +191,22 @@ func (rs *Resource) applyStudentPickupAdjustment(w http.ResponseWriter, r *http.
 		rs.wakeChildGuardians(tenantID, student.ID)
 		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
 		if body.ArrivalSchedules != nil {
-			rs.broadcastArrivalScheduleChanged(student.ID)
+			rs.broadcastArrivalScheduleChanged(tenantID, student.ID)
 		}
 	})
-	common.Respond(w, r, http.StatusOK, result, "Pickup adjustment applied")
+	out := pickupAdjustmentResponse{Resolution: result.Resolution}
+	if result.RosterImpact != nil {
+		wire := newRosterImpactResponse(*result.RosterImpact)
+		out.RosterImpact = &wire
+	}
+	common.Respond(w, r, http.StatusOK, out, "Pickup adjustment applied")
+}
+
+// pickupAdjustmentResponse names the applied resolution; an offering switch
+// carries its effect on the child's Regeltermine (#5102).
+type pickupAdjustmentResponse struct {
+	Resolution   string                `json:"resolution"`
+	RosterImpact *rosterImpactResponse `json:"roster_impact,omitempty"`
 }
 
 func (rs *Resource) pickupAdjustmentApplyInput(

@@ -27,11 +27,13 @@ vi.mock("./session-cache", () => {
     getCachedSession,
     clearSessionCache: vi.fn(),
     sessionFetch: vi.fn(async (url: string, init?: RequestInit) => {
+      // Same gate as the real sessionFetch (hasSessionAccess, #5005).
       const session = (await getCachedSession()) as {
-        user?: { token?: string };
+        user?: { id?: string };
+        error?: string;
       } | null;
-      const token = session?.user?.token;
-      if (!token) throw new Error("No authentication token available");
+      if (!session?.user || session.error)
+        throw new Error("No authentication token available");
       const response = await fetch(url, {
         ...init,
         headers: {
@@ -46,9 +48,10 @@ vi.mock("./session-cache", () => {
         const refreshed = await handleAuthFailure();
         if (refreshed) {
           const freshSession = (await getCachedSession()) as {
-            user?: { token?: string };
+            user?: { id?: string };
+            error?: string;
           } | null;
-          if (!freshSession?.user?.token) {
+          if (!freshSession?.user || freshSession.error) {
             throw new Error("Authentication expired");
           }
           return fetch(url, {
@@ -200,7 +203,7 @@ describe("activity-api", () => {
     it("fetches activities in browser context using fetch", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -220,7 +223,7 @@ describe("activity-api", () => {
     it("handles nested data.data structure in browser context", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -238,7 +241,7 @@ describe("activity-api", () => {
     it("handles direct array response in browser context", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -302,7 +305,7 @@ describe("activity-api", () => {
     it("fetches activity in browser context with wrapped response", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -331,7 +334,7 @@ describe("activity-api", () => {
     it("fetches activity in browser context with direct response", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -384,7 +387,7 @@ describe("activity-api", () => {
     it("creates activity in browser context", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -402,7 +405,7 @@ describe("activity-api", () => {
     it("returns fallback activity on parsing failure", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -423,7 +426,7 @@ describe("activity-api", () => {
     it("extracts ID from response with partial data", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -462,7 +465,7 @@ describe("activity-api", () => {
     it("updates activity in browser context", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -503,7 +506,7 @@ describe("activity-api", () => {
     it("deletes activity in browser context", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -534,7 +537,7 @@ describe("activity-api", () => {
     it("fetches categories in browser context with wrapped response", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -561,7 +564,7 @@ describe("activity-api", () => {
     it("fetches categories in browser context with direct response", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -591,7 +594,7 @@ describe("activity-api", () => {
       // modal) never matched and could clear links.
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -664,7 +667,7 @@ describe("activity-api", () => {
     it("fetches enrolled students in browser context", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -697,7 +700,7 @@ describe("activity-api", () => {
     it("handles direct array response", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -729,7 +732,7 @@ describe("activity-api", () => {
     it("enrolls student in browser context", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -756,7 +759,7 @@ describe("activity-api", () => {
     it("unenrolls student in browser context", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -905,7 +908,7 @@ describe("activity-api", () => {
     it("handles frontend format timeframes", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -1007,7 +1010,7 @@ describe("activity-api", () => {
       it("fetches activity supervisors in browser context", async () => {
         vi.stubGlobal("window", {});
         mockedGetSession.mockResolvedValueOnce({
-          user: { id: "1", token: "test-token" },
+          user: { id: "1" },
           expires: "2099-01-01",
         });
 
@@ -1195,7 +1198,7 @@ describe("activity-api", () => {
     it("updates enrollments in browser context", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 
@@ -1222,11 +1225,11 @@ describe("activity-api", () => {
       vi.stubGlobal("window", {});
       mockedGetSession
         .mockResolvedValueOnce({
-          user: { id: "1", token: "old-token" },
+          user: { id: "1" },
           expires: "2099-01-01",
         })
         .mockResolvedValueOnce({
-          user: { id: "1", token: "new-token" },
+          user: { id: "1" },
           expires: "2099-01-01",
         });
 
@@ -1249,7 +1252,7 @@ describe("activity-api", () => {
     it("throws error on 403", async () => {
       vi.stubGlobal("window", {});
       mockedGetSession.mockResolvedValueOnce({
-        user: { id: "1", token: "test-token" },
+        user: { id: "1" },
         expires: "2099-01-01",
       });
 

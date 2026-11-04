@@ -25,6 +25,10 @@ type ParentAnnouncement struct {
 	DeliveryMode            string
 	EmailAudience           string
 	SystemKind              *string
+	// Class letter (#4800): a Lehrkraft wrote it in moto schule for this
+	// class; the name is the sender parents read, as it stood when written.
+	SenderName        *string
+	SenderSchoolClass *string
 	// Scheduled one-off reminder (#3162): moment, optional wording, sent mark.
 	ReminderAt     *time.Time
 	ReminderText   *string

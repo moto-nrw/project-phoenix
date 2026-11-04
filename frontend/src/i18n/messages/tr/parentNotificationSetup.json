@@ -1,0 +1,19 @@
+{
+  "title": "Önemli mesajları kaçırmayın",
+  "intro": "Bildirimleri açın. moto sizi yeni mesajlar ve çocuğunuzla ilgili önemli değişiklikler hakkında bilgilendirir.",
+  "enable": "Bildirimleri aç",
+  "later": "Daha sonra hatırlat",
+  "enableError": "Bildirimler açılamadı. Lütfen tekrar deneyin.",
+  "denied": "Bildirimler tarayıcıda engellenmiş. Tarayıcı ayarlarını açın ve moto için bildirimlere izin verin. Sonra Ayarlar bölümünden tekrar deneyin.",
+  "installTitle": "moto'yu ana ekrana ekleyin",
+  "installAndroidTitle": "moto'yu uygulama olarak yükleyin",
+  "installAndroidIntro": "moto'yu ana ekranınıza yükleyin. Sonra moto'yu bir uygulama gibi açabilir ve bildirimleri açabilirsiniz.",
+  "installAndroidManual": "Tarayıcı menüsünü açın ve “Uygulamayı yükle” veya “Ana ekrana ekle” seçeneğini seçin.",
+  "installApp": "Uygulamayı yükle",
+  "installing": "Yükleniyor …",
+  "installError": "moto yüklenemedi. Lütfen tekrar deneyin.",
+  "understood": "Anladım",
+  "closeGuide": "Kılavuzu kapat",
+  "close": "Pencereyi kapat",
+  "introStaff": "Bildirimleri açın. moto önemli olaylarda size haber verir, uygulama kapalı olsa bile."
+}

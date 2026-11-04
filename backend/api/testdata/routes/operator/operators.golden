@@ -1,0 +1,2 @@
+POST /operator/operators/{id}/deactivate
+POST /operator/operators/{id}/reactivate

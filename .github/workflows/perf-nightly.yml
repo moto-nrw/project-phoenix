@@ -30,6 +30,8 @@ on:
       - "frontend/scripts/perf/**"
       - "frontend/playwright.perf.config.ts"
       - "frontend/playwright.perf-dev.config.ts"
+      - "frontend/scripts/secure-chrome.ts"
+      - "frontend/scripts/secure-chrome.setup.ts"
 
 concurrency:
   group: perf-nightly-${{ github.head_ref || github.ref }}
@@ -106,6 +108,8 @@ jobs:
       # Cloudflare's documented always-passing Turnstile test keys.
       TURNSTILE_SITE_KEY: 1x00000000000000000000AA
       TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
+      # The development key ring of .env.example for the holiday health data (#4722).
+      HEALTH_DATA_KEYS: dev:bW90by1kZXYtb25seS1oZWFsdGgta2V5LTMyYnl0ZXM=
       SCHOOL_URL: http://schule.localhost:3000
       CATERER_URL: http://caterer.localhost:3000
       TRAEGER_URL: http://traeger.localhost:3000
@@ -214,21 +218,12 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
-
-      - name: Install Playwright Chromium
+      # Systemweites Google Chrome statt des gebündelten Chromium (#5612):
+      # --force aktualisiert das veraltete Chrome des Runner-Images;
+      # frontend/scripts/secure-chrome.setup.ts lehnt ungepatchte Versionen ab.
+      - name: Install Google Chrome
         working-directory: frontend
-        run: |
-          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
-            pnpm exec playwright install-deps chromium
-          else
-            pnpm exec playwright install --with-deps chromium
-          fi
+        run: pnpm exec playwright install --with-deps --force chrome
 
       # Prod server (next build && next start), 6 screens x 3 runs, cold and
       # warm, 4x CPU throttle. Non-blocking: a broken screen still leaves the

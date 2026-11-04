@@ -27,10 +27,14 @@ type Fleet interface {
 }
 
 // Presence is the part of the Student Presence capability the scans read:
-// the open visit counts that drive capacity checks and the kiosk counter.
+// the open visit counts that drive capacity checks and the kiosk counter,
+// whose session count carries its visit revision (#5128) and whose
+// room-wide count carries the room's (#5205).
 type Presence interface {
 	CountOpenVisitsInRoom(context.Context, int64) (int, error)
+	CountOpenVisitsInRoomWithRevision(context.Context, int64) (int, int64, error)
 	CountOpenVisitsInGroup(context.Context, int64) (int, error)
+	CountOpenVisitsInGroupWithRevision(context.Context, int64) (int, int64, error)
 }
 
 // Rooms is the part of the Facilities capability the scans use.

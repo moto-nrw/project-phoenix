@@ -69,9 +69,9 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: vi.fn(
+// Mock PageHeaderSearchLayout (vi.fn wrapper enables mockImplementation in enhanced tests)
+vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
+  PageHeaderSearchLayout: vi.fn(
     ({ title, badge }: { title: string; badge?: { count: number } }) => (
       <div data-testid="page-header" data-count={badge?.count}>
         {title}
@@ -104,18 +104,22 @@ vi.mock("~/components/ui/alert", () => ({
 // Mock Modal and ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
   dialogAriaProps: { role: "dialog" as const, "aria-modal": true },
+  // FormModal renders through Modal (#5579), so the stub keeps its footer.
   Modal: ({
     isOpen,
     children,
     title,
+    footer,
   }: {
     isOpen: boolean;
     children: React.ReactNode;
     title: string;
+    footer?: React.ReactNode;
   }) =>
     isOpen ? (
       <div data-testid="modal" data-title={title}>
         {children}
+        {footer}
       </div>
     ) : null,
   ConfirmationModal: ({
@@ -273,6 +277,8 @@ vi.mock("~/components/students/student-card", () => ({
 
 // Mock SWR hook
 vi.mock("~/lib/swr", () => ({
+  // No SSE stream in these tests: readers keep their fallback interval.
+  useLiveRefreshInterval: (fallbackMs = 60_000) => fallbackMs,
   useSWRAuth: vi.fn(() => ({
     data: null,
     isLoading: true,
@@ -284,7 +290,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
 import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
@@ -292,7 +298,7 @@ import {
 import MeinRaumPage from "./page";
 
 const defaultPageHeader = vi
-  .mocked(PageHeaderWithSearch)
+  .mocked(PageHeaderSearchLayout)
   .getMockImplementation()!;
 
 vi.mock("~/lib/student-api", async (importOriginal) => {
@@ -342,7 +348,7 @@ function render(ui: Parameters<typeof rtlRender>[0]) {
 }
 
 beforeEach(() => {
-  vi.mocked(PageHeaderWithSearch)
+  vi.mocked(PageHeaderSearchLayout)
     .mockReset()
     .mockImplementation(defaultPageHeader);
   vi.mocked(useSWRAuth)

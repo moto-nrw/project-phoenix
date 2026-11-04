@@ -20,6 +20,7 @@ import type { SectionConfig } from "~/lib/database/types";
 import { formatCount } from "~/lib/format-utils";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
 
 const CACHE_KEY = "database-absence-types";
 
@@ -75,7 +76,7 @@ function sections(type: AbsenceType | null): SectionConfig[] {
 }
 
 const config: CatalogConfig<AbsenceType> = {
-  concept: "timeTracking",
+  concept: timeTrackingConcept,
   title: "Abwesenheitsarten",
   singular: "Abwesenheitsart",
   purpose:

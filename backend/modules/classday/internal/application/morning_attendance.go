@@ -33,6 +33,19 @@ type MorningAttendanceDependencies struct {
 	Store MorningAttendance
 	Scope MorningAttendanceScope
 	Now   func() time.Time
+	// MorningChanged queues a school-scoped invalidation after commit.
+	MorningChanged func(context.Context)
+	// The reports the Schulverwaltung enters for a child the Lehrkraft
+	// marked absent without one (#4791), and the notice a morning mark
+	// sends: without ReportStatusDays or ReportLog the reports answer
+	// classday.ErrAbsenceReportsNotConfigured; without UnreportedNotifier no
+	// notice goes out.
+	ReportStatusDays   AbsenceReportStatusDays
+	ReportLog          AbsenceReportLog
+	UnreportedNotifier UnreportedAbsenceNotifier
+	// AbsenceList counts the morning marks of a period for the absence list
+	// of a class (#4793).
+	AbsenceList AbsenceListDependencies
 }
 
 // morningAttendance is the second write seam of the class-day view (#4790):
@@ -45,6 +58,10 @@ type morningAttendance struct {
 	scope   MorningAttendanceScope
 	rosters DayRosters
 	today   func() calendar.Date
+	changed func(context.Context)
+	// after runs once the marks are stored with the children the write newly
+	// marked absent (#4791); nil runs nothing.
+	after func(ctx context.Context, in classday.MorningAttendanceWrite, date calendar.Date, newlyAbsent []int64) error
 }
 
 func newMorningAttendance(deps ClassDayDependencies) morningAttendance {
@@ -52,7 +69,7 @@ func newMorningAttendance(deps ClassDayDependencies) morningAttendance {
 	if now := deps.Now; now != nil {
 		today = func() calendar.Date { return calendar.DateFromTime(now()) }
 	}
-	return morningAttendance{store: deps.Store, scope: deps.Scope, rosters: deps.Rosters, today: today}
+	return morningAttendance{store: deps.Store, scope: deps.Scope, rosters: deps.Rosters, today: today, changed: deps.MorningChanged}
 }
 
 // mayRecord applies the setting. Without the store or the setting the
@@ -106,11 +123,63 @@ func (m morningAttendance) RecordMorningAttendance(ctx context.Context, in class
 	if err != nil {
 		return err
 	}
+	return m.storeMarks(ctx, in, date, marks)
+}
+
+// storeMarks writes the checked marks and hands the children it newly marked
+// absent to the hook (#4791).
+func (m morningAttendance) storeMarks(ctx context.Context, in classday.MorningAttendanceWrite, date calendar.Date, marks []studentpresence.MorningAttendanceMark) error {
+	newlyAbsent, err := m.newlyAbsent(ctx, date, marks)
+	if err != nil {
+		return err
+	}
 	err = m.store.RecordMorningAttendance(ctx, studentpresence.MorningAttendanceWrite{Date: date, RecordedBy: in.RecordedBy, Marks: marks})
 	if errors.Is(err, studentpresence.ErrMorningAttendanceInvalid) {
 		return fmt.Errorf("%w: %w", classday.ErrMorningAttendanceInvalid, err)
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	if m.changed != nil {
+		m.changed(ctx)
+	}
+	if m.after == nil {
+		return nil
+	}
+	return m.after(ctx, in, date, newlyAbsent)
+}
+
+// newlyAbsent returns the children with an OGS record the marks set absent
+// that were not marked absent before (#4791). Without the hook it reads
+// nothing.
+func (m morningAttendance) newlyAbsent(ctx context.Context, date calendar.Date, marks []studentpresence.MorningAttendanceMark) ([]int64, error) {
+	if m.after == nil {
+		return nil, nil
+	}
+	absent := make([]studentpresence.MorningAttendanceChild, 0, len(marks))
+	for _, mark := range marks {
+		if mark.Child.StudentID > 0 && mark.Status == classday.MorningAttendanceAbsent {
+			absent = append(absent, mark.Child)
+		}
+	}
+	if len(absent) == 0 {
+		return nil, nil
+	}
+	before, err := m.store.MorningAttendanceOn(ctx, date, absent)
+	if err != nil {
+		return nil, fmt.Errorf("class day morning attendance: load previous marks: %w", err)
+	}
+	wasAbsent := make(map[int64]bool, len(before))
+	for _, entry := range before {
+		wasAbsent[entry.Child.StudentID] = entry.Status == classday.MorningAttendanceAbsent
+	}
+	out := make([]int64, 0, len(absent))
+	for _, child := range absent {
+		if !wasAbsent[child.StudentID] {
+			out = append(out, child.StudentID)
+		}
+	}
+	return out, nil
 }
 
 // rosterMarks maps the marks onto Student Presence's children and refuses
@@ -168,10 +237,29 @@ func (m morningAttendance) applyMorningAttendance(ctx context.Context, report *c
 	if !report.SchoolDay {
 		return nil
 	}
+	if err := m.fillMorningAttendance(ctx, report.Rows, date); err != nil {
+		return err
+	}
+	if date != m.today() {
+		return nil
+	}
+	// The verdict of the day; the HTTP adapter adds the permission (#4791).
+	report.CanReportAbsences = true
+	may, err := m.mayRecord(ctx)
+	if err != nil {
+		return err
+	}
+	report.CanRecordMorningAttendance = may
+	return nil
+}
+
+// fillMorningAttendance sets the morning status of the rows from one read
+// of the stored marks, falling back to a reported absence.
+func (m morningAttendance) fillMorningAttendance(ctx context.Context, rows []classday.DayRow, date calendar.Date) error {
 	stored := map[studentpresence.MorningAttendanceChild]string{}
 	if m.store != nil {
-		children := make([]studentpresence.MorningAttendanceChild, 0, len(report.Rows))
-		for _, row := range report.Rows {
+		children := make([]studentpresence.MorningAttendanceChild, 0, len(rows))
+		for _, row := range rows {
 			children = append(children, morningChild(row))
 		}
 		entries, err := m.store.MorningAttendanceOn(ctx, date, children)
@@ -182,24 +270,17 @@ func (m morningAttendance) applyMorningAttendance(ctx context.Context, report *c
 			stored[entry.Child] = entry.Status
 		}
 	}
-	for i := range report.Rows {
-		row := &report.Rows[i]
+	for i := range rows {
+		row := &rows[i]
 		if status, ok := stored[morningChild(*row)]; ok {
 			row.MorningAttendance = &classday.DayMorningAttendance{Status: status, Source: classday.MorningAttendanceSourceTeacher}
+			row.Unreported = unreportedAbsence(*row)
 			continue
 		}
 		if reportedAbsence(row.Status) {
 			row.MorningAttendance = &classday.DayMorningAttendance{Status: classday.MorningAttendanceAbsent, Source: classday.MorningAttendanceSourceReport}
 		}
 	}
-	if date != m.today() {
-		return nil
-	}
-	may, err := m.mayRecord(ctx)
-	if err != nil {
-		return err
-	}
-	report.CanRecordMorningAttendance = may
 	return nil
 }
 
@@ -208,6 +289,19 @@ func morningChild(row classday.DayRow) studentpresence.MorningAttendanceChild {
 		return studentpresence.MorningAttendanceChild{ClassListEntryID: row.ListEntryID}
 	}
 	return studentpresence.MorningAttendanceChild{StudentID: row.StudentID}
+}
+
+// unreportedAbsence reports a child the Lehrkraft marked absent that nobody
+// reported sick, excused or on a class trip ("fehlt ohne Meldung", #4791).
+// The derived "cancelled" (OGS care called off) explains no school morning.
+// A class-list-only entry has no status day to report through yet; it joins
+// with #4803.
+func unreportedAbsence(row classday.DayRow) bool {
+	return !row.ListEntry && row.StudentID > 0 &&
+		row.MorningAttendance != nil &&
+		row.MorningAttendance.Source == classday.MorningAttendanceSourceTeacher &&
+		row.MorningAttendance.Status == classday.MorningAttendanceAbsent &&
+		!reportedAbsence(row.Status)
 }
 
 // reportedAbsence reports a status day that excuses the morning.

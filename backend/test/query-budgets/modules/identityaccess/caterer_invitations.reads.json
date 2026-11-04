@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.identityaccess.caterer_invitations.reads",
+  "max": 1,
+  "exact": true,
+  "description": "ADR 0077: the school's caterer invitations and the caterer's schools,\nincluding one bulk school-directory read to exclude deleted schools."
+}

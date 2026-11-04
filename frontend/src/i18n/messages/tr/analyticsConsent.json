@@ -1,0 +1,16 @@
+{
+  "title": "Kullanım analizi",
+  "promptTitle": "Kullanım analizine izin verilsin mi?",
+  "promptIntro": "moto, hangi sayfaları ve düğmeleri kullandığınızı saymak istiyor. Böylece moto'yu geliştiriyoruz.",
+  "promptPrivacy": "moto bu sırada isimleri ve yazdıklarınızı görmez.",
+  "promptNoDisadvantage": "Reddederseniz de moto'yu aynı şekilde kullanabilirsiniz.",
+  "promptChangeLater": "Seçiminiz hesabınız için geçerlidir. İstediğiniz zaman „Ayarlar“ bölümünden değiştirebilirsiniz.",
+  "allow": "İzin ver",
+  "refuse": "Reddet",
+  "saving": "Kaydediliyor…",
+  "closeLabel": "Daha sonra karar ver",
+  "sectionDescription": "moto, hangi sayfaları ve düğmeleri kullandığınızı sayabilir mi? moto bu sırada isimleri ve yazdıklarınızı görmez. Buna yalnızca siz karar verirsiniz.",
+  "switchLabel": "Kullanım analizine izin ver",
+  "schoolOff": "Okulunuz kullanım analizini kapattı. Seçiminiz, okul onu yeniden açtığında geçerli olur.",
+  "errorObject": "kullanım analizi ayarı"
+}

@@ -1,23 +1,29 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import {
   UnreadBadge,
   type UnreadBadgeTone,
 } from "~/components/messaging/unread-badge";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
-import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
+import { NavSceneFallback } from "~/components/ui/nav-scene-icon/nav-scene-icon";
 import {
+  PORTAL_ICON_CLASSES,
+  portalSidebarRowClasses,
   SIDEBAR_ICON_CLASSES,
   sidebarLabelClasses,
   sidebarRowClasses,
 } from "~/components/dashboard/sidebar-geometry";
-import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 
 interface SidebarAccordionSectionProps {
-  readonly icon: string;
-  readonly concept?: MotoConceptKey;
+  readonly icon?: string;
+  /** Keep dashboard defaults; portals share their responsive link geometry. */
+  readonly variant?: "dashboard" | "portal";
+  readonly "data-portal-nav-section"?: string;
+  readonly concept?: MotoConcept;
   readonly label: string;
   readonly activeColor?: string;
   readonly isExpanded: boolean;
@@ -49,6 +55,8 @@ interface SidebarAccordionSectionProps {
 
 export function SidebarAccordionSection({
   icon,
+  variant = "dashboard",
+  "data-portal-nav-section": dataSection,
   concept,
   label,
   activeColor,
@@ -68,10 +76,10 @@ export function SidebarAccordionSection({
   labelsVisible = true,
   tourId,
 }: SidebarAccordionSectionProps) {
+  const bodyId = useId();
   const iconColorClass =
     (isIconActive ?? isActive) && activeColor ? activeColor : "";
-  const conceptDefinition = concept ? MOTO_CONCEPTS[concept] : null;
-  const ConceptIcon = conceptDefinition?.icon;
+  const conceptDefinition = concept ?? null;
   const showActiveIcon = isIconActive ?? isActive;
   // Im Streifen ist der Bereichsinhalt nie offen.
   const bodyExpanded = isExpanded && !collapsed;
@@ -101,45 +109,56 @@ export function SidebarAccordionSection({
             onToggle();
           }
         }}
-        className={`${sidebarRowClasses({ isActive: rowActive })} cursor-pointer`}
+        className={`${variant === "portal" ? `${portalSidebarRowClasses(rowActive)} w-full justify-start text-left` : sidebarRowClasses({ isActive: rowActive })} cursor-pointer`}
+        data-portal-nav-section={dataSection}
+        data-active={rowActive ? "true" : "false"}
+        aria-controls={bodyId}
         aria-expanded={bodyExpanded}
         {...(collapsed ? { title: label, "aria-label": label } : {})}
       >
-        {conceptDefinition && ConceptIcon ? (
-          showActiveIcon ? (
-            <MotoDuotoneIcon
-              icon={conceptDefinition.icon}
-              tone={conceptDefinition.tone}
-              size={20}
-              className={SIDEBAR_ICON_CLASSES}
-            />
-          ) : (
-            <ConceptIcon
-              size={20}
-              weight="regular"
-              className={SIDEBAR_ICON_CLASSES}
-              aria-hidden="true"
-            />
-          )
+        {variant === "portal" && concept ? (
+          <MotoNavIcon
+            scene
+            concept={concept}
+            active={showActiveIcon}
+            className={`${PORTAL_ICON_CLASSES} ${showActiveIcon ? "" : "text-gray-400"}`}
+          />
+        ) : conceptDefinition ? (
+          <MotoNavIcon
+            scene
+            concept={conceptDefinition}
+            active={showActiveIcon}
+            className={SIDEBAR_ICON_CLASSES}
+          />
         ) : (
-          <svg
-            className={`${SIDEBAR_ICON_CLASSES} ${iconColorClass}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d={icon}
-            />
-          </svg>
+          <NavSceneFallback>
+            <svg
+              className={`${SIDEBAR_ICON_CLASSES} ${iconColorClass}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d={icon}
+              />
+            </svg>
+          </NavSceneFallback>
         )}
         {labelsMounted && (
           <>
-            <span className={sidebarLabelClasses(labelsVisible)}>{label}</span>
+            <span
+              className={
+                variant === "portal"
+                  ? "flex-1"
+                  : sidebarLabelClasses(labelsVisible)
+              }
+            >
+              {label}
+            </span>
             {/* Sammelzähler auf der geschlossenen Kopfzeile; sobald der
                 Bereich offen ist, übernehmen die Zähler der Unterpunkte.
                 Für die Dauer der Blende steht er neben dem Zähler im
@@ -195,7 +214,7 @@ export function SidebarAccordionSection({
         {/* inert: geschlossene Bereiche bleiben im Baum, dürfen aber keinen
             Tastaturfokus fangen — sonst springt der Fokus in unsichtbare
             Unterpunkte (#2923). */}
-        <div className="overflow-hidden" inert={!bodyExpanded}>
+        <div id={bodyId} className="overflow-hidden" inert={!bodyExpanded}>
           <div className="py-0.5">
             {isLoading && (
               /* Skeleton shimmer */

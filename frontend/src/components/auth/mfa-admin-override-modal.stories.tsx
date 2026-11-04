@@ -18,7 +18,6 @@ const meta = {
     onClose: () => {
       // no-op for story
     },
-    bearerToken: "storybook-bearer-token",
     accountId: "1",
     accountLabel: "Max Mustermann",
   },

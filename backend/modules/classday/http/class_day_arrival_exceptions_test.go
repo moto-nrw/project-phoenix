@@ -9,6 +9,7 @@
 package classdayhttp_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -66,7 +67,13 @@ func setupArrivalExceptionRoute(t *testing.T, clocks ...func() time.Time) (*test
 	db, factory := setupClassDayModule(t, clocks...)
 	retainedMondayReport := func(t *testing.T, class string, accountID int64) []byte {
 		t.Helper()
-		report, err := testpkg.TenantQuery3(t, testpkg.Ctx(t), db, factory.ClassDay.DayReport, class, classday.Date(arrivalExceptionMonday), classday.Actor{AccountID: accountID, Roles: "lehrkraft"})
+		// The report is built for the same caller the route serves: whether
+		// the class offers the shared notes depends on the caller's own class
+		// assignment (#4797).
+		caller := context.WithValue(testpkg.Ctx(t), sessiontoken.CtxClaims, sessiontoken.AppClaims{
+			ID: int(accountID), Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool,
+		})
+		report, err := testpkg.TenantQuery3(t, caller, db, factory.ClassDay.DayReport, class, classday.Date(arrivalExceptionMonday), classday.Actor{AccountID: accountID, Roles: "lehrkraft"})
 		require.NoError(t, err)
 		body, err := json.Marshal(report)
 		require.NoError(t, err)

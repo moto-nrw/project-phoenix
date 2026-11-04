@@ -1,0 +1,2 @@
+GET /caterer/invitations/{schoolId}/{token} -> mittagessen  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+POST /caterer/invitations/{schoolId}/{token}/accept -> mittagessen  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)

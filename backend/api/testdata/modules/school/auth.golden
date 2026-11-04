@@ -1,0 +1,8 @@
+POST /school/auth/login -> unterricht_vormittag  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+POST /school/auth/mfa/enroll/confirm -> unterricht_vormittag  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+POST /school/auth/mfa/enroll/start -> unterricht_vormittag  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+POST /school/auth/mfa/resend -> unterricht_vormittag  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+POST /school/auth/mfa/verify -> unterricht_vormittag  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+POST /school/auth/password-reset -> unterricht_vormittag  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+POST /school/auth/password-reset/confirm -> unterricht_vormittag  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+POST /school/auth/switch-school -> unterricht_vormittag  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)

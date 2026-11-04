@@ -26,22 +26,23 @@ type (
 )
 
 // StatisticsDependencies binds the report to its foreign inputs. Attendance
-// days, room utilization and visit-retention consents are read from Student
-// Presence itself over DB.
+// days and intervals, room utilization and visit-retention consents are read
+// from Student Presence itself over DB.
 type StatisticsDependencies struct {
 	DB      *bun.DB
 	Observe func(Observation)
 
-	StatusDays  ports.StatusDays
-	Courses     ports.CourseStatistics
-	Holidays    ports.HolidayDates
-	ClosingDays ports.ClosingDayDates
-	Periods     ports.HolidayPeriods
-	Students    ports.StatisticsStudents
-	Rooms       ports.StatisticsRooms
-	AccessLog   ports.StatisticsAccessLog
-	Retention   ports.StatisticsRetention
-	Logger      *slog.Logger
+	StatusDays      ports.StatusDays
+	Courses         ports.CourseStatistics
+	Holidays        ports.HolidayDates
+	ClosingDays     ports.ClosingDayDates
+	Periods         ports.HolidayPeriods
+	Students        ports.StatisticsStudents
+	Rooms           ports.StatisticsRooms
+	AccessLog       ports.StatisticsAccessLog
+	Retention       ports.StatisticsRetention
+	PlannedCareDays ports.PlannedCareDays
+	Logger          *slog.Logger
 	// Now is injectable for tests; nil means time.Now.
 	Now func() time.Time
 }
@@ -53,19 +54,21 @@ func NewStatistics(deps StatisticsDependencies) (studentpresence.StatisticsRepor
 	}
 	presence := application.New(postgres.New(databaseRuntime(deps.DB)), transaction{}, deps.Observe, ports.AttendanceRulePorts{}, time.Now)
 	return statistics.NewService(statistics.Config{
-		Statistics:      presence,
-		Attendance:      presence,
-		StatusDays:      deps.StatusDays,
-		Courses:         deps.Courses,
-		Holidays:        deps.Holidays,
-		ClosingDays:     deps.ClosingDays,
-		Periods:         deps.Periods,
-		Students:        deps.Students,
-		Rooms:           deps.Rooms,
-		AccessLog:       deps.AccessLog,
-		Retention:       deps.Retention,
-		PrivacyConsents: presence,
-		Logger:          deps.Logger,
-		Now:             deps.Now,
+		Statistics:          presence,
+		Attendance:          presence,
+		StatusDays:          deps.StatusDays,
+		Courses:             deps.Courses,
+		Holidays:            deps.Holidays,
+		ClosingDays:         deps.ClosingDays,
+		Periods:             deps.Periods,
+		Students:            deps.Students,
+		Rooms:               deps.Rooms,
+		AccessLog:           deps.AccessLog,
+		Retention:           deps.Retention,
+		PrivacyConsents:     presence,
+		PlannedCareDays:     deps.PlannedCareDays,
+		AttendanceIntervals: postgres.New(databaseRuntime(deps.DB)),
+		Logger:              deps.Logger,
+		Now:                 deps.Now,
 	}), nil
 }

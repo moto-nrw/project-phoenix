@@ -1,0 +1,32 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (h *attrRedactor) Enabled(ctx context.Context, level slog.Level) bool {\n\treturn h.inner.Enabled(ctx, level)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "middleware/attrRedactor.Enabled",
+      "owner": "source/middleware"
+    },
+    {
+      "build": "production",
+      "evidence": "func (h *attrRedactor) Handle(ctx context.Context, rec slog.Record) error {\n\tout := slog.NewRecord(rec.Time, rec.Level, h.transform(\"\", rec.Message), rec.PC)\n\trec.Attrs(func(a slog.Attr) bool {\n\t\tout.AddAttrs(h.redactAttr(a))\n\t\treturn true\n\t})\n\treturn h.inner.Handle(ctx, out)\n}",
+      "form": "unclassified-evidence",
+      "id": "middleware/attrRedactor.Handle",
+      "owner": "source/middleware"
+    },
+    {
+      "build": "production",
+      "evidence": "func (h *attrRedactor) WithAttrs(attrs []slog.Attr) slog.Handler {\n\tredacted := make([]slog.Attr, len(attrs))\n\tfor i, a := range attrs {\n\t\tredacted[i] = h.redactAttr(a)\n\t}\n\treturn \u0026attrRedactor{inner: h.inner.WithAttrs(redacted), transform: h.transform}\n}",
+      "form": "unclassified-evidence",
+      "id": "middleware/attrRedactor.WithAttrs",
+      "owner": "source/middleware"
+    },
+    {
+      "build": "production",
+      "evidence": "func (h *attrRedactor) WithGroup(name string) slog.Handler {\n\treturn \u0026attrRedactor{inner: h.inner.WithGroup(name), transform: h.transform}\n}",
+      "form": "unclassified-evidence",
+      "id": "middleware/attrRedactor.WithGroup",
+      "owner": "source/middleware"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "exit_already_due": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "exit_day_in_past": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "exit_not_planned": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "external_access_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "external_email_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "external_email_invited": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "external_email_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "external_has_account": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "not_external": "Не вдалося змінити: {object}. Перевірте поточний стан."
+}

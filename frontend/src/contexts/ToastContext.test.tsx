@@ -463,7 +463,11 @@ describe("ToastContext", () => {
       expect(toast.parentElement?.parentElement).toHaveClass(
         "pointer-events-none",
       );
-      expect(screen.getByLabelText("Schließen")).toHaveClass("h-11");
+      // #5531: 44 px unter Fingerbedienung trägt die Fingerregel des Kits.
+      expect(screen.getByLabelText("Schließen")).toHaveClass(
+        "pointer-coarse:min-h-11",
+        "pointer-coarse:min-w-11",
+      );
       fireEvent.click(
         screen.getByRole("button", { name: "Tippen zum Rückgängig" }),
       );

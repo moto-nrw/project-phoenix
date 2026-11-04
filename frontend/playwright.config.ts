@@ -2,6 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { frontendPort } from "./e2e/frontend-port";
+import { assertPortServesThisCheckout } from "./e2e/own-server";
+import { SECURE_CHROME_SETUP, secureChromeUse } from "./scripts/secure-chrome";
+
 function loadLocalEnv(): void {
   for (const file of [
     ".env.development.local",
@@ -30,6 +34,11 @@ function loadLocalEnv(): void {
 }
 
 loadLocalEnv();
+// Next ignores PORT from .env files; pin the value read before loading them so
+// `next dev`, the config and the spec workers agree on one port.
+process.env.PORT = String(frontendPort);
+// reuseExistingServer must not pick up another checkout's frontend.
+assertPortServesThisCheckout(frontendPort);
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -57,6 +66,7 @@ const webServerEnvPrefix = Object.entries(webServerEnv)
 
 /** @public Loaded by the Playwright CLI rather than imported by application code. */
 export default defineConfig({
+  globalSetup: SECURE_CHROME_SETUP,
   testDir: "./e2e",
   // Serverlose Layouttests laufen über playwright.layout.config.ts.
   testIgnore: ["layout/**", "network/**"],
@@ -74,7 +84,8 @@ export default defineConfig({
       ]
     : "html",
   use: {
-    baseURL: "http://localhost:3000",
+    ...secureChromeUse(),
+    baseURL: `http://localhost:${frontendPort}`,
     screenshot: "only-on-failure",
   },
   projects: [
@@ -85,7 +96,7 @@ export default defineConfig({
   ],
   webServer: {
     command: `${webServerEnvPrefix} pnpm run dev`,
-    port: 3000,
+    port: frontendPort,
     timeout: 120_000,
     reuseExistingServer: !process.env.CI,
   },

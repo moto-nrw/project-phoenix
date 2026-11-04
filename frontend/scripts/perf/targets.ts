@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 interface PerfInteraction {
   label: string;
@@ -38,15 +38,14 @@ export interface NavigationHop {
  */
 export const NAVIGATION_HOPS: readonly NavigationHop[] = [
   {
-    path: "/dashboard",
-    linkName: "Home",
-    ready: (page) => page.getByText("Kinder anwesend").first(),
+    path: "/home",
+    linkName: "Startseite",
+    ready: homeReady,
   },
   {
     path: "/students/search",
     linkName: "Alle Kinder",
-    ready: (page) =>
-      page.getByRole("button", { name: /Tippen für mehr Infos/ }).first(),
+    ready: childCardReady,
   },
   {
     path: "/rooms",
@@ -61,13 +60,14 @@ export const NAVIGATION_HOPS: readonly NavigationHop[] = [
   {
     path: "/statistics",
     linkName: "Statistik",
+    group: "Verwaltung",
     ready: (page) =>
       page.getByRole("columnheader", { name: /^Gruppe/ }).first(),
   },
   {
-    path: "/dashboard",
-    linkName: "Home",
-    ready: (page) => page.getByText("Kinder anwesend").first(),
+    path: "/home",
+    linkName: "Startseite",
+    ready: homeReady,
   },
 ];
 
@@ -180,9 +180,8 @@ export const PERF_TARGETS: readonly PerfTarget[] = [
   {
     name: "students-search",
     path: "/students/search",
-    // Die Kinderkarten sind Buttons „Vorname Nachname - Tippen für mehr Infos“.
-    ready: (page) =>
-      page.getByRole("button", { name: /Tippen für mehr Infos/ }).first(),
+    // Derselbe Bereitschaftsvertrag wie bei Seitenwechsel und Rückweg.
+    ready: childCardReady,
     interaction: {
       label: "4 Zeichen in die Namenssuche tippen",
       run: async (page) => {
@@ -193,6 +192,10 @@ export const PERF_TARGETS: readonly PerfTarget[] = [
           .first();
         await input.click();
         await input.pressSequentially("Anna", { delay: 80 });
+        await expect(input).toHaveValue("Anna");
+        const cards = page.getByRole("button", { name: / - Details öffnen$/ });
+        await expect(cards.filter({ hasText: /Anna/i }).first()).toBeVisible();
+        await expect(cards.filter({ hasNotText: /Anna/i })).toHaveCount(0);
       },
     },
   },
@@ -210,7 +213,13 @@ export const PERF_TARGETS: readonly PerfTarget[] = [
     interaction: {
       label: "Vorherige Woche in der Wochenübersicht",
       run: async (page) => {
+        const currentWeek = page.getByRole("button", {
+          name: "Diese Woche",
+          exact: true,
+        });
+        await expect(currentWeek).toBeDisabled();
         await page.getByRole("button", { name: "Vorherige Woche" }).click();
+        await expect(currentWeek).toBeEnabled();
       },
     },
   },
@@ -221,8 +230,144 @@ export const PERF_TARGETS: readonly PerfTarget[] = [
     interaction: {
       label: "Eine Woche weiter",
       run: async (page) => {
+        const today = page.getByRole("button", { name: "Heute", exact: true });
+        await expect(today).toBeDisabled();
         await page.getByRole("button", { name: "Weiter", exact: true }).click();
+        await expect(today).toBeEnabled();
+        await expect(page).toHaveURL(/[?&]d=\d{4}-\d{2}-\d{2}(?:&|$)/);
       },
     },
+  },
+];
+
+/** Konto, mit dem ein Ablauf gemessen wird; Zugang aus dem Seed-Profil. */
+export type PerfRole = "admin" | "betreuer";
+
+/**
+ * Rückweg und erneuter Besuch (#4988): Ziel öffnen, zur Zwischenseite, Ziel
+ * erneut über die Seitenleiste („warm“), wieder zur Zwischenseite, dann
+ * Browser-Zurück („Rückweg“). Gemessen wird bis der Zielinhalt steht.
+ */
+export interface RevisitTarget {
+  /** Kurzname für Protokoll und Artefakte. */
+  name: string;
+  role: PerfRole;
+  /** Pfad der Zielseite, ohne Query. */
+  path: string;
+  link: (page: Page) => Locator;
+  /** Sichtbar, sobald die Zielseite echten Inhalt zeigt; gilt erst nach `path`. */
+  ready: (page: Page) => Locator;
+  /** Zwischenseite, von der aus das Ziel erneut geöffnet wird. */
+  via: {
+    path: string;
+    link: (page: Page) => Locator;
+    ready: (page: Page) => Locator;
+  };
+}
+
+/**
+ * Ein Bereichskopf der Seitenleiste („Aktuelle Aufsichten“, „Gruppen“): er
+ * öffnet die zuletzt gezeigte Aufsicht oder Gruppe. Die Links darunter sind
+ * nach einem Seitenwechsel eingeklappt.
+ */
+function sidebarSection(page: Page, section: string): Locator {
+  return page
+    .locator(`nav [data-setup-tour="nav-section-${section}"]`)
+    .filter({ visible: true })
+    .first();
+}
+
+/** Die Statuszeile von „Meine Gruppe heute“ kommt mit deren Daten. */
+function myGroupReady(page: Page): Locator {
+  return page.getByText(/\d+ von \d+ da/).first();
+}
+
+function supervisionsSection(page: Page): Locator {
+  return sidebarSection(page, "supervisions");
+}
+
+function supervisionReady(page: Page): Locator {
+  return page
+    .getByRole("button", {
+      name: /Raum verlassen|Spontane Aktivität starten|Kinder unterwegs/,
+    })
+    .first();
+}
+
+const ADMIN_VIA: RevisitTarget["via"] = {
+  path: "/students/search",
+  link: (page) => sidebarHref(page, "/students/search"),
+  ready: childCardReady,
+};
+
+/** Betreuer: Kindersuche ist nicht sicher in der Seitenleiste, Räume schon. */
+const BETREUER_VIA: RevisitTarget["via"] = {
+  path: "/rooms",
+  link: (page) => sidebarHref(page, "/rooms"),
+  ready: (page) => page.getByText(/Kapazität:/).first(),
+};
+
+export const REVISIT_TARGETS: readonly RevisitTarget[] = [
+  {
+    name: "aktuelle-aufsicht-admin",
+    role: "admin",
+    path: "/active-supervisions",
+    link: supervisionsSection,
+    ready: supervisionReady,
+    via: ADMIN_VIA,
+  },
+  {
+    name: "aktuelle-aufsicht-betreuer",
+    role: "betreuer",
+    path: "/active-supervisions",
+    link: supervisionsSection,
+    ready: supervisionReady,
+    via: BETREUER_VIA,
+  },
+  {
+    name: "anfragen-admin",
+    role: "admin",
+    path: "/anfragen",
+    link: (page) => sidebarHref(page, "/anfragen"),
+    ready: (page) => page.getByText(/\d+ offene Anfragen? ·/).first(),
+    via: ADMIN_VIA,
+  },
+  {
+    // Seitenleiste: der Bereichskopf „Gruppen“ öffnet die Übersicht, darunter
+    // steht die eigene Gruppe.
+    name: "ogs-gruppe-betreuer-seitenleiste",
+    role: "betreuer",
+    path: "/ogs-groups",
+    link: (page) => sidebarHref(page, "/ogs-groups"),
+    ready: (page) =>
+      page.getByRole("region", { name: "Abwesenheiten heute" }).first(),
+    via: {
+      path: "/ogs-groups/overview",
+      link: (page) => sidebarSection(page, "groups"),
+      ready: (page) => page.getByRole("list", { name: "Gruppen" }).first(),
+    },
+  },
+  {
+    // Startseite: „Zur Gruppe“ in „Meine Gruppe heute“.
+    name: "ogs-gruppe-betreuer-startseite",
+    role: "betreuer",
+    path: "/ogs-groups",
+    link: (page) =>
+      page.getByRole("link", { name: "Meine Gruppe heute: zur Gruppe" }),
+    ready: (page) =>
+      page.getByRole("region", { name: "Abwesenheiten heute" }).first(),
+    via: {
+      path: "/home",
+      link: (page) => sidebarHref(page, "/home"),
+      ready: myGroupReady,
+    },
+  },
+  {
+    name: "startseite-betreuer",
+    role: "betreuer",
+    path: "/home",
+    link: (page) => sidebarHref(page, "/home"),
+    ready: myGroupReady,
+    via: BETREUER_VIA,
   },
 ];

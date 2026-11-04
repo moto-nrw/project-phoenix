@@ -1,0 +1,2 @@
+GET /parent-news-attachments/{announcementId}
+GET /parent-news-attachments/{announcementId}/{attachmentId}/download

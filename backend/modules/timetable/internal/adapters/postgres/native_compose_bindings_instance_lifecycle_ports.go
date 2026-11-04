@@ -11,7 +11,8 @@ import (
 
 // SubstituteDayLock takes the day-wide staffing lock (#1840) on the caller's
 // transaction, for compositions that serialize with the owner's staffing
-// writes (the #1843 sick cascade).
+// writes (the #1843 sick cascade). Acquire days ascending before block row
+// locks; never acquire recurrence after a day (the #5378 split/cancel order).
 func SubstituteDayLock(db *bun.DB) func(context.Context, calendar.Date) error {
 	store := New(DatabaseRuntime(db))
 	return func(ctx context.Context, date calendar.Date) error {

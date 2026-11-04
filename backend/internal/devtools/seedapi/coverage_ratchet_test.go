@@ -30,6 +30,7 @@ import (
 // limited to security/session artifacts, one-time migration backups, legacy
 // compatibility tables, and transient lifecycle state.
 var seedCoverageExemptions = map[string]string{
+	"platform.demo_school_file_erasures":        "verified upload removals of retired demo schools only (#5544); the profiles seed keeps its schools active and must not fabricate file erasure markers",
 	"platform.school_erasures":                  "real administrative erasure orders only (#3837); a demo seed must never fabricate customer erasure evidence",
 	"platform.organization_erasure_orders":      "real erasure orders of a terminated Träger only (#4657); an order deactivates its Träger for good, so the demo Träger stay active and a seed fabricates no written confirmation",
 	"enrollment.holiday_registration_deletions": "real deletions only (#4667): the hourly retention logs a holiday period 92 days after its last week; the seed plans current holidays, so no period is old enough and a seed fabricates no deletion evidence",
@@ -49,29 +50,32 @@ var seedCoverageExemptions = map[string]string{
 	// seeded stack finds them filled and they carry no exemption any more.
 	// Current owner commands no longer write the rollback archive. Keep it
 	// empty on fresh seeds; filling it would restore retired Guardian copies.
-	// Morning attendance (#4790) is written only by a Lehrkraft through moto
-	// schule for today; the seeder signs in no Lehrkraft and assigns no class
-	// (education.class_teachers below), so nothing it does can write a mark.
-	"active.morning_attendance": "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
 	// Homework (#4796) is entered only by a Lehrkraft with an assigned class
 	// through moto schule, and the OGS feedback needs that homework; the
-	// seeder signs in no Lehrkraft, so it can write neither table.
-	"education.class_homework":    "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
-	"education.homework_feedback": "not in prod yet (migration newer than the deployed image); needs homework of a Lehrkraft, which the seeder seeds none of",
+	// seed teacher enters neither homework nor feedback.
+	"education.class_homework":    "not in prod yet (migration newer than the deployed image); the seed teacher leaves homework empty",
+	"education.homework_feedback": "not in prod yet (migration newer than the deployed image); needs homework of a Lehrkraft; the seed teacher leaves homework empty",
 	// The class handover (#4794) is written the same way: only a Lehrkraft
-	// through moto schule, for today and an assigned class.
-	"active.class_handovers":               "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
-	"active.class_handover_children":       "not in prod yet (migration newer than the deployed image); written only with active.class_handovers",
-	"active.combined_groups":               "empty in prod too",
-	"active.group_mappings":                "empty in prod too",
-	"active.scheduled_checkouts":           "empty in prod too",
-	"active.staff_month_balance_snapshots": "empty in prod too",
-	"active.staff_vacation_openings":       "empty in prod too",
+	// through moto schule; the seed teacher leaves the handover open.
+	"active.class_handovers":         "not in prod yet (migration newer than the deployed image); the seed teacher leaves the class handover open",
+	"active.class_handover_children": "not in prod yet (migration newer than the deployed image); written only with active.class_handovers",
+	// The Elternsprechtag (#4801) is offered only by a Lehrkraft for an
+	// assigned class through moto schule, and families book only such a day.
+	"calendar.parent_conferences":         "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class offers it, and the seeder seeds none",
+	"calendar.parent_conference_bookings": "not in prod yet (migration newer than the deployed image); needs a Sprechtag of a Lehrkraft, which the seeder seeds none of",
+	// The confirmation of planned vacation care (#5345) is a decision the
+	// school takes on the vacation hint; the seed leaves the hint visible.
+	"calendar.school_vacation_acknowledgements": "not in prod yet (migration newer than the deployed image); only a planner's confirmation on the vacation hint writes it, and the seed keeps the hint visible",
+	"active.combined_groups":                    "empty in prod too",
+	"active.group_mappings":                     "empty in prod too",
+	"active.scheduled_checkouts":                "empty in prod too",
+	"active.staff_month_balance_snapshots":      "empty in prod too",
+	"active.payroll_dispatches":                 "not in prod yet (migration newer than the deployed image); only a month close queues a dispatch, and the seeder closes no month (see active.staff_month_balance_snapshots)",
+	"active.staff_vacation_openings":            "empty in prod too",
 
 	"audit.class_list_entry_changes":    "not in prod yet (migration newer than the deployed image)",
 	"audit.enrollment_restorations":     "empty in prod too",
 	"audit.export_transfers":            "only a real SFTP transfer to an external counterpart writes here; the address policy refuses the loopback target a seeder could offer",
-	"audit.personnel_number_changes":    "empty in prod too",
 	"audit.room_color_migration_backup": "one-time migration snapshot; only installations with legacy reserved room colors can contain rows",
 	"audit.wc_alias_migration_backup":   "empty in prod too",
 
@@ -92,14 +96,11 @@ var seedCoverageExemptions = map[string]string{
 
 	"display.displays": "empty in prod too",
 
-	"education.class_teachers":                      "empty in prod too",
 	"education.grade_transition_class_list_entries": "not in prod yet (migration newer than the deployed image)",
 	"education.grade_transition_class_teachers":     "empty in prod too",
 
 	"enrollment.care_offering_auto_triggers": "empty in prod too",
 	"enrollment.request_upload_cleanup":      "holds the file removal of a deleted parent upload (#4783); the seed deletes no upload",
-
-	"feedback.entries": "empty in prod too",
 
 	"iot.push_subscriptions":   "browser/VAPID-bound state; a server-side seed cannot create an honest browser subscription",
 	"iot.pwa_standalone_usage": "not in prod yet (migration newer than the deployed image)",
@@ -131,10 +132,8 @@ var seedCoverageExemptions = map[string]string{
 	// tables users.staff_school_memberships and users.staff_employment_profiles
 	// hold every seeded staff member. A fresh stack archives nothing.
 	"users.student_companions":                "empty in prod too",
-	"users.student_care_exit_removals":        "transient by design (#2487): holds a planned exit's removed plan only until the exit is cancelled or takes effect",
 	"users.student_care_exit_source_removals": "transient by design: holds source bookings and weekly plans only until a planned care exit is cancelled or takes effect",
 	"users.student_document_file_cleanup":     "empty in prod too",
-	"users.student_documents":                 "empty in prod too",
 }
 
 // Coverage debt is deliberately separate from durable exemptions. Adding an
@@ -148,6 +147,7 @@ var seedCoverageTransient = map[string]string{
 	"auth.account_avatar_file_cleanup": "transient deletion intents for anonymized accounts; drained hourly, never create orphan files as demo data",
 	"auth.invitation_tokens":           "short-lived invitation state; the seed accepts some and leaves some open",
 	"platform.push_outbox":             "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
+	"platform.realtime_notifications":  "two-minute copies of in-app notifications for other API processes (#5504); present only right after a notification and removed by the nightly delivery retention",
 }
 
 var seedCoverageAllowlist = mergeCoverageClassifications(seedCoverageExemptions, seedCoverageTransient, seedCoverageDebt)

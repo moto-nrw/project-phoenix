@@ -19,10 +19,9 @@ import { NumberRangeCard } from "~/components/traeger/number-range-card";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { Loading } from "~/components/ui/loading";
-import { SectionCard } from "~/components/ui/section-card";
+import { Alert } from "~/components/ui/alert";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -121,59 +120,48 @@ export default function TraegerAbrechnungPage() {
   const openRun = (run: BillingRun) =>
     router.push(traegerPath(`/traeger/abrechnung/${run.id}`));
 
+  const released =
+    data?.runs.filter((run) => run.status === "released").length ?? 0;
+  const noPeriod = data !== null && data.periods.length === 0;
+
   return (
-    <div className="w-full space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-          Abrechnung
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Ferienbetreuung im Voraus abrechnen: nach den bestätigten Buchungen.
-        </p>
-      </div>
-      {pageLoad.error ? (
-        <LoadErrorAlert error={pageLoad.error} />
-      ) : data ? (
-        <>
-          <NumberRangeCard numberRange={data.numberRange} onChanged={load} />
-          <SectionCard
-            title="Abrechnungsläufe"
-            description="Ein Lauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau und geben den Lauf dann frei."
-            actions={
-              <Button
-                type="button"
-                variant="secondary"
-                size="md"
-                disabled={data.periods.length === 0}
-                onClick={() => setStarting(true)}
-              >
-                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                Lauf starten
-              </Button>
-            }
-          >
-            {data.periods.length === 0 ? (
-              <p className="mb-4 text-sm text-gray-700">
-                Es gibt noch keinen veröffentlichten Ferienzeitraum. Ein Lauf
-                braucht einen. Ferienzeiträume legt die Verwaltung unter
-                „Ferien“ an.
-              </p>
-            ) : null}
-            <DataTable
-              columns={COLUMNS}
-              rows={data.runs}
-              getRowKey={(run) => run.id}
-              stackedOnMobile
-              stackedLayout="row"
-              onRowClick={openRun}
-              emptyState={
-                <EmptyState
-                  icon={<Receipt className="h-12 w-12" aria-hidden="true" />}
-                  title="Noch kein Abrechnungslauf."
-                />
-              }
-            />
-          </SectionCard>
+    <TenantPage
+      title="Abrechnung"
+      info="Hier rechnen Sie die Ferienbetreuung im Voraus ab, nach den bestätigten Buchungen. Ein Lauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau und geben den Lauf dann frei."
+      stats={
+        data && data.runs.length > 0 ? (
+          <TenantPageStats
+            items={[
+              {
+                value: data.runs.length,
+                label:
+                  data.runs.length === 1
+                    ? "Abrechnungslauf"
+                    : "Abrechnungsläufe",
+              },
+              { value: released, label: "freigegeben" },
+            ]}
+          />
+        ) : null
+      }
+      statsLoading={!data && !pageLoad.error}
+      actions={
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          disabled={!data || noPeriod}
+          aria-describedby={noPeriod ? "billing-run-needs-period" : undefined}
+          onClick={() => setStarting(true)}
+        >
+          <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+          Lauf starten
+        </Button>
+      }
+      error={pageLoad.error}
+      loading={!pageLoad.error && !data}
+      overlays={
+        data ? (
           <BillingRunStartModal
             isOpen={starting}
             periods={data.periods}
@@ -183,10 +171,35 @@ export default function TraegerAbrechnungPage() {
               openRun(run);
             }}
           />
+        ) : null
+      }
+    >
+      {data ? (
+        <>
+          {noPeriod ? (
+            <Alert
+              id="billing-run-needs-period"
+              type="info"
+              message="Es gibt noch keinen veröffentlichten Ferienzeitraum. Ein Lauf braucht einen. Ferienzeiträume legt die Verwaltung unter „Ferien“ an."
+            />
+          ) : null}
+          <DataTable
+            columns={COLUMNS}
+            rows={data.runs}
+            getRowKey={(run) => run.id}
+            stackedOnMobile
+            stackedLayout="row"
+            onRowClick={openRun}
+            emptyState={
+              <EmptyState
+                icon={<Receipt className="h-12 w-12" aria-hidden="true" />}
+                title="Noch kein Abrechnungslauf."
+              />
+            }
+          />
+          <NumberRangeCard numberRange={data.numberRange} onChanged={load} />
         </>
-      ) : (
-        <Loading fullPage={false} />
-      )}
-    </div>
+      ) : null}
+    </TenantPage>
   );
 }

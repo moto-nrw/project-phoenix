@@ -4,11 +4,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirect targets root login, not tenant route
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import {
-  AuthFieldError,
-  authInputClass,
-  authPrimaryButtonClassName,
-} from "~/components/auth/auth-shell";
+import { AuthFieldError } from "~/components/auth/auth-shell";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import {
   credentialError,
   INVITATION_REFUSALS,
@@ -22,6 +20,7 @@ import { acceptInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
 import { PASSWORD_RULES } from "~/lib/password-rules";
 import { createLogger } from "~/lib/logger";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "InvitationAccept" });
 
@@ -241,13 +240,14 @@ export function InvitationAcceptForm({
             <p className="mb-4 text-sm text-gray-500">
               Die vorherige Sitzung konnte nicht automatisch beendet werden.
             </p>
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="field"
               onClick={handleManualRedirect}
-              className="rounded-xl bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800"
             >
               Zur Anmeldung
-            </button>
+            </Button>
           </>
         ) : (
           <>
@@ -324,73 +324,51 @@ export function InvitationAcceptForm({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label
-            htmlFor="firstName"
-            className={`mb-1 block text-sm font-medium ${fieldError("first_name") ? "text-moto-red" : "text-gray-700"}`}
-          >
-            Vorname
-          </label>
-          <input
+          <Input
             id="firstName"
+            label="Vorname"
             name="first_name"
+            controlSize="compact"
             data-testid="input-firstName"
             value={firstName}
             onChange={(event) => setFirstName(event.target.value)}
             disabled={isSubmitting}
             autoComplete="given-name"
             required
-            aria-invalid={Boolean(fieldError("first_name"))}
-            aria-describedby={
-              fieldError("first_name") ? "firstName-error" : undefined
-            }
-            className={authInputClass(Boolean(fieldError("first_name")))}
-          />
-          <AuthFieldError
-            id="firstName-error"
-            message={fieldError("first_name")}
+            error={fieldError("first_name")}
           />
         </div>
         <div>
-          <label
-            htmlFor="lastName"
-            className={`mb-1 block text-sm font-medium ${fieldError("last_name") ? "text-moto-red" : "text-gray-700"}`}
-          >
-            Nachname
-          </label>
-          <input
+          <Input
             id="lastName"
+            label="Nachname"
             name="last_name"
+            controlSize="compact"
             data-testid="input-lastName"
             value={lastName}
             onChange={(event) => setLastName(event.target.value)}
             disabled={isSubmitting}
             autoComplete="family-name"
             required
-            aria-invalid={Boolean(fieldError("last_name"))}
-            aria-describedby={
-              fieldError("last_name") ? "lastName-error" : undefined
-            }
-            className={authInputClass(Boolean(fieldError("last_name")))}
-          />
-          <AuthFieldError
-            id="lastName-error"
-            message={fieldError("last_name")}
+            error={fieldError("last_name")}
           />
         </div>
       </div>
 
       <div>
-        <label
+        <FieldLabel
           htmlFor="password"
-          className={`mb-1 block text-sm font-medium ${fieldError("password") ? "text-moto-red" : "text-gray-700"}`}
+          required
+          invalid={Boolean(fieldError("password"))}
         >
           Passwort
-        </label>
+        </FieldLabel>
         <div className="relative">
-          <input
+          <Input
             id="password"
             name="password"
             type={showPassword ? "text" : "password"}
+            controlSize="compact"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             disabled={isSubmitting}
@@ -399,8 +377,8 @@ export function InvitationAcceptForm({
             aria-describedby={
               fieldError("password") ? "password-error" : undefined
             }
-            className={`${authInputClass(Boolean(fieldError("password")))} pr-10`}
             required
+            className="pr-10"
           />
           <PasswordToggleButton
             showPassword={showPassword}
@@ -411,17 +389,19 @@ export function InvitationAcceptForm({
       </div>
 
       <div>
-        <label
+        <FieldLabel
           htmlFor="confirmPassword"
-          className={`mb-1 block text-sm font-medium ${fieldError("confirm_password") ? "text-moto-red" : "text-gray-700"}`}
+          required
+          invalid={Boolean(fieldError("confirm_password"))}
         >
           Passwort bestätigen
-        </label>
+        </FieldLabel>
         <div className="relative">
-          <input
+          <Input
             id="confirmPassword"
             name="confirm_password"
             type={showConfirmPassword ? "text" : "password"}
+            controlSize="compact"
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
             disabled={isSubmitting}
@@ -432,8 +412,8 @@ export function InvitationAcceptForm({
                 ? "confirmPassword-error"
                 : undefined
             }
-            className={`${authInputClass(Boolean(fieldError("confirm_password")))} pr-10`}
             required
+            className="pr-10"
           />
           <PasswordToggleButton
             showPassword={showConfirmPassword}
@@ -448,13 +428,15 @@ export function InvitationAcceptForm({
 
       <PasswordRequirements requirements={requirementStatus} />
 
-      <button
+      <Button
         type="submit"
         disabled={isSubmitting}
-        className={authPrimaryButtonClassName}
+        variant="primary"
+        size="field"
+        className="w-full"
       >
         {isSubmitting ? "Wird übernommen..." : "Einladung akzeptieren"}
-      </button>
+      </Button>
     </form>
   );
 }

@@ -10,6 +10,7 @@ import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
  * - materialize(from?, to?)      → POST   /materialize
  */
 
+import { hasSessionAccess } from "./session-access";
 import { getCachedSession } from "./session-cache";
 import { createLogger } from "./logger";
 import {
@@ -112,6 +113,36 @@ import {
   mapTemplates,
   mapWeeklyInstances,
 } from "./timetable-helpers";
+import {
+  connectionBody,
+  mapOfferingPreview,
+  mapRosterDeviations,
+  previewQuery,
+  type BackendOfferingPreview,
+  type BackendRosterDeviationsResponse,
+  type OfferingPreview,
+  type OfferingSelection,
+  type RosterDeviation,
+} from "./roster-deviation";
+import {
+  mapBookingLeftovers,
+  type BackendBookingLeftoversResponse,
+  type BookingLeftover,
+} from "./booking-leftover";
+import {
+  mapOfferingGaps,
+  type BackendOfferingGapsResponse,
+  type OfferingGap,
+} from "./offering-gap";
+import {
+  draftPreviewQuery,
+  mapOfferingSuggestion,
+  suggestionQuery,
+  type BackendOfferingSuggestionResponse,
+  type DraftRoster,
+  type OfferingSuggestion,
+  type OfferingSuggestionQuery,
+} from "./offering-suggestion";
 
 const logger = createLogger({ component: "TimetableApiClient" });
 
@@ -150,14 +181,16 @@ class TimetableService {
    * Returns the materialized instances in the requested window plus
    * lightweight enrichment (room name, type, staff list, counts). The
    * optional filter narrows them to one OGS group and/or one person (#4766).
+   * `view: "slim"` drops the per-child attendance rows (#4996): every block
+   * then carries `students: []`, while counts and student IDs stay.
    */
   async getWeek(
     from: string,
     to: string,
     filter: PlanFilter = NO_PLAN_FILTER,
+    options: { view?: "slim" } = {},
   ): Promise<WeeklyInstancesResponse> {
-    const session = await getCachedSession();
-    if (!session?.user?.token) {
+    if (!hasSessionAccess(await getCachedSession())) {
       throw new ApiError("Nicht angemeldet", 401);
     }
 
@@ -165,6 +198,7 @@ class TimetableService {
       from,
       to,
       ...planFilterQuery(filter),
+      ...(options.view ? { view: options.view } : {}),
     });
     const response = await transportFetch(
       `/api/timetable/instances?${params}`,
@@ -349,6 +383,229 @@ class TimetableService {
     );
     const raw = await unwrap<BackendTimetableTemplate>(response);
     return mapTemplates({ templates: [raw] }).templates[0]!;
+  }
+
+  /**
+   * GET /api/timetable/templates/roster-deviations — Regeltermine whose
+   * children list differs from an offering's bookings (#5103).
+   */
+  /**
+   * `templateId` also reviews that Regeltermin when it is kept by hand:
+   * „Mit Angebot verbinden“ names it, and connecting ends that state.
+   */
+  async getRosterDeviations(
+    periodId: string,
+    templateId?: string,
+  ): Promise<RosterDeviation[]> {
+    const params = new URLSearchParams({ period_id: periodId });
+    if (templateId) params.set("template_id", templateId);
+    const response = await transportFetch(
+      `/api/timetable/templates/roster-deviations?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapRosterDeviations(
+      await unwrap<BackendRosterDeviationsResponse>(response),
+    );
+  }
+
+  /**
+   * GET /api/timetable/templates/booking-leftovers — children a
+   * hand-maintained Regeltermin keeps after their booking of those weekdays
+   * ended (#5102).
+   */
+  async getBookingLeftovers(periodId: string): Promise<BookingLeftover[]> {
+    const params = new URLSearchParams({ period_id: periodId });
+    const response = await transportFetch(
+      `/api/timetable/templates/booking-leftovers?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapBookingLeftovers(
+      await unwrap<BackendBookingLeftoversResponse>(response),
+    );
+  }
+
+  /**
+   * PUT /api/timetable/templates/{id}/students/{studentId}/kept-days —
+   * „Bleibt so“ (#5102) for the leftover, or its undo.
+   */
+  async setBookingLeftoverKept(
+    leftover: BookingLeftover,
+    kept: boolean,
+  ): Promise<void> {
+    const response = await transportFetch(
+      `/api/timetable/templates/${encodeURIComponent(leftover.templateId)}/students/${encodeURIComponent(leftover.studentId)}/kept-days`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          weekdays: leftover.weekdays,
+          booking_ended_on: leftover.bookingEndedOn,
+          kept,
+        }),
+      },
+    );
+    await unwrap<unknown>(response);
+  }
+
+  /**
+   * GET /api/timetable/offering-gaps — offerings whose booked children no
+   * Regeltermin of the period takes over (#5140).
+   */
+  async getOfferingGaps(periodId: string): Promise<OfferingGap[]> {
+    const params = new URLSearchParams({ period_id: periodId });
+    const response = await transportFetch(
+      `/api/timetable/offering-gaps?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapOfferingGaps(await unwrap<BackendOfferingGapsResponse>(response));
+  }
+
+  /**
+   * PUT /api/timetable/offering-gaps/{offeringId}/acknowledgement —
+   * „Kein eigener Regeltermin nötig“ (#5140) for the classes the hint names,
+   * or its undo.
+   */
+  async setOfferingGapAcknowledged(
+    offeringId: string,
+    periodId: string,
+    acknowledged: boolean,
+  ): Promise<void> {
+    const response = await transportFetch(
+      `/api/timetable/offering-gaps/${offeringId}/acknowledgement`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          period_id: Number(periodId),
+          acknowledged,
+        }),
+      },
+    );
+    await unwrap<unknown>(response);
+  }
+
+  /** GET /api/timetable/templates/{id}/offering-preview (#5103). */
+  async getOfferingPreview(
+    templateId: string,
+    selection: OfferingSelection,
+    from?: string,
+  ): Promise<OfferingPreview> {
+    const response = await transportFetch(
+      `/api/timetable/templates/${templateId}/offering-preview?${previewQuery(selection, from)}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapOfferingPreview(await unwrap<BackendOfferingPreview>(response));
+  }
+
+  /**
+   * GET /api/timetable/offering-sources/suggestion — the offering whose
+   * bookings match the children an unsaved Regeltermin plans (#5104); null
+   * when none matches.
+   */
+  async getOfferingSuggestion(
+    query: OfferingSuggestionQuery,
+  ): Promise<OfferingSuggestion | null> {
+    const response = await transportFetch(
+      `/api/timetable/offering-sources/suggestion?${suggestionQuery(query)}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapOfferingSuggestion(
+      await unwrap<BackendOfferingSuggestionResponse>(response),
+    );
+  }
+
+  /**
+   * GET /api/timetable/offering-sources/preview — per weekday who joins and
+   * who leaves an unsaved Regeltermin when it takes its children from the
+   * offerings (#5104).
+   */
+  async getDraftOfferingPreview(
+    periodId: string,
+    selection: OfferingSelection,
+    roster: DraftRoster,
+    from?: string,
+  ): Promise<OfferingPreview> {
+    const response = await transportFetch(
+      `/api/timetable/offering-sources/preview?${draftPreviewQuery(periodId, selection, roster, from)}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapOfferingPreview(await unwrap<BackendOfferingPreview>(response));
+  }
+
+  /**
+   * POST /api/timetable/templates/{id}/offering-connection — „Mit Angebot
+   * verbinden“ (#5103) for every period of the series from effectiveDate on.
+   */
+  async connectTemplateToOffering(
+    templateId: string,
+    selection: OfferingSelection,
+    effectiveDate: string,
+  ): Promise<void> {
+    const response = await transportFetch(
+      `/api/timetable/templates/${templateId}/offering-connection`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(connectionBody(selection, effectiveDate)),
+      },
+    );
+    await unwrap<unknown>(response);
+  }
+
+  /** PUT /api/timetable/templates/{id}/manual-roster (#5103). */
+  async setManualRosterConfirmed(
+    templateId: string,
+    confirmed: boolean,
+  ): Promise<void> {
+    const response = await transportFetch(
+      `/api/timetable/templates/${templateId}/manual-roster`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ confirmed }),
+      },
+    );
+    await unwrap<unknown>(response);
   }
 
   /**

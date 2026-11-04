@@ -7,7 +7,7 @@ import (
 )
 
 // Password reset (#2722): a one-time link that sets a new password for a
-// staff, parent or school account. The link is never stored already expired
+// staff, parent, school, caterer or Träger-Büro account. The link is never stored already expired
 // or spent, is redeemable once, and a new password revokes the account's
 // sessions in the same transaction. The request answers identically whether
 // or not the address belongs to an eligible account.
@@ -44,6 +44,9 @@ const (
 	// PasswordResetScopeCaterer serves caterer accounts only; the link lands
 	// on the caterer portal (ADR 0077).
 	PasswordResetScopeCaterer PasswordResetScope = "caterer"
+	// PasswordResetScopeTraeger serves accounts with an active Träger-Büro
+	// membership; the link lands on the Träger-Portal (#5149).
+	PasswordResetScopeTraeger PasswordResetScope = "traeger"
 )
 
 // PasswordResetRateLimitError carries the window of a rejected request; the

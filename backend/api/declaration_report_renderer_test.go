@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 )
 
 // The ports' document shape, spelled out: the consumers alias the same
@@ -59,7 +61,7 @@ func TestDeclarationReportsRenderTheMotoPDF(t *testing.T) {
 	assert.True(t, bytes.HasPrefix(file.Data, []byte("%PDF")))
 }
 
-func TestDeclarationReportsStripRendererMarkers(t *testing.T) {
+func TestRecordReportTextStripsRendererMarkers(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "Einverständnis Zoo", reportText("Einverständnis \x01Zoo\x02"))
+	assert.Equal(t, "Einverständnis Zoo", owners.ReportText("Einverständnis \x01Zoo\x02"))
 }

@@ -57,8 +57,19 @@ func (s *Service) loadCurrentVisit(ctx context.Context, studentID int64) (*ports
 }
 
 // checkoutCurrentVisit resolves and closes the room stay before a new
-// check-in. A failed lookup or checkout prevents the scan from proceeding.
+// check-in. A failed lock, lookup or checkout prevents the scan from
+// proceeding.
 func (s *Service) checkoutCurrentVisit(ctx context.Context, student *ports.Student, person *ports.Person) (currentVisitCheckout, error) {
+	// The child before its visit: a bulk move locks the child and then the
+	// visit, so a scan that closed the visit first and waited for the child
+	// at its check-in deadlocked against it (#5278).
+	if err := s.visits.LockStudent(ctx, student.ID); err != nil {
+		s.logger.ErrorContext(ctx, "failed to lock student",
+			slog.Int64("student_id", student.ID),
+			slog.String("error", err.Error()),
+		)
+		return currentVisitCheckout{}, devicescan.Internal(devicescan.MessageInternalServerError, err)
+	}
 	visit, err := s.loadCurrentVisit(ctx, student.ID)
 	if err != nil || visit == nil {
 		return currentVisitCheckout{}, err
@@ -554,18 +565,29 @@ func (s *Service) roomNameForResponse(ctx context.Context, currentVisit *ports.C
 	return ""
 }
 
+// activeStudentCount is the kiosk counter of a scan. A session count carries
+// its session and visit revision (#5128); a room-wide count carries its room
+// and the room's visit revision (#5205). The two scopes never mix.
+type activeStudentCount struct {
+	count        *int
+	sessionID    *int64
+	revision     *int64
+	roomID       *int64
+	roomRevision *int64
+}
+
 // resolveActiveStudentCount refreshes the heartbeat of the device session
 // and returns the count the kiosk shows: scoped to the scanning device's
 // session where possible, otherwise the whole room, and none without a room.
 // The device session gets its heartbeat whichever room the scan named, so
 // the kiosk needs no POST /session/activity after it (#5004).
-func (s *Service) resolveActiveStudentCount(ctx context.Context, checkin *checkinResult, roomID *int64, deviceID int64) (*int, error) {
+func (s *Service) resolveActiveStudentCount(ctx context.Context, checkin *checkinResult, roomID *int64, deviceID int64) (activeStudentCount, error) {
 	if roomID == nil {
-		return nil, s.touchDeviceSession(ctx, deviceID)
+		return activeStudentCount{}, s.touchDeviceSession(ctx, deviceID)
 	}
 	sessionID, err := s.touchScanSession(ctx, checkin, *roomID, deviceID)
 	if err != nil {
-		return nil, err
+		return activeStudentCount{}, err
 	}
 	if sessionID != nil {
 		return s.activeStudentCountForSession(ctx, *sessionID), nil
@@ -597,28 +619,34 @@ func (s *Service) touchScanSession(ctx context.Context, checkin *checkinResult, 
 	return inRoom, err
 }
 
-func (s *Service) activeStudentCountForRoom(ctx context.Context, roomID int64) *int {
-	count, err := s.presence.CountOpenVisitsInRoom(ctx, roomID)
+// activeStudentCountForRoom reads the room-wide count with the room's
+// revision (#5205). Inside the scan's transaction it includes the scan's own
+// change and its events.
+func (s *Service) activeStudentCountForRoom(ctx context.Context, roomID int64) activeStudentCount {
+	count, revision, err := s.presence.CountOpenVisitsInRoomWithRevision(ctx, roomID)
 	if err != nil {
 		s.logger.WarnContext(ctx, "failed to count active students for room",
 			slog.Int64("room_id", roomID),
 			slog.String("error", err.Error()),
 		)
-		return nil
+		return activeStudentCount{}
 	}
-	return &count
+	return activeStudentCount{count: &count, roomID: &roomID, roomRevision: &revision}
 }
 
-func (s *Service) activeStudentCountForSession(ctx context.Context, sessionID int64) *int {
-	count, err := s.presence.CountOpenVisitsInGroup(ctx, sessionID)
+// activeStudentCountForSession reads the session count with its revision.
+// The scan's own transaction holds the session's revision lock when the scan
+// changed the count, so the answer carries the revision of this change.
+func (s *Service) activeStudentCountForSession(ctx context.Context, sessionID int64) activeStudentCount {
+	count, revision, err := s.presence.CountOpenVisitsInGroupWithRevision(ctx, sessionID)
 	if err != nil {
 		s.logger.WarnContext(ctx, "failed to count active students for group",
 			slog.Int64("active_group_id", sessionID),
 			slog.String("error", err.Error()),
 		)
-		return nil
+		return activeStudentCount{}
 	}
-	return &count
+	return activeStudentCount{count: &count, sessionID: &sessionID, revision: &revision}
 }
 
 // touchDeviceSession refreshes the heartbeat of the device's running

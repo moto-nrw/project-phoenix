@@ -3,9 +3,11 @@
 import type { HolidayPeriod, TraegerSchool } from "~/lib/traeger-api";
 import type {
   HolidayRegistrationDetail,
+  HolidayRegistrationHealthDetail,
   HolidayRegistrationList,
 } from "~/lib/traeger-holiday-registrations-api";
 import type { HolidayContribution } from "~/lib/traeger-contributions-api";
+import { HOLIDAY_CONSENT_TEXTS } from "./holiday-consent-texts";
 
 export const HOLIDAY_SCHOOLS: TraegerSchool[] = [
   { id: "31", name: "OGS Nord", slug: "nord", subdomain: "nord", city: "" },
@@ -74,6 +76,9 @@ export const HOLIDAY_REGISTRATION: HolidayRegistrationDetail = {
   guardianEmail: "eva@example.org",
   guardianPhone: "0151 2345678",
   benefitsDeclared: false,
+  debtorNumber: "",
+  guardianAddress: null,
+  secondGuardian: null,
   children: [
     {
       id: "9",
@@ -114,9 +119,6 @@ export const HOLIDAY_REGISTRATION: HolidayRegistrationDetail = {
       ],
     },
   ],
-  health: [
-    { childId: "9", allergies: "Erdnüsse", medication: "", healthNotes: "" },
-  ],
   contacts: [
     {
       kind: "emergency",
@@ -128,7 +130,15 @@ export const HOLIDAY_REGISTRATION: HolidayRegistrationDetail = {
   privacyConsentAt: "2026-09-03T08:00:00Z",
   healthConsentAt: "2026-09-03T08:00:00Z",
   bindingConfirmedAt: "2026-09-03T08:00:00Z",
+  custodyConfirmedAt: "2026-09-03T08:00:00Z",
+  declarationName: "Eva Muster",
+  consentVersion: 3,
+  consentTexts: HOLIDAY_CONSENT_TEXTS,
+  benefitsProofs: [],
   history: [],
+  form: { version: 1, fields: [] },
+  answers: {},
+  childAnswers: {},
 };
 
 export const HOLIDAY_REGISTRATION_LIST: HolidayRegistrationList = {
@@ -193,4 +203,25 @@ export const HOLIDAY_CONTRIBUTION: HolidayContribution = {
   benefitsExemption: false,
   frozen: false,
   confirmedAt: null,
+};
+
+/** The health information of HOLIDAY_REGISTRATION, read apart (#4722). */
+export const HOLIDAY_REGISTRATION_HEALTH: HolidayRegistrationHealthDetail = {
+  answers: {},
+  children: [
+    {
+      childId: "9",
+      allergies: "Erdnüsse",
+      medication: "",
+      healthNotes: "",
+      answers: { tetanus: "weiss_nicht" },
+    },
+    {
+      childId: "10",
+      allergies: "",
+      medication: "",
+      healthNotes: "",
+      answers: {},
+    },
+  ],
 };

@@ -80,6 +80,24 @@ func (s *StudentState) CareEndedOn(day calendar.Date) bool {
 	return s != nil && s.EnrolledUntil != nil && day.After(*s.EnrolledUntil)
 }
 
+// HolidayGuestSchoolClass is the class of the child a holiday guest becomes
+// (ADR 0120): People Directory requires one, and the groups and lists of the
+// school show it where they show a class, so the staff tell a guest from
+// their own children at a glance.
+const HolidayGuestSchoolClass = "Feriengast"
+
+// HealthInfoOn is the health field as the school sees it on day. A holiday
+// guest carries the health information of its registration only up to the
+// last day of its week (#4722, ADR 0120 addendum of 2026-11-01); from the
+// day after, the field reads empty, whether or not the hourly
+// reconciliation has cleared it yet.
+func (s *StudentState) HealthInfoOn(day calendar.Date) *string {
+	if s == nil || (s.SchoolClass == HolidayGuestSchoolClass && s.CareEndedOn(day)) {
+		return nil
+	}
+	return s.HealthInfo
+}
+
 // CareLifecycle is a child's graduation and end-of-care facts, as every
 // student view of the People Directory reports them.
 type CareLifecycle interface {

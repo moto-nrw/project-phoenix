@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	organizationcompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -49,11 +50,19 @@ type demoAccessExpiry interface {
 	ExpireDemoAccesses(ctx context.Context) (int, []string, error)
 }
 
+// demoSchoolFiles is the owner's file erasure of retired demo schools (#5544).
+type demoSchoolFiles interface {
+	EraseRetiredDemoSchoolFiles(ctx context.Context) (schools int, files int64, err error)
+}
+
 // DemoRuntime composes only the owner capabilities needed by the sidecar.
 // It deliberately does not construct the retained API/service factory graph.
 // The calls whose signatures carry owner types are bound as functions in
-// NewDemoRuntime, so the dev tools import no owner's public package.
+// NewDemoRuntime, so the dev tools import no owner's public package besides
+// Delivery's uploads store, which they bind for the file erasure (ADR 0148).
 type DemoRuntime struct {
+	// demoSchoolFiles removes the uploads of retired demo schools (#5544).
+	demoSchoolFiles
 	seedAdapter  func(string, bool) seedCommandAdapter
 	schools      demoSchoolStore
 	queue        demoSchoolQueue
@@ -68,13 +77,15 @@ type DemoRuntime struct {
 
 // NewDemoRuntime composes the sidecar on its restricted demo connection, the
 // standing demo's database with its own unit of work; now is the clock the
-// expiry of demo accesses reads (#3470).
-func NewDemoRuntime(db transactionruntime.Database, now func() time.Time, seedAdapter func(string, bool) seedCommandAdapter) (*DemoRuntime, error) {
+// expiry of demo accesses reads (#3470). uploadsRoot is the uploads directory
+// of the demo server, from which the files of retired demo schools are
+// removed (#5544).
+func NewDemoRuntime(db transactionruntime.Database, now func() time.Time, seedAdapter func(string, bool) seedCommandAdapter, uploadsRoot string) (*DemoRuntime, error) {
 	schools, err := organizationcompose.NewDemoSchools(db.Pool())
 	if err != nil {
 		return nil, err
 	}
-	expiry, err := identityaccessCompose.NewDemoAccessExpiry(db.Pool(), now)
+	expiry, files, err := newDemoCleanup(db, now, uploadsRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -87,8 +98,9 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time, seedAd
 		return nil, err
 	}
 	return &DemoRuntime{
-		seedAdapter: seedAdapter,
-		schools:     schools, queue: queue, expiry: expiry, transactions: db.UnitOfWork(),
+		seedAdapter:     seedAdapter,
+		demoSchoolFiles: files,
+		schools:         schools, queue: queue, expiry: expiry, transactions: db.UnitOfWork(),
 		loadSchool: func(ctx context.Context, name string) (*DemoSchoolRecord, error) {
 			state, err := schools.LoadDemoSchool(ctx, name)
 			if state == nil || err != nil {
@@ -124,6 +136,21 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time, seedAd
 			return result, nil
 		},
 	}, nil
+}
+
+// newDemoCleanup composes what the hourly expiry removes: the demo accesses
+// past their end (#3470) and the uploads of retired demo schools, from the
+// demo server's uploads store (#5544, ADR 0148).
+func newDemoCleanup(db transactionruntime.Database, now func() time.Time, uploadsRoot string) (demoAccessExpiry, demoSchoolFiles, error) {
+	expiry, err := identityaccessCompose.NewDemoAccessExpiry(db.Pool(), now)
+	if err != nil {
+		return nil, nil, err
+	}
+	files, err := organizationcompose.NewDemoSchoolFiles(db.Pool(), objects.NewLocal(uploadsRoot))
+	if err != nil {
+		return nil, nil, err
+	}
+	return expiry, files, nil
 }
 
 // ExpireDemoAccesses deletes the demo accesses 14 days past their last use

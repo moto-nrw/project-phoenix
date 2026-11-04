@@ -2,7 +2,6 @@
 // fragment and leaves the browser only in a POST body, so no server or proxy
 // log records it.
 
-import { signIn } from "next-auth/react";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { parentsPortalUrl } from "~/lib/parent-url";
 
@@ -21,13 +20,9 @@ export const DEMO_RECORDING_NOTICE =
   "Um moto zu verbessern, werten wir aus, wie die Demo genutzt wird. Was Sie eintippen, sehen wir dabei nicht.";
 export const DEMO_RECORDING_PRIVACY_LINK = "Mehr zum Datenschutz";
 
-/**
- * True in the image built for the public demo only. Next.js inlines the
- * value at build time, so no other build ever shows the demo banner.
- */
-export function isDemoBuild(): boolean {
-  return process.env.NEXT_PUBLIC_APP_ENV === "demo";
-}
+// Kept in its own light module so screens outside the demo flow can ask
+// without loading the sign-in code below.
+export { isDemoBuild } from "~/lib/demo-build";
 
 /**
  * What the visitor sees the demo school as (#3467). The visitor has one
@@ -58,7 +53,10 @@ export const DEMO_ROLES: readonly {
   {
     role: "parent",
     label: "Elternteil",
-    description: "Die Eltern-App: Kind, Abholung, Krankmeldung, Nachrichten.",
+    // The visitor is also the parent of one child of the school (#3468), so
+    // their name stands at that child's guardians in every role (#5033).
+    description:
+      "Die Eltern-App für Ihr eigenes Kind an der Schule: Abholung, Krankmeldung, Nachrichten.",
   },
 ];
 
@@ -165,11 +163,6 @@ export function isDemoEntryPath(
 }
 
 type DemoAccessStatus = "preparing" | "ready" | "failed" | "invalid";
-
-interface DemoTokenPair {
-  access_token: string;
-  refresh_token: string;
-}
 
 /** What a demo link carries in its fragment. */
 export interface DemoLink {
@@ -430,7 +423,8 @@ export async function waitForDemoSchool(
  * A redeemed demo link: the session and what the banner shows and reports.
  * `accessId` names the demo access in the product analytics, never a person.
  */
-export interface DemoSession extends DemoTokenPair {
+export interface DemoSession {
+  sessionCreated: boolean;
   visit: DemoVisit;
 }
 
@@ -450,7 +444,8 @@ async function postSession(body: {
       `demo redeem failed: ${response.status}`,
     );
   }
-  const payload = (await response.json()) as DemoTokenPair & {
+  const payload = (await response.json()) as {
+    session_created?: boolean;
     demo?: {
       access_id?: string;
       role?: string;
@@ -459,8 +454,7 @@ async function postSession(body: {
     };
   };
   return {
-    access_token: payload.access_token,
-    refresh_token: payload.refresh_token,
+    sessionCreated: payload.session_created === true,
     visit: {
       accessId: payload.demo?.access_id ?? "",
       role: isDemoRole(payload.demo?.role) ? payload.demo.role : body.role,
@@ -524,22 +518,14 @@ function isDemoEntryEvent(value: unknown): value is DemoEntryEvent {
 }
 
 /**
- * Signs in with the session's token pair and notes the visit for the banner,
- * which reports `pending` once the next page has loaded. False when the
- * sign-in failed. The parents app signs in with its own provider (#3468).
+ * Notes the BFF-created session for the banner, which reports `pending`
+ * once the next page has loaded. False when no session was created.
  */
 export async function startDemoSession(
   session: DemoSession,
   pending: NonNullable<DemoVisit["pending"]>,
-  provider: "credentials" | "parent-credentials" = "credentials",
 ): Promise<boolean> {
-  const result = await signIn(provider, {
-    redirect: false,
-    internalRefresh: true,
-    token: session.access_token,
-    refreshToken: session.refresh_token,
-  });
-  if (result?.error) return false;
+  if (!session.sessionCreated) return false;
   saveDemoVisit({ ...session.visit, pending });
   forgetDemoLink();
   return true;

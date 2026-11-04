@@ -1,0 +1,7 @@
+{
+  "no_school_portal_role": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "setup_completed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "setup_incomplete": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "parent_conference_slot_taken": "Bu saat az önce başkası tarafından alındı. Lütfen başka bir saat seçin.",
+  "parent_conference_change_closed": "Görüşmeden 24 saat öncesine kadar randevu alabilir, değiştirebilir veya iptal edebilirsiniz. Sonrasında lütfen doğrudan öğretmenle iletişime geçin."
+}

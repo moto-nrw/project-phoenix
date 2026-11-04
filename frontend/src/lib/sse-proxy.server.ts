@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { clientIdentityHeaders } from "~/lib/client-headers.server";
 import { type Logger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { captureBffException } from "~/lib/sentry-bff.server";
@@ -63,6 +64,7 @@ export async function proxySSEStream(
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "text/event-stream",
+          ...clientIdentityHeaders(request.headers),
         },
         cache: "no-store",
         signal: upstreamController.signal,

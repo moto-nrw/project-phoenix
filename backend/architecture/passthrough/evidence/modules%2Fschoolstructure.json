@@ -1,0 +1,326 @@
+{
+  "sites": [
+    {
+      "build": "testhooks",
+      "evidence": "func (r *TeacherGroupIDs) TeacherGroupIDs(ctx context.Context, teacherID int64) ([]int64, error) {\n\tgroups, err := r.records.GetTeacherGroups(ctx, teacherID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tids := make([]int64, 0, len(groups))\n\tfor _, group := range groups {\n\t\tif group != nil {\n\t\t\tids = append(ids, group.ID)\n\t\t}\n\t}\n\treturn ids, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/TeacherGroupIDs.TeacherGroupIDs",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) CountGroups(ctx context.Context, query *domain.GroupListQuery) (int, error) {\n\tcount, err := s.capability.CountGroups(ctx, legacyGroupQuery(query))\n\treturn count, legacyGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.CountGroups",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) CreateGroup(ctx context.Context, row *domain.Group) error {\n\tvalue := groups.PublicGroup(row)\n\terr := s.capability.CreateGroup(ctx, value)\n\tif row != nil \u0026\u0026 value != nil {\n\t\t*row = *groups.LegacyGroup(value)\n\t}\n\treturn legacyGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.CreateGroup",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) DeleteGroup(ctx context.Context, id int64) error {\n\treturn legacyGroupError(s.capability.DeleteGroup(ctx, id))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.DeleteGroup",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) FindGroupWithRoom(ctx context.Context, id int64) (*domain.Group, error) {\n\tvalue, err := s.capability.FindGroupWithRoom(ctx, id)\n\treturn groups.LegacyGroup(value), legacyGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.FindGroupWithRoom",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) GetGroup(ctx context.Context, id int64) (*domain.Group, error) {\n\tvalue, err := s.capability.GetGroup(ctx, id)\n\treturn groups.LegacyGroup(value), legacyGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.GetGroup",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) GetGroupTeachers(ctx context.Context, id int64) ([]*groups.Teacher, error) {\n\tvalues, err := s.capability.GetGroupTeachers(ctx, id)\n\tif values == nil {\n\t\treturn nil, legacyGroupError(err)\n\t}\n\tresult := make([]*groups.Teacher, len(values))\n\tfor i, value := range values {\n\t\tresult[i] = legacyTeacher(value)\n\t}\n\treturn result, legacyGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.GetGroupTeachers",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*domain.Group, error) {\n\tvalues, err := s.capability.GetGroupsByIDs(ctx, ids)\n\tif values == nil {\n\t\treturn nil, legacyGroupError(err)\n\t}\n\tresult := make(map[int64]*domain.Group, len(values))\n\tfor id, value := range values {\n\t\tresult[id] = groups.LegacyGroup(value)\n\t}\n\treturn result, legacyGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.GetGroupsByIDs",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) GetGroupsWithRoomsByIDs(ctx context.Context, ids []int64) (map[int64]*domain.Group, error) {\n\tvalues, err := s.capability.GetGroupsWithRoomsByIDs(ctx, ids)\n\tif values == nil {\n\t\treturn nil, legacyGroupError(err)\n\t}\n\tresult := make(map[int64]*domain.Group, len(values))\n\tfor id, value := range values {\n\t\tresult[id] = groups.LegacyGroup(value)\n\t}\n\treturn result, legacyGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.GetGroupsWithRoomsByIDs",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) GetStaffSchoolClasses(ctx context.Context, id int64) ([]string, error) {\n\tvalues, err := s.capability.GetStaffSchoolClasses(ctx, id)\n\treturn values, legacyGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.GetStaffSchoolClasses",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) GetTeacherGroups(ctx context.Context, id int64) ([]*domain.Group, error) {\n\tvalues, err := s.capability.GetTeacherGroups(ctx, id)\n\tif values == nil {\n\t\treturn nil, legacyGroupError(err)\n\t}\n\tresult := make([]*domain.Group, len(values))\n\tfor i, value := range values {\n\t\tresult[i] = groups.LegacyGroup(value)\n\t}\n\treturn result, legacyGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.GetTeacherGroups",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) ListGroups(ctx context.Context, query *domain.GroupListQuery) ([]*domain.Group, error) {\n\tvalues, err := s.capability.ListGroups(ctx, legacyGroupQuery(query))\n\tif values == nil {\n\t\treturn nil, legacyGroupError(err)\n\t}\n\tresult := make([]*domain.Group, len(values))\n\tfor i, value := range values {\n\t\tresult[i] = groups.LegacyGroup(value)\n\t}\n\treturn result, legacyGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.ListGroups",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) RemoveTeacherFromGroup(ctx context.Context, id, teacherID int64) error {\n\treturn legacyGroupError(s.capability.RemoveTeacherFromGroup(ctx, id, teacherID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.RemoveTeacherFromGroup",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) SetStaffSchoolClasses(ctx context.Context, id int64, classes []string, changedBy int64) error {\n\treturn legacyGroupError(s.capability.SetStaffSchoolClasses(ctx, id, classes, changedBy))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.SetStaffSchoolClasses",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) UpdateGroup(ctx context.Context, row *domain.Group) error {\n\tvalue := groups.PublicGroup(row)\n\terr := s.capability.UpdateGroup(ctx, value)\n\tif row != nil \u0026\u0026 value != nil {\n\t\t*row = *groups.LegacyGroup(value)\n\t}\n\treturn legacyGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.UpdateGroup",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (s *legacyGroupManagement) UpdateGroupTeachers(ctx context.Context, id int64, ids []int64) error {\n\treturn legacyGroupError(s.capability.UpdateGroupTeachers(ctx, id, ids))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.UpdateGroupTeachers",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *OperationError) Error() string {\n\tif e.Cause != nil {\n\t\treturn e.Message + \": \" + e.Cause.Error()\n\t}\n\treturn e.Message\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/contract/OperationError.Error",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *Reader) ListSchoolClassesByStaff(ctx context.Context, staffID int64) ([]string, error) {\n\tif staffID \u003c= 0 {\n\t\treturn nil, schoolstructure.ErrInvalidStaff\n\t}\n\tassignments, err := r.assignments.ListClassAssignments(ctx, schoolmembership.ClassAssignmentFilter{StaffIDs: []int64{staffID}})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tclasses := make([]string, 0, len(assignments))\n\tfor _, assignment := range assignments {\n\t\tclasses = append(classes, assignment.SchoolClass)\n\t}\n\treturn classes, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/adapters/staffgroups/Reader.ListSchoolClassesByStaff",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *GroupRoomDirectory) ListGroupRooms(ctx context.Context) ([]*schoolstructure.GroupRoomAssignment, error) {\n\trows, err := r.records.List(ctx, nil)\n\tif rows == nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]*schoolstructure.GroupRoomAssignment, len(rows))\n\tfor i, row := range rows {\n\t\tif row != nil {\n\t\t\tresult[i] = \u0026schoolstructure.GroupRoomAssignment{ID: row.ID, RoomID: row.RoomID}\n\t\t}\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/GroupRoomDirectory.ListGroupRooms",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g GroupNames) GroupNamesByID(ctx context.Context, groupIDs []int64) (map[int64]string, error) {\n\tgroups, err := g.groups.FindByIDs(ctx, groupIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tnames := make(map[int64]string, len(groups))\n\tfor id, group := range groups {\n\t\tif group != nil {\n\t\t\tnames[id] = group.Name\n\t\t}\n\t}\n\treturn names, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/GroupNames.GroupNamesByID",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *GroupStoreError) Error() string {\n\tif e.Err == nil {\n\t\treturn \"database error during \" + e.Op\n\t}\n\treturn \"database error during \" + e.Op + \": \" + e.Err.Error()\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/GroupStoreError.Error",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) CountGroups(ctx context.Context, query *schoolstructure.GroupListQuery) (int, error) {\n\tcount, err := s.reads.CountGroups(ctx, publicGroupQuery(query))\n\treturn count, PublicGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.CountGroups",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) CreateGroup(ctx context.Context, value *schoolstructure.Group) error {\n\trow := LegacyGroup(value)\n\terr := s.service.CreateGroup(ctx, row)\n\tif value != nil \u0026\u0026 row != nil {\n\t\t*value = *PublicGroup(row)\n\t}\n\treturn PublicGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.CreateGroup",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) DeleteGroup(ctx context.Context, id int64) error {\n\treturn PublicGroupError(s.service.DeleteGroup(ctx, id))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.DeleteGroup",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) FindGroupWithRoom(ctx context.Context, id int64) (*schoolstructure.Group, error) {\n\trow, err := s.reads.FindGroupWithRoom(ctx, id)\n\treturn PublicGroup(row), PublicGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.FindGroupWithRoom",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) GetGroup(ctx context.Context, id int64) (*schoolstructure.Group, error) {\n\trow, err := s.reads.GetGroup(ctx, id)\n\treturn PublicGroup(row), PublicGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.GetGroup",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) GetGroupTeachers(ctx context.Context, id int64) ([]*schoolstructure.Teacher, error) {\n\trows, err := s.service.GetGroupTeachers(ctx, id)\n\tif rows == nil {\n\t\treturn nil, PublicGroupError(err)\n\t}\n\tresult := make([]*schoolstructure.Teacher, len(rows))\n\tfor i, row := range rows {\n\t\tresult[i] = publicTeacher(row)\n\t}\n\treturn result, PublicGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.GetGroupTeachers",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*schoolstructure.Group, error) {\n\trows, err := s.reads.GetGroupsByIDs(ctx, ids)\n\tif rows == nil {\n\t\treturn nil, PublicGroupError(err)\n\t}\n\tresult := make(map[int64]*schoolstructure.Group, len(rows))\n\tfor id, row := range rows {\n\t\tresult[id] = PublicGroup(row)\n\t}\n\treturn result, PublicGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.GetGroupsByIDs",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) GetGroupsWithRoomsByIDs(ctx context.Context, ids []int64) (map[int64]*schoolstructure.Group, error) {\n\trows, err := s.reads.GetGroupsWithRoomsByIDs(ctx, ids)\n\tif rows == nil {\n\t\treturn nil, PublicGroupError(err)\n\t}\n\tresult := make(map[int64]*schoolstructure.Group, len(rows))\n\tfor id, row := range rows {\n\t\tresult[id] = PublicGroup(row)\n\t}\n\treturn result, PublicGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.GetGroupsWithRoomsByIDs",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) GetStaffSchoolClasses(ctx context.Context, id int64) ([]string, error) {\n\tvalues, err := s.service.GetStaffSchoolClasses(ctx, id)\n\treturn values, PublicGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.GetStaffSchoolClasses",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) GetTeacherGroups(ctx context.Context, id int64) ([]*schoolstructure.Group, error) {\n\trows, err := s.service.GetTeacherGroups(ctx, id)\n\tif rows == nil {\n\t\treturn nil, PublicGroupError(err)\n\t}\n\tresult := make([]*schoolstructure.Group, len(rows))\n\tfor i, row := range rows {\n\t\tresult[i] = PublicGroup(row)\n\t}\n\treturn result, PublicGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.GetTeacherGroups",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) ListGroups(ctx context.Context, query *schoolstructure.GroupListQuery) ([]*schoolstructure.Group, error) {\n\trows, err := s.reads.ListGroups(ctx, publicGroupQuery(query))\n\tif rows == nil {\n\t\treturn nil, PublicGroupError(err)\n\t}\n\tresult := make([]*schoolstructure.Group, len(rows))\n\tfor i, row := range rows {\n\t\tresult[i] = PublicGroup(row)\n\t}\n\treturn result, PublicGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.ListGroups",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID int64) error {\n\treturn PublicGroupError(s.service.RemoveTeacherFromGroup(ctx, groupID, teacherID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.RemoveTeacherFromGroup",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) SetStaffSchoolClasses(ctx context.Context, id int64, classes []string, changedBy int64) error {\n\treturn PublicGroupError(s.service.SetStaffSchoolClasses(ctx, id, classes, changedBy))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.SetStaffSchoolClasses",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) UpdateGroup(ctx context.Context, value *schoolstructure.Group) error {\n\trow := LegacyGroup(value)\n\terr := s.service.UpdateGroup(ctx, row)\n\tif value != nil \u0026\u0026 row != nil {\n\t\t*value = *PublicGroup(row)\n\t}\n\treturn PublicGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.UpdateGroup",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupManagement) UpdateGroupTeachers(ctx context.Context, id int64, ids []int64) error {\n\treturn PublicGroupError(s.service.UpdateGroupTeachers(ctx, id, ids))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.UpdateGroupTeachers",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupReads) CountGroups(ctx context.Context, query *domain.GroupListQuery) (int, error) {\n\tcount, err := s.groupRepo.CountGroups(ctx, query)\n\tif err != nil {\n\t\treturn 0, \u0026EducationError{Op: \"CountGroups\", Err: err}\n\t}\n\treturn count, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupReads.CountGroups",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupReads) FindGroupWithRoom(ctx context.Context, groupID int64) (*domain.Group, error) {\n\tgroup, err := s.groupRepo.FindWithRoom(ctx, groupID)\n\tif err != nil {\n\t\treturn nil, \u0026EducationError{Op: \"FindGroupWithRoom\", Err: ErrGroupNotFound}\n\t}\n\treturn group, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupReads.FindGroupWithRoom",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupReads) GetGroup(ctx context.Context, id int64) (*domain.Group, error) {\n\tgroup, err := s.groupRepo.FindByID(ctx, id)\n\tif err != nil {\n\t\treturn nil, \u0026EducationError{Op: \"GetGroup\", Err: ErrGroupNotFound}\n\t}\n\treturn group, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupReads.GetGroup",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupReads) GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*domain.Group, error) {\n\tif len(ids) == 0 {\n\t\treturn make(map[int64]*domain.Group), nil\n\t}\n\tgroups, err := s.groupRepo.FindByIDs(ctx, ids)\n\tif err != nil {\n\t\treturn nil, \u0026EducationError{Op: \"GetGroupsByIDs\", Err: err}\n\t}\n\treturn groups, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupReads.GetGroupsByIDs",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupReads) GetGroupsWithRoomsByIDs(ctx context.Context, ids []int64) (map[int64]*domain.Group, error) {\n\tgroups, err := s.groupRepo.FindByIDsWithRooms(ctx, ids)\n\tif err != nil {\n\t\treturn nil, \u0026EducationError{Op: \"GetGroupsWithRoomsByIDs\", Err: err}\n\t}\n\treturn groups, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupReads.GetGroupsWithRoomsByIDs",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *groupReads) ListGroups(ctx context.Context, query *domain.GroupListQuery) ([]*domain.Group, error) {\n\tgroups, err := s.groupRepo.ListWithRooms(ctx, query)\n\tif err != nil {\n\t\treturn nil, \u0026EducationError{Op: \"ListGroups\", Err: err}\n\t}\n\treturn groups, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/groupReads.ListGroups",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *substitutionBoundary) Assign(ctx context.Context, caller SubstitutionCaller, request Assignment) (*AssignmentResult, error) {\n\tresult, err := s.module.Assign(ctx, caller, request)\n\treturn result, PublicGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/substitutionBoundary.Assign",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *substitutionBoundary) End(ctx context.Context, caller SubstitutionCaller, request EndRequest) error {\n\treturn PublicGroupError(s.module.End(ctx, caller, request))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/substitutionBoundary.End",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *substitutionBoundary) Overview(ctx context.Context, caller SubstitutionCaller, query OverviewQuery) (*OverviewResult, error) {\n\tresult, err := s.module.Overview(ctx, caller, query)\n\treturn result, PublicGroupError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/application/groups/substitutionBoundary.Overview",
+      "owner": "modules/schoolstructure"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *StoreError) Error() string {\n\tif e.Err == nil {\n\t\treturn \"database error during \" + e.Op\n\t}\n\treturn \"database error during \" + e.Op + \": \" + e.Err.Error()\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolstructure/internal/domain/StoreError.Error",
+      "owner": "modules/schoolstructure"
+    }
+  ]
+}

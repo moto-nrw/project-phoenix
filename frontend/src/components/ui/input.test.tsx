@@ -22,8 +22,18 @@ describe("Input", () => {
     expect(screen.getByText("Invalid email address")).toBeInTheDocument();
   });
 
-  it("announces the error as an alert when provided", () => {
-    render(<Input name="email" error="Invalid email address" />);
+  it("keeps a hint after Speichern quiet and links it to the field", () => {
+    // The form's FormErrorAlert announces the failure once (#5217).
+    render(<Input name="email" label="E-Mail" error="Invalid email address" />);
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const input = screen.getByRole("textbox", { name: "E-Mail" });
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription("Invalid email address");
+  });
+
+  it("announces the error as an alert for a check while typing", () => {
+    render(<Input name="email" error="Invalid email address" errorLive />);
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Invalid email address",
@@ -107,5 +117,22 @@ describe("Input", () => {
     const input = screen.getByLabelText("Ende");
     expect(input).toHaveAttribute("id", "edit-end");
     expect(input).toHaveAttribute("name", "endTime");
+  });
+});
+
+describe("Input required mark (#5217)", () => {
+  it("marks a required field with a star that stays out of its name", () => {
+    render(<Input label="Vorname" name="first_name" required />);
+
+    const input = screen.getByRole("textbox", { name: "Vorname" });
+    expect(input).toBeRequired();
+    expect(screen.getByText("*")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("shows no star on an optional field", () => {
+    render(<Input label="Vorname" name="first_name" />);
+
+    expect(screen.getByRole("textbox", { name: "Vorname" })).not.toBeRequired();
+    expect(screen.queryByText("*")).not.toBeInTheDocument();
   });
 });

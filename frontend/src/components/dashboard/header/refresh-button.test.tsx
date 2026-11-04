@@ -6,10 +6,10 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { RefreshButton } from "./refresh-button";
 
-// Mock SWR config
+// The scoped invalidation of ~/lib/swr
 const mockMutate = vi.fn().mockResolvedValue(undefined);
-vi.mock("swr", () => ({
-  useSWRConfig: () => ({ mutate: mockMutate }),
+vi.mock("~/lib/swr", () => ({
+  useInvalidateMatching: () => mockMutate,
 }));
 
 /** Helper: find the RotateCw icon (no text-moto-green class) */
@@ -63,7 +63,7 @@ describe("RefreshButton", () => {
     expect(findCheckIcon(container)).toHaveClass("opacity-0");
   });
 
-  it("calls SWR mutate on click", async () => {
+  it("invalidates every entry of the session's scope on click", async () => {
     render(<RefreshButton />);
 
     await act(async () => {
@@ -73,6 +73,8 @@ describe("RefreshButton", () => {
     });
 
     expect(mockMutate).toHaveBeenCalledWith(expect.any(Function));
+    const matches = mockMutate.mock.calls[0]?.[0] as (key: string) => boolean;
+    expect(matches("students-list")).toBe(true);
   });
 
   it("shows spin animation during refresh", async () => {

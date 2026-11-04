@@ -1,0 +1,9 @@
+{
+  "bulk_exception_confirmation_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "future_manual_reset": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "offering_capacity_full": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "offerings_disabled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "preview_stale": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "resolution_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+}

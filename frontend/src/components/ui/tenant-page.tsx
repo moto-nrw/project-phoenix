@@ -8,6 +8,7 @@ import type {
   KeyboardEvent,
   MouseEvent,
   ReactNode,
+  RefObject,
 } from "react";
 import {
   useCallback,
@@ -26,7 +27,7 @@ import type { FormErrorDetail } from "~/components/ui/form-error";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { BackLink } from "~/components/ui/back-link";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
 import type { PageHeaderWithSearchProps } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -37,12 +38,14 @@ import type {
   FilterConfig,
   OverflowMenuItem,
 } from "~/components/ui/page-header/types";
+import { createLogger } from "~/lib/logger";
 import { cn } from "~/lib/utils";
 
 /**
  * Das Seitengerüst des Tenant-Portals. JEDE Seite unter
  * `app/[tenant]/(protected)` rendert genau dieses Gerüst als Wurzel
- * (Ausnahmen gibt es nicht.)
+ * (Ausnahmen gibt es nicht.), ebenso jede Seite des Träger-Portals nach der
+ * Anmeldung (`app/traeger`, #5146).
  *
  * Die Reihenfolge der Bausteine ist fest und liegt hier, nicht in der Seite:
  *
@@ -221,7 +224,11 @@ export interface TenantPageProps {
    * jedem Zustand gemountet.
    */
   readonly overlays?: ReactNode;
-  /** Leerzustand: ersetzt den Inhalt, sobald nichts zu zeigen ist. */
+  /**
+   * Leerzustand: ersetzt den Inhalt, sobald nichts zu zeigen ist. `action`
+   * wiederholt keine Kopfaktion (`actions`), sondern steht nur für eine
+   * andere Handlung, etwa „Filter zurücksetzen" (#5034).
+   */
   readonly empty?: {
     readonly title: string;
     readonly description?: string;
@@ -309,7 +316,12 @@ export function TenantPageStats({
   return (
     <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
       {items.slice(0, MAX_STATS_ITEMS).map((item, index) => (
-        <span key={item.label} className="inline-flex items-center gap-1.5">
+        // Paare ohne Label (nur ein Wert) teilen sich das leere Label; erst
+        // die Position macht den Schlüssel eindeutig.
+        <span
+          key={`${index}-${item.label}`}
+          className="inline-flex items-center gap-1.5"
+        >
           {index > 0 && (
             <span aria-hidden="true" className="text-gray-300">
               ·
@@ -332,15 +344,16 @@ export function TenantPageStats({
  * Der Selektor greift auch verschachtelte Auslöser, deshalb Nachfahren und
  * nicht nur direkte Kinder.
  */
-// Eine Bedienhöhe in der Kopfkarte: 40 px für Schaltflächen, Auswahl- UND
-// Eingabefelder, auf dem Telefon 44 px (die Untergrenze für eine
-// Touch-Fläche, dieselbe Begründung wie `Button size="touch"` der
-// Eltern-App). Das Eingabefeld fehlte hier anfangs, deshalb stand das
+// Eine Bedienhöhe in der Kopfkarte: 40 px für Schaltflächen, Links in
+// Button-Optik (`ButtonLink`), Auswahl- UND Eingabefelder, auf dem Telefon
+// 44 px (die Untergrenze für eine Touch-Fläche, dieselbe wie die
+// Fingerregel des Kits). Das Eingabefeld fehlte hier anfangs, deshalb stand das
 // Suchfeld mit 42 px neben Filterknöpfen mit 36 — auf acht Seiten derselbe
-// Versatz. Der `SegmentedControl` behauptet seine Segmenthöhe mit `!` und
+// Versatz; ebenso stand ein `ButtonLink` mit 32 oder 36 px neben 40-px-Knöpfen
+// (#5531). Der `SegmentedControl` behauptet seine Segmenthöhe mit `!` und
 // kommt mitsamt Spur ebenfalls auf 40 px — siehe dort.
 const CONTROL_HEIGHT =
-  "[&_button]:h-10 [&_select]:h-10 [&_input]:h-10 max-sm:[&_button]:h-11 max-sm:[&_select]:h-11 max-sm:[&_input]:h-11";
+  "[&_button]:h-10 [&_a[data-button-link]]:h-10 [&_select]:h-10 [&_input]:h-10 max-sm:[&_button]:h-11 max-sm:[&_a[data-button-link]]:h-11 max-sm:[&_select]:h-11 max-sm:[&_input]:h-11";
 
 /**
  * Die Such- und Filterzeile der Kopfkarte als eigene Fläche im Inhalt, direkt
@@ -368,7 +381,7 @@ export function TenantPageListSearch({
     // Die Auswahl „Gruppe“ öffnet über den Kartenrand hinaus.
     <SectionCard overflow="visible">
       <div role="search" aria-label={label} className={CONTROL_HEIGHT}>
-        <PageHeaderWithSearch
+        <PageHeaderSearchLayout
           embedded
           title=""
           search={search}
@@ -434,6 +447,60 @@ export function TenantPage(props: TenantPageProps) {
   return <TenantPageView {...props} />;
 }
 
+const logger = createLogger({ component: "TenantPage" });
+
+/** Zugänglicher Name eines Bedienelements, ohne das „+“ der Anlegen-Knöpfe. */
+function controlNames(root: HTMLElement | null): Set<string> {
+  const names = new Set<string>();
+  root?.querySelectorAll("button, a[href]").forEach((element) => {
+    for (const raw of [
+      element.getAttribute("aria-label"),
+      element.textContent,
+    ]) {
+      const name = raw
+        ?.replace(/^\s*\+\s*/, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (name) names.add(name.toLowerCase());
+    }
+  });
+  return names;
+}
+
+/**
+ * Wächter für #5034: Ein Leerzustand wiederholt keine Kopfaktion. Steht
+ * „Neue Notiz“ im Kopf und noch einmal im Leerzustand, sieht die leere Seite
+ * zwei gleiche Knöpfe. Eine Leerzustand-Aktion ist nur für eine ANDERE
+ * Handlung da („Filter zurücksetzen“). Außerhalb der Produktion meldet das
+ * Gerüst eine Wiederholung, damit sie im Test und beim Entwickeln auffällt.
+ */
+function useEmptyActionGuard(
+  headRef: RefObject<HTMLElement | null>,
+  bodyRef: RefObject<HTMLElement | null>,
+  title: string,
+  active: boolean,
+) {
+  const reportedViolations = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (!active || process.env.NODE_ENV === "production") return;
+    const head = controlNames(headRef.current);
+    const repeated = [...controlNames(bodyRef.current)].filter((name) =>
+      head.has(name),
+    );
+    const repeatedAction = repeated[0];
+    if (repeatedAction !== undefined) {
+      const violation = JSON.stringify([title, repeatedAction]);
+      if (reportedViolations.current.has(violation)) return;
+      reportedViolations.current.add(violation);
+      logger.error("tenant_page_empty_action_repeats_head_action", {
+        page: title,
+        action: repeatedAction,
+      });
+    }
+  });
+}
+
 function TenantPageView({
   title,
   stats,
@@ -474,6 +541,15 @@ function TenantPageView({
     primaryAction != null ||
     badge !== undefined;
 
+  const headRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEmptyActionGuard(
+    headRef,
+    bodyRef,
+    title,
+    Boolean(empty?.action) && !loading && !error,
+  );
+
   const statusLine = statsLoading ? (
     <Skeleton className="h-4 w-56" />
   ) : (
@@ -496,7 +572,10 @@ function TenantPageView({
           Grund. Die spezielle Klasse überschreibt die ungeschichtete
           Flächenklasse auch dann zuverlässig, wenn Tailwind-Utilities in
           einer CSS-Layer stehen. */}
-      <header className="moto-content-surface compact:p-4 rounded-2xl border p-5 shadow-sm max-sm:p-4">
+      <header
+        ref={headRef}
+        className="moto-content-surface compact:p-4 rounded-2xl border p-5 max-sm:p-4"
+      >
         {back && <TenantBackLink href={backHref} label={backLabel} />}
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 max-sm:gap-x-2">
           {/* `flex-1 basis-0`: der Titelblock nimmt, was die Aktionen übrig
@@ -588,7 +667,7 @@ function TenantPageView({
           >
             {searchSlot}
             {!searchSlot && hasSearchRow && (
-              <PageHeaderWithSearch
+              <PageHeaderSearchLayout
                 // Der Titel steht in der Kopfkarte darüber.
                 embedded
                 title=""
@@ -615,7 +694,10 @@ function TenantPageView({
           nach 60 px Karte, und darunter stand der halbe Bildschirm nacktes
           Punktraster -- ein anderer Umriss auf jeder Seite. Jetzt haben die
           Seite mit einer Zeile, die mit dreißig und die leere denselben. */}
-      <div className="moto-tenant-body compact:mt-4 compact:space-y-4 mt-6 space-y-6 max-sm:mt-4 max-sm:space-y-3">
+      <div
+        ref={bodyRef}
+        className="moto-tenant-body compact:mt-4 compact:space-y-4 mt-6 space-y-6 max-sm:mt-4 max-sm:space-y-3"
+      >
         <TenantPageBody
           loading={loading}
           loadingLabel={loadingLabel ?? `Der Bereich „${title}“ wird geladen…`}
@@ -785,11 +867,18 @@ function TenantPageTabs({
       disabled && "cursor-not-allowed opacity-50",
     );
 
-  const renderInner = (item: TenantPageTab) => (
+  const renderInner = (item: TenantPageTab, active: boolean) => (
     <>
       {item.label}
       {item.badge !== undefined && item.badge > 0 && (
-        <span className="bg-moto-green/10 rounded-full px-1.5 py-0.5 text-xs font-semibold text-gray-900 tabular-nums">
+        <span
+          className={cn(
+            "bg-moto-green/10 rounded-full px-1.5 py-0.5 text-xs font-semibold text-gray-900 tabular-nums",
+            // Auf dem Telefon ist der aktive Reiter eine dunkle Pille; dunkle
+            // Schrift auf hellgrünem Hauch verschwand dort (#5146).
+            active && "max-sm:bg-white/20 max-sm:text-white",
+          )}
+        >
           {item.badge}
         </span>
       )}
@@ -830,7 +919,7 @@ function TenantPageTabs({
             onChange(item.value);
           }}
         >
-          {renderInner(item)}
+          {renderInner(item, active)}
         </Link>
       );
     }
@@ -846,7 +935,7 @@ function TenantPageTabs({
         onClick={() => onChange(item.value)}
         className={className}
       >
-        {renderInner(item)}
+        {renderInner(item, active)}
       </button>
     );
   };

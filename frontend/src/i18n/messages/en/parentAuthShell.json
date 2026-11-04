@@ -1,0 +1,33 @@
+{
+  "badges": {
+    "audience": "Made for after-school care",
+    "hosting": "Hosted in Germany"
+  },
+  "testimonialButtonLabel": "Show testimonial {number}",
+  "testimonials": {
+    "infoHub": {
+      "quote": "I can find the most important OGS information in one place and no longer have to search through emails or paper notes.",
+      "author": "Parent",
+      "role": "OGS communication",
+      "metric": "Everything in one place"
+    },
+    "easyReplies": {
+      "quote": "Getting back to the care team is much easier because not every topic has to go through phone calls or separate emails.",
+      "author": "Parent",
+      "role": "Communication with OGS",
+      "metric": "Easier to respond"
+    },
+    "lookUpLater": {
+      "quote": "When everyday life gets busy, it really helps that I can look up later what the OGS shared.",
+      "author": "Parent",
+      "role": "Family routine",
+      "metric": "Reliably informed"
+    },
+    "organized": {
+      "quote": "Communication feels much more organized. We know faster what matters and where to find it again.",
+      "author": "Parent",
+      "role": "Care routine",
+      "metric": "Better organized"
+    }
+  }
+}

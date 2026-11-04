@@ -27,6 +27,7 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	projectionStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
+	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	reviewStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/requestreview/http"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -34,7 +35,6 @@ import (
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -81,7 +81,7 @@ func requestReviewDependencies(
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review access: %w", err)
 	}
 	masterDataReviews, err := NewRequestReviewMasterData(db,
-		studentDirectoryView.NewReader(),
+		owners.StudentDirectoryReader(),
 		persons,
 		reviewScope,
 		carePlanModule.Today,
@@ -92,7 +92,7 @@ func requestReviewDependencies(
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("master data review queue: %w", err)
 	}
 	careReviews, err := NewRequestReviewSchedules(db,
-		studentDirectoryView.NewReader(),
+		owners.StudentDirectoryReader(),
 		persons,
 		reviewScope,
 		func(ctx context.Context) (bool, error) {
@@ -155,6 +155,21 @@ func requestReviewDependencies(
 	}, careReviews, nil
 }
 
+func newStudentRequestReview(
+	db transactionruntime.Database, persons peopledirectory.Capability, reviewPolicy *owners.ParentRequestReviewPolicy, caller *owners.CallerRows,
+	settings settingsCompose.SettingsService, excused *carePlanCompose.ExcusedAbsenceRequests,
+) (requestreview.Query, carePlanModule.CareScheduleReviewQuery, error) {
+	dependencies, careReviews, err := requestReviewDependencies(db, persons, reviewPolicy, caller, settings, excused)
+	if err != nil {
+		return nil, nil, err
+	}
+	projection, err := requestreviewcompose.NewProjection(dependencies)
+	if err != nil {
+		return nil, nil, fmt.Errorf("request review projection: %w", err)
+	}
+	return projection, careReviews, nil
+}
+
 // mountStudentRoutes serves /api/students.
 func mountStudentRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, deviceAuth *deviceauth.Authenticators, presence studentpresence.Owner,
@@ -170,13 +185,9 @@ func mountStudentRoutes(
 	// Regeltermine like a grade transition does (#2147 review round 10); Care
 	// Plan's booking materialization provides the resync (#3560).
 	var studentClassResyncer schoolStructureCompose.OfferingSourceResyncer = requests.CareOfferings
-	reviewDependencies, careReviews, err := requestReviewDependencies(db, persons, reviewPolicy, caller, settings, requests.Excused)
+	requestReview, careReviews, err := newStudentRequestReview(db, persons, reviewPolicy, caller, settings, requests.Excused)
 	if err != nil {
 		return err
-	}
-	requestReview, err := requestreviewcompose.NewProjection(reviewDependencies)
-	if err != nil {
-		return fmt.Errorf("request review projection: %w", err)
 	}
 	students, careStudents, projectionStudents, presenceStudents, deletionStudents, requestStudents := NewStudentHTTPResources(
 		studentsAPI.ResourceConfig{
@@ -184,7 +195,7 @@ func mountStudentRoutes(
 			AuthenticatedDevice:    deviceauth.DeviceID,
 			ChildQuota:             childQuotaStudentsReader{usages: membership},
 			ClassListEntries:       classListEntryStudentsReader{entries: membership},
-			DeviceAuthenticator:    deviceAuth.Device(),
+			DeviceAuthenticator:    gateDeviceAuthentication(deviceAuth.Device()),
 			FamilyProtection:       persons,
 			Logger:                 logger.With("handler", "students"),
 			PeopleDirectory:        persons,
@@ -199,7 +210,7 @@ func mountStudentRoutes(
 		careStudentsHTTP.ResourceConfig{
 			ArrivalScheduleService: schedules.Arrivals,
 			Broadcaster:            hub,
-			CareLifecycleService:   schedules.Lifecycle, CareResumption: resumption,
+			CareLifecycleService:   schedules.Lifecycle, CareResumption: resumption, CareExitRestoration: owners.NewCarePlanRestoration(schedules.Lifecycle, requests.CareOfferings, nil),
 			CareRequestReviews:           careReviews,
 			CareRequestService:           requests.CareRequests,
 			CompanionService:             companions,
@@ -219,8 +230,8 @@ func mountStudentRoutes(
 			Persons:                      peopleCompose.NewStudentRoutePersons(services.Users),
 			PickupAdjustmentService:      requests.CareOfferings,
 			PickupScheduleService:        schedules.Pickups, PickupSignatureProofs: staffPickupSignatures{ledger: owners.SignatureLedger()}, Reports: newDeclarationReports(),
-			SettingsService:        settings,
-			StudentAuditService:    persons,
+			Schools: studentSchoolDirectory{schools: organizations}, SettingsService: settings,
+			StudentAccidentReports: requests.AccidentReports, StudentAuditService: persons,
 			StudentConsents:        services.StudentConsents,
 			StudentDocumentService: requests.Documents,
 			StudentPhotos:          persons,
@@ -228,6 +239,7 @@ func mountStudentRoutes(
 			WeekdayPickupNotes:     carePlan,
 		},
 		projectionStudentsHTTP.ResourceConfig{
+			PrivacyConsents:        presence,
 			AbsenceOverview:        reports.AbsenceOverview,
 			ActiveEnrollments:      studentActiveEnrollments{enrollments: activities},
 			ActiveService:          active,

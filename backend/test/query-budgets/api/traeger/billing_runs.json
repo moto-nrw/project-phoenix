@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.billing_runs",
+  "max": 2,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/billing-runs (#4668, ADR 0119):\nthe Träger binding of the Träger transaction, then the runs of the\nTräger. Flat in the number of runs."
+}

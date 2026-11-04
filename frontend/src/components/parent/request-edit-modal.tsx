@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Button } from "~/components/ui/button";
+import { RequiredMark } from "~/components/ui/field-label";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
@@ -263,7 +264,7 @@ export function RequestEditModal({
           <Button
             type="button"
             size="md"
-            className="w-full max-sm:min-h-11 sm:w-auto"
+            className="w-full sm:w-auto"
             isLoading={saving}
             loadingText={t("saving")}
             onClick={() => void submit()}
@@ -358,7 +359,7 @@ export function RequestEditModal({
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-gray-700">
               {t("reasonLabel")}
-              {reasonRequired && <span aria-hidden="true"> *</span>}
+              {reasonRequired && <RequiredMark />}
             </span>
             <textarea
               name="request-reason"

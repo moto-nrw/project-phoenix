@@ -19,6 +19,10 @@ type Capability interface {
 	EnqueueDeferredPush(context.Context, deliveryContract.DeferredPushIntent) (deliveryContract.Enqueued, error)
 	Cancel(context.Context, int64, deliveryContract.Transport, deliveryContract.RelatedEntity, string) (int64, error)
 	Statuses(context.Context, int64, deliveryContract.Transport, deliveryContract.RelatedEntity) ([]deliveryContract.Status, error)
+	// TraegerEmailStatuses reports the mails of a Träger (ADR 0110) for one
+	// related entity in the caller's Träger transaction of that Träger
+	// (#4670).
+	TraegerEmailStatuses(context.Context, int64, deliveryContract.RelatedEntity) ([]deliveryContract.Status, error)
 	ReplaceEmailDeliveries(context.Context, int64, deliveryContract.RelatedEntity, []deliveryContract.EmailDelivery) error
 	DeleteEmailDeliveries(context.Context, int64, deliveryContract.RelatedEntity) (int64, error)
 	EmailDeliveryStatuses(context.Context, int64, deliveryContract.RelatedEntity) ([]deliveryContract.EmailDeliveryStatus, error)

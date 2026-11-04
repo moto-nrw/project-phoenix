@@ -125,10 +125,6 @@ func TestEnsureServerStartsContainerForRefusedConnection(t *testing.T) {
 			starts++
 			return startErr
 		},
-		func(context.Context, *Config) error {
-			t.Fatal("connection refusal must not trigger authentication repair")
-			return nil
-		},
 		func(context.Context, *Config) error { return syscall.ECONNREFUSED },
 		func(error) bool { return false },
 	)
@@ -150,10 +146,6 @@ func TestEnsureServerWaitsForTransientConnectionTimeout(t *testing.T) {
 		cfg,
 		func(context.Context) error {
 			starts++
-			return nil
-		},
-		func(context.Context, *Config) error {
-			t.Fatal("connection timeout must not trigger authentication repair")
 			return nil
 		},
 		func(context.Context, *Config) error {
@@ -332,66 +324,6 @@ func TestStartTestContainerConvergesWhilePublishedPortIsUnavailable(t *testing.T
 	assert.Equal(t, 1, starts)
 }
 
-func TestSyncLocalSuperuserPasswordUsesMatchingComposeService(t *testing.T) {
-	t.Parallel()
-
-	cfg, err := NewConfig("postgres://postgres:pa%27ss@localhost:5433/phoenix_test?sslmode=disable")
-	require.NoError(t, err)
-
-	calls := 0
-	var statement string
-	runner := func(_ context.Context, _ string, stdin io.Reader, args ...string) ([]byte, error) {
-		calls++
-		for _, arg := range args {
-			assert.NotContains(t, arg, "pa'ss", "the password must not be exposed in process arguments")
-		}
-		switch calls {
-		case 1:
-			assert.Nil(t, stdin)
-			assert.Contains(t, args, "project-phoenix-testdb-5433")
-			assert.Equal(t, []string{"ps", "--status", "running", "--quiet", "postgres-test"}, args[len(args)-5:])
-			return []byte("container-id\n"), nil
-		case 2:
-			assert.Nil(t, stdin)
-			assert.Equal(t, []string{"port", "postgres-test", "5432"}, args[len(args)-3:])
-			return []byte("0.0.0.0:5433\n[::]:5433\n"), nil
-		case 3:
-			body, readErr := io.ReadAll(stdin)
-			require.NoError(t, readErr)
-			statement = string(body)
-			assert.Contains(t, args, "exec")
-			assert.Contains(t, args, "postgres-test")
-			return nil, nil
-		default:
-			t.Fatalf("unexpected docker command %d", calls)
-			return nil, nil
-		}
-	}
-
-	require.NoError(t, syncLocalSuperuserPasswordWithRunner(context.Background(), cfg, runner))
-	assert.Equal(t, 3, calls)
-	assert.Equal(t, "ALTER ROLE \"postgres\" WITH PASSWORD 'pa''ss';\n", statement)
-}
-
-func TestSyncLocalSuperuserPasswordRejectsUnsafeTargets(t *testing.T) {
-	t.Parallel()
-
-	for _, dsn := range []string{
-		"postgres://postgres:test@database.example:5433/phoenix_test?sslmode=disable",
-		"postgres://phoenix_auth:test@localhost:5433/phoenix_test?sslmode=disable",
-		"postgres://postgres@localhost:5433/phoenix_test?sslmode=disable",
-	} {
-		cfg, err := NewConfig(dsn)
-		require.NoError(t, err)
-		err = syncLocalSuperuserPasswordWithRunner(context.Background(), cfg,
-			func(context.Context, string, io.Reader, ...string) ([]byte, error) {
-				t.Fatal("unsafe target must be rejected before invoking docker")
-				return nil, nil
-			})
-		require.Error(t, err)
-	}
-}
-
 func TestQuoteIdentifierEscapesDoubleQuotes(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, `"plain"`, quoteIdentifier("plain"))
@@ -526,81 +458,6 @@ func integrationConfig(t *testing.T) *Config {
 	})
 
 	return cfg
-}
-
-func TestEnsureServerRepairsAuthenticationFailureWithoutRestart(t *testing.T) {
-	t.Parallel()
-
-	cfg, err := NewConfig("postgres://postgres:test@localhost:5433/phoenix_test?sslmode=disable")
-	require.NoError(t, err)
-
-	authenticationErr := errors.New("authentication failed")
-	starts := 0
-	repairs := 0
-	pings := 0
-	err = ensureServerWithDependencies(
-		context.Background(),
-		cfg,
-		func(context.Context) error {
-			starts++
-			return nil
-		},
-		func(context.Context, *Config) error {
-			repairs++
-			return nil
-		},
-		func(context.Context, *Config) error {
-			pings++
-			return authenticationErr
-		},
-		func(err error) bool { return errors.Is(err, authenticationErr) },
-	)
-
-	require.Error(t, err)
-	assert.Equal(t, 1, repairs, "authentication failures must repair the local test credential")
-	assert.Zero(t, starts, "authentication failures must not restart the shared test server")
-	assert.Equal(t, 2, pings)
-}
-
-func TestEnsureServerRepairsAuthenticationFailureAfterAutoStart(t *testing.T) {
-	t.Parallel()
-
-	cfg, err := NewConfig("postgres://postgres:test@localhost:5433/phoenix_test?sslmode=disable")
-	require.NoError(t, err)
-
-	authenticationErr := errors.New("authentication failed")
-	starts := 0
-	repairs := 0
-	pings := 0
-	err = ensureServerWithDependencies(
-		context.Background(),
-		cfg,
-		func(context.Context) error {
-			starts++
-			return nil
-		},
-		func(context.Context, *Config) error {
-			repairs++
-			return nil
-		},
-		func(context.Context, *Config) error {
-			pings++
-			switch pings {
-			case 1:
-				return syscall.ECONNREFUSED
-			case 2:
-				return authenticationErr
-			default:
-				return nil
-			}
-		},
-		func(err error) bool { return errors.Is(err, authenticationErr) },
-	)
-
-	require.NoError(t, err)
-	assert.Equal(t, 1, starts)
-	assert.Equal(t, 1, repairs)
-	assert.Equal(t, 3, pings)
 }
 
 // fakeBuild creates a single marker table instead of running migrations.
@@ -1015,71 +872,6 @@ func TestCreateCloneSharesTheLifecycleLock(t *testing.T) {
 	cancelBlocked()
 	unlockExclusive()
 	require.Error(t, err, "CreateClone must wait behind an exclusive lifecycle lock holder")
-}
-
-// TestPinAuthRolePasswordSurvivesConcurrentCallers reproduces the CI failure
-// that took 1041 tests down at once: every package binary pins the
-// phoenix_auth password on the lock-free fast path, and two sessions running
-// ALTER ROLE at the same moment fail with "tuple concurrently updated".
-func TestPinAuthRolePasswordSurvivesConcurrentCallers(t *testing.T) {
-	t.Parallel()
-	cfg := integrationConfig(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	require.NoError(t, EnsureServer(ctx, cfg))
-
-	maint := openSQL(cfg.MaintenanceDSN())
-	defer func() { _ = maint.Close() }()
-	maint.SetMaxOpenConns(8)
-
-	const callers = 8
-	errs := make(chan error, callers)
-	start := make(chan struct{})
-	for range callers {
-		go func() {
-			<-start
-			errs <- pinAuthRolePassword(ctx, maint)
-		}()
-	}
-	close(start)
-	for range callers {
-		require.NoError(t, <-errs, "concurrent password pins must not collide on pg_authid")
-	}
-}
-
-func TestEnsureAuthRolePasswordUsesAuthRoleLock(t *testing.T) {
-	t.Parallel()
-	cfg := integrationConfig(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	require.NoError(t, EnsureServer(ctx, cfg))
-
-	maint := openSQL(cfg.MaintenanceDSN())
-	defer func() { _ = maint.Close() }()
-	blocker, err := maint.Conn(ctx)
-	require.NoError(t, err)
-	defer func() { _ = blocker.Close() }()
-	worker, err := maint.Conn(ctx)
-	require.NoError(t, err)
-	defer func() { _ = worker.Close() }()
-
-	_, err = blocker.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, authRoleAdvisoryLockKey)
-	require.NoError(t, err)
-	defer func() {
-		_, _ = blocker.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, authRoleAdvisoryLockKey)
-	}()
-
-	done := make(chan error, 1)
-	go func() { done <- ensureAuthRolePassword(ctx, worker) }()
-	select {
-	case err := <-done:
-		t.Fatalf("password pin bypassed auth-role lock: %v", err)
-	case <-time.After(100 * time.Millisecond):
-	}
-
-	_, err = blocker.ExecContext(ctx, `SELECT pg_advisory_unlock($1)`, authRoleAdvisoryLockKey)
-	require.NoError(t, err)
-	require.NoError(t, <-done)
 }
 
 func dropBareClone(t *testing.T, cfg *Config, name string) {

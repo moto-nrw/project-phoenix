@@ -1,9 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -126,7 +128,9 @@ func TestSeedStatisticsDemoStepCreatesAttendanceAndVisits(t *testing.T) {
 	assert.Equal(t, []string{
 		"/api/iot/session/start",
 		"/api/students/101/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
+		"/api/students/102/pickup-exceptions",
 		"/api/students/102/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
+		"/api/iot/attendance/toggle",
 		"/api/students/103/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
 		"/api/iot/session/end",
 		// Der Sitzungsstart stempelt die Aufsicht ein, das Sitzungsende bucht
@@ -165,7 +169,7 @@ func TestSeedStatisticsDemoStepCleansUpAfterFailure(t *testing.T) {
 			activityRoomIDs:  map[int64]int64{11: 12},
 			staffIDs:         map[string]int64{"Mara Muster": 13},
 			staffCredentials: []StaffCredentials{{Name: "Mara Muster", Email: "mara@example.com", Password: "Test1234%"}},
-			studentIDByIndex: map[int]int64{0: 101},
+			studentIDByIndex: map[int]int64{0: 100, 1: 101},
 		},
 		StaffPIN: "1234",
 	})
@@ -174,6 +178,10 @@ func TestSeedStatisticsDemoStepCleansUpAfterFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "end statistics demo session")
 	assert.Equal(t, []string{
 		"/api/iot/session/start",
+		"/api/students/100/rfid",
+		"/api/iot/attendance/toggle",
+		"/api/iot/checkin",
+		"/api/students/101/pickup-exceptions",
 		"/api/students/101/rfid",
 		"/api/iot/session/end",
 		"/auth/login",
@@ -186,6 +194,8 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	t.Parallel()
 
 	type offeringPayload struct {
+		PhaseID       int64             `json:"phase_id"`
+		HolidayCare   bool              `json:"includes_holiday_care"`
 		Name          string            `json:"name"`
 		AvailableDays []string          `json:"available_days"`
 		CountsAsCare  bool              `json:"counts_as_care"`
@@ -202,7 +212,8 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	defer srv.Close()
 
 	step := parentEnrollmentSeedStep{}
-	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{}, 1)
+	const schoolYearPhaseID, holidayPhaseID = 41, 42
+	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{}, schoolYearPhaseID, holidayPhaseID)
 	require.NoError(t, err)
 	require.Len(t, received, 6)
 
@@ -213,6 +224,14 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	for _, offering := range received {
 		expectedTime, ok := expectedTimes[offering.Name]
 		require.True(t, ok, offering.Name)
+		// The holiday care lives in the holiday phase (#5139).
+		holiday := offering.Name == "Ferienbetreuung Herbst"
+		assert.Equal(t, holiday, offering.HolidayCare, offering.Name)
+		if holiday {
+			assert.EqualValues(t, holidayPhaseID, offering.PhaseID, offering.Name)
+		} else {
+			assert.EqualValues(t, schoolYearPhaseID, offering.PhaseID, offering.Name)
+		}
 		countsAsCare := expectedTime != ""
 		assert.Equal(t, countsAsCare, offering.CountsAsCare, offering.Name)
 		if !countsAsCare {
@@ -284,6 +303,18 @@ func TestWrapConflictError(t *testing.T) {
 		err := wrapConflictError(apiErr, "organization")
 		assert.Contains(t, err.Error(), "seed organization already exists (409 Conflict)")
 		assert.Contains(t, err.Error(), "migrate reset")
+		assert.ErrorIs(t, err, apiErr, "the cause and its code stay readable")
+	})
+
+	t.Run("keeps the code of the refused request", func(t *testing.T) {
+		// BACKEND-14: a demo rebuild could not rename its deleted school,
+		// and the report named neither cause nor code.
+		apiErr := &APIError{
+			Method: "PUT", Path: "/operator/schools/7", StatusCode: seedHTTPStatusConflict,
+			Code: "provisioning.school_already_deleted", Message: "School is already deleted",
+		}
+		err := wrapConflictError(fmt.Errorf("rename abandoned school: %w", apiErr), "school")
+		assert.Contains(t, err.Error(), "(provisioning.school_already_deleted)")
 	})
 
 	t.Run("passes through non-409 errors unchanged", func(t *testing.T) {
@@ -580,7 +611,7 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	assert.Equal(t, DefaultProfileKey, profile.Key)
 	assert.Equal(t, "vollbetrieb", profile.School.TenantSlug)
 	assert.Equal(t, "ines.lindner@ganztag-nord.example", profile.Credentials.SchoolAdmin.Email)
-	assert.Equal(t, fullOperationProfileDefinition().Settings, profile.Settings)
+	assertSeedProfileSettings(t, fullOperationProfileDefinition().Settings, profile.Settings)
 	assert.Equal(t, len(DemoStudents), profile.Expected.Students)
 	assert.Len(t, profile.Entities.Students, len(DemoStudents))
 	assert.Len(t, profile.Devices, len(DemoDevices)+1)
@@ -621,7 +652,7 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	bookings, err := state.SelectProfile("anmeldung-buchungen")
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentProfile.Organization.ID, bookings.Organization.ID)
-	assert.Equal(t, enrollmentBookingsProfileDefinition().Settings, bookings.Settings)
+	assertSeedProfileSettings(t, enrollmentBookingsProfileDefinition().Settings, bookings.Settings)
 	assert.Len(t, bookings.Entities.Students, 12)
 	assert.Len(t, bookings.Devices, 2)
 	assert.Equal(t, []string{"anmeldung-buchungen", "anmeldung-wochenplan"}, state.Organizations["demo-traeger-sued"].Profiles)
@@ -935,6 +966,9 @@ type fullSeedAPITrace struct {
 	devicePIN          string
 	deviceRequests     int
 	rejectedDevicePINs int
+	// parentSubmissions are the bodies of the enrollment forms the seeded
+	// parents send through the parents portal.
+	parentSubmissions []map[string]any
 }
 
 func assertWithdrawalSeedTrace(t *testing.T, trace *fullSeedAPITrace) {
@@ -998,6 +1032,13 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	// The first staff members the seed creates; the Frühbetreuung's
 	// deviation needs the second.
 	var planningStaffIDs []map[string]any
+	// The full workflow reads and writes these through the staff payroll API.
+	// Keeping them here makes its final payroll-status read prove that the
+	// endpoint-specific requests persisted the expected demo numbers.
+	staffPersonnelNumbers := make(map[int64]string)
+	// The payroll-rule mapping reads the wage types after it creates them.
+	// Keep that endpoint state so the mock follows the production API.
+	payrollWageTypes := []map[string]string{}
 	manualStudents := make(map[int64]map[string]any)
 	manualAttendance := make(map[int64]string)
 	manualSettingWrites := make(map[string]json.RawMessage)
@@ -1032,6 +1073,42 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if trace != nil && trace.enforceDevicePIN && serveDevicePIN(t, trace, w, r) {
 			return
 		}
+		if trace != nil && strings.HasPrefix(r.URL.Path, "/parent/enrollments/") && strings.HasSuffix(r.URL.Path, "/submit") {
+			raw, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(raw, &body))
+			trace.parentSubmissions = append(trace.parentSubmissions, body)
+			r.Body = io.NopCloser(bytes.NewReader(raw))
+		}
+		// Holiday PDFs are multipart and IDs are strings, unlike the
+		// generic JSON entity fixture. Keep this before the profile mocks.
+		if r.Method == seedHTTPMethodPost && strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/form/documents") {
+			idCounter++
+			require.NoError(t, r.ParseMultipartForm(10<<20))
+			defer func() { require.NoError(t, r.MultipartForm.RemoveAll()) }()
+			file, header, err := r.FormFile("document")
+			require.NoError(t, err)
+			defer func() { require.NoError(t, file.Close()) }()
+			content, err := io.ReadAll(file)
+			require.NoError(t, err)
+			require.True(t, bytes.HasPrefix(content, []byte("%PDF-")))
+			require.True(t, strings.HasSuffix(header.Filename, ".pdf"))
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(seedHTTPStatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": fmt.Sprint(idCounter)}})
+			return
+		}
+		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/form") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"version":1,"fields":[]}}`)
+			return
+		}
+		if r.Method == seedHTTPMethodPut && strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/form") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"version":2,"fields":[]}}`)
+			return
+		}
 		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/enrollment/legal-documents" {
 			// Handle this multipart response before the profile mocks decode JSON.
 			idCounter++
@@ -1043,8 +1120,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
-		if r.Method == seedHTTPMethodPost && strings.HasPrefix(r.URL.Path, "/api/enrollment/") && strings.HasSuffix(r.URL.Path, "/uploads") {
-			// The income proof of #4783 is a multipart upload, too.
+		if r.Method == seedHTTPMethodPost && (strings.HasPrefix(r.URL.Path, "/api/enrollment/") || strings.HasPrefix(r.URL.Path, "/traeger/holiday-registrations/")) &&
+			strings.HasSuffix(r.URL.Path, "/uploads") {
+			// The income proof of #4783 and the proof of benefits of the
+			// holiday registration (#5238) are multipart uploads, too.
 			idCounter++
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -1053,6 +1132,18 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			return
 		}
 		if serveExternalCaregiverSeedAPI(t, w, r, &idCounter) {
+			return
+		}
+		if r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/qualification-types" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []map[string]any{
+				{"id": "61", "standard_key": "first_aid_child", "name": "Erste Hilfe am Kind", "validity_months": 24},
+				{"id": "62", "standard_key": "rescue_ability", "name": "Rettungsfähigkeit", "validity_months": 48},
+				{"id": "63", "standard_key": "extended_police_certificate", "name": "Erweitertes Führungszeugnis", "validity_months": 60},
+			}})
+			return
+		}
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/staff/qualification-types" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": "64"}})
 			return
 		}
 		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/operator/staff-person-merges/") {
@@ -1075,6 +1166,11 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		}
 		if r.URL.Path == "/api/holiday-weeks/51/participants" {
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"participants":[]}}`)
+			return
+		}
+		if r.URL.Path == "/api/holiday-weeks/51/guest-group" {
+			// The holiday guest joins the Feriengruppe (#4666).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"week_id":51,"group_id":5,"guests":1}}`)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/traeger/billing-runs/") && !strings.HasSuffix(r.URL.Path, "/release") && r.URL.Path != "/traeger/billing-runs/" {
@@ -1102,12 +1198,86 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if weeklyMock.serve(t, w, r) {
 			return
 		}
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/feedback/batch" {
+			// The feedback history (#5029) sends its entries in one batch.
+			var body struct {
+				Entries []feedbackHistoryEntry `json:"entries"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			w.WriteHeader(seedHTTPStatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"count": len(body.Entries)}})
+			return
+		}
+		if r.Method == seedHTTPMethodGet && r.URL.Path == "/api/timetable/periods/" {
+			// The feedback history (#5029) reads the school's holiday periods.
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			return
+		}
 		idCounter++
 		w.Header().Set("Content-Type", "application/json")
 		authorization := r.Header.Get("Authorization")
 		manualAuth := authorization == "Bearer manual-admin-token"
 		if !manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/" {
-			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []map[string]any{{"id": "7001"}, {"id": "7002"}}})
+			return
+		}
+		if !manualAuth && strings.HasPrefix(r.URL.Path, "/api/staff/") && strings.HasSuffix(r.URL.Path, "/payroll-number") {
+			var staffID int64
+			parsed, err := fmt.Sscanf(r.URL.Path, "/api/staff/%d/payroll-number", &staffID)
+			require.NoError(t, err)
+			require.Equal(t, 1, parsed)
+
+			switch r.Method {
+			case seedHTTPMethodGet:
+				number, ok := staffPersonnelNumbers[staffID]
+				if !ok {
+					_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"staff_id": staffID, "personnel_number": nil}})
+					return
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"staff_id": staffID, "personnel_number": number}})
+			case seedHTTPMethodPut:
+				var body struct {
+					PersonnelNumber string `json:"personnel_number"`
+					Note            string `json:"note"`
+				}
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				require.NotEmpty(t, body.PersonnelNumber)
+				require.Equal(t, "Personalnummer aus der Lohnabrechnung übernommen", body.Note)
+				staffPersonnelNumbers[staffID] = body.PersonnelNumber
+				_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"staff_id": staffID, "personnel_number": body.PersonnelNumber}})
+			default:
+				w.WriteHeader(seedHTTPStatusNotFound)
+			}
+			return
+		}
+		if !manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/settings/payroll-status" {
+			require.Equal(t, map[int64]string{7001: "70001", 7002: "70002"}, staffPersonnelNumbers)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
+				"lodas_header_complete": true, "configured_categories": 7, "total_categories": 7,
+				"staff_total": 2, "staff_without_personnel_number": 0,
+			}})
+			return
+		}
+		// The payroll rules step (#4807) books the Regenerationstag the time
+		// tracking step created; the school starts without own wage types.
+		if !manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/time-tracking/payroll-rules" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
+				"wage_types": payrollWageTypes, "surcharge_rules": []any{},
+				"absence_types": []map[string]any{{"id": "9001", "name": "Regenerationstag", "is_active": true, "wage_type_id": nil}},
+			}})
+			return
+		}
+		if !manualAuth && r.Method == seedHTTPMethodPost && r.URL.Path == "/api/staff/time-tracking/payroll-rules/wage-types" {
+			var body struct {
+				Name string `json:"name"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			payrollWageType := map[string]string{
+				"id":   fmt.Sprint(len(payrollWageTypes) + 1),
+				"name": body.Name,
+			}
+			payrollWageTypes = append(payrollWageTypes, payrollWageType)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]string{"id": payrollWageType["id"]}})
 			return
 		}
 		if r.Method == seedHTTPMethodPut && ((manualAuth && strings.HasPrefix(r.URL.Path, "/api/settings/values/")) || strings.Contains(r.URL.Path, "/operator/schools/2/settings/values/")) {
@@ -1153,6 +1323,14 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if r.Method == seedHTTPMethodGet && r.URL.Path == "/auth/account/tenants" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": []map[string]any{{"slug": "vollbetrieb"}, {"slug": "manuell"}},
+			})
+			return
+		}
+		if r.Method == seedHTTPMethodGet && r.URL.Path == "/operator/schools/2/devices" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{{
+					"id": 9000, "device_id": webManualDeviceID, "device_type": "virtual", "name": webManualDeviceName, "status": "active",
+				}},
 			})
 			return
 		}
@@ -1275,11 +1453,16 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			return
 		}
 		if r.Method == seedHTTPMethodGet && r.URL.Path == "/api/iot/" {
+			if manualAuth {
+				w.WriteHeader(seedHTTPStatusForbidden)
+				_, _ = fmt.Fprint(w, `{"status":403,"detail":"module nfc_anwesenheit is not booked","code":"module.not_booked"}`)
+				return
+			}
 			deviceType := r.URL.Query().Get("device_type")
 			devices := make([]map[string]any, 0)
 			if deviceType == "virtual" {
 				devices = append(devices, map[string]any{"id": 9000, "device_id": webManualDeviceID, "device_type": "virtual", "name": "Web-Anwesenheit"})
-			} else if !manualAuth {
+			} else {
 				for _, device := range DemoDevices {
 					devices = append(devices, map[string]any{"device_id": device.DeviceID, "device_type": "terminal", "name": device.Name})
 				}
@@ -1292,7 +1475,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		}
 		if r.Method == seedHTTPMethodGet && r.URL.Path == "/api/students" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"status": "success", "data": []map[string]any{{"id": "1"}},
+				"status": "success", "data": []map[string]any{{"id": 1}},
 				"pagination": map[string]any{"total_records": len(DemoStudents)},
 			})
 			return
@@ -1397,6 +1580,14 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 						{"id": fmt.Sprintf("%d", idCounter+1000), "created_student_id": fmt.Sprintf("%d", idCounter+2000)},
 					},
 				},
+			})
+			return
+		}
+		// The waiting-list seed (#4767) reads the family's child before it
+		// asks for the Theater-AG; the real route answers with a list.
+		if r.URL.Path == "/parent/me/children" && r.Method == seedHTTPMethodGet {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{{"student_id": "3001", "first_name": "Seed", "last_name": "Kind"}},
 			})
 			return
 		}
@@ -1523,7 +1714,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": recipients})
 			return
 		}
-		if r.URL.Path == "/api/staff-messages/threads/open" {
+		if r.URL.Path == "/api/staff-messages/threads/open" || r.URL.Path == "/api/staff-messages/groups" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"thread_id": fmt.Sprintf("%d", idCounter)},
 			})
@@ -1563,6 +1754,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			// for the holiday registration of the same step (#4661).
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":5,"status":"published","public_token":"link-key","weeks":[`+
 				`{"id":51,"time_models":[{"id":61},{"id":62}]},{"id":52,"time_models":[{"id":63},{"id":64}]}]}}`)
+			return
+		}
+		if r.URL.Path == "/parent/me/documents" {
+			// The first seeded parent's document inbox after the letters
+			// went out (#4671).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":"71","organization_id":"3"}]}`)
 			return
 		}
 		if r.URL.Path == "/parent/holiday-registrations/link-key/family" {
@@ -1705,6 +1902,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"refresh_token": "refresh",
 			})
 
+		case "/school/auth/login":
+			_, _ = fmt.Fprint(w, `{"status":"authenticated","access_token":"school-token"}`)
+
 		case "/parent/auth/login":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
@@ -1728,6 +1928,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 					{"id": "1", "name": "admin"},
 					{"id": "2", "name": "user"},
 					{"id": "3", "name": "guest"},
+					{"id": "4", "name": "lehrkraft"},
 				},
 			})
 
@@ -1754,7 +1955,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"data":   []map[string]any{{"id": idCounter, "name": "Betreuung"}},
 			})
 
-		case "/api/active/visits", "/api/time-tracking/holidays":
+		case "/api/active/visits", "/api/time-tracking/holidays", "/api/timetable/closing-days/", "/api/feedback/date-range":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data":   []any{},
@@ -1919,4 +2120,17 @@ func serveRegularBookingSeedAPI(t *testing.T, w seedHTTPResponseWriter, r *seedH
 		return false
 	}
 	return true
+}
+
+// The private state is pretty-printed, which changes whitespace inside raw
+// JSON arrays. Check all keys, managers and JSON values, not that whitespace.
+func assertSeedProfileSettings(t *testing.T, want, got map[string]SeedSetting) {
+	t.Helper()
+	require.Len(t, got, len(want))
+	for key, expected := range want {
+		actual, ok := got[key]
+		require.True(t, ok, "missing setting %s", key)
+		assert.Equal(t, expected.ManagedBy, actual.ManagedBy, key)
+		assert.JSONEq(t, string(expected.Value), string(actual.Value), key)
+	}
 }

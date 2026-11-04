@@ -27,6 +27,7 @@ func TestCarePlanDecisionErrorContract(t *testing.T) {
 		{"care offerings disabled", careplan.ErrCareOfferingsDisabled, enrollment.ErrCareOfferingsDisabled},
 		{"offering adjustment invalid", careplan.ErrOfferingAdjustmentInvalid, enrollment.ErrOfferingAdjustmentInvalid},
 		{"complete withdrawal confirmation", careplan.ErrCompleteWithdrawalConfirmationRequired, enrollment.ErrCompleteWithdrawalConfirmationRequired},
+		{"care offering source conflict", careplan.ErrCareOfferingSourceConflict, enrollment.ErrCareOfferingSourceConflict},
 	}
 
 	for _, tt := range tests {

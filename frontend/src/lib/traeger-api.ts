@@ -18,8 +18,6 @@ export interface TraegerChoice {
 export type TraegerLoginResult =
   | {
       readonly status: "authenticated";
-      readonly accessToken: string;
-      readonly refreshToken: string;
     }
   | {
       readonly status: "organization_selection_required";
@@ -43,7 +41,6 @@ export type TraegerLoginResult =
 interface BackendLoginResponse {
   status?: string;
   access_token?: string;
-  refresh_token?: string;
   challenge_token?: string;
   masked_email?: string;
   organization_id?: number;
@@ -136,14 +133,9 @@ export async function traegerLogin(input: {
       organizationId: String(result.organization_id ?? ""),
     };
   }
-  if (!result.access_token || !result.refresh_token) {
-    throw apiErrorFromBody("Login response without tokens", 502, data);
-  }
-  return {
-    status: "authenticated",
-    accessToken: result.access_token,
-    refreshToken: result.refresh_token,
-  };
+  if (result.status !== "authenticated")
+    throw apiErrorFromBody("Invalid login response", 502, data);
+  return { status: "authenticated" };
 }
 
 /** The schools of the signed-in person's Träger. */
@@ -426,6 +418,69 @@ export async function fetchTraegerBuero(): Promise<TraegerBuero> {
       roles: traegerRoles(member.roles ?? []),
     })),
     invitations: (data?.invitations ?? []).map(mapInvitation),
+  };
+}
+
+/** What a change of the Träger-Büro did (#5474). */
+export type TraegerAccountChangeAction =
+  | "invitation_created"
+  | "invitation_revoked"
+  | "invitation_accepted"
+  | "roles_changed"
+  | "member_removed";
+
+/** One change of the Träger-Büro: who did what, when, to whom. */
+export interface TraegerAccountHistoryEntry {
+  /** Stable across pages; the next page starts before it. */
+  readonly id: string;
+  /** Instant (RFC 3339). */
+  readonly occurredAt: string;
+  readonly action: TraegerAccountChangeAction;
+  /** Empty for an account erased since; the page says „Gelöschtes Konto“. */
+  readonly actorEmail: string;
+  readonly targetEmail: string;
+  readonly rolesBefore: readonly TraegerRole[];
+  readonly rolesAfter: readonly TraegerRole[];
+}
+
+export interface TraegerAccountHistoryPage {
+  readonly entries: readonly TraegerAccountHistoryEntry[];
+  readonly hasMore: boolean;
+}
+
+interface BackendHistoryEntry {
+  id: number;
+  occurred_at: string;
+  action: TraegerAccountChangeAction;
+  actor_email: string;
+  target_email: string;
+  roles_before?: string[] | null;
+  roles_after?: string[] | null;
+}
+
+/**
+ * One page of the changes of the Träger-Büro, newest first. A later page
+ * passes the ID of the last entry it has as `before`.
+ */
+export async function fetchTraegerAccountHistory(
+  before?: string,
+): Promise<TraegerAccountHistoryPage> {
+  const query = before ? `?${new URLSearchParams({ before }).toString()}` : "";
+  const data = await traegerRequest<{
+    entries?: BackendHistoryEntry[];
+    has_more?: boolean;
+  } | null>(`/api/traeger/accounts/history${query}`);
+  return {
+    entries: (data?.entries ?? []).map((entry) => ({
+      id: String(entry.id),
+      occurredAt: entry.occurred_at,
+      action: entry.action,
+      actorEmail: entry.actor_email,
+      targetEmail: entry.target_email,
+      rolesBefore: traegerRoles(entry.roles_before ?? []),
+      rolesAfter: traegerRoles(entry.roles_after ?? []),
+    })),
+    hasMore: data?.has_more ?? false,
   };
 }
 

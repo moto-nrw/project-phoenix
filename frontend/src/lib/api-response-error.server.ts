@@ -257,12 +257,32 @@ export function handleApiError(
     );
   }
 
+  if (isClientDisconnect(error, request)) {
+    // The browser closed the connection while its body was being read
+    // (navigation, superseded request). Nobody receives this response and no
+    // code failed, so it is no Sentry event (FRONTEND-1C).
+    logger.debug("api_route_client_aborted");
+    return problemResponse(400, problemTitle(400), undefined, request);
+  }
+
   // Unknown errors are logged as errors and return 500
   captureBffException(error, request);
   logger.error("api route error without status", {
     error: error instanceof Error ? error.message : String(error),
   });
   return problemResponse(500, "internal error", request);
+}
+
+// Node rejects an incoming request's body with `Error("aborted")` and code
+// ECONNRESET when the client disconnects before the body is complete. A
+// failed backend fetch is a TypeError that carries ECONNRESET on its cause
+// only, so it is still reported.
+function isClientDisconnect(error: unknown, request?: Request): boolean {
+  if (request?.signal?.aborted) return true;
+  return (
+    error instanceof Error &&
+    (error as NodeJS.ErrnoException).code === "ECONNRESET"
+  );
 }
 
 function isProblemEnvelope(

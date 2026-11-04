@@ -1,0 +1,11 @@
+{
+  "api/operator/announcements/[id]/publish": [
+    "POST operator /operator/announcements/id%2F1/publish"
+  ],
+  "api/operator/announcements/[id]/stats": [
+    "GET operator /operator/announcements/id%2F1/stats"
+  ],
+  "api/operator/announcements/[id]/views": [
+    "GET operator /operator/announcements/id%2F1/views"
+  ]
+}

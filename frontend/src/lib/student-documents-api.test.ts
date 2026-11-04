@@ -20,6 +20,7 @@ const backendDocument = {
   content_type: "application/pdf",
   uploaded_at: "2026-08-05T09:30:00Z",
   sensitive: true,
+  has_file: true,
 };
 
 const visibleCategories = [
@@ -65,11 +66,66 @@ describe("studentDocumentsService.list", () => {
         contentType: "application/pdf",
         uploadedAt: "2026-08-05T09:30:00Z",
         sensitive: true,
+        hasFile: true,
+        accidentReport: null,
       },
     ]);
     // The caller's visible categories come straight from the backend: the tab
     // must not decide for itself which categories it may show.
     expect(result.visibleCategories).toEqual(visibleCategories);
+  });
+
+  it("maps an accident report with its status and version (#4771)", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json(
+        {
+          data: {
+            student_id: 42,
+            documents: [
+              {
+                ...backendDocument,
+                id: 92,
+                category: "unfallanzeige",
+                category_label: "Unfallanzeige",
+                has_file: false,
+                accident_report: {
+                  status: "signed",
+                  version: 2,
+                  supersedes_id: "91",
+                  signed_at: "2026-08-06T07:00:00Z",
+                  signed_digitally: true,
+                  occurred_at: "2026-08-05T08:40:00Z",
+                  location: "Schulhof",
+                  description: "Gestürzt",
+                  injured_body_parts: "",
+                  injury_kind: "Prellung",
+                  witnesses: "",
+                  first_aid: "",
+                  doctor_visited: false,
+                  doctor: "",
+                  parents_notified: "",
+                  supervisor: "Frau Berger",
+                },
+              },
+            ],
+            visible_categories: visibleCategories,
+          },
+        },
+        { status: 200 },
+      ),
+    );
+
+    const [report] = (await studentDocumentsService.list("42")).documents;
+
+    expect(report?.hasFile).toBe(false);
+    expect(report?.accidentReport).toMatchObject({
+      status: "signed",
+      version: 2,
+      supersedesId: "91",
+      supersededById: null,
+      parentsNotifiedAt: null,
+      signedDigitally: true,
+    });
   });
 
   it("returns an empty list when the child has no documents", async () => {
@@ -104,14 +160,15 @@ describe("studentDocumentsService.upload", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", fetchMock);
-    mockGetCachedSession.mockResolvedValue({ user: { token: "jwt-token" } });
+    mockGetCachedSession.mockResolvedValue({ user: { id: "1" } });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("posts multipart form data with a bearer token and no Content-Type", async () => {
+  // The route reads the session cookie; the browser holds no token (#5005).
+  it("posts multipart form data without Authorization or Content-Type", async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 201 }));
 
     await studentDocumentsService.upload("42", pdf(), "attest");
@@ -122,7 +179,7 @@ describe("studentDocumentsService.upload", () => {
     expect(init.method).toBe("POST");
     // Setting Content-Type here would clobber the multipart boundary the
     // browser generates for a FormData body.
-    expect(init.headers).toEqual({ Authorization: "Bearer jwt-token" });
+    expect(init.headers).toBeUndefined();
 
     const body = init.body as FormData;
     expect(body).toBeInstanceOf(FormData);
@@ -139,8 +196,11 @@ describe("studentDocumentsService.upload", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("refuses to upload when the session carries no token", async () => {
-    mockGetCachedSession.mockResolvedValueOnce({ user: {} });
+  it("refuses to upload when the callback stripped the session", async () => {
+    mockGetCachedSession.mockResolvedValueOnce({
+      user: {},
+      error: "RefreshTokenError",
+    });
 
     await expect(
       studentDocumentsService.upload("42", pdf(), "attest"),

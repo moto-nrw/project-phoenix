@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // reminderAnnouncement creates an announcement carrying a reminder at
@@ -189,7 +190,7 @@ func TestParentAnnouncementReminderDueScanBatchLoadsTargets(t *testing.T) {
 	large := readDue(counter, 3)
 
 	assert.Equal(t, len(small), len(large), "due scan reads must not grow with the number of reminders")
-	testpkg.AssertQueryBudget(t, "repositories.parent_announcements.due_reminders", large)
+	querybudgets.AssertQueryBudget(t, "repositories.parent_announcements.due_reminders", large)
 }
 
 // TestParentAnnouncementReminderFeedOrderAndTenantIsolation pins what the

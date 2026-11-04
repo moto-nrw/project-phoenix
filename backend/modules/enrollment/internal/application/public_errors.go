@@ -39,6 +39,7 @@ var publicErrorAliases = []struct {
 	{careplan.ErrBookingChildNotFound, enrollment.ErrDecisionChildNotFound},
 	{careplan.ErrCareOfferingNotFound, enrollment.ErrCareOfferingNotFound},
 	{careplan.ErrCareOfferingConfigInvalid, enrollment.ErrCareOfferingInvalid},
+	{careplan.ErrCareOfferingSourceConflict, enrollment.ErrCareOfferingSourceConflict},
 	{careplan.ErrCareOfferingTemplatePeriodMismatch, enrollment.ErrCareOfferingTemplatePeriodMismatch},
 	{careplan.ErrCareOfferingGroupRuleConflict, enrollment.ErrCareOfferingGroupRuleConflict},
 	{careplan.ErrCareOfferingDaysRequired, enrollment.ErrCareOfferingDaysRequired},

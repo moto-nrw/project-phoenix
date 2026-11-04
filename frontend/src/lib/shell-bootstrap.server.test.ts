@@ -31,7 +31,6 @@ function session(overrides: Partial<Session["user"]> = {}): Session {
       id: "7",
       name: "Admin",
       email: "admin@example.com",
-      token: "access-token",
       roles: ["admin"],
       permissions: ["admin:*"],
       tenantId: 1,
@@ -40,6 +39,10 @@ function session(overrides: Partial<Session["user"]> = {}): Session {
     expires: "2099-01-01",
   };
 }
+
+// The browser session carries no token (#5005); the layout hands the
+// session's access token to the preload separately.
+const ACCESS_TOKEN = "access-token";
 
 const tenant = {
   tenantId: 1,
@@ -70,7 +73,6 @@ beforeEach(() => {
 describe("loadShellBootstrap", () => {
   it("loads every shell field an admin's sidebar renders, in one pass", async () => {
     routeBackend({
-      "/api/settings/schema": { data: { tabs: [] } },
       "/api/me/profile": {
         data: { id: 7, first_name: "Ada", last_name: "L", email: "a@b" },
       },
@@ -122,7 +124,7 @@ describe("loadShellBootstrap", () => {
       "/api/platform/announcements/unread": { data: [{ id: 1 }] },
     });
 
-    const shell = await loadShellBootstrap(session(), tenant);
+    const shell = await loadShellBootstrap(session(), tenant, ACCESS_TOKEN);
 
     expect(shell.accountId).toBe("7");
     expect(shell.reminders).toEqual({
@@ -136,7 +138,9 @@ describe("loadShellBootstrap", () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(shell.userContext?.incomplete).toBe(false);
-    expect(shell.settingsSchema).toEqual({ tabs: [] });
+    // The settings schema stays out of the shell (#4996): the navigation
+    // reads its switches from the tenant resolve.
+    expect(calledEndpoints()).not.toContain("/api/settings/schema");
     expect(shell.profile?.firstName).toBe("Ada");
     expect(shell.accountTenants?.[0]?.organizationName).toBe("Org");
     expect(shell.supervision).toEqual({
@@ -150,11 +154,17 @@ describe("loadShellBootstrap", () => {
       openRooms: [{ id: 8, name: "Kreativraum" }],
       overviewOk: true,
     });
+    // The list itself, not only its count (#4989): badge, home block and
+    // /tagesinformationen read it from one SWR entry.
+    expect(shell.staffNoticesToday).toEqual([
+      { requires_acknowledgement: true },
+      { requires_acknowledgement: true, acknowledged_at: "2026-09-01" },
+      { requires_acknowledgement: false },
+    ]);
     expect(shell.counts).toEqual({
       staffAbsencesPending: 2,
       messagesUnread: 4,
       teamChatUnread: undefined,
-      staffNoticesPending: 1,
       changeRequestsPending: 3,
       enrollmentRequestsPending: 1,
       careWithdrawalsPending: 5,
@@ -184,17 +194,18 @@ describe("loadShellBootstrap", () => {
         permissions: ["groups:read", "users:read"],
       }),
       tenant,
+      ACCESS_TOKEN,
     );
 
-    expect(shell.settingsSchema).toBeUndefined();
     expect(shell.supervision?.overviewOk).toBe(false);
+    // A caregiver holds users:read, so today's notices are loaded.
+    expect(shell.staffNoticesToday).toEqual([]);
     expect(shell.counts).toEqual({
       staffAbsencesPending: undefined,
       // The messages badge needs the tenant flag and users:read (the inbox
       // route's permission); a caregiver holds it, so the count is loaded.
       messagesUnread: 2,
       teamChatUnread: undefined,
-      staffNoticesPending: 0,
       changeRequestsPending: undefined,
       enrollmentRequestsPending: undefined,
       careWithdrawalsPending: undefined,
@@ -222,19 +233,22 @@ describe("loadShellBootstrap", () => {
     const shell = await loadShellBootstrap(
       session({ roles: ["extern"], permissions: ["schedules:read"] }),
       tenant,
+      ACCESS_TOKEN,
     );
 
     expect(shell.counts?.messagesUnread).toBeUndefined();
+    // Today's notices need users:read as well; the browser asks no one.
+    expect(shell.staffNoticesToday).toBeUndefined();
     const endpoints = calledEndpoints();
     expect(endpoints).toContain("/api/me/groups/supervised");
     expect(endpoints).not.toContain("/api/messages/unread-count");
+    expect(endpoints).not.toContain("/api/staff-notices/today");
   });
 
   it("falls back to the own-supervision endpoint when the overview is refused", async () => {
     routeBackend({
       "/api/me/profile": new Error("500"),
       "/auth/account/tenants": new Error("500"),
-      "/api/settings/schema": new Error("500"),
       "/api/students/ogs-group-navigation": new Error("500"),
       "/api/active/supervisors/all": new Error("API error (403)"),
       "/api/me/groups/supervised": {
@@ -252,13 +266,13 @@ describe("loadShellBootstrap", () => {
     });
     vi.mocked(loadUserContext).mockRejectedValueOnce(new Error("500"));
 
-    const shell = await loadShellBootstrap(session(), tenant);
+    const shell = await loadShellBootstrap(session(), tenant, ACCESS_TOKEN);
 
     expect(shell.userContext).toBeUndefined();
     expect(shell.profile).toBeUndefined();
-    expect(shell.settingsSchema).toBeUndefined();
     expect(shell.accountTenants).toBeUndefined();
     expect(shell.reminders).toBeUndefined();
+    expect(shell.staffNoticesToday).toBeUndefined();
     expect(shell.announcements).toBeUndefined();
     expect(shell.supervision).toBeUndefined();
     expect(Object.values(shell.counts).every((v) => v === undefined)).toBe(
@@ -278,7 +292,7 @@ describe("loadShellBootstrap", () => {
       "/api/rooms?is_open_room=true": { data: [] },
     });
 
-    const shell = await loadShellBootstrap(session(), tenant);
+    const shell = await loadShellBootstrap(session(), tenant, ACCESS_TOKEN);
 
     expect(shell.supervision).toEqual({
       groups: [],
@@ -302,9 +316,10 @@ describe("loadShellBootstrap", () => {
       supervisedRoomNames: [],
       incomplete: true,
       unavailableSections: ["supervised_groups"],
+      schoolSwitches: null,
     });
 
-    const shell = await loadShellBootstrap(session(), tenant);
+    const shell = await loadShellBootstrap(session(), tenant, ACCESS_TOKEN);
 
     expect(shell.userContext).toBeUndefined();
   });
@@ -331,7 +346,7 @@ describe("loadShellBootstrap", () => {
     );
 
     try {
-      const shellPromise = loadShellBootstrap(session(), tenant);
+      const shellPromise = loadShellBootstrap(session(), tenant, ACCESS_TOKEN);
       await vi.advanceTimersByTimeAsync(1500);
       const shell = await shellPromise;
 

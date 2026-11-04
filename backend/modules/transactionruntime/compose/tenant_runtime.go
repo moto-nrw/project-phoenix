@@ -53,11 +53,11 @@ func bindTenantRuntime(unitOfWork *postgres.PostgresUnitOfWork, err error, retry
 	return runtime.WithContextAdapters(auditlog.ContextWithTenant, auditlog.ContextWithTransaction), nil
 }
 
-// ObserveLockWaits reports the lock wait of every statement on db to the
-// unit-of-work observer of the statement's context.
-func ObserveLockWaits(db *bun.DB) {
-	database.AttachLockWaitHook(db, tenant.ObserveLockWait)
-}
+// ObserveLockWaits attaches NewLockWaitHook to db for every component holding it.
+func ObserveLockWaits(db *bun.DB) { database.AttachQueryHook(db, NewLockWaitHook()) }
+
+// NewLockWaitHook reports lock waits to the unit-of-work observer of each statement's context.
+func NewLockWaitHook() bun.QueryHook { return database.NewLockWaitQueryHook(tenant.ObserveLockWait) }
 
 // OpenPool opens the superuser pool on the configured database DSN.
 func OpenPool() (*bun.DB, error) { return database.DBConn() }

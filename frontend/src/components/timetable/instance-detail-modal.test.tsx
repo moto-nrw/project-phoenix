@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 
 // Vaul (SlideOver) rendert in jsdom nichts: das Detailpanel bliebe im Test
 // leer. Wie in components/ui/slide-over.test.tsx, plus ein Close-Knopf, der
@@ -84,7 +84,7 @@ vi.mock("vaul", async () => {
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
+    data: { user: { id: "1", token: "test-token" } },
     status: "authenticated",
     update: vi.fn(),
   })),
@@ -208,6 +208,71 @@ describe("InstanceDetailModal", () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  // Die Wochenliste kommt ohne Kinderzeilen (#4996): bis sie da sind, steht
+  // unter der Überschrift „Kinder“ ein angesagter Ladehinweis, nie eine
+  // Liste, in der alle als „Erwartet“ stehen.
+  it("announces the children as loading under their heading", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({ students: [] })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        studentsPending
+      />,
+    );
+
+    const status = screen.getByText("Kinder werden geladen…");
+    expect(status).toHaveAttribute("role", "status");
+    expect(
+      screen.getByRole("heading", { name: "Kinder" }).parentElement,
+    ).toContainElement(status);
+    expect(screen.queryByText("Erwartet")).not.toBeInTheDocument();
+  });
+
+  it("shows the load error of the children under their heading", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({ students: [] })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        studentsPending
+        studentsLoadError={{
+          message: "Die Liste der Kinder ist gerade nicht erreichbar.",
+          attempt: 0,
+        }}
+      />,
+    );
+
+    const alert = screen.getByText(
+      "Die Liste der Kinder ist gerade nicht erreichbar.",
+    );
+    expect(
+      screen.getByRole("heading", { name: "Kinder" }).parentElement,
+    ).toContainElement(alert);
+    expect(
+      screen.queryByText("Kinder werden geladen…"),
+    ).not.toBeInTheDocument();
+  });
+
+  // Ein Dienst hat keine Kinder: kein Ladehinweis, der danach ersatzlos
+  // verschwindet.
+  it("loads no children for a duty", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({ activityType: "duty", students: [] })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        studentsPending
+      />,
+    );
+
+    // Anker: das Panel steht, mit der Notiz des Termins.
+    expect(screen.getByText("ohne Nuesse")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Kinder werden geladen…"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the complete 255-character title", () => {
@@ -344,26 +409,34 @@ describe("InstanceDetailModal", () => {
       mutate,
     } as unknown as ReturnType<typeof useSWR>);
 
-    render(
-      <InstanceDetailModal
-        instance={instance()}
-        onClose={vi.fn()}
-        onLifecycleAction={vi.fn()}
-        canManage={false}
-        fetchParticipantNames
-      />,
-    );
+    const config = useSWRConfig();
+    await vi.mocked(useSWRConfig).withImplementation(
+      () => ({ ...config, mutate }),
+      async () => {
+        render(
+          <InstanceDetailModal
+            instance={instance()}
+            onClose={vi.fn()}
+            onLifecycleAction={vi.fn()}
+            canManage={false}
+            fetchParticipantNames
+          />,
+        );
 
-    expect(
-      await screen.findByText(
-        catalogText("general.unavailable", "die Liste der Teilnehmenden"),
-      ),
-    ).toBeVisible();
-    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
-    expect(screen.queryByText("Keine Kinder geplant.")).not.toBeInTheDocument();
-    expect(screen.queryByText("Personal #11")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
-    expect(mutate).toHaveBeenCalled();
+        expect(
+          await screen.findByText(
+            catalogText("general.unavailable", "die Liste der Teilnehmenden"),
+          ),
+        ).toBeVisible();
+        expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
+        expect(
+          screen.queryByText("Keine Kinder geplant."),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByText("Personal #11")).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+        expect(mutate).toHaveBeenCalled();
+      },
+    );
   });
 
   // The header count already leaves these children out (#1747). Listing them

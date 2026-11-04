@@ -21,6 +21,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 const (
@@ -74,6 +75,12 @@ type billingRunBody struct {
 	Unbilled        int                   `json:"unbilled"`
 	NumberRangeSet  bool                  `json:"number_range_set"`
 	BilledInAdvance bool                  `json:"billed_in_advance"`
+	// MissingDebtorNumbers counts the invoices without a debtor number
+	// while the Träger asks for one (#5621).
+	MissingDebtorNumbers int `json:"missing_debtor_numbers"`
+	// PaymentTextMissingDebtorNumbers counts the invoices with an amount
+	// and without a debtor number while the payment text names it (#5622).
+	PaymentTextMissingDebtorNumbers int `json:"payment_text_missing_debtor_numbers"`
 }
 
 type billingPeriodBody struct {
@@ -420,6 +427,6 @@ func TestBillingRunListQueryBudgetIsFlat(t *testing.T) {
 	startBillingRun(t, f, billing, second.ID)
 	assert.Len(t, list(billingRunsPath), len(runs), "the list reads the same statements for any number of runs")
 	assert.Len(t, list(billingRunsPath+"/periods"), len(periods), "the periods read the same statements for any number of periods")
-	testpkg.AssertQueryBudget(t, "api.traeger.billing_runs", runs)
-	testpkg.AssertQueryBudget(t, "api.traeger.billing_run_periods", periods)
+	querybudgets.AssertQueryBudget(t, "api.traeger.billing_runs", runs)
+	querybudgets.AssertQueryBudget(t, "api.traeger.billing_run_periods", periods)
 }

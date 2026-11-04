@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// Registered error codes (error-registry.json) the simulation expects from
+// Registered error codes (error-registry/) the simulation expects from
 // the device API.
 const (
 	codeRFIDTagNotFound      = "iot.rfid_tag_not_found"

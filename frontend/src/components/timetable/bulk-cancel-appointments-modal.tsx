@@ -28,6 +28,7 @@ import {
 import { formatClosingDayRange } from "~/lib/closing-day-helpers";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { SCHOOL_VACATION_HINTS_KEY } from "~/lib/school-vacations-api";
 import { useTenantMutateMatching } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
 import type { BulkCancelResult } from "~/lib/timetable-types";
@@ -42,6 +43,8 @@ const PLAN_CACHE_PREFIXES = [
   "timetable-gaps-",
   // Planungszeiträume des Betreuungsplans: die Verwendung zählt Termine.
   "database-calendar-periods-list",
+  // Der Ferienhinweis zählt die Regeltermine in den Ferien (#5345).
+  SCHOOL_VACATION_HINTS_KEY,
 ] as const;
 
 type CountState =

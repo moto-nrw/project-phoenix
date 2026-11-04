@@ -13,7 +13,8 @@ import (
 // 400/500 classification clean and rejects same-phase violations before any
 // write happens. storedOfferingIDs are the template's currently persisted
 // ids (nil on create) — a vanished id is tolerated only when stored, a newly
-// submitted unknown id rejects (see CareOfferingSeriesValidator). The resync
+// submitted unknown id rejects (see CareOfferingSeriesValidator); likewise
+// an inactive id is skipped only when stored (#5313). The resync
 // stays the authoritative guard; this call only pulls the same verdict
 // forward. Read-only test facades may leave the hook nil, in which case the
 // resync remains the only check.

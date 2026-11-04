@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // TestStudentNotesListQueryBudget pins the note card's read against the
@@ -81,5 +82,5 @@ func TestStudentNotesListQueryBudget(t *testing.T) {
 	large := list(8)
 
 	assert.Equal(t, small, large, "the statement count must not grow with the note card")
-	testpkg.AssertQueryBudget(t, "modules.peopledirectory.student_notes.list", reads())
+	querybudgets.AssertQueryBudget(t, "modules.peopledirectory.student_notes.list", reads())
 }

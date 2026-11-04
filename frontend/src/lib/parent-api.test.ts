@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import {
   listMyChildren,
+  listMyDocuments,
   listEnrollableSchools,
   fetchParentEnrollmentProfile,
   submitParentEnrollment,
@@ -1025,6 +1026,20 @@ function mkThreadView(overrides: Partial<ThreadView> = {}): ThreadView {
 // --- listMessageThreads -------------------------------------------------------
 
 describe("listMessageThreads", () => {
+  it("returns team and leadership conversations; links and replies carry the audience", async () => {
+    const team = mkThreadSummary({ audience: "team" });
+    const legacy = mkThreadSummary({ thread_id: "legacy", student_id: "43" });
+    const leadership = mkThreadSummary({
+      thread_id: "leadership",
+      audience: "leadership",
+      last_message_body: "Confidential reply",
+      unread: 1,
+    });
+    mockFetch(async () => jsonResponse({ data: [team, legacy, leadership] }));
+
+    expect(await listMessageThreads()).toEqual([team, legacy, leadership]);
+  });
+
   it("GETs /api/parent/me/messages and returns the data array", async () => {
     let seenURL = "";
     mockFetch(async (input) => {
@@ -1047,33 +1062,43 @@ describe("listMessageThreads", () => {
 
   it("returns an empty array when data is missing from the envelope", async () => {
     mockFetch(async () => jsonResponse({}));
-    // parent-api's getJson unwraps { data } or returns the body directly;
-    // an envelope with no data field falls through to the body itself which
-    // is an empty object — cast defensively.
     const out = await listMessageThreads();
-    // Either empty array or empty object-like — the key invariant is no throw.
-    expect(out).toBeDefined();
+    expect(out).toEqual([]);
   });
 });
 
 // --- fetchMessagesUnreadCount -------------------------------------------------
 
 describe("fetchMessagesUnreadCount", () => {
-  it("GETs /api/parent/me/messages/unread-count and returns the count", async () => {
-    let seenURL = "";
+  it("counts unread team, leadership and group conversations, as the inbox shows them", async () => {
+    const seenURLs: string[] = [];
     mockFetch(async (input) => {
-      seenURL = typeof input === "string" ? input : input.toString();
-      return jsonResponse({ unread_count: 7 });
+      const url = typeof input === "string" ? input : input.toString();
+      seenURLs.push(url);
+      if (url.endsWith("/group-threads")) {
+        return jsonResponse({ data: [{ unread: 4 }, { unread: 0 }] });
+      }
+      return jsonResponse({
+        data: [
+          mkThreadSummary({ audience: "team", unread: 7 }),
+          mkThreadSummary({ unread: 2 }),
+          mkThreadSummary({ audience: "team", unread: 0 }),
+          mkThreadSummary({ audience: "leadership", unread: 3 }),
+        ],
+      });
     });
-    const count = await fetchMessagesUnreadCount();
-    expect(count).toBe(7);
-    expect(seenURL).toContain("/api/parent/me/messages/unread-count");
+    expect(await fetchMessagesUnreadCount()).toBe(4);
+    expect(seenURLs).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("/api/parent/me/messages"),
+        expect.stringContaining("/api/parent/me/messages/group-threads"),
+      ]),
+    );
   });
 
-  it("returns 0 when unread_count is missing from the response", async () => {
-    mockFetch(async () => jsonResponse({}));
-    const count = await fetchMessagesUnreadCount();
-    expect(count).toBe(0);
+  it("returns 0 when no conversations are returned", async () => {
+    mockFetch(async () => jsonResponse({ data: [] }));
+    expect(await fetchMessagesUnreadCount()).toBe(0);
   });
 
   it("throws on non-OK", async () => {
@@ -1299,5 +1324,142 @@ describe("getChildToday", () => {
     mockFetch(async () => jsonResponse({ detail: "kaputt" }, { status }));
 
     await expect(getChildToday("42")).rejects.toThrow();
+  });
+});
+
+describe("relationship refusal signals", () => {
+  it("signals a child refusal for the account that started the request", async () => {
+    const { bindSessionAccount } = await import("~/lib/session-account");
+    const listener = vi.fn();
+    window.addEventListener("parent-access-refused", listener);
+    bindSessionAccount("parent-a");
+    try {
+      mockFetch(async () =>
+        jsonResponse({ code: "care.child_not_linked" }, { status: 403 }),
+      );
+      await expect(getChildFeatures("42")).rejects.toMatchObject({
+        code: "care.child_not_linked",
+      });
+      expect(listener).toHaveBeenCalledOnce();
+      expect(
+        (listener.mock.calls[0]?.[0] as CustomEvent | undefined)?.detail,
+      ).toMatchObject({
+        account: "parent-a",
+        error: { code: "care.child_not_linked", status: 403 },
+      });
+    } finally {
+      bindSessionAccount(null);
+      window.removeEventListener("parent-access-refused", listener);
+    }
+  });
+  it("does not let a late refusal of another account evict the new account", async () => {
+    const { bindSessionAccount } = await import("~/lib/session-account");
+    const listener = vi.fn();
+    window.addEventListener("parent-access-refused", listener);
+    bindSessionAccount("parent-a");
+    let respond!: (response: Response) => void;
+    mockFetch(
+      () =>
+        new Promise((resolve) => {
+          respond = resolve;
+        }),
+    );
+    try {
+      const request = getChildFeatures("42");
+      bindSessionAccount("parent-b");
+      respond(jsonResponse({ code: "care.child_not_linked" }, { status: 403 }));
+      await expect(request).rejects.toMatchObject({
+        code: "care.child_not_linked",
+      });
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      bindSessionAccount(null);
+      window.removeEventListener("parent-access-refused", listener);
+    }
+  });
+});
+
+describe("readable children after a refused write", () => {
+  it("does not evict child access for a refused write permission", async () => {
+    const { bindSessionAccount } = await import("~/lib/session-account");
+    const listener = vi.fn();
+    window.addEventListener("parent-access-refused", listener);
+    bindSessionAccount("parent-a");
+    try {
+      mockFetch(async () =>
+        jsonResponse(
+          { code: "care.guardian_permission_denied" },
+          { status: 403 },
+        ),
+      );
+      await expect(postChildMessage("42", "Test")).rejects.toMatchObject({
+        code: "care.guardian_permission_denied",
+      });
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      bindSessionAccount(null);
+      window.removeEventListener("parent-access-refused", listener);
+    }
+  });
+  it("keeps child access when the document inbox permission is refused", async () => {
+    const { bindSessionAccount } = await import("~/lib/session-account");
+    const listener = vi.fn();
+    window.addEventListener("parent-access-refused", listener);
+    bindSessionAccount("parent-a");
+    try {
+      mockFetch(async () =>
+        jsonResponse(
+          { code: "care.guardian_permission_denied" },
+          { status: 403 },
+        ),
+      );
+      await expect(listMyDocuments()).rejects.toMatchObject({
+        code: "care.guardian_permission_denied",
+      });
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      bindSessionAccount(null);
+      window.removeEventListener("parent-access-refused", listener);
+    }
+  });
+  it("reports lost portal access before the daily status falls back to unknown", async () => {
+    const { bindSessionAccount } = await import("~/lib/session-account");
+    const listener = vi.fn();
+    window.addEventListener("parent-access-refused", listener);
+    bindSessionAccount("parent-a");
+    try {
+      mockFetch(async () =>
+        jsonResponse(
+          { code: "care.guardian_permission_denied" },
+          { status: 403 },
+        ),
+      );
+      await expect(getChildToday("42")).resolves.toEqual(UNKNOWN_CHILD_TODAY);
+      expect(listener).toHaveBeenCalledOnce();
+    } finally {
+      bindSessionAccount(null);
+      window.removeEventListener("parent-access-refused", listener);
+    }
+  });
+  it("evicts child access when reading the relationship is refused", async () => {
+    const { bindSessionAccount } = await import("~/lib/session-account");
+    const listener = vi.fn();
+    window.addEventListener("parent-access-refused", listener);
+    bindSessionAccount("parent-a");
+    try {
+      mockFetch(async () =>
+        jsonResponse(
+          { code: "care.guardian_permission_denied" },
+          { status: 403 },
+        ),
+      );
+      await expect(getChildFeatures("42")).rejects.toMatchObject({
+        code: "care.guardian_permission_denied",
+      });
+      expect(listener).toHaveBeenCalledOnce();
+    } finally {
+      bindSessionAccount(null);
+      window.removeEventListener("parent-access-refused", listener);
+    }
   });
 });

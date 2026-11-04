@@ -1,5 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { CheckCircle2 } from "lucide-react";
+import { Checkbox } from "~/components/ui/checkbox";
+import { Input } from "~/components/ui/input";
+import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import {
   FormErrorAlert,
@@ -56,9 +59,6 @@ export function CreateAccountModal({
     id: string;
     email: string;
   } | null>(null);
-
-  const inputClasses =
-    "focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none";
 
   // Load roles on mount
   useEffect(() => {
@@ -216,30 +216,36 @@ export function CreateAccountModal({
       title={`Konto erstellen — ${schoolName}`}
       footer={
         result ? (
-          <button
+          <Button
             type="button"
             onClick={handleClose}
-            className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+            variant="primary"
+            size="md"
+            className="flex-1"
           >
             Schließen
-          </button>
+          </Button>
         ) : (
           <>
-            <button
+            <Button
               type="button"
               onClick={handleClose}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              variant="outline"
+              size="md"
+              className="flex-1"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={(e) => void handleSubmit(e)}
               disabled={saving || !isFormValid}
-              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              variant="primary"
+              size="md"
+              className="flex-1"
             >
               {saving ? "Wird erstellt..." : "Konto erstellen"}
-            </button>
+            </Button>
           </>
         )
       }
@@ -271,61 +277,46 @@ export function CreateAccountModal({
           <FormErrorAlert message={formErrors.error} />
           <LoadErrorAlert error={rolesLoad.error} />
           <div className="grid grid-cols-2 gap-4">
-            <FormField
+            <Input
+              id="create-account-first-name"
+              name="first_name"
+              type="text"
+              autoComplete="given-name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              maxLength={255}
               label="Vorname"
-              htmlFor="create-account-first-name"
               required
               error={formErrors.fieldError("first_name")}
-            >
-              <input
-                id="create-account-first-name"
-                name="first_name"
-                type="text"
-                autoComplete="given-name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                maxLength={255}
-                className={inputClasses}
-                required
-              />
-            </FormField>
-            <FormField
+              controlSize="compact"
+            />
+            <Input
+              id="create-account-last-name"
+              name="last_name"
+              type="text"
+              autoComplete="family-name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              maxLength={255}
               label="Nachname"
-              htmlFor="create-account-last-name"
               required
               error={formErrors.fieldError("last_name")}
-            >
-              <input
-                id="create-account-last-name"
-                name="last_name"
-                type="text"
-                autoComplete="family-name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                maxLength={255}
-                className={inputClasses}
-                required
-              />
-            </FormField>
+              controlSize="compact"
+            />
           </div>
-          <FormField
+          <Input
+            id="create-account-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            maxLength={255}
             label="E-Mail"
-            htmlFor="create-account-email"
             required
             error={formErrors.fieldError("email")}
-          >
-            <input
-              id="create-account-email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              maxLength={255}
-              className={inputClasses}
-              required
-            />
-          </FormField>
+            controlSize="compact"
+          />
           <FormField
             label="System-Rolle"
             htmlFor="create-account-role"
@@ -353,35 +344,31 @@ export function CreateAccountModal({
             </SelectWithChevron>
           </FormField>
           {showCaregiverToggle && (
-            <div className="flex items-start gap-3 rounded-lg border border-gray-200 px-4 py-3">
-              <input
-                id="create-account-caregiver-enabled"
-                type="checkbox"
-                checked={caregiverEnabled}
-                onChange={(e) => setCaregiverEnabled(e.target.checked)}
-                className="text-moto-blue focus:ring-moto-blue mt-0.5 h-4 w-4 rounded border-gray-300"
-              />
-              <div className="space-y-1">
-                <label
-                  htmlFor="create-account-caregiver-enabled"
-                  className="text-sm font-medium text-gray-900"
-                >
-                  Auch in der Betreuung einsetzen
-                </label>
-                <p className="text-sm text-gray-600">
-                  Vergibt zusätzlich die Rolle Betreuung und legt das nötige
-                  Staff-/Teacher-Profil an.
-                </p>
-              </div>
+            <div className="rounded-lg border border-gray-200 px-4 py-3">
+              <label
+                htmlFor="create-account-caregiver-enabled"
+                className="flex cursor-pointer items-start gap-3 text-sm font-medium text-gray-900"
+              >
+                <Checkbox
+                  id="create-account-caregiver-enabled"
+                  checked={caregiverEnabled}
+                  onChange={(e) => setCaregiverEnabled(e.target.checked)}
+                  aria-describedby="create-account-caregiver-hint"
+                  className="mt-0.5"
+                />
+                Auch in der Betreuung einsetzen
+              </label>
+              <p
+                id="create-account-caregiver-hint"
+                className="mt-1 pl-8 text-sm text-gray-600"
+              >
+                Vergibt zusätzlich die Rolle Betreuung und legt das nötige
+                Staff-/Teacher-Profil an.
+              </p>
             </div>
           )}
-          <FormField
-            label="Passwort"
-            htmlFor="create-account-password"
-            required
-            error={formErrors.fieldError("password")}
-          >
-            <input
+          <div>
+            <Input
               id="create-account-password"
               name="password"
               type="password"
@@ -389,31 +376,28 @@ export function CreateAccountModal({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               maxLength={255}
-              className={inputClasses}
+              label="Passwort"
               required
+              error={formErrors.fieldError("password")}
+              controlSize="compact"
             />
             <p className="mt-1 text-xs text-gray-500">
               Mind. 8 Zeichen, Groß-/Kleinbuchstaben, Zahl und Sonderzeichen
             </p>
-          </FormField>
-          <FormField
+          </div>
+          <Input
+            id="create-account-confirm-password"
+            name="confirm_password"
+            type="password"
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            maxLength={255}
             label="Passwort bestätigen"
-            htmlFor="create-account-confirm-password"
             required
             error={formErrors.fieldError("confirm_password")}
-          >
-            <input
-              id="create-account-confirm-password"
-              name="confirm_password"
-              type="password"
-              autoComplete="new-password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              maxLength={255}
-              className={inputClasses}
-              required
-            />
-          </FormField>
+            controlSize="compact"
+          />
           <FormField
             label="Position"
             htmlFor="create-account-position"

@@ -184,6 +184,38 @@ func TestDemoSchoolQueueRequeuesInterruptedDeferredSeed(t *testing.T) {
 	assert.False(t, claimed.Seeded, "a partial seed must be rebuilt, not replayed")
 }
 
+func TestDemoSchoolQueueKeepsAHiddenDeferredSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: schoolID, SeedJSON: []byte(`{"deferred_seed_pending":true}`),
+	}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
+	// The visitor starts over (or the deploy smoke hides its school) while
+	// the history is still seeding, so the deferred seed fails. The deleted
+	// school keeps its subdomain, so a rebuild could only fail (BACKEND-14).
+	_, err = db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolID).Exec(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, queue.RequeueDeferredDemoSchoolOrder(ctx, slug))
+	require.NoError(t, queue.RequeueDeferredDemoSchoolOrders(ctx))
+	assert.Equal(t, organizationtenancy.DemoSchoolReady, demoSchoolProgress(t, db, slug).Status)
+	claimed, err := queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	assert.Nil(t, claimed, "a hidden school is not rebuilt")
+	assert.Error(t, queue.RequeueDeferredDemoSchoolOrder(ctx, "no-such-order"))
+}
+
 func TestDemoSchoolQueueRetiresTheFinalDeferredSeedFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

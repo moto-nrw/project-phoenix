@@ -1,0 +1,43 @@
+{
+  "kicker": "Terminy w jednym miejscu",
+  "title": "Kalendarz",
+  "description": "Terminy i wydarzenia Państwa dzieci w jednym miejscu.",
+  "empty": "W najbliższych 3 miesiącach nie ma żadnych terminów.",
+  "groups": {
+    "thisWeek": "W tym tygodniu",
+    "nextWeek": "W przyszłym tygodniu",
+    "later": "Później"
+  },
+  "when": "{date} o {time}",
+  "whenAllDay": "{date}, cały dzień",
+  "forChild": "Dotyczy: {name}",
+  "types": {
+    "care": "Godziny opieki",
+    "invitation": "Zaproszenie",
+    "appointment": "Termin w OGS"
+  },
+  "accept": "Przyjmij",
+  "decline": "Odrzuć",
+  "accepted": "Termin przyjęty.",
+  "declined": "Termin odrzucony.",
+  "answeredAccepted": "Przyjęto",
+  "answeredDeclined": "Odrzucono",
+  "cancelledByOgs": "Odwołany przez OGS",
+  "previousMonth": "Poprzedni miesiąc",
+  "nextMonth": "Następny miesiąc",
+  "close": "Zamknij",
+  "allDay": "Cały dzień",
+  "moreEvents": "+ {count} więcej",
+  "responseRequired": "Wymagana odpowiedź",
+  "weekdayShort": {
+    "1": "Pn",
+    "2": "Wt",
+    "3": "Śr",
+    "4": "Cz",
+    "5": "Pt",
+    "6": "So",
+    "7": "Nd"
+  },
+  "errorObjectList": "lista terminów",
+  "errorObjectResponse": "odpowiedź"
+}

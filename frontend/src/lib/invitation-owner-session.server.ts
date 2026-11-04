@@ -27,7 +27,7 @@ export async function withInvitationOwnerSession(
     return problemResponse(403, "Unsupported portal", request);
   }
   const handler = async (authRequest: {
-    auth: import("next-auth").Session | null;
+    auth: import("~/server/auth/shared").ServerSession | null;
   }) => {
     const token = authRequest.auth?.user?.token;
     if (!token) {

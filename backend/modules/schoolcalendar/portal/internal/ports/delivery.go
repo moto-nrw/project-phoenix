@@ -29,12 +29,17 @@ type Audience struct {
 	TenantID                       int64
 	Scope                          string
 	GuardianAccountIDs, StudentIDs []int64
+	// StaffAccountIDs address a staff-scoped event: the Lehrkraft of an
+	// Elternsprechtag (#4801).
+	StaffAccountIDs []int64
 }
 type Event struct {
 	Type, IdempotencyKey, RelatedType string
 	RelatedID                         int64
 	Title, Body, DeepLink, Priority   string
-	Audience                          Audience
+	// SchoolDeepLink is the destination in moto schule.
+	SchoolDeepLink string
+	Audience       Audience
 }
 type Notifier interface {
 	Notify(context.Context, Event) error

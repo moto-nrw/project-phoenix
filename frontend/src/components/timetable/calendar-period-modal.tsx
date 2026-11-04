@@ -19,6 +19,7 @@ import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import {
   SlideOver,
@@ -40,7 +41,6 @@ import {
   formatPeriodUsage,
 } from "~/lib/calendar-period-helpers";
 import { createLogger } from "~/lib/logger";
-import { timetableRequiredMark } from "./timetable-style";
 
 const logger = createLogger({ component: "CalendarPeriodModal" });
 
@@ -690,10 +690,13 @@ const HOLIDAY_CLOSING_DAY_HINT =
 function Field({ label, htmlFor, required = false, children }: FieldProps) {
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={htmlFor} className="text-xs font-semibold text-gray-700">
+      <FieldLabel
+        htmlFor={htmlFor}
+        required={required}
+        className="mb-0 text-xs font-semibold"
+      >
         {label}
-        {required && <span className={timetableRequiredMark}>*</span>}
-      </label>
+      </FieldLabel>
       {children}
     </div>
   );

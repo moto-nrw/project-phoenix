@@ -106,50 +106,57 @@ export function DateOfBirthPicker({
 
   return (
     <>
-      <div className="mt-1 grid grid-cols-3 gap-2">
-        <CustomSelect
-          value={day}
-          onChange={handleDay}
-          name={name}
-          ariaLabel={tr("structured.day")}
-          ariaDescribedBy={describedBy}
-          invalid={Boolean(error)}
-          options={[
-            { value: "", label: tr("structured.day") },
-            ...Array.from({ length: daysInMonth }, (_, i) => {
-              const dayValue = String(i + 1);
-              return { value: dayValue, label: dayValue };
-            }),
-          ]}
-        />
-        <CustomSelect
-          value={month}
-          onChange={handleMonth}
-          ariaLabel={tr("structured.month")}
-          ariaDescribedBy={describedBy}
-          invalid={Boolean(error)}
-          options={[
-            { value: "", label: tr("structured.month") },
-            ...monthLabels.map((label, idx) => ({
-              value: String(idx + 1),
-              label,
-            })),
-          ]}
-        />
-        <CustomSelect
-          value={year}
-          onChange={handleYear}
-          ariaLabel={tr("structured.year")}
-          ariaDescribedBy={describedBy}
-          invalid={Boolean(error)}
-          options={[
-            { value: "", label: tr("structured.year") },
-            ...years.map((yearValue) => ({
-              value: String(yearValue),
-              label: String(yearValue),
-            })),
-          ]}
-        />
+      {/* Three columns only fit the longest month name ("Październik") from
+          a 24rem field on, and only with the wider month column; narrower
+          fields, such as the nested child card on a phone, stack the selects
+          instead of cutting the labels. e2e/layout/date-of-birth-picker.spec.ts
+          measures these classes in a browser. */}
+      <div className="@container mt-1">
+        <div className="grid grid-cols-1 gap-2 @sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)]">
+          <CustomSelect
+            value={day}
+            onChange={handleDay}
+            name={name}
+            ariaLabel={tr("structured.day")}
+            ariaDescribedBy={describedBy}
+            invalid={Boolean(error)}
+            options={[
+              { value: "", label: tr("structured.day") },
+              ...Array.from({ length: daysInMonth }, (_, i) => {
+                const dayValue = String(i + 1);
+                return { value: dayValue, label: dayValue };
+              }),
+            ]}
+          />
+          <CustomSelect
+            value={month}
+            onChange={handleMonth}
+            ariaLabel={tr("structured.month")}
+            ariaDescribedBy={describedBy}
+            invalid={Boolean(error)}
+            options={[
+              { value: "", label: tr("structured.month") },
+              ...monthLabels.map((label, idx) => ({
+                value: String(idx + 1),
+                label,
+              })),
+            ]}
+          />
+          <CustomSelect
+            value={year}
+            onChange={handleYear}
+            ariaLabel={tr("structured.year")}
+            ariaDescribedBy={describedBy}
+            invalid={Boolean(error)}
+            options={[
+              { value: "", label: tr("structured.year") },
+              ...years.map((yearValue) => ({
+                value: String(yearValue),
+                label: String(yearValue),
+              })),
+            ]}
+          />
+        </div>
       </div>
       {error && (
         <p id={errorId} className="text-moto-red mt-1 text-xs">

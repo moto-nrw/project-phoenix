@@ -21,6 +21,8 @@ func parentMessagingFromOwnerAnnouncementFeedItem(v communication.PortalAnnounce
 		ResponseDeadline:        v.ResponseDeadline,
 		SystemKind:              v.SystemKind,
 		SchoolName:              v.SchoolName,
+		SenderName:              v.SenderName,
+		SenderSchoolClass:       v.SenderSchoolClass,
 		ReadAt:                  v.ReadAt,
 		AcknowledgedAt:          v.AcknowledgedAt,
 		ReminderSentAt:          v.ReminderSentAt,

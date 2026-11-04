@@ -40,7 +40,7 @@ func newPageChrome(landscape bool, title, subtitle string, generatedAt time.Time
 	// images by holder ID (an MD5 of the bytes), so the logo XObject is
 	// written once and referenced from every page instead of being
 	// re-embedded per page (~logo-size bytes saved per page).
-	logo, err := gopdf.ImageHolderByBytes(motoLogoPNG)
+	logo, err := pdfImage(motoLogoPNG)
 	if err != nil {
 		return nil, fmt.Errorf("logo holder: %w", err)
 	}

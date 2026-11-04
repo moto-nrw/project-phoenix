@@ -6,23 +6,6 @@ import { Hammer, Quote, ShieldCheck, UsersRound } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Skeleton } from "~/components/ui/skeleton";
 
-export const authInputClassName =
-  "moto-content-surface h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500";
-
-/**
- * The auth input class, red when a server or pre-send check refused the
- * field (#2517). `moto-content-surface` is unlayered and would win over the
- * red border, so an invalid field drops it (as CustomSelect does).
- */
-export function authInputClass(invalid: boolean): string {
-  return invalid
-    ? authInputClassName.replace(
-        "moto-content-surface",
-        "border-moto-red bg-moto-red/5",
-      )
-    : authInputClassName;
-}
-
 /** The hint under a refused auth field, linked by `aria-describedby`. */
 export function AuthFieldError({
   id,
@@ -38,9 +21,6 @@ export function AuthFieldError({
     </p>
   );
 }
-
-export const authPrimaryButtonClassName =
-  "inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-400";
 
 type AuthShellVariant =
   "tenant" | "parents" | "tenant-select" | "reset" | "operator";
@@ -194,7 +174,7 @@ export function AuthShellSkeleton() {
       aria-hidden="true"
     >
       <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
-        <div className="moto-content-surface w-full max-w-[29rem] rounded-2xl border px-6 py-10 shadow-sm sm:p-8">
+        <div className="moto-content-surface w-full max-w-[29rem] rounded-2xl border px-6 py-10 sm:p-8">
           <Skeleton className="mx-auto h-10 w-28 rounded-lg" />
           <Skeleton className="mx-auto mt-8 h-3 w-24" />
           <Skeleton className="mx-auto mt-3 h-8 w-64 max-w-full" />
@@ -275,7 +255,7 @@ export function AuthShell({
     <main className="moto-auth-shell-background grid min-h-screen lg:grid-cols-[minmax(0,0.9fr)_minmax(34rem,1.1fr)]">
       <section className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
         <div className={cn("w-full", formMaxWidth)}>
-          <div className="moto-content-surface rounded-2xl border px-6 py-10 shadow-sm sm:p-8">
+          <div className="moto-content-surface rounded-2xl border px-6 py-10 sm:p-8">
             {brand && <div className="mb-8 flex justify-center">{brand}</div>}
             <div className="mb-9 text-center">
               <p
@@ -380,6 +360,7 @@ function AuthTestimonialPanel({
             <button
               key={`${item.author}-${item.metric}`}
               type="button"
+              aria-pressed={index === activeIndex}
               aria-label={items.testimonialButtonLabel.replace(
                 "{number}",
                 String(index + 1),

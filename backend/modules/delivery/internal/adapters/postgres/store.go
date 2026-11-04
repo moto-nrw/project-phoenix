@@ -32,7 +32,10 @@ const emailEnqueueSQL = `
 			WHERE idempotency_key IS NOT NULL DO NOTHING
 		RETURNING id
 	)
+	-- A new entry wakes the worker once this transaction commits
+	-- (EmailEnqueuedChannel); a duplicate wakes nobody.
 	SELECT id, FALSE AS duplicate, FALSE AS conflict FROM inserted
+		CROSS JOIN LATERAL (SELECT pg_notify('` + EmailEnqueuedChannel + `', '') WHERE inserted.id IS NOT NULL) AS wake
 	UNION ALL
 	SELECT id, TRUE AS duplicate,
 		NOT (kind = ? AND recipient = ?::jsonb AND payload = ?::jsonb
@@ -41,27 +44,6 @@ const emailEnqueueSQL = `
 	FROM platform.email_outbox
 	WHERE ? IS NOT NULL AND COALESCE(tenant_id, 0) = COALESCE(?, 0)
 		AND COALESCE(organization_id, 0) = COALESCE(?, 0) AND idempotency_key = ?
-		AND NOT EXISTS (SELECT 1 FROM inserted)
-	LIMIT 1`
-
-const pushEnqueueSQL = `
-	WITH inserted AS (
-		INSERT INTO platform.push_outbox (
-			tenant_id, kind, idempotency_key, related_entity_type,
-			related_entity_id, recipient, payload, status, next_retry_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
-		ON CONFLICT (tenant_id, idempotency_key)
-			WHERE idempotency_key IS NOT NULL DO NOTHING
-		RETURNING id
-	)
-	SELECT id, FALSE AS duplicate, FALSE AS conflict FROM inserted
-	UNION ALL
-	SELECT id, TRUE AS duplicate,
-		NOT (kind = ? AND recipient = ?::jsonb AND payload = ?::jsonb
-		 AND COALESCE(related_entity_type, '') = COALESCE(?, '')
-		 AND COALESCE(related_entity_id, 0) = COALESCE(?, 0)) AS conflict
-	FROM platform.push_outbox
-	WHERE ? IS NOT NULL AND tenant_id = ? AND idempotency_key = ?
 		AND NOT EXISTS (SELECT 1 FROM inserted)
 	LIMIT 1`
 
@@ -75,37 +57,6 @@ const emailExistingEnqueueSQL = `
 		AND idempotency_key = ?
 	LIMIT 1`
 
-const pushExistingEnqueueSQL = `
-	SELECT id, TRUE AS duplicate,
-		NOT (kind = ? AND recipient = ?::jsonb AND payload = ?::jsonb
-		 AND COALESCE(related_entity_type, '') = COALESCE(?, '')
-		 AND COALESCE(related_entity_id, 0) = COALESCE(?, 0)) AS conflict
-	FROM platform.push_outbox
-	WHERE tenant_id = ? AND idempotency_key = ?
-	LIMIT 1`
-
-const emailClaimSQL = `
-	UPDATE platform.email_outbox
-	SET status = 'claimed', lease_token = uuid_generate_v4()::text,
-		lease_expires_at = ?, updated_at = ?
-	WHERE id IN (
-		SELECT id FROM platform.email_outbox
-		WHERE (status = 'pending' AND next_retry_at <= ?)
-			OR (status = 'claimed' AND lease_expires_at <= ? AND lease_token NOT LIKE 'dispatch:%')
-		ORDER BY next_retry_at, id FOR UPDATE SKIP LOCKED LIMIT ?
-	) RETURNING *`
-
-const pushClaimSQL = `
-	UPDATE platform.push_outbox
-	SET status = 'claimed', lease_token = uuid_generate_v4()::text,
-		lease_expires_at = ?, updated_at = ?
-	WHERE id IN (
-		SELECT id FROM platform.push_outbox
-		WHERE (status = 'pending' AND next_retry_at <= ?)
-			OR (status = 'claimed' AND lease_expires_at <= ? AND lease_token NOT LIKE 'dispatch:%')
-		ORDER BY next_retry_at, id FOR UPDATE SKIP LOCKED LIMIT ?
-	) RETURNING *`
-
 const emailDeadLetterExpiredDispatchSQL = `UPDATE platform.email_outbox
 	SET status = 'dead_letter', attempts = attempts + 1, last_error = ?, dead_letter_at = ?,
 		lease_token = NULL, lease_expires_at = NULL, updated_at = ?
@@ -118,7 +69,7 @@ const pushDeadLetterExpiredDispatchSQL = `UPDATE platform.push_outbox
 
 // dispatchOutcomeUnknown explains a dead letter whose worker stopped between
 // the dispatch fence and finalization.
-const dispatchOutcomeUnknown = "delivery outcome unknown: worker stopped during provider call"
+const dispatchOutcomeUnknown = deliveryContract.DispatchOutcomeUnknown
 
 const emailStartDeliverySQL = `UPDATE platform.email_outbox
 	SET lease_token = CONCAT('dispatch:', lease_token), lease_expires_at = ?, updated_at = ?
@@ -315,39 +266,13 @@ func enqueueEmailIntent(ctx context.Context, db bun.IDB, intent domain.Intent) (
 	return result, nil
 }
 
-// enqueuePushIntent inserts a push intent of a school or reads the one with
-// its idempotency key.
-func enqueuePushIntent(ctx context.Context, db bun.IDB, intent domain.Intent) (domain.Enqueued, error) {
-	var result domain.Enqueued
-	err := db.NewRaw(pushEnqueueSQL,
-		intent.TenantID, intent.Template, intent.IdempotencyKey, intent.RelatedEntityType,
-		intent.RelatedEntityID, intent.Recipient, intent.Payload, intent.NextRetryAt,
-		intent.Template, intent.Recipient, intent.Payload, intent.RelatedEntityType, intent.RelatedEntityID,
-		intent.IdempotencyKey, intent.TenantID, intent.IdempotencyKey,
-	).Scan(ctx, &result)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return domain.Enqueued{}, fmt.Errorf("delivery postgres: enqueue %s: %w", intent.Transport, err)
-	}
-	if result.ID > 0 || intent.IdempotencyKey == nil {
-		return result, nil
-	}
-	err = db.NewRaw(pushExistingEnqueueSQL,
-		intent.Template, intent.Recipient, intent.Payload, intent.RelatedEntityType, intent.RelatedEntityID,
-		intent.TenantID, intent.IdempotencyKey,
-	).Scan(ctx, &result)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return domain.Enqueued{}, fmt.Errorf("delivery postgres: read existing %s intent: %w", intent.Transport, err)
-	}
-	return result, nil
-}
-
 // intentDB resolves the caller's unit of an intent: the Träger transaction
-// for a mail of a Träger (ADR 0110), the tenant or administrative one
-// otherwise.
+// for a mail (ADR 0110) or a deferred push (ADR 0126) of a Träger, the
+// tenant or administrative one otherwise.
 func (s *Store) intentDB(ctx context.Context, intent domain.Intent) (bun.IDB, error) {
 	if intent.OrganizationID > 0 {
-		if intent.Transport != domain.TransportEmail || intent.TenantID != 0 {
-			return nil, errors.New("delivery postgres: a Träger intent is an e-mail without a school")
+		if intent.TenantID != 0 {
+			return nil, errors.New("delivery postgres: a Träger intent names no school")
 		}
 		return RequireTraegerDatabase(ctx, intent.OrganizationID)
 	}

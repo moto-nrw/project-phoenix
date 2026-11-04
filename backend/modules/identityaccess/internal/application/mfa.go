@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
@@ -78,6 +79,26 @@ func (m MFAMail) NotifyTrustedDeviceAdded(ctx context.Context, message domain.Tr
 		return identityaccess.ErrMFAStatusUnavailable
 	}
 	return m.Source.NotifyTrustedDeviceAdded(ctx, identityaccess.TrustedDeviceMail(message), deviceID)
+}
+
+// catererMFAResetNotice adapts the root's notice of a caterer's reset
+// (#4497).
+type catererMFAResetNotice func(context.Context, identityaccess.CatererMFAResetMail, string) error
+
+func (n catererMFAResetNotice) NotifyCatererMFAReset(ctx context.Context, message domain.CatererMFAResetMail, resetKey string) error {
+	if resetKey == "" {
+		return identityaccess.ErrMFAStatusUnavailable
+	}
+	return n(ctx, identityaccess.CatererMFAResetMail(message), resetKey)
+}
+
+// ResetNoticeOf binds the root's notice of a caterer's reset; without one
+// the operator's reset is unavailable.
+func ResetNoticeOf(source identityPorts.CatererMFAResetNotice) ports.CatererMFAResetNotice {
+	if source == nil {
+		return nil
+	}
+	return catererMFAResetNotice(source.NotifyCatererMFAReset)
 }
 
 // mfaAuditTrail routes the account events to the authentication ledger and

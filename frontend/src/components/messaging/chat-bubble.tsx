@@ -24,6 +24,8 @@ export function ChatBubble({
   readReceiptLabel,
   deliveryStatus,
   deliveryStatusLabel,
+  pending,
+  pendingLabel,
   showSenderName = true,
   showOwnSenderName = true,
   tone = "staff",
@@ -45,6 +47,13 @@ export function ChatBubble({
   /** Parent-chat receipt. A saved message is sent, a staff read cursor makes it read. */
   deliveryStatus?: "sent" | "read";
   deliveryStatusLabel?: string;
+  /**
+   * An own message on its way or not sent (#5011). Replaces time and
+   * receipt with `pendingLabel`; a failed bubble carries it in red.
+   */
+  pending?: "pending" | "failed";
+  /** Text for `pending`; the staff chat has German defaults. */
+  pendingLabel?: string;
   /** Whether to show the sender label above this bubble. */
   showSenderName?: boolean;
   // Whether to print the sender's name on the viewer's OWN bubbles. The parent
@@ -55,8 +64,17 @@ export function ChatBubble({
   // side's name always shows.
   showOwnSenderName?: boolean;
 }>) {
-  const hideName = !showSenderName || (own && !showOwnSenderName);
+  // A bubble on its way names only its state; the sender is the viewer.
+  const hideName =
+    !showSenderName || (own && !showOwnSenderName) || pending !== undefined;
   const parent = tone === "parent";
+  const pendingText =
+    pending === undefined
+      ? null
+      : (pendingLabel ??
+        (pending === "pending" ? "Wird gesendet" : "Nicht gesendet"));
+  const pendingClass =
+    pending === "failed" ? "font-medium text-moto-red" : "text-gray-500";
   const surface = parent
     ? own
       ? "bg-moto-blue-soft text-gray-900"
@@ -73,6 +91,8 @@ export function ChatBubble({
       ) : null}
       <div
         className={`relative max-w-[84%] rounded-xl px-3 py-2 break-words whitespace-pre-wrap sm:max-w-[72%] lg:max-w-[38rem] ${
+          pending === "pending" ? "opacity-70" : ""
+        } ${
           parent
             ? "text-[15px] leading-5 sm:text-base sm:leading-6"
             : "text-sm leading-5"
@@ -92,8 +112,17 @@ export function ChatBubble({
       </div>
       {parent ? (
         <div className="mt-0.5 flex items-center gap-1 px-1 text-xs text-gray-500">
-          <time dateTime={createdAt}>{formatChatTime(createdAt, locale)}</time>
-          {own && deliveryStatus && deliveryStatusLabel ? (
+          {pendingText !== null ? (
+            <span className={pendingClass}>{pendingText}</span>
+          ) : (
+            <time dateTime={createdAt}>
+              {formatChatTime(createdAt, locale)}
+            </time>
+          )}
+          {pendingText === null &&
+          own &&
+          deliveryStatus &&
+          deliveryStatusLabel ? (
             <span
               className={
                 deliveryStatus === "read" ? "text-moto-blue" : "text-gray-500"
@@ -113,8 +142,14 @@ export function ChatBubble({
       ) : (
         <p className="mt-1 px-1 text-xs text-gray-400">
           {hideName ? "" : `${senderName} · `}
-          {formatChatTime(createdAt, locale)}
-          {readReceiptLabel ? ` · ${readReceiptLabel}` : ""}
+          {pendingText !== null ? (
+            <span className={pendingClass}>{pendingText}</span>
+          ) : (
+            <>
+              {formatChatTime(createdAt, locale)}
+              {readReceiptLabel ? ` · ${readReceiptLabel}` : ""}
+            </>
+          )}
         </p>
       )}
     </div>

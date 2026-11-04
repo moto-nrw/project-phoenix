@@ -59,12 +59,22 @@ func assertFailedExport(t *testing.T, exporter organizationtenancy.TenantExporte
 
 func TestTenantExportDatabaseFailureCannotComplete(t *testing.T) {
 	t.Parallel()
-	db, _, a, _ := exportFixture(t)
-	_, err := db.ExecContext(t.Context(), "DROP TABLE users.teachers")
+	db := testpkg.SetupIsolatedTestDB(t)
+	a := testpkg.Tenant(t)
+	_, err := db.ExecContext(t.Context(), "DROP TABLE users.teachers CASCADE")
 	require.NoError(t, err)
 	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
 	require.NoError(t, err)
 	assertFailedExport(t, exporter, a, t.TempDir())
+}
+
+// Hooks belong to one exporter pool; its rows remain in the test's own
+// tenant. A separate database is only needed by the schema-failure test.
+func exportHookPool(t *testing.T) *bun.DB {
+	t.Helper()
+	db := testpkg.SetupClosableTestDB(t)
+	t.Cleanup(func() { require.NoError(t, db.Close()) })
+	return db
 }
 
 type snapshotExportHook struct {
@@ -84,9 +94,11 @@ func (h *snapshotExportHook) AfterQuery(ctx context.Context, event *bun.QueryEve
 
 func TestTenantExportSnapshotIgnoresConcurrentWrites(t *testing.T) {
 	t.Parallel()
-	db, _, a, _ := exportFixture(t)
+	db := exportHookPool(t)
+	a := testpkg.Tenant(t)
+	testpkg.CreateTestRoom(t, db, "synthetic-original-row")
 	hook := &snapshotExportHook{QueryCounter: testpkg.NewQueryCounter(), action: func() error {
-		_, err := db.NewRaw("INSERT INTO facilities.rooms (id,tenant_id,fixture_school,fixture_label) VALUES (?,?,?,?)", -a, a, a, "synthetic-concurrent-row").Exec(t.Context())
+		_, err := db.NewRaw("INSERT INTO facilities.rooms (id,tenant_id,name) VALUES (?,?,?)", -a, a, "synthetic-concurrent-row").Exec(t.Context())
 		return err
 	}}
 	db.AddQueryHook(hook) //nolint:staticcheck // observe the pool the export already holds
@@ -97,12 +109,14 @@ func TestTenantExportSnapshotIgnoresConcurrentWrites(t *testing.T) {
 	require.NoError(t, hook.err)
 	data, err := os.ReadFile(filepath.Join(out, "facilities.rooms.jsonl"))
 	require.NoError(t, err)
+	require.Contains(t, string(data), "synthetic-original-row", "the snapshot must still export the tenant's committed rooms")
 	require.NotContains(t, string(data), "synthetic-concurrent-row")
 }
 
 func TestTenantExportWriteFailureCannotComplete(t *testing.T) {
 	t.Parallel()
-	db, _, a, _ := exportFixture(t)
+	db := exportHookPool(t)
+	a := testpkg.Tenant(t)
 	out := filepath.Join(t.TempDir(), "partial")
 	hook := &snapshotExportHook{QueryCounter: testpkg.NewQueryCounter(), action: func() error { return os.Mkdir(filepath.Join(out, "active.activity_session_attendance.jsonl"), 0o700) }}
 	db.AddQueryHook(hook) //nolint:staticcheck // inject a disk failure on the pool the export holds
