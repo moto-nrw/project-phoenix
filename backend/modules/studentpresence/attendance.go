@@ -44,8 +44,10 @@ func isClassReason(reason *string) bool {
 func (a Attendance) IsOpen() bool { return a.CheckOutTime == nil }
 
 // AttendanceCompletion reports whether the rows hold an open attendance and
-// whether the child has left for the day; a day can hold both. A last checkout
-// to class is not a departure: the child is still expected back (#5656).
+// whether the child has left for the day; a day can hold both. The closed stay
+// with the latest check-in decides, as in the school status: a corrected earlier
+// stay may end after a later one. A checkout to class is not a departure: the
+// child is still expected back (#5656).
 func AttendanceCompletion(rows []Attendance) (open, completed bool) {
 	var last *Attendance
 	for i := range rows {
@@ -54,7 +56,7 @@ func AttendanceCompletion(rows []Attendance) (open, completed bool) {
 			open = true
 			continue
 		}
-		if last == nil || row.CheckOutTime.After(*last.CheckOutTime) {
+		if last == nil || row.CheckInTime.After(last.CheckInTime) {
 			last = row
 		}
 	}

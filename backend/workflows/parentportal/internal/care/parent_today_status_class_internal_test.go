@@ -43,3 +43,31 @@ func TestAttendanceRowsLeftForClass(t *testing.T) {
 		assert.True(t, AttendanceRowsShowLeft(rows))
 	}
 }
+
+// A corrected exit can leave an earlier stay ending after a later one. The stay
+// with the latest check-in decides, as in the staff's school status.
+func TestAttendanceRowsOverlapFollowsTheLatestCheckIn(t *testing.T) {
+	t.Parallel()
+
+	at := func(hour int) time.Time { return time.Date(2026, 9, 29, hour, 0, 0, 0, time.UTC) }
+	aIn, aOut, bIn, bOut := at(6), at(10), at(8), at(9)
+
+	facts := todayStatusFacts{AttendanceLoaded: true}
+	rows := []Attendance{
+		{CheckInTime: aIn, CheckOutTime: &aOut, LeftForClass: true},
+		{CheckInTime: bIn, CheckOutTime: &bOut},
+	}
+	applyAttendanceRows(&facts, rows)
+	assert.Equal(t, DayStateLeft, deriveTodayStatus(facts).State)
+	assert.Equal(t, "11:00", facts.CheckOut, "the checkout of the deciding stay")
+	assert.True(t, AttendanceRowsShowLeft(rows))
+
+	reversed := []Attendance{
+		{CheckInTime: aIn, CheckOutTime: &aOut},
+		{CheckInTime: bIn, CheckOutTime: &bOut, LeftForClass: true},
+	}
+	facts = todayStatusFacts{AttendanceLoaded: true}
+	applyAttendanceRows(&facts, reversed)
+	assert.Equal(t, DayStateInClass, deriveTodayStatus(facts).State)
+	assert.False(t, AttendanceRowsShowLeft(reversed))
+}
