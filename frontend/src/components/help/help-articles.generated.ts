@@ -922,7 +922,7 @@ export const appOverviewTopic = function appOverviewTopic(): HelpTopic {
       "Steht am Computer oben links unter dem Namen Ihrer Schule `Träger:` und ein Name? Das ist der Träger Ihrer Schule. Die Zeile gibt es nur, wenn Ihr Träger mehrere Schulen hat.",
     ],
     notes: [
-      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen.",
+      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Im Unterricht`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen.",
       "Zu viel verändert? Wählen Sie in `Anpassen` den Knopf `Standardansicht wiederherstellen`.",
     ],
     related: [
@@ -1222,6 +1222,8 @@ export const careTimeComparisonTopic =
       notes: [
         "`Gebucht` ist die Betreuungszeit, die in moto hinterlegt ist: Ankunft bis Abholung laut Wochenplan, mit Ausnahmen für einzelne Tage.",
         "`Tatsächlich` reicht von der ersten Anmeldung bis zur letzten Abmeldung des Tages.",
+        "Zeit im Unterricht wird nicht abgezogen. Unter `Hinweis` steht sie als `Zum Unterricht` mit der Uhrzeit.",
+        "Kommt ein Kind nach dem Unterricht nicht zurück, endet `Tatsächlich` mit dieser Abmeldung. Die `Abweichung` ist dann groß und negativ. `Zum Unterricht: ab` mit der Uhrzeit zeigt, dass es nicht nach Hause gegangen ist.",
         "Eine Überschreitung ist mehr als 15 Minuten früher oder später als gebucht, oder ein Tag ohne Buchung.",
         "Krank, entschuldigt, abgemeldet, Schließtage und Feiertage zählen nicht als zu kurz.",
         "War das Kind an einem abgemeldeten Tag doch da, steht dort `Da ohne Buchung`.",
@@ -1368,6 +1370,7 @@ export const caregiverFirstStepsTopic =
         "Einen erledigten Schritt sehen Sie sich mit `Noch einmal zeigen` wieder an.",
         "Sie können die Checkliste einklappen. Unten rechts steht dann `Erste Schritte` mit der Zahl der offenen Schritte.",
         "Die Tour zeigt nur. Sie meldet kein Kind an und stempelt Sie nicht ein.",
+        "Arbeiten Sie in mehreren OGS? Ihr Stand gilt in allen. Was Sie in einer OGS erledigt haben, ist auch in den anderen erledigt.",
       ],
       differences: [
         "Welche Schritte Sie sehen, hängt von Ihrer OGS ab. Ohne feste Gruppen fehlt zum Beispiel `Meine Gruppe ansehen`.",
@@ -1376,7 +1379,7 @@ export const caregiverFirstStepsTopic =
       troubleshootingDetails: [
         "Die Checkliste erscheint nicht? Sie kommt erst, wenn Ihre OGS eine Gruppe oder ein Kind in moto hat. Wer schon vor der Checkliste mit moto gearbeitet hat, bekommt sie nicht.",
         "Die Tour ist plötzlich weg? Sie endet, wenn Sie eine andere Seite öffnen. Mit `Zeig es mir` starten Sie sie neu.",
-        "Sie haben `Nicht mehr anzeigen` gewählt? Die Checkliste kommt nicht wieder. Die Anleitungen stehen hier in der Hilfe.",
+        "Sie haben `Nicht mehr anzeigen` gewählt? Die Checkliste kommt in keiner Ihrer OGS wieder. Die Anleitungen stehen hier in der Hilfe.",
       ],
       related: [
         HELP_TOPICS.appOverview,
@@ -2791,6 +2794,7 @@ export const firstStepsTopic = function firstStepsTopic(): HelpTopic {
     troubleshootingDetails: [
       "Die Tour ist plötzlich weg? Sie endet, wenn Sie eine andere Seite öffnen. Mit `Zeig es mir` starten Sie sie neu.",
       "Sie haben `Nicht mehr anzeigen` gewählt? Die Checkliste kommt nicht wieder. Die Anleitungen zu jedem Schritt stehen hier in der Hilfe, zum Beispiel unter `Weitere Themen`.",
+      "Sie wechseln aus dem Träger-Portal in die OGS und sehen keine Checkliste? Wer `Nicht mehr anzeigen` einmal gewählt hat, sieht sie in keiner OGS des Trägers mehr. Die Leitungen vor Ort sehen sie weiter.",
     ],
     related: [
       HELP_TOPICS.leadGoLive,
@@ -3807,6 +3811,8 @@ export const leadRosterDeviationTopic =
         "`Manuell` heißt: An- und Abmeldungen werden nicht übernommen. Die Kinder pflegen Sie selbst.",
         "Die Startseite zeigt die Aufgabe `Regeltermine prüfen`, solange ein Regeltermin abweicht.",
         "Wechseln Sie beim Bearbeiten die `Zielgruppe` auf `Angebot`, zeigt moto dieselbe Vorschau pro Wochentag.",
+        // Schule am Berg: nur „Randstunde“ gewählt, Ganztagskinder fielen weg.
+        "Ein Kind fällt weg, wenn es an diesem Tag in keinem gewählten Angebot angemeldet ist. Ist es in einem anderen Angebot angemeldet, nennt die Vorschau dieses Angebot. Wählen Sie `Angebot dazunehmen` oder `Angebote dazunehmen`. Dann bleibt das Kind auf der Liste.",
         "Beim Anlegen eines Regeltermins schlägt moto ein passendes Angebot vor. Mit `Angebot übernehmen` verbinden Sie den neuen Regeltermin gleich mit dem Angebot. Schlägt moto mehrere Angebote zusammen vor, heißt der Knopf `Angebote übernehmen`.",
         "Passen beim Anlegen mehrere Angebotskombinationen gleich gut? Wählen Sie einen der Knöpfe mit den Angebotsnamen. Er übernimmt alle dort genannten Angebote zusammen.",
         "Haben Kinder ein Angebot gebucht, aber an manchen Tagen keinen passenden Regeltermin? Dann steht über den Regelterminen die Liste `Angebote ohne Regeltermin`. Jede Zeile nennt Angebot, Klassen und Wochentage. Wählen Sie `Regeltermin anlegen`: Der neue Regeltermin übernimmt die Kinder dieses Angebots aus den genannten Klassen. Oder verbinden Sie einen bestehenden Regeltermin mit dem Angebot.",
@@ -9789,6 +9795,8 @@ export const traegerBillingRunTopic =
             "Wählen Sie `Stornieren`.",
             "Wählen Sie im Menü der Rechnung `Aufschlüsselung ansehen` und dann `Neu ausstellen`.",
             "moto öffnet einen Lauf in der Vorschau. Dort steht die Familie mit dem Hinweis `Ersetzt` und der alten Nummer.",
+            "Hatte die alte Rechnung Korrekturen, stehen sie bei `Übernommene Korrekturen`. Sie zählen schon in der neuen Rechnung mit. Prüfen Sie jede davon.",
+            "Stimmt eine Korrektur nicht mehr, wählen Sie bei ihr das Menü mit den drei Punkten und dann `Ändern` oder `Entfernen`.",
             "Prüfen Sie die Rechnung und wählen Sie `Lauf freigeben`. Die neue Rechnung bekommt eine neue Nummer.",
           ],
         },
@@ -9838,6 +9846,8 @@ export const traegerBillingRunTopic =
         "Storno und Gutschrift bekommen ihre Nummer aus demselben Nummernkreis wie die Rechnungen. In der Aufschlüsselung einer Rechnung steht unter `Verlauf` ihr Storno, ihre Gutschriften und die neue Rechnung.",
         "Sind die Schreiben des Laufs schon erstellt, bekommen Storno und Gutschrift ihr Schreiben sofort. Sie senden es wie die anderen Schreiben unter `Versand per Mail`.",
         "Nach einem Storno lässt sich die Debitorennummer der Anmeldung wieder ändern. Die neue Rechnung übernimmt sie.",
+        "Eine übernommene Korrektur senkt den Betrag höchstens auf 0 €. Ist der Beitrag jetzt niedriger als auf der alten Rechnung, steht das bei der Korrektur.",
+        "Gutschriften der alten Rechnung werden nicht übernommen. Sie sind eigene Dokumente. Die Vorschau nennt sie nur als Hinweis.",
         "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
       ],
       differences: [
@@ -9976,6 +9986,22 @@ export const traegerHolidayContributionTopic =
           ],
         },
         {
+          title: "Einstellen, welches Kind das erste Kind ist",
+          description:
+            "Das erste Kind zahlt den vollen Preis. Für die anderen Kinder gilt die Ermäßigung.",
+          steps: [
+            "Wählen Sie in der Navigation `Einstellungen` und dann den Bereich `Ferienbetreuung`.",
+            "Wählen Sie bei `Welches Kind ist das erste Kind?`: `Das Kind mit dem höchsten Beitrag` oder `Das älteste Kind`.",
+          ],
+        },
+        {
+          title: "Einstellen, was ein Kostenträger bezahlt",
+          steps: [
+            "Wählen Sie in der Navigation `Einstellungen` und dann den Bereich `Ferienbetreuung`.",
+            "Wählen Sie bei `Was bezahlt ein Kostenträger?`: `Betrag nach der Ermäßigung` oder `Vollen Preis`. Beim vollen Preis gilt die Ermäßigung nur für die anderen Kinder.",
+          ],
+        },
+        {
           title: "Kostenträger anlegen",
           description:
             "Ein Kostenträger bezahlt den Beitrag für eine Familie, zum Beispiel das Jugendamt bei Leistungsbezug. Sie fordern den Betrag dann beim Kostenträger an.",
@@ -9990,11 +10016,14 @@ export const traegerHolidayContributionTopic =
       result:
         "Eltern sehen den Preis jedes Zeitmodells schon bei der Wahl der Wochen. Den Beitrag sehen sie vor dem Absenden der Ferienanmeldung. Beim Bestätigen hält moto den Beitrag fest.",
       notes: [
-        "Geschwister sind Kinder derselben Ferienanmeldung oder von Anmeldungen, die das Träger-Büro als Geschwister zusammengeführt hat. Das Kind mit dem höchsten Preis ist das erste Kind und zahlt voll.",
+        "Geschwister sind Kinder derselben Ferienanmeldung oder von Anmeldungen, die das Träger-Büro als Geschwister zusammengeführt hat. Das erste Kind zahlt voll. Am Anfang ist das das Kind mit dem höchsten Preis. Sie können auch das älteste Kind wählen.",
+        "Haben zwei Kinder denselben Rang, zählt die früher eingegangene Anmeldung. Danach zählt die Reihenfolge im Formular.",
+        "Eine geänderte Einstellung gilt nur für Anmeldungen, die danach bestätigt werden. Ist von Geschwistern schon eine Anmeldung bestätigt, rechnen alle diese Geschwister weiter wie bisher.",
         "Es gelten die Regeln vom ersten gebuchten Tag der Anmeldung.",
         "Eine Regel gilt nur für Anmeldungen, die nach der Änderung bestätigt werden. Bestätigte Anmeldungen behalten ihren Beitrag.",
         "Ob eine Familie befreit ist oder ein Kostenträger bezahlt, entscheidet das Träger-Büro beim Bestätigen.",
-        "Befreiung heißt: Niemand bezahlt. Bei einem Kostenträger bezahlt die Familie nichts, aber der Kostenträger bezahlt den Betrag nach der Geschwisterermäßigung.",
+        "Befreiung heißt: Niemand bezahlt. Bei einem Kostenträger bezahlt die Familie nichts, aber der Kostenträger bezahlt den Betrag. Am Anfang ist das der Betrag nach der Geschwisterermäßigung. Sie können auch den vollen Preis wählen.",
+        "Bezahlt der Kostenträger den vollen Preis, zählt sein Kind weiter als Geschwisterkind. Die anderen Kinder behalten ihre Ermäßigung.",
         "Einen Kostenträger, der schon gewählt wurde, können Sie nur ausschalten, nicht löschen. Ändern Sie seinen Namen, behalten bestätigte Beiträge und Rechnungen den alten Namen.",
       ],
       differences: [
@@ -10312,7 +10341,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Eine Änderung der Angaben ändert den Ferienbeitrag nicht. Ein schon erstelltes Schreiben an die Familie bleibt, wie es ist. Auch eine schon ausgestellte Rechnung behält die bisherige Anschrift.",
         "Kinder hinzufügen oder entfernen geht nicht. Auch Wochen, Leistungsbezug, Nachweise, Einwilligungen, die Erklärung der Eltern und Gesundheitsangaben ändern Sie hier nicht. Die Wochen ändern Sie mit `Umbuchen`, die Debitorennummer unter `Status`.",
         "Die ausrichtende OGS sieht einen geänderten Namen sofort in ihrer Teilnehmerliste. Bei einem Feriengast steht der neue Name spätestens nach einer Stunde auch in der Gruppe.",
-        "Bei Geschwistern ist das Kind mit dem höchsten Beitrag das 1. Kind. Bei gleichem Beitrag zählt die früher eingegangene Anmeldung zuerst.",
+        "Bei Geschwistern ist das Kind mit dem höchsten Beitrag das 1. Kind. Ihr Träger kann unter `Einstellungen` auch das älteste Kind wählen. Bei gleichem Rang zählt die früher eingegangene Anmeldung zuerst.",
         "Zusammenführen und Trennen rechnen auch einen schon bestätigten Beitrag neu. Der alte Beitrag bleibt gespeichert. Ein offener Abrechnungslauf zeigt den neuen Betrag.",
         "Jede Anmeldung bekommt weiter ihre eigene Rechnung und ihr eigenes Schreiben. Ein Schreiben nennt nie die Kinder oder Eltern der anderen Anmeldung.",
         "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",
@@ -10505,10 +10534,10 @@ export const traegerSchoolSwitchTopic =
       requirements: ["Sie haben die Rolle `Schulzugang`."],
       steps: [
         "Wählen Sie in der Navigation `Schulen`.",
-        "Wählen Sie bei der Schule `Öffnen`.",
+        "Wählen Sie bei der Schule `Schul-App öffnen`.",
       ],
       result:
-        "moto öffnet die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule.",
+        "moto öffnet die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule. Mit `Zurück zur Träger-App` kommen Sie zurück zur Liste Ihrer Schulen.",
       notes: [
         "Sie können mehrere Schulen in mehreren Tabs offen haben.",
         "Haben Sie in einem anderen Tab die Schule gewechselt? Dann stellt moto diesen Tab beim nächsten Klick wieder auf seine Schule um. Dieser Klick wird nicht ausgeführt. Wiederholen Sie ihn danach.",
@@ -10516,7 +10545,8 @@ export const traegerSchoolSwitchTopic =
         "Jedes Öffnen steht im Protokoll der Schule.",
       ],
       differences: [
-        "Sie sehen kein `Öffnen`? Dann haben Sie nicht die Rolle `Schulzugang`. Eine Person mit der Rolle `Leitung` kann sie Ihnen geben.",
+        "Auf Handy und Tablet steht `Zurück zur Träger-App` unter `Mehr`.",
+        "Sie sehen kein `Schul-App öffnen`? Dann haben Sie nicht die Rolle `Schulzugang`. Eine Person mit der Rolle `Leitung` kann sie Ihnen geben.",
       ],
       troubleshootingDetails: [
         "moto zeigt `Die Schule konnte nicht geöffnet werden.`? Der Link gilt nur kurz und nur einmal. Öffnen Sie die Schule noch einmal im Träger-Portal.",
@@ -10558,6 +10588,7 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
       "Im Bereich `Ferienbetreuung` legen Sie fest, ob Sie beim Bestätigen einer Ferienanmeldung die Debitorennummer der Familie abfragen. Diese Einstellung gilt nur im Träger-Büro.",
       "Ebenfalls unter `Ferienbetreuung` schreiben Sie bei `Zahlungstext im Schreiben` einen eigenen Satz, der um die Zahlung bittet. Erlaubte Platzhalter sind {Betrag}, {Zahlungsfrist}, {Rechnungsnummer} und {Debitorennummer}. Darunter zeigt die `Vorschau des Zahlungstexts` den Satz mit Beispielwerten. Ist das Feld leer, steht im Schreiben der eingebaute Satz.",
       "Der eigene Zahlungstext gilt für die Schreiben, die Sie danach erstellen. Fertige Schreiben bleiben, wie sie sind.",
+      "Unter `Ferienbetreuung` legen Sie bei `Ferienbeitrag` auch fest, welches Kind das erste Kind ist und was ein Kostenträger bezahlt. Mehr dazu steht im Artikel `Ferienbeitrag festlegen`.",
     ],
     differences: [
       "Auf dem Handy steht `Einstellungen` in der Leiste unten oder unter `Mehr`.",
@@ -10750,7 +10781,7 @@ export const webAttendanceTopic = function webAttendanceTopic(
           "Öffnen Sie die Karte des Kindes.",
           "Wählen Sie `Anmelden` oder `Abmelden`.",
           "Prüfen Sie den Namen im Fenster.",
-          "Bestätigen Sie mit `Anmelden` oder `Geht nach Hause`.",
+          "Bestätigen Sie mit `Anmelden`. Beim Abmelden wählen Sie `Geht nach Hause` oder `Geht zum Unterricht`.",
         ],
       },
       {
@@ -10784,12 +10815,15 @@ export const webAttendanceTopic = function webAttendanceTopic(
     notes: [
       "Möchten Sie mehrere Kinder ändern? Wählen Sie `Mehrere`.",
       "Der Knopf mit `Alle` lässt kranke und entschuldigte Kinder aus. Das gilt auch für Kinder auf Klassenfahrt oder mit „Kommt heute nicht“. Die Leiste nennt ihre Zahl.",
-      "Im Hinweis `Noch nicht angemeldet` zeigt `Nur „Schule“ zeigen` die Kinder, die noch im Unterricht sind.",
+      "Im Hinweis `Noch nicht angemeldet` zeigt `Nur „Schule“ zeigen` die Kinder, die laut Tagesplan noch in der Schule sind und heute noch nicht da waren.",
       "In der Listenansicht kreuzen Sie die Kinder links an und wählen oben `Anmelden` oder `Abmelden`.",
       // Live geprueft: in `Direkt` schreibt jeder Tipp sofort, ohne Rueckfrage.
       // Ausnahme seit #3324: frühes Gehen öffnet vorher ein Fenster.
       "In `Direkt` meldet jeder Tipp sofort an oder ab. Auf der Karte steht `Tippen zum Anmelden`.",
-      "Geht ein Kind früher als seine Abholzeit, fragt moto nach dem Grund. Der Grund ist freiwillig.",
+      "Geht ein Kind zum Unterricht und kommt danach wieder? Öffnen Sie die Kindakte und wählen Sie `Abmelden`. Wählen Sie dann `Geht zum Unterricht`. Das Kind steht danach auf `Im Unterricht`, nicht auf `Zuhause`.",
+      "Ein Tipp in `Direkt` und die Abmeldung über `Mehrere` zählen sonst als `Geht nach Hause`. Nur wenn ein Kind in einem Raum ist, fragt moto auch dort nach dem Ziel.",
+      "Kommt das Kind zurück, melden Sie es ganz normal an. Kommt es heute nicht zurück, steht es am Ende des Betreuungstags wieder auf `Zuhause`.",
+      "Geht ein Kind früher als seine Abholzeit, fragt moto nach dem Grund. Der Grund ist freiwillig. Das Fenster bietet auch `Geht zum Unterricht` an.",
       "Den Grund sehen Sie danach beim Kind unter `Heutige Abholung`. Mit Anwesenheitsprotokoll steht er auch in der `Tagesauswertung` und im Verlauf.",
     ],
     differences: [

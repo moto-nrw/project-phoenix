@@ -12,11 +12,13 @@ export interface DashboardAnalytics {
    * status. The backend derives it as the remainder of the other buckets
    * (see calculateStudentsHome in services/active/analytics_service.go), so
    * this tile and the Krank/Entschuldigt tiles do not double count. Children
-   * counted in studentsAtSchool are not in it.
+   * counted in studentsAtSchool or studentsInClass are not in it.
    */
   studentsHome: number;
   /** Expected students before their first check-in of the day (#3260). */
   studentsAtSchool: number;
+  /** Checked out to class and not back yet (#5656). */
+  studentsInClass: number;
 
   // Activities & Rooms
   activeActivities: number;
@@ -80,6 +82,7 @@ export interface DashboardAnalyticsResponse {
   students_excused: number;
   students_home: number;
   students_at_school?: number;
+  students_in_class?: number;
   active_activities: number;
   /**
    * Still sent by the backend, deliberately not mapped: the "Freie Räume"
@@ -133,6 +136,7 @@ export function mapDashboardAnalyticsResponse(
     studentsExcused: data.students_excused ?? 0,
     studentsHome: data.students_home ?? 0,
     studentsAtSchool: data.students_at_school ?? 0,
+    studentsInClass: data.students_in_class ?? 0,
     activeActivities: data.active_activities,
     totalRooms: data.total_rooms,
     capacityUtilization: data.capacity_utilization,

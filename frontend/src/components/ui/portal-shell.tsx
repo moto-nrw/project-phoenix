@@ -1,9 +1,10 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { Z_LAYER } from "./overlay-styles";
 import {
   NavigationProgressBar,
   NavigationProgressProvider,
 } from "~/components/ui/navigation-progress";
+import { NavigationScrollPosition } from "~/components/ui/navigation-scroll-position";
 
 /**
  * Das gemeinsame Gerüst aller vier Portale: gepunkteter Hintergrund,
@@ -49,6 +50,9 @@ export function PortalShell({
 }: PortalShellProps) {
   return (
     <NavigationProgressProvider>
+      <Suspense fallback={null}>
+        <NavigationScrollPosition />
+      </Suspense>
       {/*
        * Eine Flex-Spalte von der Wurzel bis zur Inhaltshülle: so reicht die
        * Zeile aus Seitenleiste und <main> immer bis zur Unterkante des

@@ -65,6 +65,7 @@ type correctionRow struct {
 	TotalBeforeCents           int64     `bun:"total_before_cents"`
 	TotalAfterCents            int64     `bun:"total_after_cents"`
 	Reason                     string    `bun:"reason"`
+	CarriedFromNumber          string    `bun:"carried_from_number"`
 	CreatedByAccountID         *int64    `bun:"created_by_account_id"`
 	CreatedAt                  time.Time `bun:"created_at,nullzero,default:current_timestamp"`
 }
@@ -290,7 +291,8 @@ func (s *Store) LockPeriodBilling(ctx context.Context, organizationID int64, ser
 	return err
 }
 
-// RunCorrections lists the corrections of a run in their order.
+// RunCorrections lists the corrections of a run in the order of their
+// positions on the invoice: those carried over first (#5663), then its own.
 func (s *Store) RunCorrections(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingCorrection, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -298,7 +300,7 @@ func (s *Store) RunCorrections(ctx context.Context, organizationID, runID int64)
 	}
 	var rows []correctionRow
 	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).Where("run_id = ?", runID).
-		OrderExpr("id").Scan(ctx); err != nil {
+		OrderExpr("carried_from_number = '', id").Scan(ctx); err != nil {
 		return nil, err
 	}
 	corrections := make([]parentbilling.BillingCorrection, len(rows))
@@ -306,6 +308,7 @@ func (s *Store) RunCorrections(ctx context.Context, organizationID, runID int64)
 		corrections[i] = parentbilling.BillingCorrection{
 			ID: row.ID, ChildID: row.HolidayRegistrationChildID, AmountCents: row.AmountCents, TotalBeforeCents: row.TotalBeforeCents,
 			TotalAfterCents: row.TotalAfterCents, Reason: row.Reason, CreatedByAccountID: row.CreatedByAccountID, CreatedAt: row.CreatedAt,
+			CarriedFromNumber: row.CarriedFromNumber,
 		}
 	}
 	return corrections, nil
@@ -320,7 +323,7 @@ func (s *Store) InsertRunCorrection(ctx context.Context, organizationID int64, r
 	_, err = db.NewInsert().Model(&correctionRow{
 		OrganizationID: organizationID, RunID: run.ID, HolidayPeriodID: run.HolidayPeriodID, HolidayRegistrationID: registrationID,
 		HolidayRegistrationChildID: correction.ChildID, AmountCents: correction.AmountCents, TotalBeforeCents: correction.TotalBeforeCents,
-		TotalAfterCents: correction.TotalAfterCents, Reason: correction.Reason, CreatedByAccountID: &accountID,
+		TotalAfterCents: correction.TotalAfterCents, Reason: correction.Reason, CarriedFromNumber: correction.CarriedFromNumber, CreatedByAccountID: &accountID,
 	}).Exec(ctx)
 	return err
 }

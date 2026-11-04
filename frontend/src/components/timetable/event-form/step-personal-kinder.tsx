@@ -264,6 +264,14 @@ export function StepPersonalKinder({
       update("sourceGradeLevels", suggestion.gradeLevels);
     }
   };
+  // The preview names offerings of the same phase that keep children who
+  // would drop; its button adds them to the selection.
+  const addSourceOfferings = (offeringIds: string[]) => {
+    changeSourceOfferings([
+      ...form.sourceCareOfferingIds,
+      ...offeringIds.filter((id) => !form.sourceCareOfferingIds.includes(id)),
+    ]);
+  };
   const audienceText = targetAudienceText(form, groups);
   const showCohortButton = Boolean(
     targetCohort.label && !loadingStudents && !studentLoadFailed,
@@ -747,6 +755,7 @@ export function StepPersonalKinder({
                       templateId={sourcePreviewTemplateId}
                       form={form}
                       from={sourcePreviewFrom}
+                      onAddOfferings={addSourceOfferings}
                     />
                   ) : suggestedRoster ? (
                     <DraftOfferingSourcePreview
@@ -756,6 +765,7 @@ export function StepPersonalKinder({
                       from={
                         form.date >= berlinTodayISO() ? form.date : undefined
                       }
+                      onAddOfferings={addSourceOfferings}
                     />
                   ) : sourceRosterDiff ? (
                     <div className="rounded-md border border-gray-200 bg-gray-50 p-3">

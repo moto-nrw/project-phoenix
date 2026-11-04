@@ -759,6 +759,8 @@ export const ERROR_CATALOG = {
         "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
       "parent_billing.billing_run_released":
         "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
+      "parent_billing.carried_correction_not_found":
+        "Diese Korrektur wird in diesem Lauf nicht mehr vorgeschlagen. Bitte laden Sie die Seite neu.",
       "parent_billing.contribution_rule_invalid":
         "Bitte prüfen Sie die markierten Felder.",
       "parent_billing.contribution_rule_not_found":

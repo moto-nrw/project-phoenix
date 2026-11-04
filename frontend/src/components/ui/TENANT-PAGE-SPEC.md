@@ -57,8 +57,9 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Eine Zahl, die schon auf einer Fläche im Inhalt steht (Kachel, Karte),
    steht nicht noch einmal in der Statuszeile. Dann bleibt `stats` leer.
    Erklärtext, den man nur zum Kennenlernen braucht, gehört in `info`: er
-   liegt hinter einem Info-Knopf neben dem Titel (Popover, per Tipp und
-   Tastatur, auch mit Link) und kostet im Alltag keine Kartenzeile (#4385).
+   liegt hinter einem Info-Knopf neben dem Titel (Popover, per Darüberfahren
+   mit der Maus, Tipp und Tastatur, auch mit Link) und kostet im Alltag keine
+   Kartenzeile (#4385, #5682).
    Text, den man bei jedem Besuch braucht, bleibt eine `SectionCard`.
 4. **Aktionen gehören in `actions`, und dort steht GENAU EINE sichtbar.**
    Keine eigene Button-Zeile unter oder über dem Kopf, keine Zeile, die nur

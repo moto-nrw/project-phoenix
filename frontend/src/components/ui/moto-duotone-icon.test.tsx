@@ -90,6 +90,22 @@ describe("MotoDuotoneIcon", () => {
     );
   });
 
+  it("leaves both colors to its CSS classes when requested", () => {
+    const { container } = render(
+      <MotoDuotoneIcon
+        icon={BuildingsIcon}
+        tone="timeTracking"
+        colorMode="class"
+        className="text-moto-time-tracking-strong [--moto-icon-secondary:var(--color-moto-time-tracking-light)]"
+      />,
+    );
+    const icon = container.querySelector("svg");
+
+    expect(icon).toHaveClass("text-moto-time-tracking-strong");
+    expect(icon?.style.color).toBe("");
+    expect(icon?.style.getPropertyValue("--moto-icon-secondary")).toBe("");
+  });
+
   it("exposes an accessible name when the icon carries meaning", () => {
     render(<MotoDuotoneIcon icon={BuildingsIcon} tone="teal" label="Räume" />);
 

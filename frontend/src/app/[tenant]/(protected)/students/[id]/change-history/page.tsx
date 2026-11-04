@@ -198,9 +198,7 @@ function StudentChangeHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={
-          <ConceptIconTile concept={changeHistoryConcept} variant="page" />
-        }
+        leading={<ConceptIconTile concept={changeHistoryConcept} size="page" />}
         title={displayName || "Änderungsverlauf"}
         stats={studentMeta || entryLine}
         statsLoading={loading}

@@ -105,7 +105,7 @@ type Service interface {
 	// CheckOutStudentWithNote is CheckOutStudent with the optional reason for
 	// an early checkout (#3324). It rejects notes over
 	// studentpresence.MaxCheckoutNoteLength before touching attendance.
-	CheckOutStudentWithNote(ctx context.Context, studentID, staffID int64, note string, skipAuthCheck bool) (*AttendanceResult, error)
+	CheckOutStudentWithNote(ctx context.Context, studentID, staffID int64, note, reason string, skipAuthCheck bool) (*AttendanceResult, error)
 	// CheckOutStudentFromDevice applies "out" for an IoT device after
 	// resolving the active session supervisor used as the checkout principal.
 	CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*AttendanceResult, error)
@@ -116,7 +116,7 @@ type Service interface {
 	// come back as OK=false items, unexpected write errors fail the whole
 	// batch. See the implementation doc comment for the ordering and
 	// idempotency contract.
-	ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action string) (*SchoolCheckinBatchResult, error)
+	ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action, reason string) (*SchoolCheckinBatchResult, error)
 	// ConfirmDailyCheckout processes a deferred daily-checkout confirmation for
 	// an IoT device: it validates the student has today's attendance record and,
 	// when destination is "zuhause" and the student is still checked in, checks

@@ -6,7 +6,8 @@
 // nicht mehr. Jedes Öffnen steht im Protokoll des Laufs. Ein freigegebener
 // Lauf hat die Übersicht für die Kämmerei (#4672). Eine ausgestellte Rechnung
 // lässt sich stornieren und gutschreiben (#4690); eine stornierte Rechnung
-// stellt der nächste Lauf des Zeitraums neu aus.
+// stellt der nächste Lauf des Zeitraums neu aus und schlägt ihre Korrekturen
+// wieder vor (#5663).
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -14,6 +15,7 @@ import {
   BillingCorrectionModal,
   type BillingCorrectionTarget,
 } from "~/components/traeger/billing-correction-modal";
+import { BillingCarriedCorrectionsCard } from "~/components/traeger/billing-carried-corrections-card";
 import { BillingCostTakeoverCard } from "~/components/traeger/billing-cost-takeover-card";
 import { BillingRunOverviewCard } from "~/components/traeger/billing-run-overview-card";
 import { BillingLettersCard } from "~/components/traeger/billing-letters-card";
@@ -56,7 +58,7 @@ function runDescription(run: BillingRunDetail): string {
   if (run.status === "released") {
     return "Die Rechnungen sind ausgestellt und lassen sich nicht mehr ändern.";
   }
-  return "Vorschau mit allen bestätigten Anmeldungen ohne gültige Rechnung. Eine stornierte Rechnung wird hier neu ausgestellt. Neue Bestätigungen kommen bis zur Freigabe dazu.";
+  return "Vorschau mit allen bestätigten Anmeldungen ohne gültige Rechnung. Eine stornierte Rechnung wird hier neu ausgestellt, mit ihren Korrekturen als Vorschlag. Neue Bestätigungen kommen bis zur Freigabe dazu.";
 }
 
 /** „3 Rechnungen mit Betrag haben keine Debitorennummer.“ */
@@ -342,6 +344,15 @@ export default function TraegerBillingRunPage() {
           {run.status === "released" && run.letters ? (
             // A new Storno or Gutschrift is a new letter to send (#4690).
             <BillingMailCard key={run.documents.length} runId={run.id} />
+          ) : null}
+          {preview ? (
+            <BillingCarriedCorrectionsCard
+              run={run}
+              onChange={(child, carried) =>
+                setCorrecting({ kind: "carried", child, carried })
+              }
+              onRemoved={setRun}
+            />
           ) : null}
           <BillingRunOverviewCard
             run={run}

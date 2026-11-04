@@ -7,7 +7,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { School } from "lucide-react";
+import { ExternalLink, School } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -30,7 +30,7 @@ const logger = createLogger({ component: "TraegerSchoolsPage" });
 const SCHOOL_SWITCH_RIGHT = "traeger_school:switch";
 
 /**
- * Without the right the „Öffnen" button is missing; this names the role that
+ * Without the right the „Schul-App öffnen" button is missing; this names the role that
  * carries it and the role that hands it out (#5473, #5471).
  */
 const SCHOOL_SWITCH_MISSING_HINT = `Eine Schule öffnen Sie nur mit der Rolle „${TRAEGER_ROLE_LABELS.school_access}“. Diese Rolle gibt Ihnen eine Person mit der Rolle „${TRAEGER_ROLE_LABELS.leadership}“.`;
@@ -124,15 +124,21 @@ export default function TraegerSchoolsPage() {
               render: (school) => (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="surface"
                   size="compact"
-                  aria-label={`${school.name} öffnen`}
+                  aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
+                  title="Öffnet in einem neuen Tab"
                   disabled={opening !== null}
                   onClick={() => void open(school)}
                 >
-                  {opening === school.id
-                    ? "Wird geöffnet …"
-                    : TRAEGER_HANDOFF_OPEN}
+                  {opening === school.id ? (
+                    "Wird geöffnet …"
+                  ) : (
+                    <>
+                      {TRAEGER_HANDOFF_OPEN}
+                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                    </>
+                  )}
                 </Button>
               ),
             },
@@ -148,7 +154,7 @@ export default function TraegerSchoolsPage() {
         <>
           Alle Schulen Ihres Trägers. Neue Schulen ordnet das moto-Team zu.
           {canOpen &&
-            " „Öffnen“ zeigt die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule."}
+            " „Schul-App öffnen“ zeigt die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule. Mit „Zurück zur Träger-App“ kommen Sie wieder hierher."}
         </>
       }
       stats={
@@ -171,7 +177,6 @@ export default function TraegerSchoolsPage() {
           type="info"
           announce="off"
           message={SCHOOL_SWITCH_MISSING_HINT}
-          className="mb-4"
         />
       )}
       <DataTable

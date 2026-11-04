@@ -158,8 +158,9 @@ type TraegerBrandingSettings interface {
 
 // parentBillingSettings binds the Elternabrechnung's settings port to the
 // Träger level of the settings system: whether the Träger enters the debtor
-// number of the family when it confirms a holiday registration (#5621), and
-// its payment text, which the billing run checks before the release (#5622).
+// number of the family when it confirms a holiday registration (#5621), its
+// payment text, which the billing run checks before the release (#5622), and
+// its choices in the chain of the holiday contribution (#5664).
 type parentBillingSettings struct {
 	settings TraegerBrandingSettings
 }
@@ -178,6 +179,19 @@ func (s parentBillingSettings) PaymentText(ctx context.Context, organizationID i
 		return "", err
 	}
 	return texts[configModels.KeyParentBillingPaymentText], nil
+}
+
+func (s parentBillingSettings) HolidayChain(ctx context.Context, organizationID int64) (parentbilling.HolidayChainSettings, error) {
+	texts, err := s.settings.TraegerTexts(ctx, organizationID, []string{
+		configModels.KeyParentBillingSiblingRank, configModels.KeyParentBillingCostTakeoverOrder,
+	})
+	if err != nil {
+		return parentbilling.HolidayChainSettings{}, err
+	}
+	return parentbilling.HolidayChainSettings{
+		SiblingRank:       texts[configModels.KeyParentBillingSiblingRank],
+		CostTakeoverOrder: texts[configModels.KeyParentBillingCostTakeoverOrder],
+	}, nil
 }
 
 // parentBillingLetterheads binds the letterhead of the letters to the
@@ -405,7 +419,7 @@ func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail)
 			}
 		}
 		registration.Children[i] = parentbilling.HolidayChild{
-			ID: child.ID, Position: i + 1, FirstName: child.FirstName, LastName: child.LastName, Bookings: bookings,
+			ID: child.ID, Position: i + 1, FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate, Bookings: bookings,
 		}
 	}
 	return registration

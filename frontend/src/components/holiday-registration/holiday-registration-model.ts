@@ -611,6 +611,19 @@ export function quoteBookings(
   }));
 }
 
+/**
+ * The place of every child among the children by age, 1 for the oldest, for
+ * Träger that rank siblings by age (#5664). The date of birth stays in the
+ * form: the contribution needs only the order. A child without a date gets 0;
+ * children of the same age share a place.
+ */
+export function quoteAgeRanks(children: readonly ChildDraft[]): number[] {
+  const dates = [
+    ...new Set(children.map((child) => child.birthDate).filter(Boolean)),
+  ].sort((a, b) => a.localeCompare(b));
+  return children.map((child) => dates.indexOf(child.birthDate) + 1);
+}
+
 /** The registration as the backend reads it. */
 export function payloadFromDraft(
   draft: RegistrationDraft,

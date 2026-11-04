@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useState, type ReactNode } from "react";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { Button } from "~/components/ui/button";
+import { Modal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
 import { earlyCheckoutMinutes } from "~/lib/student-time-status";
+import type { SchoolCheckoutReason } from "~/lib/student-api";
 import { useTenantSafe } from "~/lib/tenant-context";
 
 /** Matches the backend limit (studentpresence.MaxCheckoutNoteLength). */
@@ -64,7 +66,9 @@ export function EarlyCheckoutNoteField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
-      <p className="text-xs text-gray-500">Der Grund steht danach beim Kind.</p>
+      <p className="text-xs text-gray-500">
+        Der Grund steht danach beim Kind. Er gilt nur für „Geht nach Hause“.
+      </p>
     </div>
   );
 }
@@ -80,10 +84,16 @@ export interface EarlyCheckoutTarget {
 /**
  * Checkout dialog for the one-tap surfaces (Kindersuche, OGS-Gruppen). A
  * checkout that is not early stays a single tap: `request` returns false and
- * the caller continues as before.
+ * the caller continues as before. A child leaving well before its pickup time
+ * may be going to class (#5656), so the dialog offers that too; the note is for
+ * going home and stays out of it.
  */
 export function useEarlyCheckoutDialog(
-  onConfirm: (studentId: string, note: string) => void,
+  onConfirm: (
+    studentId: string,
+    note: string,
+    reason?: SchoolCheckoutReason,
+  ) => void,
 ): {
   request: (target: EarlyCheckoutTarget) => boolean;
   dialog: ReactNode;
@@ -104,18 +114,47 @@ export function useEarlyCheckoutDialog(
     [isEarly],
   );
 
+  const confirm = (checkoutNote: string, reason?: SchoolCheckoutReason) => {
+    if (!target) return;
+    if (reason) onConfirm(target.studentId, checkoutNote, reason);
+    else onConfirm(target.studentId, checkoutNote);
+    setTarget(null);
+  };
+
   const dialog = (
-    <ConfirmationModal
+    <Modal
       isOpen={target !== null}
       onClose={() => setTarget(null)}
-      onConfirm={() => {
-        if (!target) return;
-        onConfirm(target.studentId, note);
-        setTarget(null);
-      }}
       title="Kind früher abmelden"
-      confirmText="Abmelden"
-      confirmVariant={target?.room ? "danger" : "primary"}
+      mobileSheet
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => setTarget(null)}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            type="button"
+            variant="surface"
+            size="md"
+            onClick={() => confirm("", "class")}
+          >
+            Geht zum Unterricht
+          </Button>
+          <Button
+            type="button"
+            variant={target?.room ? "danger" : "primary"}
+            size="md"
+            onClick={() => confirm(note)}
+          >
+            Geht nach Hause
+          </Button>
+        </>
+      }
     >
       <p className="text-sm text-gray-600">
         Möchten Sie{" "}
@@ -138,7 +177,7 @@ export function useEarlyCheckoutDialog(
           onChange={setNote}
         />
       ) : null}
-    </ConfirmationModal>
+    </Modal>
   );
 
   return { request, dialog };

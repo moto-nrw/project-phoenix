@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { exportsConcept } from "~/lib/concepts/exports";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
 
 import { SectionCard } from "./section-card";
 
@@ -245,6 +246,24 @@ describe("SectionCard als einzige Kopfkarte (#5581)", () => {
     const icon = document.querySelector('[data-moto-duotone-tone="neutral"]');
     expect(icon).toHaveClass("text-gray-700");
     expect(icon).toHaveClass("[--moto-icon-secondary:var(--color-gray-400)]");
+  });
+
+  it("behält die starke Farbe für Zeiterfassungs-Konzeptsymbole", () => {
+    render(
+      <SectionCard title="Zeiterfassung" concept={timeTrackingConcept}>
+        Inhalt
+      </SectionCard>,
+    );
+
+    const icon = document.querySelector<SVGElement>(
+      '[data-moto-duotone-tone="timeTracking"]',
+    );
+    expect(icon).toHaveClass("text-moto-time-tracking-strong");
+    expect(icon).toHaveClass(
+      "[--moto-icon-secondary:var(--color-moto-time-tracking-light)]",
+    );
+    expect(icon?.style.color).toBe("");
+    expect(icon?.style.getPropertyValue("--moto-icon-secondary")).toBe("");
   });
 
   it("zeigt die Fußzone unter dem Inhalt und blendet sie mit der Karte ein und aus", async () => {

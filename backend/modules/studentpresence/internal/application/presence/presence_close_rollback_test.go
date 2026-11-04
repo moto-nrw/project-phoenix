@@ -131,7 +131,7 @@ func TestBatchCheckoutRollsBackAllRowsWhenVisitCloseFails(t *testing.T) {
 		testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, time.Now(), nil)
 		testpkg.CreateTestVisit(t, db, student.ID, group.ID, time.Now(), nil)
 	}
-	_, err := svc.ProcessSchoolCheckinBatch(ctx, studentIDs, staff.ID, activeService.SchoolCheckinActionOut)
+	_, err := svc.ProcessSchoolCheckinBatch(ctx, studentIDs, staff.ID, activeService.SchoolCheckinActionOut, "")
 	require.ErrorIs(t, err, injected)
 	require.Equal(t, 2, presence.closed)
 	visits, err := module.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: studentIDs, OpenOnly: true})
@@ -143,10 +143,10 @@ func TestBatchCheckoutRollsBackAllRowsWhenVisitCloseFails(t *testing.T) {
 	assert.Empty(t, broadcaster.Calls())
 
 	presence.afterClose = nil
-	result, err := svc.ProcessSchoolCheckinBatch(ctx, studentIDs, staff.ID, activeService.SchoolCheckinActionOut)
+	result, err := svc.ProcessSchoolCheckinBatch(ctx, studentIDs, staff.ID, activeService.SchoolCheckinActionOut, "")
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Succeeded)
-	repeat, err := svc.ProcessSchoolCheckinBatch(ctx, studentIDs, staff.ID, activeService.SchoolCheckinActionOut)
+	repeat, err := svc.ProcessSchoolCheckinBatch(ctx, studentIDs, staff.ID, activeService.SchoolCheckinActionOut, "")
 	require.NoError(t, err)
 	require.Len(t, repeat.Results, 2)
 	for _, row := range repeat.Results {

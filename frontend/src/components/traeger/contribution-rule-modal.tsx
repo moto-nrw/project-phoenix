@@ -241,7 +241,8 @@ export function ContributionRuleModal({
                   ariaLabel="Für welche Kinder"
                 />
                 <p className="text-sm text-gray-600">
-                  Das Kind mit dem höchsten Preis ist das erste Kind.
+                  Das erste Kind zahlt voll. Welches das ist, steht unter
+                  Einstellungen im Bereich Ferienbetreuung.
                 </p>
               </div>
               <div className="space-y-2">
@@ -255,6 +256,7 @@ export function ContributionRuleModal({
                   ariaLabel="Wie viel weniger"
                 />
                 <Input
+                  controlSize="compact"
                   id="contribution-rule-value"
                   name={
                     draft.mode === "share"

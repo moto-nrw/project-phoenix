@@ -85,9 +85,14 @@ export function draftPreviewQuery(
   selection: OfferingSelection,
   roster: DraftRoster,
   from?: string,
+  template?: Pick<OfferingSuggestionQuery, "type" | "listKind">,
 ): URLSearchParams {
   const params = new URLSearchParams();
   params.set("period_id", periodId);
+  if (template) {
+    params.set("type", template.type);
+    if (template.listKind) params.set("list_kind", template.listKind);
+  }
   params.set("offering_ids", selection.offeringIds.join(","));
   if (selection.gradeLevels.length > 0) {
     params.set("grade_levels", selection.gradeLevels.join(","));

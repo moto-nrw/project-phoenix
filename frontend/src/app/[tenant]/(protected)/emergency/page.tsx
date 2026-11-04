@@ -4,7 +4,6 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Download, Printer } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
@@ -13,6 +12,7 @@ import {
   type EmergencySnapshotExportMode,
 } from "~/lib/emergency-export-api";
 import { emergencyConcept } from "~/lib/concepts/emergency";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 export default function EmergencyPage() {
   const { status } = useSession({ required: true });
@@ -65,9 +65,11 @@ export default function EmergencyPage() {
           </>
         }
         leading={
-          <div className="bg-moto-red/10 text-moto-red flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
-            <MotoConceptIcon concept={emergencyConcept} size={24} />
-          </div>
+          <ConceptIconTile
+            concept={emergencyConcept}
+            tone="red"
+            iconTone="red"
+          />
         }
       >
         <div className="grid gap-3 sm:grid-cols-2">

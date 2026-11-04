@@ -126,7 +126,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Eine Änderung der Angaben ändert den Ferienbeitrag nicht. Ein schon erstelltes Schreiben an die Familie bleibt, wie es ist. Auch eine schon ausgestellte Rechnung behält die bisherige Anschrift.",
       "Kinder hinzufügen oder entfernen geht nicht. Auch Wochen, Leistungsbezug, Nachweise, Einwilligungen, die Erklärung der Eltern und Gesundheitsangaben ändern Sie hier nicht. Die Wochen ändern Sie mit `Umbuchen`, die Debitorennummer unter `Status`.",
       "Die ausrichtende OGS sieht einen geänderten Namen sofort in ihrer Teilnehmerliste. Bei einem Feriengast steht der neue Name spätestens nach einer Stunde auch in der Gruppe.",
-      "Bei Geschwistern ist das Kind mit dem höchsten Beitrag das 1. Kind. Bei gleichem Beitrag zählt die früher eingegangene Anmeldung zuerst.",
+      "Bei Geschwistern ist das Kind mit dem höchsten Beitrag das 1. Kind. Ihr Träger kann unter `Einstellungen` auch das älteste Kind wählen. Bei gleichem Rang zählt die früher eingegangene Anmeldung zuerst.",
       "Zusammenführen und Trennen rechnen auch einen schon bestätigten Beitrag neu. Der alte Beitrag bleibt gespeichert. Ein offener Abrechnungslauf zeigt den neuen Betrag.",
       "Jede Anmeldung bekommt weiter ihre eigene Rechnung und ihr eigenes Schreiben. Ein Schreiben nennt nie die Kinder oder Eltern der anderen Anmeldung.",
       "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",

@@ -84,7 +84,7 @@ func TestCheckoutRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 						return svc.EndVisit(ctx, visitIDs[0])
 					}
 					if batch {
-						_, err := svc.ProcessSchoolCheckinBatch(ctx, studentIDs, staff.ID, activeService.SchoolCheckinActionOut)
+						_, err := svc.ProcessSchoolCheckinBatch(ctx, studentIDs, staff.ID, activeService.SchoolCheckinActionOut, "")
 						return err
 					}
 					_, err := svc.CheckOutStudent(ctx, studentIDs[0], staff.ID, true)

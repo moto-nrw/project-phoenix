@@ -250,6 +250,24 @@ order of its requests. All fields are additive; an older kiosk ignores them.
 
 Deploy the backend first; the kiosk change in PyrePortal follows.
 
+### Destination "unterricht" (#5656)
+
+`POST /api/iot/attendance/toggle` with `confirm_daily_checkout` also accepts
+`destination: "unterricht"`. It closes the open stay with
+`active.attendance.check_out_reason = 'class'` and answers `checked_out_class`.
+The change is additive: `zuhause` and `unterwegs` keep their actions, messages
+and codes, and an unknown destination stays a 400 `general.input`. `GET` status
+responses keep reading `checked_out`, so a kiosk that does not know the
+destination scans the child back in as before. A repeat on a closed stay
+changes nothing and cannot relabel a checkout: for `zuhause` and `unterricht` the
+action names what is recorded, so `unterricht` for a child already home answers
+`checked_out_daily` and `zuhause` for a child already in class answers
+`checked_out_class`. `unterwegs` writes no checkout and always answers `checked_out`,
+whatever is recorded. A client that ignores `action` shows its own farewell for the
+destination it asked: in the race where staff checked the child out to class first,
+an old PyrePortal shows the home farewell while the class checkout stays recorded.
+Deploy the backend first.
+
 ### Destination choice into released rooms (#3067)
 
 `GET /api/iot/rooms/available` flags each room with `is_open_room` (released
@@ -733,7 +751,9 @@ Backend paths in this section are relative to `backend/`:
   `organization_id`) to the school's `audit.auth_events` in the mint
   transaction. Ending the Träger's or the member's Träger sessions also deletes
   these sessions; the Träger logout revokes them through the switch lineage,
-  and an Absprung whose Träger family is gone is refused (#5422).
+  and an Absprung whose Träger family is gone is refused (#5422). Only a
+  session with `via_traeger` shows the link back to the Träger portal in the
+  school's navigation (#5687); it changes neither session.
 - Every account session, in every portal, is minted after the mint
   transaction stamped `last_login` on the live account under its row lock
   (`prepareSessionMint`; refresh locks the live account first). An account the

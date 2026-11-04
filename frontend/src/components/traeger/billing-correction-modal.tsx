@@ -6,7 +6,9 @@
 // (#4690): beides ist ein eigenes Dokument mit eigener Nummer und
 // Pflicht-Begründung, die Rechnung selbst ändert sich nie. Der Storno nimmt
 // die ganze Rechnung zurück und hat kein Betragsfeld, die Gutschrift einen
-// Betrag für ein Kind, höchstens was für das Kind noch offen ist.
+// Betrag für ein Kind, höchstens was für das Kind noch offen ist. In der
+// Vorschau ändert es auch eine aus der stornierten Rechnung übernommene
+// Korrektur (#5663): Die eigene Korrektur tritt an ihre Stelle.
 
 import { useEffect, useRef, useState } from "react";
 import { EditActions } from "~/components/ui/edit-actions";
@@ -18,11 +20,14 @@ import { createLogger } from "~/lib/logger";
 import {
   type BillingChild,
   type BillingDocument,
+  type BillingCarriedCorrection,
   type BillingRunDetail,
   cancelBillingDocument,
+  changeCarriedCorrection,
   correctBillingRun,
   creditBillingDocument,
 } from "~/lib/traeger-billing-api";
+import { totalAfterRemovingCarriedCorrection } from "./billing-carried-correction-model";
 import { formatEuro } from "./contribution-format";
 import { centsToEuroInput, euroInputToCents } from "./holiday-period-model";
 
@@ -45,10 +50,29 @@ export type BillingCorrectionTarget =
       readonly child: BillingChild;
       /** What the invoice and its earlier Gutschriften leave of the child. */
       readonly leftCents: number;
+    }
+  | {
+      readonly kind: "carried";
+      readonly child: BillingChild;
+      readonly carried: BillingCarriedCorrection;
     };
 
 /** The texts and the amount field of each mode. */
-function modeOf(target: BillingCorrectionTarget) {
+function modeOf(target: BillingCorrectionTarget): {
+  title: string;
+  saveLabel: string;
+  object: string;
+  intro: string;
+  amount: {
+    id: string;
+    name: string;
+    label: string;
+    initial: string;
+    placeholder: string | undefined;
+  } | null;
+  reasonInitial?: string;
+  reasonPlaceholder: string;
+} {
   switch (target.kind) {
     case "cancellation":
       return {
@@ -74,6 +98,23 @@ function modeOf(target: BillingCorrectionTarget) {
           placeholder: centsToEuroInput(Math.min(500, target.leftCents)),
         },
         reasonPlaceholder: "Zum Beispiel: Am ersten Ferientag krank.",
+      };
+    case "carried":
+      return {
+        title: `Korrektur für ${target.child.firstName} ändern`,
+        saveLabel: "Ändern",
+        object: "die Korrektur",
+        intro: `Jetzt: ${formatEuro(target.child.totalCents)}, mit ${formatEuro(target.carried.amountCents)} aus ${target.carried.sourceNumber}. Ihre Änderung ersetzt diese Korrektur.`,
+        amount: {
+          id: "billing-correction-amount",
+          name: "total_cents",
+          label: "Neuer Betrag in Euro",
+          initial: centsToEuroInput(target.child.totalCents),
+          placeholder: undefined,
+        },
+        reasonInitial: target.carried.reason,
+        reasonPlaceholder:
+          "Zum Beispiel: Am ersten Ferientag krank, Tag wird erstattet.",
       };
     default:
       return {
@@ -108,6 +149,15 @@ function amountError(
       : null;
   }
   if (cents === null) return "Bitte geben Sie einen Betrag wie 45,00 an.";
+  if (target.kind === "carried") {
+    return cents ===
+      totalAfterRemovingCarriedCorrection(
+        target.child,
+        target.carried.positionId,
+      )
+      ? "Das ist der Betrag ohne Korrektur. Wählen Sie dafür im Menü „Entfernen“."
+      : null;
+  }
   return cents === target.child.totalCents
     ? "Der Betrag ist unverändert."
     : null;
@@ -138,8 +188,9 @@ export function BillingCorrectionModal({
 
   useEffect(() => {
     if (!target) return;
-    setAmount(modeOf(target).amount?.initial ?? "");
-    setReason("");
+    const mode = modeOf(target);
+    setAmount(mode.amount?.initial ?? "");
+    setReason(mode.reasonInitial ?? "");
     clearErrors();
   }, [target, clearErrors]);
 
@@ -163,6 +214,14 @@ export function BillingCorrectionModal({
       });
       success(`Gutschrift ${issued.number} ist ausgestellt.`);
       onIssued?.(issued);
+    } else if (current.kind === "carried") {
+      const run = await changeCarriedCorrection(
+        runId,
+        current.carried.positionId,
+        { totalCents: cents ?? 0, reason: reason.trim() },
+      );
+      success("Die Korrektur ist geändert.");
+      onCorrected(run);
     } else {
       const run = await correctBillingRun(runId, {
         registrationId: current.registrationId,
@@ -233,6 +292,7 @@ export function BillingCorrectionModal({
           <p className="text-sm text-gray-700">{mode.intro}</p>
           {mode.amount ? (
             <Input
+              controlSize="compact"
               id={mode.amount.id}
               name={mode.amount.name}
               label={mode.amount.label}

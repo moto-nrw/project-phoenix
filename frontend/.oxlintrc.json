@@ -51,6 +51,7 @@
     "ui-kit/no-hand-rolled-overlay": "error",
     "ui-kit/no-hand-rolled-surface": "error",
     "ui-kit/no-hand-rolled-button": "error",
+    "ui-kit/no-hand-rolled-icon-tile": "error",
     "ui-kit/no-button-override": "error",
     "ui-kit/no-grey-button-fill": "error",
     "ui-kit/no-dead-surface-utility": "error",
@@ -66,6 +67,9 @@
     "ui-kit/no-select-override": "error",
     "ui-kit/no-tenant-kicker": "error",
     "ui-kit/no-hand-rolled-page-card": "error",
+    "ui-kit/no-hand-rolled-pill": "error",
+    "ui-kit/no-pill-dot": "error",
+    "ui-kit/no-hex-alpha-tint": "error",
     "ui-kit/no-tabs-as-value-switcher": "error",
     "ui-kit/no-tiny-text": "error",
     "no-restricted-imports": [

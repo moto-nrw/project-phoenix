@@ -16,6 +16,7 @@ import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
+import { FieldLabel } from "~/components/ui/field-label";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -259,7 +260,7 @@ function PayerChoice({
   }
   return (
     <fieldset className="space-y-2">
-      <legend className="mb-2 text-sm font-medium text-gray-900">
+      <legend className="mb-2 text-sm font-medium text-gray-700">
         Wer bezahlt den Beitrag?
       </legend>
       <div className="flex flex-col gap-2 sm:max-w-md">
@@ -293,13 +294,12 @@ function PayerChoice({
         })}
         {payer === "cost_bearer" ? (
           <div>
-            <label
+            <FieldLabel
               id="holiday-registration-cost-bearer-label"
               htmlFor="holiday-registration-cost-bearer"
-              className="mb-1 block text-sm font-medium text-gray-700"
             >
               Kostenträger
-            </label>
+            </FieldLabel>
             <CustomSelect
               id="holiday-registration-cost-bearer"
               name="cost_bearer_id"
@@ -456,8 +456,75 @@ export function HolidayRegistrationStatusCard({
     onCostBearerChange?.(null);
     onExemptionChange(next === "exemption");
   };
+  // Hauptaktion rechts, wie „Speichern“ in den Formularen (#5684).
+  const actions = open ? (
+    <div className="flex flex-wrap justify-end gap-2">
+      {registration.frozen ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          isLoading={running === "reopen"}
+          loadingText="Öffnet …"
+          disabled={running !== null}
+          onClick={() => void run("reopen")}
+        >
+          Wieder öffnen
+        </Button>
+      ) : (
+        <>
+          <Button
+            type="button"
+            variant="outline_danger"
+            size="md"
+            disabled={running !== null}
+            onClick={() => setConfirmingCancel(true)}
+          >
+            Stornieren
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            isLoading={running === "freeze"}
+            loadingText="Friert ein …"
+            disabled={running !== null}
+            onClick={() => void run("freeze")}
+          >
+            Einfrieren
+          </Button>
+        </>
+      )}
+      {showsDebtorNumber && !invoiced && !editingDebtorNumber ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          disabled={running !== null}
+          onClick={() => setEditingDebtorNumber(true)}
+        >
+          {registration.debtorNumber
+            ? "Debitorennummer ändern"
+            : "Debitorennummer eintragen"}
+        </Button>
+      ) : null}
+      {registration.status === "received" ? (
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          isLoading={running === "confirm"}
+          loadingText="Bestätigt …"
+          disabled={confirmBlocked}
+          onClick={() => confirmRef.current?.requestSubmit()}
+        >
+          Bestätigen
+        </Button>
+      ) : null}
+    </div>
+  ) : undefined;
   return (
-    <SectionCard title="Status">
+    <SectionCard title="Status" footer={actions}>
       <div className="space-y-4 text-sm text-gray-700">
         <p>{statusText(registration)}</p>
         {registration.status === "received" ? (
@@ -524,72 +591,6 @@ export function HolidayRegistrationStatusCard({
             onPayerChange={changePayer}
             onCostBearerChange={(id) => onCostBearerChange?.(id)}
           />
-        ) : null}
-        {open ? (
-          <div className="flex flex-wrap gap-2">
-            {registration.status === "received" ? (
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                isLoading={running === "confirm"}
-                loadingText="Bestätigt …"
-                disabled={confirmBlocked}
-                onClick={() => confirmRef.current?.requestSubmit()}
-              >
-                Bestätigen
-              </Button>
-            ) : null}
-            {showsDebtorNumber && !invoiced && !editingDebtorNumber ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                disabled={running !== null}
-                onClick={() => setEditingDebtorNumber(true)}
-              >
-                {registration.debtorNumber
-                  ? "Debitorennummer ändern"
-                  : "Debitorennummer eintragen"}
-              </Button>
-            ) : null}
-            {registration.frozen ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                isLoading={running === "reopen"}
-                loadingText="Öffnet …"
-                disabled={running !== null}
-                onClick={() => void run("reopen")}
-              >
-                Wieder öffnen
-              </Button>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  isLoading={running === "freeze"}
-                  loadingText="Friert ein …"
-                  disabled={running !== null}
-                  onClick={() => void run("freeze")}
-                >
-                  Einfrieren
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline_danger"
-                  size="md"
-                  disabled={running !== null}
-                  onClick={() => setConfirmingCancel(true)}
-                >
-                  Stornieren
-                </Button>
-              </>
-            )}
-          </div>
         ) : null}
       </div>
       <ConfirmationModal

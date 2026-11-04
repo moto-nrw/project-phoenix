@@ -23,6 +23,20 @@ type Attendance struct {
 	YardSince          *time.Time
 	// CheckOutNote is why the child went home earlier than planned (#3324).
 	CheckOutNote *string
+	// CheckOutReason is CheckoutReasonClass when the child left for class and
+	// is expected back (#5656). Nil is every other checkout.
+	CheckOutReason *string
+}
+
+// CheckoutReasonClass marks a checkout that sends the child to class: not a
+// departure for the day, and the return opens a new attendance row (#5656).
+const CheckoutReasonClass = "class"
+
+// LeftForClass reports whether this stay ended because the child went to class.
+func (a Attendance) LeftForClass() bool { return isClassReason(a.CheckOutReason) }
+
+func isClassReason(reason *string) bool {
+	return reason != nil && *reason == CheckoutReasonClass
 }
 
 // IsOpen reports a school attendance that is checked in and not yet checked
@@ -30,16 +44,23 @@ type Attendance struct {
 func (a Attendance) IsOpen() bool { return a.CheckOutTime == nil }
 
 // AttendanceCompletion reports whether the rows hold an open attendance and
-// whether they hold a completed one; a day can hold both.
+// whether the child has left for the day; a day can hold both. The closed stay
+// with the latest check-in decides, as in the school status: a corrected earlier
+// stay may end after a later one. A checkout to class is not a departure: the
+// child is still expected back (#5656).
 func AttendanceCompletion(rows []Attendance) (open, completed bool) {
-	for _, row := range rows {
+	var last *Attendance
+	for i := range rows {
+		row := &rows[i]
 		if row.IsOpen() {
 			open = true
-		} else {
-			completed = true
+			continue
+		}
+		if last == nil || row.CheckInTime.After(last.CheckInTime) {
+			last = row
 		}
 	}
-	return open, completed
+	return open, last != nil && !last.LeftForClass()
 }
 
 // AttendanceFilter restricts an attendance history query. Nil ID lists mean
@@ -66,6 +87,9 @@ type AttendanceCheckout struct {
 	// Note is the optional reason for an early checkout (#3324). Empty
 	// leaves the column NULL.
 	Note string
+	// Reason is CheckoutReasonClass for a child going to class (#5656). Empty
+	// leaves the column NULL.
+	Reason string
 }
 
 var ErrAttendanceNotFound = errors.New("attendance not found")

@@ -186,7 +186,7 @@ func attendanceExportColumns() []lists.Column {
 		{ID: attendanceColumnCheckIn, Label: "Anwesend ab"}, {ID: attendanceColumnCheckOut, Label: "Anwesend bis"},
 		{ID: attendanceColumnCheckedIn, Label: "Angemeldet von"}, {ID: attendanceColumnCheckedOut, Label: "Abgemeldet von"},
 		{ID: attendanceColumnAssignment, Label: "Zuordnung"},
-		{ID: attendanceColumnNote, Label: "Früher gegangen"},
+		{ID: attendanceColumnNote, Label: "Grund für das Gehen"},
 	}
 }
 
@@ -198,7 +198,7 @@ func attendanceSessionExportColumns() []lists.Column {
 		{ID: attendanceColumnWindow, Label: "Zeitraum"}, {ID: attendanceColumnStatus, Label: "Status"},
 		{ID: attendanceColumnCheckIn, Label: "Anwesend ab"}, {ID: attendanceColumnCheckOut, Label: "Anwesend bis"},
 		{ID: attendanceColumnCheckedIn, Label: "Angemeldet von"}, {ID: attendanceColumnCheckedOut, Label: "Abgemeldet von"},
-		{ID: attendanceColumnNote, Label: "Früher gegangen"},
+		{ID: attendanceColumnNote, Label: "Grund für das Gehen"},
 	}
 }
 
@@ -222,9 +222,13 @@ func attendanceExportRowsWithOptionalActors(slots []*studentpresence.HistorySlot
 	entries := make([]sortableExportRow, 0, len(slots)+len(attendanceRows))
 	notes := checkOutNotesByInstant(attendanceRows)
 	coverageByDate := make(map[calendar.Date][]slotCoverage, len(slots))
+	slotCheckOuts := make(map[int64]bool, len(slots))
 	for _, row := range slots {
 		if row == nil || row.Instance == nil || row.Attendance == nil {
 			continue
+		}
+		if row.Attendance.CheckedOutAt != nil {
+			slotCheckOuts[row.Attendance.CheckedOutAt.UnixNano()] = true
 		}
 		coverage := slotCoverage{
 			present:    row.Attendance.Status == studentpresence.SessionAttendancePresent,
@@ -244,7 +248,8 @@ func attendanceExportRowsWithOptionalActors(slots []*studentpresence.HistorySlot
 		})
 	}
 	for _, attendance := range attendanceRows {
-		if sessionCoveredBySlots(coverageByDate[calendar.Date(attendance.Date)], attendance.CheckInTime) {
+		if sessionCoveredBySlots(coverageByDate[calendar.Date(attendance.Date)], attendance.CheckInTime) &&
+			!classStayLostFromSlots(attendance, slotCheckOuts) {
 			continue
 		}
 		entries = append(entries, sortableExportRow{
@@ -266,17 +271,36 @@ func attendanceExportRowsWithOptionalActors(slots []*studentpresence.HistorySlot
 	return rows
 }
 
-// checkOutNotesByInstant indexes the early-checkout notes (#3324) by their
-// checkout instant. A checkout mirrors into the slot it closes with the same
-// timestamp, so a slot row finds the note of the stay that ended it.
+// checkOutNotesByInstant indexes the early-checkout notes (#3324) and the
+// checkouts to class (#5656) by their checkout instant. A checkout mirrors into
+// the slot it closes with the same timestamp, so a slot row finds the note of
+// the stay that ended it.
 func checkOutNotesByInstant(rows []*studentpresence.Attendance) map[int64]string {
 	notes := make(map[int64]string)
 	for _, row := range rows {
-		if row.CheckOutTime != nil && row.CheckOutNote != nil && *row.CheckOutNote != "" {
-			notes[row.CheckOutTime.UnixNano()] = *row.CheckOutNote
+		if note := attendanceStayNote(row); row.CheckOutTime != nil && note != "" {
+			notes[row.CheckOutTime.UnixNano()] = note
 		}
 	}
 	return notes
+}
+
+// attendanceWentToClassNote is the export's note for a stay that ended with
+// "Geht zum Unterricht". It separates that checkout from going home (#5656).
+const attendanceWentToClassNote = "Zum Unterricht gegangen"
+
+func attendanceStayNote(row *studentpresence.Attendance) string {
+	if row.LeftForClass() {
+		return attendanceWentToClassNote
+	}
+	return optionalString(row.CheckOutNote)
+}
+
+// classStayLostFromSlots reports a stay that ended in class but whose checkout
+// no slot row shows. A return into the same slot overwrites the slot's times, so
+// this stay needs its own row or the export would hide the class (#5656).
+func classStayLostFromSlots(row *studentpresence.Attendance, slotCheckOuts map[int64]bool) bool {
+	return row.LeftForClass() && row.CheckOutTime != nil && !slotCheckOuts[row.CheckOutTime.UnixNano()]
 }
 
 func slotCheckOutNote(row *studentpresence.HistorySlot, notes map[int64]string) string {
@@ -311,7 +335,7 @@ func unassignedExportRow(attendance *studentpresence.Attendance) lists.Row {
 		attendanceColumnWindow: exportOptionalTime(&attendance.CheckInTime) + "–" + exportOptionalTime(attendance.CheckOutTime),
 		attendanceColumnStatus: "Anwesend", attendanceColumnCheckIn: exportOptionalTime(&attendance.CheckInTime),
 		attendanceColumnCheckOut: exportOptionalTime(attendance.CheckOutTime), attendanceColumnAssignment: "Nicht zugeordnet",
-		attendanceColumnNote: optionalString(attendance.CheckOutNote),
+		attendanceColumnNote: attendanceStayNote(attendance),
 	}}
 }
 

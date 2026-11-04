@@ -1192,6 +1192,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s parentBillingSettings) HolidayChain(ctx context.Context, organizationID int64) (parentbilling.HolidayChainSettings, error) {\n\ttexts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingSiblingRank, configModels.KeyParentBillingCostTakeoverOrder})\n\tif err != nil {\n\t\treturn parentbilling.HolidayChainSettings{}, err\n\t}\n\treturn parentbilling.HolidayChainSettings{SiblingRank: texts[configModels.KeyParentBillingSiblingRank], CostTakeoverOrder: texts[configModels.KeyParentBillingCostTakeoverOrder]}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingSettings.HolidayChain",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (s parentBillingSettings) PaymentText(ctx context.Context, organizationID int64) (string, error) {\n\ttexts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingPaymentText})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[configModels.KeyParentBillingPaymentText], nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingSettings.PaymentText",
@@ -1430,7 +1437,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p supervisionPresence) AttendanceTimes(ctx context.Context, studentIDs []int64) (map[int64]supervisiondashboard.Attendance, error) {\n\tstatuses, err := p.active.GetStudentsAttendanceStatuses(ctx, studentIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]supervisiondashboard.Attendance, len(statuses))\n\tfor id, status := range statuses {\n\t\tif status == nil {\n\t\t\tcontinue\n\t\t}\n\t\tresult[id] = supervisiondashboard.Attendance{CheckInTime: status.CheckInTime, CheckOutTime: status.CheckOutTime}\n\t}\n\treturn result, nil\n}",
+      "evidence": "func (p supervisionPresence) AttendanceTimes(ctx context.Context, studentIDs []int64) (map[int64]supervisiondashboard.Attendance, error) {\n\tstatuses, err := p.active.GetStudentsAttendanceStatuses(ctx, studentIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]supervisiondashboard.Attendance, len(statuses))\n\tfor id, status := range statuses {\n\t\tif status == nil {\n\t\t\tcontinue\n\t\t}\n\t\tresult[id] = supervisiondashboard.Attendance{CheckInTime: status.Arrival(), CheckOutTime: status.PickupTime()}\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/supervisionPresence.AttendanceTimes",
       "owner": "roots"
@@ -6092,7 +6099,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r parentAttendanceReader) ListAttendance(ctx context.Context, filter parentportal.AttendanceFilter) ([]parentportal.Attendance, error) {\n\trows, err := r.reader.ListAttendance(ctx, parentAttendanceFilter(filter))\n\tif err != nil || rows == nil {\n\t\treturn nil, err\n\t}\n\tout := make([]parentportal.Attendance, len(rows))\n\tfor i, row := range rows {\n\t\tout[i] = parentportal.Attendance{CheckInTime: row.CheckInTime, CheckOutTime: row.CheckOutTime}\n\t}\n\treturn out, nil\n}",
+      "evidence": "func (r parentAttendanceReader) ListAttendance(ctx context.Context, filter parentportal.AttendanceFilter) ([]parentportal.Attendance, error) {\n\trows, err := r.reader.ListAttendance(ctx, parentAttendanceFilter(filter))\n\tif err != nil || rows == nil {\n\t\treturn nil, err\n\t}\n\tout := make([]parentportal.Attendance, len(rows))\n\tfor i, row := range rows {\n\t\tout[i] = parentportal.Attendance{LeftForClass: row.LeftForClass(), CheckInTime: row.CheckInTime, CheckOutTime: row.CheckOutTime}\n\t}\n\treturn out, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentAttendanceReader.ListAttendance",
       "owner": "roots"

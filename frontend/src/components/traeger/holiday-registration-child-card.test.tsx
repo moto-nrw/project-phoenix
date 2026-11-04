@@ -63,7 +63,7 @@ describe("HolidayRegistrationChildCard", () => {
 
     expect(screen.getByText("Lia Muster")).toBeInTheDocument();
     expect(
-      screen.getByText("Geboren am 01.03.2018 · OGS Nord"),
+      screen.getByText("Geboren am 01.03.2018, OGS Nord"),
     ).toBeInTheDocument();
     expect(
       screen.getByText("04.01. bis 08.01.2027: bis 16 Uhr, OGS Nord"),
@@ -91,9 +91,7 @@ describe("HolidayRegistrationChildCard", () => {
     renderCard(HOLIDAY_REGISTRATION, 1);
 
     expect(
-      screen.getByText(
-        "Geboren am 12.09.2016 · Feriengast (Grundschule Melle)",
-      ),
+      screen.getByText("Geboren am 12.09.2016, Feriengast (Grundschule Melle)"),
     ).toBeInTheDocument();
   });
 

@@ -10,8 +10,9 @@ import (
 // The preview of a calculated run (ADR 0119): one draft invoice per
 // confirmed registration of the period that no released run billed yet. Its
 // positions are the lines of the contribution the confirmation froze, then
-// the corrections of the run in their order. It is pure; the caller reads
-// the registrations, the contributions, the billed registrations and the
+// the corrections of the cancelled invoice it replaces (#5663), then the
+// corrections of the run in their order. It is pure; the caller reads the
+// registrations, the contributions, the billed registrations and the
 // corrections.
 
 // previewInput is what the preview of one run reads.
@@ -24,6 +25,8 @@ type previewInput struct {
 	// replaces names the cancelled invoice a registration's draft replaces
 	// (#4690).
 	replaces map[int64]parentbilling.BillingDocumentLink
+	// replaced is what the draft takes from that invoice (#5663).
+	replaced replacedInvoices
 }
 
 // preview is the draft invoices of a run and the confirmed registrations it
@@ -73,9 +76,13 @@ func buildPreview(in previewInput) preview {
 			result.unbilled++
 			continue
 		}
-		document := draftDocument(in.run, registration, contribution, byChild)
+		document := draftDocument(in.run, registration, contribution, in.replaced.corrections[registration.ID], byChild)
 		if cancelled, ok := in.replaces[registration.ID]; ok {
 			document.ReferenceDocumentID, document.ReferenceNumber = &cancelled.ID, cancelled.Number
+			document.ReplacedCredits = in.replaced.credits[registration.ID]
+		}
+		if document.ReplacedCredits == nil {
+			document.ReplacedCredits = []parentbilling.BillingDocumentLink{}
 		}
 		if len(document.Children) > 0 {
 			result.documents = append(result.documents, document)
@@ -87,7 +94,7 @@ func buildPreview(in previewInput) preview {
 // draftDocument is the invoice of one registration: every child with a
 // frozen line, in the order of the form.
 func draftDocument(run parentbilling.BillingRun, registration parentbilling.HolidayBillingRegistration,
-	contribution parentbilling.HolidayContribution, corrections map[int64][]parentbilling.BillingCorrection,
+	contribution parentbilling.HolidayContribution, carried []parentbilling.BillingCarriedCorrection, corrections map[int64][]parentbilling.BillingCorrection,
 ) parentbilling.BillingDocument {
 	frozen := map[int64]parentbilling.HolidayChildContribution{}
 	for _, child := range contribution.Children {
@@ -98,6 +105,10 @@ func draftDocument(run parentbilling.BillingRun, registration parentbilling.Holi
 		RecipientLastName: registration.GuardianLastName, RecipientEmail: registration.GuardianEmail,
 		RecipientAddress: registration.GuardianAddress, DebtorNumber: registration.DebtorNumber,
 		Children: []parentbilling.BillingChild{},
+	}
+	carriedByChild := map[int64][]parentbilling.BillingCarriedCorrection{}
+	for _, correction := range carried {
+		carriedByChild[correction.ChildID] = append(carriedByChild[correction.ChildID], correction)
 	}
 	var from, until calendar.Date
 	for _, child := range registration.Children {
@@ -117,6 +128,7 @@ func draftDocument(run parentbilling.BillingRun, registration parentbilling.Holi
 			billed.Positions = append(billed.Positions, parentbilling.BillingPosition(line))
 			from, until = widen(from, until, line.WeekStartsOn, line.WeekEndsOn)
 		}
+		billed = withCarriedCorrections(billed, carriedByChild[child.ID])
 		for _, correction := range billed.Corrections {
 			billed.Positions = append(billed.Positions, parentbilling.BillingPosition{
 				Kind: parentbilling.LineCorrection, AmountCents: correction.AmountCents, Note: correction.Reason,

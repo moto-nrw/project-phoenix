@@ -25,6 +25,7 @@ const BROWSER_USER_FIELDS = {
   tenantId: true,
   orgId: true,
   scope: true,
+  viaTraeger: true,
   isPreview: true,
   previewTargetName: true,
   previewTargetAccountId: true,
