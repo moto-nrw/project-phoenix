@@ -6,7 +6,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import type { FormError } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
-import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import { MultiSelect } from "~/components/ui/multi-select";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Field } from "./field";
 import {
@@ -466,10 +466,10 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.targetGradeLevel}
               >
-                <MultiCheckboxSelect
+                <MultiSelect
                   id="event_target_grade_level"
                   ariaLabel="Jahrgang"
-                  ariaInvalid={Boolean(fieldErrors.targetGradeLevel)}
+                  invalid={Boolean(fieldErrors.targetGradeLevel)}
                   ariaDescribedBy={
                     fieldErrors.targetGradeLevel
                       ? "event_target_grade_level_error"
@@ -478,7 +478,9 @@ export function StepPersonalKinder({
                   value={form.targetGradeLevels}
                   options={targetGradeOptions}
                   onChange={(next) => update("targetGradeLevels", next)}
-                  emptyLabel="Jahrgänge wählen ..."
+                  placeholder="Jahrgänge wählen ..."
+                  unavailableLabel="Keine Optionen verfügbar"
+                  summaryLabel={(count) => `${count} ausgewählt`}
                 />
               </Field>
               {preservesGradeAboveTenantCap ? (
@@ -498,10 +500,10 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.targetSchoolClass}
               >
-                <MultiCheckboxSelect
+                <MultiSelect
                   id="event_target_school_class"
                   ariaLabel="Klasse"
-                  ariaInvalid={Boolean(fieldErrors.targetSchoolClass)}
+                  invalid={Boolean(fieldErrors.targetSchoolClass)}
                   ariaDescribedBy={
                     fieldErrors.targetSchoolClass
                       ? "event_target_school_class_error"
@@ -514,8 +516,11 @@ export function StepPersonalKinder({
                   }))}
                   onChange={(next) => update("targetSchoolClasses", next)}
                   disabled={loadingStudents || studentLoadFailed}
-                  emptyLabel="Klassen wählen ..."
+                  placeholder="Klassen wählen ..."
+                  unavailableLabel="Keine Optionen verfügbar"
+                  summaryLabel={(count) => `${count} ausgewählt`}
                   searchable
+                  selectAll
                 />
               </Field>
               {loadingStudents || studentLoadFailed ? (
@@ -540,10 +545,10 @@ export function StepPersonalKinder({
                 required
                 error={fieldErrors.educationGroupId}
               >
-                <MultiCheckboxSelect
+                <MultiSelect
                   id="event_target_gruppe"
                   ariaLabel="Gruppe"
-                  ariaInvalid={Boolean(fieldErrors.educationGroupId)}
+                  invalid={Boolean(fieldErrors.educationGroupId)}
                   ariaDescribedBy={
                     fieldErrors.educationGroupId
                       ? "event_target_gruppe_error"
@@ -556,8 +561,11 @@ export function StepPersonalKinder({
                   }))}
                   onChange={(next) => update("educationGroupIds", next)}
                   disabled={loadingRefs}
-                  emptyLabel="Gruppen wählen ..."
+                  placeholder="Gruppen wählen ..."
+                  unavailableLabel="Keine Optionen verfügbar"
+                  summaryLabel={(count) => `${count} ausgewählt`}
                   searchable
+                  selectAll
                 />
               </Field>
             </div>
@@ -569,7 +577,7 @@ export function StepPersonalKinder({
                 label="Angebote als Quelle"
                 htmlFor="event_source_offerings"
               >
-                <MultiCheckboxSelect
+                <MultiSelect
                   id="event_source_offerings"
                   ariaLabel="Angebote als Quelle"
                   value={form.sourceCareOfferingIds}
@@ -588,7 +596,9 @@ export function StepPersonalKinder({
                   ]}
                   onChange={changeSourceOfferings}
                   disabled={offeringSources === null}
-                  emptyLabel="Kein Angebot als Quelle"
+                  placeholder="Kein Angebot als Quelle"
+                  unavailableLabel="Keine Optionen verfügbar"
+                  summaryLabel={(count) => `${count} ausgewählt`}
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   Mehrere Angebote lassen sich kombinieren – die Kinder aller

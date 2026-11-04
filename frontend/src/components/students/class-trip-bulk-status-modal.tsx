@@ -7,7 +7,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { isWeekendISO } from "~/components/class-day/routes";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
-import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import { MultiSelect } from "~/components/ui/multi-select";
 import { TimeField } from "~/components/ui/time-field";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import type { Student } from "~/lib/api";
@@ -316,7 +316,7 @@ export function ClassTripBulkStatusModal({
             >
               Kinder
             </label>
-            <MultiCheckboxSelect
+            <MultiSelect
               id={studentsFieldId}
               ariaLabel="Kinder"
               value={selectedIds}
@@ -325,13 +325,15 @@ export function ClassTripBulkStatusModal({
                 label: studentDisplayName(student),
               }))}
               onChange={setSelectedIds}
-              emptyLabel="Kein Kind ausgewählt"
-              multipleLabel={(count) =>
+              placeholder="Kein Kind ausgewählt"
+              unavailableLabel="Keine Optionen verfügbar"
+              summaryLabel={(count) =>
                 count === students.length
                   ? `Alle ${count} Kinder`
                   : `${count} von ${students.length} Kindern`
               }
               searchable
+              selectAll
               searchPlaceholder="Kind suchen"
             />
           </div>

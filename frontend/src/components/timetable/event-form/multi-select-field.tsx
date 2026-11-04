@@ -235,7 +235,8 @@ export function MultiSelectField({
             }}
             ariaLabel="Jahrgang, Klasse oder Gruppe komplett hinzufügen"
             placeholder="Jahrgang/Klasse/Gruppe komplett hinzufügen …"
-            triggerClassName="h-8 border-gray-200 bg-white font-medium text-gray-700 hover:border-gray-300 hover:bg-gray-100"
+            controlSize="compact"
+            className="w-auto font-medium"
           />
         )}
         {removableSelectedCount > 0 && (

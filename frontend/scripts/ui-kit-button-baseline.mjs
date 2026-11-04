@@ -40,9 +40,10 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/ui/page-header/DesktopFilters.tsx",
-    lines: [171],
-    reason: "Auslöser eines Filter-Auswahlfelds, sieht aus wie ein Select",
+    file: "src/components/ui/listbox-dropdown.tsx",
+    lines: [1010],
+    reason:
+      "Auslöser des Kit-Auswahlfelds (ListboxDropdown), Eingabefeld, kein Knopf (#5580)",
   },
   {
     rule: "no-hand-rolled-button",
@@ -149,7 +150,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [855, 888, 988, 1157],
+    lines: [854, 887, 987, 1156],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },

@@ -130,7 +130,7 @@ export function PhoneListInput({
                   })
                 }
                 ariaLabel={tr("structured.type")}
-                className="mt-1 border-gray-200 bg-white"
+                className="mt-1"
                 options={(
                   [
                     "mobile",
