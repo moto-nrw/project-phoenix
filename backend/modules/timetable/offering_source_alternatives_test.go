@@ -52,6 +52,52 @@ func TestDroppedChildrenAlternatives(t *testing.T) {
 	}, alternatives)
 }
 
+// TestDroppedChildrenAlternativesKeepTheKind: a care selection never suggests
+// the lunch or a course, though they book the dropped children too; a lunch
+// selection suggests only lunch offerings.
+func TestDroppedChildrenAlternativesKeepTheKind(t *testing.T) {
+	t.Parallel()
+	const (
+		lunchID  = int64(306)
+		courseID = int64(307)
+		mealID   = int64(308)
+	)
+	roster := classRoster([]int{1}, []int64{1001, 1002}, "1b")
+	care := func(b timetable.OfferingWeekdayBooking) timetable.OfferingWeekdayBooking {
+		b.CountsAsCare = true
+		return b
+	}
+	lunch := func(b timetable.OfferingWeekdayBooking) timetable.OfferingWeekdayBooking {
+		b.IncludesLunch = true
+		return b
+	}
+	bookings := []timetable.OfferingWeekdayBooking{
+		care(booking(randstundeID, "Kurzbetreuung", 1001, "1b", 1)),
+		care(booking(ganztagID, "OGS Ganztag", 1002, "1b", 1)),
+		lunch(booking(lunchID, "Mittagessen", 1002, "1b", 1)),
+		booking(courseID, "Fußball-AG", 1002, "1b", 1),
+		lunch(booking(mealID, "Mittagessen spät", 1001, "1b", 1)),
+	}
+
+	t.Run("care selection", func(t *testing.T) {
+		t.Parallel()
+		filter := timetable.OfferingSourceFilter{OfferingIDs: []int64{randstundeID}}
+		changes := timetable.PreviewOfferingSource(roster, filter, bookings)
+		assert.Equal(t, []timetable.OfferingSourceAlternative{
+			{OfferingID: ganztagID, OfferingName: "OGS Ganztag", ChildCount: 1},
+		}, timetable.DroppedChildrenAlternatives(filter, bookings, changes))
+	})
+
+	t.Run("lunch selection", func(t *testing.T) {
+		t.Parallel()
+		filter := timetable.OfferingSourceFilter{OfferingIDs: []int64{mealID}}
+		changes := timetable.PreviewOfferingSource(roster, filter, bookings)
+		assert.Equal(t, []timetable.OfferingSourceAlternative{
+			{OfferingID: lunchID, OfferingName: "Mittagessen", ChildCount: 1},
+		}, timetable.DroppedChildrenAlternatives(filter, bookings, changes))
+	})
+}
+
 // TestDroppedChildrenAlternativesNone: without dropped children, or without a
 // booking of the selection to fix the phase, nothing is suggested.
 func TestDroppedChildrenAlternativesNone(t *testing.T) {
