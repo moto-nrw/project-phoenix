@@ -10,8 +10,8 @@ import type { RosterDeviation } from "~/lib/roster-deviation";
 import { TemplateCard } from "./template-card";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import { timetableSurface, timetableSurfacePadded } from "./timetable-style";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 type ReviewFilter = "all" | "review";
 
@@ -67,9 +67,11 @@ export function TemplateList({
       <div className={`${timetableSurface} border-dashed px-6`}>
         <EmptyState
           icon={
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
-              <MotoConceptIcon concept={carePlanConcept} size={28} />
-            </span>
+            <ConceptIconTile
+              concept={carePlanConcept}
+              size="page"
+              shape="round"
+            />
           }
           title="Keine Regeltermine in diesem Zeitraum"
           description="Regeltermine sind wiederkehrende Termine, zum Beispiel Mensa jeden Montag oder Lernzeit alle zwei Wochen."

@@ -13,10 +13,10 @@ import { userContextService } from "~/lib/usercontext-api";
 import type { Supervisor } from "~/lib/active-helpers";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { schoolyardConcept } from "~/lib/concepts/schoolyard";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "UnclaimedRooms" });
 
@@ -239,9 +239,7 @@ export function UnclaimedRooms({
       )}
 
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
-          <MotoConceptIcon concept={schoolyardConcept} size={20} />
-        </div>
+        <ConceptIconTile concept={schoolyardConcept} size="sm" />
         <div className="pr-6">
           <h3 className="font-semibold text-gray-900">
             Schulhof-Aufsicht verfügbar

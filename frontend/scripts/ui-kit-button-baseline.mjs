@@ -114,7 +114,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/auth/auth-shell.tsx",
-    lines: [360],
+    lines: [361],
     reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
   },
   {
@@ -126,7 +126,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3150],
+    lines: [3140],
     reason: "Schalter (role=switch)",
   },
   {
@@ -150,7 +150,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [854, 887, 987, 1156],
+    lines: [855, 888, 988, 1157],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
@@ -164,7 +164,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/active-supervisions/spontaneous-activity-start.tsx",
-    lines: [376],
+    lines: [377],
     reason: "Startkachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
@@ -231,13 +231,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1318],
+    lines: [1319],
     reason: "Tagesauswahl mit Auswahlzustand: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1561],
+    lines: [1560],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
@@ -255,13 +255,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/planned-status-days-modal.tsx",
-    lines: [947],
+    lines: [946],
     reason: "Kalendertag zum Umschalten: Kalender-/Auswahlzelle",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/student-detail-components.tsx",
-    lines: [1175],
+    lines: [1166],
     reason: "Verlaufskachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
@@ -288,7 +288,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1318],
+    lines: [1319],
     reason: "Tageskachel: grau markiert den gewählten Tag, kein Knopf",
   },
   {

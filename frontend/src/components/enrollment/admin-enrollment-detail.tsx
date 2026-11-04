@@ -366,7 +366,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       backHref={`/admin/enrollments/phases/${data.phase_id}`}
       backLabel="Zurück zur Anmeldephase"
       stats={statusLine}
-      leading={<ConceptIconTile concept={enrollmentsConcept} variant="page" />}
+      leading={<ConceptIconTile concept={enrollmentsConcept} size="page" />}
       overlays={
         <>
           <ConfirmationModal

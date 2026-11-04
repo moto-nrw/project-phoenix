@@ -51,6 +51,7 @@
     "ui-kit/no-hand-rolled-overlay": "error",
     "ui-kit/no-hand-rolled-surface": "error",
     "ui-kit/no-hand-rolled-button": "error",
+    "ui-kit/no-hand-rolled-icon-tile": "error",
     "ui-kit/no-button-override": "error",
     "ui-kit/no-grey-button-fill": "error",
     "ui-kit/no-dead-surface-utility": "error",

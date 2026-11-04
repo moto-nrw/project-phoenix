@@ -18,7 +18,6 @@ import {
 } from "react";
 import { CalendarX, Pencil, Plus, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { ClosingDayModal } from "~/components/planning/closing-day-modal";
 import { BulkCancelAppointmentsModal } from "~/components/timetable/bulk-cancel-appointments-modal";
@@ -44,6 +43,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { useInvalidateClosingDays } from "~/lib/hooks/use-closing-days";
 import { createLogger } from "~/lib/logger";
 import { closingDaysConcept } from "~/lib/concepts/closingDays";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "ClosingDaysEditor" });
 
@@ -263,11 +263,7 @@ export function ClosingDaysEditor({
   if (!loading && !loadFailed && closingDays.length === 0) {
     body = (
       <EmptyState
-        icon={
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-            <MotoConceptIcon concept={closingDaysConcept} size={28} />
-          </span>
-        }
+        icon={<ConceptIconTile concept={closingDaysConcept} size="page" />}
         title="Noch keine Schließtage"
         description="Hinterlegen Sie die Schließtage des Schuljahres, damit die Zeiterfassung an diesen Tagen kein Soll ansetzt."
       />

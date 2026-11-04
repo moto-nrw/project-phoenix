@@ -22,7 +22,7 @@ export function ConceptPageHeader({
 }: ConceptPageHeaderProps) {
   return (
     <div className={cn("flex min-w-0 items-start gap-3 sm:gap-4", className)}>
-      <ConceptIconTile concept={concept} variant="page" />
+      <ConceptIconTile concept={concept} size="page" />
       <div className="min-w-0">
         <h1 className="text-2xl font-bold text-balance text-gray-900 sm:text-3xl">
           {title}

@@ -116,6 +116,8 @@ import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { childrenConcept } from "~/lib/concepts/children";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { permissionsConcept } from "~/lib/concepts/permissions";
+import { IconTile } from "~/components/ui/icon-tile";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "EnrollmentFormEditor" });
 
@@ -1490,9 +1492,7 @@ function BaseTemplateOverviewRow() {
     <article className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
-            <Lock className="h-4 w-4" aria-hidden="true" />
-          </span>
+          <IconTile size="xs" icon={<Lock aria-hidden="true" />} />
           <h4 className="truncate text-sm font-semibold text-gray-900">
             Basisformular
           </h4>
@@ -1556,9 +1556,7 @@ function TemplateOverviewRow({
     <article className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100">
-            <MotoConceptIcon concept={enrollmentsConcept} size={16} />
-          </span>
+          <ConceptIconTile concept={enrollmentsConcept} size="xs" />
           <h4 className="truncate text-sm font-semibold text-gray-900">
             {schema.name}
           </h4>
@@ -1897,15 +1895,7 @@ function GuideStep({
 }: Readonly<{ icon: ReactNode; title: string; done: boolean }>) {
   return (
     <div className="flex items-center gap-3">
-      <span
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
-          done
-            ? "bg-moto-green/15 text-moto-green-vivid"
-            : "bg-gray-100 text-gray-500"
-        }`}
-      >
-        {icon}
-      </span>
+      <IconTile size="xs" tone={done ? "green" : "neutral"} icon={icon} />
       <span className="min-w-0 flex-1 text-sm font-medium text-gray-700">
         {title}
       </span>
@@ -3314,19 +3304,18 @@ function TargetSuggestions({
               onClick={() => onAdd(target)}
               className="min-h-24 items-start p-3 shadow-sm"
             >
-              <span
-                className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                  selected
-                    ? "bg-gray-100 text-gray-500"
-                    : "bg-gray-900 text-white"
-                }`}
-              >
-                {selected ? (
-                  <Check className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                )}
-              </span>
+              <IconTile
+                size="xs"
+                tone={selected ? "neutral" : "inverse"}
+                className="mt-0.5"
+                icon={
+                  selected ? (
+                    <Check aria-hidden="true" />
+                  ) : (
+                    <Plus aria-hidden="true" />
+                  )
+                }
+              />
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-gray-900">
                   {RESERVED_TARGETS[target].label}
