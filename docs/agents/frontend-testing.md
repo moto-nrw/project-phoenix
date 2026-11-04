@@ -36,8 +36,10 @@ It runs first (`groupOrder` 0), then `api-node` and `logic-node`, then
 All projects run with `isolate: false`: one worker thread (a process for
 `school-date-dom`) runs many test files. `src/test/setup-worker-reuse.ts`, the
 first setup file, resets after every file what a fresh worker would not have:
-evaluated modules and `vi.mock` registrations, globals and prototypes, Node's
-builtin modules with their exported classes and prototypes (a patched
+evaluated modules and `vi.mock` registrations, the file's `vi.spyOn` spies and
+its mocks in the registry that `vi.clearAllMocks` walks, globals and
+prototypes, Node's builtin modules with their exported classes and prototypes
+(a patched
 `ServerResponse.prototype` kept the previous file's module instances), the DOM
 with cookies, URL and viewport, listeners on window/document/html/head/body,
 pending Node and window timers, and `process.env`. A property it cannot restore
@@ -58,6 +60,11 @@ replaces a thread after a file that leaves more than 200 MB of heap.
 - Check order independence with
   `pnpm vitest run --sequence.shuffle.files --sequence.seed=<n>`, and with
   `--maxWorkers=1` for the most sharing.
+- Transformed modules persist across runs in
+  `node_modules/.experimental-vitest-cache` (`experimental.fsModuleCache`),
+  keyed by file content, Vite config and lockfile. A Vite plugin whose output
+  depends on other files must add them to the cache key; after a suspected
+  stale transform, `pnpm vitest --clearCache` empties the cache.
 
 ## Scope
 

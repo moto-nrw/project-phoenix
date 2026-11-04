@@ -110,6 +110,12 @@ export default defineConfig({
   test: {
     globals: true,
     silent: "passed-only",
+    // Transformed modules are kept in node_modules/.experimental-vitest-cache,
+    // keyed by file content, Vite config (this file and its imports) and
+    // lockfile; a repeated run reads them instead of transforming again
+    // (full suite, 11/2026: main process 26 → 9 CPU-s). A plugin whose
+    // output depends on other files must add those to the key
+    // (defineCacheKeyGenerator). `pnpm vitest --clearCache` empties it.
     experimental: { fsModuleCache: true },
     // threads statt des Default-Pools "forks": gemessen auf der vollen Suite
     // (1027 Dateien / 14160 Tests, 16-Core-MacBook) 124s → 76s Wandzeit und
