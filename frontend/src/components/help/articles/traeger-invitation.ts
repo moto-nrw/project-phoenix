@@ -24,6 +24,7 @@ export function traegerInvitationTopic(): HelpTopic {
       "moto öffnet die Anmeldung des Träger-Portals. Melden Sie sich mit Ihrer E-Mail-Adresse und dem Passwort an.",
       "Beim ersten Anmelden richten Sie den Code ein. Wählen Sie `Code an meine E-Mail senden`.",
       "Öffnen Sie die E-Mail von moto. Geben Sie den sechsstelligen Code ein.",
+      "Wählen Sie `Weiter zum Dashboard`.",
     ],
     result:
       "moto öffnet die Seite `Schulen`. Was Sie sehen, hängt von Ihrer Rolle ab.",

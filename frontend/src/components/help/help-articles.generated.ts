@@ -10405,6 +10405,7 @@ export const traegerInvitationTopic =
         "moto öffnet die Anmeldung des Träger-Portals. Melden Sie sich mit Ihrer E-Mail-Adresse und dem Passwort an.",
         "Beim ersten Anmelden richten Sie den Code ein. Wählen Sie `Code an meine E-Mail senden`.",
         "Öffnen Sie die E-Mail von moto. Geben Sie den sechsstelligen Code ein.",
+        "Wählen Sie `Weiter zum Dashboard`.",
       ],
       result:
         "moto öffnet die Seite `Schulen`. Was Sie sehen, hängt von Ihrer Rolle ab.",
@@ -10467,7 +10468,7 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
     differences: [
       "Oben steht `Willkommen im Träger-Portal`. So erkennen Sie, dass Sie richtig sind.",
       "Haben Sie auch ein Konto in einer OGS? Dann nutzen Sie dasselbe Konto. Ein zweites Passwort brauchen Sie nicht.",
-      "Melden Sie sich zum ersten Mal an? Dann richten Sie den Code zuerst ein. Wählen Sie `Code an meine E-Mail senden`. Geben Sie danach den Code ein.",
+      "Melden Sie sich zum ersten Mal an? Dann richten Sie den Code zuerst ein. Wählen Sie `Code an meine E-Mail senden`. Geben Sie danach den Code ein. Wählen Sie `Weiter zum Dashboard`.",
       "Der Code ist im Träger-Portal immer Pflicht. moto merkt sich Ihr Gerät hier nicht.",
       "Am Computer stehen die Bereiche links in der Navigation. Auf dem Handy stehen sie unten. Was dort keinen Platz hat, finden Sie unter `Mehr`.",
       "`Briefkopf`, `Einstellungen` und `Zugriffsprotokoll` stehen am Computer links unten unter `Einstellungen`. Ein Klick darauf klappt sie auf.",
