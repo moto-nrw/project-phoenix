@@ -208,6 +208,28 @@ describe("TraegerHolidayRegistrationPage", () => {
         screen.queryByRole("button", { name: "Trennen" }),
       ).not.toBeInTheDocument();
     });
+
+    it("asks to check the invoice when a cancelled sibling changed the amount (#5662)", async () => {
+      mockRegistration.mockResolvedValue({
+        ...HOLIDAY_REGISTRATION,
+        status: "confirmed",
+      });
+      mockContribution.mockResolvedValue({
+        ...HOLIDAY_CONTRIBUTION,
+        frozen: true,
+        confirmedAt: "2026-09-08T10:00:00Z",
+        invoiced: true,
+        correctionNeeded: true,
+      });
+      renderPage();
+
+      expect(await screen.findByText("Rechnung prüfen")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Eine Geschwister-Anmeldung wurde storniert. Der Betrag auf der Rechnung stimmt deshalb vielleicht nicht mehr. Prüfen Sie, ob Sie die Rechnung stornieren oder eine Gutschrift schreiben müssen.",
+        ),
+      ).toBeInTheDocument();
+    });
   });
 
   it("names the parents in the title and keeps the number in the status line (#5146)", async () => {

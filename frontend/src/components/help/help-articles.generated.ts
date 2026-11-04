@@ -10324,7 +10324,7 @@ export const traegerHolidayRegistrationReviewTopic =
         },
       ],
       result:
-        "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort.",
+        "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort. Storniert jemand eine Anmeldung der Geschwister, steht bei allen `Aus Geschwistergruppe gelöst (storniert)`.",
       notes: [
         "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
@@ -10341,6 +10341,8 @@ export const traegerHolidayRegistrationReviewTopic =
         "Die ausrichtende OGS sieht einen geänderten Namen sofort in ihrer Teilnehmerliste. Bei einem Feriengast steht der neue Name spätestens nach einer Stunde auch in der Gruppe.",
         "Bei Geschwistern ist das Kind mit dem höchsten Beitrag das 1. Kind. Ihr Träger kann unter `Einstellungen` auch das älteste Kind wählen. Bei gleichem Rang zählt die früher eingegangene Anmeldung zuerst.",
         "Zusammenführen und Trennen rechnen auch einen schon bestätigten Beitrag neu. Der alte Beitrag bleibt gespeichert. Ein offener Abrechnungslauf zeigt den neuen Betrag.",
+        "Stornieren Sie eine Anmeldung der Geschwister, gehört sie nicht mehr dazu. moto rechnet den Beitrag der anderen Geschwister sofort neu. Sie müssen nichts trennen.",
+        "Gibt es für ein Geschwister-Kind schon eine Rechnung, bleibt sein Beitrag gleich. Unter `Ferienbeitrag` steht dann `Rechnung prüfen`. Korrigieren Sie die Rechnung bei Bedarf mit Storno oder Gutschrift.",
         "Jede Anmeldung bekommt weiter ihre eigene Rechnung und ihr eigenes Schreiben. Ein Schreiben nennt nie die Kinder oder Eltern der anderen Anmeldung.",
         "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",
       ],
@@ -10355,7 +10357,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Die Debitorennummer lässt sich nicht mehr ändern? Für die Anmeldung gibt es schon eine Rechnung. Die Rechnung behält die Nummer, mit der sie ausgestellt wurde.",
         "`Ändern` fehlt? Die Anmeldung ist storniert. Dann lassen sich die Angaben nicht mehr ändern.",
         "`Trennen` fehlt oder Zusammenführen geht nicht? Für eine Anmeldung der Geschwister gibt es schon eine Rechnung. Geschwister können Sie dann nicht mehr ändern.",
-        "Eine stornierte Anmeldung können Sie nicht zusammenführen. Trennen geht.",
+        "Eine stornierte Anmeldung können Sie nicht zusammenführen. Beim Stornieren löst moto sie schon aus den Geschwistern.",
       ],
       related: [
         HELP_TOPICS.traegerHolidayRegistration,

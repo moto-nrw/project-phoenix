@@ -16,11 +16,17 @@ import (
 // and letter name only its own family. A merge and a split compute the
 // frozen contribution of each confirmed registration of the group again
 // and store it as a new version, until an issued invoice bills one of them.
+// A cancellation takes the registration out of its group and does the same
+// for the rest of the group; a registration an issued invoice bills keeps
+// its contribution and shows that a correction may be needed (#5662).
 
 // Actions of a sibling change in the audit trail of a registration.
 const (
 	HolidaySiblingsMerged = "sibling_merge"
 	HolidaySiblingsSplit  = "sibling_split"
+	// HolidaySiblingsCancelled records that a cancellation took the
+	// registration out of its group and the rest was computed again (#5662).
+	HolidaySiblingsCancelled = "sibling_cancel"
 )
 
 var (

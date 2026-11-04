@@ -237,6 +237,21 @@ export async function confirmHolidayRegistration(
 }
 
 /**
+ * Cancels the registration (#5662). In a sibling group the Elternabrechnung
+ * takes it out of the group and computes the contribution of the other
+ * registrations again; the caller reads the registration again.
+ */
+export async function cancelHolidayRegistration(
+  periodId: string,
+  registrationId: string,
+): Promise<void> {
+  await traegerRequest<{ id: number; status: string }>(
+    `${registrationPath(periodId, registrationId)}/cancel`,
+    { method: "POST", body: {} },
+  );
+}
+
+/**
  * Changes the debtor number of a confirmed registration until an invoice
  * bills it (#5621); returns the number the registration now has.
  */

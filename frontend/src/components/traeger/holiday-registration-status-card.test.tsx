@@ -11,11 +11,13 @@ import {
 
 const {
   mockChange,
+  mockCancel,
   mockConfirm,
   mockConfirmDebtorNumber,
   mockChangeDebtorNumber,
 } = vi.hoisted(() => ({
   mockChange: vi.fn(),
+  mockCancel: vi.fn(),
   mockConfirm: vi.fn(),
   mockConfirmDebtorNumber: vi.fn(),
   mockChangeDebtorNumber: vi.fn(),
@@ -27,6 +29,8 @@ vi.mock("~/lib/traeger-holiday-registrations-api", () => ({
 }));
 
 vi.mock("~/lib/traeger-contributions-api", () => ({
+  cancelHolidayRegistration: (periodId: string, id: string) =>
+    mockCancel(periodId, id),
   confirmHolidayRegistration: (
     periodId: string,
     id: string,
@@ -75,6 +79,7 @@ function renderCard(
 describe("HolidayRegistrationStatusCard", () => {
   beforeEach(() => {
     mockChange.mockReset();
+    mockCancel.mockReset();
     mockConfirm.mockReset();
     mockConfirmDebtorNumber.mockReset();
     mockChangeDebtorNumber.mockReset();
@@ -221,24 +226,47 @@ describe("HolidayRegistrationStatusCard", () => {
     expect(screen.queryByRole("radio")).toBeNull();
   });
 
-  it("cancels only after the confirmation", async () => {
-    mockChange.mockResolvedValue({
-      ...HOLIDAY_REGISTRATION,
-      status: "cancelled",
-    });
-    renderCard(HOLIDAY_REGISTRATION);
+  it("cancels only after the confirmation, through the contribution, and reads the page again", async () => {
+    mockCancel.mockResolvedValue(undefined);
+    const { onConfirmed, onChanged } = renderCard(HOLIDAY_REGISTRATION);
 
     fireEvent.click(screen.getByRole("button", { name: "Stornieren" }));
-    expect(mockChange).not.toHaveBeenCalled();
+    expect(mockCancel).not.toHaveBeenCalled();
     expect(
       await screen.findByText("Anmeldung stornieren?"),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/berechnet den Ferienbeitrag der Geschwister neu/),
+    ).not.toBeInTheDocument();
     const buttons = screen.getAllByRole("button", { name: "Stornieren" });
     fireEvent.click(buttons[buttons.length - 1]!);
 
-    await waitFor(() =>
-      expect(mockChange).toHaveBeenCalledWith("5", "7", "cancel"),
-    );
+    await waitFor(() => expect(mockCancel).toHaveBeenCalledWith("5", "7"));
+    await waitFor(() => expect(onConfirmed).toHaveBeenCalledTimes(1));
+    expect(mockChange).not.toHaveBeenCalled();
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it("says before a cancellation that the siblings are computed again (#5662)", async () => {
+    renderCard(HOLIDAY_REGISTRATION, vi.fn(), {
+      ...HOLIDAY_CONTRIBUTION,
+      siblings: [
+        {
+          registrationId: "8",
+          cancelled: false,
+          children: [{ id: "81", name: "Tom Muster" }],
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Stornieren" }));
+
+    expect(
+      await screen.findByText(
+        "Die Anmeldung zählt dann nicht mehr zu den Geschwistern. moto berechnet den Ferienbeitrag der Geschwister neu.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockCancel).not.toHaveBeenCalled();
   });
 
   it("offers only reopening for a frozen registration and names why", () => {

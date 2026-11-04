@@ -22,11 +22,13 @@ func (h *HolidayRegistrationReview) HoldHolidayPeriod(ctx context.Context, revie
 	return err
 }
 
-// RecordHolidaySiblings records a sibling merge or split of the
-// Elternabrechnung (#5628) in the audit trail of the registration, under
+// RecordHolidaySiblings records a sibling merge, split or cancellation of
+// the Elternabrechnung (#5628, #5662) in the audit trail of the registration, under
 // the lock of the period and the registration like every change.
 func (h *HolidayRegistrationReview) RecordHolidaySiblings(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID int64, action string, siblingIDs []int64) error {
-	if action != enrollment.HolidayAuditSiblingMerge && action != enrollment.HolidayAuditSiblingSplit {
+	switch action {
+	case enrollment.HolidayAuditSiblingMerge, enrollment.HolidayAuditSiblingSplit, enrollment.HolidayAuditSiblingCancel:
+	default:
 		return fmt.Errorf("enrollment: unknown sibling action %q", action)
 	}
 	_, err := h.change(ctx, reviewer, periodID, registrationID, func(enrollment.HolidayPeriod, holidayRegistrationState) (string, any, error) {

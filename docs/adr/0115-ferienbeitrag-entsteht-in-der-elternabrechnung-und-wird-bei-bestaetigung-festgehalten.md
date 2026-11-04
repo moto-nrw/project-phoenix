@@ -213,13 +213,14 @@ Anmeldung. Für Ferienanmeldungen eines Zeitraums gilt jetzt:
    hat. Die Elternabrechnung liest die weiteren
    Anmeldungen über ihren Port `HolidayRegistrations`; jeder Lesezugriff
    steht im Protokoll der jeweiligen Anmeldung (ADR 0114 Punkt 6).
-3. **Fassungen statt Änderung (zu Punkt 5).** Zusammenführen, Trennen und
-   das Bestätigen einer Anmeldung der Gruppe rechnen den festgehaltenen
-   Beitrag jeder bestätigten Anmeldung der Gruppe neu. Ändert er sich, kommt
-   er als neue Fassung dazu (`holiday_contributions.version`); die alte
-   bleibt. Gültig ist die höchste Fassung. Die Anfrage-Rolle fügt weiter nur
-   ein und liest. Eine neue Fassung behält die Zeit der Bestätigung; ihr
-   Konto ist das, das zusammengeführt oder getrennt hat.
+3. **Fassungen statt Änderung (zu Punkt 5).** Zusammenführen, Trennen,
+   das Stornieren (Punkt 8) und das Bestätigen einer Anmeldung der Gruppe
+   rechnen den festgehaltenen Beitrag jeder bestätigten Anmeldung der
+   Gruppe neu. Ändert er sich, kommt er als neue Fassung dazu
+   (`holiday_contributions.version`); die alte bleibt. Gültig ist die
+   höchste Fassung. Die Anfrage-Rolle fügt weiter nur ein und liest. Eine
+   neue Fassung behält die Zeit der Bestätigung; ihr Konto ist das, das
+   zusammengeführt, getrennt oder storniert hat.
 4. **Grenze: ausgestellte Rechnung.** Zusammenführen und Trennen gehen nur,
    solange keine Anmeldung der Gruppe eine ausgestellte Rechnung hat
    (ADR 0119); sonst 409 `parent_billing.sibling_group_invoiced`. Die
@@ -247,12 +248,23 @@ Anmeldung. Für Ferienanmeldungen eines Zeitraums gilt jetzt:
    anderen Anmeldungen im Protokoll jeder betroffenen Anmeldung
    (`sibling_merge`, `sibling_split`), geschrieben über den Port in
    derselben Träger-Transaktion (ADR 0067, wie die Bestätigung).
+8. **Stornierung (#5662).** Die Elternabrechnung storniert eine Anmeldung
+   über Enrollment, wie sie bestätigt (Route
+   `/traeger/holiday-contributions/{periodId}/registrations/{registrationId}/cancel`,
+   Recht „Anmeldung verwalten“); die Route unter
+   `/traeger/holiday-periods` entfällt. Sie nimmt dieselben Sperren wie ein
+   Zusammenführen und liest die Gruppe erst danach. In derselben
+   Transaktion nimmt sie die stornierte Anmeldung aus der Gruppe und rechnet
+   jede übrige bestätigte Anmeldung der Gruppe neu (neue Fassung, Punkt 3).
+   Eine ausgestellte Rechnung hält die Stornierung nicht auf: Die Anmeldung,
+   die sie abrechnet, behält ihren Beitrag. Ihre Einzelansicht meldet
+   `correction_needed`, solange die Gruppe sie heute anders rangiert, als
+   die Rechnung abrechnet; korrigiert wird mit Storno oder Gutschrift
+   (#4690). Jede betroffene Anmeldung bekommt den Eintrag `sibling_cancel`
+   mit den anderen Anmeldungen.
 
 Nicht in diesem Nachtrag: das Alter als Rang, Stufenregeln, Geschwister über
 Zeiträume, Schulen und Verträge (#4685), eine Rechnung je Familie (#4689).
-Storniert Enrollment eine bestätigte Anmeldung der Gruppe, rechnet die
-Elternabrechnung die übrigen erst beim nächsten Zusammenführen, Trennen oder
-Bestätigen neu; das Büro trennt die stornierte Anmeldung dafür.
 
 ## Nachtrag 2026-11-04: Rang und Kostenübernahme je Träger einstellbar (#5664)
 

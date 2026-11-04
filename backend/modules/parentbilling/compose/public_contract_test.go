@@ -43,6 +43,10 @@ func (c confirmedRegistration) SetHolidayDebtorNumber(context.Context, parentbil
 	return parentbilling.HolidayRegistration{}, parentbilling.ErrHolidayRegistrationStateConflict
 }
 
+func (c confirmedRegistration) CancelHolidayRegistration(context.Context, parentbilling.HolidayReviewer, int64, int64) (parentbilling.HolidayRegistration, error) {
+	return parentbilling.HolidayRegistration{}, parentbilling.ErrHolidayRegistrationStateConflict
+}
+
 func (c confirmedRegistration) HoldHolidayPeriod(context.Context, parentbilling.HolidayReviewer, int64) error {
 	return nil
 }

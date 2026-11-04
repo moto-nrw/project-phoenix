@@ -59,6 +59,12 @@ export interface HolidayContribution {
   readonly siblingDebtorNumber?: string;
   /** An issued invoice bills a registration of the group; it stays. */
   readonly siblingsInvoiced?: boolean;
+  /**
+   * The issued invoice bills another amount than the sibling group gives
+   * now, after a sibling was cancelled (#5662): a cancellation or credit
+   * note may be needed.
+   */
+  readonly correctionNeeded?: boolean;
 }
 
 interface HolidaySibling {
@@ -107,6 +113,7 @@ export interface BackendContribution {
     | null;
   sibling_debtor_number?: string;
   siblings_invoiced?: boolean;
+  correction_needed?: boolean;
 }
 
 /** Maps a contribution of the backend. */
@@ -151,5 +158,6 @@ export function contributionFromBackend(
     })),
     siblingDebtorNumber: contribution.sibling_debtor_number ?? "",
     siblingsInvoiced: contribution.siblings_invoiced ?? false,
+    correctionNeeded: contribution.correction_needed ?? false,
   };
 }

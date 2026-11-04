@@ -123,7 +123,8 @@ func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer
 }
 
 // memberContribution is the frozen contribution of the registration with
-// whether an issued invoice bills it, or else its preview across its group
+// whether an issued invoice bills it and whether that invoice needs a
+// correction (#5662), or else its preview across its group
 // with the exemption or the cost bearer the Träger-Büro is about to choose.
 func (h *HolidayContributions) memberContribution(ctx context.Context, organizationID, periodID int64, members []siblingMember,
 	registration parentbilling.HolidayRegistration, benefitsExemption *bool, bearer *parentbilling.CostBearer,
@@ -138,6 +139,12 @@ func (h *HolidayContributions) memberContribution(ctx context.Context, organizat
 		}
 		frozen := *member.frozen
 		frozen.Invoiced = issued[registration.ID]
+		if frozen.Invoiced {
+			frozen.CorrectionNeeded, err = h.correctionNeeded(ctx, organizationID, members, frozen, registration)
+			if err != nil {
+				return parentbilling.HolidayContribution{}, err
+			}
+		}
 		return frozen, nil
 	}
 	exemption := registration.BenefitsDeclared && bearer == nil

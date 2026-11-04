@@ -2,9 +2,12 @@
 
 // Ferienbeitrag einer Anmeldung (#4664): je Kind die Positionen der
 // Regelkette, vor der Bestätigung als Vorschau, danach festgehalten. Die
-// Karte zeigt nur; bestätigt wird in der Karte „Status“.
+// Karte zeigt nur; bestätigt wird in der Karte „Status“. Stimmt der Betrag
+// einer schon ausgestellten Rechnung nach dem Storno eines Geschwisters
+// nicht mehr, sagt sie, dass eine Korrektur nötig sein kann (#5662).
 
 import { ContributionBreakdown } from "~/components/holiday-contribution/contribution-breakdown";
+import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import type { HolidayContribution } from "~/lib/traeger-contributions-api";
@@ -42,6 +45,14 @@ export function HolidayContributionCard({
       title="Ferienbeitrag"
       description={description(contribution, registration)}
     >
+      {contribution.correctionNeeded ? (
+        <Alert
+          type="warning"
+          className="mb-4"
+          title="Rechnung prüfen"
+          message="Eine Geschwister-Anmeldung wurde storniert. Der Betrag auf der Rechnung stimmt deshalb vielleicht nicht mehr. Prüfen Sie, ob Sie die Rechnung stornieren oder eine Gutschrift schreiben müssen."
+        />
+      ) : null}
       <ContributionBreakdown
         items={contribution.children.map((child) => ({
           key: child.childId || String(child.position),
