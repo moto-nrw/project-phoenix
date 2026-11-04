@@ -53,7 +53,13 @@ fi
 # still overrides this budget. Keep -parallel 8 fixed: it sizes the DB pool
 # (13 connections per binary including its keeper) and is a test-cache input.
 package_workers=$("$repo_root/scripts/go-package-workers.sh")
-CONCURRENCY=(-p "$package_workers" -parallel 8 -tags=testhooks)
+# Test failures and panic stacks use Go's runtime line tables, not DWARF.
+# Omit only debugger metadata from these disposable test executables. Keep
+# symbols and runtime line tables; an explicit caller -ldflags still wins.
+# Apply the lower GC target to test processes, not the go test build driver.
+# Preserve an explicit caller GOGC.
+CONCURRENCY=(-p "$package_workers" -parallel 8 -tags=testhooks -ldflags=-w
+  -exec "env GOGC=${GOGC-50}")
 
 if go tool gotestsum --help >/dev/null 2>&1; then
   go tool gotestsum --format pkgname-and-test-fails -- "${CONCURRENCY[@]}" "$@"

@@ -52,6 +52,10 @@ Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
   needs two connections at once — without headroom those tests deadlock and
   every one of them fails on its own 5s deadline, which looks nothing like a
   pool problem.
+- The full wrapper's lower GC target applies to test processes and their
+  children, not the build driver; set `GOGC` explicitly to override it. Its
+  `-ldflags=-w` drops DWARF, not Go's runtime line tables. Use `-ldflags=`
+  when a debugger needs DWARF; normal failures retain source lines and stacks.
 - **Leftovers are a gate, not a report (#2419)**: every test binary compares its
   clone against the start state it recorded for itself and fails the PACKAGE
   when rows are left in SHARED state — rows outside the tenants its own tests
