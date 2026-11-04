@@ -376,9 +376,11 @@ jobs:
   test-frontend:
     name: Frontend tests (${{ matrix.project }})
     if: ${{ inputs.run-frontend }}
-    # The existing Vitest projects are independent, but groupOrder runs Node
-    # before DOM in one process. Split them without raising worker counts or
-    # disabling isolation. Only Node needs the browser layout checks.
+    # The existing Vitest projects are independent, but groupOrder runs them
+    # one after another in one process. Split them without raising worker
+    # counts; workers are reused with a per-file reset
+    # (frontend/src/test/setup-worker-reuse.ts). Only Node needs the browser
+    # layout checks.
     strategy:
       fail-fast: false
       matrix:

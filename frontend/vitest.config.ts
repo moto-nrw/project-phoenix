@@ -4,6 +4,34 @@ import path from "node:path";
 import { availableParallelism } from "node:os";
 import { nodeLogicTestFiles } from "./src/test/node-test-files.ts";
 import { phosphorPerIconImports } from "./src/test/phosphor-imports-plugin.ts";
+import {
+  collectMainProcessGarbage,
+  reusedThreads,
+} from "./src/test/reused-threads-pool.ts";
+
+// Test files of a reused worker share the natively loaded packages. These
+// keep per-file state (Testing Library registers its cleanup hooks on
+// import, SWR's cache, next-auth's session, user-event's document setup) and
+// are evaluated again for every file, as a fresh worker would.
+const perFileDependencies = [
+  /@testing-library\/(react|user-event)/,
+  /\/swr\//,
+  /\/next-auth\//,
+];
+
+// Reused threads (src/test/reused-threads-pool.ts), measured on the full
+// suite (1547 files, 11/2026): with 640 MB old space, a 16 MB young
+// generation and a new thread once one ends a file above 200 MB heap, two
+// workers peak at 1.7 GB process-tree RSS instead of 3.6 GB.
+const reusedPool = reusedThreads({
+  maxOldGenerationSizeMb: 640,
+  maxYoungGenerationSizeMb: 16,
+  recycleHeapMb: 200,
+});
+
+// The main process collects lazily up to a multi-gigabyte heap of which
+// 0.2–0.3 GB is live; above 200 MB it collects every half second.
+collectMainProcessGarbage({ aboveHeapMb: 200, everyMs: 500 });
 
 const schoolDateTestFiles = [
   "src/app/traeger/access-log/page.test.tsx",
@@ -90,19 +118,22 @@ export default defineConfig({
     // 4 GB pro Worker. Außerdem scheitern darunter 52 Tests in 12 Dateien an
     // Realm-Grenzen (toStrictEqual-Prototypen, happy-dom-URL, File/Blob).
     //
-    // isolate: false bleibt aus. logic-node spart damit etwa 14 s CPU, wird
-    // aber reihenfolgeabhängig rot, weil Module samt vi.mock-Ersatz über
-    // Dateigrenzen im Cache bleiben (shift-api*.test.ts mocken session-cache
-    // verschieden). api-node scheitert so in 165 von 274 Dateien.
+    // Vitests eigenes isolate: false allein bleibt verworfen: Module samt
+    // vi.mock-Ersatz bleiben über Dateigrenzen im Cache (shift-api*.test.ts
+    // mocken session-cache verschieden), api-node scheiterte so in 165 von
+    // 274 Dateien. Die Projekte unten verwenden Worker deshalb nur mit dem
+    // Reset pro Datei aus src/test/setup-worker-reuse.ts wieder (Module,
+    // Mocks, Globals, DOM, Listener, Timer); gemessen auf der vollen Suite
+    // (1547 Dateien, 11/2026) 850 → 330 CPU-s.
     pool: "threads",
-    // Höchstens die Hälfte der CPUs und nie mehr als vier Worker.
-    // Gemessen auf 231 Dateien: 8 → 4 Worker senkt CPU um 19% und Peak-RSS
-    // von 3,8 auf 2,7 GB; die Wandzeit steigt von 53 auf 67 Sekunden. Das
-    // gilt auch mit CI=true: Subprozess-Tests brauchen CPU-Spielraum, damit
-    // weder einzelne Tests noch neu gestartete Worker verhungern.
+    // Höchstens die Hälfte der CPUs, lokal nie mehr als zwei Worker, in CI
+    // (eigener Runner, RAM kein Engpass) nie mehr als vier. Subprozess-Tests
+    // brauchen CPU-Spielraum, damit weder einzelne Tests noch neu gestartete
+    // Worker verhungern. Mit wiederverwendeten Workern (volle Suite, 11/2026):
+    // 4 → 2 Worker senkt den Peak-RSS um rund 0,8 GB bei 88 → 115 s Wandzeit.
     maxWorkers: Math.max(
       1,
-      Math.min(4, Math.floor(availableParallelism() / 2)),
+      Math.min(process.env.CI ? 4 : 2, Math.floor(availableParallelism() / 2)),
     ),
     projects: [
       {
@@ -113,8 +144,13 @@ export default defineConfig({
           include: apiTestFiles,
           exclude: baseTestExcludes,
           environment: "node",
-          setupFiles: ["./src/test/setup-common.ts"],
-          sequence: { groupOrder: 0 },
+          isolate: false,
+          pool: reusedPool,
+          setupFiles: [
+            "./src/test/setup-worker-reuse.ts",
+            "./src/test/setup-common.ts",
+          ],
+          sequence: { groupOrder: 1 },
         },
       },
       {
@@ -126,8 +162,13 @@ export default defineConfig({
           include: nodeLogicTestFiles,
           exclude: baseTestExcludes,
           environment: "node",
-          setupFiles: ["./src/test/setup-common.ts"],
-          sequence: { groupOrder: 0 },
+          isolate: false,
+          pool: reusedPool,
+          setupFiles: [
+            "./src/test/setup-worker-reuse.ts",
+            "./src/test/setup-common.ts",
+          ],
+          sequence: { groupOrder: 1 },
         },
       },
       {
@@ -142,8 +183,15 @@ export default defineConfig({
           ],
           environment: "happy-dom",
           environmentOptions: domEnvironmentOptions,
-          setupFiles: ["./src/test/setup-common.ts", "./src/test/setup.ts"],
-          sequence: { groupOrder: 1 },
+          isolate: false,
+          pool: reusedPool,
+          server: { deps: { inline: perFileDependencies } },
+          setupFiles: [
+            "./src/test/setup-worker-reuse.ts",
+            "./src/test/setup-common.ts",
+            "./src/test/setup.ts",
+          ],
+          sequence: { groupOrder: 2 },
         },
       },
       {
@@ -158,9 +206,18 @@ export default defineConfig({
           environmentOptions: domEnvironmentOptions,
           // Node only applies runtime TZ changes in processes, not threads.
           // Keep real non-Berlin browser zones in this regression suite.
+          // Reused processes run first, while the main process is still
+          // small; process.env (TZ included) is restored after every file.
           pool: "forks",
-          setupFiles: ["./src/test/setup-common.ts", "./src/test/setup.ts"],
-          sequence: { groupOrder: 1 },
+          isolate: false,
+          execArgv: ["--max-old-space-size=512"],
+          server: { deps: { inline: perFileDependencies } },
+          setupFiles: [
+            "./src/test/setup-worker-reuse.ts",
+            "./src/test/setup-common.ts",
+            "./src/test/setup.ts",
+          ],
+          sequence: { groupOrder: 0 },
         },
       },
     ],

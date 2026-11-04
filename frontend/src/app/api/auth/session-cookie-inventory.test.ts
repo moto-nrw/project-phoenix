@@ -302,6 +302,13 @@ describe("session cookie writers", () => {
         kinds: ["cookie-list"],
         proof: /operatorInvitationCookieName\(/,
       },
+      // Test support only: a reused Vitest worker returns document to its
+      // first state after every test file and empties the happy-dom cookie
+      // jar, as a fresh worker would start. It sets no cookie.
+      "src/test/setup-worker-reuse.ts": {
+        kinds: ["document-cookie"],
+        proof: /clearCookies: \(\) => container\.clearCookies\(\),/,
+      },
       // The parents portal's language, in the browser (#5444: the regex
       // inventory did not see document.cookie).
       "src/i18n/locales.ts": {
