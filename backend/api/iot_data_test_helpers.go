@@ -88,7 +88,7 @@ func NewIoTDataTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}
 	return IoTDataTestModule{
 			Configuration: devicescanCompose.NewConfiguration(DeviceConfiguration{Settings: settings.Settings}, DeviceScanPrincipal), RoomAvailability: devicescanCompose.NewRoomAvailability(facility, DeviceScanPrincipal),
-			Directory: devicescanCompose.NewDirectory(NewDeviceScanDirectoryPeople(persons, invitations.Auth), DeviceActivityCatalog(activityService), nil, DeviceScanPrincipal), TagAssignments: identity.TagAssignments,
+			Directory: devicescanCompose.NewDirectory(NewDeviceScanDirectoryPeople(persons, invitations.Auth), DeviceActivityCatalog(activityService), NewDeviceScanHolidayGuestSchools(nil), nil, DeviceScanPrincipal), TagAssignments: identity.TagAssignments,
 		}, activities, activityService, persons, devices, facility,
 		&owners.RoomUsage{Sessions: owners.NewLoggedStudentPresence(db, slog.Default()), Offerings: offerings}, nil
 }
