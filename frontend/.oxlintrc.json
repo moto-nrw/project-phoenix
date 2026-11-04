@@ -67,6 +67,9 @@
     "ui-kit/no-select-override": "error",
     "ui-kit/no-tenant-kicker": "error",
     "ui-kit/no-hand-rolled-page-card": "error",
+    "ui-kit/no-hand-rolled-pill": "error",
+    "ui-kit/no-pill-dot": "error",
+    "ui-kit/no-hex-alpha-tint": "error",
     "ui-kit/no-tabs-as-value-switcher": "error",
     "ui-kit/no-tiny-text": "error",
     "no-restricted-imports": [
