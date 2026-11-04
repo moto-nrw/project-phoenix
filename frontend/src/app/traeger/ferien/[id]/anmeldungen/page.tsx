@@ -8,7 +8,14 @@
 
 import { ClipboardList } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   childSchoolLabel,
   formatHolidayWeek,
@@ -174,7 +181,7 @@ function columns(
             `/traeger/ferien/${periodId}/anmeldungen/${registration.id}`,
           )}
           className="font-medium text-gray-900 hover:underline"
-          onClick={(event) => {
+          onClick={(event: ReactMouseEvent<HTMLAnchorElement>) => {
             if (
               event.metaKey ||
               event.ctrlKey ||
