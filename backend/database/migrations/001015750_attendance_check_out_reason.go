@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	attendanceCheckOutReasonVersion     = "1.15.747"
+	attendanceCheckOutReasonVersion     = "1.15.750"
 	attendanceCheckOutReasonDescription = "Add active.attendance.check_out_reason - a checkout that sends the child to class instead of home (#5656)"
 )
 
@@ -17,8 +17,8 @@ func init() {
 		Version:     attendanceCheckOutReasonVersion,
 		Description: attendanceCheckOutReasonDescription,
 		DependsOn: []string{
-			AttendanceVersion,           // active.attendance
-			holidaySiblingGroupsVersion, // the last migration before this one
+			AttendanceVersion,                       // active.attendance
+			holidayContributionChainSettingsVersion, // the last migration before this one
 		},
 	})
 	Migrations.MustRegister(attendanceCheckOutReasonUp, attendanceCheckOutReasonDown)
