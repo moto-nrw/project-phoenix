@@ -2,5 +2,5 @@
   "scenario": "api.workforce.absence_types.list",
   "max": 4,
   "exact": true,
-  "description": "GET /api/absence-types/: real protected tenant router and Workforce catalog. Complete request capture, including BEGIN, combined tenant role/config, one bulk absence-type SELECT and COMMIT. Flat for 0, 3 and 8 rows; includes retired types, excludes foreign tenants and writes no rows. Network listener and outer process middleware are outside this scope."
+  "description": "GET /api/absence-types/: real protected tenant router and Workforce catalog. Complete request capture, including BEGIN, combined tenant role/config, one bulk absence-type SELECT and COMMIT. Flat for 0, 3 and 8 rows with include_usage omitted, false or true (the retained DTO exposes no usage). Pins full ordered DTO, retired types, allowance/carryover variants, tenant role/scope, no DML or row locks. Network listener and outer process middleware are outside this scope."
 }
