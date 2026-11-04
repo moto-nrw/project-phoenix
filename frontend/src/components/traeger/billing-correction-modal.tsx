@@ -292,6 +292,7 @@ export function BillingCorrectionModal({
           <p className="text-sm text-gray-700">{mode.intro}</p>
           {mode.amount ? (
             <Input
+              controlSize="compact"
               id={mode.amount.id}
               name={mode.amount.name}
               label={mode.amount.label}
