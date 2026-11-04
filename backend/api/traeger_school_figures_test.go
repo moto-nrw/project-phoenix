@@ -30,6 +30,13 @@ func insertFigureWorkSession(t *testing.T, db *bun.DB, school, staffID int64, da
 	require.NoError(t, err)
 }
 
+// insertOpenVisit records an open room visit in a group of its own.
+func insertOpenVisit(t *testing.T, db *bun.DB, school, studentID int64, entry time.Time) {
+	t.Helper()
+	group := testpkg.CreateTestActiveGroupForTenant(t, db, school)
+	testpkg.CreateTestVisitForTenant(t, db, school, studentID, group.ID, entry, nil)
+}
+
 func TestPresentStudentCountsCountOpenStaysOnce(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -41,6 +48,9 @@ func TestPresentStudentCountsCountOpenStaysOnce(t *testing.T) {
 
 	both := testpkg.CreateTestStudentForTenant(t, db, school, "Anna", "Anwesend", "1a")
 	testpkg.CreateTestAttendanceForTenant(t, db, school, both.ID, staff.ID, device.ID, figuresDay, earlier, nil)
+	insertOpenVisit(t, db, school, both.ID, earlier)
+	inRoom := testpkg.CreateTestStudentForTenant(t, db, school, "Ria", "Raum", "1a")
+	insertOpenVisit(t, db, school, inRoom.ID, earlier)
 	home := testpkg.CreateTestStudentForTenant(t, db, school, "Hans", "Heim", "1a")
 	testpkg.CreateTestAttendanceForTenant(t, db, school, home.ID, staff.ID, device.ID, figuresDay, earlier, &noon)
 	yesterday := testpkg.CreateTestStudentForTenant(t, db, school, "Yara", "Gestern", "1a")
@@ -50,11 +60,12 @@ func TestPresentStudentCountsCountOpenStaysOnce(t *testing.T) {
 	otherDevice := testpkg.CreateTestDeviceForTenant(t, db, other, "figures-other")
 	foreign := testpkg.CreateTestStudentForTenant(t, db, other, "Fiona", "Fremd", "1a")
 	testpkg.CreateTestAttendanceForTenant(t, db, other, foreign.ID, otherStaff.ID, otherDevice.ID, figuresDay, earlier, nil)
+	insertOpenVisit(t, db, other, foreign.ID, earlier)
 
 	require.NoError(t, testpkg.WithinAdminContext(t, context.Background(), db, func(adminCtx context.Context) error {
 		counts, err := studentPresenceCompose.NewPresentStudentCounts().CountPresentStudentsByTenant(adminCtx, []int64{school}, noon)
 		require.NoError(t, err)
-		assert.Equal(t, map[int64]int{school: 1}, counts, "only the open stay of the day, only the given school")
+		assert.Equal(t, map[int64]int{school: 2}, counts, "attendance and visit of one child count once; only open stays of the day; only the given school")
 		return nil
 	}))
 	_, err := studentPresenceCompose.NewPresentStudentCounts().CountPresentStudentsByTenant(testpkg.TenantContext(school), []int64{school}, noon)
@@ -71,6 +82,12 @@ func TestSickStudentsReadBothMarks(t *testing.T) {
 	cleared := testpkg.CreateTestStudent(t, db, "Clara", "Gesund", "1a")
 	clearedDay := testpkg.CreateTestStudentStatusDay(t, db, cleared.ID, figuresDay, "sick")
 	_, err := db.ExecContext(context.Background(), `UPDATE active.student_status_days SET cleared_at = NOW() WHERE id = ?`, clearedDay.ID)
+	require.NoError(t, err)
+	other, _ := testpkg.CreateTestTenant(t, db)
+	foreign := testpkg.CreateTestStudentForTenant(t, db, other, "Fiona", "Fremd", "1a")
+	_, err = db.ExecContext(context.Background(), `INSERT INTO active.student_status_days (tenant_id, student_id, date, status, reported_at, source) VALUES (?, ?, ?, 'sick', NOW(), 'manual')`, other, foreign.ID, figuresDay)
+	require.NoError(t, err)
+	_, err = db.ExecContext(context.Background(), `UPDATE users.student_care_profiles SET sick = true WHERE tenant_id = ?`, other)
 	require.NoError(t, err)
 	excused := testpkg.CreateTestStudent(t, db, "Emil", "Entschuldigt", "1a")
 	testpkg.CreateTestStudentStatusDay(t, db, excused.ID, figuresDay, "excused")

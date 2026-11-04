@@ -12,6 +12,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import NavigationLink from "~/components/ui/navigation-link";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import type { TraegerSchool } from "~/lib/traeger-api";
 import {
@@ -26,8 +27,16 @@ const COLUMNS: DataTableColumn<TraegerSchool>[] = [
   {
     key: "name",
     header: "Schule",
+    // Der Link ist der Weg per Tastatur und Vorlesehilfe; die Zeile hat eigene
+    // Bedienelemente und wird deshalb selbst kein Knopf.
     render: (school) => (
-      <span className="font-medium text-gray-900">{school.name}</span>
+      <NavigationLink
+        href={traegerPath(`/traeger/schulen/${school.id}`)}
+        className="font-medium text-gray-900 hover:underline"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {school.name}
+      </NavigationLink>
     ),
     sortValue: (school) => school.name,
     stacked: "title",
@@ -72,7 +81,11 @@ export default function TraegerSchoolsPage() {
                   size="compact"
                   aria-label={`Schul-App öffnen: ${school.name}`}
                   disabled={opening !== null}
-                  onClick={() => void open(school)}
+                  onClick={(event) => {
+                    // Die Aktion öffnet die Schul-App, nicht die Schulansicht.
+                    event.stopPropagation();
+                    void open(school);
+                  }}
                 >
                   {opening === school.id
                     ? "Wird geöffnet …"
@@ -128,6 +141,7 @@ export default function TraegerSchoolsPage() {
         stackedOnMobile
         stackedLayout="row"
         stackedDetailKey={canOpen ? "city" : null}
+        rowHasInteractiveControls
         onRowClick={(school) =>
           router.push(traegerPath(`/traeger/schulen/${school.id}`))
         }

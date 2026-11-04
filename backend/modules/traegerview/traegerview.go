@@ -47,25 +47,20 @@ type School struct {
 	City      string `json:"city"`
 }
 
-// SchoolView is one school of the Träger in its own view (#5686): the contact
-// data the school is reachable under and its figures. It names no child and
-// no staff member.
-type SchoolView struct {
-	School
-	Address string        `json:"address"`
-	Zip     string        `json:"zip"`
-	Phone   string        `json:"phone"`
-	Email   string        `json:"email"`
-	Figures SchoolFigures `json:"figures"`
-}
-
-// SchoolContact is the part of a SchoolView the school's own row holds.
+// SchoolContact is one school with the contact data it is reachable under. It
+// names no child and no staff member.
 type SchoolContact struct {
 	School
-	Address string
-	Zip     string
-	Phone   string
-	Email   string
+	Address string `json:"address"`
+	Zip     string `json:"zip"`
+	Phone   string `json:"phone"`
+	Email   string `json:"email"`
+}
+
+// SchoolView is one school of the Träger in its own view (#5686).
+type SchoolView struct {
+	SchoolContact
+	Figures SchoolFigures `json:"figures"`
 }
 
 // SchoolFigures are the live figures of one school. AsOf is the instant they

@@ -51,7 +51,7 @@ function OverviewTab({
       <StatCard
         label="Jetzt anwesend"
         value={figures?.childrenPresent ?? 0}
-        hint="Kinder, die gerade in der Schule angemeldet sind."
+        hint="Kinder, die gerade in der Schule sind."
         loading={loading}
         tone="green"
       />
@@ -95,6 +95,7 @@ function MasterDataTab({
       <SectionCard
         title="Anschrift und Kontakt"
         description="Nur zum Lesen. Änderungen übernimmt das moto-Team."
+        loading={school === null}
       >
         <DataGrid columns={2}>
           <DataField label="Name">{school?.name ?? EMPTY_VALUE}</DataField>
@@ -113,7 +114,11 @@ function MasterDataTab({
           <DataField label="E-Mail">{school?.email || EMPTY_VALUE}</DataField>
         </DataGrid>
       </SectionCard>
-      <SectionCard title="Größe der Schule">
+      <SectionCard
+        title="Größe der Schule"
+        description="Alle Kinder, die die Schule gerade betreut, und alle Betreuungskräfte ohne externe Kräfte."
+        loading={school === null}
+      >
         <DataGrid columns={2}>
           <DataField label="Kinder">
             {school?.figures.childrenTotal ?? EMPTY_VALUE}

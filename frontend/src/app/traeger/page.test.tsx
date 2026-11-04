@@ -77,6 +77,7 @@ import TraegerSchoolsPage from "./page";
 describe("TraegerSchoolsPage", () => {
   beforeEach(() => {
     mockFetchSchools.mockReset();
+    mockRouterPush.mockReset();
     mockStartSchoolSession.mockReset();
     mockUseSession.mockReturnValue(sessionWith(["traeger_overview:read"]));
   });
@@ -122,8 +123,11 @@ describe("TraegerSchoolsPage", () => {
     renderPage();
 
     const table = await screen.findByRole("table");
-    fireEvent.click(within(table).getByText("OGS Am Bach"));
+    fireEvent.click(within(table).getByText("Bissendorf"));
     expect(mockRouterPush).toHaveBeenCalledWith("/traeger/schulen/2");
+    expect(
+      within(table).getByRole("link", { name: "OGS Am Bach" }),
+    ).toHaveAttribute("href", "/traeger/schulen/2");
   });
 
   it("says who adds schools when the Träger has none yet", async () => {
@@ -211,6 +215,8 @@ describe("TraegerSchoolsPage", () => {
         name: "Schul-App öffnen: OGS Am Bach",
       }),
     );
+    // Die Aktion öffnet nur den Tab, die Liste bleibt stehen.
+    expect(mockRouterPush).not.toHaveBeenCalled();
 
     await waitFor(() =>
       expect(tab.location.href).toBe(

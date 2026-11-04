@@ -107,11 +107,7 @@ func (o *Overview) schoolView(ctx context.Context, schoolID int64) (traegerview.
 	if err != nil {
 		return traegerview.SchoolView{}, err
 	}
-	contact := contacts[0]
-	return traegerview.SchoolView{
-		School: contact.School, Address: contact.Address, Zip: contact.Zip, Phone: contact.Phone, Email: contact.Email,
-		Figures: figures,
-	}, nil
+	return traegerview.SchoolView{SchoolContact: contacts[0], Figures: figures}, nil
 }
 
 // schoolFigures reads the figures of one school at its owners and applies the

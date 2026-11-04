@@ -91,11 +91,7 @@ describe("TraegerSchoolPage", () => {
     expect(screen.getByRole("heading", { name: "OGS Am Bach" })).toBeVisible();
     for (const [label, value, sentence] of [
       ["Kinder gesamt", "120", "Alle Kinder, die die Schule gerade betreut."],
-      [
-        "Jetzt anwesend",
-        "51",
-        "Kinder, die gerade in der Schule angemeldet sind.",
-      ],
+      ["Jetzt anwesend", "51", "Kinder, die gerade in der Schule sind."],
       ["Heute krank", "4", "Kinder mit einer Krankmeldung für heute."],
       [
         "Betreuungskräfte anwesend",
