@@ -51,7 +51,6 @@ function useBillingDefaults(enabled: boolean) {
   const loadGeneration = useRef(0);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
-  enabledRef.current = enabled;
 
   const load = useCallback(async () => {
     if (!enabledRef.current) return;
@@ -80,6 +79,7 @@ function useBillingDefaults(enabled: boolean) {
   }, [clearLoadError, showLoadError]);
 
   useEffect(() => {
+    enabledRef.current = enabled;
     if (enabled) {
       void load();
       return;
