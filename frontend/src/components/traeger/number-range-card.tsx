@@ -122,6 +122,7 @@ export function NumberRangeCard({
           }}
         >
           <Input
+            controlSize="compact"
             id="number-range-pattern"
             name="pattern"
             label="Muster der Rechnungsnummer"

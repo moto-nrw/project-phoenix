@@ -134,6 +134,7 @@ export function TraegerBankAccountModal({
         }}
       >
         <Input
+          controlSize="compact"
           id="traeger-bank-account-label"
           label="Bezeichnung"
           name="label"
@@ -145,6 +146,7 @@ export function TraegerBankAccountModal({
           required
         />
         <Input
+          controlSize="compact"
           id="traeger-bank-account-holder"
           label="Kontoinhaber"
           name="account_holder"
@@ -155,6 +157,7 @@ export function TraegerBankAccountModal({
           required
         />
         <Input
+          controlSize="compact"
           id="traeger-bank-account-iban"
           label="IBAN"
           name="iban"
@@ -168,6 +171,7 @@ export function TraegerBankAccountModal({
         />
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
+            controlSize="compact"
             id="traeger-bank-account-bic"
             label="BIC (freiwillig)"
             name="bic"
@@ -179,6 +183,7 @@ export function TraegerBankAccountModal({
             maxLength={14}
           />
           <Input
+            controlSize="compact"
             id="traeger-bank-account-bank"
             label="Bank (freiwillig)"
             name="bank_name"
@@ -197,7 +202,7 @@ export function TraegerBankAccountModal({
         ) : (
           <label
             htmlFor="traeger-bank-account-default"
-            className="flex items-start gap-3 text-sm text-gray-700"
+            className="flex items-start gap-3 text-sm text-gray-900"
           >
             <Checkbox
               id="traeger-bank-account-default"

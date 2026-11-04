@@ -124,7 +124,7 @@ export default function TraegerSchoolsPage() {
               render: (school) => (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="surface"
                   size="compact"
                   aria-label={`${school.name} öffnen`}
                   disabled={opening !== null}
@@ -171,7 +171,6 @@ export default function TraegerSchoolsPage() {
           type="info"
           announce="off"
           message={SCHOOL_SWITCH_MISSING_HINT}
-          className="mb-4"
         />
       )}
       <DataTable

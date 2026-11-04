@@ -25,6 +25,8 @@ interface PasswordResetModalProps {
   readonly onClose: () => void;
   readonly onRequestReset?: (email: string) => Promise<{ message: string }>;
   readonly rateLimitStorageKey?: string;
+  /** Matches the reset field to the owning login form. */
+  readonly inputControlSize?: "default" | "compact";
   readonly copy?: PasswordResetModalCopy;
   /**
    * The owner's shared API error path (`useApiFormError`), handed in because
@@ -125,6 +127,7 @@ export function PasswordResetModal({
   onClose,
   onRequestReset = requestPasswordReset,
   rateLimitStorageKey = "passwordResetRateLimitUntil",
+  inputControlSize = "default",
   copy = DEFAULT_PASSWORD_RESET_MODAL_COPY,
   errorPath,
   formRef,
@@ -303,6 +306,7 @@ export function PasswordResetModal({
                   {copy.emailLabel}
                 </label>
                 <Input
+                  controlSize={inputControlSize}
                   id="reset-email"
                   name="email"
                   type="email"

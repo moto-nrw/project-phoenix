@@ -28,16 +28,20 @@ export function GuardianAddressFields({
   labels,
   fieldError,
   onChange,
+  controlSize,
 }: Readonly<{
   address: GuardianAddressDraft;
   required: boolean;
   labels: GuardianAddressLabels;
   fieldError: (name: string) => string | undefined;
   onChange: (address: GuardianAddressDraft) => void;
+  /** The Träger-App sets its fields to 40 px; the parents' form keeps the default. */
+  controlSize?: "default" | "compact";
 }>) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_8rem_minmax(0,1fr)]">
       <Input
+        controlSize={controlSize}
         name="guardian_address.street"
         required={required}
         label={labels.street}
@@ -50,6 +54,7 @@ export function GuardianAddressFields({
         }
       />
       <Input
+        controlSize={controlSize}
         name="guardian_address.postal_code"
         required={required}
         label={labels.postalCode}
@@ -63,6 +68,7 @@ export function GuardianAddressFields({
         }
       />
       <Input
+        controlSize={controlSize}
         name="guardian_address.city"
         required={required}
         label={labels.city}

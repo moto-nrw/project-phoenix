@@ -89,6 +89,7 @@ export function TraegerContactCard({
         <FormErrorAlert message={formErrors.error} />
         <div className="grid gap-4 md:grid-cols-3">
           <Input
+            controlSize="compact"
             id="traeger-contact-name"
             label="Name"
             name="name"
@@ -99,6 +100,7 @@ export function TraegerContactCard({
             disabled={!canEdit}
           />
           <Input
+            controlSize="compact"
             id="traeger-contact-phone"
             label="Telefon"
             name="phone"
@@ -110,6 +112,7 @@ export function TraegerContactCard({
             disabled={!canEdit}
           />
           <Input
+            controlSize="compact"
             id="traeger-contact-email"
             label="E-Mail-Adresse"
             name="email"
