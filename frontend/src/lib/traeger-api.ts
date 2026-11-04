@@ -56,6 +56,42 @@ export interface TraegerSchool {
   readonly city: string;
 }
 
+/** Live figures of one school; numbers only, no names (#5686). */
+interface TraegerSchoolFigures {
+  readonly childrenTotal: number;
+  readonly childrenPresent: number;
+  readonly childrenSick: number;
+  readonly staffTotal: number;
+  readonly staffPresent: number;
+  /** Present children per present staff member; null without present staff. */
+  readonly careRatio: number | null;
+  readonly asOf: string;
+}
+
+export interface TraegerSchoolView extends TraegerSchool {
+  readonly address: string;
+  readonly zip: string;
+  readonly phone: string;
+  readonly email: string;
+  readonly figures: TraegerSchoolFigures;
+}
+
+interface BackendSchoolView extends BackendSchool {
+  address?: string | null;
+  zip?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  figures: {
+    children_total: number;
+    children_present: number;
+    children_sick: number;
+    staff_total: number;
+    staff_present: number;
+    care_ratio: number | null;
+    as_of: string;
+  };
+}
+
 interface BackendSchool {
   id: number;
   name: string;
@@ -161,6 +197,45 @@ export async function fetchTraegerSchools(): Promise<TraegerSchool[]> {
     subdomain: school.subdomain,
     city: school.city ?? "",
   }));
+}
+
+/** One school of the Träger with its contact data and figures (#5686). */
+export async function fetchTraegerSchool(
+  id: string,
+): Promise<TraegerSchoolView> {
+  const response = await transportFetch(
+    `/api/traeger/schools/${encodeURIComponent(id)}`,
+    { credentials: "include", cache: "no-store" },
+  );
+  const data = await readJson(response);
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+  const school = (data as { data: BackendSchoolView }).data;
+  return {
+    id: String(school.id),
+    name: school.name,
+    slug: school.slug,
+    subdomain: school.subdomain,
+    city: school.city ?? "",
+    address: school.address ?? "",
+    zip: school.zip ?? "",
+    phone: school.phone ?? "",
+    email: school.email ?? "",
+    figures: {
+      childrenTotal: school.figures.children_total,
+      childrenPresent: school.figures.children_present,
+      childrenSick: school.figures.children_sick,
+      staffTotal: school.figures.staff_total,
+      staffPresent: school.figures.staff_present,
+      careRatio: school.figures.care_ratio,
+      asOf: school.figures.as_of,
+    },
+  };
 }
 
 /**

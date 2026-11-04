@@ -138,7 +138,7 @@ const CONFIRM_DIALOGS: Record<
 > = {
   complete: {
     title: "Termin beenden?",
-    body: "Der laufende Termin wird beendet. Innerhalb von fünf Minuten kann er kontrolliert wieder geöffnet werden.",
+    body: "Der laufende Termin wird beendet. Bis zum geplanten Ende, mindestens fünf Minuten lang, können Sie ihn wieder öffnen.",
     confirmText: "Beenden",
   },
   cancel: {

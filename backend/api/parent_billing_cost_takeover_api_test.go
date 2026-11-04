@@ -371,7 +371,7 @@ func TestTraegerBueroUploadsAProofTheFamilyBroughtOnPaper(t *testing.T) {
 func TestTraegerBueroCannotUploadAProofToACancelledRegistration(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Träger Nachweis storniert")
-	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, f.registrationPath(f.again, "/cancel"), map[string]any{})
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, holidayCancelPath(f.period.ID, f.again), map[string]any{})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	rec = uploadOfficeProof(t, f, f.office.token, f.again, "bescheid.pdf", proofPDF)
@@ -558,7 +558,7 @@ func TestReimbursementListKeepsTheProofOfACancelledRegistration(t *testing.T) {
 	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(run))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, f.registrationPath(f.siblings, "/cancel"), map[string]any{})
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, holidayCancelPath(f.period.ID, f.siblings), map[string]any{})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	rec = traegerJSON(t, f.traeger, billing, http.MethodGet,

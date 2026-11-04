@@ -428,7 +428,7 @@ describe("traeger-holiday-registrations-api", () => {
     );
 
     await expect(
-      changeHolidayRegistration("5", "7", "cancel"),
+      changeHolidayRegistration("5", "7", "freeze"),
     ).rejects.toBeInstanceOf(ApiError);
   });
 

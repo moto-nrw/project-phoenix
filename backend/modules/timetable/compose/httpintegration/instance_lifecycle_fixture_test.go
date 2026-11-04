@@ -324,8 +324,14 @@ func (b lifecycleRealtime) BroadcastToTenant(tenantID int64, event timetablePort
 // and student rows. Returns the instance for the caller to act on.
 func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents bool) *testpkg.ActivityInstance {
 	t.Helper()
+	return seedInstanceOn(t, s, testpkg.Date(2026, 4, 20), withStaff, withStudents)
+}
+
+// seedInstanceOn seeds the 14:00-15:00 block of seedInstance on date.
+func seedInstanceOn(t *testing.T, s *lifecycleSetup, date calendar.Date, withStaff bool, withStudents bool) *testpkg.ActivityInstance {
+	t.Helper()
 	ai := &testpkg.ActivityInstance{
-		Date:            testpkg.Date(2026, 4, 20),
+		Date:            date,
 		ActivityGroupID: &s.tmplID,
 		Title:           "Lifecycle-Test",
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),

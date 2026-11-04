@@ -40,7 +40,7 @@ function chatDayMonthFormatter(locale: string): Intl.DateTimeFormat {
   });
 }
 
-function chatTimeFormatter(locale: string): Intl.DateTimeFormat {
+function berlinTimeFormatter(locale: string): Intl.DateTimeFormat {
   return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
@@ -387,6 +387,16 @@ export function formatBerlinDate(dateString: string, locale = "de-DE"): string {
 }
 
 /**
+ * Format an instant as the school's Berlin wall-clock time ("14:30"),
+ * regardless of where the viewer sits.
+ */
+export function formatBerlinTime(iso: string, locale = "de-DE"): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return berlinTimeFormatter(locale).format(date);
+}
+
+/**
  * Format a time string to German locale format
  * @param dateString ISO date string
  * @returns Formatted time string (e.g., "14:30")
@@ -410,7 +420,7 @@ export function formatChatTime(iso: string, locale = "de-DE"): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   const dayMonth = chatDayMonthFormatter(locale).format(date);
-  return `${dayMonth}, ${chatTimeFormatter(locale).format(date)}`;
+  return `${dayMonth}, ${berlinTimeFormatter(locale).format(date)}`;
 }
 
 /**
@@ -427,14 +437,12 @@ export function formatChatDateTime(
   if (!iso) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return `${berlinDateFormatter(locale).format(date)}, ${chatTimeFormatter(locale).format(date)}`;
+  return `${berlinDateFormatter(locale).format(date)}, ${berlinTimeFormatter(locale).format(date)}`;
 }
 
 /** Clock-only chat timestamp for narrow list rows. */
 export function formatChatClockTime(iso: string, locale = "de-DE"): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return chatTimeFormatter(locale).format(date);
+  return formatBerlinTime(iso, locale);
 }
 
 /**

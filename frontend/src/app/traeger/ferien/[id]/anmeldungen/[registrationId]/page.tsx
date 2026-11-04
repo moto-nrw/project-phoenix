@@ -391,7 +391,7 @@ export default function TraegerHolidayRegistrationPage() {
             costBearerId={costBearerId}
             onCostBearerChange={changeCostBearer}
             onChanged={changed}
-            onConfirmed={load}
+            onReload={load}
             onDebtorNumberChanged={load}
           />
           {contribution?.siblings?.length ? (

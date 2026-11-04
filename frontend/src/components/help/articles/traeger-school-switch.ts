@@ -15,7 +15,7 @@ export function traegerSchoolSwitchTopic(): HelpTopic {
     requirements: ["Sie haben die Rolle `Schulzugang`."],
     steps: [
       "Wählen Sie in der Navigation `Schulen`.",
-      "Wählen Sie bei der Schule `Schul-App öffnen`.",
+      "Wählen Sie bei der Schule `Schul-App öffnen`. Das geht auch in der Ansicht der Schule.",
     ],
     result:
       "moto öffnet die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule. Mit `Zurück zur Träger-App` kommen Sie zurück zur Liste Ihrer Schulen.",
@@ -34,6 +34,6 @@ export function traegerSchoolSwitchTopic(): HelpTopic {
       "moto sagt, die Schule gehöre nicht zu Ihrem Träger? Laden Sie die Seite neu. Fehlt die Schule dann, wenden Sie sich an das moto-Team.",
       "moto bittet Sie, sich neu anzumelden? Melden Sie sich im Träger-Portal neu an und öffnen Sie die Schule noch einmal.",
     ],
-    related: [HELP_TOPICS.traegerLogin],
+    related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.traegerSchoolView],
   };
 }

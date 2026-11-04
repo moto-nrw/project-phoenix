@@ -2,6 +2,7 @@ DELETE /traeger/holiday-contributions/{periodId}/sibling-groups/registrations/{r
 GET /traeger/holiday-contributions/confirmation-settings -> basis
 GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId} -> basis
 GET /traeger/holiday-contributions/{periodId}/sibling-groups -> basis
+POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/cancel -> basis
 POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm -> basis
 POST /traeger/holiday-contributions/{periodId}/sibling-groups -> basis
 PUT /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/debtor-number -> basis

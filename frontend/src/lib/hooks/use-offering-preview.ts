@@ -4,7 +4,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import type { DraftRoster } from "~/lib/offering-suggestion";
+import type {
+  DraftRoster,
+  OfferingSuggestionQuery,
+} from "~/lib/offering-suggestion";
 import type {
   OfferingPreview,
   OfferingSelection,
@@ -113,10 +116,11 @@ export function useDraftOfferingPreview(
   selection: OfferingSelection,
   roster: DraftRoster | null,
   from?: string,
+  template?: Pick<OfferingSuggestionQuery, "type" | "listKind">,
 ) {
   const key =
     periodId && roster && selection.offeringIds.length > 0
-      ? `${periodId}|${selectionKey(selection)}|${JSON.stringify(roster)}|${from ?? ""}`
+      ? `${periodId}|${selectionKey(selection)}|${JSON.stringify(roster)}|${from ?? ""}|${template?.type ?? ""}|${template?.listKind ?? ""}`
       : null;
   return usePreviewLoad(
     key,
@@ -126,6 +130,7 @@ export function useDraftOfferingPreview(
         selection,
         roster ?? {},
         from,
+        template,
       ),
     { period_id: periodId },
   );

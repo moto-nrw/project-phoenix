@@ -80,6 +80,9 @@ var (
 	// ErrInvalidHolidayQuote reports bookings of a quote that the period does
 	// not offer.
 	ErrInvalidHolidayQuote = errors.New("invalid holiday contribution quote")
+	// ErrHolidayRegistrationFrozen reports a cancellation of a registration
+	// after the registration deadline; the Träger-Büro reopens it first.
+	ErrHolidayRegistrationFrozen = errors.New("the holiday registration is frozen")
 	// ErrDebtorNumberLocked reports a change of the debtor number of a
 	// registration an issued invoice already bills: the invoice keeps its
 	// copy (#5621, ADR 0119).
@@ -143,6 +146,26 @@ type HolidayContribution struct {
 	// Chain names how the contribution was computed (#5664). A frozen one
 	// keeps it, so a later change of the settings does not reach it.
 	Chain HolidayChainSettings `json:"-"`
+	// CorrectionNeeded reports that the issued invoice billed the family or
+	// the cost bearer another amount than the frozen contribution has now,
+	// for example after a
+	// sibling was cancelled (#5662). The invoice keeps its amount; the
+	// Träger-Büro corrects it with a cancellation or credit note (#4690).
+	CorrectionNeeded bool `json:"correction_needed,omitempty"`
+}
+
+// IssuedContribution is what the issued invoice of a registration billed,
+// without the corrections of its run (#5662): TotalCents the family pays and
+// CostTakeoverCents the cost bearer pays.
+type IssuedContribution struct {
+	TotalCents        int64
+	CostTakeoverCents int64
+}
+
+// HolidayCancellation is a cancelled registration (#5662).
+type HolidayCancellation struct {
+	RegistrationID int64  `json:"id"`
+	Status         string `json:"status"`
 }
 
 // HolidayConfirmation is a confirmed registration with the contribution its
@@ -239,12 +262,16 @@ type HolidayRegistrations interface {
 	// SetHolidayDebtorNumber changes the debtor number of a confirmed
 	// registration; a blank one removes it.
 	SetHolidayDebtorNumber(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, debtorNumber string) (HolidayRegistration, error)
+	// CancelHolidayRegistration cancels the registration (#5662); a
+	// registration after the deadline is ErrHolidayRegistrationFrozen.
+	CancelHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayRegistration, error)
 	// HoldHolidayPeriod locks the period until the transaction ends, so no
 	// registration of it changes while a sibling group is read and decided
 	// on (#5628). A period of another Träger is ErrHolidayPeriodNotFound.
 	HoldHolidayPeriod(ctx context.Context, reviewer HolidayReviewer, periodID int64) error
-	// RecordHolidaySiblings records action, HolidaySiblingsMerged or
-	// HolidaySiblingsSplit, with the other registrations it names.
+	// RecordHolidaySiblings records action, HolidaySiblingsMerged,
+	// HolidaySiblingsSplit or HolidaySiblingsCancelled, with the other
+	// registrations it names.
 	RecordHolidaySiblings(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, action string, siblingIDs []int64) error
 }
 
@@ -334,6 +361,15 @@ type HolidayContributions interface {
 	// Träger asks for it, a blank one is a validation error on
 	// debtor_number before anything is written (#5621).
 	ConfirmHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, costBearerID int64, debtorNumber string) (HolidayConfirmation, error)
+	// CancelHolidayRegistration cancels the registration through Enrollment
+	// in the caller's Träger transaction (#5662). In a sibling group it
+	// takes the registration out of the group and computes the frozen
+	// contribution of every other confirmed registration of the group again,
+	// under the locks of a merge, also of one an issued invoice bills, which
+	// keeps its own positions. A cancelled registration is
+	// ErrHolidayRegistrationStateConflict, one after the deadline
+	// ErrHolidayRegistrationFrozen.
+	CancelHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayCancellation, error)
 	// HolidayConfirmationSettings reports what a confirmation of the
 	// session's Träger needs (#5621).
 	HolidayConfirmationSettings(ctx context.Context, reviewer HolidayReviewer) (HolidayConfirmationSettings, error)

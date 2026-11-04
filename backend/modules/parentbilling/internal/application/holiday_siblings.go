@@ -352,6 +352,13 @@ func groupChain(members []siblingMember, current parentbilling.HolidayChainSetti
 // changes. A registration an issued invoice bills keeps its own. An
 // exemption it froze stays only while a rule allows it.
 func (h *HolidayContributions) refreezeSiblings(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64, members []siblingMember, issued map[int64]bool) error {
+	return h.refreeze(ctx, reviewer, periodID, members, issued, false)
+}
+
+// refreeze is refreezeSiblings; with keepExemptions a registration whose
+// frozen exemption no rule allows any more keeps its contribution instead
+// of refusing: an exempt family pays nothing either way (#5662).
+func (h *HolidayContributions) refreeze(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64, members []siblingMember, issued map[int64]bool, keepExemptions bool) error {
 	if len(members) == 0 {
 		return nil
 	}
@@ -365,10 +372,11 @@ func (h *HolidayContributions) refreezeSiblings(ctx context.Context, reviewer pa
 			member.registration.Status != parentbilling.HolidayRegistrationConfirmed {
 			continue
 		}
-		if member.frozen.BenefitsExemption && !next.BenefitsExemption {
-			return parentbilling.ErrBenefitsExemptionUnavailable
+		changed, err := refrozen(*member.frozen, next, keepExemptions)
+		if err != nil {
+			return err
 		}
-		if sameContribution(*member.frozen, next) && member.frozen.Chain == next.Chain {
+		if !changed {
 			continue
 		}
 		if err := h.store.InsertHolidayContributions(ctx, reviewer.OrganizationID, periodID, member.id(), reviewer.AccountID, next); err != nil {
@@ -376,6 +384,19 @@ func (h *HolidayContributions) refreezeSiblings(ctx context.Context, reviewer pa
 		}
 	}
 	return nil
+}
+
+// refrozen reports whether next is a new version of the frozen
+// contribution: other amounts or other chain settings (#5664). A frozen exemption no rule allows any more refuses, or with
+// keepExemptions keeps the frozen contribution.
+func refrozen(frozen, next parentbilling.HolidayContribution, keepExemptions bool) (bool, error) {
+	if frozen.BenefitsExemption && !next.BenefitsExemption {
+		if keepExemptions {
+			return false, nil
+		}
+		return false, parentbilling.ErrBenefitsExemptionUnavailable
+	}
+	return !sameContribution(frozen, next) || frozen.Chain != next.Chain, nil
 }
 
 // shareDebtorNumber gives every confirmed registration of the group that no

@@ -3,6 +3,14 @@ import { HELP_TOPICS } from "~/lib/help-topics";
 import { getTraegerHelpTopicForPath } from "./traeger-help";
 
 describe("getTraegerHelpTopicForPath", () => {
+  it("opens the school view article on the view of a school (#5686)", () => {
+    for (const path of ["/schulen/2", "/traeger/schulen/2"]) {
+      expect(getTraegerHelpTopicForPath(path)).toBe(
+        HELP_TOPICS.traegerSchoolView,
+      );
+    }
+  });
+
   it("opens the article of the page Briefkopf on the Träger host and below /traeger (#4653)", () => {
     for (const path of ["/briefkopf", "/traeger/briefkopf"]) {
       expect(getTraegerHelpTopicForPath(path)).toBe(

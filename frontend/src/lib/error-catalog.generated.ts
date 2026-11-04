@@ -1282,6 +1282,8 @@ export const ERROR_CATALOG = {
         "Eine Betreuungsperson betreut inzwischen eine andere Gruppe. Der Termin lässt sich nicht wieder öffnen.",
       "timetable.reopen_student_active":
         "Ein Kind ist inzwischen woanders eingecheckt. Der Termin lässt sich nicht wieder öffnen.",
+      "timetable.reopen_student_left":
+        "Ein Kind ist inzwischen nach Hause gegangen. Der Termin lässt sich nicht wieder öffnen.",
       "timetable.reopen_supervision_changed":
         "Die Betreuung wurde nach dem Abschluss geändert. Der Termin lässt sich nicht wieder öffnen.",
       "timetable.room_occupied":

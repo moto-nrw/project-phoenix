@@ -38,11 +38,14 @@ export function OfferingSourcePreview({
   templateId,
   form,
   from,
+  onAddOfferings,
 }: Readonly<{
   templateId: string;
   form: EventFormState;
   /** Occurrence date of „Ab jetzt dauerhaft“; otherwise the next occurrence. */
   from?: string;
+  /** Adds offerings that keep dropped children to the selection. */
+  onAddOfferings?: (offeringIds: string[]) => void;
 }>) {
   // The hook reloads on the content of the selection, not its identity.
   const { preview, loading, error } = useOfferingPreview(
@@ -59,6 +62,7 @@ export function OfferingSourcePreview({
       loading={loading}
       error={error}
       untouched={untouched}
+      onAddOfferings={onAddOfferings}
     />
   );
 }
@@ -72,6 +76,7 @@ export function DraftOfferingSourcePreview({
   roster,
   form,
   from,
+  onAddOfferings,
 }: Readonly<{
   periodId: string;
   /** The children per weekday the editor planned before the switch. */
@@ -79,12 +84,15 @@ export function DraftOfferingSourcePreview({
   form: EventFormState;
   /** First day of the new Regeltermin; omitted means today. */
   from?: string;
+  /** Adds offerings that keep dropped children to the selection. */
+  onAddOfferings?: (offeringIds: string[]) => void;
 }>) {
   const { preview, loading, error } = useDraftOfferingPreview(
     periodId,
     formOfferingSelection(form),
     roster,
     from,
+    { type: form.type, listKind: form.listKind },
   );
   return (
     <PreviewPanel
@@ -92,6 +100,7 @@ export function DraftOfferingSourcePreview({
       loading={loading}
       error={error}
       untouched={null}
+      onAddOfferings={onAddOfferings}
     />
   );
 }
@@ -101,11 +110,13 @@ function PreviewPanel({
   loading,
   error,
   untouched,
+  onAddOfferings,
 }: Readonly<{
   preview: OfferingPreview | null;
   loading: boolean;
   error: FormErrorInput;
   untouched: string | null;
+  onAddOfferings?: (offeringIds: string[]) => void;
 }>) {
   return (
     <div className="flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-3">
@@ -120,7 +131,10 @@ function PreviewPanel({
       <LoadErrorAlert error={error} />
       {preview && !loading ? (
         <>
-          <OfferingPreviewList preview={preview} />
+          <OfferingPreviewList
+            preview={preview}
+            onAddOfferings={onAddOfferings}
+          />
           {untouched ? (
             <p className="text-xs text-gray-600">{untouched}</p>
           ) : null}

@@ -26,8 +26,9 @@ import (
 // holiday periods: the same Träger session, the right "Anmeldung verwalten"
 // and the Träger transaction of the session's Träger. The Träger and the
 // person come from the session, never from the request. A confirmation
-// freezes the contribution, so the Elternabrechnung serves it at
-// /traeger/holiday-contributions (#4664, ADR 0115).
+// freezes the contribution and a cancellation computes the sibling group
+// again, so the Elternabrechnung serves both at
+// /traeger/holiday-contributions (#4664, #5662, ADR 0115).
 
 // registrationRoutes adds the review routes to the period routes.
 func (rs *HolidayPeriodResource) registrationRoutes(r chi.Router, withTx common.Middleware) {
@@ -38,7 +39,6 @@ func (rs *HolidayPeriodResource) registrationRoutes(r chi.Router, withTx common.
 	r.With(rs.requireManage, rs.requireHealth, withTx).Get("/{id}/registrations/{registrationId}/health", rs.getRegistrationHealth)
 	review.Get("/{id}/registrations/{registrationId}/proofs/{proofId}", rs.openProof)
 	review.Post("/{id}/registrations/{registrationId}/proofs", rs.uploadOfficeProof)
-	review.Post("/{id}/registrations/{registrationId}/cancel", rs.registrationAction(capability.HolidayAuditCancel))
 	review.Post("/{id}/registrations/{registrationId}/freeze", rs.registrationAction(capability.HolidayAuditFreeze))
 	review.Post("/{id}/registrations/{registrationId}/reopen", rs.registrationAction(capability.HolidayAuditReopen))
 	review.Put("/{id}/registrations/{registrationId}/children/{childId}/bookings", rs.rebookChild)
@@ -124,8 +124,9 @@ func (rs *HolidayPeriodResource) getRegistrationHealth(w http.ResponseWriter, r 
 	common.Respond(w, r, http.StatusOK, health, "Holiday registration health information retrieved successfully")
 }
 
-// registrationAction answers cancel, freeze and reopen with the changed
-// registration.
+// registrationAction answers freeze and reopen with the changed
+// registration. The Elternabrechnung cancels a registration, so it can
+// compute its sibling group again (#5662), as it confirms one.
 func (rs *HolidayPeriodResource) registrationAction(action string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		reviewer, periodID, registrationID, ok := registrationKey(w, r)
