@@ -81,6 +81,7 @@ jobs:
           scripts/backend-affected-packages_test.sh
           scripts/backend-test-matrix_test.sh
           scripts/test-changed_test.sh
+          scripts/go-test-link-cache_test.sh
       - name: Select and partition backend packages
         id: packages
         working-directory: backend
@@ -203,6 +204,7 @@ jobs:
           scripts/backend-affected-packages_test.sh
           scripts/backend-test-matrix_test.sh
           scripts/test-changed_test.sh
+          scripts/go-test-link-cache_test.sh
 
       - name: Verify snapshot roles match migrations
         if: matrix.shard == 0

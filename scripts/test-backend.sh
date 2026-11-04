@@ -61,12 +61,30 @@ fi
 # (13 connections per binary including its keeper) and is a test-cache input.
 package_workers=$("$repo_root/scripts/go-package-workers.sh")
 # Test failures and panic stacks use Go's runtime line tables, not DWARF.
-# Omit only debugger metadata from these disposable test executables. Keep
-# symbols and runtime line tables; an explicit caller -ldflags still wins.
+# Go already strips ordinary disposable test binaries. Also omit DWARF when
+# a profile retains the binary; an explicit caller -ldflags still wins.
 # Apply the lower GC target to test processes, not the go test build driver.
 # Preserve an explicit caller GOGC.
 CONCURRENCY=(-p "$package_workers" -parallel 8 -tags=testhooks -ldflags=-w
   -exec "env GOGC=${GOGC-50}")
+
+# Reuse native test links even with -count=1. Keep Go's own compile/vet and
+# result-cache decisions, plus caller-provided -toolexec and forced rebuilds.
+link_cache=true
+if [[ " ${GOFLAGS:-} " =~ [[:space:]]-(a|toolexec)(=|[[:space:]]|$) ]]; then
+  link_cache=false
+fi
+for argument in "$@"; do
+  case "$argument" in -a|-a=*|-toolexec|-toolexec=*) link_cache=false ;; esac
+done
+if "$link_cache"; then
+  go_cache=$(go env GOCACHE)
+  # cmd/go's quoted argument parser cannot represent paths containing both
+  # quote types. Conservatively leave apostrophe-containing paths uncached.
+  if [[ "$repo_root$go_cache" != *"'"* ]]; then
+    CONCURRENCY+=(-toolexec "'$repo_root/scripts/go-test-link-cache.sh' '$go_cache/phoenix-test-links-v1'")
+  fi
+fi
 
 if go tool gotestsum --help >/dev/null 2>&1; then
   go tool gotestsum --format pkgname-and-test-fails -- "${CONCURRENCY[@]}" "$@"
