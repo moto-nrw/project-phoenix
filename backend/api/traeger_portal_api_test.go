@@ -464,6 +464,7 @@ func TestTraegerSchoolViewRefusesAnotherTraegersSchoolAndAMissingRight(t *testin
 	foreignAnswer := traegerSchoolView(t, router, answer.AccessToken, foreignSchool)
 	assert.Equal(t, http.StatusForbidden, foreignAnswer.Code, foreignAnswer.Body.String())
 	assert.NotContains(t, foreignAnswer.Body.String(), "OGS Fremd")
+	assert.Contains(t, foreignAnswer.Body.String(), "traeger.school_not_found")
 
 	missing := traegerSchoolView(t, router, answer.AccessToken, foreignSchool+1_000_000)
 	assert.Equal(t, http.StatusForbidden, missing.Code, "an unknown school answers like a foreign one, so the route reveals no school")

@@ -115,7 +115,7 @@ func (rs *Resource) getSchool(w http.ResponseWriter, r *http.Request) {
 	view, err := rs.overview.School(r.Context(), principal.OrganizationID(), schoolID)
 	switch {
 	case errors.Is(err, traegerview.ErrSchoolOutsideTraeger):
-		common.RenderError(w, r, common.ErrorForbidden(err))
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeTraegerSchoolNotFound))
 	case errors.Is(err, traegerview.ErrTraegerUnavailable):
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 	case err != nil:
