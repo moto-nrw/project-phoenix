@@ -8,8 +8,13 @@
  */
 export function isTraegerNavActive(href: string, pathname: string): boolean {
   if (href === "/traeger") {
-    // „Schulen" ist die Startseite und hat keine Unterseiten.
-    return pathname === "/traeger" || pathname === "/";
+    // „Schulen" ist die Startseite; ihre Unterseiten liegen unter /schulen.
+    return (
+      pathname === "/traeger" ||
+      pathname === "/" ||
+      matchesPath("/schulen", pathname) ||
+      matchesPath("/traeger/schulen", pathname)
+    );
   }
   if (matchesPath(href, pathname)) return true;
   if (href.startsWith("/traeger/")) {

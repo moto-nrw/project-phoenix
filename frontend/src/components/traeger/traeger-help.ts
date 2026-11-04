@@ -23,6 +23,7 @@ function onPage(page: string, path: string): boolean {
  */
 export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   const page = pathname.replace(/^\/traeger(?=\/|$)/, "") || "/";
+  if (onPage(page, "/schulen")) return HELP_TOPICS.traegerSchoolView;
   if (onPage(page, "/einstellungen")) return HELP_TOPICS.traegerSettings;
   if (onPage(page, "/briefkopf")) return HELP_TOPICS.traegerBriefkopf;
   if (onPage(page, "/beitraege")) return HELP_TOPICS.traegerHolidayContribution;

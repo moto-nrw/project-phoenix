@@ -28,6 +28,11 @@ var (
 	ErrAccessLogExportTooLarge = errors.New("traeger view: the access log export has too many entries")
 )
 
+// ErrSchoolOutsideTraeger reports a school that is not a school of the Träger
+// of the session. A school of another Träger and an unknown ID read the same,
+// so the answer reveals no school.
+var ErrSchoolOutsideTraeger = errors.New("traeger view: the school does not belong to the Träger")
+
 // ErrTraegerUnavailable reports a Träger that is deactivated, deleted or
 // unknown: its session reaches no school any more (#4657).
 var ErrTraegerUnavailable = errors.New("traeger view: the Träger is deactivated or deleted")
@@ -40,6 +45,70 @@ type School struct {
 	Slug      string `json:"slug"`
 	Subdomain string `json:"subdomain"`
 	City      string `json:"city"`
+}
+
+// SchoolContact is one school with the contact data it is reachable under. It
+// names no child and no staff member.
+type SchoolContact struct {
+	School
+	Address string `json:"address"`
+	Zip     string `json:"zip"`
+	Phone   string `json:"phone"`
+	Email   string `json:"email"`
+}
+
+// SchoolView is one school of the Träger in its own view (#5686).
+type SchoolView struct {
+	SchoolContact
+	Figures SchoolFigures `json:"figures"`
+}
+
+// SchoolFigures are the live figures of one school. AsOf is the instant they
+// were read at. The binding definitions (ADR 0151):
+//
+//   - ChildrenTotal is the Stichtagszahl of School Membership (#2791), the
+//     same rule the operator billing report captures (#4673).
+//   - ChildrenPresent are the children with an open attendance of the day or
+//     an open room visit, as on the school's own dashboard.
+//   - ChildrenSick are the counted children with the live sick flag or an
+//     uncleared sick day, as on the school's own dashboard.
+//   - StaffTotal are the staff members without a current external caregiver
+//     record, as on the school's time tracking dashboard.
+//   - StaffPresent are those of them on site. Home office does not count.
+//   - CareRatio is ChildrenPresent per StaffPresent; nil without present staff.
+type SchoolFigures struct {
+	ChildrenTotal   int       `json:"children_total"`
+	ChildrenPresent int       `json:"children_present"`
+	ChildrenSick    int       `json:"children_sick"`
+	StaffTotal      int       `json:"staff_total"`
+	StaffPresent    int       `json:"staff_present"`
+	CareRatio       *float64  `json:"care_ratio"`
+	AsOf            time.Time `json:"as_of"`
+}
+
+// SchoolRosters is who a school counts, at School Membership: the children
+// with their memberships and the staff members. It joins the projection's
+// administrative transaction and reads only the given schools, as the other
+// figure ports do.
+type SchoolRosters interface {
+	ActiveStudentMembershipsByTenant(ctx context.Context, schools []int64, at time.Time) (map[int64]map[int64]int64, error)
+	ActiveStaffIDsByTenant(ctx context.Context, schools []int64, at time.Time) (map[int64][]int64, error)
+}
+
+// PresentStudents are the children who are present, at Student Presence.
+type PresentStudents interface {
+	PresentStudentIDsByTenant(ctx context.Context, schools []int64, at time.Time) (map[int64][]int64, error)
+}
+
+// SickStudents is the two marks of a sick child, at Care Plan.
+type SickStudents interface {
+	SickDayStudentIDsByTenant(ctx context.Context, schools []int64, at time.Time) (map[int64][]int64, error)
+	SickFlagMembershipIDsByTenant(ctx context.Context, schools []int64) (map[int64][]int64, error)
+}
+
+// OnSiteStaff is who is at work on site, at Workforce.
+type OnSiteStaff interface {
+	OnSiteStaffIDsByTenant(ctx context.Context, schools []int64, at time.Time) (map[int64][]int64, error)
 }
 
 // Traeger is the Träger of the session as the portal shows it in its frame.
@@ -79,6 +148,12 @@ type Ports struct {
 	Persons PersonDirectory
 	Staff   StaffDirectory
 	Bureau  BureauAddresses
+	// Rosters, Present, Sick and OnSite are the owners' reads behind the
+	// figures of a school (ADR 0151).
+	Rosters SchoolRosters
+	Present PresentStudents
+	Sick    SickStudents
+	OnSite  OnSiteStaff
 }
 
 // Overview answers the Träger-Portal reads.
@@ -88,6 +163,9 @@ type Overview interface {
 	Traeger(ctx context.Context, organizationID, accountID int64) (Traeger, error)
 	// Schools lists the schools of the Träger, ordered by name.
 	Schools(ctx context.Context, organizationID int64) ([]School, error)
+	// School returns one school of the Träger with its figures. Any other
+	// school is ErrSchoolOutsideTraeger.
+	School(ctx context.Context, organizationID, schoolID int64) (SchoolView, error)
 	// AccessLog lists one page of the access log, newest first.
 	AccessLog(ctx context.Context, viewer Viewer, filter AccessLogFilter, page int) (AccessLogPage, error)
 	// AccessLogExport lists every entry of the filter, newest first, up to

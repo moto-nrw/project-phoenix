@@ -338,6 +338,8 @@ import type { traegerLoginTopic as authored_traegerLoginTopic } from "./articles
 
 import type { traegerSchoolSwitchTopic as authored_traegerSchoolSwitchTopic } from "./articles/traeger-school-switch";
 
+import type { traegerSchoolViewTopic as authored_traegerSchoolViewTopic } from "./articles/traeger-school-view";
+
 import type { traegerSettingsTopic as authored_traegerSettingsTopic } from "./articles/traeger-settings";
 
 import type { traegerTestSystemTopic as authored_traegerTestSystemTopic } from "./articles/traeger-test-system";
@@ -10536,7 +10538,7 @@ export const traegerSchoolSwitchTopic =
       requirements: ["Sie haben die Rolle `Schulzugang`."],
       steps: [
         "Wählen Sie in der Navigation `Schulen`.",
-        "Wählen Sie bei der Schule `Schul-App öffnen`.",
+        "Wählen Sie bei der Schule `Schul-App öffnen`. Das geht auch in der Ansicht der Schule.",
       ],
       result:
         "moto öffnet die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule. Mit `Zurück zur Träger-App` kommen Sie zurück zur Liste Ihrer Schulen.",
@@ -10555,9 +10557,42 @@ export const traegerSchoolSwitchTopic =
         "moto sagt, die Schule gehöre nicht zu Ihrem Träger? Laden Sie die Seite neu. Fehlt die Schule dann, wenden Sie sich an das moto-Team.",
         "moto bittet Sie, sich neu anzumelden? Melden Sie sich im Träger-Portal neu an und öffnen Sie die Schule noch einmal.",
       ],
-      related: [HELP_TOPICS.traegerLogin],
+      related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.traegerSchoolView],
     };
   } satisfies typeof authored_traegerSchoolSwitchTopic;
+
+/** `/traeger/schulen/{id}` (#5686): Ansicht einer Schule im Träger-Portal. */
+export const traegerSchoolViewTopic =
+  function traegerSchoolViewTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerSchoolView,
+      title: "Zahlen und Stammdaten einer Schule ansehen",
+      question: "Wie steht es gerade an einer Schule meines Trägers?",
+      summary:
+        "Sie sehen die Zahlen und Stammdaten einer Schule, ohne das Träger-Portal zu verlassen.",
+      group: "einstieg",
+      audience: "traeger",
+      icon: "ChartPieSlice",
+      steps: [
+        "Wählen Sie in der Navigation `Schulen`.",
+        "Wählen Sie die Schule in der Liste.",
+        "Wählen Sie den Reiter `Übersicht` oder `Stammdaten`.",
+      ],
+      result:
+        "`Übersicht` zeigt die Zahlen von jetzt. `Stammdaten` zeigt Anschrift, Kontakt und die Zahl der Kinder und Betreuungskräfte.",
+      notes: [
+        "Die Zahlen aktualisieren sich jede Minute von selbst.",
+        "Sie sehen nur Zahlen, keine Namen.",
+        "`Kinder gesamt` ist dieselbe Zahl wie im Abrechnungsbericht des moto-Teams.",
+        "`Betreuungsschlüssel` heißt: Eine anwesende Betreuungskraft kommt auf so viele anwesende Kinder.",
+        "Stammdaten können Sie hier nur lesen. Änderungen übernimmt das moto-Team.",
+      ],
+      differences: [
+        "`Betreuungskräfte anwesend` zählt nur, wer sich in der Zeiterfassung angemeldet hat. Homeoffice zählt nicht. Nutzt eine Schule die Zeiterfassung nicht, steht dort 0 und beim Betreuungsschlüssel `–`.",
+      ],
+      related: [HELP_TOPICS.traegerSchoolSwitch],
+    };
+  } satisfies typeof authored_traegerSchoolViewTopic;
 
 /**
  * `/traeger/einstellungen` (#4652, ADR 0086): Träger-Werte zwischen Standard

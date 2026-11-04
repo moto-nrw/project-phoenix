@@ -1,46 +1,42 @@
 "use client";
 
 // Startseite des Träger-Portals ("moto träger", #4649): alle Schulen des
-// Trägers der Sitzung. Schulen ordnet das moto-Team zu. Wer das Recht „In OGS
-// wechseln" hat, öffnet eine Schule ohne neue Anmeldung in einem neuen Tab
-// (#4654).
+// Trägers der Sitzung. Schulen ordnet das moto-Team zu. Eine Zeile führt in die
+// Ansicht der Schule im Träger-Portal (#5686). Wer das Recht „In OGS wechseln"
+// hat, öffnet die Schul-App ohne neue Anmeldung in einem neuen Tab (#4654).
 
-import { useCallback, useMemo, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { ExternalLink, School } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import NavigationLink from "~/components/ui/navigation-link";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
-import { useApiErrorDisplay } from "~/contexts/ToastContext";
-import { hasPermission } from "~/lib/auth-utils";
-import { createLogger } from "~/lib/logger";
+import type { TraegerSchool } from "~/lib/traeger-api";
 import {
-  startTraegerSchoolSession,
-  type TraegerSchool,
-} from "~/lib/traeger-api";
-import { TRAEGER_ROLE_LABELS } from "~/lib/traeger-roles";
+  SCHOOL_SWITCH_MISSING_HINT,
+  useOpenTraegerSchool,
+} from "~/components/traeger/use-open-traeger-school";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
-import { TRAEGER_HANDOFF_OPEN, traegerHandoffUrl } from "~/lib/traeger-handoff";
-
-const logger = createLogger({ component: "TraegerSchoolsPage" });
-
-/** The Träger right „In OGS wechseln" (ADR 0084, #4654). */
-const SCHOOL_SWITCH_RIGHT = "traeger_school:switch";
-
-/**
- * Without the right the „Schul-App öffnen" button is missing; this names the role that
- * carries it and the role that hands it out (#5473, #5471).
- */
-const SCHOOL_SWITCH_MISSING_HINT = `Eine Schule öffnen Sie nur mit der Rolle „${TRAEGER_ROLE_LABELS.school_access}“. Diese Rolle gibt Ihnen eine Person mit der Rolle „${TRAEGER_ROLE_LABELS.leadership}“.`;
+import { TRAEGER_HANDOFF_OPEN } from "~/lib/traeger-handoff";
+import { traegerPath } from "~/lib/traeger-url";
 
 const COLUMNS: DataTableColumn<TraegerSchool>[] = [
   {
     key: "name",
     header: "Schule",
+    // Der Link ist der Weg per Tastatur und Vorlesehilfe; die Zeile hat eigene
+    // Bedienelemente und wird deshalb selbst kein Knopf.
     render: (school) => (
-      <span className="font-medium text-gray-900">{school.name}</span>
+      <NavigationLink
+        href={traegerPath(`/traeger/schulen/${school.id}`)}
+        className="font-medium text-gray-900 hover:underline"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {school.name}
+      </NavigationLink>
     ),
     sortValue: (school) => school.name,
     stacked: "title",
@@ -54,55 +50,12 @@ const COLUMNS: DataTableColumn<TraegerSchool>[] = [
   },
 ];
 
-/**
- * Opens the school in a new tab: the tab opens on the click, so the browser
- * does not block it, and receives the school's address once the hand-off
- * token is there. Without a tab the school opens here.
- */
-async function openSchool(school: TraegerSchool): Promise<void> {
-  const tab = globalThis.open("", "_blank");
-  try {
-    const url = traegerHandoffUrl(
-      school.subdomain,
-      await startTraegerSchoolSession(school.id),
-    );
-    if (tab) {
-      tab.opener = null;
-      tab.location.href = url;
-    } else {
-      globalThis.location.assign(url);
-    }
-  } catch (err) {
-    tab?.close();
-    throw err;
-  }
-}
-
 export default function TraegerSchoolsPage() {
-  const { data: session } = useSession();
   const { schools: schoolData, error: schoolsError } = useTraegerSchools();
   const schools = schoolData ?? [];
   const loading = schoolData === null && !schoolsError;
-  const [opening, setOpening] = useState<string | null>(null);
-  const openErrors = useApiErrorDisplay();
-  const canOpen = hasPermission(session, SCHOOL_SWITCH_RIGHT);
-
-  const open = useCallback(
-    async (school: TraegerSchool) => {
-      setOpening(school.id);
-      try {
-        await openSchool(school);
-      } catch (err) {
-        logger.error("traeger_school_open_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        void openErrors.show(err, { object: "die Schule" });
-      } finally {
-        setOpening(null);
-      }
-    },
-    [openErrors],
-  );
+  const router = useRouter();
+  const { canOpen, opening, open } = useOpenTraegerSchool();
 
   const columns = useMemo<DataTableColumn<TraegerSchool>[]>(
     () =>
@@ -129,7 +82,11 @@ export default function TraegerSchoolsPage() {
                   aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
                   title="Öffnet in einem neuen Tab"
                   disabled={opening !== null}
-                  onClick={() => void open(school)}
+                  onClick={(event) => {
+                    // Die Aktion öffnet die Schul-App, nicht die Schulansicht.
+                    event.stopPropagation();
+                    void open(school);
+                  }}
                 >
                   {opening === school.id ? (
                     "Wird geöffnet …"
@@ -152,7 +109,8 @@ export default function TraegerSchoolsPage() {
       title="Schulen"
       info={
         <>
-          Alle Schulen Ihres Trägers. Neue Schulen ordnet das moto-Team zu.
+          Alle Schulen Ihres Trägers. Neue Schulen ordnet das moto-Team zu. Ein
+          Klick auf eine Schule zeigt ihre Zahlen und Stammdaten.
           {canOpen &&
             " „Schul-App öffnen“ zeigt die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule. Mit „Zurück zur Träger-App“ kommen Sie wieder hierher."}
         </>
@@ -189,6 +147,10 @@ export default function TraegerSchoolsPage() {
         stackedOnMobile
         stackedLayout="row"
         stackedDetailKey={canOpen ? "city" : null}
+        rowHasInteractiveControls
+        onRowClick={(school) =>
+          router.push(traegerPath(`/traeger/schulen/${school.id}`))
+        }
         emptyState={
           <EmptyState
             icon={<School className="h-12 w-12" aria-hidden="true" />}

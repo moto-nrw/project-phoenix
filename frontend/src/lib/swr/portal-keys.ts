@@ -270,6 +270,7 @@ export const timeTrackingKeys = {
 /** Träger metadata only. Registrations, people and audit logs are never cached. */
 export const traegerKeys = {
   schools: () => "traeger-schools",
+  school: (id: string) => `traeger-school-${encodeURIComponent(id)}`,
   periodsFamily: "traeger-holiday-period-",
   periods: () => "traeger-holiday-period-list",
   period: (id: string) =>
