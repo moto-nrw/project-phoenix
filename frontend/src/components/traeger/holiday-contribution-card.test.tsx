@@ -52,4 +52,37 @@ describe("HolidayContributionCard", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("asks to check an invoice whose amount no longer fits the siblings", () => {
+    render(
+      <HolidayContributionCard
+        contribution={{
+          ...HOLIDAY_CONTRIBUTION,
+          frozen: true,
+          confirmedAt: "2026-09-08T10:00:00Z",
+          invoiced: true,
+          correctionNeeded: true,
+        }}
+        registration={{ ...HOLIDAY_REGISTRATION, status: "confirmed" }}
+      />,
+    );
+
+    expect(screen.getByText("Rechnung prüfen")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Die Rechnung zeigt noch den alten Betrag\./),
+    ).toBeInTheDocument();
+    expect(screen.getByText("90,00 €")).toBeInTheDocument();
+  });
+
+  it("shows no correction hint while the invoice fits", () => {
+    render(
+      <HolidayContributionCard
+        contribution={{ ...HOLIDAY_CONTRIBUTION, frozen: true, invoiced: true }}
+        registration={{ ...HOLIDAY_REGISTRATION, status: "confirmed" }}
+      />,
+    );
+
+    expect(screen.getByText("Gesamt")).toBeInTheDocument();
+    expect(screen.queryByText("Rechnung prüfen")).not.toBeInTheDocument();
+  });
 });

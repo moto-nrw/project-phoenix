@@ -29,20 +29,24 @@ export type HolidayRegistrationStatus = "received" | "confirmed" | "cancelled";
 
 /**
  * The changes the Träger-Büro makes with one action. A confirmation freezes
- * the contribution and goes through the Elternabrechnung (#4664,
- * `confirmHolidayRegistration` in traeger-contributions-api).
+ * the contribution and a cancellation computes the sibling group again, so
+ * both go through the Elternabrechnung (#4664, #5662,
+ * `confirmHolidayRegistration` and `cancelHolidayRegistration` in
+ * traeger-contributions-api).
  */
-export type HolidayRegistrationAction = "cancel" | "freeze" | "reopen";
+export type HolidayRegistrationAction = "freeze" | "reopen";
 
 type HolidayRegistrationEventAction =
   | HolidayRegistrationAction
   | "confirm"
+  | "cancel"
   | "rebook"
   | "debtor_number"
   | "edit"
   | "proof_upload"
   | "sibling_merge"
-  | "sibling_split";
+  | "sibling_split"
+  | "sibling_cancel";
 
 /** The filter of the list and the export. Empty values match everything. */
 export interface HolidayRegistrationFilter {
@@ -590,7 +594,7 @@ export function withHolidayHealthAnswers(
   };
 }
 
-/** Cancels, freezes or reopens a registration. */
+/** Freezes or reopens a registration. */
 export async function changeHolidayRegistration(
   periodId: string,
   registrationId: string,

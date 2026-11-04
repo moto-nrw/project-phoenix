@@ -17,7 +17,7 @@
     "GET traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1"
   ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/cancel": [
-    "POST traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/cancel"
+    "POST traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1/cancel"
   ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/children/[childId]/bookings": [
     "PUT traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/children/childId%2F1/bookings"

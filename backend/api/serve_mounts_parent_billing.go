@@ -311,6 +311,17 @@ func (b parentBillingHolidayRegistrations) SetHolidayDebtorNumber(ctx context.Co
 	return parentBillingRegistration(detail), nil
 }
 
+// CancelHolidayRegistration cancels the registration through the review,
+// which checks the Träger and the deadline and records the cancellation
+// (#5662).
+func (b parentBillingHolidayRegistrations) CancelHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64) (parentbilling.HolidayRegistration, error) {
+	detail, err := b.review.ChangeHolidayRegistration(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, enrollmentOwner.HolidayAuditCancel)
+	if err != nil {
+		return parentbilling.HolidayRegistration{}, parentBillingHolidayError(err)
+	}
+	return parentBillingRegistration(detail), nil
+}
+
 func (b parentBillingHolidayRegistrations) HoldHolidayPeriod(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) error {
 	return parentBillingHolidayError(b.review.HoldHolidayPeriod(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID))
 }
@@ -433,6 +444,7 @@ func parentBillingHolidayError(err error) error {
 		{enrollmentOwner.ErrHolidayPeriodNotFound, parentbilling.ErrHolidayPeriodNotFound},
 		{enrollmentOwner.ErrHolidayRegistrationEntryNotFound, parentbilling.ErrHolidayRegistrationNotFound},
 		{enrollmentOwner.ErrHolidayRegistrationStateConflict, parentbilling.ErrHolidayRegistrationStateConflict},
+		{enrollmentOwner.ErrHolidayRegistrationFrozen, parentbilling.ErrHolidayRegistrationFrozen},
 	} {
 		if errors.Is(err, known.from) {
 			return fmt.Errorf("%w: %w", known.to, err)
