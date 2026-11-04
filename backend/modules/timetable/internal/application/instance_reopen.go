@@ -162,7 +162,7 @@ func (s *InstanceLifecycleService) validateReopenStudentsStillAtSchool(ctx conte
 	}
 	for _, stay := range stays {
 		if stay.CheckOutTime != nil && stay.CheckOutTime.After(*instance.CompletedAt) {
-			return timetable.WithCode(fmt.Errorf("%w: student %d left school after completion", timetable.ErrTimetableOperationConflict, stay.StudentID), timetable.CodeReopenAttendanceChanged)
+			return timetable.WithCode(fmt.Errorf("%w: student %d left school after completion", timetable.ErrTimetableOperationConflict, stay.StudentID), timetable.CodeReopenStudentLeft)
 		}
 	}
 	return nil

@@ -547,7 +547,7 @@ func TestInstance_Reopen_RefusesChildThatLeftSchool(t *testing.T) {
 	require.ErrorIs(t, err, timetable.ErrTimetableOperationConflict)
 	coded, ok := timetable.AsCoded(err)
 	require.True(t, ok)
-	assert.Equal(t, timetable.CodeReopenAttendanceChanged, coded.Code)
+	assert.Equal(t, timetable.CodeReopenStudentLeft, coded.Code)
 }
 
 func TestInstance_Complete_ConfirmationMustMatchOpenVisits(t *testing.T) {

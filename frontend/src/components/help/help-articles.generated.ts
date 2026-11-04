@@ -689,7 +689,7 @@ export const activeSupervisionTopic = function activeSupervisionTopic(
       "Sie starten einen Termin, für den Sie nicht eingeplant sind? Dann werden Sie nicht zur Aufsicht. Wer beenden darf, legt Ihre OGS fest.",
       "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
       // #5676: Wieder öffnen bis zum geplanten Ende.
-      "Fehlt `Wieder öffnen`? Dann ist das geplante Ende vorbei. Oder eine andere Person hat beendet. Wieder öffnen kann nur sie oder die Leitung.",
+      "Fehlt `Wieder öffnen`? Dann ist das geplante Ende vorbei. Oder jemand anderes hat den Termin beendet. Dann kann nur diese Person oder die Leitung ihn wieder öffnen.",
       // #4372: offene Räume ohne eigene Aufsicht stehen unter `Räume`.
       "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht der Raum unter `Aktuelle Aufsicht`. Alle anderen offenen Räume finden Sie unter `Räume`.",
       "Haben Sie mehrere Aufsichten? Auf dem Handy stehen sie oben auf der Seite `Aufsicht` als Reiter.",

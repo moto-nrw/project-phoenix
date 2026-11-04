@@ -485,7 +485,10 @@ function MeinRaumPageContent() {
     <div>
       <Alert
         type="success"
-        message={reopenBannerMessage(reopen.reopenable.title)}
+        message={reopenBannerMessage(
+          reopen.reopenable.title,
+          reopen.reopenable.expiresAt,
+        )}
         action={
           <Button
             type="button"
