@@ -156,8 +156,8 @@ export default function TraegerSchoolPage() {
           <TenantPageStats
             items={[
               {
-                value: formatTime(school.figures.asOf),
-                label: "Uhr, Stand der Zahlen",
+                value: `Stand ${formatTime(school.figures.asOf)} Uhr`,
+                label: "",
               },
             ]}
           />
