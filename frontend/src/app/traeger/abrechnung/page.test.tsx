@@ -33,6 +33,7 @@ const PERIOD: BillingPeriod = {
 
 const RELEASED: BillingRun = {
   id: "9",
+  holidayPeriodId: "5",
   periodName: "Herbstferien 2026",
   serviceFrom: "2026-10-12",
   serviceUntil: "2026-10-23",

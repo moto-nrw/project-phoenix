@@ -562,6 +562,37 @@ describe("StudentSearchPage", () => {
     localStorage.clear();
   });
 
+  it("names the home school of a holiday guest next to the other children (#5630)", async () => {
+    const swrModule = await import("~/lib/swr");
+    const guest = {
+      ...mockStudents[0],
+      id: "9",
+      first_name: "Ben",
+      second_name: "Gast",
+      school_class: "Feriengast",
+    };
+    mockUseSWRAuthWithStudents(swrModule, {
+      data: { students: [...mockStudents, guest] },
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof swrModule.useSWRAuth>);
+    const students = vi.mocked(swrModule.useSWRAuth).getMockImplementation();
+    vi.mocked(swrModule.useSWRAuth).mockImplementation((key, ...rest) =>
+      typeof key === "string" && key.startsWith("holiday-guest-badges:")
+        ? ({
+            data: [{ studentId: "9", schoolName: "OGS Am Park" }],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useSWRAuth>)
+        : students!(key, ...rest),
+    );
+
+    render(<StudentSearchPage />);
+
+    expect(await screen.findByText("Gast aus OGS Am Park")).toBeInTheDocument();
+    expect(screen.getByText("2b")).toBeInTheDocument();
+  });
+
   describe("URL Parameter Handling", () => {
     it("defaults to 'all' when no status param is present", async () => {
       render(<StudentSearchPage />);

@@ -1,0 +1,6 @@
+{
+  "api/traeger/cost-bearers": [
+    "GET traeger /traeger/cost-bearers",
+    "POST traeger /traeger/cost-bearers"
+  ]
+}

@@ -111,27 +111,6 @@ vi.mock("~/lib/swr", async () => {
 // "loading" testid. Same business assertion (a loading state IS shown
 // while SWR fetches), new selector that matches the new shape.
 
-vi.mock("~/components/ui/info-card", () => ({
-  InfoCard: ({
-    title,
-    children,
-  }: {
-    title: string;
-    icon?: React.ReactNode;
-    children: React.ReactNode;
-  }) => (
-    <section data-testid={`info-card-${title}`}>
-      <h2>{title}</h2>
-      {children}
-    </section>
-  ),
-  InfoItem: ({ label, value }: { label: string; value: React.ReactNode }) => (
-    <div data-testid={`info-item-${label}`}>
-      <span>{label}</span>: <span>{value}</span>
-    </div>
-  ),
-}));
-
 // The students-in-room section pulls in its own SWR + user-context tree;
 // stub it out so this test stays focused on RoomDetailContent itself.
 vi.mock("./students-in-room-section", () => ({

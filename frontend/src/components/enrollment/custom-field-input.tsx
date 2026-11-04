@@ -34,7 +34,7 @@ export function InfoBlock({ field }: { readonly field: FormField }) {
   );
 }
 
-function HelpText({ text }: { readonly text?: string }) {
+export function HelpText({ text }: { readonly text?: string }) {
   if (!text) return null;
   return (
     <span className="-mt-1 mb-2 block text-xs leading-5 text-gray-500">

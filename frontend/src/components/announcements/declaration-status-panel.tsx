@@ -15,7 +15,7 @@ import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ExportMenu, type ExportMenuOption } from "~/components/ui/export-menu";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { InfoCard } from "~/components/ui/info-card";
+import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -279,9 +279,10 @@ export function DeclarationStatusPanel({
 
   return (
     <div className="space-y-4">
-      <InfoCard
+      <SectionCard
         title="Antworten"
-        icon={<CheckCircle2 className="h-5 w-5" aria-hidden />}
+        icon={CheckCircle2}
+        bodyClassName="compact:mt-3 mt-4 space-y-3"
       >
         <div className="flex flex-wrap items-baseline gap-x-2">
           <span className="text-3xl font-semibold text-gray-900 tabular-nums">
@@ -335,7 +336,7 @@ export function DeclarationStatusPanel({
             )}
           </DataGrid>
         </div>
-      </InfoCard>
+      </SectionCard>
 
       <div className="flex flex-wrap gap-2">
         {canAct && (

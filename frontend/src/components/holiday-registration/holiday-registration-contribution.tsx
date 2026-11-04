@@ -152,6 +152,10 @@ export function HolidayRegistrationContribution({
         });
       case "benefits_exemption":
         return t("contributionExemption", { note: line.note });
+      case "cost_takeover":
+        // The quote before sending never has one; only the Träger-Büro
+        // chooses a cost bearer at the confirmation (#5627).
+        return line.costBearerName ?? "";
     }
   };
   const childName = (position: number) => {

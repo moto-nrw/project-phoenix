@@ -25,6 +25,13 @@ export interface RosterImpactWire {
     readonly via_target?: boolean;
     readonly until?: string | null;
   }>;
+  readonly pickup_overrides?: ReadonlyArray<{
+    readonly weekday: number;
+    readonly date: string;
+    readonly stored_time: string;
+    readonly booked_time: string;
+    readonly reset_now?: boolean;
+  }>;
 }
 
 export interface AdjustedRosterTemplate {
@@ -48,11 +55,32 @@ export interface ManualRosterTemplate {
   readonly until: string | null;
 }
 
+/**
+ * Ein Wochentag, an dem eine von Hand eingetragene Abholzeit die gebuchte
+ * Abholzeit überdeckt. Ohne Angleichen gilt weiter die eingetragene Zeit.
+ */
+export interface PickupOverride {
+  /** ISO-Wochentag, 1 = Montag. */
+  readonly weekday: number;
+  /** Erster solcher Wochentag ab dem Stichtag (YYYY-MM-DD). */
+  readonly date: string;
+  /** "HH:MM" */
+  readonly storedTime: string;
+  /** "HH:MM" */
+  readonly bookedTime: string;
+  /**
+   * Darf die eingetragene Zeit schon heute weg? Nein, wenn sie bis zum
+   * Stichtag noch gilt und von der bisherigen Buchung abweicht.
+   */
+  readonly resetNow: boolean;
+}
+
 export interface RosterImpact {
   /** Erster Tag, ab dem die Änderung gilt (YYYY-MM-DD). */
   readonly effectiveFrom: string;
   readonly adjusted: readonly AdjustedRosterTemplate[];
   readonly notAdjusted: readonly ManualRosterTemplate[];
+  readonly pickupOverrides: readonly PickupOverride[];
 }
 
 /** Wandelt die Wire-Form um; fehlt sie, gibt es keine Auswirkung zu zeigen. */
@@ -74,6 +102,13 @@ export function mapRosterImpact(
       weekdays: template.weekdays ?? [],
       viaTarget: template.via_target === true,
       until: template.until ?? null,
+    })),
+    pickupOverrides: (wire.pickup_overrides ?? []).map((override) => ({
+      weekday: override.weekday,
+      date: override.date,
+      storedTime: override.stored_time,
+      bookedTime: override.booked_time,
+      resetNow: override.reset_now === true,
     })),
   };
 }

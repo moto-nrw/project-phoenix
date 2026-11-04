@@ -1,23 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
+import { resetStudentPickupToOffering } from "~/lib/pickup-schedule-api";
 import {
   describeAdjustment,
   formatRemovalSpan,
   formatWeekdayAdverbs,
   lastGapDay,
   type ManualRosterTemplate,
+  type PickupOverride,
   removeStudentTemplateDays,
   type RosterImpact,
 } from "~/lib/roster-impact";
@@ -25,8 +31,21 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "CarePlanImpact" });
 
+/**
+ * Was die OGS in der Karte schon erledigt hat. Zeigt eine Liste die Karte
+ * nach einem Wechsel erneut an, stellt sie damit den Stand wieder her.
+ */
+export interface CarePlanImpactProgress {
+  /** Schlüssel der Regeltermine, aus denen das Kind entfernt ist. */
+  readonly removed: readonly string[];
+  /** Wochentage, deren gebuchte Abholzeit übernommen ist. */
+  readonly resetWeekdays: readonly number[];
+}
+
 interface CarePlanImpactProps {
   readonly impact: RosterImpact;
+  readonly progress?: CarePlanImpactProgress;
+  readonly onProgress?: (progress: CarePlanImpactProgress) => void;
   /** Ohne Kind-ID gibt es nichts zu entfernen; die Liste bleibt sichtbar. */
   readonly studentId?: string;
   /** Vorname, wenn eine Seite mehrere Kinder zeigt. */
@@ -45,6 +64,8 @@ export function CarePlanImpact({
   impact,
   studentId,
   childName,
+  progress,
+  onProgress,
 }: CarePlanImpactProps) {
   const { data: session } = useSession();
   const canManage = hasPermission(session, "schedules:manage");
@@ -53,15 +74,40 @@ export function CarePlanImpact({
     impact.effectiveFrom,
     useBerlinToday(),
   );
-  const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
+  const [removed, setRemoved] = useState<ReadonlySet<string>>(
+    () => new Set(progress?.removed),
+  );
+  const [resetWeekdays, setResetWeekdays] = useState<ReadonlySet<number>>(
+    () => new Set(progress?.resetWeekdays),
+  );
+  const markReset = useCallback(
+    (weekday: number) =>
+      setResetWeekdays((current) => new Set(current).add(weekday)),
+    [],
+  );
+  // Den erledigten Stand nach oben melden, damit eine Liste ihn behält.
+  // Die Ref folgt dem Callback im Effect, nicht beim Rendern (React darf
+  // ein Rendern wiederholen). Der Effekt darunter meldet den Stand danach.
+  const onProgressRef = useRef(onProgress);
+  useEffect(() => {
+    onProgressRef.current = onProgress;
+  }, [onProgress]);
+  useEffect(() => {
+    onProgressRef.current?.({
+      removed: [...removed],
+      resetWeekdays: [...resetWeekdays],
+    });
+  }, [removed, resetWeekdays]);
   const [target, setTarget] = useState<ManualRosterTemplate | null>(null);
   const [removing, setRemoving] = useState(false);
   const errors = useApiFormError();
   const toast = useToast();
   const tenantPath = useTenantAwarePath();
   const stichtag = formatDate(impact.effectiveFrom);
+  const noRosterChange =
+    impact.adjusted.length === 0 && impact.notAdjusted.length === 0;
 
-  if (impact.adjusted.length === 0 && impact.notAdjusted.length === 0) {
+  if (noRosterChange && impact.pickupOverrides.length === 0) {
     return (
       <p className="text-sm text-gray-600">
         Im Betreuungsplan musste kein Regeltermin angepasst werden.
@@ -124,6 +170,20 @@ export function CarePlanImpact({
       titleClassName="text-sm"
       bodyClassName="mt-3 flex flex-col gap-5"
     >
+      {noRosterChange ? (
+        <p className="text-sm text-gray-600">
+          Kein Regeltermin musste angepasst werden.
+        </p>
+      ) : null}
+      {impact.pickupOverrides.length > 0 ? (
+        <PickupOverrides
+          overrides={impact.pickupOverrides}
+          effectiveFrom={impact.effectiveFrom}
+          studentId={studentId}
+          done={resetWeekdays}
+          onReset={markReset}
+        />
+      ) : null}
       {impact.adjusted.length > 0 ? (
         <SectionCard
           title="Automatisch angepasst"
@@ -294,6 +354,152 @@ function ManualTemplateEntry({
       </div>
     </li>
   );
+}
+
+/**
+ * Wochentage, an denen eine von Hand eingetragene Abholzeit die gebuchte
+ * überdeckt. Ein Klick übernimmt für alle die gebuchte Zeit; der Server
+ * löscht dafür die eingetragene Zeit des Wochentags.
+ */
+function PickupOverrides({
+  overrides,
+  effectiveFrom,
+  studentId,
+  done,
+  onReset,
+}: Readonly<{
+  overrides: readonly PickupOverride[];
+  effectiveFrom: string;
+  studentId?: string;
+  done: ReadonlySet<number>;
+  onReset: (weekday: number) => void;
+}>) {
+  const { data: session } = useSession();
+  const canReset =
+    studentId !== undefined && hasPermission(session, "users:update");
+  const [resetting, setResetting] = useState(false);
+  const errors = useApiErrorDisplay();
+  const toast = useToast();
+  const open = overrides.filter((override) => !done.has(override.weekday));
+  // Eine eingetragene Zeit hat kein Datum: weg ist sie ab heute. Gilt sie
+  // bis zum Stichtag noch, bleibt sie bis dahin stehen.
+  const resettable = open.filter((override) => override.resetNow);
+  const later = open.filter((override) => !override.resetNow);
+  // Liegt der Stichtag in der Zukunft, gilt die gebuchte Zeit erst ab dann:
+  // das Datum steht dabei, vor und nach dem Übernehmen.
+  const today = useBerlinToday();
+  const startsLater = (override: PickupOverride) => override.date > today;
+
+  const takeBookedTimes = async () => {
+    if (studentId === undefined) return;
+    setResetting(true);
+    try {
+      for (const override of resettable) {
+        await resetStudentPickupToOffering(
+          studentId,
+          override.weekday,
+          override.date,
+        );
+        onReset(override.weekday);
+      }
+      // Die Meldung nennt denselben Stichtag wie die Freigabe darüber.
+      toast.success(
+        effectiveFrom > today
+          ? `Ab ${formatDate(effectiveFrom)} gelten die gebuchten Abholzeiten.`
+          : "Jetzt gelten die gebuchten Abholzeiten.",
+      );
+    } catch (err) {
+      logger.warn("care_plan_impact_pickup_reset_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await errors.show(err, { object: "die Abholzeit" });
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  return (
+    <SectionCard
+      title="Abholzeit weicht von der Buchung ab"
+      description={
+        open.length > 0
+          ? "An diesen Tagen gilt noch die eingetragene Zeit."
+          : undefined
+      }
+      headingLevel={5}
+      titleClassName="text-sm font-medium text-gray-600"
+      bare
+      className="space-y-3"
+      action={
+        canReset && resettable.length > 0 ? (
+          <Button
+            type="button"
+            variant="surface"
+            size="compact"
+            disabled={resetting}
+            onClick={() => void takeBookedTimes()}
+          >
+            {resetting ? "Wird übernommen …" : "Gebuchte Zeiten übernehmen"}
+          </Button>
+        ) : undefined
+      }
+    >
+      <ul className="divide-y divide-gray-100 text-sm text-gray-700">
+        {overrides.map((override) => (
+          <li
+            key={override.weekday}
+            className="flex flex-wrap items-center justify-between gap-2 py-2 first:pt-0 last:pb-0"
+          >
+            <span>
+              <span className="font-medium text-gray-900">
+                {capitalize(formatWeekdayAdverbs([override.weekday]))}
+              </span>
+              {pickupOverrideText(
+                override,
+                done.has(override.weekday),
+                startsLater(override),
+              )}
+            </span>
+            {done.has(override.weekday) ? (
+              <StatusBadge tone="green" label="Übernommen" />
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      {later.length > 0 ? (
+        <p className="mt-3 text-sm text-gray-600">
+          {capitalize(
+            formatWeekdayAdverbs(later.map((override) => override.weekday)),
+          )}{" "}
+          gilt die eingetragene Zeit bis zum genannten Tag weiter. Ab diesem Tag
+          setzen Sie sie unter „Betreuungszeiten“ zurück.
+        </p>
+      ) : null}
+      {studentId !== undefined && !canReset && resettable.length > 0 ? (
+        <p className="mt-3 text-xs text-gray-500">
+          Ändern kann nur, wer Kinder bearbeiten darf.
+        </p>
+      ) : null}
+    </SectionCard>
+  );
+}
+
+function pickupOverrideText(
+  override: PickupOverride,
+  done: boolean,
+  startsLater: boolean,
+): string {
+  const from = startsLater ? `ab ${formatDate(override.date)} ` : "";
+  if (done) {
+    return startsLater
+      ? `: ${from}${override.bookedTime} Uhr wie gebucht.`
+      : `: jetzt ${override.bookedTime} Uhr wie gebucht.`;
+  }
+  return `: eingetragen ${override.storedTime} Uhr, ${from}gebucht ${override.bookedTime} Uhr.`;
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /** Eine Zeile je Regeltermin und Ende der Lücke (#5497). */

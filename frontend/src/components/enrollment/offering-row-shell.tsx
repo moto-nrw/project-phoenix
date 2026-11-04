@@ -3,8 +3,8 @@
 // and the blocked rows in the admin adjustment dialog cannot drift apart
 // (#2186 review) — the same reason FeaturePill lives beside this file.
 //
-// Deliberately NOT one of the kit cards: InfoCard and SectionCard are
-// rounded-2xl `moto-content-surface` page-level surfaces with an icon and a
+// Deliberately NOT a kit card: SectionCard is a
+// rounded-2xl `moto-content-surface` page-level surface with an icon and a
 // heading, whereas this is a dense row inside a form section. It stays in
 // components/enrollment/ rather than components/ui/ because "an offering row"
 // is enrollment vocabulary, not a general-purpose primitive.

@@ -3,11 +3,13 @@ import { ApiError } from "./api-error";
 import {
   assignHolidayGuestGroup,
   downloadHolidayParticipants,
+  fetchHolidayGuestBadges,
   fetchHolidayGuestSheet,
   fetchHolidayStudentHealth,
   fetchHolidayParticipants,
   fetchHostedHolidayWeeks,
   formatHolidayHostAnswer,
+  holidayGuestLabel,
 } from "./holiday-host-api";
 
 const { downloadBlobMock } = vi.hoisted(() => ({ downloadBlobMock: vi.fn() }));
@@ -293,6 +295,7 @@ describe("holiday host api", () => {
           time_model_ends_at: "13:00",
           home_school_id: null,
           guest_school_name: "Grundschule Melle",
+          school_name: "Grundschule Melle",
           emergency_contacts: [
             {
               name: "Eva Muster",
@@ -315,6 +318,7 @@ describe("holiday host api", () => {
       timeModelEndsAt: "13:00",
       homeSchoolId: null,
       guestSchoolName: "Grundschule Melle",
+      schoolName: "Grundschule Melle",
       emergencyContacts: [
         { name: "Eva Muster", phone: "0151 2345678", relationship: "Eltern" },
       ],
@@ -324,6 +328,25 @@ describe("holiday host api", () => {
       readOnly: false,
     });
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/holiday-guests/91");
+  });
+
+  it("names the school of a holiday guest or says Feriengast (#5630)", () => {
+    expect(holidayGuestLabel("OGS Am Park")).toBe("Gast aus OGS Am Park");
+    expect(holidayGuestLabel("  ")).toBe("Feriengast");
+  });
+
+  it("loads the hints of the holiday guests of today (#5630)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: [{ student_id: 12, school_name: "OGS Am Park" }],
+      }),
+    );
+
+    await expect(fetchHolidayGuestBadges()).resolves.toEqual([
+      { studentId: "12", schoolName: "OGS Am Park" },
+    ]);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/holiday-guests");
   });
 
   it("maps the health information and the own child's health (#4722)", async () => {

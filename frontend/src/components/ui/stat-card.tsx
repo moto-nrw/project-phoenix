@@ -19,8 +19,8 @@
 //
 // `variant="row"` zeigt dieselbe verlinkte Kennzahl als kompakte Listenzeile.
 //
-// InfoCard bleibt die Antwort für die Karte mit Icon, Überschrift und Inhalt;
-// DataField die für ein Label-Wert-Paar in einem Detail-Panel.
+// SectionCard bleibt die Antwort für die Karte mit Icon, Überschrift und
+// Inhalt; DataField die für ein Label-Wert-Paar.
 //
 // Tones use the StatusBadge vocabulary. Callers holding the older "amber"
 // spelling (getDeltaStatus) map it to "orange" at the boundary.

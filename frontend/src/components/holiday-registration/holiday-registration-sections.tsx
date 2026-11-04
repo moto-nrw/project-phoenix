@@ -29,6 +29,7 @@ import type {
   HolidayRegistrationWeek,
 } from "~/lib/holiday-registration-api";
 import {
+  type AddressDraft,
   type ChildDraft,
   type ContactDraft,
   emptyContact,
@@ -37,6 +38,7 @@ import {
   OTHER_SCHOOL,
   type RegistrationDraft,
 } from "./holiday-registration-model";
+import { GuardianAddressFields } from "./holiday-guardian-address-fields";
 import { HolidayQuestions } from "./holiday-registration-questions";
 
 export function useWeekLabels() {
@@ -567,6 +569,42 @@ export function SecondGuardianCard({
           }
         />
       </div>
+    </SectionCard>
+  );
+}
+
+/**
+ * The postal address of the parent who registers (#5625), when the form of
+ * the period asks for it. Optional takes all three parts or none.
+ */
+export function GuardianAddressCard({
+  address,
+  required,
+  fieldError,
+  onChange,
+}: Readonly<{
+  address: AddressDraft;
+  required: boolean;
+  fieldError: FieldError;
+  onChange: (address: AddressDraft) => void;
+}>) {
+  const t = useTranslations("holidayRegistration");
+  return (
+    <SectionCard
+      title={required ? t("addressTitle") : t("addressTitleOptional")}
+      description={required ? t("addressText") : t("addressOptionalText")}
+    >
+      <GuardianAddressFields
+        address={address}
+        required={required}
+        labels={{
+          street: t("street"),
+          postalCode: t("postalCode"),
+          city: t("city"),
+        }}
+        fieldError={fieldError}
+        onChange={onChange}
+      />
     </SectionCard>
   );
 }

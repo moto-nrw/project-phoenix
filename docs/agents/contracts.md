@@ -274,6 +274,17 @@ Refusals carry stable codes PyrePortal maps:
 backend first. A kiosk that finds neither flag nor route (404) keeps the old
 Schulhof/WC buttons.
 
+### Home school of a holiday guest (PyrePortal#499)
+
+`GET /api/iot/students` adds `holiday_guest_school` to a holiday guest of
+the device's school during its week. It is the school the hint „Gast aus …“
+names, by the rule of `GET /api/holiday-guests` (#5630, ADR 0120 Punkt 4 with
+Nachtrag). Enrollment reads it in the device school's tenant transaction, so
+no other school sees it. Every other child, and a guest without a named
+school, omits the field; their `school_class` stays as before („Feriengast“
+for a guest). The kiosk shows „Gast aus <Schule>“ when the field is set and
+the class otherwise, so either side can deploy first.
+
 ## Tenant boundary
 
 Platform operator → organization (`platform.organizations`) → school

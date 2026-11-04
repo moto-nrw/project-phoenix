@@ -21,6 +21,9 @@ type previewInput struct {
 	contributions map[int64]parentbilling.HolidayContribution
 	issued        map[int64]bool
 	corrections   []parentbilling.BillingCorrection
+	// replaces names the cancelled invoice a registration's draft replaces
+	// (#4690).
+	replaces map[int64]parentbilling.BillingDocumentLink
 }
 
 // preview is the draft invoices of a run and the confirmed registrations it
@@ -71,6 +74,9 @@ func buildPreview(in previewInput) preview {
 			continue
 		}
 		document := draftDocument(in.run, registration, contribution, byChild)
+		if cancelled, ok := in.replaces[registration.ID]; ok {
+			document.ReferenceDocumentID, document.ReferenceNumber = &cancelled.ID, cancelled.Number
+		}
 		if len(document.Children) > 0 {
 			result.documents = append(result.documents, document)
 		}
@@ -88,8 +94,9 @@ func draftDocument(run parentbilling.BillingRun, registration parentbilling.Holi
 		frozen[child.ChildID] = child
 	}
 	document := parentbilling.BillingDocument{
-		RegistrationID: registration.ID, RecipientFirstName: registration.GuardianFirstName,
+		Kind: parentbilling.DocumentInvoice, RegistrationID: registration.ID, RecipientFirstName: registration.GuardianFirstName,
 		RecipientLastName: registration.GuardianLastName, RecipientEmail: registration.GuardianEmail,
+		RecipientAddress: registration.GuardianAddress, DebtorNumber: registration.DebtorNumber,
 		Children: []parentbilling.BillingChild{},
 	}
 	var from, until calendar.Date

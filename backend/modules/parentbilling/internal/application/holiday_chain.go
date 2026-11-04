@@ -8,8 +8,9 @@ import (
 )
 
 // The rule chain of the holiday contribution (ADR 0088 section 4, ADR 0115):
-// base price, sibling rule, exemption. It is pure; the caller reads the
-// rules and the bookings and decides whether the exemption applies.
+// base price, sibling rule, then the exemption or the cost takeover by a
+// cost bearer (#5627). It is pure; the caller reads the rules and the
+// bookings and decides whether the exemption or which cost bearer applies.
 
 // holidayRules are the rules of one Träger valid on one day.
 type holidayRules struct {
@@ -51,26 +52,76 @@ func firstHolidayDay(children []parentbilling.HolidayChild) calendar.Date {
 }
 
 // computeHolidayContribution runs the chain over the children of one
-// registration. exemption applies the exemption rule when there is one.
-func computeHolidayContribution(children []parentbilling.HolidayChild, rules holidayRules, exemption bool) parentbilling.HolidayContribution {
-	result := parentbilling.HolidayContribution{
-		Children:           make([]parentbilling.HolidayChildContribution, len(children)),
-		ExemptionAvailable: rules.exemption != nil,
-		BenefitsExemption:  exemption && rules.exemption != nil,
+// registration. exemption applies the exemption rule when there is one; a
+// cost bearer takes over what is left after the sibling rule (#5627). The
+// caller never passes both.
+func computeHolidayContribution(children []parentbilling.HolidayChild, rules holidayRules, exemption bool, bearer *parentbilling.CostBearer) parentbilling.HolidayContribution {
+	return computeHolidaySiblings([]holidayMember{{children: children, exemption: exemption, bearer: bearer}}, rules)[0]
+}
+
+// holidayMember is one registration of a sibling group (#5628) as the chain
+// sees it: its children, whether its exemption applies and the cost bearer
+// that takes over its contribution (#5627).
+type holidayMember struct {
+	children  []parentbilling.HolidayChild
+	exemption bool
+	bearer    *parentbilling.CostBearer
+}
+
+// computeHolidaySiblings runs the chain over the registrations of a sibling
+// group, in the order they were sent, and returns one contribution per
+// registration. The sibling rule ranks the children of all of them
+// together; the exemption and the cost takeover stay a matter of each
+// registration and apply after the sibling discount.
+func computeHolidaySiblings(members []holidayMember, rules holidayRules) []parentbilling.HolidayContribution {
+	results := make([]parentbilling.HolidayContribution, len(members))
+	var ranked []*parentbilling.HolidayChildContribution
+	for m, member := range members {
+		results[m] = parentbilling.HolidayContribution{
+			Children:           make([]parentbilling.HolidayChildContribution, len(member.children)),
+			ExemptionAvailable: rules.exemption != nil,
+			BenefitsExemption:  member.exemption && rules.exemption != nil,
+		}
+		for i, child := range member.children {
+			results[m].Children[i] = holidayBaseLines(child)
+		}
+		ranked = append(ranked, formOrder(results[m].Children)...)
 	}
-	for i, child := range children {
-		result.Children[i] = holidayBaseLines(child)
+	applySiblingRule(ranked, rules.sibling)
+	for m, member := range members {
+		finishHolidayContribution(&results[m], rules, member.bearer)
 	}
-	applySiblingRule(result.Children, rules.sibling)
-	if result.BenefitsExemption {
+	return results
+}
+
+// finishHolidayContribution applies the exemption or the cost takeover of
+// one registration to what the sibling rule left and sums its children.
+func finishHolidayContribution(result *parentbilling.HolidayContribution, rules holidayRules, bearer *parentbilling.CostBearer) {
+	switch {
+	case result.BenefitsExemption:
 		for i := range result.Children {
 			applyExemption(&result.Children[i], rules.exemption)
+		}
+	case bearer != nil:
+		result.CostBearerID, result.CostBearerName = &bearer.ID, bearer.Name
+		for i := range result.Children {
+			applyCostTakeover(&result.Children[i], bearer)
 		}
 	}
 	for i := range result.Children {
 		result.TotalCents += result.Children[i].TotalCents
 	}
-	return result
+}
+
+// formOrder points to the children of one registration in the order of the
+// form.
+func formOrder(children []parentbilling.HolidayChildContribution) []*parentbilling.HolidayChildContribution {
+	ordered := make([]*parentbilling.HolidayChildContribution, len(children))
+	for i := range children {
+		ordered[i] = &children[i]
+	}
+	slices.SortStableFunc(ordered, func(a, b *parentbilling.HolidayChildContribution) int { return a.Position - b.Position })
+	return ordered
 }
 
 // holidayBaseLines writes one base line per booked week, in the order of
@@ -93,34 +144,34 @@ func holidayBaseLines(child parentbilling.HolidayChild) parentbilling.HolidayChi
 }
 
 // applySiblingRule lowers the contribution of every child from the rule's
-// rank on. Children with a booking count; the one with the highest base
-// price is the first child, equal prices keep the order of the form, so the
-// discount never lands on the cheaper child by chance.
-func applySiblingRule(children []parentbilling.HolidayChildContribution, rule *parentbilling.ContributionRule) {
+// rank on. children come in the order of the registrations, then of the
+// form. Children with a booking count; the one with the highest base price
+// is the first child, equal prices keep the given order, so the discount
+// never lands on the cheaper child by chance.
+func applySiblingRule(children []*parentbilling.HolidayChildContribution, rule *parentbilling.ContributionRule) {
 	if rule == nil || rule.SiblingFromChild == nil {
 		return
 	}
-	ranked := make([]int, 0, len(children))
-	for i := range children {
-		if len(children[i].Lines) > 0 {
-			ranked = append(ranked, i)
+	ranked := make([]*parentbilling.HolidayChildContribution, 0, len(children))
+	for _, child := range children {
+		if len(child.Lines) > 0 {
+			ranked = append(ranked, child)
 		}
 	}
-	slices.SortStableFunc(ranked, func(a, b int) int {
-		if children[a].TotalCents != children[b].TotalCents {
-			if children[a].TotalCents > children[b].TotalCents {
-				return -1
-			}
+	slices.SortStableFunc(ranked, func(a, b *parentbilling.HolidayChildContribution) int {
+		switch {
+		case a.TotalCents > b.TotalCents:
+			return -1
+		case a.TotalCents < b.TotalCents:
 			return 1
 		}
-		return children[a].Position - children[b].Position
+		return 0
 	})
-	for index, i := range ranked {
+	for index, child := range ranked {
 		rank := index + 1
 		if rank < *rule.SiblingFromChild {
 			continue
 		}
-		child := &children[i]
 		discount := siblingDiscount(child.TotalCents, rule)
 		if discount == 0 {
 			continue
@@ -157,6 +208,20 @@ func applyExemption(child *parentbilling.HolidayChildContribution, rule *parentb
 	}
 	child.Lines = append(child.Lines, parentbilling.HolidayContributionLine{
 		Kind: parentbilling.LineBenefitsExemption, AmountCents: -child.TotalCents, Note: rule.Note,
+	})
+	child.TotalCents = 0
+}
+
+// applyCostTakeover lets the cost bearer pay what is left of the child's
+// contribution and copies its ID and name into the line, even when nothing
+// is left (#5627).
+func applyCostTakeover(child *parentbilling.HolidayChildContribution, bearer *parentbilling.CostBearer) {
+	if len(child.Lines) == 0 {
+		return
+	}
+	id := bearer.ID
+	child.Lines = append(child.Lines, parentbilling.HolidayContributionLine{
+		Kind: parentbilling.LineCostTakeover, AmountCents: -child.TotalCents, CostBearerID: &id, CostBearerName: bearer.Name,
 	})
 	child.TotalCents = 0
 }

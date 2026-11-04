@@ -19,8 +19,9 @@ import {
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConcept } from "~/lib/moto-concepts";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   type CareExceptionSubmit,
   CarePlanEditorModal,
@@ -206,6 +207,12 @@ interface CareBoundaryItem {
   readonly value: string;
   readonly description?: string;
   readonly marker: string | null;
+  /**
+   * Eine Abweichung, die jemand prüfen sollte, steht als Warnung statt als
+   * graue Herkunft; `markerTitle` nennt dann beide Zeiten.
+   */
+  readonly markerTone?: "warning";
+  readonly markerTitle?: string;
   readonly icon: React.ReactNode;
   readonly onEdit?: () => void;
 }
@@ -994,102 +1001,101 @@ export function CareScheduleManager({
   }
 
   return (
-    <section className="moto-content-surface @container overflow-hidden rounded-xl border sm:rounded-2xl">
-      <div className="border-b border-gray-100 p-4 sm:p-5">
-        <ConceptSectionHeader
-          title="Betreuungszeiten"
-          concept={careTimesConcept}
-          subtitle={weekRange}
-          actions={
-            // While the section is in its edit state the week controls step
-            // aside: the plan applies to every week, and the only ways out are
-            // Speichern and Abbrechen at the bottom (Bauart 2 Regel 4).
-            isEditingWeeklyView ? undefined : (
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={showCurrentWeek}
-                  disabled={isCurrentWeek}
-                  className="disabled:hidden"
-                >
-                  Heute
-                </Button>
-                {/* Labelled on purpose, on every layout: an unlabelled pencil
+    <SectionCard
+      className="@container"
+      title="Betreuungszeiten"
+      concept={careTimesConcept}
+      description={weekRange}
+      // Die Wochennavigation gehört zum Kopf, eine Linie über die volle Breite
+      // trennt ihn vom Inhalt; beide bringen ihr eigenes Polster mit.
+      flush
+      bodyClassName=""
+      actions={
+        // While the section is in its edit state the week controls step
+        // aside: the plan applies to every week, and the only ways out are
+        // Speichern and Abbrechen at the bottom (Bauart 2 Regel 4).
+        isEditingWeeklyView ? undefined : (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={showCurrentWeek}
+              disabled={isCurrentWeek}
+              className="disabled:hidden"
+            >
+              Heute
+            </Button>
+            {/* Labelled on purpose, on every layout: an unlabelled pencil
                   here was indistinguishable from the per-day pencils below,
                   which is the confusion issue #893 reports. The word
                   „bearbeiten“ names the edit state it switches to. */}
-                {!readOnly ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    className="gap-1.5"
-                    onClick={() => {
-                      setRosterImpact(null);
-                      setIsEditingWeekly(true);
-                    }}
-                  >
-                    <SquarePen
-                      className="h-4 w-4 shrink-0"
-                      aria-hidden="true"
-                    />
-                    Wochenplan bearbeiten
-                  </Button>
-                ) : null}
-              </div>
-            )
-          }
-        />
-        {isEditingWeeklyView ? null : (
-          <div className="relative mt-4 hidden items-center justify-between gap-2 @4xl:flex">
-            <div>
+            {!readOnly ? (
               <Button
                 type="button"
-                variant="surface"
+                variant="outline"
                 size="md"
-                aria-label="Vorherige Woche"
-                onClick={() => moveWeek(-1)}
                 className="gap-1.5"
+                onClick={() => {
+                  setRosterImpact(null);
+                  setIsEditingWeekly(true);
+                }}
               >
-                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Vorherige Woche</span>
+                <SquarePen className="h-4 w-4 shrink-0" aria-hidden="true" />
+                Wochenplan bearbeiten
               </Button>
-            </div>
-            {isCurrentWeek ? (
-              <span className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-500 sm:inline-flex">
-                Aktuelle Woche
-              </span>
-            ) : (
-              <Button
-                type="button"
-                variant="surface"
-                size="md"
-                onClick={showCurrentWeek}
-                className="absolute left-1/2 hidden -translate-x-1/2 sm:inline-flex"
-              >
-                Zurück zur aktuellen Woche
-              </Button>
-            )}
-            <div>
-              <Button
-                type="button"
-                variant="surface"
-                size="md"
-                aria-label="Nächste Woche"
-                onClick={() => moveWeek(1)}
-                className="gap-1.5"
-              >
-                <span className="hidden sm:inline">Nächste Woche</span>
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </div>
+            ) : null}
           </div>
-        )}
-      </div>
+        )
+      }
+    >
+      {isEditingWeeklyView ? null : (
+        <div className="compact:px-4 relative mt-4 hidden items-center justify-between gap-2 px-5 max-sm:px-4 @4xl:flex">
+          <div>
+            <Button
+              type="button"
+              variant="surface"
+              size="md"
+              aria-label="Vorherige Woche"
+              onClick={() => moveWeek(-1)}
+              className="gap-1.5"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Vorherige Woche</span>
+            </Button>
+          </div>
+          {isCurrentWeek ? (
+            <span className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-500 sm:inline-flex">
+              Aktuelle Woche
+            </span>
+          ) : (
+            <Button
+              type="button"
+              variant="surface"
+              size="md"
+              onClick={showCurrentWeek}
+              className="absolute left-1/2 hidden -translate-x-1/2 sm:inline-flex"
+            >
+              Zurück zur aktuellen Woche
+            </Button>
+          )}
+          <div>
+            <Button
+              type="button"
+              variant="surface"
+              size="md"
+              aria-label="Nächste Woche"
+              onClick={() => moveWeek(1)}
+              className="gap-1.5"
+            >
+              <span className="hidden sm:inline">Nächste Woche</span>
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+      )}
 
-      <div className="p-3 sm:p-4">
+      <div className="compact:mt-4 mt-5 border-t border-gray-100 p-3 max-sm:mt-4 sm:p-4">
         {rosterImpact && !isEditingWeeklyView ? (
           <div className="mb-3">
             <CarePlanImpact impact={rosterImpact} studentId={studentId} />
@@ -1204,7 +1210,7 @@ export function CareScheduleManager({
         }
         error={deleteErrors.error?.message ?? ""}
       />
-    </section>
+    </SectionCard>
   );
 }
 
@@ -1594,7 +1600,14 @@ function CareBoundaryRow({
               whenever the value wrapped ("Keine Abholung" in a day column). */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-5 font-semibold text-gray-900">
             <span className="min-w-0 break-words">{boundary.value}</span>
-            {boundary.marker ? (
+            {boundary.marker && boundary.markerTone === "warning" ? (
+              <StatusBadge
+                tone="orange"
+                compact
+                label={boundary.marker}
+                title={boundary.markerTitle}
+              />
+            ) : boundary.marker ? (
               <span
                 className="max-w-full shrink-0 truncate rounded-full bg-white px-1.5 py-0.5 text-sm font-semibold text-gray-500 shadow-sm"
                 title={boundary.marker}
@@ -1695,16 +1708,44 @@ function getArrivalMarker(day: ArrivalDayData): string | null {
 
 function getPickupMarker(day: PickupDayData): string | null {
   if (day.isException) return "Ausnahme";
-  if (
-    day.baseSchedule?.source !== "care_offering" &&
-    day.offeringSchedule &&
-    day.baseSchedule?.pickupTime !== day.offeringSchedule.pickupTime
-  ) {
-    return day.offeringSchedule.careOfferingName
-      ? `Andere Zeit als im Angebot „${day.offeringSchedule.careOfferingName}“`
-      : "Andere Zeit als im Angebot";
-  }
   return pickupScheduleSourceLabel(day.baseSchedule);
+}
+
+/**
+ * Die gebuchte Abholzeit, wenn eine von Hand eingetragene Zeit sie an diesem
+ * Tag verdeckt. Die eingetragene Zeit gewinnt, deshalb muss die Abweichung
+ * in der Woche auffallen, nicht nur im Tageseditor (#5618).
+ */
+function hiddenBookedPickup(day: PickupDayData): string | null {
+  if (
+    day.isException ||
+    !day.baseSchedule ||
+    day.baseSchedule.source === "care_offering" ||
+    !day.offeringSchedule ||
+    day.baseSchedule.pickupTime === day.offeringSchedule.pickupTime
+  ) {
+    return null;
+  }
+  return formatPickupTime(day.offeringSchedule.pickupTime);
+}
+
+function pickupBoundary(day: PickupDayData) {
+  const booked = hiddenBookedPickup(day);
+  if (booked === null || !day.baseSchedule) {
+    return {
+      description: getPickupDescription(day),
+      marker: getPickupMarker(day),
+    };
+  }
+  const offering = day.offeringSchedule?.careOfferingName;
+  return {
+    description: "Von Hand eingetragen, gilt statt der gebuchten Zeit.",
+    marker: `Gebucht ${booked} Uhr`,
+    markerTone: "warning" as const,
+    markerTitle: `Von Hand eingetragen: ${formatPickupTime(day.baseSchedule.pickupTime)} Uhr. Gebucht${
+      offering ? ` im Angebot „${offering}“` : ""
+    }: ${booked} Uhr.`,
+  };
 }
 
 function sameWeekdays(
@@ -1771,8 +1812,7 @@ function getCareBoundaries(
       key: "pickup",
       label: "Abholung",
       value: getPickupValue(day.pickup),
-      description: getPickupDescription(day.pickup),
-      marker: getPickupMarker(day.pickup),
+      ...pickupBoundary(day.pickup),
       icon: <MotoConceptIcon concept={pickupConcept} size={18} />,
       onEdit: actions.onEditPickup,
     },

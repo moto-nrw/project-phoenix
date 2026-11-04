@@ -29,7 +29,7 @@ import {
   SkeletonRegion,
 } from "~/components/ui/page-skeletons";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { SectionCard } from "~/components/ui/section-card";
 import { resolveDayDeviation } from "~/lib/care-plan-helpers";
 import {
   careWeekDayCount,
@@ -311,132 +311,128 @@ export function CarePlanView({
   }, [error, showLoadError, clearLoadError]);
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-xl border sm:rounded-2xl">
-      <>
-        <ConceptSectionHeader
-          className="border-b border-gray-100 p-4 sm:p-5"
-          title="Betreuungsplan"
-          concept={carePlanConcept}
-          subtitle={
-            viewMode === "day"
-              ? formatDate(selectedDate, true)
-              : `${shortDate(weekDates[0]!)} – ${shortDate(weekDates[weekDates.length - 1]!)}`
-          }
-          actions={
-            <SegmentedControl
-              ariaLabel="Ansicht"
-              value={viewMode}
-              onChange={(next) => setViewMode(next as ViewMode)}
-              items={[
-                { value: "day", label: "Tag" },
-                { value: "week", label: "Woche" },
-              ]}
-            />
-          }
+    <SectionCard
+      title="Betreuungsplan"
+      concept={carePlanConcept}
+      // Kopf und Rumpf trennt eine Linie über die volle Breite; Navigation und
+      // Inhalt bringen ihr eigenes Polster mit.
+      flush
+      bodyClassName="compact:mt-4 mt-5 max-sm:mt-4 border-t border-gray-100"
+      description={
+        viewMode === "day"
+          ? formatDate(selectedDate, true)
+          : `${shortDate(weekDates[0]!)} – ${shortDate(weekDates[weekDates.length - 1]!)}`
+      }
+      actions={
+        <SegmentedControl
+          ariaLabel="Ansicht"
+          value={viewMode}
+          onChange={(next) => setViewMode(next as ViewMode)}
+          items={[
+            { value: "day", label: "Tag" },
+            { value: "week", label: "Woche" },
+          ]}
         />
-
-        {/* Navigation row */}
-        <div className="flex items-center justify-between gap-2 px-4 py-3 sm:px-5">
-          {viewMode === "day" ? (
-            <>
-              <NavButton
-                ariaLabel="Vorheriger Tag"
-                onClick={() =>
-                  setSelectedDate((d) => stepWeekday(d, -1, weekendOpen, today))
-                }
-              >
-                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Vorheriger Tag</span>
-              </NavButton>
-              {selectedDate === today ? (
-                // Anzeige, kein Knopf: der Zeitraum ist schon gewählt.
-                <span className="inline-flex items-center px-2 text-sm font-medium text-gray-500">
-                  Heute
-                </span>
-              ) : (
-                <Button
-                  type="button"
-                  variant="surface"
-                  size="md"
-                  onClick={() => setSelectedDate(today)}
-                >
-                  Heute
-                </Button>
-              )}
-              <NavButton
-                ariaLabel="Nächster Tag"
-                onClick={() =>
-                  setSelectedDate((d) => stepWeekday(d, 1, weekendOpen, today))
-                }
-              >
-                <span className="hidden sm:inline">Nächster Tag</span>
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              </NavButton>
-            </>
-          ) : (
-            <>
-              <NavButton
-                ariaLabel="Vorherige Woche"
-                onClick={() => moveWeek(-1)}
-              >
-                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Vorherige Woche</span>
-              </NavButton>
-              {isCurrentWeek ? (
-                // Anzeige, kein Knopf: der Zeitraum ist schon gewählt.
-                <span className="inline-flex items-center px-2 text-sm font-medium text-gray-500">
-                  Diese Woche
-                </span>
-              ) : (
-                <Button
-                  type="button"
-                  variant="surface"
-                  size="md"
-                  onClick={() => setWeekStartISO(currentWeekStartISO)}
-                >
-                  Diese Woche
-                </Button>
-              )}
-              <NavButton ariaLabel="Nächste Woche" onClick={() => moveWeek(1)}>
-                <span className="hidden sm:inline">Nächste Woche</span>
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              </NavButton>
-            </>
-          )}
-        </div>
-
-        {/* Body */}
-        <div className="p-3 sm:p-4">
-          {error ? (
-            load.error ? (
-              <LoadErrorAlert error={load.error} />
+      }
+    >
+      {/* Navigation row */}
+      <div className="compact:px-4 flex items-center justify-between gap-2 px-5 py-3 max-sm:px-4">
+        {viewMode === "day" ? (
+          <>
+            <NavButton
+              ariaLabel="Vorheriger Tag"
+              onClick={() =>
+                setSelectedDate((d) => stepWeekday(d, -1, weekendOpen, today))
+              }
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Vorheriger Tag</span>
+            </NavButton>
+            {selectedDate === today ? (
+              // Anzeige, kein Knopf: der Zeitraum ist schon gewählt.
+              <span className="inline-flex items-center px-2 text-sm font-medium text-gray-500">
+                Heute
+              </span>
             ) : (
-              <SkeletonRegion label="Betreuungsplan wird geladen">
-                <DetailSectionSkeleton fields={4} />
-              </SkeletonRegion>
-            )
-          ) : loading ? (
+              <Button
+                type="button"
+                variant="surface"
+                size="md"
+                onClick={() => setSelectedDate(today)}
+              >
+                Heute
+              </Button>
+            )}
+            <NavButton
+              ariaLabel="Nächster Tag"
+              onClick={() =>
+                setSelectedDate((d) => stepWeekday(d, 1, weekendOpen, today))
+              }
+            >
+              <span className="hidden sm:inline">Nächster Tag</span>
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </NavButton>
+          </>
+        ) : (
+          <>
+            <NavButton ariaLabel="Vorherige Woche" onClick={() => moveWeek(-1)}>
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Vorherige Woche</span>
+            </NavButton>
+            {isCurrentWeek ? (
+              // Anzeige, kein Knopf: der Zeitraum ist schon gewählt.
+              <span className="inline-flex items-center px-2 text-sm font-medium text-gray-500">
+                Diese Woche
+              </span>
+            ) : (
+              <Button
+                type="button"
+                variant="surface"
+                size="md"
+                onClick={() => setWeekStartISO(currentWeekStartISO)}
+              >
+                Diese Woche
+              </Button>
+            )}
+            <NavButton ariaLabel="Nächste Woche" onClick={() => moveWeek(1)}>
+              <span className="hidden sm:inline">Nächste Woche</span>
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </NavButton>
+          </>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="p-3 sm:p-4">
+        {error ? (
+          load.error ? (
+            <LoadErrorAlert error={load.error} />
+          ) : (
             <SkeletonRegion label="Betreuungsplan wird geladen">
               <DetailSectionSkeleton fields={4} />
             </SkeletonRegion>
-          ) : viewMode === "day" ? (
-            <CarePlanDayTimeline
-              day={dayData ?? null}
-              deviation={deviationFor(selectedDate)}
-              onEditSchedule={onEditSchedule}
-            />
-          ) : (
-            <WeekBody
-              weekDates={weekDates}
-              daysByDate={daysByDate}
-              mobileDayIndex={mobileDayIndex}
-              onSelectMobileDay={setMobileDayIndex}
-              deviationFor={deviationFor}
-            />
-          )}
-        </div>
-      </>
-    </section>
+          )
+        ) : loading ? (
+          <SkeletonRegion label="Betreuungsplan wird geladen">
+            <DetailSectionSkeleton fields={4} />
+          </SkeletonRegion>
+        ) : viewMode === "day" ? (
+          <CarePlanDayTimeline
+            day={dayData ?? null}
+            deviation={deviationFor(selectedDate)}
+            onEditSchedule={onEditSchedule}
+          />
+        ) : (
+          <WeekBody
+            weekDates={weekDates}
+            daysByDate={daysByDate}
+            mobileDayIndex={mobileDayIndex}
+            onSelectMobileDay={setMobileDayIndex}
+            deviationFor={deviationFor}
+          />
+        )}
+      </div>
+    </SectionCard>
   );
 }
 

@@ -30,8 +30,9 @@ type seedBillingRunDetail struct {
 // Abrechnung keeps its number range, starts a run for the period, lowers
 // the amount of one child with a reason and releases the run, which issues
 // the numbered invoice of the confirmed siblings. It downloads the overview
-// of the run for the Kämmerei (#4672) and returns the run.
-func seedHolidayBillingRun(client *Client, auth AuthRef, periodID int64) (int64, error) {
+// of the run for the Kämmerei (#4672) and the list of the cost bearer
+// (#5627), when there is one, and returns the run.
+func seedHolidayBillingRun(client *Client, auth AuthRef, periodID, costBearerID int64) (int64, error) {
 	if _, err := client.PutWithAuth(auth, "/traeger/number-ranges/holiday", map[string]any{"pattern": seedBillingNumberPattern}); err != nil {
 		return 0, fmt.Errorf("keep the number range: %w", err)
 	}
@@ -71,6 +72,13 @@ func seedHolidayBillingRun(client *Client, auth AuthRef, periodID int64) (int64,
 	}
 	if len(overview) == 0 {
 		return 0, fmt.Errorf("the overview of the billing run is empty")
+	}
+	// The list for the reimbursement by the cost bearer (#5627) is
+	// downloaded once too.
+	if costBearerID > 0 {
+		if _, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/billing-runs/%d/cost-takeovers/%d/export?format=csv", runID, costBearerID)); err != nil {
+			return 0, fmt.Errorf("download the list of the cost bearer: %w", err)
+		}
 	}
 	fmt.Printf("  Abrechnung: holiday run released with %d invoice(s) and one correction, overview downloaded\n", run.PreviewCount)
 	return runID, nil
