@@ -26,7 +26,7 @@ import { presentConcept } from "~/lib/concepts/present";
 import { sickConcept } from "~/lib/concepts/sick";
 import { staffConcept } from "~/lib/concepts/staff";
 import { supervisionConcept } from "~/lib/concepts/supervision";
-import { formatTime } from "~/lib/date-helpers";
+import { formatBerlinTime } from "~/lib/date-helpers";
 import type {
   TraegerSchoolFigures,
   TraegerSchoolToday,
@@ -323,7 +323,7 @@ export default function TraegerDashboardPage() {
                 label: schools.length === 1 ? "Schule" : "Schulen",
               },
               {
-                value: `Stand ${formatTime(today.total.asOf)} Uhr`,
+                value: `Stand ${formatBerlinTime(today.total.asOf)} Uhr`,
                 label: "",
               },
             ]}

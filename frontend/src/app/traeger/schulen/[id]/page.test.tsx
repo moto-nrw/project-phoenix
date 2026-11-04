@@ -89,6 +89,7 @@ describe("TraegerSchoolPage", () => {
     expect(await screen.findByText("1 : 8,5")).toBeInTheDocument();
     expect(mockFetchSchool).toHaveBeenCalledWith("2");
     expect(screen.getByRole("heading", { name: "OGS Am Bach" })).toBeVisible();
+    expect(screen.getByText("Stand 12:00 Uhr")).toBeVisible();
     for (const [label, value, sentence] of [
       ["Kinder gesamt", "120", "Alle Kinder, die die Schule gerade betreut."],
       ["Jetzt anwesend", "51", "Kinder, die gerade in der Schule sind."],

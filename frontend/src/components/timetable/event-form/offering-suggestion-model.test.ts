@@ -83,7 +83,10 @@ describe("suggestion queries", () => {
       { offeringIds: ["7"], gradeLevels: [1, 2], schoolClasses: [] },
       { 1: ["11"] },
       "2026-09-14",
+      { type: "care", listKind: "mensa" },
     );
+    expect(query.get("type")).toBe("care");
+    expect(query.get("list_kind")).toBe("mensa");
     expect(query.get("period_id")).toBe("4");
     expect(query.get("offering_ids")).toBe("7");
     expect(query.get("grade_levels")).toBe("1,2");

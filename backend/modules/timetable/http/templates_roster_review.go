@@ -291,10 +291,32 @@ type offeringPreviewSegmentResponse struct {
 	ValidUntil *string `json:"valid_until"`
 }
 
+// offeringPreviewAlternativeResponse is an offering outside the selection
+// that would keep children the preview drops.
+type offeringPreviewAlternativeResponse struct {
+	OfferingID int64  `json:"offering_id"`
+	Name       string `json:"name"`
+	ChildCount int    `json:"child_count"`
+}
+
 type offeringPreviewResponse struct {
 	From     string                           `json:"from"`
 	Weekdays []offeringPreviewWeekdayResponse `json:"weekdays"`
 	Segments []offeringPreviewSegmentResponse `json:"segments"`
+	// OtherOfferings name the offerings of the same phase that book dropped
+	// children on the day they drop.
+	OtherOfferings []offeringPreviewAlternativeResponse `json:"other_offerings"`
+}
+
+func offeringPreviewAlternatives(kind timetable.RosterOfferingKind, filter timetable.OfferingSourceFilter, bookings []timetable.OfferingWeekdayBooking, changes []timetable.OfferingSourceWeekdayChange) []offeringPreviewAlternativeResponse {
+	alternatives := timetable.DroppedChildrenAlternatives(kind, filter, bookings, changes)
+	result := make([]offeringPreviewAlternativeResponse, 0, len(alternatives))
+	for _, alternative := range alternatives {
+		result = append(result, offeringPreviewAlternativeResponse{
+			OfferingID: alternative.OfferingID, Name: alternative.OfferingName, ChildCount: alternative.ChildCount,
+		})
+	}
+	return result
 }
 
 // previewTemplateOfferingSource handles GET /templates/{id}/offering-preview:
@@ -374,9 +396,10 @@ func (rs *Resource) offeringSourcePreview(ctx context.Context, templateID int64,
 		return offeringPreviewResponse{}, err
 	}
 	return offeringPreviewResponse{
-		From:     from.String(),
-		Weekdays: offeringPreviewWeekdays(changes, names),
-		Segments: offeringPreviewSegments(segments),
+		From:           from.String(),
+		Weekdays:       offeringPreviewWeekdays(changes, names),
+		Segments:       offeringPreviewSegments(segments),
+		OtherOfferings: offeringPreviewAlternatives(living.OfferingKind, filter, bookings, changes),
 	}, nil
 }
 

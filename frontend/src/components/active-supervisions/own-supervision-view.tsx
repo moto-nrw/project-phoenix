@@ -14,6 +14,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { AddUnplannedStudentModal } from "~/components/active-supervisions/add-unplanned-student-modal";
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { PlannedNowSection } from "~/components/active-supervisions/planned-now-section";
+import { PastBlocksSection } from "~/components/active-supervisions/past-blocks-section";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import {
   reopenBannerMessage,
@@ -214,6 +215,13 @@ export function OwnSupervisionView() {
         }
       : undefined;
 
+  const reopenPastBlock = (block: PlannedTimetableInstance) =>
+    actions.handleReopenTimetableInstance({
+      instanceId: block.id,
+      title: block.title,
+      roomId: block.roomId,
+    });
+
   return (
     <TenantPage
       title={title}
@@ -247,7 +255,10 @@ export function OwnSupervisionView() {
       {reopen.reopenable ? (
         <Alert
           type="success"
-          message={reopenBannerMessage(reopen.reopenable.title)}
+          message={reopenBannerMessage(
+            reopen.reopenable.title,
+            reopen.reopenable.expiresAt,
+          )}
           action={
             <Button
               type="button"
@@ -308,6 +319,9 @@ export function OwnSupervisionView() {
           />
         </SectionCard>
       ) : null}
+      {/* Wer nur die eigene Aufsicht sieht, öffnet hier einen aus Versehen
+          beendeten Block wieder, auch ohne das Banner (#5676). */}
+      <PastBlocksSection onReopen={reopenPastBlock} />
     </TenantPage>
   );
 }

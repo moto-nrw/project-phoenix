@@ -126,5 +126,8 @@ func ProviderResult(value deliveryContract.ProviderResult, err error) (deliveryC
 	if errors.Is(err, deliveryContract.ErrDeferred) {
 		err = fmt.Errorf("%w: %v", domain.ErrDeferred, err)
 	}
+	if errors.Is(err, deliveryContract.ErrPermanent) {
+		err = fmt.Errorf("%w: %v", domain.ErrPermanent, err)
+	}
 	return value, err
 }

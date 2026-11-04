@@ -111,9 +111,9 @@ type SchoolRosters interface {
 	ActiveStaffIDsByTenant(ctx context.Context, schools []int64, at time.Time) (map[int64][]int64, error)
 }
 
-// PresentStudentCounts is how many children are present, at Student Presence.
-type PresentStudentCounts interface {
-	CountPresentStudentsByTenant(ctx context.Context, schools []int64, at time.Time) (map[int64]int, error)
+// PresentStudents are the children who are present, at Student Presence.
+type PresentStudents interface {
+	PresentStudentIDsByTenant(ctx context.Context, schools []int64, at time.Time) (map[int64][]int64, error)
 }
 
 // SickStudents is the two marks of a sick child, at Care Plan.
@@ -167,7 +167,7 @@ type Ports struct {
 	// Rosters, Present, Sick and OnSite are the owners' reads behind the
 	// figures of a school (ADR 0151).
 	Rosters SchoolRosters
-	Present PresentStudentCounts
+	Present PresentStudents
 	Sick    SickStudents
 	OnSite  OnSiteStaff
 }

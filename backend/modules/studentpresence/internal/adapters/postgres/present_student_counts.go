@@ -11,25 +11,26 @@ import (
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
-// NewPresentStudentCounts reads on the caller's administrative transaction.
-func NewPresentStudentCounts(transaction func(context.Context) (any, bool), admin func(context.Context) bool) *presentStudentCounts {
-	return &presentStudentCounts{transaction: transaction, admin: admin}
+// NewPresentStudents reads on the caller's administrative transaction.
+func NewPresentStudents(transaction func(context.Context) (any, bool), admin func(context.Context) bool) *presentStudents {
+	return &presentStudents{transaction: transaction, admin: admin}
 }
 
-type presentStudentCounts struct {
+type presentStudents struct {
 	transaction func(context.Context) (any, bool)
 	admin       func(context.Context) bool
 }
 
-const countPresentStudentsSQL = `SELECT tenant_id, COUNT(*)::int AS count FROM (
+const presentStudentIDsSQL = `SELECT tenant_id, student_id FROM (
   SELECT tenant_id, student_id FROM active.attendance
   WHERE tenant_id = ANY(?0) AND date = ?1::date AND check_out_time IS NULL
   UNION
-  SELECT tenant_id, student_id FROM active.visits
-  WHERE tenant_id = ANY(?0) AND exit_time IS NULL
-) AS present GROUP BY tenant_id`
+  SELECT v.tenant_id, v.student_id FROM active.visits AS v
+  JOIN active.groups AS g ON g.id = v.active_group_id AND g.tenant_id = v.tenant_id
+  WHERE v.tenant_id = ANY(?0) AND v.exit_time IS NULL AND g.end_time IS NULL
+) AS present`
 
-func (c presentStudentCounts) CountPresentStudentsByTenant(ctx context.Context, schools []int64, at time.Time) (map[int64]int, error) {
+func (c presentStudents) PresentStudentIDsByTenant(ctx context.Context, schools []int64, at time.Time) (map[int64][]int64, error) {
 	transaction, ok := c.transaction(ctx)
 	if !ok {
 		return nil, errors.New("student presence: transaction is required")
@@ -50,15 +51,15 @@ func (c presentStudentCounts) CountPresentStudentsByTenant(ctx context.Context, 
 		return nil, fmt.Errorf("student presence postgres: unsupported transaction %T", transaction)
 	}
 	var rows []struct {
-		TenantID int64 `bun:"tenant_id"`
-		Count    int   `bun:"count"`
+		TenantID  int64 `bun:"tenant_id"`
+		StudentID int64 `bun:"student_id"`
 	}
-	if err := db.NewRaw(countPresentStudentsSQL, pgdialect.Array(schools), calendar.DateFromTime(at)).Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("student presence postgres: count present students: %w", err)
+	if err := db.NewRaw(presentStudentIDsSQL, pgdialect.Array(schools), calendar.DateFromTime(at)).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("student presence postgres: present students: %w", err)
 	}
-	counts := make(map[int64]int, len(rows))
+	present := make(map[int64][]int64, len(rows))
 	for _, row := range rows {
-		counts[row.TenantID] = row.Count
+		present[row.TenantID] = append(present[row.TenantID], row.StudentID)
 	}
-	return counts, nil
+	return present, nil
 }

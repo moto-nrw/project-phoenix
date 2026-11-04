@@ -507,6 +507,49 @@ func TestInstance_Complete_BasesReopenWindowOnCompletionTimestamp(t *testing.T) 
 	assert.Equal(t, completed.CompletedAt.Add(5*time.Minute), *completed.ReopenUntil)
 }
 
+// TestInstance_Complete_EarlyCompletionReopensUntilPlannedEnd covers #5676:
+// a block ended before its planned end stays reopenable until that end.
+func TestInstance_Complete_EarlyCompletionReopensUntilPlannedEnd(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	day := calendar.NewDate(2099, 6, 15)
+	ai := seedInstanceOn(t, s, day, true, false)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+
+	completed, err := s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+	require.NotNil(t, completed.ReopenUntil)
+	plannedEnd := time.Date(2099, 6, 15, 15, 0, 0, 0, calendar.Berlin)
+	assert.True(t, plannedEnd.Equal(*completed.ReopenUntil), "reopen_until %s, want the planned end %s", completed.ReopenUntil, plannedEnd)
+}
+
+// TestInstance_Reopen_RefusesChildThatLeftSchool covers #5676: the longer
+// reopen window must not put a child back into the room after it went home.
+func TestInstance_Reopen_RefusesChildThatLeftSchool(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, true)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	checkIn := time.Now().Add(-10 * time.Minute)
+	device := testpkg.CreateTestDevice(t, s.db, "reopen-left-school")
+	testpkg.CreateTestAttendanceForDate(t, s.db, s.student1, s.staffID, device.ID, calendar.Date(ai.Date), checkIn, nil)
+	testpkg.CreateTestVisit(t, s.db, s.student1, started.ActiveGroupID, checkIn, nil)
+
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+	testpkg.CheckOutTestAttendanceByStaff(t, s.db, s.student1, calendar.Date(ai.Date).String(), time.Now().Add(time.Second), s.staffID)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.ErrorIs(t, err, timetable.ErrTimetableOperationConflict)
+	coded, ok := timetable.AsCoded(err)
+	require.True(t, ok)
+	assert.Equal(t, timetable.CodeReopenStudentLeft, coded.Code)
+}
+
 func TestInstance_Complete_ConfirmationMustMatchOpenVisits(t *testing.T) {
 	t.Parallel()
 

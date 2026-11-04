@@ -17,7 +17,7 @@ import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
-import { formatTime } from "~/lib/date-helpers";
+import { formatBerlinTime } from "~/lib/date-helpers";
 import type { TraegerSchoolView } from "~/lib/traeger-api";
 import { TRAEGER_HANDOFF_OPEN } from "~/lib/traeger-handoff";
 import { traegerPath } from "~/lib/traeger-url";
@@ -157,7 +157,7 @@ export default function TraegerSchoolPage() {
           <TenantPageStats
             items={[
               {
-                value: `Stand ${formatTime(school.figures.asOf)} Uhr`,
+                value: `Stand ${formatBerlinTime(school.figures.asOf)} Uhr`,
                 label: "",
               },
             ]}

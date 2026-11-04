@@ -169,6 +169,14 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.CancelHolidayRegistration",
+      "binding_digest": "49fb6964b6d70def0e499429e5cacbf6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.CancelHolidayRegistration",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ChangeHolidayRegistration",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.ConfirmHolidayRegistration",
       "binding_digest": "1150ba49d8cc5e69f7035867becf1ba7",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.ConfirmHolidayRegistration",
