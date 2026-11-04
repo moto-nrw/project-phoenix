@@ -650,7 +650,7 @@ export function useGlobalSSE(): SSEHookState {
             key.includes("room-bulk-source-visits-") ||
             // Room header in the detail modal/subpage — supervisor,
             // groupName, studentCount, isOccupied. Without this, the
-            // "Aktuell anwesend: X" InfoItem stays stale while the
+            // "Aktuell anwesend: X" field stays stale while the
             // section above it refreshes (#1374).
             // Room lists are invalidated once via SWR_FAMILIES.rooms above.
             key.includes("room-detail-")),

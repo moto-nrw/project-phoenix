@@ -100,6 +100,11 @@ func newHolidayHostFixture(t *testing.T, name string) holidayHostFixture {
 		"bookings": []map[string]any{{"week_id": offer.Weeks[0].ID, "time_model_id": offer.Weeks[0].TimeModels[0].ID}},
 	}}
 	submit(tom)
+	// Both stand for registrations from before the consent texts of version 2
+	// (#4722): they share no health information with the hosting school.
+	_, err := f.db.ExecContext(t.Context(), `UPDATE enrollment.holiday_registrations
+		SET consent_version = NULL, custody_confirmed_at = NULL, declaration_name = NULL WHERE holiday_period_id = ?`, created.ID)
+	require.NoError(t, err)
 
 	today := &atomic.Value{}
 	today.Store(calendar.NewDate(2099, 7, 1))
@@ -256,12 +261,12 @@ func TestHolidayHostSeesOnlyConfirmedChildrenOfItsWeek(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Header().Get("Content-Disposition"), "teilnehmerliste-2099-07-06")
 	csv := strings.TrimPrefix(rec.Body.String(), "\xEF\xBB\xBF")
-	// The standard template shares the way home and the trips (#5202); the
-	// siblings answered neither, so both columns stay empty.
+	// The standard template shares the way home, the trips (#5202) and the
+	// class (#5625); the siblings answered none, so the columns stay empty.
 	assert.Equal(t, strings.Join([]string{
-		"Nachname;Vorname;Geburtsdatum;Heimatschule;Zeitmodell;Darf allein nach Hause gehen;Darf an Ausflügen teilnehmen",
-		"Muster;Ben;12.09.2016;Feriengast (Grundschule Melle);bis 13 Uhr;;",
-		"Muster;Lia;01.03.2018;" + f.offer.Schools[0].Name + ";bis 16 Uhr;;",
+		"Nachname;Vorname;Geburtsdatum;Heimatschule;Zeitmodell;Darf allein nach Hause gehen;Darf an Ausflügen teilnehmen;Klasse",
+		"Muster;Ben;12.09.2016;Feriengast (Grundschule Melle);bis 13 Uhr;;;",
+		"Muster;Lia;01.03.2018;" + f.offer.Schools[0].Name + ";bis 16 Uhr;;;",
 	}, "\n")+"\n", csv)
 	rec = f.get(t, host, fmt.Sprintf("/%d/participants/export?format=xlsx", week))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

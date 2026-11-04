@@ -1,5 +1,6 @@
 "use client";
 
+import { Z_LAYER } from "../overlay-styles";
 import React, { useState, useRef, useEffect } from "react";
 import { normalizeFilterValues, type FilterConfig } from "./types";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -210,7 +211,7 @@ function DropdownFilter({
 
       {isOpen && (
         <div
-          className={`moto-popover-surface absolute top-full z-50 mt-1 w-48 overflow-hidden rounded-xl border py-1 ${
+          className={`moto-popover-surface absolute top-full ${Z_LAYER.dropdown} mt-1 w-48 overflow-hidden rounded-xl border py-1 ${
             dropdownPosition === "right" ? "right-0" : "left-0"
           }`}
         >

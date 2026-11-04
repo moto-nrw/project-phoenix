@@ -86,8 +86,34 @@ func (s *studentDirectoryReads) selectStudentRoster(
 // care day they do not. Filtered on the enrolment interval rather than the
 // status, because the status only follows once the scheduler ticks.
 func currentCare(query *bun.SelectQuery, today string) *bun.SelectQuery {
-	return query.Where(
+	query = query.Where(
 		`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, directoryDateParam(today))
+	return holidayGuestArrived(query, today)
+}
+
+// holidayGuestArrived keeps a holiday guest off the live lists before the
+// first day of its week (#5630, ADR 0120 Nachtrag zu Punkt 2): the school
+// cares for it only during the holidays, and until then the lead sees it on
+// the page "Ferienwochen" alone. An own child with a later start stays: the
+// team prepares its first day. Filtered on the enrolment interval, like the
+// end of the care, so the list does not wait for the reconciliation.
+func holidayGuestArrived(query *bun.SelectQuery, today string) *bun.SelectQuery {
+	return query.Where(holidayGuestArrivedSQL, directory.HolidayGuestSchoolClass, directoryDateParam(today))
+}
+
+const holidayGuestArrivedSQL = `(COALESCE("student".school_class, '') <> ? OR "student".enrolled_from IS NULL OR "student".enrolled_from <= ?)`
+
+// holidayGuestArrivedUnlessPresent is holidayGuestArrived for the child
+// list: a child with a still-open presence stays, as a graduate in
+// KeepAlumni does, so the list never hides a child someone checked in.
+func holidayGuestArrivedUnlessPresent(query *bun.SelectQuery, day string, present []int64) *bun.SelectQuery {
+	if len(present) == 0 {
+		return holidayGuestArrived(query, day)
+	}
+	return query.WhereGroup(" AND ", func(group *bun.SelectQuery) *bun.SelectQuery {
+		group = group.WhereOr(`"student".id IN (?)`, bun.List(present))
+		return group.WhereOr(holidayGuestArrivedSQL, directory.HolidayGuestSchoolClass, directoryDateParam(day))
+	})
 }
 
 // ListRosterByGroups is the live roster of the given groups.
@@ -126,6 +152,9 @@ func (s *studentDirectoryReads) ListRosterOverlapping(
 	from, to, today string,
 ) ([]directory.StudentRosterEntry, directoryStats, error) {
 	return s.selectStudentRoster(ctx, "list student roster overlapping", func(query *bun.SelectQuery) *bun.SelectQuery {
+		// A holiday guest joins the picker with the first day of its week,
+		// not when the window reaches it (#5630).
+		query = holidayGuestArrived(query, today)
 		query = query.
 			Where(`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, directoryDateParam(from)).
 			Where(`NOT ("student".enrolled_from IS NULL AND "student".enrolled_until IS NULL AND "student".status = ?)`,

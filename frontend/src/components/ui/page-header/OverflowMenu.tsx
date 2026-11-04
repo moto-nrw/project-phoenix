@@ -1,5 +1,6 @@
 "use client";
 
+import { Z_LAYER } from "../overlay-styles";
 import {
   useEffect,
   useId,
@@ -462,7 +463,7 @@ export function OverflowMenu({
               // escapes any clipping `overflow-hidden` ancestor. In
               // container-stretch mode the width comes from `menuStyle`, so the
               // 220px floor is dropped to let the menu match a narrow column.
-              className={`moto-popover-surface fixed z-50 scrollbar-thin overflow-x-hidden overflow-y-auto rounded-xl border py-1 ${
+              className={`moto-popover-surface fixed ${Z_LAYER.dropdown} scrollbar-thin overflow-x-hidden overflow-y-auto rounded-xl border py-1 ${
                 matchContainerSelector ? "" : "min-w-[220px]"
               }`}
             >

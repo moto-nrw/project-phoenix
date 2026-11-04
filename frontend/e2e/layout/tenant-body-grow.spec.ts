@@ -121,7 +121,7 @@ test("the last surface of an ordinary tenant page still grows to the bottom", as
 // unter anderen Karten war sie so hoch wie der ganze Rumpf und stand unter
 // der Unterkante; die Seite scrollte ins Leere (#3893).
 const INFO_CARD =
-  "moto-content-surface compact:p-4 flex h-full flex-col rounded-2xl border p-6 shadow-sm backdrop-blur max-sm:p-4";
+  "moto-content-surface compact:p-4 flex h-full flex-col rounded-2xl border p-5 shadow-sm backdrop-blur max-sm:p-4";
 
 test("a last surface with h-full ends at the bottom, not below it", async ({
   page,

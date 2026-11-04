@@ -15,6 +15,7 @@ import {
   toggleKnownChild,
   validateRegistration,
 } from "./holiday-registration-model";
+import { HOLIDAY_CONSENT_TEXTS } from "~/test/fixtures/holiday-consent-texts";
 
 const offer: HolidayRegistrationOffer = {
   traegerName: "Träger Bissendorf",
@@ -58,6 +59,7 @@ const offer: HolidayRegistrationOffer = {
   ],
   schools: [{ id: "31", name: "OGS Nord" }],
   captchaSiteKey: "site",
+  consentTexts: HOLIDAY_CONSENT_TEXTS,
   form: { version: 1, fields: [] },
 };
 
@@ -88,6 +90,8 @@ function complete(): RegistrationDraft {
     ],
     privacyConsent: true,
     bindingConfirmed: true,
+    custodyConfirmed: true,
+    declarationName: " Eva Muster ",
   };
 }
 
@@ -107,6 +111,8 @@ describe("validateRegistration", () => {
       "contacts.0.phone": "required",
       privacy_consent: "privacy",
       binding_confirmed: "binding",
+      custody_confirmed: "custody",
+      declaration_name: "declarationName",
     });
   });
 
@@ -129,7 +135,22 @@ describe("validateRegistration", () => {
       "contacts.0.phone",
       "privacy_consent",
       "binding_confirmed",
+      "custody_confirmed",
+      "declaration_name",
     ]);
+  });
+
+  it("requires the custody and the name as the declaration (#5626)", () => {
+    const draft = complete();
+    expect(
+      validateRegistration(
+        { ...draft, custodyConfirmed: false, declarationName: "   " },
+        offer,
+      ),
+    ).toEqual({
+      custody_confirmed: "custody",
+      declaration_name: "declarationName",
+    });
   });
 
   it("asks for the health consent only when a child has health information", () => {
@@ -172,6 +193,13 @@ describe("payloadFromDraft", () => {
     expect(payload.health_consent).toBe(false);
     expect(payload.binding_confirmed).toBe(true);
     expect(payload.captcha_token).toBe("captcha");
+  });
+
+  it("sends the custody, the trimmed name and the version of the texts shown (#5626)", () => {
+    const payload = payloadFromDraft(complete(), offer, "captcha");
+    expect(payload.custody_confirmed).toBe(true);
+    expect(payload.declaration_name).toBe("Eva Muster");
+    expect(payload.consent_version).toBe(3);
   });
 
   it("sends the school of a child of the Träger without a guest school name", () => {
@@ -463,5 +491,81 @@ describe("unified contacts (#5469)", () => {
         offer,
       ),
     ).toEqual({});
+  });
+});
+
+describe("postal address of the parent (#5625)", () => {
+  const asking = (addressRequirement: "off" | "optional" | "required") => ({
+    ...offer,
+    form: { ...offer.form, addressRequirement },
+  });
+  const withAddress = (
+    street: string,
+    postalCode: string,
+    city: string,
+  ): RegistrationDraft => ({
+    ...complete(),
+    guardianAddress: { street, postalCode, city },
+  });
+
+  it("asks nothing and sends nothing when the form does not ask", () => {
+    const draft = withAddress("Musterweg 12", "49143", "Bissendorf");
+    expect(validateRegistration(draft, asking("off"))).toEqual({});
+    expect(payloadFromDraft(draft, asking("off"), "t")).not.toHaveProperty(
+      "guardian_address",
+    );
+    expect(
+      payloadFromDraft(draft, asking("off"), "t").guardian.first_name,
+    ).toBe("Eva");
+  });
+
+  it("takes no address or all three parts when it is optional", () => {
+    expect(validateRegistration(complete(), asking("optional"))).toEqual({});
+    expect(
+      payloadFromDraft(complete(), asking("optional"), "t"),
+    ).not.toHaveProperty("guardian_address");
+    expect(
+      payloadFromDraft(complete(), asking("optional"), "t").form_version,
+    ).toBe(1);
+    expect(
+      validateRegistration(
+        withAddress("Musterweg 12", "", ""),
+        asking("optional"),
+      ),
+    ).toEqual({
+      "guardian_address.postal_code": "required",
+      "guardian_address.city": "required",
+    });
+  });
+
+  it("requires all three parts when it is required", () => {
+    expect(validateRegistration(complete(), asking("required"))).toEqual({
+      "guardian_address.street": "required",
+      "guardian_address.postal_code": "required",
+      "guardian_address.city": "required",
+    });
+  });
+
+  it("refuses a postal code without five digits in both settings", () => {
+    for (const requirement of ["optional", "required"] as const) {
+      expect(
+        validateRegistration(
+          withAddress("Musterweg 12", "4914", "Bissendorf"),
+          asking(requirement),
+        ),
+      ).toEqual({ "guardian_address.postal_code": "postalCode" });
+    }
+  });
+
+  it("sends the trimmed address", () => {
+    const draft = withAddress(" Musterweg 12 ", " 01234 ", " Bissendorf ");
+    expect(validateRegistration(draft, asking("required"))).toEqual({});
+    expect(
+      payloadFromDraft(draft, asking("required"), "t").guardian_address,
+    ).toEqual({
+      street: "Musterweg 12",
+      postal_code: "01234",
+      city: "Bissendorf",
+    });
   });
 });

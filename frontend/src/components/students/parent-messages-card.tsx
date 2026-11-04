@@ -7,7 +7,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { LEADERSHIP_AUDIENCE_LABEL } from "~/lib/messaging-status";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { SectionCard } from "~/components/ui/section-card";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
@@ -101,26 +101,23 @@ export function ParentMessagesCard({
   });
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
-      <ConceptSectionHeader
-        className="mb-4"
-        title="Nachrichten mit den Eltern"
-        concept={parentConversationsConcept}
-        actions={
-          messagingEnabled ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={() => setComposeOpen(true)}
-              className="flex-shrink-0"
-            >
-              Neue Nachricht
-            </Button>
-          ) : undefined
-        }
-      />
-
+    <SectionCard
+      title="Nachrichten mit den Eltern"
+      concept={parentConversationsConcept}
+      actions={
+        messagingEnabled ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => setComposeOpen(true)}
+            className="flex-shrink-0"
+          >
+            Neue Nachricht
+          </Button>
+        ) : undefined
+      }
+    >
       {loadFailure ? (
         <LoadErrorAlert error={load.error} />
       ) : threads.length === 0 ? (
@@ -192,6 +189,6 @@ export function ParentMessagesCard({
           }}
         />
       )}
-    </div>
+    </SectionCard>
   );
 }

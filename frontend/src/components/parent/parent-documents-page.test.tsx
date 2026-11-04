@@ -68,6 +68,22 @@ describe("ParentDocumentsPage", () => {
     expect(screen.getByText("02.10.2026")).toBeInTheDocument();
   });
 
+  it("names the letter of a Storno and a Gutschrift (#4690)", async () => {
+    mocks.listMyDocuments.mockResolvedValue([
+      { ...letter, id: "8", kind: "cancellation_letter", number: "FE-0008" },
+      { ...letter, id: "9", kind: "credit_letter", number: "FE-0009" },
+    ]);
+
+    render(<ParentDocumentsPage />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Storno Herbstferien 2026" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Gutschrift Herbstferien 2026" }),
+    ).toBeInTheDocument();
+  });
+
   it("downloads the stored PDF of a letter", async () => {
     mocks.listMyDocuments.mockResolvedValue([letter]);
     mocks.downloadMyDocument.mockResolvedValue(undefined);

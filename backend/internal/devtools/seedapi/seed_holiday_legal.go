@@ -36,7 +36,8 @@ func seedHolidayLegalForm(rt *Runtime, auth AuthRef, path string) (int, error) {
 	}
 	var form struct {
 		Data struct {
-			Fields json.RawMessage `json:"fields"`
+			Fields             json.RawMessage `json:"fields"`
+			AddressRequirement string          `json:"address_requirement"`
 		} `json:"data"`
 	}
 	if err = json.Unmarshal(raw, &form); err != nil {
@@ -51,7 +52,9 @@ func seedHolidayLegalForm(rt *Runtime, auth AuthRef, path string) (int, error) {
 		blocks = append(blocks, map[string]any{"key": fmt.Sprintf("hinweis_%d", i+1), "kind": "terms", "source": "custom", "title": title, "label": "Ich habe die Hinweise gelesen und zur Kenntnis genommen.", "enabled": true, "required": true, "display_mode": "pdf", "attachments": []map[string]string{{"label": title, "document_id": id}}})
 	}
 	blocks = append(blocks, map[string]any{"key": "fotos_ferien", "kind": "consent", "source": "custom", "title": "Fotos in der Ferienbetreuung", "label": "Mein Kind darf auf Erinnerungsfotos zu sehen sein.", "text": "Die Fotos bleiben in der OGS.", "enabled": true})
-	raw, err = rt.Client.PutWithAuth(auth, path, map[string]any{"fields": form.Data.Fields, "legal_blocks": blocks})
+	raw, err = rt.Client.PutWithAuth(auth, path, map[string]any{
+		"fields": form.Data.Fields, "legal_blocks": blocks, "address_requirement": form.Data.AddressRequirement,
+	})
 	if err != nil {
 		return 0, err
 	}

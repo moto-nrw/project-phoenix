@@ -90,8 +90,10 @@ retry behavior, and authentication when changing real-time updates.
 
 ## Performance
 
-Keep bundle and render budgets intact. Before changing baselines, always-mounted
-components, or performance tooling, read
-[frontend performance guardrails](../docs/agents/frontend-performance.md).
+Keep render budgets intact. A feature may add client JS: check lazy loading
+and lighter libraries first; if CI still reports a bundle delta, set the PR
+label `bundle-growth-approved` with a reason instead of cutting the feature.
+Before changing always-mounted components, bundle ceilings, or performance
+tooling, read [frontend performance guardrails](../docs/agents/frontend-performance.md).
 
 @AGENTS.md

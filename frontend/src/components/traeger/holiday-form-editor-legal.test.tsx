@@ -33,6 +33,7 @@ const form = {
   fields: [],
   legalBlocks: [],
   template: [],
+  addressRequirement: "off" as const,
   createdAt: "2026-09-01T10:00:00Z",
 };
 
@@ -171,6 +172,7 @@ describe("Holiday form legal blocks", () => {
           text: "Die Fotos bleiben in der OGS.",
         }),
       ]),
+      "off",
     );
     // Anker: the complete form was saved with both Träger uploads.
     expect(upload).toHaveBeenNthCalledWith(1, "5", expect.any(File));

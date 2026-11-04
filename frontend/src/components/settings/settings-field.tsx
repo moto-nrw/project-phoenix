@@ -7,6 +7,7 @@ import {
   useEffectEvent,
   useLayoutEffect,
   useRef,
+  useId,
 } from "react";
 import {
   ExternalLink,
@@ -34,6 +35,12 @@ import { Button, buttonClassName } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Textarea } from "~/components/ui/textarea";
 import { MODULE_SETTING_KEYS } from "~/lib/modules";
+import {
+  BUILT_IN_PAYMENT_TEXT,
+  PAYMENT_TEXT_KEY,
+  paymentTextProblem,
+} from "~/lib/traeger-payment-text";
+import { textTooLong } from "~/lib/text-length";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
 import { SettingsTimeField } from "./fields/time-field";
@@ -184,6 +191,18 @@ function validateLocally(
     ) {
       return REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR;
     }
+  }
+
+  // The payment text of the Träger takes only its placeholders (#5622).
+  if (setting.key === PAYMENT_TEXT_KEY) {
+    return paymentTextProblem(typeof value === "string" ? value : "");
+  }
+
+  // A text limit counts characters like the backend (#5622).
+  const maxLength = setting.validation?.max_length;
+  if (maxLength != null && typeof value === "string") {
+    const tooLong = textTooLong(value, maxLength);
+    if (tooLong) return tooLong;
   }
 
   if (setting.type === "number") {
@@ -346,6 +365,7 @@ export function SettingsField({
   // Hint from a check before sending (range, missing legal text, a setting
   // that must change first). Server errors go through the shared path.
   const [hint, setHint] = useState<string | null>(null);
+  const hintId = useId();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [historyDeletion, setHistoryDeletion] = useState<
     "save" | "reset" | null
@@ -1091,7 +1111,11 @@ export function SettingsField({
         {legalTextStoredStatus && (
           <p className="mt-1 text-xs text-gray-500">{legalTextStoredStatus}</p>
         )}
-        {hint && <p className="text-moto-red mt-1 text-xs">{hint}</p>}
+        {hint && (
+          <p id={hintId} className="text-moto-red mt-1 text-xs">
+            {hint}
+          </p>
+        )}
       </div>
 
       <div
@@ -1115,6 +1139,7 @@ export function SettingsField({
               handleLocalChange,
               handleBlur,
               revealFn,
+              hint ? hintId : undefined,
             )}
 
         {offersReset(setting, audience, deletesRoomHistory) && (
@@ -1890,6 +1915,7 @@ function renderField(
   onLocalChange: (value: unknown) => void,
   onBlur: () => Promise<void>,
   revealFn?: (key: string) => Promise<string | null>,
+  errorId?: string,
 ) {
   const disabled = !setting.writable;
 
@@ -1969,6 +1995,10 @@ function renderField(
           onChange={onLocalChange}
           onBlur={onBlur}
           disabled={disabled}
+          placeholder={
+            setting.key === PAYMENT_TEXT_KEY ? BUILT_IN_PAYMENT_TEXT : undefined
+          }
+          errorId={errorId}
         />
       );
     case "password":

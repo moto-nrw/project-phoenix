@@ -69,8 +69,7 @@ func (s *Store) InsertMailing(ctx context.Context, organizationID, runID, accoun
 	return row.mailing(), nil
 }
 
-// RunLetterFiles reads the stored letters of a run in the order of their
-// invoice numbers.
+// RunLetterFiles reads the stored letters of a run in document issuance order.
 func (s *Store) RunLetterFiles(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingDocumentLetter, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -80,7 +79,7 @@ func (s *Store) RunLetterFiles(ctx context.Context, organizationID, runID int64)
 	if err := db.NewSelect().Model(&rows).
 		Join("JOIN parent_billing.documents AS document ON document.organization_id = document_letter_row.organization_id AND document.id = document_letter_row.document_id").
 		Where("document_letter_row.organization_id = ?", organizationID).Where("document_letter_row.run_id = ?", runID).
-		OrderExpr("document.number_sequence, document.id").Scan(ctx); err != nil {
+		OrderExpr("document.id").Scan(ctx); err != nil {
 		return nil, err
 	}
 	files := make([]parentbilling.BillingDocumentLetter, len(rows))

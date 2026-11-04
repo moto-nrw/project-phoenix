@@ -1,7 +1,7 @@
 // Router-level tests for the health information of the holiday
 // registrations (#4722): sealed at rest, opened in the Träger portal only
 // with the right "Gesundheitsangaben sehen", shared with the hosting OGS only
-// for registrations under the consent texts of version 2, until the last day
+// for registrations under the consent texts of version 2 or later, until the last day
 // of the week, carried into the health field of a holiday guest until its
 // contacts go, shown beside the health field of the school's own child, and
 // every read in the access log.
@@ -43,12 +43,13 @@ type healthParticipantBody struct {
 }
 
 // registerWithHealth submits Mila (a child of the OGS Nord) and Finn (a
-// holiday guest) Sonne for week 1 under the consent texts of version 2, with
+// holiday guest) Sonne for week 1 under the current consent texts (version 3,
+// #5626), which share the health information like version 2, with
 // health information and an answer to the template's shared health question.
 func registerWithHealth(t *testing.T, f holidayGuestFixture) int64 {
 	t.Helper()
 	body := siblingsRegistration(f.offer, "familie.sonne@example.org")
-	body["consent_version"] = enrollment.HolidayConsentVersionHostHealth
+	body["consent_version"] = enrollment.HolidayConsentVersionCurrent
 	body["children"] = []map[string]any{
 		{
 			"first_name": "Mila", "last_name": "Sonne", "birth_date": "2018-04-02", "home_school_id": f.offer.Schools[0].ID,

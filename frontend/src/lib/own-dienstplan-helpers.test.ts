@@ -5,6 +5,8 @@ import type { DayProjection } from "~/lib/time-tracking-helpers";
 
 import {
   calendarWeekDays,
+  earliestShiftDate,
+  lookaheadRange,
   plannedWeekMinutes,
   shiftTypesFromShifts,
   targetWeekMinutes,
@@ -140,5 +142,50 @@ describe("shiftTypesFromShifts", () => {
       ["22", "Frühdienst", "#83CD2D"],
       ["21", "Spätdienst", "#5080D8"],
     ]);
+  });
+});
+
+describe("lookaheadRange", () => {
+  it("covers the eight whole weeks after the shown week", () => {
+    expect(lookaheadRange("2026-09-13")).toEqual({
+      from: "2026-09-14",
+      to: "2026-11-08",
+    });
+  });
+
+  it("stays within the 62 days the server allows per request", () => {
+    const { from, to } = lookaheadRange("2026-12-27");
+    const days =
+      (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
+      86_400_000;
+    expect(from).toBe("2026-12-28");
+    expect(days).toBeLessThanOrEqual(62);
+  });
+});
+
+describe("earliestShiftDate", () => {
+  it("finds the first day with a shift regardless of order", () => {
+    expect(
+      earliestShiftDate([
+        shift({ id: "1", date: "2026-10-05" }),
+        shift({ id: "2", date: "2026-09-22" }),
+      ]),
+    ).toBe("2026-09-22");
+  });
+
+  it("skips cancelled shifts", () => {
+    expect(
+      earliestShiftDate([
+        shift({ id: "1", date: "2026-09-15", cancelled: true }),
+        shift({ id: "2", date: "2026-10-01" }),
+      ]),
+    ).toBe("2026-10-01");
+  });
+
+  it("is null without a shift that takes place", () => {
+    expect(earliestShiftDate([])).toBeNull();
+    expect(
+      earliestShiftDate([shift({ date: "2026-09-15", cancelled: true })]),
+    ).toBeNull();
   });
 });

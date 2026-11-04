@@ -49,10 +49,18 @@ export function traegerHolidayFormTopic(): HelpTopic {
         ],
       },
       {
+        title: "Anschrift abfragen",
+        steps: [
+          "Wählen Sie unter `Anschrift`, ob Eltern Straße, PLZ und Ort angeben: `Nicht abfragen`, `Freiwillig` oder `Pflicht`.",
+          "Wählen Sie `Als neue Version speichern`.",
+          "Rechnung und Bestätigungsschreiben übernehmen die Anschrift der Familie.",
+        ],
+      },
+      {
         title: "Standardvorlage einfügen",
         steps: [
           "Wählen Sie `Standardvorlage einfügen`.",
-          "moto fügt die Fragen der Vorlage ein, die im Formular fehlen. Zum Beispiel Lebensmittelunverträglichkeiten, Tetanus-Impfschutz und Ausflüge.",
+          "moto fügt die Fragen der Vorlage ein, die im Formular fehlen. Zum Beispiel Lebensmittelunverträglichkeiten, Tetanus-Impfschutz, Ausflüge und Klasse.",
           "Ändern oder entfernen Sie Fragen, die Sie nicht brauchen.",
           "Wählen Sie `Als neue Version speichern`.",
         ],
@@ -72,6 +80,7 @@ export function traegerHolidayFormTopic(): HelpTopic {
       "Neue Anmeldungen nutzen das gespeicherte Formular. Rechts sehen Sie, wie Eltern es sehen.",
     notes: [
       "Name, Geburtsdatum, Schule, Wochen, Allergien, Medikamente, Kontakte und Zustimmungen fragt die Anmeldung immer ab.",
+      "Ein neuer Ferienzeitraum fragt keine Anschrift ab. Ältere Versionen fragen auch keine ab. Bei `Freiwillig` geben Eltern alle drei Angaben an oder keine.",
       "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig. Alle Fragen sind für die ausrichtende OGS freigegeben. Antworten auf Gesundheitsfragen sieht sie nur, wenn die Eltern zustimmen.",
       "Schon verwendete PDFs bleiben bei der alten Anmeldung lesbar. Neue Anmeldungen sehen die neue Version.",
       "Jedes Speichern legt eine neue Version an. Schon abgeschickte Anmeldungen behalten ihre Version und ihre Fragen.",

@@ -252,16 +252,16 @@ Desktop-Wert unvariiert als Grundwert (`p-5`, nicht `sm:p-5`) — sonst
 stehen zwei Varianten-Regeln für dieselbe Eigenschaft nebeneinander und
 welche gewinnt, hängt an der internen Sortierung von Tailwind.
 
-| Mass                                 | Desktop            | `compact`       | Telefon  |
-| ------------------------------------ | ------------------ | --------------- | -------- |
-| Seitenrand der Hülle                 | 32 px              | 20 px           | 16 px    |
-| Kopfkarte, `SectionCard`, `InfoCard` | 20/24 px           | 16 px           | 16 px    |
-| `StatCard`, `TileCard`               | 20 px              | 16 px           | 12/16 px |
-| Titel (`prominent`)                  | 28 px              | 24 px           | 24 px    |
-| Titel (Standard)                     | 24 px              | 20 px           | 20 px    |
-| Rumpf-Rhythmus                       | 24 px              | 16 px           | 12 px    |
-| Reiterband                           | 12 px, `text-base` | 8 px, `text-sm` | Pillen   |
-| Tabellenzelle senkrecht              | 12 px              | 8 px            | 12 px    |
+| Mass                     | Desktop            | `compact`       | Telefon  |
+| ------------------------ | ------------------ | --------------- | -------- |
+| Seitenrand der Hülle     | 32 px              | 20 px           | 16 px    |
+| Kopfkarte, `SectionCard` | 20/24 px           | 16 px           | 16 px    |
+| `StatCard`, `TileCard`   | 20 px              | 16 px           | 12/16 px |
+| Titel (`prominent`)      | 28 px              | 24 px           | 24 px    |
+| Titel (Standard)         | 24 px              | 20 px           | 20 px    |
+| Rumpf-Rhythmus           | 24 px              | 16 px           | 12 px    |
+| Reiterband               | 12 px, `text-base` | 8 px, `text-sm` | Pillen   |
+| Tabellenzelle senkrecht  | 12 px              | 8 px            | 12 px    |
 
 Nicht in der Stufe: die Bedienhöhe. 768–1023 px ist genau der Tablet-
 Bereich, und ein 36-px-Knopf unterschreitet dort das Touch-Mass. Regel 17

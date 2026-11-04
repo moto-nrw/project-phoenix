@@ -576,6 +576,22 @@ describe("Träger upload proxy (#4653)", () => {
       code: "traeger.logo_too_large",
     });
 
+    const proof = await proxyUpload("/traeger/proofs", 10, {
+      method: "POST",
+      tooLargeCode: "enrollment.upload_invalid",
+      tooLargeDetails: { max_mb: 10 },
+    })(
+      upload(new Uint8Array(70 * 1024), {
+        "content-type": "multipart/form-data; boundary=x",
+      }),
+      context,
+    );
+    expect(proof.status).toBe(400);
+    expect(await proof.json()).toMatchObject({
+      code: "enrollment.upload_invalid",
+      details: { max_mb: 10 },
+    });
+
     const notMultipart = await proxyUpload("/traeger/master-data/logo", 1024)(
       upload("{}", { "content-type": "application/json" }),
       context,

@@ -1,5 +1,6 @@
 "use client";
 
+import { Z_INDEX } from "./overlay-styles";
 import { Check, ChevronDown, Search } from "lucide-react";
 import {
   useCallback,
@@ -57,10 +58,10 @@ interface ListboxDropdownProps<K extends string> {
   /** Horizontal anchor of the portaled menu relative to the trigger. */
   readonly menuAlign?: "start" | "end";
   /**
-   * Stacking level of the portaled menu. The default clears modal overlays
-   * (z-[9999]); a caller that itself portals higher — the kit calendar sits at
-   * z-[10001] — has to lift the menu above its own surface, or the menu opens
-   * behind it.
+   * Stacking level of the portaled menu. The default (`Z_INDEX.menu`) clears
+   * modal overlays; a caller that itself portals higher — the kit calendar
+   * sits at `Z_INDEX.popover` — has to lift the menu above its own surface,
+   * or the menu opens behind it.
    */
   readonly menuZIndex?: number;
   readonly optionClassName?: string;
@@ -221,7 +222,7 @@ export function ListboxDropdown<K extends string>({
   className = "",
   menuClassName = "",
   menuAlign = "start",
-  menuZIndex = 10000,
+  menuZIndex = Z_INDEX.menu,
   optionClassName = "",
   activeOptionClassName = "",
   disabledOptionClassName = "",
@@ -350,8 +351,8 @@ export function ListboxDropdown<K extends string>({
     );
     const style: CSSProperties = {
       position: "fixed",
-      // Above the modal/dialog overlays (z-[9999]) so menus opened from
-      // dialog forms stack on top of the dialog instead of behind it.
+      // Above the modal/dialog overlays (`Z_LAYER.modal`) so menus opened
+      // from dialog forms stack on top of the dialog instead of behind it.
       zIndex: menuZIndex,
       // Vaul/Radix dialogs run in modal mode set `body { pointer-events: none }`
       // and only re-enable it on the dialog content. Because this menu is

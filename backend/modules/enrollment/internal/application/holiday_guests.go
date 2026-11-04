@@ -50,27 +50,32 @@ type HolidayGuestStore interface {
 	// school sees it only until the last day of the week.
 	PurgeHealth(ctx context.Context, schoolID int64, today calendar.Date) ([]int64, error)
 	ReadGuest(ctx context.Context, schoolID, studentID int64, lastReadableEnd calendar.Date) (enrollment.HolidayGuest, bool, error)
+	// ListCurrentGuests lists the child and the school fields of every
+	// guest whose access has not ended early and whose week covers today.
+	ListCurrentGuests(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayGuest, error)
 }
 
 // HolidayGuests serves enrollment.HolidayGuests.
 type HolidayGuests struct {
-	store  HolidayGuestStore
-	people enrollment.HolidayGuestPeople
-	care   enrollment.HolidayGuestCareDays
-	health enrollment.HolidayHealthCipher
-	log    enrollment.HolidayGuestAccessLog
-	today  func() calendar.Date
-	logger *slog.Logger
+	store   HolidayGuestStore
+	people  enrollment.HolidayGuestPeople
+	schools enrollment.HolidayHostSchoolNames
+	care    enrollment.HolidayGuestCareDays
+	health  enrollment.HolidayHealthCipher
+	log     enrollment.HolidayGuestAccessLog
+	today   func() calendar.Date
+	logger  *slog.Logger
 }
 
 var _ enrollment.HolidayGuests = (*HolidayGuests)(nil)
 
-// NewHolidayGuests builds the holiday guests; health opens the health
-// information of the registrations and seals the guest copies (#4722). A
-// nil today uses the Berlin calendar day.
-func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeople, care enrollment.HolidayGuestCareDays, health enrollment.HolidayHealthCipher, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) *HolidayGuests {
-	if store == nil || people == nil || care == nil || log == nil {
-		panic("enrollment: the holiday guest store, People Directory, Care Plan and the access log are required")
+// NewHolidayGuests builds the holiday guests; schools names the home
+// schools the copies carry (#5630); health opens the health information of
+// the registrations and seals the guest copies (#4722). A nil today uses the
+// Berlin calendar day.
+func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeople, schools enrollment.HolidayHostSchoolNames, care enrollment.HolidayGuestCareDays, health enrollment.HolidayHealthCipher, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) *HolidayGuests {
+	if store == nil || people == nil || schools == nil || care == nil || log == nil {
+		panic("enrollment: the holiday guest store, People Directory, the school names, Care Plan and the access log are required")
 	}
 	if health == nil {
 		panic(errHolidayHealthCipherRequired)
@@ -78,7 +83,7 @@ func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeo
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayGuests{store: store, people: people, care: care, health: health, log: log, today: today,
+	return &HolidayGuests{store: store, people: people, schools: schools, care: care, health: health, log: log, today: today,
 		logger: slog.Default().With("service", "holiday-guests")}
 }
 
@@ -251,7 +256,30 @@ func (h *HolidayGuests) readWeekGuests(ctx context.Context, schoolID int64, grou
 		}
 		sources[i].Sealed = nil
 	}
+	if err := h.nameHomeSchools(ctx, schoolID, sources); err != nil {
+		return nil, nil, err
+	}
 	return existing, sources, nil
+}
+
+// nameHomeSchools looks up the names of the home schools once per week and
+// only when a guest has one (#5630). A school the Träger no longer has
+// stays without a name, so the hint says „Feriengast“.
+func (h *HolidayGuests) nameHomeSchools(ctx context.Context, schoolID int64, sources []enrollment.HolidayGuestSource) error {
+	var names map[int64]string
+	for i := range sources {
+		if sources[i].HomeSchoolID == nil {
+			continue
+		}
+		if names == nil {
+			var err error
+			if names, err = h.schools.HolidayHostSchoolNames(ctx, schoolID); err != nil {
+				return fmt.Errorf("name the home schools of the holiday guests: %w", err)
+			}
+		}
+		sources[i].HomeSchoolName = names[*sources[i].HomeSchoolID]
+	}
+	return nil
 }
 
 // reconcile brings the guests of one week in line with its confirmed
@@ -486,7 +514,7 @@ func sameGuestChild(a, b enrollment.HolidayGuestChild) bool {
 
 func guestRecord(guest enrollment.HolidayGuest, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek) enrollment.HolidayGuest {
 	guest.StartsOn, guest.EndsOn = week.StartsOn, week.EndsOn
-	guest.HomeSchoolID, guest.GuestSchoolName = source.HomeSchoolID, source.GuestSchoolName
+	guest.HomeSchoolID, guest.HomeSchoolName, guest.GuestSchoolName = source.HomeSchoolID, source.HomeSchoolName, source.GuestSchoolName
 	guest.TimeModelName, guest.TimeModelStarts, guest.TimeModelEnds = source.TimeModelName, source.TimeModelStarts, source.TimeModelEnds
 	guest.Emergency, guest.Pickup, guest.Answers = source.Emergency, source.Pickup, source.Answers
 	return guest
@@ -531,7 +559,8 @@ func holidayGuestSheet(guest enrollment.HolidayGuest, today calendar.Date) enrol
 		StudentID: guest.StudentID, WeekID: guest.WeekID, StartsOn: guest.StartsOn, EndsOn: guest.EndsOn,
 		TimeModelName: guest.TimeModelName, TimeModelStarts: guest.TimeModelStarts, TimeModelEnds: guest.TimeModelEnds,
 		HomeSchoolID: guest.HomeSchoolID, GuestSchoolName: guest.GuestSchoolName,
-		Emergency: guest.Emergency, Pickup: guest.Pickup, Answers: guest.Answers, ReadOnly: guest.EndsOn.Before(today),
+		SchoolName: enrollment.HolidayGuestSchoolName(guest.HomeSchoolID, guest.HomeSchoolName, guest.GuestSchoolName),
+		Emergency:  guest.Emergency, Pickup: guest.Pickup, Answers: guest.Answers, ReadOnly: guest.EndsOn.Before(today),
 	}
 	if sheet.Emergency == nil {
 		sheet.Emergency = []enrollment.HolidayGuestContact{}
@@ -543,4 +572,26 @@ func holidayGuestSheet(guest enrollment.HolidayGuest, today calendar.Date) enrol
 		sheet.Answers = []enrollment.HolidayHostAnswer{}
 	}
 	return sheet
+}
+
+// HolidayGuestBadges lists the hint of every guest the school cares for
+// today (#5630). It reads the name the copy carries and never the Träger's
+// schools; a guest before or after its week has no hint because it is in no
+// list then.
+func (h *HolidayGuests) HolidayGuestBadges(ctx context.Context, schoolID int64) ([]enrollment.HolidayGuestBadge, error) {
+	if schoolID <= 0 {
+		return nil, errors.New("enrollment: the hosting school is required")
+	}
+	current, err := h.store.ListCurrentGuests(ctx, schoolID, h.today())
+	if err != nil {
+		return nil, err
+	}
+	badges := make([]enrollment.HolidayGuestBadge, len(current))
+	for i, guest := range current {
+		badges[i] = enrollment.HolidayGuestBadge{
+			StudentID:  guest.StudentID,
+			SchoolName: enrollment.HolidayGuestSchoolName(guest.HomeSchoolID, guest.HomeSchoolName, guest.GuestSchoolName),
+		}
+	}
+	return badges, nil
 }

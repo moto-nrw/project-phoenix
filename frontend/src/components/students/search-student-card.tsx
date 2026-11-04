@@ -194,6 +194,8 @@ export interface SearchStudentCardProps {
   readonly trackingData: TrackingIndicatorsResponse | undefined;
   readonly onOpen: (student: Student) => void;
   readonly onCheckinClick: (student: Student) => void;
+  /** Ersetzt die Klasse, etwa durch den Hinweis „Gast aus …“ (#5630). */
+  readonly classLabel?: string;
 }
 
 function SearchStudentCardImpl({
@@ -209,6 +211,7 @@ function SearchStudentCardImpl({
   trackingData,
   onOpen,
   onCheckinClick,
+  classLabel,
 }: Readonly<SearchStudentCardProps>) {
   const checkinState = deriveCheckinState(student.current_location);
   const showTracking =
@@ -245,7 +248,7 @@ function SearchStudentCardImpl({
       extraContent={
         <>
           <StudentInfoRow icon={<SchoolClassIcon />}>
-            {student.school_class || "–"}
+            {classLabel ?? (student.school_class || "–")}
           </StudentInfoRow>
           <StudentInfoRow icon={<GroupIcon />}>
             Gruppe: {student.group_name || "–"}

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // NewMailRenderers returns Enrollment's mail renderers. Every field a
@@ -72,8 +73,28 @@ func renderHolidayRegistrationReceived(_ context.Context, kind string, raw json.
 			"PeriodName":   payload.PeriodName,
 			"Binding":      payload.Binding,
 			"Children":     children,
+			"Declaration":  holidayDeclarationContent(payload.Declaration),
 		},
 	}, nil
+}
+
+// holidayDeclarationContent is the section "Ihre Erklärung" of the receipt
+// (#5626): the typed name, the Berlin time it was given, the version of the
+// texts and every declaration in its words. A mail enqueued before has none.
+func holidayDeclarationContent(declaration *enrollment.HolidayRegistrationMailDeclaration) map[string]any {
+	if declaration == nil {
+		return nil
+	}
+	statements := make([]map[string]any, 0, len(declaration.Statements))
+	for _, statement := range declaration.Statements {
+		statements = append(statements, map[string]any{"Title": statement.Title, "Text": statement.Text, "Detail": statement.Detail})
+	}
+	return map[string]any{
+		"Name":       declaration.Name,
+		"GivenAt":    declaration.GivenAt.In(calendar.Berlin).Format("02.01.2006 um 15:04 Uhr"),
+		"Version":    declaration.ConsentVersion,
+		"Statements": statements,
+	}
 }
 
 // payloadRenderer renders one mail kind from its decoded payload.

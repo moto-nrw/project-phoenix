@@ -1,5 +1,6 @@
 "use client";
 
+import { Z_INDEX } from "./overlay-styles";
 import {
   type CSSProperties,
   type ReactNode,
@@ -95,7 +96,7 @@ export function AnchoredPopover({
 
     const style: CSSProperties = {
       position: scope ? "absolute" : "fixed",
-      zIndex: 10000,
+      zIndex: Z_INDEX.menu,
       left: coordinateLeft,
       width,
       maxHeight: Math.min(DEFAULT_MAX_HEIGHT, availableHeight),
@@ -196,7 +197,7 @@ export function AnchoredPopover({
       >
         {children({
           close: () => close(),
-          overflowMenuPortal: { ownerId: panelId, zIndex: 10001 },
+          overflowMenuPortal: { ownerId: panelId, zIndex: Z_INDEX.popover },
         })}
       </div>
     ) : null;

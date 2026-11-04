@@ -4,6 +4,8 @@
   "emptyTitle": "Ще немає документів",
   "emptyDescription": "Коли організація надішле вам лист, ви знайдете його тут. Ви також отримаєте його електронною поштою.",
   "confirmationLetter": "Підтвердження: {period}",
+  "cancellationLetter": "Анулювання: {period}",
+  "creditLetter": "Кредит-нота: {period}",
   "sender": "Від: {traeger}",
   "children": "Для",
   "amount": "Сума",

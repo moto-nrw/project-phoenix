@@ -99,3 +99,38 @@ Sie führt keinen neuen Owner und keine neue Stelle der Träger-Transaktion ein.
   Enrollment ihn über einen Port von Identity & Access lesen darf; das folgt
   mit eigener Entscheidung.
 - Weitere Listen nutzen `lists.FormatCSV` ohne eigenen CSV-Code.
+
+## Nachtrag 2026-11-03: Angaben ändern (#5629)
+
+Zu Punkt 6: Das Träger-Büro ändert die Angaben einer Anmeldung
+(`PUT .../registrations/{registrationId}/details`, Recht „Anmeldung
+verwalten“): Elternteil mit Anschrift (nach dem Baustein der Formularversion,
+#5625), zweite sorgeberechtigte Person, Vor- und Nachname,
+Geburtsdatum und Schule eines Kindes, Notfallkontakte, Abholpersonen und
+die Antworten ohne Gesundheitsangabe. `edit` gehört zu den Änderungen. Der
+Eintrag nennt die geänderten Felder als Feldpfade („guardian.phone“,
+„children.0.last_name“), ohne alte und neue Werte. Eine Anfrage ohne
+Änderung schreibt keinen Eintrag.
+
+- Die Änderung läuft über dieselbe Sperre wie die übrigen Änderungen
+  (Punkt 4): zwei Änderungen einer Anmeldung laufen nacheinander. Jeder
+  Bereich wird nur geändert, wenn die Anfrage ihn nennt; so überschreibt
+  eine Änderung der Kontakte keine gleichzeitige Änderung der Eltern.
+- Sie prüft mit den Funktionen des öffentlichen Formulars, gegen die
+  Formularversion der Anmeldung. Die Prüfung der Buchungen ist dafür aus
+  der Prüfung der Kinder herausgelöst.
+- Eine stornierte Anmeldung ändert sich nicht (Punkt 2). Eingegangene,
+  bestätigte und eingefrorene Anmeldungen lassen sich ändern: keine dieser
+  Angaben ändert den Ferienbeitrag (ADR 0115), Wochen und Zeitmodell ändert
+  weiter nur das Umbuchen.
+- Kinder, Buchungen, Leistungsbezug, Nachweise, Einwilligungen, die
+  Erklärung der Eltern (#5626) und Gesundheitsangaben ändern sich hier
+  nicht; die Debitorennummer ändert die Statuskarte (#5621). Eine Antwort auf eine Frage mit
+  Gesundheitsangabe lehnt die Route ab: sie liegt verschlüsselt und
+  bräuchte ein eigenes Schreibrecht.
+- Ausgestellte Schreiben behalten ihre eigene Kopie (ADR 0119 Punkt 7), auch
+  eine Rechnung ihre Anschrift.
+- Bedingungen, die an einer Frage mit Gesundheitsangabe hängen, wertet die
+  Änderung nicht aus: die Antwort bleibt. Ändern sich die allgemeinen
+  Antworten, werden die Antworten jedes Kindes neu bereinigt; entfernte
+  Antworten stehen im Eintrag.

@@ -233,6 +233,8 @@ jobs:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
       contents: read
+      # Only for the approval label step below.
+      pull-requests: read
     env:
       NEXT_PUBLIC_API_URL: "http://localhost:8080"
       SKIP_ENV_VALIDATION: "true"
@@ -251,6 +253,23 @@ jobs:
       AUTH_JWT_REFRESH_EXPIRY: "168h"
       METRICS_BEARER_TOKEN: "ci-bundle-ratchet-token"
     steps:
+      # Runs first, before any PR code, and is the only step with a token. The
+      # API, not the event payload, so "Re-run failed jobs" sees a label set
+      # after the first run.
+      - name: Read bundle growth approval label
+        id: bundle-approval
+        if: github.event_name == 'pull_request' && github.base_ref != 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if gh api "repos/$REPOSITORY/issues/$PR_NUMBER/labels" --jq '.[].name' | grep -qx 'bundle-growth-approved'; then
+            echo "approved=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "approved=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Keep the default synthetic merge for the regular integration build.
@@ -327,14 +346,17 @@ jobs:
         working-directory: frontend
         run: node scripts/perf/bundle-measurement.mjs --build-base
 
-      # Feature PRs enforce their own delta against a cold merge-base build.
-      # Release PRs into main and nightly enforce only absolute ceilings:
-      # release-cycle growth is not a feature PR regression. The regular merge
-      # build above still catches semantic integration failures before merging.
-      # Keep the regular build: experimental-analyze's cold compilation is not
-      # assumed to cover every Next.js build/type/route-validation contract.
+      # Feature PRs enforce their own delta against a cold merge-base build;
+      # the approval label turns it into a warning. Release PRs into main and
+      # nightly enforce only the few absolute ceilings: release-cycle growth is
+      # not a feature PR regression. The regular merge build above still
+      # catches semantic integration failures before merging. Keep the regular
+      # build: experimental-analyze's cold compilation is not assumed to cover
+      # every Next.js build/type/route-validation contract.
       - name: Bundle size ratchet
         working-directory: frontend
+        env:
+          BUNDLE_GROWTH_APPROVED: ${{ steps.bundle-approval.outputs.approved == 'true' }}
         run: pnpm run perf:bundle-ratchet
 
       - name: Upload measured bundle sizes

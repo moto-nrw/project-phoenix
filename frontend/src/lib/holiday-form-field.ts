@@ -32,11 +32,26 @@ export const HOLIDAY_FORM_FIELD_TYPES = [
   "select",
 ] as const satisfies readonly FormFieldType[];
 
+/**
+ * The building block „Anschrift“ of a version (#5625): whether the form asks
+ * for street, postal code and city of the parent who registers.
+ */
+export type HolidayAddressRequirement = "off" | "optional" | "required";
+
+/** Reads the wire value; anything unknown asks for no address. */
+export function holidayAddressRequirement(
+  value: string | null | undefined,
+): HolidayAddressRequirement {
+  return value === "optional" || value === "required" ? value : "off";
+}
+
 /** One version of the holiday form, as a registration uses it. */
 export interface HolidayFormVersion {
   readonly legalBlocks?: readonly FormLegalBlock[];
   readonly version: number;
   readonly fields: readonly HolidayFormField[];
+  /** Missing on versions before #5625: no address is asked. */
+  readonly addressRequirement?: HolidayAddressRequirement;
 }
 
 export type HolidayLegalBlockWire = Omit<FormLegalBlock, "attachments"> & {
