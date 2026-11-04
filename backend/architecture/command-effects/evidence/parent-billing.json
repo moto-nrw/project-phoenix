@@ -153,6 +153,14 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.HolidayChain",
+      "binding_digest": "afbd199f50918cb936fe614bfc350674",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.HolidayChain",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.PaymentText",
       "binding_digest": "83d624cc49d619b633bf32106f30e472",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.PaymentText",

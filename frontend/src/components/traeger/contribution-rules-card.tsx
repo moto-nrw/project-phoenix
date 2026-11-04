@@ -35,7 +35,7 @@ const KIND_TEXT: Record<
   sibling: {
     title: "Geschwister",
     description:
-      "Geschwister in derselben Ferienanmeldung zahlen weniger. Das Kind mit dem höchsten Preis zahlt voll.",
+      "Geschwister in derselben Ferienanmeldung zahlen weniger. Das erste Kind zahlt voll. Welches das ist, steht unter Einstellungen im Bereich Ferienbetreuung.",
     add: "Geschwisterregel hinzufügen",
     empty: "Keine Geschwisterregel. Alle Kinder zahlen den vollen Preis.",
   },

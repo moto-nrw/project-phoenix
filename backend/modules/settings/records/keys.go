@@ -787,3 +787,13 @@ const KeyParentBillingDebtorNumberOnConfirm = "parent_billing.debtor_number_on_c
 // {Zahlungsfrist}, {Rechnungsnummer} and {Debitorennummer}. Empty keeps the
 // built-in sentence. Only the Träger sets it (LevelTraeger).
 const KeyParentBillingPaymentText = "parent_billing.payment_text"
+
+// KeyParentBillingSiblingRank says which child of a holiday registration
+// counts as the first child (#5664): the one with the highest contribution
+// or the oldest. Only the Träger sets it (LevelTraeger).
+const KeyParentBillingSiblingRank = "parent_billing.sibling_rank"
+
+// KeyParentBillingCostTakeoverOrder says whether a cost bearer pays what is
+// left after the sibling discount or the full price (#5664). Only the Träger
+// sets it (LevelTraeger).
+const KeyParentBillingCostTakeoverOrder = "parent_billing.cost_takeover_order"
