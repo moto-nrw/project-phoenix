@@ -182,7 +182,7 @@ export function ContributionRuleModal({
 
   const set = (patch: Partial<Draft>) =>
     setDraft((current) => (current ? { ...current, ...patch } : current));
-  const title = `${sibling ? "Geschwisterregel" : "Befreiung bei Leistungsbezug"} ${edit?.kind === "change" ? "ändern" : "hinzufügen"}`;
+  const title = `${sibling ? "Geschwisterregel" : "Befreiungsregel"} ${edit?.kind === "change" ? "ändern" : "hinzufügen"}`;
 
   return (
     <FormModal
@@ -212,6 +212,14 @@ export function ContributionRuleModal({
             void submit();
           }}
         >
+          {sibling ? null : (
+            // The rule is the Träger's, not a family's (#5690): it applies
+            // to a registration once the office picks the exemption there.
+            <p className="text-sm text-gray-600">
+              Die Regel gilt für alle Familien mit Leistungsbezug. Welche
+              Familie befreit ist, wählen Sie beim Bestätigen ihrer Anmeldung.
+            </p>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <ISODateInput
               id="valid_from"
@@ -283,16 +291,25 @@ export function ContributionRuleModal({
               </div>
             </>
           ) : (
-            <Textarea
-              id="contribution-rule-note"
-              name="note"
-              label="Vermerk auf dem Beitrag"
-              placeholder="Die Familie bezieht Leistungen für Bildung und Teilhabe."
-              value={draft.note}
-              maxLength={300}
-              error={formErrors.fieldError("note") ?? undefined}
-              onChange={(event) => set({ note: event.target.value })}
-            />
+            <div className="space-y-1">
+              <Textarea
+                id="contribution-rule-note"
+                name="note"
+                label="Vermerk auf dem Beitrag"
+                placeholder="Die Familie bezieht Leistungen für Bildung und Teilhabe."
+                value={draft.note}
+                maxLength={300}
+                aria-describedby="contribution-rule-note-hint"
+                error={formErrors.fieldError("note") ?? undefined}
+                onChange={(event) => set({ note: event.target.value })}
+              />
+              <p
+                id="contribution-rule-note-hint"
+                className="text-sm text-gray-600"
+              >
+                Der Vermerk steht beim Beitrag jeder befreiten Familie.
+              </p>
+            </div>
           )}
         </form>
       ) : null}

@@ -100,6 +100,9 @@ describe("HolidayRegistrationStatusCard", () => {
     const exemptionChoice = screen.getByRole("radio", {
       name: /Von der Zahlung befreien \(Leistungsbezug\)/,
     });
+    expect(
+      screen.getByText("Die Befreiungsregel gilt. Niemand bezahlt den Betrag."),
+    ).toBeInTheDocument();
     expect(exemptionChoice).not.toBeChecked();
     fireEvent.click(exemptionChoice);
     expect(onExemptionChange).toHaveBeenCalledWith(true);
@@ -219,7 +222,7 @@ describe("HolidayRegistrationStatusCard", () => {
 
     expect(
       screen.getByText(
-        "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung braucht es eine Regel unter „Ermäßigungen“.",
+        "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung legen Sie unter „Ermäßigungen“ eine Befreiungsregel an.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
