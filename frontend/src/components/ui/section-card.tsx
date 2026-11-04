@@ -80,6 +80,7 @@ function SectionCardConceptIcon({
       icon={
         <MotoConceptIcon
           concept={concept}
+          colorMode="class"
           className={CONCEPT_ICON_COLORS[concept.tone]}
         />
       }
