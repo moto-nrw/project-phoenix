@@ -1,6 +1,6 @@
 //go:build testhooks
 
-package api_test
+package absencetypes_test
 
 import (
 	"encoding/json"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
@@ -27,7 +26,7 @@ func TestAbsenceTypesListQueryBudgetIsFlat(t *testing.T) {
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(account.ID)
 	claims.TenantID = testpkg.Tenant(t)
-	claims.Permissions = []string{permissions.TimeTrackingOwn}
+	claims.Permissions = []string{"time_tracking:own"}
 	claims.IsAdmin = false
 	token := testutil.MintTestJWT(t, claims)
 	foreign := testpkg.NewTenantScope(t, db)
