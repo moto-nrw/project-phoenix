@@ -19,6 +19,10 @@ vi.mock("~/lib/posthog-client", () => ({
 
 type Consent = typeof import("./analytics-consent");
 
+// The consent store changes no DOM; recheck every 5 ms instead of on
+// vi.waitFor's 50-ms interval. Timeout and assertions stay the same.
+const waitFor = <T>(callback: () => T) => vi.waitFor(callback, { interval: 5 });
+
 function answer(granted: boolean | null, status = 200): Response {
   return new Response(
     status === 200
@@ -88,7 +92,7 @@ describe("analytics consent", () => {
       );
 
       reply.resolve(answer(granted));
-      await vi.waitFor(() => expect(published()).toEqual([false, consent]));
+      await waitFor(() => expect(published()).toEqual([false, consent]));
     },
   );
 
@@ -114,7 +118,7 @@ describe("analytics consent", () => {
     const { startAnalyticsConsent, loadAnalyticsConsent } = await load();
 
     startAnalyticsConsent("school", "9");
-    await vi.waitFor(() => expect(published()).toEqual([false, false]));
+    await waitFor(() => expect(published()).toEqual([false, false]));
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/school/analytics-consent",
       expect.anything(),
@@ -129,7 +133,7 @@ describe("analytics consent", () => {
     fetchMock.mockResolvedValueOnce(answer(true));
     const { startAnalyticsConsent, decideAnalyticsConsent } = await load();
     startAnalyticsConsent("tenant", "7");
-    await vi.waitFor(() => expect(published()).toEqual([false, true]));
+    await waitFor(() => expect(published()).toEqual([false, true]));
 
     const refusal = deferred<Response>();
     fetchMock.mockReturnValueOnce(refusal.promise);
@@ -159,7 +163,7 @@ describe("analytics consent", () => {
     fetchMock.mockResolvedValueOnce(answer(null));
     const { startAnalyticsConsent, decideAnalyticsConsent } = await load();
     startAnalyticsConsent("tenant", "7");
-    await vi.waitFor(() => expect(published()).toEqual([false, false]));
+    await waitFor(() => expect(published()).toEqual([false, false]));
 
     fetchMock.mockResolvedValueOnce(answer(null, 500));
     await expect(decideAnalyticsConsent(true)).rejects.toMatchObject({
@@ -186,7 +190,7 @@ describe("analytics consent", () => {
     fetchMock.mockResolvedValueOnce(answer(true));
     const { startAnalyticsConsent, stopAnalyticsConsent } = await load();
     startAnalyticsConsent("tenant", "7");
-    await vi.waitFor(() => expect(published()).toEqual([false, true]));
+    await waitFor(() => expect(published()).toEqual([false, true]));
 
     // A cleared analytics context of the same session gets the answer back.
     startAnalyticsConsent("tenant", "7");
@@ -204,7 +208,7 @@ describe("analytics consent", () => {
     fetchMock.mockResolvedValueOnce(answer(true));
     const { startAnalyticsConsent, stopAnalyticsConsent } = await load();
     startAnalyticsConsent("tenant", "7");
-    await vi.waitFor(() => expect(published()).toEqual([false, true]));
+    await waitFor(() => expect(published()).toEqual([false, true]));
 
     // The other tab revoked; this one is hidden, so it does not ask yet.
     const visibility = vi.spyOn(document, "visibilityState", "get");
@@ -215,12 +219,12 @@ describe("analytics consent", () => {
     fetchMock.mockResolvedValueOnce(answer(false));
     visibility.mockReturnValue("visible");
     document.dispatchEvent(new Event("visibilitychange"));
-    await vi.waitFor(() => expect(published()).toEqual([false, true, false]));
+    await waitFor(() => expect(published()).toEqual([false, true, false]));
 
     // A failed re-read denies as well.
     fetchMock.mockResolvedValueOnce(answer(null, 500));
     document.dispatchEvent(new Event("visibilitychange"));
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
     expect(published().at(-1)).toBe(false);
 
     // Logout stops the re-reads.
@@ -234,17 +238,17 @@ describe("analytics consent", () => {
     fetchMock.mockResolvedValueOnce(answer(null, 500));
     const { startAnalyticsConsent } = await load();
     startAnalyticsConsent("tenant", "7");
-    await vi.waitFor(() => expect(published()).toEqual([false, false]));
+    await waitFor(() => expect(published()).toEqual([false, false]));
 
     // Still failing on the remount: collection stays off.
     fetchMock.mockResolvedValueOnce(answer(null, 500));
     startAnalyticsConsent("tenant", "7");
-    await vi.waitFor(() => expect(published()).toEqual([false, false, false]));
+    await waitFor(() => expect(published()).toEqual([false, false, false]));
 
     fetchMock.mockResolvedValueOnce(answer(true));
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
     document.dispatchEvent(new Event("visibilitychange"));
-    await vi.waitFor(() => expect(published().at(-1)).toBe(true));
+    await waitFor(() => expect(published().at(-1)).toBe(true));
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -252,12 +256,12 @@ describe("analytics consent", () => {
     fetchMock.mockResolvedValueOnce(answer(true));
     const { startAnalyticsConsent } = await load();
     startAnalyticsConsent("tenant", "7");
-    await vi.waitFor(() => expect(published()).toEqual([false, true]));
+    await waitFor(() => expect(published()).toEqual([false, true]));
 
     fetchMock.mockResolvedValueOnce(answer(null, 500));
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
     document.dispatchEvent(new Event("visibilitychange"));
-    await vi.waitFor(() => expect(published()).toEqual([false, true, false]));
+    await waitFor(() => expect(published()).toEqual([false, true, false]));
 
     // A remount of the same session must not restore the stale answer.
     startAnalyticsConsent("tenant", "7");
@@ -265,14 +269,14 @@ describe("analytics consent", () => {
 
     fetchMock.mockResolvedValueOnce(answer(true));
     document.dispatchEvent(new Event("visibilitychange"));
-    await vi.waitFor(() => expect(published().at(-1)).toBe(true));
+    await waitFor(() => expect(published().at(-1)).toBe(true));
   });
 
   it("keeps a revocation that could not be saved in force on this page", async () => {
     fetchMock.mockResolvedValueOnce(answer(true));
     const { startAnalyticsConsent, decideAnalyticsConsent } = await load();
     startAnalyticsConsent("tenant", "7");
-    await vi.waitFor(() => expect(published()).toEqual([false, true]));
+    await waitFor(() => expect(published()).toEqual([false, true]));
 
     fetchMock.mockResolvedValueOnce(answer(null, 500));
     await expect(decideAnalyticsConsent(false)).rejects.toMatchObject({
@@ -287,7 +291,7 @@ describe("analytics consent", () => {
     fetchMock.mockResolvedValueOnce(answer(true));
     vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
     document.dispatchEvent(new Event("visibilitychange"));
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
     await new Promise((done) => setTimeout(done, 0));
     expect(published().at(-1)).toBe(false);
 
