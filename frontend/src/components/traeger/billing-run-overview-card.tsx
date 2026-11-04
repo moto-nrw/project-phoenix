@@ -8,8 +8,12 @@
 // im Seitenpanel, Korrektur und Schreiben im Menü der Zeile. Nach der
 // Freigabe stehen dort auch Storno und Gutschrift (#4690); beide sind eigene
 // Zeilen mit eigener Nummer, Minusbetrag und Bezug auf die Rechnung.
+// Sobald die Schreiben erstellt sind, zeigt ein Klick auf eine Zeile ihr
+// Schreiben als PDF (#5692): ab xl rechts neben der Liste, darunter an ihrer
+// Stelle mit dem Weg zurück zur Liste.
 
-import { useState } from "react";
+import { FileText } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -34,6 +38,7 @@ import {
   BillingDocumentBreakdown,
   recipientName,
 } from "./billing-document-card";
+import { BillingLetterPreview } from "./billing-letter-preview";
 import {
   BILLING_DOCUMENT_KIND_LABELS,
   billingReferenceText,
@@ -75,6 +80,33 @@ function leftForChild(
   return left;
 }
 
+function rechnungenDescription(released: boolean, canPreview: boolean) {
+  if (!released) {
+    return "Je Familie eine Rechnung. Die Aufschlüsselung je Kind steht im Menü der Zeile.";
+  }
+  const overview =
+    "Die Übersicht für die Kämmerei enthält jede Position, die Summe je Rechnung und die Gesamtsumme. Storno und Gutschrift stehen als eigene Zeilen mit Minusbetrag.";
+  return canPreview
+    ? `${overview} Wählen Sie eine Zeile, um ihr Schreiben als PDF zu sehen.`
+    : overview;
+}
+
+/** The empty letter frame beside the list before a row is chosen. */
+function LetterPreviewPlaceholder() {
+  return (
+    <div className="flex aspect-[210/297] w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-gray-300 p-8 text-center">
+      <FileText className="h-10 w-10 text-gray-400" aria-hidden="true" />
+      <p className="text-sm font-semibold text-gray-900">
+        Noch kein Schreiben gewählt
+      </p>
+      <p className="max-w-xs text-sm text-gray-500">
+        Wählen Sie links eine Rechnung. Hier sehen Sie dann ihr Schreiben mit
+        Nummer, Beträgen und Gestaltung.
+      </p>
+    </div>
+  );
+}
+
 export function BillingRunOverviewCard({
   run,
   onCorrect,
@@ -102,6 +134,9 @@ export function BillingRunOverviewCard({
   // Gemerkt wird die Zeile, nicht die Rechnung: nach einer Korrektur zeigt das
   // Panel die neuen Beträge.
   const [shownKey, setShownKey] = useState<string | null>(null);
+  // The issued document whose letter shows beside the list (#5692).
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState<BillingRunExportFormat | null>(
     null,
   );
@@ -109,6 +144,24 @@ export function BillingRunOverviewCard({
   const released = run.status === "released";
   const shown =
     run.documents.find((document) => rowKey(document) === shownKey) ?? null;
+  // Every issued document has its letter once the letters of the run exist.
+  const canPreview = released && run.letters !== null;
+  const previewed =
+    (canPreview &&
+      run.documents.find(
+        (document) => document.id !== "" && document.id === previewId,
+      )) ||
+    null;
+
+  // Below xl the letter takes the place of the list; a long list may have
+  // scrolled the card's top out of view, so the letter starts in view.
+  useEffect(() => {
+    if (!previewed) return;
+    const pane = previewRef.current;
+    if (pane && pane.getBoundingClientRect().top < 0) {
+      pane.scrollIntoView({ block: "start" });
+    }
+  }, [previewed]);
 
   const exportFile = async (format: BillingRunExportFormat) => {
     setExporting(format);
@@ -232,6 +285,14 @@ export function BillingRunOverviewCard({
               label: "Aufschlüsselung ansehen",
               onClick: () => setShownKey(rowKey(document)),
             },
+            ...(canPreview && document.id
+              ? [
+                  {
+                    label: "Schreiben ansehen",
+                    onClick: () => setPreviewId(document.id),
+                  },
+                ]
+              : []),
             ...(onCorrect
               ? document.children.map((child) => ({
                   label: `Betrag für ${child.firstName} korrigieren`,
@@ -253,14 +314,34 @@ export function BillingRunOverviewCard({
     },
   ];
 
+  const table = (
+    <DataTable
+      columns={columns}
+      rows={[...run.documents]}
+      getRowKey={rowKey}
+      onRowClick={
+        canPreview
+          ? (document) => {
+              if (document.id) setPreviewId(document.id);
+            }
+          : undefined
+      }
+      activeRowKey={previewed ? rowKey(previewed) : null}
+      rowHasInteractiveControls
+      stackedOnMobile
+      emptyState={
+        <EmptyState
+          title="Keine Rechnung in diesem Lauf."
+          description="Alle bestätigten Anmeldungen haben schon eine Rechnung, oder es ist noch keine bestätigt."
+        />
+      }
+    />
+  );
+
   return (
     <SectionCard
       title="Rechnungen"
-      description={
-        released
-          ? "Die Übersicht für die Kämmerei enthält jede Position, die Summe je Rechnung und die Gesamtsumme. Storno und Gutschrift stehen als eigene Zeilen mit Minusbetrag."
-          : "Je Familie eine Rechnung. Die Aufschlüsselung je Kind steht im Menü der Zeile."
-      }
+      description={rechnungenDescription(released, canPreview)}
       actions={
         released && run.documents.length > 0 ? (
           <OverflowMenu
@@ -283,19 +364,27 @@ export function BillingRunOverviewCard({
         ) : null
       }
     >
-      <DataTable
-        columns={columns}
-        rows={[...run.documents]}
-        getRowKey={rowKey}
-        rowHasInteractiveControls
-        stackedOnMobile
-        emptyState={
-          <EmptyState
-            title="Keine Rechnung in diesem Lauf."
-            description="Alle bestätigten Anmeldungen haben schon eine Rechnung, oder es ist noch keine bestätigt."
-          />
-        }
-      />
+      {canPreview && run.documents.length > 0 ? (
+        <div className="xl:grid xl:grid-cols-2 xl:items-start xl:gap-6">
+          <div className={previewed ? "max-xl:hidden" : undefined}>{table}</div>
+          <div
+            ref={previewRef}
+            className={`scroll-mt-4 xl:sticky xl:top-4 ${previewed ? "" : "max-xl:hidden"}`}
+          >
+            {previewed ? (
+              <BillingLetterPreview
+                runId={run.id}
+                document={previewed}
+                onClose={() => setPreviewId(null)}
+              />
+            ) : (
+              <LetterPreviewPlaceholder />
+            )}
+          </div>
+        </div>
+      ) : (
+        table
+      )}
       <BillingDocumentBreakdown
         document={shown}
         runId={run.id}
