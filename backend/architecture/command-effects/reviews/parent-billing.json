@@ -217,6 +217,17 @@
     },
     {
       "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.CancelHolidayRegistration",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.CancelHolidayRegistration",
+      "reason": "Guarded target record command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/enrollment.HolidayRegistrationReview.ChangeHolidayRegistration with the action cancel: Enrollment locks the period and the registration, refuses a cancelled or frozen one, sets it cancelled and appends one audit entry in the caller's Träger transaction; the Elternabrechnung takes it after its period billing lock and HoldHolidayPeriod, like the confirmation, and in the same unit takes the registration out of its sibling group and freezes the contributions of the rest again (#5662, ADR 0115). The route rolls back on any later refusal.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ChangeHolidayRegistration",
+      "target_owner": "enrollment"
+    },
+    {
+      "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.ConfirmHolidayRegistration",
       "classification": "leaf",
       "effect": "mutation",

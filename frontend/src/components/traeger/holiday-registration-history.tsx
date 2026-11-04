@@ -4,7 +4,8 @@
 // Zeitpunkt, beim Umbuchen die Wochen vorher und nachher, bei der
 // Debitorennummer die Nummer vorher und nachher (#5621), beim Ändern der
 // Angaben die geänderten Felder ohne ihre Werte (#5629), bei Geschwistern
-// die anderen Anmeldungen (#5628). Nur zum Lesen.
+// die anderen Anmeldungen (#5628), auch wenn eine Stornierung die Gruppe
+// löst (#5662). Nur zum Lesen.
 
 import { SectionCard } from "~/components/ui/section-card";
 import { formatBerlinDate } from "~/lib/date-helpers";
@@ -30,6 +31,7 @@ const ACTION_LABELS: Readonly<
   proof_upload: "Nachweis hochgeladen",
   sibling_merge: "Als Geschwister zusammengeführt",
   sibling_split: "Von Geschwistern getrennt",
+  sibling_cancel: "Aus Geschwistergruppe gelöst (storniert)",
 };
 
 const BERLIN_TIME = new Intl.DateTimeFormat("de-DE", {

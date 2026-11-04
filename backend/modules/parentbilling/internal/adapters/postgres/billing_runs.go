@@ -277,6 +277,41 @@ func (s *Store) IssuedRegistrations(ctx context.Context, organizationID int64, s
 	return issued, nil
 }
 
+// IssuedContributions names the registrations of the period that an
+// invoice of the service bills, each with what the invoice billed: the sum
+// of its positions without the corrections of the run and the sum of its
+// cost takeover positions (#5662). A cancelled invoice bills nothing.
+func (s *Store) IssuedContributions(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]parentbilling.IssuedContribution, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		RegistrationID    int64 `bun:"holiday_registration_id"`
+		TotalCents        int64 `bun:"total_cents"`
+		CostTakeoverCents int64 `bun:"cost_takeover_cents"`
+	}
+	if err := db.NewSelect().TableExpr("parent_billing.documents AS document").
+		ColumnExpr("document.holiday_registration_id").
+		ColumnExpr(`COALESCE((SELECT sum(position.amount_cents) FROM parent_billing.document_positions AS position
+			WHERE position.organization_id = document.organization_id AND position.document_id = document.id
+				AND position.kind <> 'correction'), 0) AS total_cents`).
+		ColumnExpr(`COALESCE((SELECT sum(position.amount_cents) FROM parent_billing.document_positions AS position
+			WHERE position.organization_id = document.organization_id AND position.document_id = document.id
+				AND position.kind = ?), 0) AS cost_takeover_cents`, parentbilling.LineCostTakeover).
+		Where("document.organization_id = ?", organizationID).Where("document.service = ?", service).
+		Where("document.holiday_period_id = ?", periodID).Where("document.kind = ?", parentbilling.DocumentInvoice).
+		Where(notCancelledSQL).
+		Scan(ctx, &rows); err != nil {
+		return nil, err
+	}
+	issued := make(map[int64]parentbilling.IssuedContribution, len(rows))
+	for _, row := range rows {
+		issued[row.RegistrationID] = parentbilling.IssuedContribution{TotalCents: row.TotalCents, CostTakeoverCents: row.CostTakeoverCents}
+	}
+	return issued, nil
+}
+
 // LockPeriodBilling takes a transaction lock on the invoices of the service
 // and period of a Träger (#5621). The release of a run and a change of the
 // debtor number of a registration of the period take it, so one waits for
