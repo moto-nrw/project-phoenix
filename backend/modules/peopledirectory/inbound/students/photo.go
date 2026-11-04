@@ -106,8 +106,12 @@ func (rs *Resource) deleteStudentPhoto(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveStudentPhoto streams bytes after the auth tx commits so the pool
-// connection releases before the file stream. private, no-cache so feature
-// disable / consent withdrawal / deletion take effect on next load.
+// connection releases before the file stream. Every upload gets a new random
+// filename, so the bytes behind one URL never change and the browser may keep
+// them without revalidating: pages that render many photos then remount them
+// from cache instead of one proxy + auth round trip per photo and navigation.
+// Feature disable, consent withdrawal and deletion still take effect on the
+// next load because student payloads stop emitting the photo URL.
 func (rs *Resource) serveStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -128,8 +132,12 @@ func (rs *Resource) serveStudentPhoto(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorForbidden(errors.New("could not resolve stored photo path")))
 		return
 	}
-	common.ServeImage(w, r, filepath.Dir(resolvedPath), filepath.Base(resolvedPath), "private, no-cache", rs.Uploads)
+	common.ServeImage(w, r, filepath.Dir(resolvedPath), filepath.Base(resolvedPath), studentPhotoCacheControl, rs.Uploads)
 }
+
+// studentPhotoCacheControl keeps photo bytes in the viewer's private browser
+// cache for a day; shared caches must not store them.
+const studentPhotoCacheControl = "private, max-age=86400, immutable"
 
 // mapPhotoUploadError maps service sentinels to HTTP status.
 func mapPhotoUploadError(w http.ResponseWriter, r *http.Request, err error) {
