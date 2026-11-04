@@ -215,7 +215,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/architecture/policy.go:(*Policy).validateReadProjections": 18,
 	// ADR 0087.
-	"internal/architecture/policy.go:(*Policy).validateRules": 20,
 	// ADR 0087.
 	"internal/architecture/policy.go:decodePolicy": 21,
 	// ADR 0087.

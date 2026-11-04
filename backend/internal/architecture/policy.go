@@ -577,15 +577,8 @@ func (p *Policy) validateRules(owners map[string]Owner, roles, classes map[strin
 		if err := p.validateRulePackages(rule); err != nil {
 			return err
 		}
-		if p.PolicyEpoch >= targetOnlyRulesEpoch {
-			if err := validateTargetOnlyRule(rule, owners); err != nil {
-				return err
-			}
-		}
-		if p.PolicyEpoch >= domainProjectionRulesEpoch {
-			if err := validateDomainProjectionRule(rule, owners); err != nil {
-				return err
-			}
+		if err := p.validateEpochRule(rule, owners); err != nil {
+			return err
 		}
 		for _, previous := range validated {
 			if scope, overlaps := overlappingPackageScope(previous, rule, owners, packages); overlaps {
@@ -593,6 +586,19 @@ func (p *Policy) validateRules(owners map[string]Owner, roles, classes map[strin
 			}
 		}
 		validated = append(validated, rule)
+	}
+	return nil
+}
+
+// validateEpochRule applies the rule checks that later policy epochs introduced.
+func (p *Policy) validateEpochRule(rule Rule, owners map[string]Owner) error {
+	if p.PolicyEpoch >= targetOnlyRulesEpoch {
+		if err := validateTargetOnlyRule(rule, owners); err != nil {
+			return err
+		}
+	}
+	if p.PolicyEpoch >= domainProjectionRulesEpoch {
+		return validateDomainProjectionRule(rule, owners)
 	}
 	return nil
 }
