@@ -49,9 +49,9 @@ func (p *Policy) rulePackage(ruleID, side, selector string) (Package, error) {
 	return pkg, nil
 }
 
-// overlappingScope intersects validated package classifications before comparing
+// overlappingPackageScope intersects validated package classifications before comparing
 // selectors. Source roles depend on scope; target roles always use production.
-func (p *Policy) overlappingScope(left, right Rule, owners map[string]Owner) (string, bool) {
+func overlappingPackageScope(left, right Rule, owners map[string]Owner, packages map[string]Package) (string, bool) {
 	if left.SourcePackage == "" && right.SourcePackage == "" && left.TargetPackage == "" && right.TargetPackage == "" {
 		return overlappingScope(left, right, owners)
 	}
@@ -59,7 +59,7 @@ func (p *Policy) overlappingScope(left, right Rule, owners map[string]Owner) (st
 		if !slices.Contains(right.Scopes, scope) {
 			continue
 		}
-		if _, overlaps := overlappingScope(p.classifiedOverlapRule(left, scope), p.classifiedOverlapRule(right, scope), owners); overlaps {
+		if _, overlaps := overlappingScope(classifiedOverlapRule(left, scope, packages), classifiedOverlapRule(right, scope, packages), owners); overlaps {
 			return scope, true
 		}
 	}
@@ -68,16 +68,14 @@ func (p *Policy) overlappingScope(left, right Rule, owners map[string]Owner) (st
 
 // classifiedOverlapRule is only used after package selectors have been validated
 // against their owner/role selectors, so the exact classification can narrow them.
-func (p *Policy) classifiedOverlapRule(rule Rule, scope string) Rule {
+func classifiedOverlapRule(rule Rule, scope string, packages map[string]Package) Rule {
 	rule.Scopes = []string{scope}
-	for _, pkg := range p.Packages {
-		if rule.SourcePackage == pkg.Path {
-			rule.SourceOwner, rule.SourceOwnerKind = pkg.Owner, ""
-			rule.SourceRole = pkg.inScope(Scope(scope)).Role
-		}
-		if rule.TargetPackage == pkg.Path {
-			rule.TargetOwner, rule.TargetOwnerKind = pkg.Owner, ""
-		}
+	if pkg, exists := packages[rule.SourcePackage]; exists {
+		rule.SourceOwner, rule.SourceOwnerKind = pkg.Owner, ""
+		rule.SourceRole = pkg.inScope(Scope(scope)).Role
+	}
+	if pkg, exists := packages[rule.TargetPackage]; exists {
+		rule.TargetOwner, rule.TargetOwnerKind = pkg.Owner, ""
 	}
 	return rule
 }
