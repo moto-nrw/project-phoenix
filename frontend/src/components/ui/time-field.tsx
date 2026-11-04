@@ -95,7 +95,7 @@ export function TimeField({
 
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-gray-700">
+      <span className="mb-2 block text-sm font-medium text-gray-700">
         {label}
         {required && <RequiredMark />}
       </span>

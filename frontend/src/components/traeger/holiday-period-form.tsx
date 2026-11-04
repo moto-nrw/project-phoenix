@@ -176,7 +176,7 @@ export function HolidayPeriodForm({
     <form
       ref={formRef}
       noValidate
-      className="space-y-6"
+      className="compact:space-y-4 space-y-6 max-sm:space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
         void save();
@@ -186,10 +186,14 @@ export function HolidayPeriodForm({
 
       {/* Locked while saving: the answer replaces the draft, so an edit made
           meanwhile would be lost. */}
-      <fieldset disabled={saving} className="min-w-0 space-y-6">
+      <fieldset
+        disabled={saving}
+        className="compact:space-y-4 min-w-0 space-y-6 max-sm:space-y-3"
+      >
         <SectionCard title="Anmeldung">
           <div className="space-y-4">
             <Input
+              controlSize="compact"
               name="name"
               label="Name des Ferienzeitraums"
               placeholder="Osterferien 2027"

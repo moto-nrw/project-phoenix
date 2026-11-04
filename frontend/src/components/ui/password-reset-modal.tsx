@@ -303,6 +303,7 @@ export function PasswordResetModal({
                   {copy.emailLabel}
                 </label>
                 <Input
+                  controlSize="compact"
                   id="reset-email"
                   name="email"
                   type="email"

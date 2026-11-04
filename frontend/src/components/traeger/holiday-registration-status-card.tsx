@@ -16,6 +16,7 @@ import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
+import { FieldLabel } from "~/components/ui/field-label";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -259,7 +260,7 @@ function PayerChoice({
   }
   return (
     <fieldset className="space-y-2">
-      <legend className="mb-2 text-sm font-medium text-gray-900">
+      <legend className="mb-2 text-sm font-medium text-gray-700">
         Wer bezahlt den Beitrag?
       </legend>
       <div className="flex flex-col gap-2 sm:max-w-md">
@@ -293,13 +294,12 @@ function PayerChoice({
         })}
         {payer === "cost_bearer" ? (
           <div>
-            <label
+            <FieldLabel
               id="holiday-registration-cost-bearer-label"
               htmlFor="holiday-registration-cost-bearer"
-              className="mb-1 block text-sm font-medium text-gray-700"
             >
               Kostenträger
-            </label>
+            </FieldLabel>
             <CustomSelect
               id="holiday-registration-cost-bearer"
               name="cost_bearer_id"
