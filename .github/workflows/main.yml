@@ -514,8 +514,9 @@ jobs:
     # Type-checking base and head is CPU-bound: 4-5 minutes on a standard
     # runner made this job the last to finish. Four Blacksmith vCPUs (141 s)
     # keep it below the backend test suites, which set the pull request's
-    # wall-clock time; eight vCPUs (~110 s) cost about 50% more.
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # wall-clock time; eight vCPUs (~110 s) cost about 50% more. ARM costs
+    # 0.625x per vCPU-minute (see lint.yml).
+    runs-on: blacksmith-4vcpu-ubuntu-2404-arm
     permissions:
       contents: read
       issues: read

@@ -113,7 +113,7 @@ jobs:
       # Small PRs keep one modest runner; broad PRs use the existing full-suite
       # budgets, without mixing architecture/migrations into application work.
       matrix: ${{ fromJSON(needs.plan-backend.outputs.matrix || '{"include":[{"shard":0},{"shard":1},{"shard":2},{"shard":3}]}') }}
-    runs-on: ${{ matrix.runner || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: ${{ matrix.runner || 'blacksmith-8vcpu-ubuntu-2404-arm' }}
     # Instrumented builds and tests need more headroom than ordinary runs.
     # Keep the default Actions limit unchanged for non-race callers.
     timeout-minutes: ${{ inputs.backend-race && 60 || 360 }}
@@ -385,7 +385,9 @@ jobs:
         # Changed-only PRs keep one DOM job. Full suites split its files with
         # Vitest's built-in sharding, retaining four workers per DOM runner.
         project: ${{ fromJSON(inputs.frontend-guards-only && '["guards"]' || (!inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '') && '["node","dom-1","dom-2"]' || '["node","dom"]') }}
-    runs-on: ${{ (matrix.project == 'node' || matrix.project == 'guards') && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    # ARM costs 0.625x per vCPU-minute (see lint.yml). Node stays on x64: its
+    # layout tests need Google Chrome, which has no Linux arm64 build.
+    runs-on: ${{ matrix.project == 'node' && 'blacksmith-4vcpu-ubuntu-2404' || matrix.project == 'guards' && 'blacksmith-4vcpu-ubuntu-2404-arm' || 'blacksmith-8vcpu-ubuntu-2404-arm' }}
     permissions:
       contents: read
 

@@ -9,7 +9,7 @@ jq -Rsc --argjson full "$FULL_SUITE" '
   def job($shard; $packages; $large): {
     shard: $shard,
     packages: ($packages | join("\n")),
-    runner: (if $large then "blacksmith-8vcpu-ubuntu-2404" else "blacksmith-4vcpu-ubuntu-2404" end),
+    runner: (if $large then "blacksmith-8vcpu-ubuntu-2404-arm" else "blacksmith-4vcpu-ubuntu-2404-arm" end),
     workers: (if $large then 6 else 4 end)
   };
   split("\n") | map(select(length > 0)) | unique as $all |

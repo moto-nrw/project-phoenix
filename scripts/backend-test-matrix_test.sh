@@ -13,20 +13,20 @@ assert_partition() {
   jq -e --argjson count "$expected_jobs" '
     (.include | length) == $count and
     ([.include[].shard] | unique | length) == $count and
-    all(.include[]; (.runner == "blacksmith-4vcpu-ubuntu-2404" and .workers == 4) or
-                    (.runner == "blacksmith-8vcpu-ubuntu-2404" and .workers == 6))
+    all(.include[]; (.runner == "blacksmith-4vcpu-ubuntu-2404-arm" and .workers == 4) or
+                    (.runner == "blacksmith-8vcpu-ubuntu-2404-arm" and .workers == 6))
   ' <<<"$matrix" >/dev/null
 }
 
 assert_partition '' false 1
 assert_partition 'example.test/project/api' false 1
-jq -e '.include[0].runner == "blacksmith-4vcpu-ubuntu-2404"' <<<"$matrix" >/dev/null
+jq -e '.include[0].runner == "blacksmith-4vcpu-ubuntu-2404-arm"' <<<"$matrix" >/dev/null
 
 special=$'example.test/project/internal/architecture\nexample.test/project/database/migrations'
 assert_partition "$special" false 2
-jq -e 'all(.include[]; .runner == "blacksmith-4vcpu-ubuntu-2404")' <<<"$matrix" >/dev/null
+jq -e 'all(.include[]; .runner == "blacksmith-4vcpu-ubuntu-2404-arm")' <<<"$matrix" >/dev/null
 assert_partition "$special" true 2
-jq -e 'all(.include[]; .runner == "blacksmith-8vcpu-ubuntu-2404")' <<<"$matrix" >/dev/null
+jq -e 'all(.include[]; .runner == "blacksmith-8vcpu-ubuntu-2404-arm")' <<<"$matrix" >/dev/null
 
 application=$(printf 'example.test/project/package%03d\n' {1..64})
 assert_partition "$application" false 1

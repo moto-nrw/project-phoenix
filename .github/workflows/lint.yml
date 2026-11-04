@@ -31,6 +31,8 @@ env:
 # instead of 185 s. Its per-commit Next.js cache would also churn the 10 GB
 # GitHub cache. backend-lint took 6-8 minutes on a hosted runner; a cold full
 # lint took 195 s on four vCPUs and 101 s on eight, at the same cost.
+# Both run on ARM: a Blacksmith ARM vCPU-minute costs 0.625x an x64 one, so ARM
+# saves money unless a job takes 1.6x as long.
 # nightly.yml runs this workflow on development to keep the caches warm.
 
 jobs:
@@ -108,7 +110,7 @@ jobs:
   backend-lint:
     name: Backend lint
     if: ${{ inputs.run-backend }}
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404-arm
     permissions:
       contents: read
     env:
@@ -230,7 +232,7 @@ jobs:
   frontend-build:
     name: Frontend build
     if: ${{ inputs.run-frontend }}
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404-arm
     permissions:
       contents: read
       # Only for the approval label step below.
@@ -294,8 +296,8 @@ jobs:
       - name: Compute Next.js cache key
         id: next-cache-key
         env:
-          CACHE_KEY: ${{ runner.os }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-${{ hashFiles('frontend/**/*.js', 'frontend/**/*.jsx', 'frontend/**/*.ts', 'frontend/**/*.tsx') }}
-          CACHE_PREFIX: ${{ runner.os }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-
+          CACHE_KEY: ${{ runner.os }}-${{ runner.arch }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-${{ hashFiles('frontend/**/*.js', 'frontend/**/*.jsx', 'frontend/**/*.ts', 'frontend/**/*.tsx') }}
+          CACHE_PREFIX: ${{ runner.os }}-${{ runner.arch }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-
         run: |
           echo "key=$CACHE_KEY" >> "$GITHUB_OUTPUT"
           echo "prefix=$CACHE_PREFIX" >> "$GITHUB_OUTPUT"
