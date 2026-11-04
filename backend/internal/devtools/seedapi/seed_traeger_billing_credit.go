@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 )
 
 // seedTraegerBillingCreditStep credits part of the first invoice of the
@@ -57,14 +58,21 @@ func (seedTraegerBillingCreditStep) Run(_ context.Context, rt *Runtime) error {
 	return nil
 }
 
-// seedCreditTarget finds the first child of an invoice of the run with
-// enough left to credit; zero when there is none.
+// seedCreditHistoryLink is what the credit step reads of the history of an
+// invoice.
+type seedCreditHistoryLink struct {
+	Kind string `json:"kind"`
+}
+
+// seedCreditTarget finds the first child of an invoice of the run that is not
+// cancelled with enough left to credit; zero when there is none.
 func seedCreditTarget(raw []byte) (int64, int64, error) {
 	var envelope struct {
 		Data struct {
 			Documents []struct {
-				ID       int64  `json:"id"`
-				Kind     string `json:"kind"`
+				ID       int64                   `json:"id"`
+				Kind     string                  `json:"kind"`
+				History  []seedCreditHistoryLink `json:"history"`
 				Children []struct {
 					ChildID    int64 `json:"child_id"`
 					TotalCents int64 `json:"total_cents"`
@@ -76,6 +84,9 @@ func seedCreditTarget(raw []byte) (int64, int64, error) {
 		return 0, 0, fmt.Errorf("decode the released holiday run: %w", err)
 	}
 	for _, document := range envelope.Data.Documents {
+		if slices.Contains(document.History, seedCreditHistoryLink{Kind: "cancellation"}) {
+			continue
+		}
 		for _, child := range document.Children {
 			if document.Kind == "invoice" && child.TotalCents >= seedCreditCents {
 				return document.ID, child.ChildID, nil

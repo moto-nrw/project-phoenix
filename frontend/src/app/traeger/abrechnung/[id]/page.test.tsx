@@ -25,6 +25,8 @@ const { api } = vi.hoisted(() => ({
     printBillingLetters: vi.fn(),
     downloadBillingRunOverview: vi.fn(),
     cancelBillingDocument: vi.fn(),
+    changeCarriedCorrection: vi.fn(),
+    removeCarriedCorrection: vi.fn(),
     creditBillingDocument: vi.fn(),
     fetchBillingRuns: vi.fn(),
     startBillingRun: vi.fn(),
@@ -73,6 +75,7 @@ const PREVIEW: BillingRunDetail = {
       referenceNumber: "",
       reason: "",
       history: [],
+      replacedCredits: [],
       number: "",
       issuedOn: null,
       registrationId: "31",
@@ -90,6 +93,7 @@ const PREVIEW: BillingRunDetail = {
           lastName: "Muster",
           totalCents: 6750,
           corrections: [],
+          carriedCorrections: [],
           positions: [
             {
               kind: "base",
@@ -110,6 +114,7 @@ const PREVIEW: BillingRunDetail = {
           lastName: "Muster",
           totalCents: 4500,
           corrections: [],
+          carriedCorrections: [],
           positions: [
             {
               kind: "base",
@@ -162,6 +167,7 @@ const CORRECTED: BillingRunDetail = {
               totalAfterCents: 5250,
               reason: "Erster Tag krank",
               createdAt: "2026-09-09T10:00:00Z",
+              carriedFromNumber: "",
             },
           ],
         },
@@ -261,6 +267,58 @@ describe("TraegerBillingRunPage", () => {
       within(panel).getByText("Korrektur: Erster Tag krank"),
     ).toBeInTheDocument();
     expect(within(panel).getByText("Korrekturen für Lia")).toBeInTheDocument();
+  });
+
+  it("changes a correction taken over from the cancelled invoice (#5663)", async () => {
+    const child = PREVIEW.documents[0]!.children[0]!;
+    const carried = {
+      positionId: "61",
+      sourceNumber: "FE-0001",
+      amountCents: -1500,
+      sourceAmountCents: -1500,
+      reason: "Erster Tag krank",
+    };
+    api.fetchBillingRun.mockResolvedValue({
+      ...PREVIEW,
+      documents: [
+        {
+          ...PREVIEW.documents[0]!,
+          referenceNumber: "FE-0001",
+          children: [
+            { ...child, totalCents: 5250, carriedCorrections: [carried] },
+            PREVIEW.documents[0]!.children[1]!,
+          ],
+        },
+      ],
+    });
+    api.changeCarriedCorrection.mockResolvedValue(CORRECTED);
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für die Korrektur von Lia",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Ändern" }));
+    const amount = await screen.findByLabelText("Neuer Betrag in Euro");
+    expect(amount).toHaveValue("52,50");
+    expect(screen.getByLabelText("Begründung")).toHaveValue("Erster Tag krank");
+
+    // The amount without the correction is what removing it does.
+    fireEvent.change(amount, { target: { value: "67,50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ändern" }));
+    expect(
+      await screen.findByText(/Das ist der Betrag ohne Korrektur/),
+    ).toBeInTheDocument();
+    expect(api.changeCarriedCorrection).not.toHaveBeenCalled();
+
+    fireEvent.change(amount, { target: { value: "60,00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ändern" }));
+    await waitFor(() =>
+      expect(api.changeCarriedCorrection).toHaveBeenCalledWith("9", "61", {
+        totalCents: 6000,
+        reason: "Erster Tag krank",
+      }),
+    );
   });
 
   it("releases with the checked preview and reports a changed run", async () => {

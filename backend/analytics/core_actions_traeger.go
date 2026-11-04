@@ -75,7 +75,10 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/billing-runs/"}:                 notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/corrections"}: notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/release"}:     notCaptured,
-	{http.MethodPut, "/traeger/number-ranges/{service}"}:        notCaptured,
+	// The corrections a reissued invoice carries over (#5663).
+	{http.MethodPut, "/traeger/billing-runs/{id}/carried-corrections/{positionID}"}:    notCaptured,
+	{http.MethodDelete, "/traeger/billing-runs/{id}/carried-corrections/{positionID}"}: notCaptured,
+	{http.MethodPut, "/traeger/number-ranges/{service}"}:                               notCaptured,
 	// The confirmation letters of a released run (#4669, ADR 0121) belong
 	// to the Träger as well.
 	{http.MethodPost, "/traeger/billing-runs/{id}/letters"}:         notCaptured,
