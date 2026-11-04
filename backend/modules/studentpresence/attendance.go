@@ -44,16 +44,21 @@ func isClassReason(reason *string) bool {
 func (a Attendance) IsOpen() bool { return a.CheckOutTime == nil }
 
 // AttendanceCompletion reports whether the rows hold an open attendance and
-// whether they hold a completed one; a day can hold both.
+// whether the child has left for the day; a day can hold both. A last checkout
+// to class is not a departure: the child is still expected back (#5656).
 func AttendanceCompletion(rows []Attendance) (open, completed bool) {
-	for _, row := range rows {
+	var last *Attendance
+	for i := range rows {
+		row := &rows[i]
 		if row.IsOpen() {
 			open = true
-		} else {
-			completed = true
+			continue
+		}
+		if last == nil || row.CheckOutTime.After(*last.CheckOutTime) {
+			last = row
 		}
 	}
-	return open, completed
+	return open, last != nil && !last.LeftForClass()
 }
 
 // AttendanceFilter restricts an attendance history query. Nil ID lists mean

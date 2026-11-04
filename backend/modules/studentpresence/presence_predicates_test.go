@@ -23,6 +23,28 @@ func TestAttendanceCompletionReportsOpenAndCompletedDays(t *testing.T) {
 	assert.True(t, completed)
 }
 
+func TestAttendanceCompletion_ClassIsNoDeparture(t *testing.T) {
+	t.Parallel()
+	morning := time.Date(2026, 9, 29, 8, 30, 0, 0, time.UTC)
+	noon := morning.Add(4 * time.Hour)
+	reason := studentpresence.CheckoutReasonClass
+
+	_, completed := studentpresence.AttendanceCompletion([]studentpresence.Attendance{{CheckOutTime: &morning, CheckOutReason: &reason}})
+	assert.False(t, completed, "a child in class has not left for the day")
+
+	_, completed = studentpresence.AttendanceCompletion([]studentpresence.Attendance{
+		{CheckOutTime: &noon},
+		{CheckOutTime: &morning, CheckOutReason: &reason},
+	})
+	assert.True(t, completed, "going home after the class stay is a departure, whatever the row order")
+
+	_, completed = studentpresence.AttendanceCompletion([]studentpresence.Attendance{
+		{CheckOutTime: &morning},
+		{CheckOutTime: &noon, CheckOutReason: &reason},
+	})
+	assert.False(t, completed, "the last checkout decides, as for the parent gate")
+}
+
 func TestGroupSupervisionEndsOnItsEndDate(t *testing.T) {
 	t.Parallel()
 	today := calendar.Date("2026-10-19")
