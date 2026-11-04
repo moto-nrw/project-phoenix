@@ -10,7 +10,8 @@ import (
 // The first steps of a care worker (#3748, ADR 0043 addendum): a personal
 // checklist of guided tours through the daily work in moto. Unlike the school
 // wizard above, progress belongs to the person and a step counts as done once
-// the person finished its tour; nothing in the school's data marks it.
+// the person finished its tour; nothing in the school's data marks it. It
+// follows the person across their schools (#5659).
 
 // StaffOnboardingService drives the first steps of the calling person.
 type StaffOnboardingService interface {
@@ -129,8 +130,11 @@ func ValidStaffStepState(state string) bool {
 // StaffStore keeps the first-steps progress of each person in the ambient
 // tenant transaction.
 type StaffStore interface {
-	// StaffOnboardingOf returns the person's state, or (nil, nil) if the
-	// person has not started.
+	// LockStaffOnboarding serializes a person's cross-school updates for the
+	// ambient transaction.
+	LockStaffOnboarding(ctx context.Context, accountID int64) error
+	// StaffOnboardingOf returns the person's state across their schools, or
+	// (nil, nil) if the person has not started. Its TenantID is not set.
 	StaffOnboardingOf(ctx context.Context, accountID int64) (*StaffState, error)
 	// StoreStaffOnboarding replaces the person's state wholesale.
 	StoreStaffOnboarding(ctx context.Context, state *StaffState) error

@@ -1366,6 +1366,7 @@ export const caregiverFirstStepsTopic =
         "Einen erledigten Schritt sehen Sie sich mit `Noch einmal zeigen` wieder an.",
         "Sie können die Checkliste einklappen. Unten rechts steht dann `Erste Schritte` mit der Zahl der offenen Schritte.",
         "Die Tour zeigt nur. Sie meldet kein Kind an und stempelt Sie nicht ein.",
+        "Arbeiten Sie in mehreren OGS? Ihr Stand gilt in allen. Was Sie in einer OGS erledigt haben, ist auch in den anderen erledigt.",
       ],
       differences: [
         "Welche Schritte Sie sehen, hängt von Ihrer OGS ab. Ohne feste Gruppen fehlt zum Beispiel `Meine Gruppe ansehen`.",
@@ -1374,7 +1375,7 @@ export const caregiverFirstStepsTopic =
       troubleshootingDetails: [
         "Die Checkliste erscheint nicht? Sie kommt erst, wenn Ihre OGS eine Gruppe oder ein Kind in moto hat. Wer schon vor der Checkliste mit moto gearbeitet hat, bekommt sie nicht.",
         "Die Tour ist plötzlich weg? Sie endet, wenn Sie eine andere Seite öffnen. Mit `Zeig es mir` starten Sie sie neu.",
-        "Sie haben `Nicht mehr anzeigen` gewählt? Die Checkliste kommt nicht wieder. Die Anleitungen stehen hier in der Hilfe.",
+        "Sie haben `Nicht mehr anzeigen` gewählt? Die Checkliste kommt in keiner Ihrer OGS wieder. Die Anleitungen stehen hier in der Hilfe.",
       ],
       related: [
         HELP_TOPICS.appOverview,
@@ -2789,6 +2790,7 @@ export const firstStepsTopic = function firstStepsTopic(): HelpTopic {
     troubleshootingDetails: [
       "Die Tour ist plötzlich weg? Sie endet, wenn Sie eine andere Seite öffnen. Mit `Zeig es mir` starten Sie sie neu.",
       "Sie haben `Nicht mehr anzeigen` gewählt? Die Checkliste kommt nicht wieder. Die Anleitungen zu jedem Schritt stehen hier in der Hilfe, zum Beispiel unter `Weitere Themen`.",
+      "Sie wechseln aus dem Träger-Portal in die OGS und sehen keine Checkliste? Wer `Nicht mehr anzeigen` einmal gewählt hat, sieht sie in keiner OGS des Trägers mehr. Die Leitungen vor Ort sehen sie weiter.",
     ],
     related: [
       HELP_TOPICS.leadGoLive,

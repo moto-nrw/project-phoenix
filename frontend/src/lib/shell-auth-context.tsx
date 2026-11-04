@@ -145,6 +145,9 @@ interface ShellAuthContextType {
   previewTargetName?: string;
   previewTargetAccountId?: string;
   canStartStaffPreview?: boolean;
+  // Absprung aus dem Träger-Portal (#4654): die OGS-Sitzung kam über das
+  // Träger-Büro. Nur die Lehrkraft-Hülle füllt das.
+  isViaTraeger?: boolean;
 }
 
 const ShellAuthContext = createContext<ShellAuthContextType | undefined>(
@@ -275,6 +278,7 @@ export function TeacherShellProvider({
       previewTargetAccountId: session?.user?.previewTargetAccountId,
       canStartStaffPreview:
         !session?.user?.isPreview && hasPermission(session, "admin:*"),
+      isViaTraeger: session?.user?.viaTraeger ?? false,
     };
   }, [session, sessionStatus, profile, homeUrl, showLogoutError]);
 
