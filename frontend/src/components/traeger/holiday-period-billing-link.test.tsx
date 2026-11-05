@@ -92,20 +92,38 @@ describe("HolidayPeriodBillingLink", () => {
     ).toHaveAttribute("href", "/abrechnung?ferienzeitraum=5");
   });
 
-  it("stays hidden and loads no runs without the billing right", () => {
-    state.permissions = ["traeger_enrollment:manage"];
-    const { container } = render(<HolidayPeriodBillingLink period={PERIOD} />);
+  // Die sichtbare Umgebung, gegen die jede verborgene Zeile prüft.
+  const VISIBLE = {
+    permissions: ["traeger_billing:manage"],
+    period: PERIOD,
+  };
+  const HIDDEN = [
+    {
+      name: "without the billing right",
+      ...VISIBLE,
+      permissions: ["traeger_enrollment:manage"],
+    },
+    {
+      name: "for a draft period, which has no runs",
+      ...VISIBLE,
+      period: { ...PERIOD, status: "draft" } as HolidayPeriod,
+    },
+  ];
 
-    expect(container).toBeEmptyDOMElement();
+  it.each(HIDDEN)("stays hidden and loads no runs $name", (row) => {
+    state.permissions = row.permissions;
+    const hidden = render(<HolidayPeriodBillingLink period={row.period} />);
+
+    expect(hidden.container).toBeEmptyDOMElement();
     expect(state.keys).toEqual([null]);
-  });
+    hidden.unmount();
 
-  it("stays hidden for a draft period, which has no runs", () => {
-    const { container } = render(
-      <HolidayPeriodBillingLink period={{ ...PERIOD, status: "draft" }} />,
-    );
-
-    expect(container).toBeEmptyDOMElement();
-    expect(state.keys).toEqual([null]);
+    state.permissions = VISIBLE.permissions;
+    state.keys = [];
+    render(<HolidayPeriodBillingLink period={VISIBLE.period} />);
+    // Anker: dieselbe Umgebung mit Recht und veröffentlichtem Zeitraum zeigt die Aktion.
+    expect(
+      screen.getByRole("link", { name: "Zur Abrechnung" }),
+    ).toBeInTheDocument();
   });
 });

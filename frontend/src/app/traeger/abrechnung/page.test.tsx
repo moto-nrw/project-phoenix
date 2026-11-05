@@ -123,6 +123,7 @@ describe("TraegerAbrechnungPage", () => {
       route.search = "ferienzeitraum=6";
       renderPage();
 
+      // Anker: der Lauf des gefilterten Zeitraums steht in der Liste.
       expect(
         (await screen.findAllByText("1 · 50,00 €"))[0],
       ).toBeInTheDocument();

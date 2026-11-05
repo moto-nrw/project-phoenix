@@ -105,6 +105,23 @@ function periodOptions(data: PageData): PeriodOption[] {
   return [...names].map(([value, label]) => ({ value, label }));
 }
 
+/** Leerzustand der Liste; gefiltert nennt er den Zeitraum und den nächsten Schritt. */
+function filteredEmptyText(
+  periodFilter: string,
+  filterName: string | undefined,
+  canStart: boolean | undefined,
+): { title: string; description?: string } {
+  if (!periodFilter) return { title: "Noch kein Abrechnungslauf." };
+  return {
+    title: filterName
+      ? `Noch kein Abrechnungslauf für ${filterName}.`
+      : "Noch kein Abrechnungslauf für diesen Ferienzeitraum.",
+    description: canStart
+      ? "Starten Sie ihn oben mit „Lauf starten“. Der Zeitraum ist dort schon gewählt."
+      : "Einen Lauf gibt es erst, wenn der Ferienzeitraum veröffentlicht ist.",
+  };
+}
+
 export default function TraegerAbrechnungPage() {
   // `useSearchParams` braucht eine Suspense-Grenze; bis dahin lädt die Seite.
   return (
@@ -171,7 +188,7 @@ function BillingRunsPage() {
   // Die Statuszeile zählt, was die Liste zeigt.
   const released = shownRuns.filter((run) => run.status === "released").length;
   // Ein gefilterter Zeitraum, für den sich ein Lauf starten lässt.
-  const startablePeriod = data?.periods.some(
+  const canStartFilteredPeriod = data?.periods.some(
     (period) => period.id === periodFilter,
   );
 
@@ -269,26 +286,14 @@ function BillingRunsPage() {
             stackedLayout="row"
             onRowClick={openRun}
             emptyState={
-              periodFilter ? (
-                <EmptyState
-                  icon={<Receipt className="h-12 w-12" aria-hidden="true" />}
-                  title={
-                    filterName
-                      ? `Noch kein Abrechnungslauf für ${filterName}.`
-                      : "Noch kein Abrechnungslauf für diesen Ferienzeitraum."
-                  }
-                  description={
-                    startablePeriod
-                      ? "Starten Sie ihn oben mit „Lauf starten“. Der Zeitraum ist dort schon gewählt."
-                      : "Einen Lauf gibt es erst, wenn der Ferienzeitraum veröffentlicht ist."
-                  }
-                />
-              ) : (
-                <EmptyState
-                  icon={<Receipt className="h-12 w-12" aria-hidden="true" />}
-                  title="Noch kein Abrechnungslauf."
-                />
-              )
+              <EmptyState
+                icon={<Receipt className="h-12 w-12" aria-hidden="true" />}
+                {...filteredEmptyText(
+                  periodFilter,
+                  filterName,
+                  canStartFilteredPeriod,
+                )}
+              />
             }
           />
         </>

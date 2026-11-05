@@ -18,13 +18,13 @@ import { type BillingRun, fetchBillingRuns } from "~/lib/traeger-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
 
 /** Das Recht, das die Abrechnungsläufe öffnet (#4668). */
-export const TRAEGER_BILLING_RIGHT = "traeger_billing:manage";
+const TRAEGER_BILLING_RIGHT = "traeger_billing:manage";
 
 /** URL-Parameter der Abrechnung, der die Liste auf einen Zeitraum filtert. */
 export const BILLING_PERIOD_PARAM = "ferienzeitraum";
 
 /** Die Abrechnung, gefiltert auf einen Ferienzeitraum (Pfad mit /traeger). */
-export function billingListPathForPeriod(periodId: string): string {
+function billingListPathForPeriod(periodId: string): string {
   return `/traeger/abrechnung?${BILLING_PERIOD_PARAM}=${encodeURIComponent(periodId)}`;
 }
 

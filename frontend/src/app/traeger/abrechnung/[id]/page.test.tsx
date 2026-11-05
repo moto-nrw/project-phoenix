@@ -235,7 +235,9 @@ describe("TraegerBillingRunPage", () => {
   it("shows no link to a holiday period the person cannot open", async () => {
     renderPage();
 
+    // Anker: der Lauf ist geladen, seine Statuszeile steht.
     expect((await screen.findAllByText("Muster, Eva"))[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Vorschau")[0]).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Zum Ferienzeitraum" }),
     ).not.toBeInTheDocument();
