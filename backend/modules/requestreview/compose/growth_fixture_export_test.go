@@ -36,3 +36,26 @@ func NewGrowthQuery(t *testing.T, db *bun.DB, svc ReviewComposition, master care
 func GrowthWriteContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, queueWriteKey{}, true)
 }
+
+// GrowthQuery and its request/response aliases keep public owner types inside
+// the policy-approved internal fixture binding, not the external test imports.
+type GrowthQuery = requestreview.Query
+type GrowthListQuery = requestreview.ListQuery
+type GrowthPage = requestreview.Page
+
+const GrowthMaxLimit = requestreview.MaxLimit
+
+func GrowthRequestTypes() []string {
+	return []string{requestreview.TypeMasterData, requestreview.TypeCareSchedule, requestreview.TypeOffering, requestreview.TypeExcused}
+}
+
+// WithGrowthQuery binds the existing typed root proof before handing its query
+// to the external DB contract test.
+func WithGrowthQuery(t *testing.T, check func(*bun.DB, GrowthQuery)) {
+	t.Helper()
+	ComposeReviewSources(t, ReviewProof(func(db *bun.DB, svc ReviewComposition, master careplan.MasterDataReviewQuery, schedule careplan.CareScheduleReviewQuery, offering careplan.OfferingReviewQuery) {
+		query, err := NewGrowthQuery(t, db, svc, master, schedule, offering)
+		require.NoError(t, err)
+		check(db, query)
+	}))
+}

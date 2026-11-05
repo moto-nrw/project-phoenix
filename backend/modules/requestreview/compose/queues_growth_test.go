@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	reviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
@@ -19,19 +17,17 @@ import (
 func TestRequestReviewQueryBudgetGrowth(t *testing.T) {
 	t.Parallel()
 	pool := testpkg.SetupTestDB(t)
-	reviewcompose.ComposeReviewSources(t, reviewcompose.ReviewProof(func(db *bun.DB, svc reviewcompose.ReviewComposition, master careplan.MasterDataReviewQuery, schedule careplan.CareScheduleReviewQuery, offering careplan.OfferingReviewQuery) {
+	reviewcompose.WithGrowthQuery(t, func(db *bun.DB, query reviewcompose.GrowthQuery) {
 		require.Same(t, pool, db)
-		query, err := reviewcompose.NewGrowthQuery(t, db, svc, master, schedule, offering)
-		require.NoError(t, err)
 		for _, n := range []int{3, 8} {
 			t.Run(fmt.Sprintf("N%d", n), func(t *testing.T) {
 				assertReviewGrowth(t, db, query, n)
 			})
 		}
-	}))
+	})
 }
 
-func assertReviewGrowth(t *testing.T, db *bun.DB, query requestreview.Query, n int) {
+func assertReviewGrowth(t *testing.T, db *bun.DB, query reviewcompose.GrowthQuery, n int) {
 	t.Helper()
 	testpkg.OwnTenant(t)
 	byStudent := make(map[string]testpkg.RequestReviewSchool, n)
@@ -43,7 +39,7 @@ func assertReviewGrowth(t *testing.T, db *bun.DB, query requestreview.Query, n i
 	}
 	counter := testpkg.CaptureQueriesForContext(t, db)
 	require.NoError(t, testpkg.WithTenantTx(t, counter.Context(ctx), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		page, err := query.ListRequests(txCtx, requestreview.ListQuery{Search: "ReviewRLS", Limit: requestreview.MaxLimit})
+		page, err := query.ListRequests(txCtx, reviewcompose.GrowthListQuery{Search: "ReviewRLS", Limit: reviewcompose.GrowthMaxLimit})
 		require.NoError(t, err)
 		require.Len(t, page.Items, 4*n)
 		require.Empty(t, page.NextCursor)
@@ -69,7 +65,7 @@ func assertReviewGrowth(t *testing.T, db *bun.DB, query requestreview.Query, n i
 	}))
 }
 
-func assertReviewGrowthPage(t *testing.T, page requestreview.Page, byStudent map[string]testpkg.RequestReviewSchool) {
+func assertReviewGrowthPage(t *testing.T, page reviewcompose.GrowthPage, byStudent map[string]testpkg.RequestReviewSchool) {
 	t.Helper()
 	counts := make(map[string]int)
 	for _, item := range page.Items {
@@ -79,7 +75,7 @@ func assertReviewGrowthPage(t *testing.T, page requestreview.Page, byStudent map
 		counts[item.StudentID+":"+item.RequestType]++
 	}
 	for id := range byStudent {
-		for _, typ := range []string{requestreview.TypeMasterData, requestreview.TypeCareSchedule, requestreview.TypeOffering, requestreview.TypeExcused} {
+		for _, typ := range reviewcompose.GrowthRequestTypes() {
 			require.Equal(t, 1, counts[id+":"+typ])
 		}
 	}
