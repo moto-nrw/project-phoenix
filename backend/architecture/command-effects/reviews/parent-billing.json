@@ -117,7 +117,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the colour, letterhead and footer and the payment text (#5622) of the session's Träger (its value or the registry default), read in its Träger transaction for the confirmation letters (ADR 0112, ADR 0121). The same binding then reads the Träger's template of the confirmation letter (#4677, ADR 0152).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the colour, letterhead and footer and the payment text (#5622) of the session's Träger (its value or the registry default), read in its Träger transaction for the confirmation letters (ADR 0112, ADR 0121). The same binding then reads the Träger's template of the confirmation letter (#4677, ADR 0152). Reviewed again for #5691: the binding also copies the layout of the table of amounts from the template version it read; no read or write changes.",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
       "target_owner": "settings-platform"
@@ -127,7 +127,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerDocumentTemplates.Current: the newest version of the session's Träger's template of the confirmation letter, or the standard template, read in its Träger transaction under the Träger policy of platform.traeger_document_templates (#4677, ADR 0152).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerDocumentTemplates.Current: the newest version of the session's Träger's template of the confirmation letter, or the standard template, read in its Träger transaction under the Träger policy of platform.traeger_document_templates (#4677, ADR 0152). Reviewed again for #5691: the binding also copies the layout of the table of amounts from the template version it read; no read or write changes.",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentTemplates.Current",
       "target_owner": "organization-tenancy"
@@ -137,7 +137,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerMasterData.LogoImage: the stored logo of the session's Träger, read in its Träger transaction for the confirmation letters; the logo carries no person and is read without a log entry (ADR 0112 point 6, ADR 0121). Reviewed again for #5622: the binding now also passes the payment text from the settings read; this read is unchanged. The same binding then reads the Träger's template of the confirmation letter (#4677, ADR 0152).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerMasterData.LogoImage: the stored logo of the session's Träger, read in its Träger transaction for the confirmation letters; the logo carries no person and is read without a log entry (ADR 0112 point 6, ADR 0121). Reviewed again for #5622: the binding now also passes the payment text from the settings read; this read is unchanged. The same binding then reads the Träger's template of the confirmation letter (#4677, ADR 0152). Reviewed again for #5691: the binding also copies the layout of the table of amounts from the template version it read; no read or write changes.",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.LogoImage",
       "target_owner": "organization-tenancy"
@@ -148,7 +148,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/organizationtenancy.TraegerMasterData.Profile: Organisation \u0026 Tenancy reads the contact person and the bank accounts of the session's Träger and appends the read to platform.traeger_master_data_audit (ADR 0112 point 6) in the caller's Träger transaction before the Elternabrechnung renders the confirmation letters; the route rolls back on any later refusal, including a payment text that names a missing debtor number (ADR 0121, #5622). The same binding then reads the Träger's template of the confirmation letter (#4677, ADR 0152).",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/organizationtenancy.TraegerMasterData.Profile: Organisation \u0026 Tenancy reads the contact person and the bank accounts of the session's Träger and appends the read to platform.traeger_master_data_audit (ADR 0112 point 6) in the caller's Träger transaction before the Elternabrechnung renders the confirmation letters; the route rolls back on any later refusal, including a payment text that names a missing debtor number (ADR 0121, #5622). The same binding then reads the Träger's template of the confirmation letter (#4677, ADR 0152). Reviewed again for #5691: the binding also copies the layout of the table of amounts from the template version it read; no read or write changes.",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",
       "target_owner": "organization-tenancy"
