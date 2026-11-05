@@ -3,6 +3,7 @@ package defaults
 import (
 	"math"
 	"strconv"
+	"strings"
 	"testing"
 
 	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -35,6 +36,24 @@ func TestBrandingColorPresetsAreReadableOnWhite(t *testing.T) {
 	}
 	assert.True(t, seenValues[definition.Default.(string)], "default is a preset")
 	assert.NotContains(t, definition.Description, "Farbcode")
+}
+
+// TestBrandingTextsShowMultiLineExamples holds #5693: the empty sender and
+// footer fields show grey examples with one entry per line, so a Träger sees
+// how the lines land in the letter. The examples are placeholders, never a
+// default: an empty field prints nothing.
+func TestBrandingTextsShowMultiLineExamples(t *testing.T) {
+	t.Parallel()
+	for key, want := range map[string][]string{
+		config.KeyBrandingLetterheadText: {"Musterträger e. V.", "Musterstraße 1", "12345 Musterstadt"},
+		config.KeyBrandingFooterText:     {"Vorstand: Erika Mustermann", "Amtsgericht Musterstadt, VR 12345", "Steuernummer 123/456/78901"},
+	} {
+		definition := config.DefaultRegistry().GetDefinition(key)
+		require.NotNil(t, definition, key)
+		assert.Equal(t, want, strings.Split(definition.Placeholder, "\n"), key)
+		assert.Equal(t, "", definition.Default, "%s: the example is never a stored value", key)
+		assert.Contains(t, definition.Description, "Jede Zeile", key)
+	}
 }
 
 // The contrast formula itself, against values the WCAG reference tools give.

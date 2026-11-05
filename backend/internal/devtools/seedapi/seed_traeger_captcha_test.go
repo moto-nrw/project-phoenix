@@ -68,6 +68,7 @@ func assertSeedHolidayRefusalSkipsTheRegistrations(t *testing.T, status int, bod
 		"POST /traeger/auth/login",
 		"GET /traeger/schools/",
 		"POST /traeger/holiday-periods/",
+		"POST /traeger/holiday-periods/",
 		"POST /traeger/holiday-periods/5/publish",
 		"POST /traeger/contribution-rules/",
 		"POST /traeger/contribution-rules/",

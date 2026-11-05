@@ -18,6 +18,11 @@ gemeinsamen CSP von `frontend/src/proxy.ts`.
   Origin; `form-action 'self'` begrenzt HTML-Formularziele auf dieselbe Origin.
   Beides bleibt unverändert. Diese Regeln begrenzen nicht beliebige
   JavaScript-Navigationen oder alle Datenabflüsse bei bereits ausgeführtem XSS.
+- `frame-src 'self' blob:` (#5692): Die Träger-App zeigt das Schreiben einer
+  Rechnung im PDF-Viewer des Browsers. Die Datei kommt über den angemeldeten
+  Endpunkt und steht als Object-URL im Frame. Eine `blob:`-Adresse entsteht
+  nur durch Skript der eigenen Origin; fremde Origins bleiben als Frame
+  gesperrt. Das Turnstile-Formular behält seine eigene `frame-src`.
 - `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `nosniff` und
   `Referrer-Policy: strict-origin-when-cross-origin` bleiben erhalten.
 - Nur das öffentliche Tenant-Phasenformular erhält die Turnstile-Ausnahme für

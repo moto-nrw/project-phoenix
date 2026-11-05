@@ -184,6 +184,23 @@ describe("CSP security boundaries", () => {
     );
   });
 
+  it.each([
+    ["school-a.localhost:3000", "/dashboard"],
+    [SCHOOL_HOSTNAME, "/login"],
+    [OPERATOR_HOSTNAME, "/login"],
+  ])(
+    "frames only the own origin and loaded PDFs on %s%s (#5692)",
+    (host, path) => {
+      const res = proxy(makeRequest(`http://${host}${path}`, host));
+      const directives = res.headers
+        .get("Content-Security-Policy")
+        ?.split("; ");
+      expect(
+        directives?.filter((value) => value.startsWith("frame-src ")),
+      ).toEqual(["frame-src 'self' blob:"]);
+    },
+  );
+
   it.each(["production", "development"])(
     "keeps the expected script sources in %s",
     async (environment) => {

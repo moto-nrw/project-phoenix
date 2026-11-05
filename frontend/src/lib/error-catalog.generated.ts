@@ -435,6 +435,8 @@ export const ERROR_CATALOG = {
         "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_week_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen.",
+      "enrollment.holiday_weeks_booked_together":
+        "Ein Kind ist schon für beide Wochen angemeldet. Darum dürfen die Wochen nicht auf dieselben Tage fallen.",
       "enrollment.hosted_holiday_week_not_found":
         "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
       "enrollment.invalid_email":
@@ -1867,6 +1869,8 @@ export const ERROR_CATALOG = {
         "This is not possible for this registration right now. Please reload the page.",
       "enrollment.holiday_week_booked":
         "This week already has registrations. That is why the week and its booked time models cannot be removed.",
+      "enrollment.holiday_weeks_booked_together":
+        "A child is already registered for both weeks. That is why the weeks cannot fall on the same days.",
       "enrollment.hosted_holiday_week_not_found":
         "There is no participant list for this week any more. It is only available until the last day of the week.",
       "enrollment.invalid_email": "Please enter a valid email address.",

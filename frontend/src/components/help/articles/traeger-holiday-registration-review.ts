@@ -90,7 +90,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
         title: "Umbuchen",
         steps: [
           "Wählen Sie beim Kind `Umbuchen`.",
-          "Wählen Sie je Woche ein Zeitmodell oder `Nicht angemeldet`.",
+          "Wählen Sie je Woche ein Zeitmodell oder `Nicht angemeldet`. Gibt es eine Woche an mehreren Schulen, wählen Sie auch die Schule.",
           "Wählen Sie `Speichern`.",
         ],
       },

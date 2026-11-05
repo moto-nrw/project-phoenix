@@ -304,3 +304,28 @@ func TestLetterInputNeedsAPaymentDateAndCompleteEmergencyNumbers(t *testing.T) {
 	assert.Equal(t, "Packliste\nHausschuhe", normalized.Notes)
 	assert.Equal(t, []parentbilling.BillingEmergencyContact{{Name: "OGS", Phone: "0170 1"}}, normalized.EmergencyContacts)
 }
+
+// TestLetterheadTextsPrintLineByLineAndNothingWhenEmpty holds #5693: every
+// entered line of sender and footer is one line of the letter, and an empty
+// field prints nothing. The grey example of the settings form is only a
+// placeholder; it never reaches the letter.
+func TestLetterheadTextsPrintLineByLineAndNothingWhenEmpty(t *testing.T) {
+	t.Parallel()
+
+	content := goldenLetterContent(t)
+	content.letterhead.SenderText = "Förderverein OGS e. V.\r\n  Schulstraße 5 \n\n49143 Bissendorf\n"
+	content.letterhead.FooterText = "Vorstand: Anna Brandt\nAmtsgericht Osnabrück VR 200123"
+	letter := confirmationLetter(content)
+	assert.Equal(t, []string{"Förderverein OGS e. V.", "Schulstraße 5", "49143 Bissendorf"}, letter.Sender)
+	assert.Equal(t, []string{"Vorstand: Anna Brandt", "Amtsgericht Osnabrück VR 200123"}, letter.Footer[:2])
+
+	content.letterhead.SenderText, content.letterhead.FooterText = "", " \n "
+	letter = confirmationLetter(content)
+	assert.Empty(t, letter.Sender)
+	assert.Equal(t, []string{"Mit freundlichen Grüßen"}, letter.Closing)
+	require.Len(t, letter.Footer, 1, "only the bank account stays")
+	assert.Contains(t, letter.Footer[0], "Bankverbindung")
+	for _, line := range append(letter.Footer, letter.Closing...) {
+		assert.NotContains(t, line, "Muster")
+	}
+}

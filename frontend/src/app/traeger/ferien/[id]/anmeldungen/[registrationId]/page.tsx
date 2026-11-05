@@ -672,6 +672,7 @@ export default function TraegerHolidayRegistrationPage() {
           )}
           <HolidayRegistrationHistory
             period={period}
+            names={names}
             registration={registration}
           />
         </>

@@ -98,6 +98,27 @@ function complete(): RegistrationDraft {
 }
 
 describe("validateRegistration", () => {
+  it("refuses weeks that share only some days for one child (#5689)", () => {
+    const first = offer.weeks[0]!;
+    const partly = {
+      ...first,
+      id: "partly",
+      startsOn: first.endsOn,
+      endsOn: "2099-01-01",
+    };
+    const draft = emptyRegistration();
+    const child = {
+      ...draft.children[0]!,
+      bookings: { [first.id]: "21", partly: "21" },
+    };
+    expect(
+      validateRegistration(
+        { ...draft, children: [child] },
+        { ...offer, weeks: [first, partly] },
+      )["children.0.bookings"],
+    ).toBe("weeksOverlap");
+  });
+
   it("names every missing field of an empty registration", () => {
     expect(validateRegistration(emptyRegistration(), offer)).toEqual({
       "guardian.first_name": "required",

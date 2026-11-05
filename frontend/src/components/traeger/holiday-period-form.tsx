@@ -263,7 +263,9 @@ export function HolidayPeriodForm({
             <div>
               <h3 className="text-sm font-semibold text-gray-600">Wochen</h3>
               <p className="text-sm text-gray-600">
-                Jede Woche findet an einer Schule Ihres Trägers statt.
+                Jede Woche findet an einer Schule Ihres Trägers statt. Wollen
+                Sie dieselben Tage an mehreren Schulen anbieten? Legen Sie dafür
+                je Schule eine Woche an. Eltern wählen dann eine Schule.
               </p>
             </div>
             <div className="space-y-4">

@@ -230,6 +230,9 @@ function columns(
                       booking.weekStartsOn,
                       booking.weekEndsOn,
                     )}
+                    ,{" "}
+                    {names.get(booking.hostSchoolId) ??
+                      "Schule nicht mehr vorhanden"}
                     : {booking.timeModelName}
                   </li>
                 ))}
