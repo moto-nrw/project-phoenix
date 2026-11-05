@@ -15,7 +15,7 @@ import {
   BILLING_RUN_STATUS_LABELS,
   BILLING_RUN_STATUS_TONES,
 } from "~/components/traeger/billing-format";
-import { BILLING_PERIOD_PARAM } from "~/components/traeger/holiday-period-billing-link";
+import { BILLING_PERIOD_PARAM } from "~/components/traeger/use-holiday-period-billing-href";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { formatDateRange } from "~/components/traeger/holiday-period-format";
 import { Button } from "~/components/ui/button";

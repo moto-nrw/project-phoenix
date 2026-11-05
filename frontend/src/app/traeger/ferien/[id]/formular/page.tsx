@@ -12,7 +12,10 @@ import {
   holidayPeriodTabs,
 } from "~/components/traeger/holiday-period-head";
 import { HolidayFormEditor } from "~/components/traeger/holiday-form-editor";
-import { HolidayPeriodBillingLink } from "~/components/traeger/holiday-period-billing-link";
+import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { billingConcept } from "~/lib/concepts/billing";
+import { ButtonLink } from "~/components/ui/button";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
@@ -34,6 +37,7 @@ export default function TraegerHolidayFormPage() {
     preview,
     loadError: periodError,
   } = useTraegerHolidayPeriod(id);
+  const billingHref = useHolidayPeriodBillingHref(period);
   const [form, setForm] = useState<HolidayForm | null>(null);
   const formLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = formLoad;
@@ -86,7 +90,18 @@ export default function TraegerHolidayFormPage() {
       }
       statsLoading={!(period && form) && !loadError}
       tabs={holidayPeriodTabs(id, "formular", period?.registrationCount)}
-      actions={<HolidayPeriodBillingLink period={period} />}
+      actions={
+        billingHref ? (
+          <ButtonLink href={billingHref} variant="outline" size="md">
+            <MotoConceptIcon
+              concept={billingConcept}
+              size={18}
+              className="mr-2"
+            />
+            Zur Abrechnung
+          </ButtonLink>
+        ) : null
+      }
       error={loadError}
       loading={!loadError && !(period && form)}
     >

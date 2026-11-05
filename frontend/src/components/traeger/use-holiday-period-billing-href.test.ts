@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { HolidayPeriod } from "~/lib/traeger-api";
 import type { BillingRun } from "~/lib/traeger-billing-api";
@@ -34,8 +34,8 @@ vi.mock("~/lib/traeger-url", () => ({
 
 import {
   billingPathForPeriod,
-  HolidayPeriodBillingLink,
-} from "./holiday-period-billing-link";
+  useHolidayPeriodBillingHref,
+} from "./use-holiday-period-billing-href";
 
 const PERIOD = { id: "5", status: "published" } as HolidayPeriod;
 
@@ -72,7 +72,7 @@ describe("billingPathForPeriod", () => {
   });
 });
 
-describe("HolidayPeriodBillingLink", () => {
+describe("useHolidayPeriodBillingHref", () => {
   beforeEach(() => {
     state.permissions = ["traeger_billing:manage"];
     state.runs = [run("9", "5")];
@@ -82,45 +82,37 @@ describe("HolidayPeriodBillingLink", () => {
 
   it("waits for the runs before it offers a destination", () => {
     state.runs = undefined;
-    const pending = render(<HolidayPeriodBillingLink period={PERIOD} />);
+    const pending = renderHook(() => useHolidayPeriodBillingHref(PERIOD));
 
-    expect(pending.container).toBeEmptyDOMElement();
+    expect(pending.result.current).toBeNull();
     expect(state.keys).toEqual(["traeger-billing-run-list"]);
     pending.unmount();
 
     state.runs = [run("9", "5")];
-    render(<HolidayPeriodBillingLink period={PERIOD} />);
+    const { result } = renderHook(() => useHolidayPeriodBillingHref(PERIOD));
     // Anker: sobald die Läufe da sind, führt die Aktion zum einzigen Lauf.
-    expect(
-      screen.getByRole("link", { name: "Zur Abrechnung" }),
-    ).toHaveAttribute("href", "/abrechnung/9");
+    expect(result.current).toBe("/abrechnung/9");
   });
 
   it("leads to the filtered list when the runs cannot be read", () => {
     state.runs = undefined;
     state.error = new Error("load failed");
-    render(<HolidayPeriodBillingLink period={PERIOD} />);
+    const { result } = renderHook(() => useHolidayPeriodBillingHref(PERIOD));
 
-    expect(
-      screen.getByRole("link", { name: "Zur Abrechnung" }),
-    ).toHaveAttribute("href", "/abrechnung?ferienzeitraum=5");
+    expect(result.current).toBe("/abrechnung?ferienzeitraum=5");
   });
 
   it("leads to the run of the period with the billing right", () => {
-    render(<HolidayPeriodBillingLink period={PERIOD} />);
+    const { result } = renderHook(() => useHolidayPeriodBillingHref(PERIOD));
 
-    expect(
-      screen.getByRole("link", { name: "Zur Abrechnung" }),
-    ).toHaveAttribute("href", "/abrechnung/9");
+    expect(result.current).toBe("/abrechnung/9");
   });
 
   it("leads to the filtered list while the period has several runs", () => {
     state.runs = [run("9", "5"), run("10", "5")];
-    render(<HolidayPeriodBillingLink period={PERIOD} />);
+    const { result } = renderHook(() => useHolidayPeriodBillingHref(PERIOD));
 
-    expect(
-      screen.getByRole("link", { name: "Zur Abrechnung" }),
-    ).toHaveAttribute("href", "/abrechnung?ferienzeitraum=5");
+    expect(result.current).toBe("/abrechnung?ferienzeitraum=5");
   });
 
   // Die sichtbare Umgebung, gegen die jede verborgene Zeile prüft.
@@ -143,18 +135,18 @@ describe("HolidayPeriodBillingLink", () => {
 
   it.each(HIDDEN)("stays hidden and loads no runs $name", (row) => {
     state.permissions = row.permissions;
-    const hidden = render(<HolidayPeriodBillingLink period={row.period} />);
+    const hidden = renderHook(() => useHolidayPeriodBillingHref(row.period));
 
-    expect(hidden.container).toBeEmptyDOMElement();
+    expect(hidden.result.current).toBeNull();
     expect(state.keys).toEqual([null]);
     hidden.unmount();
 
     state.permissions = VISIBLE.permissions;
     state.keys = [];
-    render(<HolidayPeriodBillingLink period={VISIBLE.period} />);
+    const { result } = renderHook(() =>
+      useHolidayPeriodBillingHref(VISIBLE.period),
+    );
     // Anker: dieselbe Umgebung mit Recht und veröffentlichtem Zeitraum zeigt die Aktion.
-    expect(
-      screen.getByRole("link", { name: "Zur Abrechnung" }),
-    ).toBeInTheDocument();
+    expect(result.current).toBe("/abrechnung/9");
   });
 });

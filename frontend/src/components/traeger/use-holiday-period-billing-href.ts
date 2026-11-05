@@ -7,10 +7,7 @@
 // keine Läufe und lässt sich nicht abrechnen.
 
 import { useSession } from "next-auth/react";
-import { ButtonLink } from "~/components/ui/button";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { hasPermission } from "~/lib/auth-utils";
-import { billingConcept } from "~/lib/concepts/billing";
 import { useSWRAuth } from "~/lib/swr";
 import { traegerKeys } from "~/lib/swr/portal-keys";
 import type { HolidayPeriod } from "~/lib/traeger-api";
@@ -43,9 +40,9 @@ export function billingPathForPeriod(
     : billingListPathForPeriod(periodId);
 }
 
-export function HolidayPeriodBillingLink({
-  period,
-}: Readonly<{ period: HolidayPeriod | undefined }>) {
+export function useHolidayPeriodBillingHref(
+  period: HolidayPeriod | undefined,
+): string | null {
   const { data: session } = useSession();
   const allowed =
     hasPermission(session ?? null, TRAEGER_BILLING_RIGHT) &&
@@ -59,14 +56,5 @@ export function HolidayPeriodBillingLink({
   // Erst mit den Läufen steht das Ziel fest; ein Klick davor führte an einem
   // einzigen Lauf vorbei zur Liste.
   if (!allowed || !period || (runs === undefined && !error)) return null;
-  return (
-    <ButtonLink
-      href={traegerPath(billingPathForPeriod(period.id, runs))}
-      variant="outline"
-      size="md"
-    >
-      <MotoConceptIcon concept={billingConcept} size={18} className="mr-2" />
-      Zur Abrechnung
-    </ButtonLink>
-  );
+  return traegerPath(billingPathForPeriod(period.id, runs));
 }
