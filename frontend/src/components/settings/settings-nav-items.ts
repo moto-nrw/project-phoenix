@@ -7,6 +7,7 @@ import { accountsConcept } from "~/lib/concepts/accounts";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { dashboardConcept } from "~/lib/concepts/dashboard";
 import { devicesConcept } from "~/lib/concepts/devices";
+import { documentsConcept } from "~/lib/concepts/documents";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { listsConcept } from "~/lib/concepts/lists";
 import { mealPlanConcept } from "~/lib/concepts/mealPlan";
@@ -58,6 +59,7 @@ const TAB_CONCEPTS: Record<string, MotoConcept> = {
   general: settingsConcept,
   security: permissionsConcept,
   modules: listsConcept,
+  branding: documentsConcept,
 };
 
 // A tab whose settings are all hidden (DependsOn, access) would open onto the
