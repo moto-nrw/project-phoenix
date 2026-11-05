@@ -169,6 +169,9 @@ func exposedReservedHexes(t *testing.T) map[string]struct{} {
 		"#365D83",
 		"#217A78",
 		"#EAB308",
+		// IN_CLASS („Geht zum Unterricht“) uses indigo, the hex the backend
+		// already reserves as the legacy bug-default (pinned separately below).
+		"#4F46E5",
 	}
 
 	out := make(map[string]struct{}, len(knownReserved))
