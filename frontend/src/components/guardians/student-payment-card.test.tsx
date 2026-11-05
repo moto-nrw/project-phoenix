@@ -95,7 +95,7 @@ describe("StudentPaymentCard", () => {
     );
 
     await waitFor(() => expect(mockFetchPayment).toHaveBeenCalledWith("10"));
-    expect(screen.getByText("•••• 3000")).toBeInTheDocument();
+    expect(await screen.findByText("•••• 3000")).toBeInTheDocument();
     expect(screen.queryByText(FULL_IBAN)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Anzeigen/ }));
@@ -124,6 +124,10 @@ describe("StudentPaymentCard", () => {
     );
     await waitFor(() => expect(mockFetchPayment).toHaveBeenCalled());
 
+    // „Bearbeiten“ stays disabled until the payment has loaded.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeEnabled(),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
 
     const input = await screen.findByLabelText("IBAN");
@@ -169,6 +173,10 @@ describe("StudentPaymentCard", () => {
     );
     await waitFor(() => expect(mockFetchPayment).toHaveBeenCalled());
 
+    // „Bearbeiten“ stays disabled until the payment has loaded.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeEnabled(),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     await screen.findByLabelText("IBAN");
     fireEvent.change(screen.getByLabelText("Anderer Kontoinhaber"), {
@@ -247,6 +255,10 @@ describe("StudentPaymentCard", () => {
       />,
     );
     await waitFor(() => expect(mockFetchPayment).toHaveBeenCalledWith("10"));
+    // „Bearbeiten“ stays disabled until the payment has loaded.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeEnabled(),
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     expect(await screen.findByLabelText("IBAN")).toBeInTheDocument();
@@ -265,7 +277,10 @@ describe("StudentPaymentCard", () => {
     expect(
       screen.queryByRole("button", { name: "Speichern" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeEnabled();
+    // The new payer's payment loads first; then the card is usable again.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeEnabled(),
+    );
     expect(mockSetPayer).not.toHaveBeenCalled();
   });
 
@@ -287,6 +302,10 @@ describe("StudentPaymentCard", () => {
     );
     await waitFor(() => expect(mockFetchPayment).toHaveBeenCalled());
 
+    // „Bearbeiten“ stays disabled until the payment has loaded.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeEnabled(),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     expect(await screen.findByLabelText("IBAN")).toBeInTheDocument();
 
@@ -369,7 +388,7 @@ describe("StudentPaymentCard", () => {
     await waitFor(() => expect(mockFetchPayment).toHaveBeenCalled());
 
     expect(
-      screen.getByRole("button", { name: /Anzeigen/ }),
+      await screen.findByRole("button", { name: /Anzeigen/ }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Bearbeiten" }),
