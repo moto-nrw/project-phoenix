@@ -16,6 +16,7 @@ describe("HolidayContributionCard", () => {
       <HolidayContributionCard
         contribution={HOLIDAY_CONTRIBUTION}
         registration={HOLIDAY_REGISTRATION}
+        canOpenBillingSettings
       />,
     );
 
@@ -36,6 +37,24 @@ describe("HolidayContributionCard", () => {
     expect(screen.getByText("-22,50 €")).toBeInTheDocument();
     expect(screen.getByText("Gesamt")).toBeInTheDocument();
     expect(screen.getByText("90,00 €")).toBeInTheDocument();
+  });
+
+  it("does not link to billing settings without access to the settings", () => {
+    render(
+      <HolidayContributionCard
+        contribution={HOLIDAY_CONTRIBUTION}
+        registration={HOLIDAY_REGISTRATION}
+        canOpenBillingSettings={false}
+      />,
+    );
+
+    // Anker: Die angewandte Geschwisterregel ist geladen.
+    expect(
+      screen.getByText("Geschwister: 2. Kind, 50 % weniger"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).not.toBeInTheDocument();
   });
 
   it("names the day a confirmed contribution was frozen", () => {
@@ -62,6 +81,7 @@ describe("HolidayContributionCard", () => {
       <HolidayContributionCard
         contribution={HOLIDAY_CONTRIBUTION}
         registration={HOLIDAY_REGISTRATION}
+        canOpenBillingSettings
       />,
     );
     expect(
@@ -79,6 +99,7 @@ describe("HolidayContributionCard", () => {
           })),
         }}
         registration={HOLIDAY_REGISTRATION}
+        canOpenBillingSettings
       />,
     );
     expect(

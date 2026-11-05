@@ -9,8 +9,17 @@ const RULE_KINDS: readonly string[] = ["sibling", "benefits_exemption"];
  */
 export function ContributionRulesLink({
   kinds,
-}: Readonly<{ kinds: readonly string[] }>) {
-  if (!kinds.some((kind) => RULE_KINDS.includes(kind))) return null;
+  canOpenBillingSettings,
+}: Readonly<{
+  kinds: readonly string[];
+  canOpenBillingSettings: boolean;
+}>) {
+  if (
+    !canOpenBillingSettings ||
+    !kinds.some((kind) => RULE_KINDS.includes(kind))
+  ) {
+    return null;
+  }
   return (
     <p className="mt-3 text-sm text-gray-700">
       Die Regeln stehen in den{" "}

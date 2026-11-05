@@ -58,6 +58,7 @@ function renderCard(
   onChanged = vi.fn(),
   contribution: HolidayContribution = HOLIDAY_CONTRIBUTION,
   onReload = vi.fn(() => Promise.resolve()),
+  canOpenBillingSettings = false,
 ) {
   const onExemptionChange = vi.fn();
   render(
@@ -66,6 +67,7 @@ function renderCard(
         periodId="5"
         registration={registration}
         contribution={contribution}
+        canOpenBillingSettings={canOpenBillingSettings}
         exemption={registration.benefitsDeclared}
         onExemptionChange={onExemptionChange}
         onChanged={onChanged}
@@ -224,10 +226,16 @@ describe("HolidayRegistrationStatusCard", () => {
       vi.unstubAllEnvs();
       _resetTraegerHostCache();
     });
-    renderCard({ ...HOLIDAY_REGISTRATION, benefitsDeclared: true }, vi.fn(), {
-      ...HOLIDAY_CONTRIBUTION,
-      exemptionAvailable: false,
-    });
+    renderCard(
+      { ...HOLIDAY_REGISTRATION, benefitsDeclared: true },
+      vi.fn(),
+      {
+        ...HOLIDAY_CONTRIBUTION,
+        exemptionAvailable: false,
+      },
+      undefined,
+      true,
+    );
 
     expect(
       screen.getByText(
@@ -239,6 +247,23 @@ describe("HolidayRegistrationStatusCard", () => {
     ).toHaveAttribute("href", "/einstellungen/abrechnung");
     expect(screen.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
     expect(screen.queryByRole("radio")).toBeNull();
+  });
+
+  it("names the missing rule without a link when billing settings are unavailable", () => {
+    renderCard({ ...HOLIDAY_REGISTRATION, benefitsDeclared: true }, vi.fn(), {
+      ...HOLIDAY_CONTRIBUTION,
+      exemptionAvailable: false,
+    });
+
+    // Anker: Der Hinweis zur fehlenden Befreiungsregel ist sichtbar.
+    expect(
+      screen.getByText(
+        "Die Eltern geben an, dass sie Leistungen beziehen. Am ersten gebuchten Tag gilt keine Befreiungsregel. Die Rolle „Abrechnung“ legt sie an.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).not.toBeInTheDocument();
   });
 
   it("cancels only after the confirmation, through the contribution, and reads the page again", async () => {

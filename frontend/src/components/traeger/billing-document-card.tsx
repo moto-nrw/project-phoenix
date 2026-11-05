@@ -229,6 +229,9 @@ export function BillingDocumentBreakdown({
               total={formatEuro(document.totalCents)}
             />
             <ContributionRulesLink
+              // Der Abrechnungslauf setzt das Recht „Abrechnung“ voraus;
+              // dieses enthält das Leserecht für die Abrechnungsvorgaben.
+              canOpenBillingSettings
               kinds={document.children.flatMap((child) =>
                 child.positions.map((position) => position.kind),
               )}
