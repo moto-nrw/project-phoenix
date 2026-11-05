@@ -278,10 +278,21 @@ type offeringPreviewStudentResponse struct {
 	Name      string `json:"name"`
 }
 
+// offeringPreviewDroppedResponse is a child the preview drops, with the
+// weekdays the selection books it on, or the filter that leaves it out.
+type offeringPreviewDroppedResponse struct {
+	StudentID      int64  `json:"student_id"`
+	Name           string `json:"name"`
+	BookedWeekdays []int  `json:"booked_weekdays"`
+	// ExcludedBy is "school_class" or "grade_level" when the Klassen or
+	// Jahrgang filter leaves out a child the selection books.
+	ExcludedBy string `json:"excluded_by,omitempty"`
+}
+
 type offeringPreviewWeekdayResponse struct {
 	Weekday   int                              `json:"weekday"`
 	Added     []offeringPreviewStudentResponse `json:"added"`
-	Removed   []offeringPreviewStudentResponse `json:"removed"`
+	Removed   []offeringPreviewDroppedResponse `json:"removed"`
 	KeptCount int                              `json:"kept_count"`
 }
 
@@ -397,7 +408,7 @@ func (rs *Resource) offeringSourcePreview(ctx context.Context, templateID int64,
 	}
 	return offeringPreviewResponse{
 		From:           from.String(),
-		Weekdays:       offeringPreviewWeekdays(changes, names),
+		Weekdays:       offeringPreviewWeekdays(changes, names, timetable.DroppedChildrenBookings(filter, bookings, changes)),
 		Segments:       offeringPreviewSegments(segments),
 		OtherOfferings: offeringPreviewAlternatives(living.OfferingKind, filter, bookings, changes),
 	}, nil
@@ -440,17 +451,34 @@ func (rs *Resource) studentNames(ctx context.Context, studentIDs []int64, day ca
 	return names, nil
 }
 
-func offeringPreviewWeekdays(changes []timetable.OfferingSourceWeekdayChange, names map[int64]string) []offeringPreviewWeekdayResponse {
+func offeringPreviewWeekdays(changes []timetable.OfferingSourceWeekdayChange, names map[int64]string, dropped map[int64]timetable.DroppedChildBooking) []offeringPreviewWeekdayResponse {
 	weekdays := make([]offeringPreviewWeekdayResponse, 0, len(changes))
 	for _, change := range changes {
 		weekdays = append(weekdays, offeringPreviewWeekdayResponse{
 			Weekday:   change.Weekday,
 			Added:     namedPreviewStudents(change.Added, names),
-			Removed:   namedPreviewStudents(change.Removed, names),
+			Removed:   droppedPreviewStudents(change.Removed, names, dropped),
 			KeptCount: change.KeptCount,
 		})
 	}
 	return weekdays
+}
+
+// droppedPreviewStudents names the dropped children who still attend with
+// the reason they drop, sorted by name.
+func droppedPreviewStudents(studentIDs []int64, names map[int64]string, dropped map[int64]timetable.DroppedChildBooking) []offeringPreviewDroppedResponse {
+	students := make([]offeringPreviewDroppedResponse, 0, len(studentIDs))
+	for _, student := range namedPreviewStudents(studentIDs, names) {
+		reason := dropped[student.StudentID]
+		weekdays := reason.Weekdays
+		if weekdays == nil {
+			weekdays = []int{}
+		}
+		students = append(students, offeringPreviewDroppedResponse{
+			StudentID: student.StudentID, Name: student.Name, BookedWeekdays: weekdays, ExcludedBy: reason.ExcludedBy,
+		})
+	}
+	return students
 }
 
 // namedPreviewStudents keeps the children who still attend, sorted by name.

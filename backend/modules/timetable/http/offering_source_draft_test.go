@@ -176,6 +176,16 @@ func TestDraftOfferingPreview(t *testing.T) {
 	assert.Equal(t, 3, wednesday.Weekday)
 	assert.Len(t, wednesday.Removed, 2, "nobody books Wednesday")
 	assert.Empty(t, wednesday.Added)
+
+	// Each dropped child names the days the selection books it (Schule am
+	// Berg asked why children dropped): class[0] on none, class[1] on Monday.
+	assert.Equal(t, []int{}, monday.Removed[0].BookedWeekdays)
+	assert.Empty(t, monday.Removed[0].ExcludedBy)
+	booked := make(map[int64][]int, len(wednesday.Removed))
+	for _, child := range wednesday.Removed {
+		booked[child.StudentID] = child.BookedWeekdays
+	}
+	assert.Equal(t, map[int64][]int{class[0]: {}, class[1]: {1}}, booked)
 }
 
 // TestDraftOfferingPreviewNamesOtherOfferings: Schule am Berg chose only
