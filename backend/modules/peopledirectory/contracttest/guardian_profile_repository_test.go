@@ -468,6 +468,38 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 		assert.Empty(t, results, "a query with no real tokens must not match anything")
 	})
 
+	for _, tc := range []struct {
+		name  string
+		query string
+	}{
+		{name: "fullwidth percent signs are not wildcards", query: "％％％"},
+		{name: "combining accents alone do not match", query: "\u0301\u0301\u0301"},
+		{name: "minimum length counts normalized characters", query: "a\u0301\u0301"},
+		{name: "removed tokens do not count toward minimum length", query: "\u0301 \u0301 \u0301 \u0301"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := testpkg.OwnCtx(t)
+			seedNamedGuardian(t, db, ctx, repo, "Andrea", "Bauer")
+
+			results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, tc.query, 50)
+			require.NoError(t, err)
+			assert.Empty(t, results, "normalization must not bypass the picker search guards")
+		})
+	}
+
+	t.Run("normalized LIKE metacharacters match literally", func(t *testing.T) {
+		ctx := testpkg.OwnCtx(t)
+		match := seedNamedGuardian(t, db, ctx, repo, "Literal", "Bauer")
+		match.FirstName = `Literal%_\Name`
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, match))
+		seedNamedGuardian(t, db, ctx, repo, "Andrea", "Bauer")
+
+		results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, "％＿＼", 50)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, match.ID, results[0].ID)
+	})
+
 	t.Run("a non-positive limit falls back to a default and still returns matches", func(t *testing.T) {
 		token := fmt.Sprintf("Zzlimit%d", time.Now().UnixNano())
 		match := seedNamedGuardian(t, db, ctx, repo, token, "Gamma")

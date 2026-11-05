@@ -459,15 +459,21 @@ func (r *guardianProfileRepository) SearchByText(ctx context.Context, searchText
 	query := ambientDB11.NewSelect().
 		Model(&profiles).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
+	// Recheck the picker's three-character floor after database normalization:
+	// unaccent can remove entire tokens, leaving an otherwise unfiltered search.
+	query = query.Where(`char_length(btrim(public.f_unaccent(?))) >= 3`, strings.Join(tokens, " "))
 
 	// One AND-ed WHERE group per token; within a group the token may match any of
 	// the three columns. The explicit parentheses keep each token's OR set
 	// isolated so the groups combine as (t1col OR …) AND (t2col OR …).
 	for _, tok := range tokens {
 		pattern := "%" + escapeLikePattern(tok) + "%"
+		// Escape AFTER unaccent, which can turn fullwidth punctuation into LIKE
+		// metacharacters. Keep email matching on its original, unnormalized token.
+		namePattern := bun.SafeQuery(`'%' || replace(replace(replace(public.f_unaccent(?), '\', '\\'), '%', '\%'), '_', '\_') || '%'`, tok)
 		query = query.Where(
-			`(public.f_unaccent("guardian_profile".first_name) ILIKE public.f_unaccent(?) ESCAPE '\' OR public.f_unaccent("guardian_profile".last_name) ILIKE public.f_unaccent(?) ESCAPE '\' OR LOWER("guardian_profile".email) LIKE ? ESCAPE '\')`,
-			pattern, pattern, pattern,
+			`(public.f_unaccent("guardian_profile".first_name) ILIKE ? ESCAPE '\' OR public.f_unaccent("guardian_profile".last_name) ILIKE ? ESCAPE '\' OR LOWER("guardian_profile".email) LIKE ? ESCAPE '\')`,
+			namePattern, namePattern, pattern,
 		)
 	}
 
