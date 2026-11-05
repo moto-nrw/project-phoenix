@@ -7,11 +7,15 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	calendarPortal "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 )
+
+type recipientOptionWire struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
 
 func TestCalendarRecipientOptionsPositiveGrowthQueryBudget(t *testing.T) {
 	t.Parallel()
@@ -31,7 +35,18 @@ func TestCalendarRecipientOptionsPositiveGrowthQueryBudget(t *testing.T) {
 		counter.Stop()
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		var out struct {
-			Data calendarPortal.RecipientOptions `json:"data"`
+			Data struct {
+				Staff    []recipientOptionWire `json:"staff"`
+				Parents  []recipientOptionWire `json:"parents"`
+				Groups   []recipientOptionWire `json:"groups"`
+				Classes  []string              `json:"classes"`
+				Students []struct {
+					ID          string  `json:"id"`
+					Name        string  `json:"name"`
+					SchoolClass string  `json:"school_class"`
+					GroupID     *string `json:"group_id,omitempty"`
+				} `json:"students"`
+			} `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &out))
 		got := make([]string, 0, len(out.Data.Parents))
