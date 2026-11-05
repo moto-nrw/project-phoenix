@@ -22,7 +22,7 @@ const EMPTY: TraegerMasterData = {
  * Fehler würden gespeicherte Werte überschreiben. Ein fehlgeschlagenes
  * Nachladen lässt die gezeigten Werte stehen und meldet es.
  */
-export function useTraegerMasterData(object: string) {
+export function useTraegerMasterData(object: string, enabled = true) {
   const [masterData, setMasterData] = useState<TraegerMasterData>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<unknown>();
@@ -66,8 +66,9 @@ export function useTraegerMasterData(object: string) {
   }, [load, object, read, showLoadError]);
 
   useEffect(() => {
+    if (!enabled) return;
     void load();
-  }, [load]);
+  }, [enabled, load]);
 
   return {
     masterData,

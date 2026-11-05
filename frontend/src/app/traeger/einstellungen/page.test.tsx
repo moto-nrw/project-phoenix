@@ -93,6 +93,14 @@ const STAFF_NAME_DEFAULT = item({
   sort_order: 2,
 });
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
 function renderPage() {
   return render(
     <ToastProvider>
@@ -412,6 +420,38 @@ describe("TraegerSettingsPage", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "Kontakt" }));
     expect(await screen.findByLabelText("Name")).toHaveValue("Petra Lindner");
     expect(mockFetchMasterData).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the page loading state while the contact opens (#5685)", async () => {
+    const contact = deferred<{
+      contact: { name: string; phone: string; email: string };
+      logo: null;
+      bankAccounts: [];
+    }>();
+    mockFetchSchema.mockResolvedValue(schema([item({})]));
+    mockFetchMasterData.mockReturnValue(contact.promise);
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Kontakt" }));
+    expect(
+      await screen.findByRole("status", {
+        name: "Der Bereich „Allgemein“ wird geladen…",
+      }),
+    ).toBeInTheDocument();
+    expect(mockFetchMasterData).toHaveBeenCalledTimes(1);
+
+    contact.resolve({
+      contact: { name: "Petra Lindner", phone: "", email: "" },
+      logo: null,
+      bankAccounts: [],
+    });
+    expect(await screen.findByLabelText("Name")).toHaveValue("Petra Lindner");
+    // Anker: Die Kontaktkarte ist geladen.
+    expect(
+      screen.queryByRole("status", {
+        name: "Der Bereich „Allgemein“ wird geladen…",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a failed contact load in its area and retries", async () => {

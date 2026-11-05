@@ -21,7 +21,9 @@ import {
   saveTraegerSettingValue,
 } from "~/lib/traeger-api";
 import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
+import { useTraegerMasterData } from "~/components/traeger/use-traeger-master-data";
 import { TRAEGER_BRANDING_TAB } from "~/lib/traeger-branding";
+import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { TraegerContactSection } from "~/components/traeger/traeger-contact-section";
 import { SectionCard } from "~/components/ui/section-card";
 import {
@@ -86,9 +88,16 @@ export default function TraegerSettingsPage() {
   );
 
   const contactOpen = selectedTab === CONTACT_TAB;
-  const activeTab = contactOpen
+  const contactActive =
+    contactOpen || (schema !== undefined && tabs.length === 0);
+  const activeTab = contactActive
     ? null
     : (tabs.find((tab) => tab.key === selectedTab) ?? tabs[0] ?? null);
+  const contact = useTraegerMasterData("die Kontaktdaten", contactActive);
+  // Ein fehlgeschlagenes Nachladen lässt die Kontaktkarte stehen, außer bei einer Ablehnung.
+  const contactError = contactActive
+    ? metadataLoadError(contact.error, contact.loaded, contact.failure)
+    : null;
   // The holiday tab shows the payment sentence with example values (#5622).
   const paymentText =
     activeTab?.key === TRAEGER_HOLIDAY_TAB
@@ -130,8 +139,11 @@ export default function TraegerSettingsPage() {
             }
           : undefined
       }
-      error={loadError}
-      loading={loading && !schema}
+      error={loadError ?? contactError}
+      loading={
+        (loading && !schema) ||
+        (contactActive && contact.loading && !contact.loaded)
+      }
     >
       {schema && activeTab && !hasWritableSetting(schema) ? (
         <Alert
@@ -139,7 +151,12 @@ export default function TraegerSettingsPage() {
           message="Sie können die Werte nur ansehen. Ändern kann, wer im Träger-Büro das Recht dazu hat."
         />
       ) : null}
-      {schema && !activeTab ? <TraegerContactSection /> : null}
+      {schema && contactActive && contact.loaded ? (
+        <TraegerContactSection
+          contact={contact.masterData.contact}
+          onSaved={contact.refresh}
+        />
+      ) : null}
       {activeTab?.categories.map((category) => (
         <SettingsCategory
           key={category.key}
