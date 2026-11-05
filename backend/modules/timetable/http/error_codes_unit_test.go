@@ -119,6 +119,7 @@ func TestTimetableCodeConstantsAreRegistered(t *testing.T) {
 		timetable.CodeAttendanceFrozen,
 		timetable.CodeReopenStudentActive,
 		timetable.CodeReopenAttendanceChanged,
+		timetable.CodeReopenStudentLeft,
 		timetable.CodeReopenSupervisionChanged,
 		timetable.CodeReopenStaffBusy,
 		timetable.CodeGuardianNoticeTextInvalid,

@@ -15,6 +15,7 @@ import { backConcept } from "~/lib/concepts/back";
 import { billingConcept } from "~/lib/concepts/billing";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { contributionsConcept } from "~/lib/concepts/contributions";
+import { dashboardConcept } from "~/lib/concepts/dashboard";
 import { documentsConcept } from "~/lib/concepts/documents";
 import { helpConcept } from "~/lib/concepts/help";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
@@ -31,11 +32,11 @@ const BILLING_RIGHT = "traeger_billing:manage";
 /** Das Recht, das das Zugriffsprotokoll öffnet (#4655). */
 const ACCESS_LOG_RIGHT = "traeger_access_log:read";
 /**
- * Das Recht, das die allgemeinen Einstellungen (ADR 0086, #4652), den Briefkopf
- * (#4653) und die Abrechnungsvorgaben öffnet. Auf den Abrechnungsvorgaben
- * stehen die Bankverbindungen für alle mit diesem Recht, wie zuvor auf dem
- * Briefkopf; die Regeln und Rechnungsnummern nur mit dem Recht „Abrechnung"
- * (#5685). Jede Rolle mit „Abrechnung" hat auch dieses Recht.
+ * Das Recht, das das Dashboard (#4674), die allgemeinen Einstellungen (ADR 0086,
+ * #4652), den Briefkopf (#4653) und die Abrechnungsvorgaben öffnet. Auf den
+ * Abrechnungsvorgaben stehen die Bankverbindungen für alle mit diesem Recht, wie
+ * zuvor auf dem Briefkopf; die Regeln und Rechnungsnummern nur mit dem Recht
+ * „Abrechnung" (#5685). Jede Rolle mit „Abrechnung" hat auch dieses Recht.
  */
 const OVERVIEW_RIGHT = "traeger_overview:read";
 
@@ -61,6 +62,14 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
     key: "uebersicht",
     label: "Übersicht",
     items: [
+      {
+        // Die Zahlen von jetzt über alle Schulen (#4674).
+        key: "dashboard",
+        href: "/traeger/uebersicht",
+        label: "Dashboard",
+        concept: dashboardConcept,
+        right: OVERVIEW_RIGHT,
+      },
       {
         key: "schulen",
         href: "/traeger",

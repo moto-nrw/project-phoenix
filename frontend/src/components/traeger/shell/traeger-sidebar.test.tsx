@@ -71,6 +71,7 @@ describe("TraegerSidebar", () => {
     render(<TraegerSidebar />);
 
     for (const [group, name] of [
+      ["Übersicht", "Dashboard"],
       ["Übersicht", "Schulen"],
       ["Betreuung", "Ferienbetreuung"],
       ["Finanzen", "Abrechnung"],
@@ -82,10 +83,15 @@ describe("TraegerSidebar", () => {
       ).toBeInTheDocument();
     }
     expect(linkNames(mainNav())).toEqual([
+      "Dashboard",
       "Schulen",
       "Ferienbetreuung",
       "Abrechnung",
     ]);
+    expect(mainNav().getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+      "href",
+      "/uebersicht",
+    );
     expect(linkNames(bottomNav())).toEqual(["Hilfe", "Einstellungen"]);
     expect(bottomNav().getByRole("link", { name: "Hilfe" })).toHaveAttribute(
       "href",
@@ -100,9 +106,16 @@ describe("TraegerSidebar", () => {
     sessionUser.permissions = ["traeger_overview:read"];
     render(<TraegerSidebar />);
 
-    expect(linkNames(mainNav())).toEqual(["Schulen"]);
+    expect(linkNames(mainNav())).toEqual(["Dashboard", "Schulen"]);
     expect(mainNav().queryByText("Betreuung")).toBeNull();
     expect(mainNav().queryByText("Finanzen")).toBeNull();
+  });
+
+  it("shows the Dashboard only with its right (#4674)", () => {
+    sessionUser.permissions = [];
+    render(<TraegerSidebar />);
+
+    expect(linkNames(mainNav())).toEqual(["Schulen"]);
   });
 
   it("replaces the content of the same sidebar in the settings (#5685)", () => {

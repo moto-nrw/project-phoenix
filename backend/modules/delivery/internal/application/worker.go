@@ -126,6 +126,10 @@ func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts 
 		w.finalizeDeferred(ctx, intent, dispatchToken, sendErr, stats)
 		return
 	}
+	if errors.Is(sendErr, domain.ErrPermanent) {
+		// No retry can change the answer: dead-letter on this attempt.
+		maxAttempts = intent.Attempts + 1
+	}
 	if sendErr != nil {
 		w.finalizeFailure(ctx, intent, dispatchToken, sendErr, maxAttempts, stats)
 		return

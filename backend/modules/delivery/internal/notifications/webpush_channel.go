@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
@@ -491,11 +492,14 @@ func (c *webPushChannel) sendOneSynchronously(ctx context.Context, event Event, 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
 	}
-	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+	if deliveryContract.PushSubscriptionExpired(resp.StatusCode) {
 		if _, err := c.deleteExpiredSubscription(ctx, sub); err != nil {
 			return err
 		}
 		return fmt.Errorf("web push subscription expired with status %d", resp.StatusCode)
+	}
+	if deliveryContract.PushRejectedPermanently(resp.StatusCode) {
+		return fmt.Errorf("web push service rejected notification with status %d: %w", resp.StatusCode, deliveryContract.ErrPermanent)
 	}
 	return fmt.Errorf("web push service rejected notification with status %d", resp.StatusCode)
 }

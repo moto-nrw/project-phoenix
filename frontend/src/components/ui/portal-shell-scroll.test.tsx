@@ -305,7 +305,9 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
     setRoute("/access-log");
     view.rerender(shell());
     await nextFrame();
-    setScrollY(65);
+    // Der verspätete Browser-Scroll der verlassenen Route trifft noch ein,
+    // nachdem Next die Zielroute bestätigt hat, aber vor `popstate`.
+    userScrollsTo(65);
     vi.spyOn(performance, "now").mockReturnValue(performance.now() + 60_000);
     firePopState();
 

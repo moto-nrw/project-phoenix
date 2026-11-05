@@ -601,8 +601,9 @@ if (!TRAEGER_HOSTNAME) {
 
 /** Paths the Träger subdomain serves (without /traeger prefix): the login,
  * the reset link (#5149), the holiday periods (#4659), the invitation link,
- * which opens /invite (#4650), the settings area (#4652, #5685) and the
- * billing runs (#4668). The school list itself lives at the root ("/" →
+ * which opens /invite (#4650), the settings area (#4652, #5685), the billing
+ * runs (#4668), the view of one school (#5686) and the dashboard over all
+ * schools at /uebersicht (#4674). The school list itself lives at the root ("/" →
  * /traeger). The client guard sends a visitor without a session to the
  * login. */
 const TRAEGER_PUBLIC_PATHS = [
@@ -612,6 +613,8 @@ const TRAEGER_PUBLIC_PATHS = [
   "/invite",
   "/einstellungen",
   "/abrechnung",
+  "/schulen",
+  "/uebersicht",
 ];
 
 /** Pages that moved into the settings area (#5685). Bookmarks, help links and

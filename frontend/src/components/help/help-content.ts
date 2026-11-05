@@ -235,6 +235,8 @@ const PARENT_DRAFT_TOPICS: readonly HelpTopic[] = [
 const TRAEGER_TOPICS: readonly HelpTopic[] = [
   articles.traegerInvitationTopic(),
   articles.traegerLoginTopic(),
+  articles.traegerDashboardTopic(),
+  articles.traegerSchoolViewTopic(),
   articles.traegerSchoolSwitchTopic(),
   articles.traegerTestSystemTopic(),
   articles.traegerAccountsTopic(),

@@ -46,7 +46,12 @@ describe("TraegerBottomNav", () => {
   });
 
   it("follows the sidebar: main navigation, then Hilfe and Einstellungen (#5685)", () => {
-    sessionUser.permissions = ALL_RIGHTS;
+    // Ohne Dashboard (#4674) passen alle Ziele in die Leiste.
+    sessionUser.permissions = [
+      "traeger_enrollment:manage",
+      "traeger_billing:manage",
+      "traeger_accounts:manage",
+    ];
     render(<TraegerBottomNav />);
 
     expect(
@@ -64,11 +69,33 @@ describe("TraegerBottomNav", () => {
       "aria-current",
       "page",
     );
-    expect(bar().getByRole("link", { name: "Einstellungen" })).toHaveAttribute(
+    expect(bar().queryByRole("button", { name: "Mehr" })).toBeNull();
+  });
+
+  it("puts Hilfe and Einstellungen behind Mehr once the Dashboard fills the bar (#4674, #5685)", async () => {
+    sessionUser.permissions = ALL_RIGHTS;
+    render(<TraegerBottomNav />);
+
+    expect(
+      bar()
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("aria-label")),
+    ).toEqual(["Dashboard", "Schulen", "Ferienbetreuung", "Abrechnung"]);
+    expect(bar().getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+      "href",
+      "/uebersicht",
+    );
+
+    fireEvent.click(bar().getByRole("button", { name: "Mehr" }));
+    const drawer = within(await screen.findByRole("dialog"));
+    expect(drawer.getByRole("link", { name: "Hilfe" })).toHaveAttribute(
+      "href",
+      "/help?role=traeger",
+    );
+    expect(drawer.getByRole("link", { name: "Einstellungen" })).toHaveAttribute(
       "href",
       "/einstellungen",
     );
-    expect(bar().queryByRole("button", { name: "Mehr" })).toBeNull();
   });
 
   it("shows the settings with the way back, the rest behind Mehr (#5685)", async () => {

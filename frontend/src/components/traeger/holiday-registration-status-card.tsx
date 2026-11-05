@@ -31,6 +31,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { traegerPath } from "~/lib/traeger-url";
 import {
+  cancelHolidayRegistration,
   changeHolidayDebtorNumber,
   confirmHolidayRegistration,
   type HolidayContribution,
@@ -69,15 +70,15 @@ function benefitsText(
   }
   return (
     <>
-      Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung
-      braucht es eine Regel unter{" "}
+      Die Eltern geben an, dass sie Leistungen beziehen. Am ersten gebuchten Tag
+      gilt keine Befreiungsregel. Sie legen sie unter{" "}
       <NavigationLink
         href={traegerPath("/traeger/einstellungen/abrechnung")}
         className="font-medium underline"
       >
         Abrechnungsvorgaben
-      </NavigationLink>
-      .
+      </NavigationLink>{" "}
+      an.
     </>
   );
 }
@@ -261,7 +262,7 @@ function PayerChoice({
     options.push({
       value: "exemption",
       label: "Von der Zahlung befreien (Leistungsbezug)",
-      description: "Niemand bezahlt den Betrag.",
+      description: "Dann gilt die Befreiungsregel. Niemand bezahlt den Betrag.",
     });
   }
   if (costBearers.length > 0) {
@@ -345,7 +346,7 @@ export function HolidayRegistrationStatusCard({
   costBearerId = null,
   onCostBearerChange,
   onChanged,
-  onConfirmed,
+  onReload,
   onDebtorNumberChanged,
 }: Readonly<{
   periodId: string;
@@ -365,13 +366,17 @@ export function HolidayRegistrationStatusCard({
   costBearerId?: string | null;
   onCostBearerChange?: (costBearerId: string | null) => void;
   onChanged: (registration: HolidayRegistrationDetail) => void;
-  /** After a confirmation; the page reads the registration again. */
-  onConfirmed: () => Promise<void>;
+  /**
+   * After a confirmation or a cancellation; the page reads the registration
+   * and its contribution again. A cancellation can change the sibling group
+   * (#5662).
+   */
+  onReload: () => Promise<void>;
   /** After a change of the debtor number; the page reads it again. */
   onDebtorNumberChanged: () => Promise<unknown>;
 }>) {
   const [running, setRunning] = useState<
-    HolidayRegistrationAction | "confirm" | null
+    HolidayRegistrationAction | "confirm" | "cancel" | null
   >(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   // A sibling group pays with one number (#5628): its current number is the
@@ -429,7 +434,7 @@ export function HolidayRegistrationStatusCard({
         debtorNumber.trim(),
         payer === "cost_bearer" ? (costBearerId ?? undefined) : undefined,
       );
-      await onConfirmed();
+      await onReload();
     } catch (err) {
       logger.error("holiday_registration_confirm_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -440,12 +445,19 @@ export function HolidayRegistrationStatusCard({
     }
   };
 
-  const run = async (action: HolidayRegistrationAction) => {
+  const run = async (action: HolidayRegistrationAction | "cancel") => {
     setRunning(action);
     try {
-      onChanged(
-        await changeHolidayRegistration(periodId, registration.id, action),
-      );
+      if (action === "cancel") {
+        // The Elternabrechnung cancels and computes the siblings again
+        // (#5662); the page reads both again.
+        await cancelHolidayRegistration(periodId, registration.id);
+        await onReload();
+      } else {
+        onChanged(
+          await changeHolidayRegistration(periodId, registration.id, action),
+        );
+      }
     } catch (err) {
       logger.error("holiday_registration_change_failed", {
         action,
@@ -622,6 +634,12 @@ export function HolidayRegistrationStatusCard({
           Eine stornierte Anmeldung lässt sich nicht wieder öffnen. Eltern
           bekommen keine Nachricht von moto.
         </p>
+        {contribution?.siblings?.length ? (
+          <p className="mt-2 text-sm text-gray-700">
+            Die Anmeldung zählt dann nicht mehr zu den Geschwistern. moto
+            berechnet den Ferienbeitrag der Geschwister neu.
+          </p>
+        ) : null}
       </ConfirmationModal>
     </SectionCard>
   );

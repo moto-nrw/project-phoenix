@@ -13,13 +13,18 @@ const logger = createLogger({ component: "StaffAPI" });
 /**
  * Adresse des Profilbilds einer Kollegin, `undefined` ohne hochgeladenes Bild
  * (#4432). Das Bild kommt über die schulbezogene Staff-Route, nie über den
- * gespeicherten Pfad selbst.
+ * gespeicherten Pfad selbst. Jeder Upload bekommt einen neuen Dateinamen;
+ * als `v` macht er die Adresse pro Bild eindeutig, sodass der Browser sie
+ * ohne erneutes Laden wiederverwenden darf.
  */
 export function staffAvatarUrl(
   staffId: string,
   avatar: string | null | undefined,
 ): string | undefined {
-  return avatar ? `/api/staff/${staffId}/avatar` : undefined;
+  if (!avatar) return undefined;
+  const version = avatar.split("/").pop();
+  const base = `/api/staff/${staffId}/avatar`;
+  return version ? `${base}?v=${encodeURIComponent(version)}` : base;
 }
 
 // Backend response types (already mapped by the API route handler)

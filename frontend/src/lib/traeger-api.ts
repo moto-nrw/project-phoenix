@@ -56,6 +56,61 @@ export interface TraegerSchool {
   readonly city: string;
 }
 
+/** Live figures of one school; numbers only, no names (#5686). */
+export interface TraegerSchoolFigures {
+  readonly childrenTotal: number;
+  readonly childrenPresent: number;
+  readonly childrenSick: number;
+  readonly staffTotal: number;
+  readonly staffPresent: number;
+  /** Present children per present staff member; null without present staff. */
+  readonly careRatio: number | null;
+  readonly asOf: string;
+}
+
+export interface TraegerSchoolView extends TraegerSchool {
+  readonly address: string;
+  readonly zip: string;
+  readonly phone: string;
+  readonly email: string;
+  readonly figures: TraegerSchoolFigures;
+}
+
+/** One school with its figures in the overview over all schools (#4674). */
+export interface TraegerSchoolToday extends TraegerSchool {
+  readonly figures: TraegerSchoolFigures;
+}
+
+/** Every school of the Träger with its figures and their sum (#4674). */
+export interface TraegerSchoolsToday {
+  readonly schools: readonly TraegerSchoolToday[];
+  /** Sums of all schools; the ratio is over all present staff. */
+  readonly total: TraegerSchoolFigures;
+}
+
+interface BackendSchoolFigures {
+  children_total: number;
+  children_present: number;
+  children_sick: number;
+  staff_total: number;
+  staff_present: number;
+  care_ratio: number | null;
+  as_of: string;
+}
+
+interface BackendSchoolView extends BackendSchool {
+  address?: string | null;
+  zip?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  figures: BackendSchoolFigures;
+}
+
+interface BackendSchoolsToday {
+  schools: (BackendSchool & { figures: BackendSchoolFigures })[] | null;
+  total: BackendSchoolFigures;
+}
+
 interface BackendSchool {
   id: number;
   name: string;
@@ -154,13 +209,83 @@ export async function fetchTraegerSchools(): Promise<TraegerSchool[]> {
   }
   const schools = ((data as { data?: BackendSchool[] } | null)?.data ??
     []) as BackendSchool[];
-  return schools.map((school) => ({
+  return schools.map(toTraegerSchool);
+}
+
+function toTraegerSchool(school: BackendSchool): TraegerSchool {
+  return {
     id: String(school.id),
     name: school.name,
     slug: school.slug,
     subdomain: school.subdomain,
     city: school.city ?? "",
-  }));
+  };
+}
+
+function toSchoolFigures(figures: BackendSchoolFigures): TraegerSchoolFigures {
+  return {
+    childrenTotal: figures.children_total,
+    childrenPresent: figures.children_present,
+    childrenSick: figures.children_sick,
+    staffTotal: figures.staff_total,
+    staffPresent: figures.staff_present,
+    careRatio: figures.care_ratio,
+    asOf: figures.as_of,
+  };
+}
+
+/**
+ * Every school of the Träger with its figures of now and their sum (#4674):
+ * numbers only, no names.
+ */
+export async function fetchTraegerSchoolsToday(): Promise<TraegerSchoolsToday> {
+  const response = await transportFetch("/api/traeger/schools/today", {
+    credentials: "include",
+    cache: "no-store",
+  });
+  const data = await readJson(response);
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+  const today = (data as { data: BackendSchoolsToday }).data;
+  return {
+    schools: (today.schools ?? []).map((school) => ({
+      ...toTraegerSchool(school),
+      figures: toSchoolFigures(school.figures),
+    })),
+    total: toSchoolFigures(today.total),
+  };
+}
+
+/** One school of the Träger with its contact data and figures (#5686). */
+export async function fetchTraegerSchool(
+  id: string,
+): Promise<TraegerSchoolView> {
+  const response = await transportFetch(
+    `/api/traeger/schools/${encodeURIComponent(id)}`,
+    { credentials: "include", cache: "no-store" },
+  );
+  const data = await readJson(response);
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+  const school = (data as { data: BackendSchoolView }).data;
+  return {
+    ...toTraegerSchool(school),
+    address: school.address ?? "",
+    zip: school.zip ?? "",
+    phone: school.phone ?? "",
+    email: school.email ?? "",
+    figures: toSchoolFigures(school.figures),
+  };
 }
 
 /**

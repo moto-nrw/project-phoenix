@@ -19,8 +19,13 @@ export function isTraegerSettingsPath(pathname: string): boolean {
 
 export function isTraegerNavActive(href: string, pathname: string): boolean {
   if (href === "/traeger") {
-    // „Schulen" ist die Startseite und hat keine Unterseiten.
-    return pathname === "/traeger" || pathname === "/";
+    // „Schulen" ist die Startseite; ihre Unterseiten liegen unter /schulen.
+    return (
+      pathname === "/traeger" ||
+      pathname === "/" ||
+      matchesPath("/schulen", pathname) ||
+      matchesPath("/traeger/schulen", pathname)
+    );
   }
   if (href === TRAEGER_SETTINGS_HOME) {
     // „Allgemein" ist die Startseite der Einstellungen; deren Unterseiten sind

@@ -322,6 +322,8 @@ import type { traegerBillingRunTopic as authored_traegerBillingRunTopic } from "
 
 import type { traegerBriefkopfTopic as authored_traegerBriefkopfTopic } from "./articles/traeger-briefkopf";
 
+import type { traegerDashboardTopic as authored_traegerDashboardTopic } from "./articles/traeger-dashboard";
+
 import type { traegerHolidayContributionTopic as authored_traegerHolidayContributionTopic } from "./articles/traeger-holiday-contribution";
 
 import type { traegerHolidayFormTopic as authored_traegerHolidayFormTopic } from "./articles/traeger-holiday-form";
@@ -337,6 +339,8 @@ import type { traegerInvitationTopic as authored_traegerInvitationTopic } from "
 import type { traegerLoginTopic as authored_traegerLoginTopic } from "./articles/traeger-login";
 
 import type { traegerSchoolSwitchTopic as authored_traegerSchoolSwitchTopic } from "./articles/traeger-school-switch";
+
+import type { traegerSchoolViewTopic as authored_traegerSchoolViewTopic } from "./articles/traeger-school-view";
 
 import type { traegerSettingsTopic as authored_traegerSettingsTopic } from "./articles/traeger-settings";
 
@@ -680,7 +684,7 @@ export const activeSupervisionTopic = function activeSupervisionTopic(
       },
     ],
     result:
-      "Die Aufsicht ist abgeschlossen. Ein selbst beendeter Termin kann für kurze Zeit über `Rückgängig` wieder geöffnet werden.",
+      "Die Aufsicht ist abgeschlossen. Aus Versehen beendet? Wählen Sie `Rückgängig`. Später öffnen Sie den Termin unter `Beendete und abgelaufene Blöcke` mit `Wieder öffnen`. Das geht bis zum geplanten Ende, mindestens fünf Minuten lang.",
     differences: [
       "Bei einem laufenden Termin können weitere Betreuungskräfte der Aufsicht beitreten.",
       "Ein geplanter Termin hat feste Zeiten. Vorher sind Start oder Ende möglicherweise gesperrt.",
@@ -688,6 +692,8 @@ export const activeSupervisionTopic = function activeSupervisionTopic(
       "Steht am Termin `Nur für Eingeplante`? Dann dürfen hier nur eingeplante Kräfte starten. Ihre OGS kann das Starten für das ganze Team freigeben.",
       "Sie starten einen Termin, für den Sie nicht eingeplant sind? Dann werden Sie nicht zur Aufsicht. Wer beenden darf, legt Ihre OGS fest.",
       "Fehlt `Beenden`? Dann dürfen hier nur eingeplante Kräfte beenden. Ihre OGS kann das Beenden für das ganze Team freigeben.",
+      // #5676: Wieder öffnen bis zum geplanten Ende.
+      "Fehlt `Wieder öffnen`? Dann ist das geplante Ende vorbei. Oder jemand anderes hat den Termin beendet. Dann kann nur diese Person oder die Leitung ihn wieder öffnen.",
       // #4372: offene Räume ohne eigene Aufsicht stehen unter `Räume`.
       "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht der Raum unter `Aktuelle Aufsicht`. Alle anderen offenen Räume finden Sie unter `Räume`.",
       "Haben Sie mehrere Aufsichten? Auf dem Handy stehen sie oben auf der Seite `Aufsicht` als Reiter.",
@@ -3809,6 +3815,8 @@ export const leadRosterDeviationTopic =
         "`Manuell` heißt: An- und Abmeldungen werden nicht übernommen. Die Kinder pflegen Sie selbst.",
         "Die Startseite zeigt die Aufgabe `Regeltermine prüfen`, solange ein Regeltermin abweicht.",
         "Wechseln Sie beim Bearbeiten die `Zielgruppe` auf `Angebot`, zeigt moto dieselbe Vorschau pro Wochentag.",
+        // Schule am Berg: nur „Randstunde“ gewählt, Ganztagskinder fielen weg.
+        "Ein Kind fällt weg, wenn es an diesem Tag in keinem gewählten Angebot angemeldet ist. Ist es in einem anderen Angebot angemeldet, nennt die Vorschau dieses Angebot. Wählen Sie `Angebot dazunehmen` oder `Angebote dazunehmen`. Dann bleibt das Kind auf der Liste.",
         "Beim Anlegen eines Regeltermins schlägt moto ein passendes Angebot vor. Mit `Angebot übernehmen` verbinden Sie den neuen Regeltermin gleich mit dem Angebot. Schlägt moto mehrere Angebote zusammen vor, heißt der Knopf `Angebote übernehmen`.",
         "Passen beim Anlegen mehrere Angebotskombinationen gleich gut? Wählen Sie einen der Knöpfe mit den Angebotsnamen. Er übernimmt alle dort genannten Angebote zusammen.",
         "Haben Kinder ein Angebot gebucht, aber an manchen Tagen keinen passenden Regeltermin? Dann steht über den Regelterminen die Liste `Angebote ohne Regeltermin`. Jede Zeile nennt Angebot, Klassen und Wochentage. Wählen Sie `Regeltermin anlegen`: Der neue Regeltermin übernimmt die Kinder dieses Angebots aus den genannten Klassen. Oder verbinden Sie einen bestehenden Regeltermin mit dem Angebot.",
@@ -9948,6 +9956,41 @@ export const traegerBriefkopfTopic =
     };
   } satisfies typeof authored_traegerBriefkopfTopic;
 
+/** `/traeger/uebersicht` (#4674), in der Navigation „Dashboard": die Zahlen von jetzt für alle Schulen. */
+export const traegerDashboardTopic =
+  function traegerDashboardTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerDashboard,
+      title: "Alle Schulen auf einen Blick",
+      question: "Wie steht es gerade an allen Schulen meines Trägers?",
+      summary:
+        "Das Dashboard zeigt die Zahlen von jetzt für alle Schulen Ihres Trägers auf einer Seite.",
+      group: "einstieg",
+      audience: "traeger",
+      icon: "BarChart3",
+      steps: [
+        "Wählen Sie in der Navigation `Dashboard`.",
+        "Lesen Sie oben die Summe für alle Schulen.",
+        "Lesen Sie unter `Zahlen je Schule` die Zahlen jeder Schule.",
+        "Wählen Sie eine Schule, um ihre Zahlen und Stammdaten zu sehen.",
+      ],
+      result:
+        "Sie sehen für jede Schule, wie viele Kinder gerade da sind, wie viele heute krank sind und wie viele Betreuungskräfte angemeldet sind.",
+      notes: [
+        "Die Zahlen aktualisieren sich jede Minute von selbst.",
+        "Sie sehen nur Zahlen, keine Namen.",
+        "Mit einem Klick auf eine Spaltenüberschrift sortieren Sie die Schulen, zum Beispiel nach `Heute krank`.",
+        "Bei vielen Schulen finden Sie eine Schule schneller über das Suchfeld. Sie können nach dem Namen oder dem Ort suchen.",
+        "`Betreuungsschlüssel` heißt: Eine anwesende Betreuungskraft kommt auf so viele anwesende Kinder. Oben gilt das für alle Schulen zusammen.",
+      ],
+      differences: [
+        "`Betreuungskräfte` zählt nur, wer sich in der Zeiterfassung angemeldet hat. Homeoffice zählt nicht. Nutzt eine Schule die Zeiterfassung nicht, steht dort 0 und beim Schlüssel `–`.",
+        "Ohne das Recht `In OGS wechseln` fehlt die Aktion `Schul-App öffnen`. Die Zahlen sehen Sie trotzdem.",
+      ],
+      related: [HELP_TOPICS.traegerSchoolView, HELP_TOPICS.traegerSchoolSwitch],
+    };
+  } satisfies typeof authored_traegerDashboardTopic;
+
 /** `/traeger/einstellungen/abrechnung` (#4664, #5627, #5685): Regeln des Ferienbeitrags und Kostenträger. */
 export const traegerHolidayContributionTopic =
   function traegerHolidayContributionTopic(): HelpTopic {
@@ -9984,10 +10027,12 @@ export const traegerHolidayContributionTopic =
           ],
         },
         {
-          title: "Befreiung bei Leistungsbezug anlegen",
+          title: "Befreiungsregel anlegen",
+          description:
+            "Die Regel gilt für alle Familien mit Leistungsbezug. Sie legen damit keine einzelne Familie an. Welche Familie befreit ist, wählen Sie beim Bestätigen der Anmeldung.",
           steps: [
-            "Wählen Sie bei `Befreiung bei Leistungsbezug` den Knopf `Befreiung hinzufügen`.",
-            "Tragen Sie ein, ab wann die Befreiung gilt.",
+            "Wählen Sie bei `Befreiung bei Leistungsbezug` den Knopf `Befreiungsregel hinzufügen`.",
+            "Tragen Sie ein, ab wann die Regel gilt. `Gilt bis` können Sie frei lassen.",
             "Schreiben Sie den `Vermerk auf dem Beitrag`. Er steht bei jeder befreiten Familie.",
             "Wählen Sie `Speichern`.",
           ],
@@ -10030,7 +10075,7 @@ export const traegerHolidayContributionTopic =
         "Eine geänderte Einstellung gilt nur für Anmeldungen, die danach bestätigt werden. Ist von Geschwistern schon eine Anmeldung bestätigt, rechnen alle diese Geschwister weiter wie bisher.",
         "Es gelten die Regeln vom ersten gebuchten Tag der Anmeldung.",
         "Eine Regel gilt nur für Anmeldungen, die nach der Änderung bestätigt werden. Bestätigte Anmeldungen behalten ihren Beitrag.",
-        "Ob eine Familie befreit ist oder ein Kostenträger bezahlt, entscheidet das Träger-Büro beim Bestätigen.",
+        "Ob eine Familie befreit ist oder ein Kostenträger bezahlt, entscheidet das Träger-Büro beim Bestätigen. Für die Befreiung wählt es dort `Von der Zahlung befreien (Leistungsbezug)`. Diese Wahl gibt es nur, wenn eine Befreiungsregel gilt. Es zählt der erste gebuchte Tag.",
         "Befreiung heißt: Niemand bezahlt. Bei einem Kostenträger bezahlt die Familie nichts, aber der Kostenträger bezahlt den Betrag. Am Anfang ist das der Betrag nach der Geschwisterermäßigung. Sie können auch den vollen Preis wählen.",
         "Bezahlt der Kostenträger den vollen Preis, zählt sein Kind weiter als Geschwisterkind. Die anderen Kinder behalten ihre Ermäßigung.",
         "Einen Kostenträger, der schon gewählt wurde, können Sie nur ausschalten, nicht löschen. Ändern Sie seinen Namen, behalten bestätigte Beiträge und Rechnungen den alten Namen.",
@@ -10336,7 +10381,7 @@ export const traegerHolidayRegistrationReviewTopic =
         },
       ],
       result:
-        "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort.",
+        "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort. Storniert jemand eine Anmeldung der Geschwister, steht bei allen `Aus Geschwistergruppe gelöst (storniert)`.",
       notes: [
         "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
@@ -10353,6 +10398,8 @@ export const traegerHolidayRegistrationReviewTopic =
         "Die ausrichtende OGS sieht einen geänderten Namen sofort in ihrer Teilnehmerliste. Bei einem Feriengast steht der neue Name spätestens nach einer Stunde auch in der Gruppe.",
         "Bei Geschwistern ist das Kind mit dem höchsten Beitrag das 1. Kind. Ihr Träger kann in den Einstellungen unter `Allgemein` auch das älteste Kind wählen. Bei gleichem Rang zählt die früher eingegangene Anmeldung zuerst.",
         "Zusammenführen und Trennen rechnen auch einen schon bestätigten Beitrag neu. Der alte Beitrag bleibt gespeichert. Ein offener Abrechnungslauf zeigt den neuen Betrag.",
+        "Stornieren Sie eine Anmeldung der Geschwister, gehört sie nicht mehr dazu. moto rechnet den Beitrag der anderen Geschwister sofort neu. Sie müssen nichts trennen.",
+        "Gibt es für ein Geschwister-Kind schon eine Rechnung, bleibt die Rechnung, wie sie ist. moto rechnet den Beitrag trotzdem neu. Unter `Ferienbeitrag` steht dann `Rechnung prüfen`. Stornieren Sie die Rechnung. Der nächste Abrechnungslauf stellt dann den neuen Betrag aus.",
         "Jede Anmeldung bekommt weiter ihre eigene Rechnung und ihr eigenes Schreiben. Ein Schreiben nennt nie die Kinder oder Eltern der anderen Anmeldung.",
         "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",
       ],
@@ -10367,7 +10414,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Die Debitorennummer lässt sich nicht mehr ändern? Für die Anmeldung gibt es schon eine Rechnung. Die Rechnung behält die Nummer, mit der sie ausgestellt wurde.",
         "`Ändern` fehlt? Die Anmeldung ist storniert. Dann lassen sich die Angaben nicht mehr ändern.",
         "`Trennen` fehlt oder Zusammenführen geht nicht? Für eine Anmeldung der Geschwister gibt es schon eine Rechnung. Geschwister können Sie dann nicht mehr ändern.",
-        "Eine stornierte Anmeldung können Sie nicht zusammenführen. Trennen geht.",
+        "Eine stornierte Anmeldung können Sie nicht zusammenführen. Beim Stornieren löst moto sie schon aus den Geschwistern.",
       ],
       related: [
         HELP_TOPICS.traegerHolidayRegistration,
@@ -10544,10 +10591,10 @@ export const traegerSchoolSwitchTopic =
       requirements: ["Sie haben die Rolle `Schulzugang`."],
       steps: [
         "Wählen Sie in der Navigation `Schulen`.",
-        "Wählen Sie bei der Schule `Öffnen`.",
+        "Wählen Sie bei der Schule `Schul-App öffnen`. Das geht auch in der Ansicht der Schule.",
       ],
       result:
-        "moto öffnet die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule.",
+        "moto öffnet die Schule in einem neuen Tab. Dort haben Sie dieselben Rechte wie die Verwaltung der Schule. Mit `Zurück zur Träger-App` kommen Sie zurück zur Liste Ihrer Schulen.",
       notes: [
         "Sie können mehrere Schulen in mehreren Tabs offen haben.",
         "Haben Sie in einem anderen Tab die Schule gewechselt? Dann stellt moto diesen Tab beim nächsten Klick wieder auf seine Schule um. Dieser Klick wird nicht ausgeführt. Wiederholen Sie ihn danach.",
@@ -10555,16 +10602,50 @@ export const traegerSchoolSwitchTopic =
         "Jedes Öffnen steht im Protokoll der Schule.",
       ],
       differences: [
-        "Sie sehen kein `Öffnen`? Dann haben Sie nicht die Rolle `Schulzugang`. Eine Person mit der Rolle `Leitung` kann sie Ihnen geben.",
+        "Auf Handy und Tablet steht `Zurück zur Träger-App` unter `Mehr`.",
+        "Sie sehen kein `Schul-App öffnen`? Dann haben Sie nicht die Rolle `Schulzugang`. Eine Person mit der Rolle `Leitung` kann sie Ihnen geben.",
       ],
       troubleshootingDetails: [
         "moto zeigt `Die Schule konnte nicht geöffnet werden.`? Der Link gilt nur kurz und nur einmal. Öffnen Sie die Schule noch einmal im Träger-Portal.",
         "moto sagt, die Schule gehöre nicht zu Ihrem Träger? Laden Sie die Seite neu. Fehlt die Schule dann, wenden Sie sich an das moto-Team.",
         "moto bittet Sie, sich neu anzumelden? Melden Sie sich im Träger-Portal neu an und öffnen Sie die Schule noch einmal.",
       ],
-      related: [HELP_TOPICS.traegerLogin],
+      related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.traegerSchoolView],
     };
   } satisfies typeof authored_traegerSchoolSwitchTopic;
+
+/** `/traeger/schulen/{id}` (#5686): Ansicht einer Schule im Träger-Portal. */
+export const traegerSchoolViewTopic =
+  function traegerSchoolViewTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerSchoolView,
+      title: "Zahlen und Stammdaten einer Schule ansehen",
+      question: "Wie steht es gerade an einer Schule meines Trägers?",
+      summary:
+        "Sie sehen die Zahlen und Stammdaten einer Schule, ohne das Träger-Portal zu verlassen.",
+      group: "einstieg",
+      audience: "traeger",
+      icon: "ChartPieSlice",
+      steps: [
+        "Wählen Sie in der Navigation `Schulen`.",
+        "Wählen Sie die Schule in der Liste.",
+        "Wählen Sie den Reiter `Übersicht` oder `Stammdaten`.",
+      ],
+      result:
+        "`Übersicht` zeigt die Zahlen von jetzt. `Stammdaten` zeigt Anschrift, Kontakt und die Zahl der Kinder und Betreuungskräfte.",
+      notes: [
+        "Die Zahlen aktualisieren sich jede Minute von selbst.",
+        "Sie sehen nur Zahlen, keine Namen.",
+        "`Kinder gesamt` ist dieselbe Zahl wie im Abrechnungsbericht des moto-Teams.",
+        "`Betreuungsschlüssel` heißt: Eine anwesende Betreuungskraft kommt auf so viele anwesende Kinder.",
+        "Stammdaten können Sie hier nur lesen. Änderungen übernimmt das moto-Team.",
+      ],
+      differences: [
+        "`Betreuungskräfte anwesend` zählt nur, wer sich in der Zeiterfassung angemeldet hat. Homeoffice zählt nicht. Nutzt eine Schule die Zeiterfassung nicht, steht dort 0 und beim Betreuungsschlüssel `–`.",
+      ],
+      related: [HELP_TOPICS.traegerSchoolSwitch],
+    };
+  } satisfies typeof authored_traegerSchoolViewTopic;
 
 /**
  * `/traeger/einstellungen` (#4652, ADR 0086, #5685): Träger-Werte zwischen Standard

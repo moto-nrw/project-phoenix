@@ -106,9 +106,15 @@ func (b *Billing) ListBillingKeyDateCounts(ctx context.Context) ([]organizationt
 // RecordDueBillingKeyDates captures the current month when its key date is
 // due. The owners' live counts are read in the same transaction that writes
 // the rows, so all schools of one run share one snapshot.
+//
+// The Worker's commit fence share-locks its lease row as the last statement.
+// A lease renewal committed after the snapshot makes that lock fail with a
+// serialization conflict (#5715), so the run replays the whole transaction
+// on a fresh snapshot. A lost lease is no conflict and still aborts.
 func (b *Billing) RecordDueBillingKeyDates(ctx context.Context, now time.Time) (int, error) {
 	written := 0
-	err := b.tx.RunAdmin(ctx, func(adminCtx context.Context) error {
+	err := b.tx.RunAdminRetry(ctx, func(adminCtx context.Context) error {
+		written = 0
 		if err := b.store.UseRepeatableReadSnapshot(adminCtx); err != nil {
 			return err
 		}

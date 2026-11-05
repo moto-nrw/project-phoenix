@@ -74,11 +74,24 @@ interface OfferingPreviewSegment {
   validUntil?: string;
 }
 
+/** An offering outside the selection that books children who drop. */
+export interface OfferingPreviewAlternative {
+  offeringId: string;
+  name: string;
+  /** Each dropped child counts once, however many days it covers. */
+  childCount: number;
+}
+
 /** Who joins and who leaves per weekday when the series switches to a source. */
 export interface OfferingPreview {
   from: string;
   weekdays: OfferingPreviewWeekday[];
   segments: OfferingPreviewSegment[];
+  /**
+   * Offerings of the same phase that would keep children who drop; absent
+   * means none.
+   */
+  otherOfferings?: OfferingPreviewAlternative[];
 }
 
 interface BackendOfferingRef {
@@ -127,6 +140,11 @@ export interface BackendOfferingPreview {
     template_id: number;
     valid_from: string;
     valid_until?: string | null;
+  }> | null;
+  other_offerings?: Array<{
+    offering_id: number;
+    name: string;
+    child_count: number;
   }> | null;
 }
 
@@ -191,7 +209,33 @@ export function mapOfferingPreview(
       validFrom: segment.valid_from,
       validUntil: segment.valid_until ?? undefined,
     })),
+    otherOfferings: (raw.other_offerings ?? []).map((offering) => ({
+      offeringId: String(offering.offering_id),
+      name: offering.name,
+      childCount: offering.child_count,
+    })),
   };
+}
+
+/**
+ * Names the offerings outside the selection that would keep the children
+ * who drop, so the school sees why they drop and what brings them back.
+ */
+export function otherOfferingsSentence(
+  offerings: readonly OfferingPreviewAlternative[],
+): string | null {
+  if (offerings.length === 0) return null;
+  const parts = offerings.map(
+    (offering) =>
+      `„${offering.name}“ (${offering.childCount} ${offering.childCount === 1 ? "Kind" : "Kinder"})`,
+  );
+  const list =
+    parts.length === 1
+      ? parts[0]
+      : `${parts.slice(0, -1).join(", ")} und ${parts.at(-1)}`;
+  const where =
+    parts.length === 1 ? "in einem anderen Angebot" : "in anderen Angeboten";
+  return `Kinder, die wegfallen, sind ${where} angemeldet: ${list}.`;
 }
 
 function joinNames(names: readonly string[]): string {

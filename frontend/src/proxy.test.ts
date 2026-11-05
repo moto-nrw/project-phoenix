@@ -1249,6 +1249,28 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites the view of a school to /traeger/schulen (#5686)", () => {
+      const res = proxy(
+        makeRequest(`http://${TRAEGER_HOSTNAME}/schulen/2`, TRAEGER_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/schulen/2",
+      );
+    });
+
+    it("rewrites the dashboard to /traeger/uebersicht (#4674)", () => {
+      const res = proxy(
+        makeRequest(`http://${TRAEGER_HOSTNAME}/uebersicht`, TRAEGER_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/uebersicht",
+      );
+    });
+
     it("rewrites the holiday periods to /traeger/ferien (#4659)", () => {
       for (const path of ["/ferien", "/ferien/neu", "/ferien/12"]) {
         const res = proxy(

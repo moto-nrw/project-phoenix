@@ -20,6 +20,9 @@ type LifecyclePresence interface {
 	// moved to the started block's group (#2697).
 	EndGroup(ctx context.Context, groupID int64, endedAt time.Time) error
 	CountOpenVisitsInRoom(ctx context.Context, roomID int64) (int, error)
+	// ListAttendance reads the children's school stays; Reopen refuses to
+	// bring a child back into a room after it left school (#5676).
+	ListAttendance(ctx context.Context, filter studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error)
 }
 
 // SessionEnder ends the Student Presence session of a block: visits and

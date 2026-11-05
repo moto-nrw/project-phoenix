@@ -12,3 +12,9 @@ import (
 func NewActiveStudentCounts() schoolmembership.ActiveStudentCounts {
 	return postgres.NewActiveStudentCounts(tenant.TransactionFromContext, tenant.IsAdminTx)
 }
+
+// NewSchoolRosters composes the rosters of the Träger's school view (#5686,
+// ADR 0151) on the caller's administrative transaction.
+func NewSchoolRosters() schoolmembership.SchoolRosters {
+	return postgres.NewSchoolRosters(tenant.TransactionFromContext, tenant.IsAdminTx)
+}

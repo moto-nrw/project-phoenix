@@ -145,6 +145,8 @@ function catererTitleForPath(pathname: string): string | null {
 const TRAEGER_PAGE_TITLES: ReadonlyArray<
   readonly [path: string, title: string]
 > = [
+  ["/schulen", "Schulen"],
+  ["/uebersicht", "Dashboard"],
   ["/ferien", "Ferienbetreuung"],
   ["/abrechnung", "Abrechnung"],
   ["/einstellungen/mitglieder", "Mitglieder und Rollen"],

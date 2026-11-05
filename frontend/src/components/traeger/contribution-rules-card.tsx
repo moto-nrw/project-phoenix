@@ -19,6 +19,7 @@ import { ruleValidity, siblingRuleText } from "./contribution-format";
 import {
   type ContributionRuleEdit,
   ContributionRuleModal,
+  EXEMPTION_RULE_SCOPE,
 } from "./contribution-rule-modal";
 
 const logger = createLogger({ component: "ContributionRulesCard" });
@@ -41,10 +42,10 @@ const KIND_TEXT: Record<
   },
   benefits_exemption: {
     title: "Befreiung bei Leistungsbezug",
-    description:
-      "Familien mit Leistungsbezug zahlen nichts. Ob die Befreiung gilt, entscheiden Sie beim Bestätigen der Anmeldung.",
-    add: "Befreiung hinzufügen",
-    empty: "Keine Befreiung. Ohne Regel zahlen alle Familien.",
+    description: `${EXEMPTION_RULE_SCOPE} Befreite Familien zahlen nichts.`,
+    add: "Befreiungsregel hinzufügen",
+    empty:
+      "Keine Befreiungsregel. Alle Familien zahlen, auch bei Leistungsbezug.",
   },
 };
 
