@@ -104,19 +104,39 @@ func (s *StudentTemplateDays) runningSchedules(ctx context.Context, schedules []
 // scheduleRunsFrom reports whether the schedule is valid on a date of its
 // weekday within the projection horizon from the date on and plans at least
 // one enrollment on that same date.
+//
+// A date no active period covers yet is not an end (#5365): a schedule and a
+// row pinned to no period are planned by whichever period the school creates
+// later, so they count as running there. A pin to a period that does not
+// cover the date stays a definite end.
 func scheduleRunsFrom(template *activityContract.Group, sch *activityContract.Schedule, from calendar.Date, periods []*schedule.CalendarPeriod, rows []*activityContract.StudentEnrollment) bool {
+	open := schedulePinnedPeriodID(template, sch) == nil
 	last := from.AddDays(timetable.MaxOccurrenceProjectionDays)
 	for date := timetable.NextWeekdayOnOrAfter(from, sch.Weekday); !date.After(last); date = date.AddDays(7) {
 		period, skip := scheduleValidOn(template, sch, date, periods, nil)
-		switch skip {
-		case candidateKept:
-			for _, row := range rows {
-				if row.ActivityGroupID == sch.ActivityGroupID && isEnrollmentValidOn(row, date, period.ID, sch.Weekday) {
-					return true
-				}
+		switch {
+		case skip == candidateKept:
+			if rowsPlanOn(rows, sch, date, period.ID) {
+				return true
 			}
-		case candidateEnded:
+		case skip == candidateNoPeriod && open:
+			if rowsPlanOn(rows, sch, date, 0) {
+				return true
+			}
+		case skip == candidateEnded:
 			return false
+		}
+	}
+	return false
+}
+
+// rowsPlanOn reports whether a row of the schedule's template plans the
+// student on the date in the period. Period 0 is none, which only rows pinned
+// to no period match.
+func rowsPlanOn(rows []*activityContract.StudentEnrollment, sch *activityContract.Schedule, date calendar.Date, periodID int64) bool {
+	for _, row := range rows {
+		if row.ActivityGroupID == sch.ActivityGroupID && isEnrollmentValidOn(row, date, periodID, sch.Weekday) {
+			return true
 		}
 	}
 	return false
