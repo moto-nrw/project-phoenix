@@ -43,21 +43,20 @@ func TestInvoiceRowsGroupedByChildCloseEachChildWithItsSubtotal(t *testing.T) {
 	}, templates.InvoiceRows(templates.InvoiceLayout{GroupByChild: true}, invoiceChildren, "92,50 €"))
 }
 
-func TestInvoiceRowsLeaveOutWeeksAndTimeModelsButNeverDiscountsOrAmounts(t *testing.T) {
+// The week is the period of the service, a mandatory detail of an invoice:
+// no layout leaves it out. Discounts, amounts and the total stay too.
+func TestInvoiceRowsLeaveOutTheTimeModelButNeverTheWeekOrAnAmount(t *testing.T) {
 	t.Parallel()
-	rows := templates.InvoiceRows(templates.InvoiceLayout{HideWeeks: true}, invoiceChildren, "92,50 €")
-	assert.Equal(t, "Lina: Vormittag", rows[0].Label)
-	rows = templates.InvoiceRows(templates.InvoiceLayout{HideTimeModels: true}, invoiceChildren, "92,50 €")
-	assert.Equal(t, "Lina: Woche 19.10. bis 23.10.2026", rows[0].Label)
-	// Without week and time model a booking still has a label; the
-	// discount, every amount and the total stay.
-	rows = templates.InvoiceRows(templates.InvoiceLayout{HideWeeks: true, HideTimeModels: true}, invoiceChildren, "92,50 €")
 	assert.Equal(t, []templates.Row{
-		{Label: "Lina: Betreuung", Value: "50,00 €"},
-		{Label: "Ben: Betreuung", Value: "65,00 €"},
+		{Label: "Lina: Woche 19.10. bis 23.10.2026", Value: "50,00 €"},
+		{Label: "Ben: Woche 19.10. bis 23.10.2026", Value: "65,00 €"},
 		{Label: "Ben: Ermäßigung für Geschwister", Value: "-22,50 €"},
 		{Label: "Gesamtbetrag", Value: "92,50 €", Bold: true},
-	}, rows)
+	}, templates.InvoiceRows(templates.InvoiceLayout{HideTimeModels: true}, invoiceChildren, "92,50 €"))
+	// A booking without week and time model still has a label.
+	rows := templates.InvoiceRows(templates.InvoiceLayout{HideTimeModels: true},
+		[]templates.InvoiceChild{{Name: "Lina", Lines: []templates.InvoiceLine{{TimeModel: "Vormittag", Amount: "5,00 €"}}}}, "5,00 €")
+	assert.Equal(t, "Lina: Betreuung", rows[0].Label)
 }
 
 func TestCheckRefusesAnInvoiceLayoutOnAKindWithoutATableOfAmounts(t *testing.T) {
@@ -74,7 +73,7 @@ func TestCheckRefusesAnInvoiceLayoutOnAKindWithoutATableOfAmounts(t *testing.T) 
 
 func TestNormalizeKeepsTheInvoiceLayout(t *testing.T) {
 	t.Parallel()
-	layout := templates.InvoiceLayout{GroupByChild: true, HideWeeks: true}
+	layout := templates.InvoiceLayout{GroupByChild: true, HideTimeModels: true}
 	assert.Equal(t, layout, templates.Normalize(templates.Template{Subject: "x", Body: "x", Invoice: layout}).Invoice)
 }
 

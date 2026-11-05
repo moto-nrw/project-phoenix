@@ -473,16 +473,16 @@ describe("TraegerVorlagePage", () => {
       name: /Nach Kind ordnen/,
     });
     expect(group).not.toBeChecked();
+    // The week is a mandatory detail of the invoice: no switch for it.
     expect(
-      screen.getByRole("checkbox", { name: /Woche zeigen/ }),
-    ).toBeChecked();
+      screen.queryByRole("checkbox", { name: /Woche zeigen/ }),
+    ).not.toBeInTheDocument();
     fireEvent.click(group);
     fireEvent.click(
       screen.getByRole("checkbox", { name: /Zeitmodell zeigen/ }),
     );
     const invoice = {
       groupByChild: true,
-      hideWeeks: false,
       hideTimeModels: true,
     };
     fireEvent.click(screen.getByRole("button", { name: "Vorschau zeigen" }));
@@ -529,6 +529,7 @@ describe("TraegerVorlagePage", () => {
     renderPage();
     const body = await screen.findByLabelText<HTMLTextAreaElement>(/Brieftext/);
     body.setSelectionRange(3, 3);
+    fireEvent.blur(body);
     fireEvent.click(
       screen.getByRole("button", {
         name: "Platzhalter „Familienname“ einfügen",
@@ -539,7 +540,6 @@ describe("TraegerVorlagePage", () => {
     );
     // The caret stays behind the placeholder; a table placeholder gets a
     // line of its own.
-    await waitFor(() => expect(body.selectionStart).toBe(3 + 16));
     fireEvent.click(
       screen.getByRole("button", {
         name: "Platzhalter „Tabelle der Beträge (Tabelle)“ einfügen",
@@ -548,6 +548,17 @@ describe("TraegerVorlagePage", () => {
     expect(
       body.value.startsWith("für{{familienname}}\n{{positionen}}\n "),
     ).toBe(true);
+  });
+
+  it("puts a placeholder at the end while the body had no caret", async () => {
+    renderPage();
+    const body = await screen.findByLabelText<HTMLTextAreaElement>(/Brieftext/);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Platzhalter „Familienname“ einfügen",
+      }),
+    );
+    expect(body).toHaveValue(`${STANDARD.body}{{familienname}}`);
   });
 
   it("offers no placeholder buttons to a reader", async () => {

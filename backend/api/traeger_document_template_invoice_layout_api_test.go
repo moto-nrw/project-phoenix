@@ -18,7 +18,6 @@ import (
 
 type invoiceLayoutBody struct {
 	GroupByChild   bool `json:"group_by_child"`
-	HideWeeks      bool `json:"hide_weeks"`
 	HideTimeModels bool `json:"hide_time_models"`
 }
 
@@ -58,7 +57,7 @@ func TestTraegerDocumentTemplatesKeepTheInvoiceLayoutWithTheVersion(t *testing.T
 	require.Len(t, detail.Versions, 2)
 	assert.Equal(t, invoiceLayoutBody{}, detail.Versions[1].Invoice, "the first version keeps its table")
 
-	_, err := db.ExecContext(context.Background(), `UPDATE platform.traeger_document_templates SET invoice_hide_weeks = true
+	_, err := db.ExecContext(context.Background(), `UPDATE platform.traeger_document_templates SET invoice_hide_time_models = true
 		WHERE organization_id = ? AND kind = 'bestaetigung' AND version = 1`, office.organization)
 	require.Error(t, err, "the layout of a version never changes")
 }
@@ -89,7 +88,7 @@ func TestTraegerDocumentTemplatePreviewShowsTheWholeLetter(t *testing.T) {
 	assert.Equal(t, "Lina", preview.Blocks[1].Rows[0].Label, "the grouped table names the child once")
 
 	rec = traegerJSON(t, router, office.token, http.MethodPost, documentTemplatesPath+"/kuendigung/versions",
-		documentTemplateWithLayout{documentTemplateBody: documentTemplateBody{Subject: "Kündigung", Body: "Text"}, Invoice: invoiceLayoutBody{HideWeeks: true}})
+		documentTemplateWithLayout{documentTemplateBody: documentTemplateBody{Subject: "Kündigung", Body: "Text"}, Invoice: invoiceLayoutBody{HideTimeModels: true}})
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	refusal := refusalOf(t, rec)
 	assert.Equal(t, "traeger.document_template_invalid", refusal.Code)

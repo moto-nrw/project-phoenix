@@ -139,10 +139,9 @@ type LetterTemplate struct {
 	Body       string
 	Closing    string
 	// GroupByChild names each child once above its positions with a
-	// subtotal; HideWeeks and HideTimeModels leave the week or the time
-	// model out of a booking's line.
+	// subtotal; HideTimeModels leaves the time model out of a booking's
+	// line. The week always stays: it is the period of the service.
 	GroupByChild   bool
-	HideWeeks      bool
 	HideTimeModels bool
 }
 

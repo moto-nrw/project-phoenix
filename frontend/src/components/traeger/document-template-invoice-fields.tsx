@@ -4,8 +4,9 @@ import type { DocumentTemplateInvoiceLayout } from "~/lib/traeger-document-templ
 
 /**
  * Die Darstellung der Tabelle der Beträge (#5691): wie `{{positionen}}` die
- * Positionen einer Rechnung zeigt. Betrag, Ermäßigungen, Korrekturen und
- * Gesamtbetrag sind fest; sie sind das, was die Rechnung verlangt. Ein Teil
+ * Positionen einer Rechnung zeigt. Betrag, Ermäßigungen, Korrekturen,
+ * Gesamtbetrag und die Woche sind fest: Sie sind Pflichtangaben einer
+ * Rechnung, die Woche ist der Zeitraum der Leistung. Ein Teil
  * des Vorlagenformulars, weil das Speichern Text und Tabelle zusammen als
  * eine Version ablegt.
  */
@@ -38,24 +39,18 @@ export function DocumentTemplateInvoiceFields({
         id="template-invoice-hint"
         className="clear-left mt-1 text-sm text-gray-600"
       >
-        So zeigt die Tabelle {"{{positionen}}"} die gebuchten Wochen. Betrag,
-        Ermäßigungen und Gesamtbetrag stehen immer darin.
+        So zeigt die Tabelle {"{{positionen}}"} die gebuchten Wochen. Woche,
+        Betrag und Gesamtbetrag stehen immer darin.
       </p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
         <CheckboxCard
           checked={layout.groupByChild}
           onChange={(checked) => set("groupByChild", checked)}
           disabled={disabled}
           label="Nach Kind ordnen"
-          hint="Der Vorname steht einmal über den Zeilen, darunter die Summe für das Kind."
+          hint="Der Vorname steht über den Zeilen. Darunter steht die Summe."
         />
-        <CheckboxCard
-          checked={!layout.hideWeeks}
-          onChange={(checked) => set("hideWeeks", !checked)}
-          disabled={disabled}
-          label="Woche zeigen"
-          hint="Zum Beispiel „Woche 19.10. bis 23.10.2026“."
-        />
+
         <CheckboxCard
           checked={!layout.hideTimeModels}
           onChange={(checked) => set("hideTimeModels", !checked)}

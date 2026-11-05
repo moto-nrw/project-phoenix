@@ -110,7 +110,7 @@ func letterTemplate(template parentbilling.LetterTemplate) templates.Template {
 }
 
 func invoiceLayout(template parentbilling.LetterTemplate) templates.InvoiceLayout {
-	return templates.InvoiceLayout{GroupByChild: template.GroupByChild, HideWeeks: template.HideWeeks, HideTimeModels: template.HideTimeModels}
+	return templates.InvoiceLayout{GroupByChild: template.GroupByChild, HideTimeModels: template.HideTimeModels}
 }
 
 // letterValues are the values of every placeholder of the confirmation
@@ -253,23 +253,15 @@ func invoiceLine(position parentbilling.BillingPosition) templates.InvoiceLine {
 	return line
 }
 
+// positionLabel names a position in one line, as the letters of a
+// cancellation or a credit list it: the text of the position or its week
+// with its time model.
 func positionLabel(position parentbilling.BillingPosition) string {
-	switch position.Kind {
-	case parentbilling.LineSibling:
-		return "Ermäßigung für Geschwister"
-	case parentbilling.LineBenefitsExemption:
-		return "Befreiung bei Leistungsbezug"
-	case parentbilling.LineCostTakeover:
-		return "Kosten übernimmt: " + strings.TrimSpace(position.CostBearerName)
-	case parentbilling.LineCorrection:
-		return "Korrektur: " + strings.TrimSpace(position.Note)
+	line := invoiceLine(position)
+	if line.Text != "" {
+		return line.Text
 	}
-	label := strings.TrimSpace(position.TimeModelName)
-	if position.WeekStartsOn != nil && position.WeekEndsOn != nil {
-		week := fmt.Sprintf("Woche %s bis %s", position.WeekStartsOn.Format("02.01."), germanDate(*position.WeekEndsOn))
-		label = strings.TrimSpace(week + ", " + label)
-	}
-	return strings.TrimSuffix(label, ",")
+	return strings.Join(nonBlank(line.Week, line.TimeModel), ", ")
 }
 
 // The placeholders of the payment text of a Träger (#5622). The settings

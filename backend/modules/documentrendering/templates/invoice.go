@@ -3,11 +3,12 @@ package templates
 import "strings"
 
 // The presentation of the table of amounts (#5691): a Träger chooses how
-// the table {{positionen}} lists the positions of an invoice. The amount of
-// each position, every discount and correction and the total stay fixed:
-// they are what the invoice asks for. The zero value is the standard table
-// of ADR 0121, one line per position with the child's first name, the week
-// and the time model, so templates saved before #5691 print as they did.
+// the table {{positionen}} lists the positions of an invoice. The mandatory
+// details of an invoice stay fixed: the amount of each position, every
+// discount and correction, the total, and the week of each booking, which is
+// the period of the service. The zero value is the standard table of ADR
+// 0121, one line per position with the child's first name, the week and the
+// time model, so templates saved before #5691 print as they did.
 
 // InvoiceLayout is how the table of amounts shows the positions.
 type InvoiceLayout struct {
@@ -15,8 +16,6 @@ type InvoiceLayout struct {
 	// positions and closes them with the child's subtotal, instead of
 	// naming the child on every line.
 	GroupByChild bool `json:"group_by_child"`
-	// HideWeeks leaves the week of a booking out of its line.
-	HideWeeks bool `json:"hide_weeks"`
 	// HideTimeModels leaves the time model of a booking out of its line.
 	HideTimeModels bool `json:"hide_time_models"`
 }
@@ -39,8 +38,8 @@ type InvoiceLine struct {
 	Amount    string
 }
 
-// fallbackBookingLabel names a booking whose week and time model are both
-// left out, so no line of the table is without a label.
+// fallbackBookingLabel names a booking without week and time model, so no
+// line of the table is without a label.
 const fallbackBookingLabel = "Betreuung"
 
 // HasInvoice reports whether a template of kind prints the table of
@@ -77,7 +76,7 @@ func (l InvoiceLine) label(layout InvoiceLayout) string {
 		return text
 	}
 	var parts []string
-	if week := strings.TrimSpace(l.Week); week != "" && !layout.HideWeeks {
+	if week := strings.TrimSpace(l.Week); week != "" {
 		parts = append(parts, week)
 	}
 	if model := strings.TrimSpace(l.TimeModel); model != "" && !layout.HideTimeModels {

@@ -64,9 +64,6 @@ const logger = createLogger({ component: "TraegerVorlagePage" });
 /** Das Träger-Recht, das Vorlagen ändert (ADR 0084 Abschnitt 4). */
 const SETTINGS_RIGHT = "traeger_settings:manage";
 
-const textOf = templateTextOf;
-const sameText = sameTemplateText;
-
 interface PageData {
   readonly detail: DocumentTemplateDetail;
   readonly masterData: TraegerMasterData;
@@ -115,6 +112,9 @@ function TemplateEditorPage({
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const formRef = useRef<HTMLFormElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  // Die letzte Schreibmarke im Brieftext. Ein Klick auf einen Platzhalter
+  // nimmt dem Feld den Fokus; ohne Marke kommt der Platzhalter ans Ende.
+  const caret = useRef<{ start: number; end: number } | null>(null);
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
 
@@ -126,7 +126,7 @@ function TemplateEditorPage({
         fetchDocumentTemplate(kind),
         fetchTraegerMasterData(),
       ]);
-      const current = textOf(detail.current);
+      const current = templateTextOf(detail.current);
       const preview = await previewDocumentTemplate(kind, current);
       setData({ detail, masterData, preview });
       setDraft(current);
@@ -192,11 +192,11 @@ function TemplateEditorPage({
   };
 
   const error = pageLoad.error ?? schemaError;
-  const current = data ? textOf(data.detail.current) : null;
+  const current = data ? templateTextOf(data.detail.current) : null;
   const changed =
-    draft !== null && current !== null && !sameText(draft, current);
+    draft !== null && current !== null && !sameTemplateText(draft, current);
   const previewStale =
-    draft !== null && previewed !== null && !sameText(draft, previewed);
+    draft !== null && previewed !== null && !sameTemplateText(draft, previewed);
   const standard = data?.detail.standardTemplate ?? null;
   const branding =
     schema?.tabs.find((tab) => tab.key === TRAEGER_BRANDING_TAB) ?? null;
@@ -210,14 +210,18 @@ function TemplateEditorPage({
     part: "subject" | "salutation" | "body" | "closing",
     value: string,
   ) => setDraft((before) => (before ? { ...before, [part]: value } : before));
-  // Setzt den Platzhalter an die Schreibmarke des Brieftexts, ohne Marke ans
-  // Ende, und lässt die Marke hinter ihm stehen.
+  const rememberCaret = (field: HTMLTextAreaElement) => {
+    caret.current = { start: field.selectionStart, end: field.selectionEnd };
+  };
+  // Setzt den Platzhalter an die letzte Schreibmarke des Brieftexts, ohne
+  // Marke ans Ende, und lässt die Marke hinter ihm stehen.
   const insertPlaceholder = (placeholder: DocumentTemplatePlaceholder) => {
     if (!draft) return;
     const field = bodyRef.current;
     const token = `{{${placeholder.name}}}`;
-    const start = field?.selectionStart ?? draft.body.length;
-    const end = field?.selectionEnd ?? draft.body.length;
+    const length = draft.body.length;
+    const end = Math.min(caret.current?.end ?? length, length);
+    const start = Math.min(caret.current?.start ?? length, end);
     // Eine Tabelle druckt nur allein in ihrer Zeile.
     const before =
       placeholder.table && start > 0 && draft.body[start - 1] !== "\n"
@@ -230,10 +234,11 @@ function TemplateEditorPage({
     const insert = before + token + after;
     const body = draft.body.slice(0, start) + insert + draft.body.slice(end);
     set("body", body);
-    const caret = start + insert.length;
+    const next = start + insert.length;
+    caret.current = { start: next, end: next };
     requestAnimationFrame(() => {
       field?.focus();
-      field?.setSelectionRange(caret, caret);
+      field?.setSelectionRange(next, next);
     });
   };
   const invoice = data && hasInvoiceTable(data.detail.placeholders);
@@ -284,14 +289,14 @@ function TemplateEditorPage({
                 title="Text der Vorlage"
                 description="Das steht im Brief unter dem Briefkopf. Speichern legt eine neue Version an."
                 action={
-                  canEdit && standard && !sameText(draft, standard) ? (
+                  canEdit && standard && !sameTemplateText(draft, standard) ? (
                     <Button
                       type="button"
                       variant="outline"
                       size="md"
                       disabled={saving}
                       onClick={() => {
-                        setDraft(textOf(standard));
+                        setDraft(templateTextOf(standard));
                         formErrors.clear();
                       }}
                     >
@@ -338,6 +343,7 @@ function TemplateEditorPage({
                     required
                     rows={14}
                     ref={bodyRef}
+                    onBlur={(e) => rememberCaret(e.currentTarget)}
                     value={draft.body}
                     onChange={(e) => set("body", e.target.value)}
                     error={formErrors.fieldError("body")}
@@ -362,7 +368,7 @@ function TemplateEditorPage({
                       onChange={(layout) =>
                         setDraft((before) =>
                           before
-                            ? textOf({ ...before, invoice: layout })
+                            ? templateTextOf({ ...before, invoice: layout })
                             : before,
                         )
                       }
@@ -443,7 +449,7 @@ function TemplateEditorPage({
                 canEdit={canEdit}
                 disabled={saving}
                 onLoad={(version) => {
-                  setDraft(textOf(version));
+                  setDraft(templateTextOf(version));
                   formErrors.clear();
                   formRef.current?.scrollIntoView?.({
                     behavior: "smooth",

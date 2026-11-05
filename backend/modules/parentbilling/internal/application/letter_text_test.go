@@ -387,7 +387,7 @@ func TestConfirmationLetterPrintsTheTableInTheLayoutOfTheTemplate(t *testing.T) 
 	content.document.DebtorNumber = "10234"
 	content.letterhead.Template = parentbilling.LetterTemplate{
 		Version: 4, Subject: "Rechnung {{rechnungsnummer}}", Body: "Debitorennummer {{debitorennummer}}\n\n{{positionen}}",
-		GroupByChild: true, HideWeeks: true,
+		GroupByChild: true, HideTimeModels: true,
 	}
 
 	letter := confirmationLetter(content)
@@ -395,10 +395,10 @@ func TestConfirmationLetterPrintsTheTableInTheLayoutOfTheTemplate(t *testing.T) 
 	assert.Equal(t, "Debitorennummer 10234", letter.Blocks[0].Text)
 	assert.Equal(t, []LetterFact{
 		{Label: "Lina", Bold: true},
-		{Label: "Vormittag", Value: "50,00 €"},
+		{Label: "Woche 04.01. bis 08.01.2027", Value: "50,00 €"},
 		{Label: "Summe für Lina", Value: "50,00 €"},
 		{Label: "Ben", Bold: true},
-		{Label: "Nachmittag mit Mittagessen", Value: "65,00 €"},
+		{Label: "Woche 04.01. bis 08.01.2027", Value: "65,00 €"},
 		{Label: "Ermäßigung für Geschwister", Value: "-32,50 €"},
 		{Label: "Korrektur: Zusätzlicher Ausflug", Value: "20,00 €"},
 		{Label: "Summe für Ben", Value: "52,50 €"},

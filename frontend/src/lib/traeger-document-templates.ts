@@ -54,18 +54,17 @@ export function isDocumentTemplateKind(
 /**
  * Wie die Tabelle der Beträge die Positionen zeigt (#5691). Alles `false` ist
  * die Standardtabelle: eine Zeile je Position mit Vorname, Woche und
- * Zeitmodell. Betrag, Ermäßigungen und Gesamtbetrag stehen immer darin.
+ * Zeitmodell. Betrag, Ermäßigungen, Gesamtbetrag und die Woche als Zeitraum
+ * der Leistung stehen immer darin; sie sind Pflichtangaben der Rechnung.
  */
 export interface DocumentTemplateInvoiceLayout {
   /** Vorname einmal über den Positionen des Kindes, darunter seine Summe. */
   readonly groupByChild: boolean;
-  readonly hideWeeks: boolean;
   readonly hideTimeModels: boolean;
 }
 
 const STANDARD_INVOICE_LAYOUT: DocumentTemplateInvoiceLayout = {
   groupByChild: false,
-  hideWeeks: false,
   hideTimeModels: false,
 };
 
@@ -89,7 +88,7 @@ export function invoiceLayoutOf(
 }
 
 function isStandardLayout(layout: DocumentTemplateInvoiceLayout): boolean {
-  return !layout.groupByChild && !layout.hideWeeks && !layout.hideTimeModels;
+  return !layout.groupByChild && !layout.hideTimeModels;
 }
 
 /** Die vier Texte und, nur wenn sie abweicht, die Tabelle. */
@@ -119,7 +118,6 @@ export function sameTemplateText(
     a.body === b.body &&
     a.closing === b.closing &&
     la.groupByChild === lb.groupByChild &&
-    la.hideWeeks === lb.hideWeeks &&
     la.hideTimeModels === lb.hideTimeModels
   );
 }
@@ -190,7 +188,6 @@ export interface DocumentTemplatePreview {
 
 interface BackendInvoiceLayout {
   group_by_child?: boolean;
-  hide_weeks?: boolean;
   hide_time_models?: boolean;
 }
 
@@ -228,7 +225,6 @@ function mapText(text: BackendText): DocumentTemplateText {
     closing: text.closing ?? "",
     invoice: {
       groupByChild: text.invoice?.group_by_child ?? false,
-      hideWeeks: text.invoice?.hide_weeks ?? false,
       hideTimeModels: text.invoice?.hide_time_models ?? false,
     },
   });
@@ -253,7 +249,6 @@ function requestBody(text: DocumentTemplateText) {
     closing: text.closing,
     invoice: {
       group_by_child: layout.groupByChild,
-      hide_weeks: layout.hideWeeks,
       hide_time_models: layout.hideTimeModels,
     },
   };
