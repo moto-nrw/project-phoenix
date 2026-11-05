@@ -251,7 +251,8 @@ func lacksDebtorNumberForPaymentText(paymentText string, document parentbilling.
 }
 
 func (b *BillingLetters) render(content letterContent) (parentbilling.BillingLetterFile, error) {
-	letter, prefix := Letter{}, "bestaetigung-"
+	var letter Letter
+	prefix := "bestaetigung-"
 	switch content.document.Kind {
 	case parentbilling.DocumentCancellation:
 		letter, prefix = cancellationLetter(content), "storno-"
