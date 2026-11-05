@@ -169,6 +169,7 @@ func exposedReservedHexes(t *testing.T) map[string]struct{} {
 		"#365D83",
 		"#217A78",
 		"#EAB308",
+		"#4F46E5", // IN_CLASS (#5656), also the legacy bug-default below
 	}
 
 	out := make(map[string]struct{}, len(knownReserved))
@@ -182,8 +183,8 @@ func exposedReservedHexes(t *testing.T) map[string]struct{} {
 	return out
 }
 
-// TestReservedRoomColors_LegacyBugDefault pins the backend-only entry that
-// the drift test deliberately excludes. Tests intent rather than mechanics:
+// TestReservedRoomColors_LegacyBugDefault pins the legacy bug-default, which
+// stays reserved even if IN_CLASS stops using it. Tests intent rather than mechanics:
 // even if someone refactors the palette half, this assertion stays put and
 // keeps #4F46E5 reserved.
 func TestReservedRoomColors_LegacyBugDefault(t *testing.T) {
