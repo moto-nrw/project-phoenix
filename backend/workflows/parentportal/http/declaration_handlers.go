@@ -126,8 +126,9 @@ type declarationSubmissionResponse struct {
 	PasswordConfirmed bool      `json:"password_confirmed"`
 }
 
-// declarationBodyLimit bounds a declaration request including its signature.
-const declarationBodyLimit = 320 << 10
+// signedBodyLimit bounds a request that carries a signature. A signature PNG
+// is at most 200 KB, about 273 KB as base64 (#4785).
+const signedBodyLimit = 320 << 10
 
 func parsePositiveID(raw string) (int64, bool) {
 	id, err := strconv.ParseInt(raw, 10, 64)
@@ -146,8 +147,7 @@ func (rs *Resource) submitDeclaration(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// A signature PNG is at most 200 KB, about 273 KB as base64 (#4785).
-	r.Body = http.MaxBytesReader(w, r.Body, declarationBodyLimit)
+	r.Body = http.MaxBytesReader(w, r.Body, signedBodyLimit)
 	var req declarationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
