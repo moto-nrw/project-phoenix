@@ -29,6 +29,7 @@ type exportRun struct {
 	options      organizationtenancy.TenantExportOptions
 	catalog      organizationtenancy.DataLifecycleCatalog
 	manifest     organizationtenancy.ExportManifest
+	schema       *exportSchema
 	models       []organizationtenancy.ExportModelTable
 	references   map[string]bool
 	fingerprints organizationtenancy.ExportFingerprints

@@ -134,7 +134,8 @@ describe("ParentMealPlanPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Essen in der OGS")).toBeInTheDocument();
 
-    const previousWeek = screen.getByRole("button", {
+    // The heading renders before the week navigation has loaded.
+    const previousWeek = await screen.findByRole("button", {
       name: "Vorherige Woche",
     });
     const nextWeek = screen.getByRole("button", { name: "Nächste Woche" });

@@ -562,6 +562,12 @@ func (p *Policy) validateExternalPackages(classes map[string]struct{}) error {
 }
 
 func (p *Policy) validateRules(owners map[string]Owner, roles, classes map[string]struct{}, ownerKinds map[string]bool) error {
+	// Resolve exact selectors once, not by scanning every package for every
+	// pair of rules and common scope. The index lives for this validation only.
+	packages := make(map[string]Package, len(p.Packages))
+	for _, pkg := range p.Packages {
+		packages[pkg.Path] = pkg
+	}
 	seenIDs := make(map[string]struct{}, len(p.Rules))
 	validated := make([]Rule, 0, len(p.Rules))
 	for _, rule := range p.Rules {
@@ -571,22 +577,28 @@ func (p *Policy) validateRules(owners map[string]Owner, roles, classes map[strin
 		if err := p.validateRulePackages(rule); err != nil {
 			return err
 		}
-		if p.PolicyEpoch >= targetOnlyRulesEpoch {
-			if err := validateTargetOnlyRule(rule, owners); err != nil {
-				return err
-			}
-		}
-		if p.PolicyEpoch >= domainProjectionRulesEpoch {
-			if err := validateDomainProjectionRule(rule, owners); err != nil {
-				return err
-			}
+		if err := p.validateEpochRule(rule, owners); err != nil {
+			return err
 		}
 		for _, previous := range validated {
-			if scope, overlaps := p.overlappingScope(previous, rule, owners); overlaps {
+			if scope, overlaps := overlappingPackageScope(previous, rule, owners, packages); overlaps {
 				return fmt.Errorf("rule %q overlaps rule %q for scope %q", rule.ID, previous.ID, scope)
 			}
 		}
 		validated = append(validated, rule)
+	}
+	return nil
+}
+
+// validateEpochRule applies the rule checks that later policy epochs introduced.
+func (p *Policy) validateEpochRule(rule Rule, owners map[string]Owner) error {
+	if p.PolicyEpoch >= targetOnlyRulesEpoch {
+		if err := validateTargetOnlyRule(rule, owners); err != nil {
+			return err
+		}
+	}
+	if p.PolicyEpoch >= domainProjectionRulesEpoch {
+		return validateDomainProjectionRule(rule, owners)
 	}
 	return nil
 }

@@ -215,7 +215,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/architecture/policy.go:(*Policy).validateReadProjections": 18,
 	// ADR 0087.
-	"internal/architecture/policy.go:(*Policy).validateRules": 20,
 	// ADR 0087.
 	"internal/architecture/policy.go:decodePolicy": 21,
 	// ADR 0087.
@@ -320,7 +319,7 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"realtime/hub.go:(*Hub).Unregister": 19,
 	// ADR 0087.
-	"test/fixtures.go:cleanupTenantTestData": 39,
+	"test/fixtures.go:cleanupTenantTestData": 32,
 	// ADR 0087.
 	"test/runtime_checkpoint.go:MeasureDeliveryCheckpoint": 27,
 	// ADR 0087.

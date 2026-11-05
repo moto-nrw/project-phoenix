@@ -5,9 +5,9 @@ import {
   render,
   renderHook,
   screen,
-  waitFor,
   within,
 } from "@testing-library/react";
+import { waitFor } from "~/test/wait-for-state";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PickupTimeModal,
@@ -24,6 +24,7 @@ import type {
 import * as parentApi from "~/lib/parent-api";
 import deMessages from "~/i18n/messages/de.generated";
 import { ApiError } from "~/lib/api-error";
+import { releaseFakeTimers } from "~/test/clock";
 import { catalogText } from "~/test/error-catalog-text";
 import {
   berlinTodayISO,
@@ -1027,7 +1028,11 @@ describe("SickNoteModal — Abmeldegrund", () => {
     expect(
       screen.queryByRole("button", { name: "Krankmeldung an die OGS senden" }),
     ).not.toBeInTheDocument();
+    // Fake timers skip the modal's 250-ms exit animation.
+    vi.useFakeTimers();
     fireEvent.click(closeButtons[0]!);
+    await act(() => vi.advanceTimersByTimeAsync(250));
+    releaseFakeTimers();
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 

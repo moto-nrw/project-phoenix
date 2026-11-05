@@ -20,15 +20,15 @@ func (r *exportRun) tableModel(ctx context.Context, table organizationtenancy.Li
 	if len(parts) != 2 {
 		return model, exportTableError(table.Name)
 	}
-	var columns []struct {
-		Name     string
-		Type     string
-		UDT      string
-		Nullable string
+	if r.schema == nil {
+		schema, err := loadExportSchema(ctx, r.tx, r.catalog)
+		if err != nil {
+			return model, exportTableError(table.Name)
+		}
+		r.schema = schema
 	}
-	err := r.tx.NewRaw(`SELECT column_name AS name, data_type AS type, udt_name AS udt, is_nullable AS nullable
-		FROM information_schema.columns WHERE table_schema = ? AND table_name = ? ORDER BY ordinal_position`, parts[0], parts[1]).Scan(ctx, &columns)
-	if err != nil || len(columns) == 0 {
+	columns := r.schema.columns[table.Name]
+	if len(columns) == 0 {
 		return model, exportTableError(table.Name)
 	}
 	for _, col := range columns {
@@ -36,22 +36,7 @@ func (r *exportRun) tableModel(ctx context.Context, table organizationtenancy.Li
 			model.Columns = append(model.Columns, organizationtenancy.ExportColumn{Name: col.Name, Type: col.Type, UDT: col.UDT, Nullable: col.Nullable == "YES"})
 		}
 	}
-	var relations []struct {
-		Column       string
-		TargetTable  string
-		TargetColumn string
-	}
-	err = r.tx.NewRaw(`SELECT a.attname AS column, ns.nspname || '.' || c.relname AS target_table, b.attname AS target_column
-		FROM pg_catalog.pg_constraint fk
-		JOIN pg_catalog.pg_class c ON c.oid = fk.confrelid
-		JOIN pg_catalog.pg_namespace ns ON ns.oid = c.relnamespace
-		CROSS JOIN LATERAL generate_subscripts(fk.conkey, 1) AS n(i)
-		JOIN pg_catalog.pg_attribute a ON a.attrelid = fk.conrelid AND a.attnum = fk.conkey[n.i]
-		JOIN pg_catalog.pg_attribute b ON b.attrelid = fk.confrelid AND b.attnum = fk.confkey[n.i]
-		WHERE fk.contype = 'f' AND fk.conrelid = ?::regclass ORDER BY a.attname, ns.nspname, c.relname`, table.Name).Scan(ctx, &relations)
-	if err != nil {
-		return model, exportTableError(table.Name)
-	}
+	relations := r.schema.relations[table.Name]
 	for _, rel := range relations {
 		if _, excluded := table.ExcludeSecretColumns[rel.Column]; !excluded {
 			model.Relationships = append(model.Relationships, organizationtenancy.ExportRelationship{Column: rel.Column, TargetTable: rel.TargetTable, TargetColumn: rel.TargetColumn})

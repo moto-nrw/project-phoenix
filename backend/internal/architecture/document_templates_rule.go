@@ -26,15 +26,3 @@ func reviewedDocumentTemplatesRule(rule Rule) bool {
 		rule.TargetPackage == documentTemplatesTargetPackage && rule.TargetClass == "" && !rule.SameOwner &&
 		len(rule.Scopes) == 1 && rule.Scopes[0] == string(ScopeProduction)
 }
-
-// firstPartyAllowedByReviewedDocumentTemplatesRule reports whether the single
-// rule that admits this first-party import in the candidate policy is a
-// reviewed document templates rule. The import loosening it implies is then
-// the intended effect of that rule, not a separate widening.
-func firstPartyAllowedByReviewedDocumentTemplatesRule(base, candidate *Policy, scope Scope, source, target Package) bool {
-	if candidate.PolicyEpoch <= base.PolicyEpoch {
-		return false
-	}
-	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
-	return decision.Allowed != nil && len(decision.Overlaps) == 0 && reviewedDocumentTemplatesRule(*decision.Allowed)
-}

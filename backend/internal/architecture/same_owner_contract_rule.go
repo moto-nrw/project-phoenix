@@ -38,11 +38,3 @@ func reviewedSameOwnerContractRule(rule Rule) bool {
 	}
 	return false
 }
-
-func firstPartyAllowedByReviewedSameOwnerContractRule(base, candidate *Policy, scope Scope, source, target Package) bool {
-	if candidate.PolicyEpoch <= base.PolicyEpoch {
-		return false
-	}
-	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
-	return decision.Allowed != nil && len(decision.Overlaps) == 0 && reviewedSameOwnerContractRule(*decision.Allowed)
-}

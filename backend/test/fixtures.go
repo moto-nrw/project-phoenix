@@ -2223,11 +2223,11 @@ func cleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 		// Delete tenantless rows that depend on tenant-owned parents before FK
 		// enforcement is suspended. Examples are auth.role_permissions and
 		// config.work_time_model_entries.
-		dependents, err := discoverUnscopedTenantDependents(ctx, tx)
+		schema, err := loadTenantCleanupSchema(ctx, db, tx)
 		if err != nil {
 			return err
 		}
-		for _, dependent := range dependents {
+		for _, dependent := range schema.dependents {
 			statement := fmt.Sprintf(
 				"DELETE FROM %s AS child USING %s AS parent WHERE parent.tenant_id IN (?) AND %s",
 				dependent.Child, dependent.Parent, dependent.JoinPredicate)
@@ -2243,17 +2243,8 @@ func cleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 			return err
 		}
 
-		tables, err := discoverTenantTables(ctx, tx)
-		if err != nil {
-			return err
-		}
-		for _, table := range tables {
-			if _, err := tx.NewDelete().
-				TableExpr(table).
-				Where("tenant_id IN (?)", bun.List(tenantIDs)).
-				Exec(ctx); err != nil {
-				return fmt.Errorf("cleanup %s for tenants %v: %w", table, tenantIDs, err)
-			}
+		if err := deleteTenantTableRows(ctx, tx, schema.tables, tenantIDs); err != nil {
+			return fmt.Errorf("cleanup tenant tables for tenants %v: %w", tenantIDs, err)
 		}
 		if _, err := tx.NewDelete().
 			TableExpr("platform.schools").
@@ -2274,11 +2265,7 @@ func cleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 			return nil
 		}
 
-		accountTables, err := discoverUnscopedAccountTables(ctx, tx)
-		if err != nil {
-			return err
-		}
-		for _, table := range accountTables {
+		for _, table := range schema.accountTables {
 			if _, err := tx.NewDelete().
 				TableExpr(table).
 				Where("account_id IN (?)", bun.List(accountIDs)).

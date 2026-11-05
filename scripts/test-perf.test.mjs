@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { inventory, compare, goInventory, goInventoryFile } from './test-perf.mjs';
+import { inventory, compare, goInventory, goInventoryFile, parsePgSample } from './test-perf.mjs';
 import { gitTestEnvironment, initGitFixture } from './test-helpers/git-fixture.mjs';
 
 const frontend = '/repo/frontend';
@@ -259,7 +259,15 @@ test('backend profiles pin explicit uncached package selections without changing
 
 function backendFixture(t, profile = 'backend-smoke', mode = 'success', overrides = {}) {
   const root = mkdtempSync(join(tmpdir(), 'moto-test-perf-go-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  t.after(() => {
+    const file = join(root, 'tmp/contract/sampler-pid');
+    if (existsSync(file)) {
+      try { process.kill(+readFileSync(file, 'utf8'), 'SIGTERM'); } catch (error) {
+        if (error.code !== 'ESRCH') throw error;
+      }
+    }
+    rmSync(root, { recursive: true, force: true });
+  });
   for (const directory of ['frontend', 'backend', 'scripts', 'bin', 'tmp/contract']) mkdirSync(join(root, directory), { recursive: true });
   writeFileSync(join(root, '.gitignore'), 'tmp/\nbackend/dev.env\n');
   writeFileSync(join(root, 'frontend/package.json'), '{}');
@@ -290,6 +298,45 @@ case "$PERF_MODE" in
     next=$(printf 'advance target\\n' | git commit-tree 'HEAD^{tree}' -p HEAD)
     git update-ref refs/remotes/origin/development "$next" ;;
 esac`);
+  if (overrides.PERF_PG_FIXTURE) {
+    writeFileSync(join(root, 'tmp/contract/memory.current'), '104857600\n');
+    writeFileSync(join(root, 'tmp/contract/memory.stat'), 'anon 1048576\nshmem 1048576\n');
+    shell('bin/docker', `
+if [ "$1" = ps ]; then echo fixture-pg; exit 0; fi
+[ "$1" = exec ] || exit 93
+shift 2
+if [ "$1" = cat ]; then
+  if [ ! -f "$PERF_FIXTURE/admitted" ]; then
+    echo cpu-before-admission >> "$PERF_FIXTURE/events"
+    echo 'usage_usec 0'
+  elif [ -f "$PERF_FIXTURE/finished" ]; then echo 'usage_usec 3000000'
+  else echo 'usage_usec 2000000'; fi
+elif [ "$1" = sh ]; then
+  case "$3" in
+  */sys/fs/cgroup*)
+  echo sampler-started >> "$PERF_FIXTURE/events"
+  echo $$ > "$PERF_FIXTURE/sampler-pid"
+  [ "$PERF_MODE" != interrupt-start ] || kill -TERM "$PPID"
+  script=$(printf '%s' "$3" | sed "s|/sys/fs/cgroup|$PERF_FIXTURE|g")
+  shift 3
+  exec sh -c "$script" "$@"
+  ;;
+  *)
+  echo shutdown >> "$PERF_FIXTURE/events"
+  printf '%s' "$5" > "$PERF_FIXTURE/stop-path"
+  exec "$@"
+  ;;
+  esac
+else
+  echo shutdown >> "$PERF_FIXTURE/events"
+  printf '%s' "$2" > "$PERF_FIXTURE/stop-path"
+  exec "$@"
+fi`);
+    // Record the workload boundary even on a nonzero exit.
+    const wrapper = join(root, 'scripts/test-backend.sh');
+    writeFileSync(wrapper, readFileSync(wrapper, 'utf8').replace('set -eu\n',
+      'set -eu\ntrap \'touch "$PERF_FIXTURE/finished"\' EXIT\n'));
+  }
   // More raw output than the CLI child's entire heap, generated one event at
   // a time. No large string/file allocation is needed in the test process.
   writeFileSync(join(root, 'tmp/contract/output-heavy.cjs'), `
@@ -303,6 +350,11 @@ printf '%s\\n' "$@" > "$PERF_FIXTURE/gate-args"
 [ "$1" != --light ] || shift
 [ "$1" = -- ] || exit 92
 shift
+if [ -n "\${PERF_PG_FIXTURE:-}" ]; then
+  sleep 0.6
+  touch "$PERF_FIXTURE/admitted"
+  echo 10485760 > "$PERF_FIXTURE/memory.current"
+fi
 exec "$@"`);
   // dev-bench probes optional tools in its metadata; neither is needed by
   // backendContext. A frontend-context regression would fail on pnpm/Vitest.
@@ -456,3 +508,32 @@ test('backend trial without inherited TEST_DB_DSN fails before dispatch', t => {
   assert.match(fixture.summary.error, /require inherited TEST_DB_DSN/);
   assert.equal(fixture.summary.exit, undefined);
 });
+
+test('Postgres samples count resident anon and shared buffers, not page cache alone', () => {
+  assert.deepEqual(parsePgSample('current 300\nanon 20\nshmem 60\n'), { current: 300, anon: 80 });
+  const partial = parsePgSample('current 300\n');
+  assert.equal(partial.current, 300);
+  assert.ok(Number.isNaN(partial.anon));
+});
+
+for (const mode of ['success', 'fail', 'interrupt-start']) {
+  test(`Postgres meter excludes admission and awaits container sampler shutdown on ${mode}`, t => {
+    const fixture = backendFixture(t, 'backend-smoke', mode, {
+      PERF_PG_FIXTURE: '1', TEST_DB_DSN: 'postgres://localhost:15432/test',
+    });
+    assert.equal(fixture.result.status, mode === 'success' ? 0 : 1, fixture.result.stderr + fixture.result.stdout);
+    assert.doesNotMatch(fixture.record('events'), /cpu-before-admission/);
+    assert.match(fixture.record('events'), /sampler-started\nshutdown\n/);
+    const pid = +fixture.record('sampler-pid');
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, 'Container sampler must have exited');
+    assert.equal(existsSync(fixture.record('stop-path')), false, 'Container control file must be removed');
+    assert.equal(existsSync(fixture.record('stop-path') + '.running'), false);
+    if (mode === 'interrupt-start') {
+      assert.equal(existsSync(join(fixture.root, 'tmp/contract/dispatch')), false, 'Do not start an interrupted workload');
+    }
+    if (mode === 'success') {
+      assert.equal(fixture.summary.metrics.pgCpuSeconds, 1);
+      assert.equal(fixture.summary.metrics.pgPeakMB, 10);
+    }
+  });
+}

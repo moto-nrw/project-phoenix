@@ -34,7 +34,7 @@ func sideEffectRegisterOnlyShrinks(root string, current map[string]losableSideEf
 	if err := json.Unmarshal(raw, &previous); err != nil {
 		return err
 	}
-	return sideEffectRegisterSubset(current, arrivalSchoolNoticeBase(previous))
+	return sideEffectRegisterSubset(current, previous)
 }
 
 const sideEffectNoticeRegister = "test/durable_side_effect_notices.json"

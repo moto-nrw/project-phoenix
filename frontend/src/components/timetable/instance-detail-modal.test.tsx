@@ -787,9 +787,12 @@ describe("InstanceDetailModal", () => {
         substatus: null,
       }),
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Kind #21 als fehlend markieren" }),
-    );
+    // The row stays disabled until the first patch has settled.
+    const markAbsent = screen.getByRole("button", {
+      name: "Kind #21 als fehlend markieren",
+    });
+    await waitFor(() => expect(markAbsent).toBeEnabled());
+    fireEvent.click(markAbsent);
     await waitFor(() =>
       expect(onAttendancePatch).toHaveBeenCalledWith("42", "21", {
         status: "absent",

@@ -20,11 +20,16 @@ type compositionNode struct {
 type compositionGraph struct {
 	nodes          map[string]compositionNode
 	imported       map[string]string
-	methods        map[string][]string
+	methods        map[string]map[string][]string // selector -> import path -> nodes
 	initializers   map[string][]string
 	packageImports map[string]map[string]bool
 	methodPackages map[string]map[string]bool
+	methodCache    map[compositionMethodKey][]string
 	roots          []string
+}
+
+type compositionMethodKey struct {
+	pkg, symbol string
 }
 
 func compositionPackage(source routeBuilderFile) string {
@@ -41,7 +46,13 @@ func compositionGraphViolations(files []routeBuilderFile) []string {
 	witnesses := map[string]string{}
 	for key, node := range graph.nodes {
 		edges, broad := graph.references(node)
-		for _, target := range edges {
+		// Repeated calls do not add reachability. Keep one reverse edge per
+		// caller/target rather than retaining every occurrence in its AST.
+		sort.Strings(edges)
+		for i, target := range edges {
+			if i > 0 && edges[i-1] == target {
+				continue
+			}
 			reverse[target] = append(reverse[target], key)
 		}
 		if len(broad) > 0 {
@@ -79,8 +90,9 @@ func compositionGraphViolations(files []routeBuilderFile) []string {
 func newCompositionGraph(files []routeBuilderFile) *compositionGraph {
 	graph := &compositionGraph{
 		nodes: map[string]compositionNode{}, imported: map[string]string{},
-		methods: map[string][]string{}, initializers: map[string][]string{},
+		methods: map[string]map[string][]string{}, initializers: map[string][]string{},
 		packageImports: map[string]map[string]bool{},
+		methodCache:    map[compositionMethodKey][]string{},
 	}
 	for _, source := range files {
 		isTest := strings.HasSuffix(source.relPath, "_test.go")
@@ -127,6 +139,18 @@ func newCompositionGraph(files []routeBuilderFile) *compositionGraph {
 		graph.add(source, "init", &ast.BlockStmt{}, false, true)
 	}
 	graph.indexMethodPackages()
+	// All functions depend on the same package initialization. Share its
+	// edges instead of repeating every global/import initializer per function.
+	for _, source := range files {
+		pkg := compositionPackage(source)
+		key := pkg + ".<initialize>"
+		if _, included := graph.packageImports[pkg]; !included {
+			continue
+		}
+		if _, exists := graph.nodes[key]; !exists {
+			graph.nodes[key] = compositionNode{source: source, name: "<initialize>"}
+		}
+	}
 	return graph
 }
 
@@ -169,8 +193,11 @@ func (graph *compositionGraph) add(source routeBuilderFile, name string, body as
 	}
 	graph.nodes[key] = compositionNode{source, name, body}
 	if method {
-		methodKey := compositionImportPath(source) + "." + name
-		graph.methods[methodKey] = append(graph.methods[methodKey], key)
+		if graph.methods[name] == nil {
+			graph.methods[name] = map[string][]string{}
+		}
+		importPath := compositionImportPath(source)
+		graph.methods[name][importPath] = append(graph.methods[name][importPath], key)
 	} else if !isTest && name != "init" {
 		graph.imported[compositionImportPath(source)+"."+name] = key
 	}
@@ -188,10 +215,14 @@ func (graph *compositionGraph) add(source routeBuilderFile, name string, body as
 func (graph *compositionGraph) references(node compositionNode) ([]string, []string) {
 	var edges, broad []string
 	pkgKey := compositionPackage(node.source)
-	edges = append(edges, graph.initializers[pkgKey]...)
-	for imported := range graph.packageImports[pkgKey] {
-		edges = append(edges, graph.initializers[imported]...)
+	if node.body == nil {
+		edges = append(edges, graph.initializers[pkgKey]...)
+		for imported := range graph.packageImports[pkgKey] {
+			edges = append(edges, graph.initializers[imported]...)
+		}
+		return edges, nil
 	}
+	edges = append(edges, pkgKey+".<initialize>")
 	selectorNames := map[*ast.Ident]bool{}
 	ast.Inspect(node.body, func(value ast.Node) bool {
 		if selector, ok := value.(*ast.SelectorExpr); ok {
@@ -208,9 +239,7 @@ func (graph *compositionGraph) references(node compositionNode) ([]string, []str
 				pkg = node.source.imports[id.Name]
 			}
 			if pkg == "" {
-				for path := range graph.methodPackages[pkgKey] {
-					edges = append(edges, graph.methods[path+"."+symbol]...)
-				}
+				edges = append(edges, graph.receiverTargets(pkgKey, symbol)...)
 				return true
 			}
 			target = graph.imported[pkg+"."+symbol]
@@ -238,6 +267,23 @@ func (graph *compositionGraph) references(node compositionNode) ([]string, []str
 		return true
 	})
 	return edges, broad
+}
+
+// Receiver resolution depends on the package closure and selector, not the
+// individual call. Cache empty results too, which are the common case.
+func (graph *compositionGraph) receiverTargets(pkg, symbol string) []string {
+	key := compositionMethodKey{pkg, symbol}
+	if targets, ok := graph.methodCache[key]; ok {
+		return targets
+	}
+	var targets []string
+	for path, methods := range graph.methods[symbol] {
+		if graph.methodPackages[pkg][path] {
+			targets = append(targets, methods...)
+		}
+	}
+	graph.methodCache[key] = targets
+	return targets
 }
 
 // broadCompositionSymbol names the root's full composition: the process

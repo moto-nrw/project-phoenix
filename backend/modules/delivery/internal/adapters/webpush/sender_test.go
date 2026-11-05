@@ -2,6 +2,8 @@ package webpush
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -184,4 +186,44 @@ func TestSendPushClassifiesPushServiceAnswers(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusCreated, result.StatusCode)
 	})
+}
+
+// Sentry BACKEND-17: the configured contact is the RFC 8292 URI
+// "mailto:…", and webpush-go adds the mailto scheme itself. Passed through
+// unchanged, the JWT claimed "mailto:mailto:…", which Apple's push service
+// rejects with 403 for every subscription.
+func TestSendPushClaimsTheConfiguredContactOnce(t *testing.T) {
+	t.Parallel()
+
+	for _, subscriber := range []string{"mailto:push@example.test", "https://example.test/contact"} {
+		t.Run(subscriber, func(t *testing.T) {
+			t.Parallel()
+			privateKey, publicKey, err := provider.GenerateVAPIDKeys()
+			require.NoError(t, err)
+			sender := New(deliveryContract.WebPushConfig{Subscriber: subscriber, PublicKey: publicKey, PrivateKey: privateKey}, nil)
+			var claims map[string]any
+			sender.client = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				claims = vapidClaims(t, request.Header.Get("Authorization"))
+				return &http.Response{StatusCode: http.StatusCreated, Status: "201 Created", Body: io.NopCloser(strings.NewReader(""))}, nil
+			})}
+
+			_, err = sender.SendPush(context.Background(), pushIntent(t))
+
+			require.NoError(t, err)
+			assert.Equal(t, subscriber, claims["sub"])
+		})
+	}
+}
+
+// vapidClaims decodes the JWT claims of a "vapid t=<jwt>, k=<key>" header.
+func vapidClaims(t *testing.T, header string) map[string]any {
+	t.Helper()
+	token, _, _ := strings.Cut(strings.TrimPrefix(header, "vapid t="), ",")
+	parts := strings.Split(token, ".")
+	require.Len(t, parts, 3, "VAPID header carries a JWT")
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	require.NoError(t, err)
+	var claims map[string]any
+	require.NoError(t, json.Unmarshal(payload, &claims))
+	return claims
 }

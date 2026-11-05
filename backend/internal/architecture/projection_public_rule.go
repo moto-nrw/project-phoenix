@@ -13,12 +13,3 @@ func reviewedProjectionPublicRule(rule Rule, owners map[string]Owner) bool {
 		rule.TargetClass == "" && !rule.SameOwner &&
 		len(rule.Scopes) == 1 && rule.Scopes[0] == string(ScopeProduction)
 }
-
-func firstPartyAllowedByReviewedProjectionPublicRule(base, candidate *Policy, scope Scope, source, target Package) bool {
-	if candidate.PolicyEpoch <= base.PolicyEpoch {
-		return false
-	}
-	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
-	return decision.Allowed != nil && len(decision.Overlaps) == 0 &&
-		reviewedProjectionPublicRule(*decision.Allowed, ownersByID(candidate))
-}

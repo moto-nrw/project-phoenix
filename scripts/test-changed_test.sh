@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export CGO_ENABLED=0
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/test-helpers/git-fixture.sh"
 repo_root=$(git rev-parse --show-toplevel)
@@ -19,7 +20,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$fixture"/{backend/probe,fake-bin,scripts,frontend/scripts}
-for script in test-backend.sh test-changed.sh test-frontend-changed.mjs test-run-id.sh go-package-workers.sh go-test-workspace.sh; do
+for script in test-backend.sh test-changed.sh test-frontend-changed.mjs test-run-id.sh go-package-workers.sh go-test-workspace.sh go-test-link-cache.sh go-test-link-key.go; do
   cp "$repo_root/scripts/$script" "$fixture/scripts/$script"
 done
 cat >"$fixture/scripts/total-memory-gb.sh" <<'EOF'
@@ -85,6 +86,12 @@ case "$*" in
     echo sweep >>"$TEST_CHANGED_CALL_LOG"
     exit "${PHX_FIXTURE_SWEEP_STATUS:-0}"
     ;;
+  build\ -o\ *)
+    [ "$#" -eq 4 ] && [ "$2" = -o ] && [[ "$4" = */scripts/go-test-link-key.go ]]
+    mkdir -p "$(dirname "$3")"
+    printf '#!/usr/bin/env bash\nexit 0\n' >"$3"
+    chmod +x "$3"
+    ;;
   'tool gotestsum --help')
     exit "${PHX_FIXTURE_GOTESTSUM_STATUS:-1}"
     ;;
@@ -94,6 +101,10 @@ case "$*" in
     exec "$0" test "$@"
     ;;
   test\ *)
+    if [ "${PHX_FIXTURE_EXPECT_GOGC+x}" = x ] && [ "${GOGC-unset}" != "$PHX_FIXTURE_EXPECT_GOGC" ]; then
+      echo "go test: expected GOGC=$PHX_FIXTURE_EXPECT_GOGC, got ${GOGC-unset}" >&2
+      exit 1
+    fi
     if [ "${PHX_TEST_TEMPLATE:-}" != phoenix_test_template_regression ]; then
       echo 'go test did not receive the bootstrapped template' >&2
       exit 1
@@ -154,7 +165,8 @@ call_log="$fixture/calls.log"
 output_log="$fixture/output.log"
 workspace_log="$fixture/workspace.log"
 run_wrapper() {
-  local wrapper=$1 expected_status=$2
+  local wrapper=$1 expected_status=$2 expected_gogc=${GOGC-unset}
+  if [ "$wrapper" = test-backend.sh ]; then expected_gogc=${GOGC-50}; fi
   shift 2
   : >"$call_log"
   : >"$workspace_log"
@@ -162,6 +174,7 @@ run_wrapper() {
   (
     cd "$fixture"
     PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
+      PHX_FIXTURE_EXPECT_GOGC="$expected_gogc" \
       PHX_FIXTURE_GO_CACHE="$fixture/go-cache" TEST_CHANGED_WORKSPACE_LOG="$workspace_log" \
       GOTMPDIR="${PHX_FIXTURE_GOTMPDIR:-}" TMPDIR="${PHX_FIXTURE_TMPDIR:-}" \
       "scripts/$wrapper" "$@"
@@ -196,6 +209,18 @@ assert_calls() {
     printf 'expected calls:\n%s\nactual calls:\n%s\n' "$expected" "$actual" >&2
     exit 1
   fi
+}
+
+fixture_repo_root=$(git -C "$fixture" rev-parse --show-toplevel)
+full_runtime_options='-ldflags=-w'
+key_source_hash=$(git hash-object --no-filters -- "$repo_root/scripts/go-test-link-key.go")
+full_cache_options="-toolexec '$fixture_repo_root/scripts/go-test-link-cache.sh' '$fixture/go-cache/phoenix-test-links-v2' '$fixture/go-cache/phoenix-test-links-v2/key-$key_source_hash'"
+go_test_call() {
+  local wrapper=$1 workers=$2
+  shift 2
+  printf 'test:phoenix_test_template_regression:test -p %s -parallel 8 -tags=testhooks' "$workers"
+  if [ "$wrapper" = test-backend.sh ]; then printf ' %s %s' "$full_runtime_options" "$full_cache_options"; fi
+  printf ' %s' "$@"
 }
 
 # Keep this list explicit: these are the filesystem scan contracts, not
@@ -251,7 +276,7 @@ while read -r os cpus ram workers; do
     else
       run_wrapper "$wrapper" 0 origin/development
     fi
-    expected=$(printf 'bootstrap\ntest:phoenix_test_template_regression:test -p %s -parallel 8 -tags=testhooks ./probe' "$workers")
+    expected=$'bootstrap\n'"$(go_test_call "$wrapper" "$workers" ./probe)"
     if [ "$wrapper" = test-changed.sh ]; then expected+=$'\n'"$frontend_calls"; fi
     assert_calls "$expected"$'\nsweep'
   done
@@ -270,7 +295,18 @@ EOF
 
 export PHX_FIXTURE_OS=Darwin PHX_FIXTURE_CPUS=16 PHX_FIXTURE_RAM_GB=16
 run_wrapper test-backend.sh 0
-assert_calls $'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks ./...\nsweep'
+assert_calls $'bootstrap\n'"$(go_test_call test-backend.sh 2 ./...)"$'\nsweep'
+
+# A forced rebuild and a GOFLAGS-owned tool adapter retain native semantics.
+run_wrapper test-backend.sh 0 -a ./probe
+assert_calls $'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks '"$full_runtime_options"$' -a ./probe\nsweep'
+GOFLAGS='-toolexec=caller-tool' run_wrapper test-backend.sh 0 ./probe
+assert_calls $'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks '"$full_runtime_options"$' ./probe\nsweep'
+run_wrapper test-backend.sh 0 -toolexec caller-tool ./probe
+assert_calls $'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks '"$full_runtime_options"$' -toolexec caller-tool ./probe\nsweep'
+GOGC=123 run_wrapper test-backend.sh 0 ./probe
+expected=$'bootstrap\n'"$(go_test_call test-backend.sh 2 ./probe)"$'\nsweep'
+assert_calls "$expected"
 
 # Defaults precede explicit CLI flags so users retain their existing override.
 for gotestsum_status in 0 1; do
@@ -278,7 +314,7 @@ for gotestsum_status in 0 1; do
   run_wrapper test-backend.sh 0 -p 3 ./probe
   expected=$'bootstrap\n'
   if [ "$gotestsum_status" -eq 0 ]; then expected+=$'gotestsum\n'; fi
-  expected+=$'test:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks -p 3 ./probe\nsweep'
+  expected+="$(go_test_call test-backend.sh 2 -p 3 ./probe)"$'\nsweep'
   assert_calls "$expected"
 done
 unset PHX_FIXTURE_GOTESTSUM_STATUS
@@ -296,7 +332,7 @@ for wrapper in test-backend.sh test-changed.sh; do
 
   export PHX_FIXTURE_TEST_STATUS=7 PHX_FIXTURE_SWEEP_STATUS=9
   run_wrapper "$wrapper" 7 "${args[@]}"
-  assert_calls $'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks ./probe\nsweep'
+  assert_calls $'bootstrap\n'"$(go_test_call "$wrapper" 2 ./probe)"$'\nsweep'
   if [ "$wrapper" = test-changed.sh ]; then
     grep -q 'go test failure summary' "$output_log"
     grep -q '^FAIL github.com/moto-nrw/project-phoenix/probe$' "$output_log"
@@ -314,7 +350,7 @@ for wrapper in test-backend.sh test-changed.sh; do
 
   export PHX_FIXTURE_SWEEP_STATUS=9
   run_wrapper "$wrapper" 1 "${args[@]}"
-  expected=$'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks ./probe'
+  expected=$'bootstrap\n'"$(go_test_call "$wrapper" 2 ./probe)"
   if [ "$wrapper" = test-changed.sh ]; then expected+=$'\n'"$frontend_calls"; fi
   assert_calls "$expected"$'\nsweep'
   unset PHX_FIXTURE_SWEEP_STATUS

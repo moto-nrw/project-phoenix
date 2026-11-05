@@ -64,6 +64,28 @@ function render(ui: ReactElement) {
   });
 }
 
+/** The download menu stays disabled until the list has loaded. */
+async function openDownloadMenu() {
+  const download = await screen.findByRole("button", {
+    name: "Tagesliste herunterladen",
+  });
+  await waitFor(() => expect(download).toBeEnabled());
+  fireEvent.click(download);
+}
+
+/**
+ * Opens the change dialog from the head. The button stays disabled until the
+ * participants have loaded, so a click before that does nothing.
+ */
+async function openChangeFromHead() {
+  const changeRegistration = await screen.findByRole("button", {
+    name: "Anmeldung ändern",
+  });
+  await waitFor(() => expect(changeRegistration).toBeEnabled());
+  fireEvent.click(changeRegistration);
+  return screen.findByRole("dialog");
+}
+
 // The kit loads the calendar grid lazily; load it once up front so a cold
 // import on a busy machine does not race the findBy timeout.
 beforeAll(() => preloadDayPicker());
@@ -115,7 +137,9 @@ describe("MealParticipantList", () => {
       false,
     );
     // Anker: die Zeile des Kindes ist geladen.
-    expect(screen.getAllByText("Muster, Mia").length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Muster, Mia")).length).toBeGreaterThan(
+      0,
+    );
     expect(
       screen.queryByRole("button", { name: "Anmeldung ändern" }),
     ).not.toBeInTheDocument();
@@ -280,10 +304,7 @@ describe("MealParticipantList", () => {
       .mockResolvedValueOnce(undefined);
     render(<MealParticipantList canRegister />);
 
-    await screen.findByText("Mittagessen am 07.09.2026");
-    fireEvent.click(
-      screen.getByRole("button", { name: "Tagesliste herunterladen" }),
-    );
+    await openDownloadMenu();
     fireEvent.click(screen.getByRole("menuitem", { name: "PDF" }));
     expect(screen.getByRole("status")).toHaveTextContent(
       "PDF wird heruntergeladen.",
@@ -319,10 +340,7 @@ describe("MealParticipantList", () => {
       .mockResolvedValueOnce(undefined);
     render(<MealParticipantList canRegister />);
 
-    await screen.findByText("Mittagessen am 07.09.2026");
-    fireEvent.click(
-      screen.getByRole("button", { name: "Tagesliste herunterladen" }),
-    );
+    await openDownloadMenu();
     fireEvent.click(screen.getByRole("menuitem", { name: "PDF" }));
 
     expect(
@@ -379,10 +397,7 @@ describe("MealParticipantList", () => {
         />,
       );
 
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Anmeldung ändern" }),
-      );
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await openChangeFromHead();
       fireEvent.click(within(dialog).getByRole("combobox", { name: "Kind" }));
       fireEvent.click(
         await screen.findByRole("option", {
@@ -421,10 +436,7 @@ describe("MealParticipantList", () => {
     it("returns a day to the regular days", async () => {
       render(<MealParticipantList canRegister />);
 
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Anmeldung ändern" }),
-      );
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await openChangeFromHead();
       fireEvent.click(within(dialog).getByRole("combobox", { name: "Kind" }));
       fireEvent.click(
         await screen.findByRole("option", {
@@ -455,10 +467,7 @@ describe("MealParticipantList", () => {
         .mockResolvedValueOnce({ weekdays: [2], effectiveFrom: null });
       render(<MealParticipantList canRegister />);
 
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Anmeldung ändern" }),
-      );
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await openChangeFromHead();
       fireEvent.click(within(dialog).getByRole("combobox", { name: "Kind" }));
       fireEvent.click(
         await screen.findByRole("option", {
@@ -502,10 +511,7 @@ describe("MealParticipantList", () => {
         .mockResolvedValueOnce({ weekdays: [5], effectiveFrom: null });
       render(<MealParticipantList canRegister />);
 
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Anmeldung ändern" }),
-      );
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await openChangeFromHead();
       fireEvent.click(within(dialog).getByRole("combobox", { name: "Kind" }));
       fireEvent.click(
         await screen.findByRole("option", {
@@ -540,10 +546,7 @@ describe("MealParticipantList", () => {
     it("reloads the regular days for each selected effective date", async () => {
       let finishLoad: (value: { weekdays: number[] }) => void = () => undefined;
       render(<MealParticipantList canRegister />);
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Anmeldung ändern" }),
-      );
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await openChangeFromHead();
       fireEvent.click(within(dialog).getByRole("combobox", { name: "Kind" }));
       fireEvent.click(
         await screen.findByRole("option", {
@@ -604,10 +607,7 @@ describe("MealParticipantList", () => {
     it("sets a child's regular days from a date on", async () => {
       render(<MealParticipantList canRegister />);
 
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Anmeldung ändern" }),
-      );
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await openChangeFromHead();
       fireEvent.click(within(dialog).getByRole("combobox", { name: "Kind" }));
       fireEvent.click(
         await screen.findByRole("option", {
@@ -665,10 +665,7 @@ describe("MealParticipantList", () => {
       render(<MealParticipantList canRegister />);
 
       await screen.findAllByText("Muster, Mia");
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Anmeldung ändern" }),
-      );
-      const dialog = await screen.findByRole("dialog");
+      const dialog = await openChangeFromHead();
       expect(
         within(dialog).getByRole("combobox", { name: "Kind" }),
       ).toHaveTextContent("Kind wählen");
