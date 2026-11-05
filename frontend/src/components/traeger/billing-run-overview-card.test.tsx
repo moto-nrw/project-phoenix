@@ -96,6 +96,7 @@ const RUN: BillingRunDetail = {
     notes: "",
     emergencyContacts: [],
     createdAt: "2026-09-09T10:00:00Z",
+    templateVersion: 0,
   },
   documents: [
     invoice("51", "FE-0001", "Eva", "Muster", 11250),

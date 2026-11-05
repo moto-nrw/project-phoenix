@@ -193,7 +193,7 @@ func TestConfirmationLetterWithThePaymentTextOfTheTraeger(t *testing.T) {
 
 	content.letterhead.PaymentText = bissendorfPaymentText
 	content.document.TotalCents = 0
-	assert.Equal(t, LetterBlock{Text: "Sie müssen für diese Betreuung nichts bezahlen."}, confirmationLetter(content).Blocks[2],
+	assert.Equal(t, LetterBlock{Text: "Sie müssen für diese Betreuung nichts bezahlen.", Bold: true}, confirmationLetter(content).Blocks[2],
 		"an invoice of 0 € keeps the fixed sentence, also with a text of the Träger")
 }
 
