@@ -25,15 +25,14 @@ delta.
 Verify prices before relying on them; `.github/actions/ci-cost/ci-cost.mjs`
 holds the checked list prices.
 
-- Standard GitHub-hosted runners (`ubuntu-latest`, 4 vCPU, 16 GB) are free for
-  this public repository. Blacksmith bills every job, rounded up to whole
-  minutes, at the same price per vCPU-minute on every size.
-- A bigger Blacksmith runner therefore saves money only on the serial part of
-  a job (checkout, toolchain, install). Size it for the critical path, not to
-  make a side job faster.
-- The GitHub cache (10 GB) is full. A job moved to a hosted runner must not save
-  a per-commit cache from pull requests; restore on pull requests and save
-  from nightly/`development`, as `lint.yml` does for `backend-quality`.
+- Put CI jobs on Blacksmith. In a private repository GitHub-hosted runners
+  bill too, at a higher price per vCPU ($0.006/min for 2 cores against
+  Blacksmith's $0.004/min for 2 vCPU).
+- Blacksmith bills every job, rounded up to whole minutes, at the same price
+  per vCPU-minute on every size. A bigger runner saves money only on the
+  serial part of a job (checkout, toolchain, install), and a job of a few
+  seconds still bills a full minute. Size a job for the critical path, not to
+  make a side job faster, and fold tiny jobs into a neighbouring one.
 - `scripts/test-perf.mjs` measures local CPU-seconds, peak RAM and wall time;
   the "CI cost" check run shows billed minutes and dollars per pull request.
 
@@ -55,9 +54,6 @@ holds the checked list prices.
 
 - A new job, matrix shard or larger runner states its measured minutes and
   cost per run in the PR, and the critical-path job it runs beside.
-- Prefer a hosted runner for a job that is not on the critical path and saves
-  no per-commit cache. Keep Blacksmith for critical-path jobs and for jobs
-  whose build caches need Blacksmith's cache.
 - A new job gets path filters through `detect-changes` in `main.yml` and runs
   only on non-draft pull requests.
 
