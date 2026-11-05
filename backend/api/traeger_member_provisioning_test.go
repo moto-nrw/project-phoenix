@@ -601,3 +601,85 @@ func TestOperatorTraegerInvitationListQueryBudgetIsFlat(t *testing.T) {
 	assert.Len(t, list(), len(three), "the invitation list reads the same statements for any number of invitations")
 	querybudgets.AssertQueryBudget(t, "api.operator.traeger_invitations", three)
 }
+
+// A resend that meets another resend of the same invitation waits for the
+// address lock, then finds the invitation replaced and sends nothing: the
+// first resend's new link stays valid (#5749). The first resend is played by
+// hand: it holds the address lock, has spent the invitation and inserted its
+// replacement.
+func TestOperatorResendDoesNotSpendAConcurrentReplacement(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, _ := buildOperatorProvisioningWithIdentity(t, db)
+	ctx := provisioningContext(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	organizationID, _ := provisionTestSchool(t, db, service, operatorID, "traeger-resend-queue")
+	address := fmt.Sprintf("resend-%d@test.local", testpkg.UniqueTestTenantID(t))
+	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
+	operator := chi.NewRouter()
+	mountOperatorProvisioningRoutes(operator, resource, nil)
+	var original int64
+	require.NoError(t, db.NewRaw(`INSERT INTO auth.traeger_invitations (organization_id, email, token, roles, expires_at)
+		VALUES (?, ?, ?, ARRAY['read_only']::VARCHAR(32)[], now() + interval '1 day') RETURNING id`,
+		organizationID, address, fmt.Sprintf("original-%d", testpkg.UniqueTestTenantID(t))).Scan(ctx, &original))
+
+	first, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = first.Rollback() }()
+	_, err = first.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", fmt.Sprintf("traeger_invitation:%d:%s", organizationID, address))
+	require.NoError(t, err)
+	_, err = first.ExecContext(ctx, `UPDATE auth.traeger_invitations SET revoked_at = now() WHERE id = ?`, original)
+	require.NoError(t, err)
+	var replacement int64
+	require.NoError(t, first.NewRaw(`INSERT INTO auth.traeger_invitations (organization_id, email, token, roles, expires_at)
+		VALUES (?, ?, ?, ARRAY['read_only']::VARCHAR(32)[], now() + interval '1 day') RETURNING id`,
+		organizationID, address, fmt.Sprintf("replacement-%d", testpkg.UniqueTestTenantID(t))).Scan(ctx, &replacement))
+
+	resent := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/organizations/%d/traeger-members/invitations/%d/resend", organizationID, original), nil)
+		req = req.WithContext(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"}))
+		rec := httptest.NewRecorder()
+		operator.ServeHTTP(rec, req)
+		resent <- rec
+	}()
+
+	require.Eventually(t, func() bool {
+		var waiting int
+		err := db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(ctx, &waiting)
+		return err == nil && waiting > 0
+	}, 10*time.Second, 20*time.Millisecond, "the second resend waits for the first one")
+	require.NoError(t, first.Commit())
+
+	rec := <-resent
+	assert.Equal(t, http.StatusNotFound, rec.Code, "the invitation was already replaced: %s", rec.Body.String())
+	var open []int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM auth.traeger_invitations
+		WHERE organization_id = ? AND email = ? AND used_at IS NULL AND revoked_at IS NULL`, organizationID, address).Scan(ctx, &open))
+	assert.Equal(t, []int64{replacement}, open, "the first resend's new link stays valid")
+}
+
+// Sending again keeps the stored roles: a read-only invitation gains no
+// Leitung, also in a Träger-Büro without a Leitung (#5749).
+func TestOperatorResendKeepsTheInvitedRoles(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, _ := buildOperatorProvisioningWithIdentity(t, db)
+	ctx := provisioningContext(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	organizationID, _ := provisionTestSchool(t, db, service, operatorID, "traeger-resend-rollen")
+	var invitationID int64
+	require.NoError(t, db.NewRaw(`INSERT INTO auth.traeger_invitations (organization_id, email, token, roles, expires_at)
+		VALUES (?, ?, ?, ARRAY['read_only']::VARCHAR(32)[], now() + interval '1 day') RETURNING id`,
+		organizationID, fmt.Sprintf("lesen-%d@test.local", testpkg.UniqueTestTenantID(t)), fmt.Sprintf("lesen-%d", testpkg.UniqueTestTenantID(t))).Scan(ctx, &invitationID))
+	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
+	operator := chi.NewRouter()
+	mountOperatorProvisioningRoutes(operator, resource, nil)
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/organizations/%d/traeger-members/invitations/%d/resend", organizationID, invitationID), nil)
+	req = req.WithContext(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"}))
+	rec := httptest.NewRecorder()
+	operator.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"roles":["read_only"]`)
+}

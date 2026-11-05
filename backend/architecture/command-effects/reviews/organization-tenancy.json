@@ -1077,7 +1077,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.ResendTraegerInvitation",
-      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access takes the Verwaltung lock of the Träger, reads the open invitation, refuses a member's address, spends the address's open invitations under the address lock, stores the replacement with the same roles and queues its mail through its own delivery port on the operator's administrative unit, which the resend of Organisation \u0026 Tenancy owns together with the operator audit (#5749). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself.",
+      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access takes the Verwaltung lock of the Träger, reads the open invitation, takes the address lock, spends exactly that invitation (a concurrent resend or acceptance wins), refuses a member's address, stores the replacement with the same roles and queues its mail through its own delivery port on the operator's administrative unit, which the resend of Organisation \u0026 Tenancy owns together with the operator audit (#5749). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself.",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResendTraegerInvitationForOperator",
       "target_owner": "identity-access"

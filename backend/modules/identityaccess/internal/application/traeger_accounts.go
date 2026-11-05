@@ -238,7 +238,7 @@ func (t *TraegerAccounts) invite(ctx context.Context, actor identityaccess.Traeg
 		return domain.TraegerInvitation{}, err
 	}
 	createdBy := actor.AccountID
-	created, _, err := t.storeInvitation(ctx, actor.OrganizationID, &createdBy, unit, email, roles)
+	created, err := t.storeInvitation(ctx, actor.OrganizationID, &createdBy, unit, email, roles)
 	if err != nil {
 		return domain.TraegerInvitation{}, err
 	}
@@ -262,8 +262,7 @@ func (t *TraegerAccounts) InviteTraegerAccountForOperator(ctx context.Context, o
 	if err != nil {
 		return identityaccess.TraegerInvitation{}, err
 	}
-	created, _, err := t.storeOperatorInvitation(ctx, organizationID, unit, email, roles)
-	return created, err
+	return t.storeOperatorInvitation(ctx, organizationID, unit, email, roles)
 }
 
 // ListTraegerInvitationsForOperator lists the invitations of the Träger that
@@ -293,9 +292,9 @@ func (t *TraegerAccounts) ListTraegerInvitationsForOperator(ctx context.Context,
 }
 
 // ResendTraegerInvitationForOperator replaces an open invitation by a new
-// one with the same address and roles and mails its link (#5749). The
-// replacement spends the old invitation under the address lock; if it was
-// accepted or withdrawn in the meantime, nothing is sent.
+// one with the same address and roles and mails its link (#5749). It takes
+// the address lock before it spends the invitation, so a concurrent resend
+// or acceptance of the same invitation wins and this one sends nothing.
 func (t *TraegerAccounts) ResendTraegerInvitationForOperator(ctx context.Context, organizationID, invitationID int64) (identityaccess.TraegerInvitation, error) {
 	if err := t.checkOperatorCall(ctx, organizationID); err != nil {
 		return identityaccess.TraegerInvitation{}, err
@@ -311,15 +310,21 @@ func (t *TraegerAccounts) ResendTraegerInvitationForOperator(ctx context.Context
 	if !found || !invitation.Open() {
 		return identityaccess.TraegerInvitation{}, identityaccess.ErrInvitationNotFound
 	}
-	created, replaced, err := t.storeOperatorInvitation(ctx, organizationID, unit, invitation.Email, invitation.Roles)
+	if _, err := t.store.LockTraegerInvitationAddress(ctx, organizationID, invitation.Email); err != nil {
+		return identityaccess.TraegerInvitation{}, err
+	}
+	spent, found, _, err := t.store.RevokeTraegerInvitation(ctx, organizationID, invitationID, t.now())
 	if err != nil {
 		return identityaccess.TraegerInvitation{}, err
 	}
-	if replaced == 0 {
-		// The caller's transaction rolls the new invitation and its mail back.
+	if !found {
 		return identityaccess.TraegerInvitation{}, identityaccess.ErrInvitationNotFound
 	}
-	return created, nil
+	created, err := t.storeInvitation(ctx, organizationID, nil, unit, spent.Email, spent.Roles)
+	if err != nil {
+		return identityaccess.TraegerInvitation{}, err
+	}
+	return operatorTraegerInvitation(created), nil
 }
 
 // RevokeTraegerInvitationForOperator withdraws an open invitation of the
@@ -380,46 +385,43 @@ func (t *TraegerAccounts) lockOperatorUnit(ctx context.Context, organizationID i
 }
 
 // storeOperatorInvitation stores and mails an invitation without an inviting
-// account and reports how many open invitations of the address it replaced.
-// The first person the moto team invites manages the Träger-Büro.
-func (t *TraegerAccounts) storeOperatorInvitation(ctx context.Context, organizationID int64, unit traegerUnit, email string, roles []string) (identityaccess.TraegerInvitation, int64, error) {
+// account. The first person the moto team invites manages the Träger-Büro.
+func (t *TraegerAccounts) storeOperatorInvitation(ctx context.Context, organizationID int64, unit traegerUnit, email string, roles []string) (identityaccess.TraegerInvitation, error) {
 	if unit.activeLeaders() == 0 {
 		roles = unionTraegerRoles(roles, []string{identityaccess.TraegerRoleLeadership})
 	}
-	created, replaced, err := t.storeInvitation(ctx, organizationID, nil, unit, email, roles)
+	created, err := t.storeInvitation(ctx, organizationID, nil, unit, email, roles)
 	if err != nil {
-		return identityaccess.TraegerInvitation{}, 0, err
+		return identityaccess.TraegerInvitation{}, err
 	}
-	return operatorTraegerInvitation(created), replaced, nil
+	return operatorTraegerInvitation(created), nil
 }
 
 // storeInvitation refuses an address that already belongs to the
-// Träger-Büro, then replaces its open invitation and queues the mail. It
-// reports how many open invitations of the address it replaced.
-func (t *TraegerAccounts) storeInvitation(ctx context.Context, organizationID int64, createdBy *int64, unit traegerUnit, email string, roles []string) (domain.TraegerInvitation, int64, error) {
+// Träger-Büro, then replaces its open invitation and queues the mail.
+func (t *TraegerAccounts) storeInvitation(ctx context.Context, organizationID int64, createdBy *int64, unit traegerUnit, email string, roles []string) (domain.TraegerInvitation, error) {
 	account, found, _, err := t.store.FindLoginAccountByEmail(ctx, email)
 	if err != nil {
-		return domain.TraegerInvitation{}, 0, err
+		return domain.TraegerInvitation{}, err
 	}
 	if _, member := unit.member(account.ID); found && member {
-		return domain.TraegerInvitation{}, 0, identityaccess.ErrTraegerAlreadyMember
+		return domain.TraegerInvitation{}, identityaccess.ErrTraegerAlreadyMember
 	}
 	now := t.now()
-	revoked, err := t.store.RevokeOpenTraegerInvitationsForEmail(ctx, organizationID, email, now)
-	if err != nil {
-		return domain.TraegerInvitation{}, 0, err
+	if _, err := t.store.RevokeOpenTraegerInvitationsForEmail(ctx, organizationID, email, now); err != nil {
+		return domain.TraegerInvitation{}, err
 	}
 	created, _, err := t.store.InsertTraegerInvitation(ctx, domain.TraegerInvitation{
 		OrganizationID: organizationID, Email: email, Token: uuid.Must(uuid.NewV4()).String(),
 		Roles: roles, ExpiresAt: now.Add(t.expiry), CreatedBy: createdBy,
 	})
 	if err != nil {
-		return domain.TraegerInvitation{}, 0, err
+		return domain.TraegerInvitation{}, err
 	}
 	if err := t.delivery.DispatchTraegerInvitation(ctx, publicTraegerInvitation(created), unit.name, t.expiry); err != nil {
-		return domain.TraegerInvitation{}, 0, fmt.Errorf("queue Träger invitation mail: %w", err)
+		return domain.TraegerInvitation{}, fmt.Errorf("queue Träger invitation mail: %w", err)
 	}
-	return created, revoked.Rows, nil
+	return created, nil
 }
 
 // RevokeTraegerInvitation spends an open invitation of the Träger.

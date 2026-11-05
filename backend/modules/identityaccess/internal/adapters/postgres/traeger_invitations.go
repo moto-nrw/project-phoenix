@@ -78,14 +78,13 @@ const revokeOpenTraegerInvitationsForEmailQuery = `UPDATE auth.traeger_invitatio
 // address queue instead of both inserting an open one; it also holds when
 // the Träger-Büro has nobody whose Verwaltung row could be locked (#5144).
 func (s *Store) RevokeOpenTraegerInvitationsForEmail(ctx context.Context, organizationID int64, email string, at time.Time) (domain.OperationStats, error) {
+	started := time.Now()
+	if _, err := s.LockTraegerInvitationAddress(ctx, organizationID, email); err != nil {
+		return domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}, err
+	}
 	db, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
-	}
-	started := time.Now()
-	lockKey := fmt.Sprintf("traeger_invitation:%d:%s", organizationID, email)
-	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", lockKey); err != nil {
-		return domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}, fmt.Errorf("identity access postgres: lock Träger invitation address: %w", err)
 	}
 	result, err := db.NewRaw(revokeOpenTraegerInvitationsForEmailQuery, at, organizationID, email).Exec(ctx)
 	stats := domain.OperationStats{Queries: 2, StatementDuration: time.Since(started)}
@@ -93,6 +92,25 @@ func (s *Store) RevokeOpenTraegerInvitationsForEmail(ctx context.Context, organi
 		return stats, fmt.Errorf("identity access postgres: revoke open Träger invitations: %w", err)
 	}
 	stats.Rows, _ = result.RowsAffected()
+	return stats, nil
+}
+
+// LockTraegerInvitationAddress takes the address lock of the Träger until
+// the caller's transaction ends. The lock is re-entrant within one
+// transaction: a later RevokeOpenTraegerInvitationsForEmail of the same
+// address does not wait for itself.
+func (s *Store) LockTraegerInvitationAddress(ctx context.Context, organizationID int64, email string) (domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	started := time.Now()
+	lockKey := fmt.Sprintf("traeger_invitation:%d:%s", organizationID, email)
+	_, err = db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", lockKey)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return stats, fmt.Errorf("identity access postgres: lock Träger invitation address: %w", err)
+	}
 	return stats, nil
 }
 

@@ -19,6 +19,9 @@ type TraegerAccountStore interface {
 	// Träger until the caller's transaction ends, then spends every open
 	// invitation of the address there.
 	RevokeOpenTraegerInvitationsForEmail(ctx context.Context, organizationID int64, email string, at time.Time) (domain.OperationStats, error)
+	// LockTraegerInvitationAddress takes the address lock of the Träger
+	// until the caller's transaction ends (#5749).
+	LockTraegerInvitationAddress(ctx context.Context, organizationID int64, email string) (domain.OperationStats, error)
 	// RevokeTraegerInvitation spends one open invitation of the Träger and
 	// returns it; found is false for an unknown, foreign or spent one.
 	RevokeTraegerInvitation(ctx context.Context, organizationID, id int64, at time.Time) (domain.TraegerInvitation, bool, domain.OperationStats, error)
