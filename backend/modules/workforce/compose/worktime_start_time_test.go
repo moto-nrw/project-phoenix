@@ -34,7 +34,9 @@ func TestWorkTimeStartTimesRoundTripThroughTheDatabase(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		t.Cleanup(func() { _ = capability.DeleteWorkTimeModel(ctx, created.ID) })
+		// Template entries carry no tenant column, so the package's leftover
+		// gate would see them; delete the template with its entries.
+		t.Cleanup(func() { assert.NoError(t, capability.DeleteWorkTimeModel(ctx, created.ID)) })
 
 		found, err := capability.FindWorkTimeModel(ctx, created.ID)
 		require.NoError(t, err)
