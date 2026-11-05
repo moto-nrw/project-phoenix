@@ -184,7 +184,7 @@ func (s *studentDirectoryReads) CountByGroups(
 }
 
 // ListEnrolledIDsByNameAndBirthday resolves the children already enrolled under
-// a name and birthday, matched case- and whitespace-insensitively.
+// a name and birthday, ignoring case, surrounding whitespace and Unicode form.
 //
 // The tenant is explicit rather than taken from the transaction: the parent
 // submit path runs in an admin transaction, where row-level security would not
@@ -204,8 +204,8 @@ func (s *studentDirectoryReads) ListEnrolledIDsByNameAndBirthday(
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
 		Where(`"student".tenant_id = ?`, tenantID).
 		Where(`"student".status IN (?)`, bun.List([]string{directory.StudentStatusActive, directory.StudentStatusPending})).
-		Where(`LOWER(TRIM("person".first_name)) = LOWER(TRIM(?))`, strings.TrimSpace(firstName)).
-		Where(`LOWER(TRIM("person".last_name)) = LOWER(TRIM(?))`, strings.TrimSpace(lastName)).
+		Where(`LOWER(NORMALIZE(TRIM("person".first_name), NFC)) = LOWER(NORMALIZE(TRIM(?), NFC))`, strings.TrimSpace(firstName)).
+		Where(`LOWER(NORMALIZE(TRIM("person".last_name), NFC)) = LOWER(NORMALIZE(TRIM(?), NFC))`, strings.TrimSpace(lastName)).
 		Where(`"person".birthday = ?`, directoryDateParam(birthday)).
 		Where(`"person".deleted_at IS NULL`).
 		OrderExpr(`"student".id ASC`)

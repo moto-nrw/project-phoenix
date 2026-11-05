@@ -306,6 +306,7 @@ var tableRetentions = map[string]tableRetention{
 	"platform.realtime_notifications":                       own("nightly retention step delivery_retention, DeleteExpiredDeliveries (two minutes after the notice, #5504)"),
 	"platform.schools":                                      notPersonal("school institution master data"),
 	"platform.storage_backfill_checkpoints":                 notPersonal("progress of a data migration, counters only"),
+	"platform.traeger_document_templates":                   own("every version stays, because issued documents name the version they were written with (#4677, ADR 0152); they go with platform.organizations when the Träger is erased (#4657); created_by SET NULL on account delete"),
 	"platform.traeger_bank_accounts":                        own("the Träger-Büro deletes a bank account in the Träger-Portal (ADR 0112); the rest go with platform.organizations when the Träger is erased (#4657)"),
 	"platform.traeger_master_data_audit":                    own("each read or change of the Träger master data prunes the Träger's entries older than three years in the same Träger transaction, TraegerMasterDataStore.AppendAudit (ADR 0112); rows go with platform.organizations; actor_account_id SET NULL on account delete"),
 	"platform.traeger_profiles":                             own("the Träger-Büro clears or replaces the contact person and removes the logo in the Träger-Portal (ADR 0112); the row goes with platform.organizations when the Träger is erased (#4657)"),

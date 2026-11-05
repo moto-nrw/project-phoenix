@@ -100,9 +100,9 @@ describe("ConnectOfferingModal (#5103)", () => {
     });
     expect(await screen.findByText("Mittwoch")).toBeInTheDocument();
     expect(screen.getByText("Kommt dazu (1): Ada Berg")).toBeInTheDocument();
-    expect(
-      screen.getByText("Fällt weg (2): Ben Kurz, Cem Ott"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Fällt weg (2)")).toBeInTheDocument();
+    expect(screen.getByText("Ben Kurz")).toBeInTheDocument();
+    expect(screen.getByText("Cem Ott")).toBeInTheDocument();
     expect(screen.getByText("Bleibt (4)")).toBeInTheDocument();
     expect(
       screen.getByText(

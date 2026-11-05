@@ -20,6 +20,15 @@ export interface NavScene {
  * `nav-scene-icon.test.ts` scheitern. Neue Szenen: README.md daneben.
  */
 export const NAV_SCENES: Readonly<Record<string, NavScene>> = {
+  ArrowLeftIcon: {
+    description: "Der Pfeil holt aus und zeigt zurück",
+    render: () => (
+      <>
+        <path className="ns-shaft" d="M216,128H40" />
+        <polyline className="ns-tip" points="112,56 40,128 112,200" />
+      </>
+    ),
+  },
   HouseLineIcon: {
     description: "Dach hüpft, Tür geht auf",
     render: () => (

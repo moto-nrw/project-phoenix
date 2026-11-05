@@ -1,4 +1,5 @@
-import { act, render, renderHook, waitFor } from "@testing-library/react";
+import { act, render, renderHook } from "@testing-library/react";
+import { waitFor } from "~/test/wait-for-state";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { SWRConfig, useSWRConfig, type Middleware } from "swr";
 import { SWRSeedBoundary } from "./config-boundaries";

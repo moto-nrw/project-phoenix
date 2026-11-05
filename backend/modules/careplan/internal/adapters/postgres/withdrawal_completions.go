@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -216,8 +215,8 @@ func (s *DirectoryStore) withdrawalListQuery(db bun.IDB, tenantID int64, state s
 	}
 	query = withTenant(query.Where(`"care_withdrawal_completion".state = ?`, state), "care_withdrawal_completion", tenantID)
 	if search := filter.Search; search != "" {
-		pattern := "%" + strings.ToLower(search) + "%"
-		query = query.Where(`(LOWER("student".first_name) LIKE ? OR LOWER("student".last_name) LIKE ? OR LOWER("student".school_class) LIKE ?)`, pattern, pattern, pattern)
+		pattern := "%" + search + "%"
+		query = query.Where(`(public.f_unaccent("student".first_name) ILIKE public.f_unaccent(?) OR public.f_unaccent("student".last_name) ILIKE public.f_unaccent(?) OR "student".school_class ILIKE ?)`, pattern, pattern, pattern)
 	}
 	if filter.StudentID > 0 {
 		query = query.Where(`"care_withdrawal_completion".student_id = ?`, filter.StudentID)

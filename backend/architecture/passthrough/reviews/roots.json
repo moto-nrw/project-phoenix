@@ -2086,6 +2086,11 @@
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
     },
     {
+      "decision": "0084",
+      "id": "roots/owners/ProvisioningIdentity.InviteTraegerAccount",
+      "reason": "ADR 0084 (#5144, #5749): root translation of the Identity \u0026 Access operator invitation and its refusals onto the Organisation \u0026 Tenancy provisioning contract."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/ProvisioningIdentity.ListAllAccounts",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -2106,6 +2111,16 @@
       "reason": "ADR 0084 (#4649): root translation of the Identity \u0026 Access Träger accounts into the provisioning vocabulary."
     },
     {
+      "decision": "0084",
+      "id": "roots/owners/ProvisioningIdentity.ListTraegerInvitations",
+      "reason": "ADR 0084 (#5749): root translation of the open Träger invitations Identity \u0026 Access lists for the operator, and its refusals, onto the Organisation \u0026 Tenancy provisioning contract."
+    },
+    {
+      "decision": "0084",
+      "id": "roots/owners/ProvisioningIdentity.ResendTraegerInvitation",
+      "reason": "ADR 0084 (#5749): root translation of the Identity \u0026 Access resend of a Träger invitation and its refusals onto the Organisation \u0026 Tenancy provisioning contract."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/ProvisioningIdentity.ResetTraegerMFA",
       "reason": "ADR 0084 (#4651): root translation of an account Identity \u0026 Access no longer reports onto the Träger-member refusal of the Organisation \u0026 Tenancy provisioning contract."
@@ -2114,6 +2129,11 @@
       "decision": "0090",
       "id": "roots/owners/ProvisioningIdentity.RevokeSchoolSessions",
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
+    },
+    {
+      "decision": "0084",
+      "id": "roots/owners/ProvisioningIdentity.RevokeTraegerInvitation",
+      "reason": "ADR 0084 (#5749): root translation of the Identity \u0026 Access withdrawal of a Träger invitation and its refusals onto the Organisation \u0026 Tenancy provisioning contract."
     },
     {
       "decision": "0090",
@@ -4918,11 +4938,6 @@
     {
       "decision": "0090",
       "id": "roots/owners/schedulerTenantDirectory.ListCleanupTenantIDs",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "roots/owners/schedulerTenantDirectory.ListNonDeletedTenantIDs",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {

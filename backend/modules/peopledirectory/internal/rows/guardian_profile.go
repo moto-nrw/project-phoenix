@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // ErrGuardianProfileNotFound is returned by repositories when no guardian
@@ -65,8 +67,8 @@ type GuardianProfile struct {
 // Validate ensures guardian data is valid
 func (g *GuardianProfile) Validate() error {
 	// Trim names (both are optional)
-	g.FirstName = strings.TrimSpace(g.FirstName)
-	g.LastName = strings.TrimSpace(g.LastName)
+	g.FirstName = textnorm.Name(g.FirstName)
+	g.LastName = textnorm.Name(g.LastName)
 
 	// Note: Contact method validation (email or phone) is done at the service/handler level
 	// because phone numbers are in a separate table and may not be loaded here

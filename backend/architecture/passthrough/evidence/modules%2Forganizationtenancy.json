@@ -191,6 +191,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (rs *ProvisioningResource) ResendTraegerInvitation(w http.ResponseWriter, r *http.Request) {\n\tinput, ok := traegerInvitationCommand(w, r)\n\tif !ok {\n\t\treturn\n\t}\n\tinvitation, err := rs.service.ResendTraegerInvitation(r.Context(), input)\n\tif err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, invitation, \"Träger invitation sent again successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ResendTraegerInvitation",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
       "evidence": "func (rs *ProvisioningResource) RestoreOrganization(w http.ResponseWriter, r *http.Request) {\n\torgID, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid organization ID\")\n\tif !ok {\n\t\treturn\n\t}\n\toperatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)\n\tif err := rs.service.RestoreOrganization(r.Context(), orgID, operatorID, common.ParseClientIP(r)); err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, nil, \"Organization restored successfully\")\n}",
       "form": "unclassified-evidence",
       "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.RestoreOrganization",
@@ -201,6 +208,13 @@
       "evidence": "func (rs *ProvisioningResource) RestoreSchool(w http.ResponseWriter, r *http.Request) {\n\tschoolID, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid school ID\")\n\tif !ok {\n\t\treturn\n\t}\n\toperatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)\n\tif err := rs.service.RestoreSchool(r.Context(), schoolID, operatorID, common.ParseClientIP(r)); err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, nil, \"School restored successfully\")\n}",
       "form": "unclassified-evidence",
       "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.RestoreSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) RevokeTraegerInvitation(w http.ResponseWriter, r *http.Request) {\n\tinput, ok := traegerInvitationCommand(w, r)\n\tif !ok {\n\t\treturn\n\t}\n\tif err := rs.service.RevokeTraegerInvitation(r.Context(), input); err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, nil, \"Träger invitation withdrawn successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.RevokeTraegerInvitation",
       "owner": "modules/organizationtenancy"
     },
     {

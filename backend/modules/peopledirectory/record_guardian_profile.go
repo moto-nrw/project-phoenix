@@ -4,12 +4,14 @@ import (
 	"errors"
 	"net/mail"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 func (g *GuardianProfileSnapshot) Validate() error {
 
-	g.FirstName = strings.TrimSpace(g.FirstName)
-	g.LastName = strings.TrimSpace(g.LastName)
+	g.FirstName = textnorm.Name(g.FirstName)
+	g.LastName = textnorm.Name(g.LastName)
 
 	if g.Email != nil && *g.Email != "" {
 		*g.Email = strings.TrimSpace(strings.ToLower(*g.Email))

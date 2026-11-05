@@ -90,7 +90,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
-      "binding_digest": "2b467591e9461c33da6547a86509d351",
+      "binding_digest": "e478ca45e1fc6cb5270dd600afd45e13",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
@@ -98,7 +98,15 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
-      "binding_digest": "2cf307214ba05b2b239e8da7526780b2",
+      "binding_digest": "d97747a7aa6466064747f93a8d7fb1b4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentTemplates.Current",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
+      "binding_digest": "75badf3840530d4257ec3278d098376e",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.LogoImage",
@@ -106,7 +114,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
-      "binding_digest": "c9d1d74ccad187a664cccef799b51edb",
+      "binding_digest": "4fe1b907587621b45ccea41b8eaa37ff",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",

@@ -76,8 +76,9 @@ describe("RootPage", () => {
 
     render(<RootPage />);
 
+    // The select is enabled once the tenant list has loaded.
     await waitFor(() => {
-      expect(screen.getByRole("combobox")).toBeInTheDocument();
+      expect(screen.getByRole("combobox")).toBeEnabled();
     });
 
     fireEvent.click(screen.getByRole("combobox"));
@@ -106,8 +107,9 @@ describe("RootPage", () => {
 
     render(<RootPage />);
 
+    // The select is enabled once the tenant list has loaded.
     await waitFor(() => {
-      expect(screen.getByRole("combobox")).toBeInTheDocument();
+      expect(screen.getByRole("combobox")).toBeEnabled();
     });
 
     const button = screen.getByRole("button", { name: "Weiter" });
@@ -132,12 +134,14 @@ describe("RootPage", () => {
 
     render(<RootPage />);
 
+    // The select is enabled once the tenant list has loaded.
     await waitFor(() => {
-      expect(screen.getByRole("combobox")).toBeInTheDocument();
+      expect(screen.getByRole("combobox")).toBeEnabled();
     });
 
     fireEvent.click(screen.getByRole("combobox"));
-    fireEvent.click(screen.getByRole("option", { name: "School A" }));
+    // The options render once the tenant list has loaded.
+    fireEvent.click(await screen.findByRole("option", { name: "School A" }));
 
     const button = screen.getByRole("button", { name: "Weiter" });
     expect(button).toBeEnabled();
@@ -161,12 +165,14 @@ describe("RootPage", () => {
 
     render(<RootPage />);
 
+    // The select is enabled once the tenant list has loaded.
     await waitFor(() => {
-      expect(screen.getByRole("combobox")).toBeInTheDocument();
+      expect(screen.getByRole("combobox")).toBeEnabled();
     });
 
     fireEvent.click(screen.getByRole("combobox"));
-    fireEvent.click(screen.getByRole("option", { name: "School A" }));
+    // The options render once the tenant list has loaded.
+    fireEvent.click(await screen.findByRole("option", { name: "School A" }));
 
     // Mock window.location.href setter
     const hrefSpy = vi.spyOn(window.location, "href", "set");
@@ -199,8 +205,9 @@ describe("RootPage", () => {
 
     render(<RootPage />);
 
+    // The select is enabled once the tenant list has loaded.
     await waitFor(() => {
-      expect(screen.getByRole("combobox")).toBeInTheDocument();
+      expect(screen.getByRole("combobox")).toBeEnabled();
     });
 
     // Force a slug value that doesn't match any tenant

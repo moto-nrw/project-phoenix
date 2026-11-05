@@ -672,7 +672,7 @@ shots:
     titel: Eine Person mit Rollen einladen
     portal: traeger
     rolle: traeger
-    pfad: /accounts
+    pfad: /einstellungen/mitglieder
     vorbereitung:
       - klicken: 'role=button[name="Person einladen"]'
       - warten_auf: '[role="dialog"]'

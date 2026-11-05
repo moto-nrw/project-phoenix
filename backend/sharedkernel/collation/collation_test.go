@@ -116,3 +116,16 @@ func TestCompareGermanConcurrentUse(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// Numbers inside a name compare by value, as in the database collation
+// public.german_name (de-u-kn, #4949): "Raum 2" sorts before "Raum 10".
+func TestCompareGermanComparesNumbersByValue(t *testing.T) {
+	t.Parallel()
+
+	if CompareGerman("Raum 2", "Raum 10") >= 0 {
+		t.Error("expected Raum 2 < Raum 10")
+	}
+	if CompareGerman("Gruppe 9b", "Gruppe 10a") >= 0 {
+		t.Error("expected Gruppe 9b < Gruppe 10a")
+	}
+}

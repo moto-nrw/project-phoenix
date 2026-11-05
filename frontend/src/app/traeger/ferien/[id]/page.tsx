@@ -13,6 +13,10 @@ import { HolidayPeriodForm } from "~/components/traeger/holiday-period-form";
 import { HolidayPeriodPublishCard } from "~/components/traeger/holiday-period-publish-card";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
+import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { billingConcept } from "~/lib/concepts/billing";
+import { ButtonLink } from "~/components/ui/button";
 import { TenantPage } from "~/components/ui/tenant-page";
 import type { HolidayPeriod } from "~/lib/traeger-api";
 import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
@@ -31,6 +35,7 @@ export default function TraegerHolidayPeriodPage() {
     error: periodFailure,
     mutate,
   } = useTraegerHolidayPeriod(id);
+  const billingHref = useHolidayPeriodBillingHref(period);
   const invalidatePeriods = useTenantMutateMatching([
     traegerKeys.periodsFamily,
   ]);
@@ -67,6 +72,18 @@ export default function TraegerHolidayPeriodPage() {
       stats={period ? <HolidayPeriodStatusLine period={period} /> : null}
       statsLoading={!period && !loadError}
       tabs={holidayPeriodTabs(id, "planung", period?.registrationCount)}
+      actions={
+        billingHref ? (
+          <ButtonLink href={billingHref} variant="outline" size="md">
+            <MotoConceptIcon
+              concept={billingConcept}
+              size={18}
+              className="mr-2"
+            />
+            Zur Abrechnung
+          </ButtonLink>
+        ) : null
+      }
       error={shownError}
       loading={!loadError && !(period && schools)}
     >

@@ -29,6 +29,7 @@ type billingLettersBody struct {
 		Phone string `json:"phone"`
 	} `json:"emergency_contacts"`
 	CreatedByAccountID *int64 `json:"created_by_account_id"`
+	TemplateVersion    int    `json:"template_version"`
 }
 
 type billingRunLettersBody struct {
@@ -300,4 +301,44 @@ func TestBillingLettersWithStoredInterlacedLogo(t *testing.T) {
 		assert.True(t, bytes.HasPrefix(rec.Body.Bytes(), []byte("%PDF")))
 		assert.Contains(t, rec.Body.String(), "/Subtype /Image")
 	}
+}
+
+// The letters are written with the Träger's current template of the
+// confirmation letter and keep its version; a later version changes no
+// issued letter (#4677, ADR 0152).
+func TestBillingLettersKeepTheTemplateVersionTheyWereWrittenWith(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Schreiben Vorlage")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	run := releasedBillingRun(t, f, billing)
+	brandTraeger(t, f)
+
+	own := documentTemplateBody{
+		Subject:    "Ihre Ferienanmeldung {{zeitraum}}",
+		Salutation: "Liebe Familie {{familienname}},",
+		Body:       "{{kinder}} ist angemeldet.\n\n{{positionen}}\n\n**{{zahlungshinweis}}**\n\n# Notfall\n{{notfallnummern}}",
+		Closing:    "Viele Grüße\n{{ansprechperson}}",
+	}
+	rec := saveTemplate(t, f.traeger, f.office, "bestaetigung", own)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/letters"), lettersBody("2099-01-15"))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	assert.Equal(t, 1, decodeSchoolPortalData[billingLettersBody](t, rec.Body.Bytes()).TemplateVersion)
+	var stored []byte
+	require.NoError(t, f.db.NewRaw(`SELECT pdf FROM parent_billing.document_letters WHERE run_id = ? ORDER BY document_id LIMIT 1`, run.ID).
+		Scan(context.Background(), &stored))
+
+	own.Closing = "Herzliche Grüße\n{{traeger}}"
+	rec = saveTemplate(t, f.traeger, f.office, "bestaetigung", own)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, billingRunPath(run.ID, ""), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	detail := decodeSchoolPortalData[billingRunLettersBody](t, rec.Body.Bytes())
+	require.NotNil(t, detail.Letters)
+	assert.Equal(t, 1, detail.Letters.TemplateVersion, "the issued letters keep their version")
+	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, letterPath(run.ID, detail.Documents[0].ID), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, stored, rec.Body.Bytes(), "a new version changes no issued letter")
 }

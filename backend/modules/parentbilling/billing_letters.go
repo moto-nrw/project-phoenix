@@ -87,6 +87,10 @@ type BillingLetters struct {
 	EmergencyContacts  []BillingEmergencyContact `json:"emergency_contacts"`
 	CreatedAt          time.Time                 `json:"created_at"`
 	CreatedByAccountID *int64                    `json:"created_by_account_id"`
+	// TemplateVersion is the version of the Träger's template for the
+	// confirmation letter the letters were written with; 0 is the standard
+	// template (#4677).
+	TemplateVersion int `json:"template_version"`
 }
 
 // BillingLetterFile is the PDF of one letter.
@@ -120,12 +124,32 @@ type Letterhead struct {
 	ContactEmail string
 	BankAccount  *LetterheadBankAccount
 	PaymentText  string
+	// Template is the Träger's current template of the confirmation letter
+	// (#4677).
+	Template LetterTemplate
+}
+
+// LetterTemplate is a version of the template of the confirmation letter
+// with its placeholders (#4677, ADR 0152) and the layout of its table of
+// amounts (#5691). Version 0 is the standard template.
+type LetterTemplate struct {
+	Version    int
+	Subject    string
+	Salutation string
+	Body       string
+	Closing    string
+	// GroupByChild names each child once above its positions with a
+	// subtotal; HideTimeModels leaves the time model out of a booking's
+	// line. The week always stays: it is the period of the service.
+	GroupByChild   bool
+	HideTimeModels bool
 }
 
 // BillingLetterheads is the master data and the branding settings of the
 // Träger as the letters read them. The root binds it. It runs in the
 // Träger transaction of the reviewer's Träger and logs the read of the
-// contact person and the bank account (ADR 0112).
+// contact person and the bank account (ADR 0112). It carries the current
+// template of the confirmation letter (#4677).
 type BillingLetterheads interface {
 	Letterhead(ctx context.Context, reviewer HolidayReviewer) (Letterhead, error)
 }

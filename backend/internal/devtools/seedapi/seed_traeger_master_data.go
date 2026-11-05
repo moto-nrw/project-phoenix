@@ -62,7 +62,10 @@ func (seedTraegerMasterDataStep) Run(_ context.Context, rt *Runtime) error {
 	if err := seedTraegerBankAccountsOnce(rt.Client, auth); err != nil {
 		return err
 	}
-	fmt.Println("  Träger master data: letterhead, logo, contact person and two bank accounts")
+	if err := seedTraegerLetterTemplateOnce(rt.Client, auth); err != nil {
+		return err
+	}
+	fmt.Println("  Träger master data: letterhead, logo, contact person, two bank accounts and the template of the confirmation letter")
 	return nil
 }
 
@@ -105,6 +108,59 @@ func seedTraegerBankAccountsOnce(client *Client, auth AuthRef) error {
 	}
 	return nil
 }
+
+// seedTraegerLetterTemplate is the demo Träger's own template of the
+// confirmation letter (#4677): the standard letter with a warmer opening and
+// closing and the table of amounts grouped by child (#5691), so the seeded
+// letters show version 1 of a Träger template.
+var seedTraegerLetterTemplate = map[string]any{
+	"subject":    "Ihre Anmeldung für {{zeitraum}}: Bestätigung und Rechnung",
+	"salutation": "Liebe Familie {{familienname}},",
+	"body": "vielen Dank für Ihre Anmeldung. Wir bestätigen die Anmeldung von {{kinder}} für „{{zeitraum}}“. Sie haben gebucht:\n\n" +
+		"{{positionen}}\n\n" +
+		"**{{zahlungshinweis}}**\n\n" +
+		"# Bitte beachten Sie\n{{hinweise}}\n\n" +
+		"# Notfallnummern\nIn dringenden Fällen und wenn Ihr Kind krank ist, erreichen Sie die Betreuung hier:\n{{notfallnummern}}\n\n" +
+		"{{rueckfragen}}",
+	"closing": "Herzliche Grüße\n{{ansprechperson}}\n{{traeger}}",
+	"invoice": map[string]any{"group_by_child": true},
+}
+
+// seedTraegerLetterTemplateOnce saves the template while the Träger still
+// writes with the standard one. Several demo schools seed the same Träger
+// at once: a save of the same text is refused as unchanged and kept.
+func seedTraegerLetterTemplateOnce(client *Client, auth AuthRef) error {
+	raw, err := client.GetWithAuth(auth, "/traeger/master-data/document-templates/bestaetigung")
+	if err != nil {
+		return fmt.Errorf("read the Träger template of the confirmation letter: %w", err)
+	}
+	var envelope struct {
+		Data struct {
+			Current struct {
+				Standard bool `json:"standard"`
+			} `json:"current"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return fmt.Errorf("read the Träger template of the confirmation letter: %w", err)
+	}
+	if !envelope.Data.Current.Standard {
+		return nil
+	}
+	_, err = client.PostWithAuth(auth, "/traeger/master-data/document-templates/bestaetigung/versions", seedTraegerLetterTemplate)
+	var refused *APIError
+	if errors.As(err, &refused) && refused.Code == seedTraegerTemplateUnchanged {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("save the Träger template of the confirmation letter: %w", err)
+	}
+	return nil
+}
+
+// seedTraegerTemplateUnchanged is the registered code of a template save
+// that equals the current version.
+const seedTraegerTemplateUnchanged = "traeger.document_template_unchanged"
 
 // seedTraegerBankAccountLabelTaken is the registered code of a bank account
 // label the Träger already has.

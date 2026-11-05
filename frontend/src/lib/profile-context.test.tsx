@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
-import { renderHook, waitFor, act } from "@testing-library/react";
+import { renderHook, act } from "@testing-library/react";
+import { waitFor } from "~/test/wait-for-state";
 import type { ReactNode } from "react";
 import { ProfileProvider, useProfile } from "./profile-context";
 import type { Profile } from "./profile-helpers";

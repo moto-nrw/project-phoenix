@@ -136,6 +136,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0084",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ResendTraegerInvitation",
+      "reason": "ADR 0084 (#5749): HTTP edge of the operator's resend of a Träger-Büro invitation; it reads the Träger, the invitation and the acting operator from the request and renders the provisioning refusals."
+    },
+    {
       "decision": "0090",
       "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.RestoreOrganization",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -144,6 +149,11 @@
       "decision": "0090",
       "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.RestoreSchool",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0084",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.RevokeTraegerInvitation",
+      "reason": "ADR 0084 (#5749): HTTP edge of the operator's withdrawal of a Träger-Büro invitation; it reads the Träger, the invitation and the acting operator from the request and renders the provisioning refusals."
     },
     {
       "decision": "0090",

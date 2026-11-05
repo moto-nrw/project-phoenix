@@ -40,3 +40,24 @@ func TestGroupRepositoryListWithRoomsPreservesJoinSortPaginationAndEmptySlice(t 
 	assert.NotNil(t, empty)
 	assert.Empty(t, empty)
 }
+
+// The group name filters find "Gruppe Ćirić" for "gruppe ciric" (#4949).
+func TestGroupNameSearchIgnoresAccents(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repo := api.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db)).Group
+	ctx := testpkg.Ctx(t)
+	wanted := testpkg.CreateTestEducationGroup(t, db, "Gruppe Ćirić")
+	testpkg.CreateTestEducationGroup(t, db, "Gruppe Becker")
+
+	listed, err := testpkg.TenantQuery1(t, ctx, db, repo.ListWithRooms, &schoolStructureCompose.GroupListQuery{NameContains: "gruppe ciric"})
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	assert.Equal(t, wanted.ID, listed[0].ID)
+
+	filtered, err := testpkg.TenantQuery1(t, ctx, db, repo.List, map[string]any{"name_like": "gruppe ciric"})
+	require.NoError(t, err)
+	require.Len(t, filtered, 1)
+	assert.Equal(t, wanted.ID, filtered[0].ID)
+}

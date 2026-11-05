@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
@@ -77,14 +78,13 @@ const revokeOpenTraegerInvitationsForEmailQuery = `UPDATE auth.traeger_invitatio
 // address queue instead of both inserting an open one; it also holds when
 // the Träger-Büro has nobody whose Verwaltung row could be locked (#5144).
 func (s *Store) RevokeOpenTraegerInvitationsForEmail(ctx context.Context, organizationID int64, email string, at time.Time) (domain.OperationStats, error) {
+	started := time.Now()
+	if _, err := s.LockTraegerInvitationAddress(ctx, organizationID, email); err != nil {
+		return domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}, err
+	}
 	db, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
-	}
-	started := time.Now()
-	lockKey := fmt.Sprintf("traeger_invitation:%d:%s", organizationID, email)
-	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", lockKey); err != nil {
-		return domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}, fmt.Errorf("identity access postgres: lock Träger invitation address: %w", err)
 	}
 	result, err := db.NewRaw(revokeOpenTraegerInvitationsForEmailQuery, at, organizationID, email).Exec(ctx)
 	stats := domain.OperationStats{Queries: 2, StatementDuration: time.Since(started)}
@@ -92,6 +92,25 @@ func (s *Store) RevokeOpenTraegerInvitationsForEmail(ctx context.Context, organi
 		return stats, fmt.Errorf("identity access postgres: revoke open Träger invitations: %w", err)
 	}
 	stats.Rows, _ = result.RowsAffected()
+	return stats, nil
+}
+
+// LockTraegerInvitationAddress takes the address lock of the Träger until
+// the caller's transaction ends. The lock is re-entrant within one
+// transaction: a later RevokeOpenTraegerInvitationsForEmail of the same
+// address does not wait for itself.
+func (s *Store) LockTraegerInvitationAddress(ctx context.Context, organizationID int64, email string) (domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	started := time.Now()
+	lockKey := fmt.Sprintf("traeger_invitation:%d:%s", organizationID, email)
+	_, err = db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", lockKey)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return stats, fmt.Errorf("identity access postgres: lock Träger invitation address: %w", err)
+	}
 	return stats, nil
 }
 
@@ -126,22 +145,56 @@ const listOpenTraegerInvitationsQuery = `SELECT ` + traegerInvitationColumns + `
 
 // ListOpenTraegerInvitations returns the open, unexpired invitations.
 func (s *Store) ListOpenTraegerInvitations(ctx context.Context, organizationID int64, now time.Time) ([]domain.TraegerInvitation, domain.OperationStats, error) {
+	return s.listTraegerInvitations(ctx, "list open Träger invitations", func(db bun.IDB) *bun.RawQuery {
+		return db.NewRaw(listOpenTraegerInvitationsQuery, organizationID, now)
+	})
+}
+
+const listUnspentTraegerInvitationsQuery = `SELECT ` + traegerInvitationColumns + `
+	FROM auth.traeger_invitations
+	WHERE organization_id = ? AND used_at IS NULL AND revoked_at IS NULL
+	ORDER BY created_at DESC, id DESC`
+
+// ListUnspentTraegerInvitations returns the invitations that are neither
+// used nor revoked, the expired ones included (#5749).
+func (s *Store) ListUnspentTraegerInvitations(ctx context.Context, organizationID int64) ([]domain.TraegerInvitation, domain.OperationStats, error) {
+	return s.listTraegerInvitations(ctx, "list unspent Träger invitations", func(db bun.IDB) *bun.RawQuery {
+		return db.NewRaw(listUnspentTraegerInvitationsQuery, organizationID)
+	})
+}
+
+func (s *Store) listTraegerInvitations(ctx context.Context, operation string, query func(bun.IDB) *bun.RawQuery) ([]domain.TraegerInvitation, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	var rows []traegerInvitationRow
 	started := time.Now()
-	err = db.NewRaw(listOpenTraegerInvitationsQuery, organizationID, now).Scan(ctx, &rows)
+	err = query(db).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
 	if err != nil {
-		return nil, stats, fmt.Errorf("identity access postgres: list open Träger invitations: %w", err)
+		return nil, stats, fmt.Errorf("identity access postgres: %s: %w", operation, err)
 	}
 	invitations := make([]domain.TraegerInvitation, 0, len(rows))
 	for _, row := range rows {
 		invitations = append(invitations, row.toDomain())
 	}
 	return invitations, stats, nil
+}
+
+const findTraegerInvitationQuery = `SELECT ` + traegerInvitationColumns + `
+	FROM auth.traeger_invitations
+	WHERE organization_id = ? AND id = ?`
+
+// FindTraegerInvitation reads one invitation of the Träger by its ID.
+func (s *Store) FindTraegerInvitation(ctx context.Context, organizationID, id int64) (domain.TraegerInvitation, bool, domain.OperationStats, error) {
+	invitations, stats, err := s.listTraegerInvitations(ctx, "find Träger invitation", func(db bun.IDB) *bun.RawQuery {
+		return db.NewRaw(findTraegerInvitationQuery, organizationID, id)
+	})
+	if err != nil || len(invitations) == 0 {
+		return domain.TraegerInvitation{}, false, stats, err
+	}
+	return invitations[0], true, stats, nil
 }
 
 const findTraegerInvitationByTokenQuery = `SELECT ` + traegerInvitationColumns + `

@@ -123,6 +123,8 @@ export const ERROR_CATALOG = {
         "Die Unterschrift ist nicht lesbar. Bitte unterschreiben Sie noch einmal.",
       "care.pickup_signature_required":
         "Bitte unterschreiben Sie die Erlaubnis und bestätigen Sie die Unterschrift.",
+      "care.pickup_signature_too_large":
+        "Die Unterschrift ist zu groß. Bitte tippen Sie auf „Neu unterschreiben“ und dann auf „Namen tippen“.",
       "care.poll_closed":
         "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
       "care.remove_disabled":
@@ -730,9 +732,9 @@ export const ERROR_CATALOG = {
       "operator.audit_unavailable":
         "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
       "parent_billing.bank_account_missing":
-        "Für die Schreiben fehlt eine Bankverbindung. Bitte tragen Sie unter „Briefkopf“ ein Konto ein.",
+        "Für die Schreiben fehlt eine Bankverbindung. Bitte tragen Sie unter „Abrechnungsvorgaben“ ein Konto ein.",
       "parent_billing.benefits_exemption_unavailable":
-        "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Ermäßigungen“. Bitte fragen Sie die Abrechnung.",
+        "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Abrechnungsvorgaben“. Bitte fragen Sie die Abrechnung.",
       "parent_billing.billing_correction_invalid":
         "Bitte prüfen Sie die markierten Felder.",
       "parent_billing.billing_document_correction_invalid":
@@ -790,19 +792,19 @@ export const ERROR_CATALOG = {
       "parent_billing.invoice_credited":
         "Diese Rechnung hat schon eine Gutschrift. Schreiben Sie den Rest gut, statt zu stornieren.",
       "parent_billing.invoice_number_taken":
-        "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnung“.",
+        "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnungsvorgaben“.",
       "parent_billing.letter_mail_pending":
         "Die Mail an diese Familie wird gerade gesendet. Bitte warten Sie, bis sie gesendet ist oder nicht zugestellt wurde.",
       "parent_billing.letterhead_too_long":
-        "Absender oder Fußzeile im Briefkopf sind zu lang für ein Schreiben. Bitte lassen Sie sie unter „Briefkopf“ kürzen.",
+        "Absender oder Fußzeile im Briefkopf sind zu lang für ein Schreiben. Bitte lassen Sie sie unter „Briefkopf und Vorlagen“ kürzen.",
       "parent_billing.number_range_invalid":
         "Bitte prüfen Sie das Muster. Es braucht genau eine laufende Nummer und darf nur Buchstaben, Ziffern und . / _ - enthalten.",
       "parent_billing.number_range_missing":
-        "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnung“ fest.",
+        "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnungsvorgaben“ fest.",
       "parent_billing.parent_document_not_found":
         "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.payment_text_debtor_number_missing":
-        "Rechnungen ohne Debitorennummer: {count}. Ihr Zahlungstext nennt aber die Debitorennummer. Löschen Sie den eigenen Zahlungstext unter „Einstellungen“ im Bereich „Ferienbetreuung“ oder nehmen Sie dort den Platzhalter für die Debitorennummer heraus.",
+        "Rechnungen ohne Debitorennummer: {count}. Ihr Zahlungstext nennt aber die Debitorennummer. Löschen Sie den eigenen Zahlungstext in den Einstellungen unter „Allgemein“ im Bereich „Ferienbetreuung“ oder nehmen Sie dort den Platzhalter für die Debitorennummer heraus.",
       "parent_billing.recipient_email_missing":
         "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
       "parent_billing.sibling_group_invalid":
@@ -1413,6 +1415,14 @@ export const ERROR_CATALOG = {
         "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
       "traeger.bank_account_not_found":
         "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.document_template_invalid":
+        "Die Vorlage ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
+      "traeger.document_template_kind_not_found":
+        "Diese Dokumentart gibt es nicht. Bitte wählen Sie eine Vorlage aus der Liste.",
+      "traeger.document_template_unchanged":
+        "Die Vorlage hat sich nicht geändert. Es gibt keine neue Version.",
+      "traeger.document_template_unknown_placeholder":
+        "Diese Platzhalter kennt moto nicht: {placeholders}. Bitte nehmen Sie nur Platzhalter aus der Liste.",
       "traeger.last_administrator":
         "Das Träger-Büro braucht mindestens eine Person mit der Rolle Leitung. Geben Sie die Rolle zuerst einer anderen Person.",
       "traeger.logo_invalid":
@@ -1688,6 +1698,8 @@ export const ERROR_CATALOG = {
         "The signature cannot be read. Please sign again.",
       "care.pickup_signature_required":
         "Please sign the permission and confirm your signature.",
+      "care.pickup_signature_too_large":
+        "The signature is too large. Please tap “Sign again” and then “Type your name”.",
       "care.poll_closed":
         "{object} is no longer open. Please ask your contact person.",
       "care.remove_disabled":
@@ -2059,6 +2071,14 @@ export const ERROR_CATALOG = {
         "Another bank account already has this label. Please choose a different label.",
       "traeger.bank_account_not_found":
         "This bank account no longer exists. Please reload the page.",
+      "traeger.document_template_invalid":
+        "The template is incomplete. Please check the marked fields.",
+      "traeger.document_template_kind_not_found":
+        "This kind of document does not exist. Please choose a template from the list.",
+      "traeger.document_template_unchanged":
+        "The template has not changed. No new version was saved.",
+      "traeger.document_template_unknown_placeholder":
+        "moto does not know these placeholders: {placeholders}. Please use only placeholders from the list.",
       "traeger.last_administrator":
         "The Träger office needs at least one person with the role Leitung. Give this role to someone else first.",
       "traeger.logo_invalid":
@@ -2191,6 +2211,8 @@ export const ERROR_CATALOG = {
         "Подпись не читается. Пожалуйста, распишитесь ещё раз.",
       "care.pickup_signature_required":
         "Пожалуйста, подпишите разрешение и подтвердите подпись.",
+      "care.pickup_signature_too_large":
+        "Подпись слишком большая. Нажмите «Расписаться заново», а затем «Ввести имя».",
       "care.poll_closed":
         "Больше не открыто: {object}. Обратитесь к контактному лицу.",
       "care.remove_disabled":
@@ -2606,6 +2628,8 @@ export const ERROR_CATALOG = {
         "Nënshkrimi nuk lexohet. Ju lutemi nënshkruani përsëri.",
       "care.pickup_signature_required":
         "Ju lutemi nënshkruani lejen dhe konfirmoni nënshkrimin.",
+      "care.pickup_signature_too_large":
+        "Nënshkrimi është shumë i madh. Ju lutemi prekni „Nënshkruani përsëri“ dhe pastaj „Shkruani emrin“.",
       "care.poll_closed":
         "Nuk është më i hapur: {object}. Pyetni personin tuaj të kontaktit.",
       "care.remove_disabled":
@@ -3035,6 +3059,8 @@ export const ERROR_CATALOG = {
         "Podpis jest nieczytelny. Proszę podpisać się jeszcze raz.",
       "care.pickup_signature_required":
         "Proszę podpisać zgodę i potwierdzić podpis.",
+      "care.pickup_signature_too_large":
+        "Podpis jest za duży. Proszę kliknąć „Podpisz ponownie”, a potem „Wpisz imię i nazwisko”.",
       "care.poll_closed":
         "Już nie jest otwarte: {object}. Zapytaj swoją osobę kontaktową.",
       "care.remove_disabled":
@@ -3451,6 +3477,8 @@ export const ERROR_CATALOG = {
         "İmza okunamıyor. Lütfen tekrar imzalayın.",
       "care.pickup_signature_required":
         "Lütfen izni imzalayın ve imzanızı onaylayın.",
+      "care.pickup_signature_too_large":
+        "İmza çok büyük. Lütfen „Yeniden imzala“ ve ardından „Adınızı yazın“ seçeneğine dokunun.",
       "care.poll_closed":
         "{object} artık açık değil. Lütfen ilgili kişinize danışın.",
       "care.remove_disabled":
@@ -3871,6 +3899,8 @@ export const ERROR_CATALOG = {
         "Підпис неможливо прочитати. Будь ласка, підпишіться ще раз.",
       "care.pickup_signature_required":
         "Будь ласка, підпишіть дозвіл і підтвердьте підпис.",
+      "care.pickup_signature_too_large":
+        "Підпис завеликий. Натисніть «Підписатися знову», а потім «Ввести ім'я».",
       "care.poll_closed":
         "Уже не відкрито: {object}. Зверніться до контактної особи.",
       "care.remove_disabled":

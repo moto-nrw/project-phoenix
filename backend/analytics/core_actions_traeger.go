@@ -43,6 +43,10 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/master-data/bank-accounts"}:                                                      notCaptured,
 	{http.MethodPut, "/traeger/master-data/bank-accounts/{id}"}:                                                  notCaptured,
 	{http.MethodDelete, "/traeger/master-data/bank-accounts/{id}"}:                                               notCaptured,
+	// The document templates (#4677) belong to the Träger: no school to
+	// count them for. The preview stores nothing.
+	{http.MethodPost, "/traeger/master-data/document-templates/{kind}/versions"}: notCaptured,
+	{http.MethodPost, "/traeger/master-data/document-templates/{kind}/preview"}:  notCaptured,
 	// The public holiday registration of a Träger (#4661) and the upload of
 	// its proof of benefits (#5238) have no session and no school, so no
 	// collection policy admits them yet.

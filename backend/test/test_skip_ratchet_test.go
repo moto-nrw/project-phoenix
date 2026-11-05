@@ -2,8 +2,6 @@ package test
 
 import (
 	"go/ast"
-	"go/parser"
-	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -129,7 +127,6 @@ func Use(d days) int { return d.Skip("2026-10-03", false) }
 // calls on testing handles (t, tb, b, or a suite's T()) per "path:Function".
 func scanTestSkips(root string) (map[string][]string, error) {
 	sites := map[string][]string{}
-	fset := token.NewFileSet()
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -143,14 +140,14 @@ func scanTestSkips(root string) (map[string][]string, error) {
 		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}
-		source, err := os.ReadFile(path)
+		source, err := readGoSource(path)
 		if err != nil {
 			return err
 		}
 		if !strings.Contains(string(source), ".Skip") {
 			return nil
 		}
-		file, err := parser.ParseFile(fset, path, source, 0)
+		fset, file, err := parseGoSourceCached(path, source)
 		if err != nil {
 			return err
 		}

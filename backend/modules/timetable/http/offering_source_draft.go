@@ -160,7 +160,7 @@ func (rs *Resource) draftOfferingPreview(
 	}
 	return offeringPreviewResponse{
 		From:           from.String(),
-		Weekdays:       offeringPreviewWeekdays(changes, names),
+		Weekdays:       offeringPreviewWeekdays(changes, names, timetable.DroppedChildrenBookings(filter, bookings, changes)),
 		Segments:       []offeringPreviewSegmentResponse{},
 		OtherOfferings: offeringPreviewAlternatives(roster.OfferingKind, filter, bookings, changes),
 	}, nil

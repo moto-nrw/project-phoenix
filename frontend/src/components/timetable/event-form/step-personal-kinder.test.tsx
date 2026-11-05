@@ -716,7 +716,8 @@ describe("StepPersonalKinder — Vorschau pro Wochentag (#5103)", () => {
     });
 
     expect(await screen.findByText("Montag")).toBeInTheDocument();
-    expect(screen.getByText("Fällt weg (1): Ben Kurz")).toBeInTheDocument();
+    expect(screen.getByText("Fällt weg (1)")).toBeInTheDocument();
+    expect(screen.getByText("Ben Kurz")).toBeInTheDocument();
     expect(getOfferingPreview).toHaveBeenCalledWith(
       "9",
       { offeringIds: ["42"], gradeLevels: [], schoolClasses: ["1b"] },

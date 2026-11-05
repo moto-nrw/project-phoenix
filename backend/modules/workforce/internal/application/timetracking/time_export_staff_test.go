@@ -46,3 +46,38 @@ func TestTimeExportStaffOrder_PreservesCaseInsensitiveNamesAndIDTieBreak(t *test
 	}
 	assert.Equal(t, []int64{8, 6, 4, 5, 9}, ids)
 }
+
+// Staff appear in German dictionary order in every time export (#4949).
+func TestTimeExportStaffOrder_UsesGermanDictionaryOrder(t *testing.T) {
+	t.Parallel()
+	staff := []TimeExportStaff{
+		{ID: 1, FirstName: "Eva", LastName: "Zimmermann"},
+		{ID: 2, FirstName: "Can", LastName: "Özdemir"},
+		{ID: 3, FirstName: "Ida", LastName: "adler"},
+		{ID: 4, FirstName: "Tom", LastName: "Becker"},
+		{ID: 5, FirstName: "Ana", LastName: "Ábel"},
+	}
+	slices.SortStableFunc(staff, compareExportStaff)
+	ids := make([]int64, len(staff))
+	for i, row := range staff {
+		ids[i] = row.ID
+	}
+	assert.Equal(t, []int64{5, 3, 4, 2, 1}, ids)
+}
+
+// The time-tracking overview sorts by name in German dictionary order (#4949).
+func TestCompareOverviewRows_UsesGermanDictionaryOrder(t *testing.T) {
+	t.Parallel()
+	rows := []TimeTrackingOverviewRow{
+		{StaffID: 1, FirstName: "Eva", LastName: "Zimmermann"},
+		{StaffID: 2, FirstName: "Can", LastName: "Özdemir"},
+		{StaffID: 3, FirstName: "Ida", LastName: "adler"},
+		{StaffID: 4, FirstName: "Ana", LastName: "Ábel"},
+	}
+	slices.SortStableFunc(rows, func(a, b TimeTrackingOverviewRow) int { return compareOverviewRows(a, b, "") })
+	ids := make([]int64, len(rows))
+	for i, row := range rows {
+		ids[i] = row.StaffID
+	}
+	assert.Equal(t, []int64{4, 3, 2, 1}, ids)
+}

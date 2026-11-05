@@ -13,6 +13,7 @@ import { formatBerlinDate } from "~/lib/date-helpers";
 import type { HolidayContribution } from "~/lib/traeger-contributions-api";
 import type { HolidayRegistrationDetail } from "~/lib/traeger-holiday-registrations-api";
 import { contributionLineLabel, formatEuro } from "./contribution-format";
+import { ContributionRulesLink } from "./contribution-rules-link";
 
 function description(
   contribution: HolidayContribution,
@@ -30,9 +31,12 @@ function description(
 export function HolidayContributionCard({
   contribution,
   registration,
+  canManageBillingSettings = false,
 }: Readonly<{
   contribution: HolidayContribution;
   registration: HolidayRegistrationDetail;
+  /** Das Recht „Abrechnung“ öffnet die Beitragsregeln. */
+  canManageBillingSettings?: boolean;
 }>) {
   const childName = (childId: string, position: number) => {
     const child =
@@ -66,6 +70,12 @@ export function HolidayContributionCard({
         childTotalLabel="Summe"
         totalLabel="Gesamt"
         total={formatEuro(contribution.totalCents)}
+      />
+      <ContributionRulesLink
+        canManageBillingSettings={canManageBillingSettings}
+        kinds={contribution.children.flatMap((child) =>
+          child.lines.map((line) => line.kind),
+        )}
       />
     </SectionCard>
   );

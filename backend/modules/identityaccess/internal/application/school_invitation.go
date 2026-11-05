@@ -12,6 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // Operation names the invitation flows report.
@@ -118,8 +120,8 @@ func (s *SchoolInvitation) createInvitation(ctx context.Context, request domain.
 	}
 	invitation := domain.SchoolInvitation{
 		TenantID: tenantID, Email: email, Token: uuid.Must(uuid.NewV4()).String(), RoleID: request.RoleID,
-		RoleName: role.Name, ExpiresAt: s.now().Add(s.expiry), FirstName: trimmed(request.FirstName),
-		LastName: trimmed(request.LastName), Position: trimmed(request.Position),
+		RoleName: role.Name, ExpiresAt: s.now().Add(s.expiry), FirstName: trimmedName(request.FirstName),
+		LastName: trimmedName(request.LastName), Position: trimmed(request.Position),
 		EmploymentAction: invitationEmploymentAction(request),
 		ResetMasterData:  request.ResetMasterData, ResetQualifications: request.ResetQualifications, ResetWorkTime: request.ResetWorkTime,
 		CaregiverEnabled: request.CaregiverEnabled, PersonID: request.PersonID,
@@ -700,6 +702,15 @@ func trimmed(value *string) *string {
 		return nil
 	}
 	text := strings.TrimSpace(*value)
+	return &text
+}
+
+// trimmedName stores an invitee's name trimmed and composed to NFC (#4949).
+func trimmedName(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	text := textnorm.Name(*value)
 	return &text
 }
 

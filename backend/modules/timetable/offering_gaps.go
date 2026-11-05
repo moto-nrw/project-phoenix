@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // ErrOfferingGapNotFound refuses a decision on an offering the period shows
@@ -187,7 +188,7 @@ func DetectOfferingGaps(scope OfferingGapScope, templates []OfferingGapTemplate,
 }
 
 func compareOfferingGaps(left, right OfferingGap) int {
-	if order := strings.Compare(strings.ToLower(left.OfferingName), strings.ToLower(right.OfferingName)); order != 0 {
+	if order := collation.CompareGerman(left.OfferingName, right.OfferingName); order != 0 {
 		return order
 	}
 	switch {

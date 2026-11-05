@@ -539,6 +539,25 @@ func TestDeviceRepository_List_WithFilters(t *testing.T) {
 		assert.True(t, found)
 	})
 
+	t.Run("name_like ignores accents (#4949)", func(t *testing.T) {
+		suffix := time.Now().UnixNano()
+		name := fmt.Sprintf("Küche Süd %d", suffix)
+		device := &devicefleet.Device{
+			DeviceID:   fmt.Sprintf("accentfilter-%d", suffix),
+			DeviceType: "terminal",
+			Status:     devicefleet.DeviceStatusActive,
+			Name:       &name,
+		}
+		require.NoError(t, repo.Create(ctx, device))
+
+		devices, err := repo.List(ctx, map[string]interface{}{
+			"name_like": fmt.Sprintf("kuche sud %d", suffix),
+		})
+		require.NoError(t, err)
+		require.Len(t, devices, 1)
+		assert.Equal(t, device.ID, devices[0].ID)
+	})
+
 	t.Run("filters by has_name true", func(t *testing.T) {
 		deviceName := fmt.Sprintf("Named Device %d", time.Now().UnixNano())
 		device := &devicefleet.Device{

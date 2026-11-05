@@ -20,11 +20,14 @@ const logger = createLogger({ component: "BillingRunStartModal" });
 export function BillingRunStartModal({
   isOpen,
   periods,
+  initialPeriodId,
   onClose,
   onStarted,
 }: Readonly<{
   isOpen: boolean;
   periods: readonly BillingPeriod[];
+  /** Vorgewählt, wenn die Liste auf diesen Zeitraum gefiltert ist (#5688). */
+  initialPeriodId?: string;
   onClose: () => void;
   onStarted: (run: BillingRun) => void;
 }>) {
@@ -36,9 +39,10 @@ export function BillingRunStartModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setPeriodId(periods[0]?.id ?? "");
+    const initial = periods.find((period) => period.id === initialPeriodId);
+    setPeriodId(initial?.id ?? periods[0]?.id ?? "");
     clearErrors();
-  }, [isOpen, periods, clearErrors]);
+  }, [isOpen, periods, initialPeriodId, clearErrors]);
 
   const submit = async () => {
     formErrors.clear();

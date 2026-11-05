@@ -10,6 +10,7 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PickupExtension } from "~/lib/pickup-extension-api";
+import { releaseFakeTimers } from "~/test/clock";
 import { catalogText } from "~/test/error-catalog-text";
 
 const mockToast = vi.hoisted(() => ({
@@ -163,7 +164,11 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
       await screen.findByText("Längere Betreuung eintragen"),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Freigeben" })).toBeNull();
+    // Fake timers skip the modal's 250-ms exit animation.
+    vi.useFakeTimers();
     fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+    await act(() => vi.advanceTimersByTimeAsync(250));
+    releaseFakeTimers();
     await waitFor(() =>
       expect(screen.queryByText("Längere Betreuung eintragen")).toBeNull(),
     );
@@ -236,7 +241,11 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
         "die Zuordnung zum Termin",
       ),
     );
+    // Fake timers skip the modal's 250-ms exit animation.
+    vi.useFakeTimers();
     fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+    await act(() => vi.advanceTimersByTimeAsync(250));
+    releaseFakeTimers();
     await waitFor(() =>
       expect(screen.queryByText("Längere Betreuung eintragen")).toBeNull(),
     );

@@ -44,6 +44,7 @@ var (
 // "Einstellungen".
 type MasterDataResource struct {
 	masterData    organizationtenancy.TraegerMasterData
+	templates     organizationtenancy.TraegerDocumentTemplates
 	requireRead   common.Middleware
 	requireManage common.Middleware
 }
@@ -51,14 +52,16 @@ type MasterDataResource struct {
 // NewMasterDataResource builds the resource. The root binds requireRead and
 // requireManage to the rights Identity & Access bundles into the Träger roles
 // (ADR 0084 section 4).
-func NewMasterDataResource(masterData organizationtenancy.TraegerMasterData, requireRead, requireManage common.Middleware) *MasterDataResource {
-	if masterData == nil || requireRead == nil || requireManage == nil {
-		panic("organization tenancy traeger: the master data and the right checks are required")
+func NewMasterDataResource(masterData organizationtenancy.TraegerMasterData, templates organizationtenancy.TraegerDocumentTemplates, requireRead, requireManage common.Middleware) *MasterDataResource {
+	if masterData == nil || templates == nil || requireRead == nil || requireManage == nil {
+		panic("organization tenancy traeger: the master data, the document templates and the right checks are required")
 	}
-	return &MasterDataResource{masterData: masterData, requireRead: requireRead, requireManage: requireManage}
+	return &MasterDataResource{masterData: masterData, templates: templates, requireRead: requireRead, requireManage: requireManage}
 }
 
-// TraegerRouter returns the routes mounted at /traeger/master-data.
+// TraegerRouter returns the routes mounted at /traeger/master-data. The
+// document templates of the Träger (#4677) sit below it at
+// /document-templates.
 func (rs *MasterDataResource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -75,6 +78,12 @@ func (rs *MasterDataResource) TraegerRouter(protectedTraegerRoutes func(chi.Rout
 		manage.Post("/bank-accounts", rs.createBankAccount)
 		manage.Put("/bank-accounts/{id}", rs.updateBankAccount)
 		manage.Delete("/bank-accounts/{id}", rs.deleteBankAccount)
+		read.Get("/document-templates", rs.listTemplates)
+		read.Get("/document-templates/{kind}", rs.templateDetail)
+		manage.Post("/document-templates/{kind}/versions", rs.saveTemplate)
+		// The preview fills sample data and stores nothing, so every
+		// reader of the templates may see it.
+		read.Post("/document-templates/{kind}/preview", rs.previewTemplate)
 	})
 	return r
 }

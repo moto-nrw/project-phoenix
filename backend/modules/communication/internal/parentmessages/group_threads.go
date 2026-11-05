@@ -10,6 +10,7 @@ import (
 	"reflect"
 
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 const (
@@ -364,7 +365,7 @@ func (s *Service) groupReadChildren(ctx context.Context, thread *deliveryPorts.P
 		if out[i].Read != out[j].Read {
 			return !out[i].Read
 		}
-		return strings.ToLower(out[i].LastName+" "+out[i].FirstName) < strings.ToLower(out[j].LastName+" "+out[j].FirstName)
+		return collation.CompareGermanNames(out[i].LastName, out[i].FirstName, out[j].LastName, out[j].FirstName) < 0
 	})
 	return out, nil
 }

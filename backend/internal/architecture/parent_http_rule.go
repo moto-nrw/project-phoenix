@@ -26,11 +26,3 @@ func reviewedParentHTTPRule(rule Rule) bool {
 		return false
 	}
 }
-
-func firstPartyAllowedByReviewedParentHTTPRule(base, candidate *Policy, scope Scope, source, target Package) bool {
-	if candidate.PolicyEpoch <= base.PolicyEpoch {
-		return false
-	}
-	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
-	return decision.Allowed != nil && len(decision.Overlaps) == 0 && reviewedParentHTTPRule(*decision.Allowed)
-}

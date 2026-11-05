@@ -8,7 +8,14 @@
 
 import { ClipboardList } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type MouseEvent as ReactMouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   childSchoolLabel,
   formatHolidayWeek,
@@ -24,7 +31,7 @@ import {
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import NavigationLink from "~/components/ui/navigation-link";
@@ -39,6 +46,9 @@ import type {
 } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { billingConcept } from "~/lib/concepts/billing";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   useApiErrorDisplay,
@@ -174,7 +184,7 @@ function columns(
             `/traeger/ferien/${periodId}/anmeldungen/${registration.id}`,
           )}
           className="font-medium text-gray-900 hover:underline"
-          onClick={(event) => {
+          onClick={(event: ReactMouseEvent<HTMLAnchorElement>) => {
             if (
               event.metaKey ||
               event.ctrlKey ||
@@ -307,6 +317,7 @@ export default function TraegerHolidayRegistrationsPage() {
     loadError: periodError,
     error: periodFailure,
   } = useTraegerHolidayPeriod(periodId);
+  const billingHref = useHolidayPeriodBillingHref(period);
   const [list, setList] = useState<HolidayRegistrationList | null>(null);
   const [groups, setGroups] = useState<readonly HolidaySiblingGroup[]>([]);
   // The registrations the Träger-Büro picked to merge as siblings (#5628).
@@ -573,17 +584,29 @@ export default function TraegerHolidayRegistrationsPage() {
         period?.registrationCount,
       )}
       actions={
-        <ExportMenu
-          ariaLabel="Anmeldungen herunterladen"
-          options={EXPORT_FORMATS}
-          busyKey={exporting}
-          unavailable={loading || Boolean(loadError)}
-          onSelect={(option) => {
-            if (option.format === "csv" || option.format === "xlsx") {
-              void exportFile(option.format);
-            }
-          }}
-        />
+        <>
+          {billingHref ? (
+            <ButtonLink href={billingHref} variant="outline" size="md">
+              <MotoConceptIcon
+                concept={billingConcept}
+                size={18}
+                className="mr-2"
+              />
+              Zur Abrechnung
+            </ButtonLink>
+          ) : null}
+          <ExportMenu
+            ariaLabel="Anmeldungen herunterladen"
+            options={EXPORT_FORMATS}
+            busyKey={exporting}
+            unavailable={loading || Boolean(loadError)}
+            onSelect={(option) => {
+              if (option.format === "csv" || option.format === "xlsx") {
+                void exportFile(option.format);
+              }
+            }}
+          />
+        </>
       }
       filters={filters}
       activeFilters={activeFilters}
@@ -608,13 +631,16 @@ export default function TraegerHolidayRegistrationsPage() {
                 ? "1 Anmeldung ausgewählt. Wählen Sie mindestens eine weitere Anmeldung derselben Familie."
                 : `${selected.size} Anmeldungen ausgewählt. Als Geschwister zählen ihre Kinder beim Ferienbeitrag zusammen.`}
             </p>
-            <div className="flex flex-wrap gap-2">
+            {/* On a phone both actions take the full width, the main one on
+                top, so they do not wrap into rows of different widths. */}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
               <Button
                 type="button"
                 variant="outline"
                 size="md"
                 disabled={merging}
                 onClick={() => setSelected(new Set())}
+                className="w-full sm:w-auto"
               >
                 Auswahl aufheben
               </Button>
@@ -627,6 +653,7 @@ export default function TraegerHolidayRegistrationsPage() {
                   disabled={loading}
                   loadingText="Führt zusammen …"
                   onClick={() => void mergeSiblings()}
+                  className="w-full sm:w-auto"
                 >
                   Als Geschwister zusammenführen
                 </Button>

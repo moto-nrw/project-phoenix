@@ -9,12 +9,12 @@ package planning
 
 import (
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // The Dienstplan overview shares the shift-coverage interval math and the
@@ -62,12 +62,12 @@ func indexShifts(shifts []*workforce.ShiftRecord) map[staffDateKey][]*workforce.
 // the Dienstplan overview presents them in.
 func sortOverviewStaff(staff []*workforce.PlanStaff) {
 	sort.Slice(staff, func(i, j int) bool {
-		left := staffSortName(staff[i])
-		right := staffSortName(staff[j])
-		if left == right {
-			return staffSortID(staff[i]) < staffSortID(staff[j])
+		leftLast, leftFirst := staffSortName(staff[i])
+		rightLast, rightFirst := staffSortName(staff[j])
+		if order := collation.CompareGermanNames(leftLast, leftFirst, rightLast, rightFirst); order != 0 {
+			return order < 0
 		}
-		return left < right
+		return staffSortID(staff[i]) < staffSortID(staff[j])
 	})
 }
 
@@ -78,9 +78,9 @@ func staffSortID(staff *workforce.PlanStaff) int64 {
 	return staff.ID
 }
 
-func staffSortName(staff *workforce.PlanStaff) string {
+func staffSortName(staff *workforce.PlanStaff) (last, first string) {
 	if staff == nil || staff.Person == nil {
-		return ""
+		return "", ""
 	}
-	return strings.ToLower(staff.Person.LastName + "\x00" + staff.Person.FirstName)
+	return staff.Person.LastName, staff.Person.FirstName
 }

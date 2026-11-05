@@ -3,11 +3,77 @@
 // Allowlist ab und schreibt die Baseline neu; sie darf nur sinken. `--check`
 // schreibt nichts und meldet Abweichungen.
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import ts from "typescript";
+
 const frontend = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+// Der Lauf braucht nur das ui-kit-Plugin und die Regeln der Ratsche, mit
+// ihren Einstellungen aus .oxlintrc.json. Ihre Funde hängen von keiner
+// anderen Regel ab; ohne die übrigen Plugins braucht der Lauf über src rund
+// ein Zehntel des Speichers (0,24 statt 2,7 GB) und ein Sechstel der CPU-Zeit.
+function ratchetConfig(rules) {
+  const configPath = resolve(frontend, ".oxlintrc.json");
+  const parsed = ts.parseConfigFileTextToJson(
+    configPath,
+    readFileSync(configPath, "utf8"),
+  );
+  if (parsed.error || !parsed.config) {
+    throw new Error(`.oxlintrc.json nicht lesbar: ${configPath}`);
+  }
+  const {
+    plugins: _plugins,
+    jsPlugins = [],
+    categories: _categories,
+    rules: configuredRules = {},
+    overrides,
+    ignorePatterns = [],
+    ...shared
+  } = parsed.config;
+  // overrides könnten die Regeln je Datei ändern; die abgeleitete Config
+  // übernähme das nicht und zählte dann anders als `pnpm run lint`.
+  if (overrides?.length) {
+    throw new Error(
+      ".oxlintrc.json hat overrides: die Ratsche zählt dann nicht mehr wie der Volllauf",
+    );
+  }
+  const uiKitPlugin = jsPlugins.find((plugin) =>
+    /oxlint-plugin-ui-kit\.mjs$/.test(plugin),
+  );
+  if (!uiKitPlugin) {
+    throw new Error(".oxlintrc.json lädt das ui-kit-Plugin nicht");
+  }
+  const config = {
+    ...shared,
+    plugins: [],
+    categories: Object.fromEntries(
+      [
+        "correctness",
+        "suspicious",
+        "pedantic",
+        "perf",
+        "style",
+        "restriction",
+        "nursery",
+      ].map((category) => [category, "off"]),
+    ),
+    jsPlugins: [resolve(frontend, uiKitPlugin)],
+    rules: Object.fromEntries(
+      rules.map((rule) => {
+        const setting = configuredRules[`ui-kit/${rule}`];
+        if (setting === undefined) {
+          throw new Error(`.oxlintrc.json schaltet ui-kit/${rule} nicht ein`);
+        }
+        return [`ui-kit/${rule}`, setting];
+      }),
+    ),
+  };
+  return { config, ignorePatterns };
+}
 
 /**
  * @param {{
@@ -30,16 +96,33 @@ export function updateRatchetBaseline({
   const baselinePath = resolve(
     process.env[pathEnv] ?? resolve(frontend, "scripts", baselineFile),
   );
-  const result = spawnSync(
-    resolve(frontend, "node_modules/.bin/oxlint"),
-    ["-c", ".oxlintrc.json", "-f", "json", "src"],
-    {
-      cwd: frontend,
-      encoding: "utf8",
-      env: { ...process.env, [countEnv]: "count" },
-      maxBuffer: 64 * 1024 * 1024,
-    },
-  );
+  const { config, ignorePatterns } = ratchetConfig(rules);
+  const configDirectory = mkdtempSync(join(tmpdir(), "ui-kit-ratchet-"));
+  let result;
+  try {
+    const configPath = join(configDirectory, "oxlintrc.json");
+    writeFileSync(configPath, JSON.stringify(config));
+    // ignorePatterns gelten relativ zu .oxlintrc.json, also zu frontend/.
+    result = spawnSync(
+      resolve(frontend, "node_modules/.bin/oxlint"),
+      [
+        "-c",
+        configPath,
+        ...ignorePatterns.flatMap((pattern) => ["--ignore-pattern", pattern]),
+        "-f",
+        "json",
+        "src",
+      ],
+      {
+        cwd: frontend,
+        encoding: "utf8",
+        env: { ...process.env, [countEnv]: "count" },
+        maxBuffer: 64 * 1024 * 1024,
+      },
+    );
+  } finally {
+    rmSync(configDirectory, { recursive: true, force: true });
+  }
   if (result.error) throw result.error;
 
   const findings = Object.fromEntries(rules.map((rule) => [rule, {}]));

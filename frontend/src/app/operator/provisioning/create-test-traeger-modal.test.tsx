@@ -111,7 +111,10 @@ describe("CreateTestTraegerModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
 
     await waitFor(() => expect(mockCreateTestTraeger).toHaveBeenCalled());
-    expect(screen.getByRole("button", { name: "Anlegen" })).toBeInTheDocument();
+    // The refusal ends the pending state after the rejected request settles.
+    expect(
+      await screen.findByRole("button", { name: "Anlegen" }),
+    ).toBeInTheDocument();
     expect(mockCreateSampleChildren).not.toHaveBeenCalled();
     expect(onCreated).not.toHaveBeenCalled();
   });

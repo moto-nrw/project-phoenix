@@ -98,18 +98,6 @@ func reviewedCompositionReachRule(rule Rule, owners map[string]Owner) bool {
 		reviewedOwnTestRule(rule) || reviewedRootTestRule(rule)
 }
 
-// firstPartyAllowedByReviewedCompositionReach reports whether the single rule
-// that admits this first-party import in the candidate policy lies inside a
-// standing reach of ADR 0053. The import loosening it implies is then the
-// intended effect of that reach, not a separate widening.
-func firstPartyAllowedByReviewedCompositionReach(base, candidate *Policy, scope Scope, source, target Package) bool {
-	if candidate.PolicyEpoch <= base.PolicyEpoch {
-		return false
-	}
-	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
-	return decision.Allowed != nil && len(decision.Overlaps) == 0 && reviewedCompositionReachRule(*decision.Allowed, ownersByID(candidate))
-}
-
 // targetsOwnOwner reports whether every target a rule selects belongs to the
 // source's own owner: through same_owner, or by naming the source owner on
 // both sides.

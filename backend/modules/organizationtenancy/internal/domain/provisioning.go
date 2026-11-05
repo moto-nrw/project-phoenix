@@ -19,6 +19,8 @@ const (
 	AuditActionRestore      = "restore"
 	AuditActionGrant        = "grant"
 	AuditActionMFAReset     = "mfa_reset"
+	AuditActionResend       = "resend"
+	AuditActionRevoke       = "revoke"
 	// The Träger erasure order (#4657); the erasure CLI records "erase"
 	// itself when it deletes the Träger root (migration 1.15.533).
 	AuditActionRecordErasureOrder   = "record_erasure_order"
@@ -39,6 +41,9 @@ const (
 	// AuditResourceSampleChildren is the sample children of a test Träger
 	// (#4658); the resource ID is the Träger.
 	AuditResourceSampleChildren = "sample_children"
+	// AuditResourceTraegerSetting is a setting of a Träger the operator read
+	// or changed (#5748); the resource ID is the Träger.
+	AuditResourceTraegerSetting = "traeger_setting"
 )
 
 // Device vocabulary shared with Device Fleet.

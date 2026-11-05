@@ -3,15 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { BillingPeriod, BillingRun } from "~/lib/traeger-billing-api";
 
-const { api, mockPush } = vi.hoisted(() => ({
+const { api, mockPush, mockReplace, route } = vi.hoisted(() => ({
   api: {
     fetchBillingRuns: vi.fn(),
     fetchBillingPeriods: vi.fn(),
-    fetchHolidayNumberRange: vi.fn(),
-    saveHolidayNumberRange: vi.fn(),
     startBillingRun: vi.fn(),
   },
   mockPush: vi.fn(),
+  mockReplace: vi.fn(),
+  route: { search: "" },
 }));
 
 vi.mock("~/lib/traeger-billing-api", () => api);
@@ -19,7 +19,9 @@ vi.mock("~/lib/traeger-url", () => ({
   traegerPath: (path: string) => path.replace(/^\/traeger/, "") || "/",
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
+  usePathname: () => "/abrechnung",
+  useSearchParams: () => new URLSearchParams(route.search),
 }));
 
 import TraegerAbrechnungPage from "./page";
@@ -57,16 +59,13 @@ describe("TraegerAbrechnungPage", () => {
   beforeEach(() => {
     for (const fn of Object.values(api)) fn.mockReset();
     mockPush.mockReset();
+    mockReplace.mockReset();
+    route.search = "";
     api.fetchBillingRuns.mockResolvedValue([RELEASED]);
     api.fetchBillingPeriods.mockResolvedValue([PERIOD]);
-    api.fetchHolidayNumberRange.mockResolvedValue({
-      service: "holiday",
-      pattern: "FE-{JJJJ}-{NNNN}",
-      example: "FE-2026-0001",
-    });
   });
 
-  it("lists the runs with their invoices and the number range", async () => {
+  it("lists the runs with their invoices", async () => {
     renderPage();
 
     expect(
@@ -74,7 +73,6 @@ describe("TraegerAbrechnungPage", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("2 · 180,00 €")[0]).toBeInTheDocument();
     expect(screen.getAllByText("Freigegeben")[0]).toBeInTheDocument();
-    expect(screen.getByText("FE-2026-0001")).toBeInTheDocument();
   });
 
   it("starts a run for a period and opens it", async () => {
@@ -110,34 +108,66 @@ describe("TraegerAbrechnungPage", () => {
     expect(screen.getByRole("button", { name: /Lauf starten/ })).toBeDisabled();
   });
 
-  it("asks for a pattern before the first release and saves it", async () => {
-    api.fetchHolidayNumberRange.mockResolvedValue({
-      service: "holiday",
-      pattern: "",
-      example: "",
-    });
-    api.saveHolidayNumberRange.mockResolvedValue({
-      service: "holiday",
-      pattern: "R-{NNN}",
-      example: "R-001",
-    });
-    renderPage();
+  describe("filtered to a holiday period (#5688)", () => {
+    const OTHER: BillingRun = {
+      ...RELEASED,
+      id: "11",
+      holidayPeriodId: "6",
+      periodName: "Osterferien 2027",
+      documentCount: 1,
+      totalCents: 5000,
+    };
 
-    expect(
-      await screen.findByText(/Ohne Muster können Sie keinen Lauf freigeben/),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Muster festlegen" }));
-    fireEvent.change(
-      await screen.findByLabelText("Muster der Rechnungsnummer"),
-      { target: { value: "R-{NNN}" } },
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    it("shows only the runs of the period from the address, as a removable filter", async () => {
+      api.fetchBillingRuns.mockResolvedValue([RELEASED, OTHER]);
+      route.search = "ferienzeitraum=6";
+      renderPage();
 
-    await waitFor(() =>
-      expect(api.saveHolidayNumberRange).toHaveBeenCalledWith("R-{NNN}"),
-    );
-    await waitFor(() =>
-      expect(api.fetchHolidayNumberRange).toHaveBeenCalledTimes(2),
-    );
+      // Anker: der Lauf des gefilterten Zeitraums steht in der Liste.
+      expect(
+        (await screen.findAllByText("1 · 50,00 €"))[0],
+      ).toBeInTheDocument();
+      expect(screen.queryAllByText("2 · 180,00 €")).toHaveLength(0);
+      expect(screen.getByText("Abrechnungslauf")).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getAllByRole("button", {
+          name: /Osterferien 2027 entfernen/,
+        })[0]!,
+      );
+      expect(mockReplace).toHaveBeenCalledWith("/abrechnung", {
+        scroll: false,
+      });
+    });
+
+    it("explains how to start the missing run and preselects the period", async () => {
+      api.fetchBillingRuns.mockResolvedValue([OTHER]);
+      api.fetchBillingPeriods.mockResolvedValue([
+        { ...PERIOD, id: "8", name: "Sommerferien 2027" },
+        PERIOD,
+      ]);
+      route.search = "ferienzeitraum=5";
+      renderPage();
+
+      expect(
+        (
+          await screen.findAllByText(
+            "Noch kein Abrechnungslauf für Winterferien 2027.",
+          )
+        )[0],
+      ).toBeInTheDocument();
+      expect(
+        screen.getAllByText(/Starten Sie ihn oben mit „Lauf starten“/)[0],
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /Lauf starten/ }));
+      const buttons = await screen.findAllByRole("button", {
+        name: "Lauf starten",
+      });
+      fireEvent.click(buttons[buttons.length - 1]!);
+      await waitFor(() =>
+        expect(api.startBillingRun).toHaveBeenCalledWith("5"),
+      );
+    });
   });
 });

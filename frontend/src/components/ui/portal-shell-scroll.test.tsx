@@ -85,7 +85,18 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
   const scrollTo = vi.fn();
   const TO_TOP = { top: 0, behavior: "instant" };
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // happy-dom meldet einen Sprungmarkenwechsel per `replaceState` (anders als
+    // der Browser) als verzögertes `hashchange`. Aus einem vorigen Test träfe
+    // es sonst im nächsten ein und beendete dort ein laufendes Nachholen. Ein
+    // eigener Wechsel hängt sich an die offenen Ereignisse an; sein Eintreffen
+    // zeigt, dass alle abgearbeitet sind.
+    const hashChangesDone = new Promise((resolve) => {
+      window.addEventListener("hashchange", resolve, { once: true });
+    });
+    window.history.replaceState(null, "", "/#vor-dem-test");
+    window.history.replaceState(null, "", "/");
+    await hashChangesDone;
     scrollTo.mockClear();
     window.scrollTo = scrollTo;
     setScrollY(0);
@@ -162,6 +173,28 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
 
     await waitFor(() => {
       expect(scrollTo).toHaveBeenCalledWith({ top: 1483, behavior: "instant" });
+    });
+  });
+
+  it("merkt den sichtbaren Stand, wenn das Scroll-Ereignis noch aussteht", async () => {
+    const view = renderShellAt("/activities");
+    // Programmgesteuertes Scrollen kann die Position schon setzen, bevor das
+    // zugehörige Ereignis in der Warteschlange abgearbeitet wird.
+    setScrollY(40);
+    act(() => {
+      document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    commitRoute(view, "/rooms");
+    scrollTo.mockClear();
+
+    window.history.replaceState(null, "", "/activities");
+    setScrollY(0);
+    firePopState();
+    setRoute("/activities");
+    view.rerender(shell());
+
+    await waitFor(() => {
+      expect(scrollTo).toHaveBeenCalledWith({ top: 40, behavior: "instant" });
     });
   });
 

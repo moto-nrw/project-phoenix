@@ -15,8 +15,10 @@ func TestDemoSchoolSlugIsAValidSchoolSlug(t *testing.T) {
 		"  Grundschule Süd / Köln-Weiß  ":                       "grundschule-sued-koeln-weiss-k3m9xp",
 		"OGS »Am Mühlenbach« (Träger AWO)":                      "ogs-am-muehlenbach-traeger-awo-k3m9xp",
 		"Offene Ganztagsschule an der Gemeinschaftsgrundschule": "offene-ganztagsschule-an-der-g-k3m9xp",
-		"学校":  "ogs-k3m9xp",
-		"---": "ogs-k3m9xp",
+		"École Saint-Étienne":                                   "ecole-saint-etienne-k3m9xp",
+		"OGS Łódź":                                              "ogs-lodz-k3m9xp",
+		"学校":                                                    "ogs-k3m9xp",
+		"---":                                                   "ogs-k3m9xp",
 	} {
 		slug := organizationtenancy.DemoSchoolSlug(name, "k3m9xp")
 		assert.Equal(t, want, slug, name)

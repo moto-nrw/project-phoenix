@@ -34,6 +34,7 @@ import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { groupsConcept } from "~/lib/concepts/groups";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "DatabaseGroupsPage" });
 
@@ -150,12 +151,12 @@ function GroupsPageContent() {
     const groups = groupsData ?? [];
     let arr = [...groups];
     if (searchTerm) {
-      const q = searchTerm.toLowerCase();
+      const q = foldForSearch(searchTerm);
       arr = arr.filter(
         (g) =>
-          g.name.toLowerCase().includes(q) ||
-          (g.room_name?.toLowerCase().includes(q) ?? false) ||
-          (g.representative_name?.toLowerCase().includes(q) ?? false),
+          foldForSearch(g.name).includes(q) ||
+          foldForSearch(g.room_name).includes(q) ||
+          foldForSearch(g.representative_name).includes(q),
       );
     }
     if (roomFilter !== "all") {

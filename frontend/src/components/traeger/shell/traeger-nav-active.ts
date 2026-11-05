@@ -6,6 +6,17 @@
  * Schreibweisen markieren dasselbe Ziel. Gleiches Problem und gleiche Lösung
  * wie `school/shell/school-nav-active.ts`.
  */
+const TRAEGER_SETTINGS_HOME = "/traeger/einstellungen";
+const TRAEGER_SETTINGS_HOME_ON_HOST = "/einstellungen";
+
+/** Ob die Adresse im Einstellungsbereich liegt, mit oder ohne /traeger (#5685). */
+export function isTraegerSettingsPath(pathname: string): boolean {
+  return (
+    matchesPath(TRAEGER_SETTINGS_HOME, pathname) ||
+    matchesPath(TRAEGER_SETTINGS_HOME_ON_HOST, pathname)
+  );
+}
+
 export function isTraegerNavActive(href: string, pathname: string): boolean {
   if (href === "/traeger") {
     // „Schulen" ist die Startseite; ihre Unterseiten liegen unter /schulen.
@@ -14,6 +25,14 @@ export function isTraegerNavActive(href: string, pathname: string): boolean {
       pathname === "/" ||
       matchesPath("/schulen", pathname) ||
       matchesPath("/traeger/schulen", pathname)
+    );
+  }
+  if (href === TRAEGER_SETTINGS_HOME) {
+    // „Allgemein" ist die Startseite der Einstellungen; deren Unterseiten sind
+    // eigene Einträge.
+    return (
+      pathname === TRAEGER_SETTINGS_HOME ||
+      pathname === TRAEGER_SETTINGS_HOME_ON_HOST
     );
   }
   if (matchesPath(href, pathname)) return true;

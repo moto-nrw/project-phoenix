@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 const DefaultSeedStatePath = ".seed-state.json"
@@ -602,8 +604,7 @@ func CloneEnrollmentState(src SeedEnrollmentState) SeedEnrollmentState {
 }
 
 func SemanticKey(value string) string {
-	replacer := strings.NewReplacer("ä", "ae", "ö", "oe", "ü", "ue", "ß", "ss", "Ä", "ae", "Ö", "oe", "Ü", "ue")
-	value = strings.ToLower(replacer.Replace(strings.TrimSpace(value)))
+	value = strings.ToLower(textnorm.ASCII(strings.TrimSpace(value)))
 	var out strings.Builder
 	dash := false
 	for _, r := range value {

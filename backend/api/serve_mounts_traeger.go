@@ -106,7 +106,7 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
 	traegerSettings := settingsHTTP.NewTraegerSettingsResource(settings, identityaccess.TraegerRightOverviewRead,
 		identityaccess.TraegerRightSettingsManage, identityaccess.TraegerRightStaffManage, identityaccess.TraegerRightBillingManage)
-	masterData := organizationTenancyTraeger.NewMasterDataResource(organizationTenancyCompose.NewTraegerMasterData(),
+	masterData := organizationTenancyTraeger.NewMasterDataResource(organizationTenancyCompose.NewTraegerMasterData(), organizationTenancyCompose.NewTraegerDocumentTemplates(),
 		common.RequiresPermission(identityaccess.TraegerRightOverviewRead), common.RequiresPermission(identityaccess.TraegerRightSettingsManage))
 	overviewRoutes := traegerViewHTTP.NewResource(overview)
 	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity),

@@ -452,10 +452,78 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 		assert.False(t, sawOther, "search must exclude guardians that don't match the token")
 	})
 
+	t.Run("ignores accents on both sides (#4949)", func(t *testing.T) {
+		suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+		match := seedNamedGuardian(t, db, ctx, repo, "Zoë"+suffix, "Özdemir"+suffix)
+
+		results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, "zoe"+suffix+" ozdemir"+suffix, 50)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, match.ID, results[0].ID)
+	})
+
 	t.Run("whitespace-only query returns an empty result without error", func(t *testing.T) {
 		results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, "   ", 50)
 		require.NoError(t, err)
 		assert.Empty(t, results, "a query with no real tokens must not match anything")
+	})
+
+	for _, tc := range []struct {
+		name  string
+		query string
+	}{
+		{name: "fullwidth percent signs are not wildcards", query: "％％％"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := testpkg.OwnCtx(t)
+			seedNamedGuardian(t, db, ctx, repo, "Andrea", "Bauer")
+
+			results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, tc.query, 50)
+			require.NoError(t, err)
+			assert.Empty(t, results, "normalization must not bypass the picker search guards")
+		})
+	}
+
+	// The three-character floor belongs to the guardian picker, not to this
+	// shared search: the calendar's parent recipients search short names too
+	// (#4949).
+	t.Run("a two-character search still finds names", func(t *testing.T) {
+		ctx := testpkg.OwnCtx(t)
+		match := seedNamedGuardian(t, db, ctx, repo, "Lia", "Bauer")
+
+		results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, "Li", 50)
+		require.NoError(t, err)
+		ids := make([]int64, 0, len(results))
+		for _, result := range results {
+			ids = append(ids, result.ID)
+		}
+		assert.Contains(t, ids, match.ID)
+	})
+
+	// A token that unaccent removes entirely matches nothing, so marks alone
+	// never widen a search to every guardian (#4949).
+	t.Run("a token unaccent removes matches nothing", func(t *testing.T) {
+		ctx := testpkg.OwnCtx(t)
+		seedNamedGuardian(t, db, ctx, repo, "Andrea", "Bauer")
+
+		for _, query := range []string{"\u20dd\u20dd\u20dd", "\u0301\u0301\u0301"} {
+			results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, query, 50)
+			require.NoError(t, err)
+			assert.Empty(t, results, "query %q must not match every guardian", query)
+		}
+	})
+
+	t.Run("normalized LIKE metacharacters match literally", func(t *testing.T) {
+		ctx := testpkg.OwnCtx(t)
+		match := seedNamedGuardian(t, db, ctx, repo, "Literal", "Bauer")
+		match.FirstName = `Literal%_\Name`
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.Update, match))
+		seedNamedGuardian(t, db, ctx, repo, "Andrea", "Bauer")
+
+		results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, "％＿＼", 50)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, match.ID, results[0].ID)
 	})
 
 	t.Run("a non-positive limit falls back to a default and still returns matches", func(t *testing.T) {

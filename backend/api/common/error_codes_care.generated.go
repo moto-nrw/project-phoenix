@@ -70,6 +70,7 @@ const CodeCarePickupPersonNotLinked = "care.pickup_person_not_linked"
 const CodeCarePickupProofNotFound = "care.pickup_proof_not_found"
 const CodeCarePickupSignatureInvalid = "care.pickup_signature_invalid"
 const CodeCarePickupSignatureRequired = "care.pickup_signature_required"
+const CodeCarePickupSignatureTooLarge = "care.pickup_signature_too_large"
 const CodeCarePollClosed = "care.poll_closed"
 const CodeCarePrimaryGuardianProtected = "care.primary_guardian_protected"
 const CodeCareRemoveDisabled = "care.remove_disabled"
@@ -149,6 +150,7 @@ var errorCodeClassesCare = []errorCodeClass{
 	{CodeCarePickupProofNotFound, "business_rejection"},
 	{CodeCarePickupSignatureInvalid, "input"},
 	{CodeCarePickupSignatureRequired, "input"},
+	{CodeCarePickupSignatureTooLarge, "input"},
 	{CodeCarePollClosed, "business_rejection"},
 	{CodeCarePrimaryGuardianProtected, "permission"},
 	{CodeCareRemoveDisabled, "permission"},

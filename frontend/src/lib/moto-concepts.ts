@@ -78,6 +78,7 @@ import { birthdaysConcept } from "~/lib/concepts/birthdays";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { requestsConcept } from "~/lib/concepts/requests";
 import { documentsConcept } from "~/lib/concepts/documents";
+import { documentTemplatesConcept } from "~/lib/concepts/documentTemplates";
 import { filesConcept } from "~/lib/concepts/files";
 import { rfidConcept } from "~/lib/concepts/rfid";
 import { helpConcept } from "~/lib/concepts/help";
@@ -85,6 +86,7 @@ import { settingsConcept } from "~/lib/concepts/settings";
 import { notificationsConcept } from "~/lib/concepts/notifications";
 import { languageConcept } from "~/lib/concepts/language";
 import { logoutConcept } from "~/lib/concepts/logout";
+import { backConcept } from "~/lib/concepts/back";
 import { moreConcept } from "~/lib/concepts/more";
 import type { MotoConceptDefinition } from "~/lib/concepts/define";
 
@@ -161,6 +163,7 @@ const registry = {
   changeHistory: changeHistoryConcept,
   requests: requestsConcept,
   documents: documentsConcept,
+  documentTemplates: documentTemplatesConcept,
   files: filesConcept,
   rfid: rfidConcept,
   help: helpConcept,
@@ -168,6 +171,7 @@ const registry = {
   notifications: notificationsConcept,
   language: languageConcept,
   logout: logoutConcept,
+  back: backConcept,
   more: moreConcept,
 } as const;
 

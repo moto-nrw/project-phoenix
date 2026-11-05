@@ -38,6 +38,7 @@ import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { activitiesConcept } from "~/lib/concepts/activities";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "ActivitiesPage" });
 
@@ -165,15 +166,14 @@ function ActivitiesPageContent() {
 
     // Apply search filter
     if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
+      const searchLower = foldForSearch(searchTerm);
       filtered = filtered.filter(
         (activity) =>
-          activity.name.toLowerCase().includes(searchLower) ||
-          formatSupervisorList(activity.supervisors)
-            .toLowerCase()
-            .includes(searchLower) ||
-          (activity.category_name?.toLowerCase().includes(searchLower) ??
-            false),
+          foldForSearch(activity.name).includes(searchLower) ||
+          foldForSearch(formatSupervisorList(activity.supervisors)).includes(
+            searchLower,
+          ) ||
+          foldForSearch(activity.category_name).includes(searchLower),
       );
     }
 

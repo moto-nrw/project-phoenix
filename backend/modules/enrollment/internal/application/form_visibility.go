@@ -11,6 +11,7 @@ import (
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // The server-side counterpart of the frontend visibility evaluator
@@ -257,7 +258,7 @@ func matchChildrenByID(existing []*RequestChild, submitted []SubmitChild, matche
 }
 
 func requestChildIdentityKey(firstName, lastName, dateOfBirth string) string {
-	return lowerTrim(firstName) + "\x00" + lowerTrim(lastName) + "\x00" + strings.TrimSpace(dateOfBirth)
+	return strings.ToLower(textnorm.Name(firstName)) + "\x00" + strings.ToLower(textnorm.Name(lastName)) + "\x00" + strings.TrimSpace(dateOfBirth)
 }
 
 // sameSubmittedIdentity reports whether an edited child still names the same

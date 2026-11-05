@@ -14,6 +14,7 @@ import { createLogger } from "~/lib/logger";
 import { fetchStudents } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
 import { cn } from "~/lib/utils";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "StudentChoiceList" });
 
@@ -125,12 +126,10 @@ export function matchStudentChoices(
   selectedId: string | null,
   unavailableIds: ReadonlySet<string> = new Set(),
 ): StudentChoiceMatch {
-  const term = search.trim().toLocaleLowerCase("de");
+  const term = foldForSearch(search.trim());
   const choices = load.kind === "loaded" ? load.choices : [];
   const visible = term
-    ? choices.filter((child) =>
-        child.name.toLocaleLowerCase("de").includes(term),
-      )
+    ? choices.filter((child) => foldForSearch(child.name).includes(term))
     : choices;
   const selectable = visible.filter((child) => !unavailableIds.has(child.id));
   // Derived against the visible list so a selection the filter hides, or a

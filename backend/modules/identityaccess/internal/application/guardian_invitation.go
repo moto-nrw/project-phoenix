@@ -11,6 +11,8 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // The guardian invitation lifecycle (#2722): issuing the link for a guardian
@@ -168,8 +170,8 @@ func (l *AccountLifecycle) ValidateGuardianInvitation(ctx context.Context, token
 		}
 		result = identityaccess.GuardianInvitationPreview{
 			Email:     strings.TrimSpace(profile.Email),
-			FirstName: strings.TrimSpace(profile.FirstName),
-			LastName:  strings.TrimSpace(profile.LastName),
+			FirstName: textnorm.Name(profile.FirstName),
+			LastName:  textnorm.Name(profile.LastName),
 			ExpiresAt: invitation.ExpiresAt,
 		}
 		l.applySchoolBranding(schoolCtx, invitation.TenantID, &result)

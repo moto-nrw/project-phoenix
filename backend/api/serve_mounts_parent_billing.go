@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -56,7 +57,8 @@ func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntim
 	registrations := parentBillingBillingRegistrations{
 		periods: enrollmentCompose.NewHolidayPeriods(), review: enrollmentCompose.NewHolidayRegistrationReview(healthData),
 	}
-	letterheads := parentBillingLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(), settings: settings}
+	letterheads := parentBillingLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(),
+		templates: organizationTenancyCompose.NewTraegerDocumentTemplates(), settings: settings}
 	return parentBillingHTTP.NewBillingRunResource(parentBillingCompose.NewBillingRuns(registrations, parentBillingSettings{settings: settings}),
 		parentBillingCompose.NewBillingLetters(letterheads),
 		parentBillingCompose.NewBillingLetterMail(parentBillingLetterPost{settings: settings, delivery: delivery}),
@@ -196,10 +198,13 @@ func (s parentBillingSettings) HolidayChain(ctx context.Context, organizationID 
 
 // parentBillingLetterheads binds the letterhead of the letters to the
 // master data of Organisation & Tenancy, which logs the read of the
-// contact person and the bank accounts, and to the branding settings and
-// the payment text of the Träger (ADR 0112, ADR 0121, #5622).
+// contact person and the bank accounts, to the branding settings and the
+// payment text of the Träger (ADR 0112, ADR 0121, #5622), and the template
+// of the confirmation letter to the document templates of the Träger
+// (#4677, ADR 0152).
 type parentBillingLetterheads struct {
 	masterData organizationtenancy.TraegerMasterData
+	templates  organizationtenancy.TraegerDocumentTemplates
 	settings   TraegerBrandingSettings
 }
 
@@ -220,6 +225,15 @@ func (b parentBillingLetterheads) Letterhead(ctx context.Context, reviewer paren
 		FooterText: texts[configModels.KeyBrandingFooterText], ContactName: profile.Contact.Name,
 		ContactPhone: profile.Contact.Phone, ContactEmail: profile.Contact.Email,
 		PaymentText: texts[configModels.KeyParentBillingPaymentText],
+	}
+	template, err := b.templates.Current(ctx, reviewer.OrganizationID, templates.KindConfirmation)
+	if err != nil {
+		return parentbilling.Letterhead{}, err
+	}
+	head.Template = parentbilling.LetterTemplate{
+		Version: template.Version, Subject: template.Subject, Salutation: template.Salutation,
+		Body: template.Body, Closing: template.Closing,
+		GroupByChild: template.Invoice.GroupByChild, HideTimeModels: template.Invoice.HideTimeModels,
 	}
 	for _, account := range profile.BankAccounts {
 		if account.IsDefault {

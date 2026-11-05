@@ -268,6 +268,7 @@ func compositionLoosenings(base, candidate *Policy, deletedSymbols map[string]st
 func importLoosenings(base, candidate *Policy) []string {
 	basePackages := base.packageMap()
 	candidatePackages := candidate.packageMap()
+	baseExternal, candidateExternal := base.externalPackageMap(), candidate.externalPackageMap()
 	basePermissions := newPolicyPermissionMemo(base)
 	candidatePermissions := newPolicyPermissionMemo(candidate)
 	var problems []string
@@ -276,8 +277,8 @@ func importLoosenings(base, candidate *Policy) []string {
 		if !sourceExists {
 			continue
 		}
-		problems = append(problems, firstPartyImportLoosenings(basePermissions, candidatePermissions, sourcePath, baseSource, source, basePackages, candidatePackages)...)
-		problems = append(problems, externalImportLoosenings(basePermissions, candidatePermissions, sourcePath, baseSource, source)...)
+		problems = append(problems, firstPartyImportLoosenings(basePermissions, candidatePermissions, sourcePath, baseSource, source, basePackages)...)
+		problems = append(problems, externalImportLoosenings(basePermissions, candidatePermissions, sourcePath, baseSource, source, baseExternal, candidateExternal)...)
 	}
 	return uniqueStrings(problems)
 }
@@ -296,7 +297,7 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 		if candidate.PolicyEpoch > base.PolicyEpoch &&
 			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) || reviewedSharedKernelRule(rule) || reviewedParentHTTPRule(rule) ||
 				reviewedCompositionReachRule(rule, candidateOwners) || reviewedHTTPHostRule(rule) || reviewedInternalReachRule(rule, base, candidateOwners) || reviewedProjectionPublicRule(rule, candidateOwners) || reviewedOwnerHTTPRule(rule, base, candidate) ||
-				reviewedSameOwnerContractRule(rule) || reviewedDemoUploadsRule(rule)) {
+				reviewedSameOwnerContractRule(rule) || reviewedDemoUploadsRule(rule) || reviewedDocumentTemplatesRule(rule)) {
 			continue
 		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
@@ -437,22 +438,6 @@ func reviewedOwnerSuiteRule(rule Rule) bool {
 	return false
 }
 
-// firstPartyAllowedByReviewedFixtureRule reports whether the single rule that
-// admits this first-party import in the candidate policy is a reviewed
-// shared-fixture rule (ADR 0039, ADR 0047) or a pinned owner-suite rule
-// (ADR 0047). The import loosening it implies is then the intended effect of
-// that rule, not a separate widening.
-func firstPartyAllowedByReviewedFixtureRule(base, candidate *Policy, scope Scope, source, target Package) bool {
-	if candidate.PolicyEpoch <= base.PolicyEpoch {
-		return false
-	}
-	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
-	if decision.Allowed == nil || len(decision.Overlaps) != 0 {
-		return false
-	}
-	return reviewedSharedFixtureRule(*decision.Allowed) || reviewedOwnerSuiteRule(*decision.Allowed)
-}
-
 // reviewedSharedKernelRule reports whether a rule has the one owner-agnostic
 // shape a reviewed policy epoch may add for the shared kernel without an
 // anchor to a candidate-created package (ADR 0040, #3447, #3448): every owner
@@ -476,18 +461,6 @@ func reviewedSharedKernelRule(rule Rule) bool {
 		}
 	}
 	return true
-}
-
-// firstPartyAllowedByReviewedSharedKernelRule reports whether the single rule
-// that admits this first-party import in the candidate policy is the reviewed
-// shared-kernel rule (ADR 0040). The import loosening it implies is then the
-// intended effect of that rule, not a separate widening.
-func firstPartyAllowedByReviewedSharedKernelRule(base, candidate *Policy, scope Scope, source, target Package) bool {
-	if candidate.PolicyEpoch <= base.PolicyEpoch {
-		return false
-	}
-	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
-	return decision.Allowed != nil && len(decision.Overlaps) == 0 && reviewedSharedKernelRule(*decision.Allowed)
 }
 
 func candidateOnlyRolePoints(candidate *Policy, createdPackages map[string]struct{}) map[string]struct{} {
@@ -672,25 +645,18 @@ func sortedAllowedRoles() []string {
 	return roles
 }
 
-func firstPartyImportLoosenings(basePermissions, candidatePermissions *policyPermissionMemo, sourcePath string, baseSource, source Package, basePackages, candidatePackages map[string]Package) []string {
+func firstPartyImportLoosenings(basePermissions, candidatePermissions *policyPermissionMemo, sourcePath string, baseSource, source Package, basePackages map[string]Package) []string {
 	base, candidate := basePermissions.policy, candidatePermissions.policy
 	var problems []string
-	for targetPath, target := range candidatePackages {
-		baseTarget, exists := basePackages[targetPath]
-		if !exists {
-			continue
-		}
-		for _, scope := range allScopes() {
-			if candidatePermissions.allowsFirstParty(scope, source, target) && !basePermissions.allowsFirstParty(scope, baseSource, baseTarget) &&
-				!firstPartyAllowedByReviewedFixtureRule(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedSharedKernelRule(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedParentHTTPRule(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedCompositionReach(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedInternalReach(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedProjectionPublicRule(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedSameOwnerContractRule(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedOwnerHTTPRule(base, candidate, scope, source, target) &&
-				!firstPartyAllowedByReviewedDemoUploadsRule(base, candidate, scope, source, target) {
+	for _, scope := range allScopes() {
+		for targetPath, target := range candidatePermissions.firstPartyTargets(scope, source) {
+			baseTarget, exists := basePackages[targetPath]
+			if !exists {
+				continue
+			}
+			if rule := candidatePermissions.firstPartyRule(scope, source, target); rule != nil &&
+				!basePermissions.allowsFirstParty(scope, baseSource, baseTarget) &&
+				!firstPartyAllowedByReviewedRule(base, candidate, *rule) {
 				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())
 			}
 		}
@@ -698,11 +664,10 @@ func firstPartyImportLoosenings(basePermissions, candidatePermissions *policyPer
 	return problems
 }
 
-func externalImportLoosenings(basePermissions, candidatePermissions *policyPermissionMemo, sourcePath string, baseSource, source Package) []string {
+func externalImportLoosenings(basePermissions, candidatePermissions *policyPermissionMemo, sourcePath string, baseSource, source Package, baseExternal, candidateExternal map[string]ExternalPackage) []string {
 	base, candidate := basePermissions.policy, candidatePermissions.policy
-	baseExternal := base.externalPackageMap()
 	var problems []string
-	for targetPath, target := range candidate.externalPackageMap() {
+	for targetPath, target := range candidateExternal {
 		baseTarget, exists := baseExternal[targetPath]
 		if !exists {
 			continue
@@ -792,4 +757,24 @@ func uniqueStrings(values []string) []string {
 		result = append(result, value)
 	}
 	return result
+}
+
+// firstPartyAllowedByReviewedRule receives the unique allowing rule, already
+// checked for overlaps. Every reviewed shape keeps its original epoch gate;
+// none of these checks needs to rescan the policy's import rules.
+func firstPartyAllowedByReviewedRule(base, candidate *Policy, rule Rule) bool {
+	if candidate.PolicyEpoch <= base.PolicyEpoch {
+		return false
+	}
+	if reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) ||
+		reviewedSharedKernelRule(rule) || reviewedParentHTTPRule(rule) ||
+		reviewedSameOwnerContractRule(rule) || reviewedDemoUploadsRule(rule) ||
+		reviewedDocumentTemplatesRule(rule) {
+		return true
+	}
+	owners := ownersByID(candidate)
+	return reviewedCompositionReachRule(rule, owners) ||
+		reviewedInternalReachRule(rule, base, owners) ||
+		reviewedProjectionPublicRule(rule, owners) ||
+		reviewedOwnerHTTPRule(rule, base, candidate)
 }

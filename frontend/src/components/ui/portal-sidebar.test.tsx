@@ -1,7 +1,12 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PortalSidebar } from "./portal-sidebar";
+import { settingsConcept } from "~/lib/concepts/settings";
+import {
+  PortalSidebar,
+  PortalSidebarGroup,
+  PortalSidebarLink,
+} from "./portal-sidebar";
 
 /** Stellt ein, wo die Leiste im Fenster beginnt, wie es der Browser misst. */
 function placeSidebarAt(top: number) {
@@ -89,5 +94,29 @@ describe("PortalSidebar (#5680)", () => {
     renderSidebar();
 
     expect(screen.getByRole("complementary")).not.toHaveClass("min-h-screen");
+  });
+
+  it("names a group for screen readers and leaves out an empty lower block (#5685)", () => {
+    render(
+      <PortalSidebar navLabel="Einstellungen">
+        <PortalSidebarGroup label="Bereich">
+          <PortalSidebarLink
+            href="/a"
+            label="Ziel"
+            concept={settingsConcept}
+            active={false}
+          />
+        </PortalSidebarGroup>
+      </PortalSidebar>,
+    );
+
+    const nav = screen.getByRole("navigation", { name: "Einstellungen" });
+    expect(
+      within(within(nav).getByRole("list", { name: "Bereich" })).getByRole(
+        "link",
+        { name: "Ziel" },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("navigation")).toHaveLength(1);
   });
 });

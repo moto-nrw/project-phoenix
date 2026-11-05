@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.document_templates",
+  "max": 2,
+  "exact": true,
+  "description": "modules/organizationtenancy — GET /traeger/master-data/document-templates\n(#4677): the Träger binding of the Träger transaction, then the newest\nversion of every kind in one statement. Flat in the number of versions."
+}

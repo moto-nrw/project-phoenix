@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -62,10 +63,11 @@ func nullableDate(value string) any {
 	return value
 }
 
-// optionalClock binds a wall clock to a PostgreSQL TIME column. time.Parse
-// anchors the clock at UTC, so the driver's UTC conversion cannot move it to
-// another hour the way a zoned instant would. A malformed value is an error,
-// never a silently unset start time.
+// optionalClock binds a wall clock to a PostgreSQL TIME column. The clock is
+// normalized to 0001-01-01 UTC: PostgreSQL rejects the year-0 anchor
+// time.Parse produces, and the UTC location keeps the driver's conversion from
+// moving the hour. A malformed value is an error, never a silently unset start
+// time.
 func optionalClock(value string) (*time.Time, error) {
 	if value == "" {
 		return nil, nil
@@ -74,7 +76,8 @@ func optionalClock(value string) (*time.Time, error) {
 	if err != nil {
 		return nil, fmt.Errorf("workforce postgres: start time %q is not a %s wall clock: %w", value, domain.ClockLayout, err)
 	}
-	return &parsed, nil
+	normalized := calendar.NormalizeWallClock(parsed)
+	return &normalized, nil
 }
 
 // clockString reads the time-of-day components only, discarding whatever date

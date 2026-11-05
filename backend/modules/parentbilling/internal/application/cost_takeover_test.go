@@ -66,7 +66,7 @@ func TestLetterOfACostTakeoverNamesTheCostBearer(t *testing.T) {
 		{Label: "Lina: Kosten übernimmt: Fachdienst Jugend des Landkreises Musterstadt", Value: "-50,00 €"},
 		{Label: "Gesamtbetrag", Value: "0,00 €", Bold: true},
 	}, letter.Blocks[1].Facts)
-	assert.Equal(t, LetterBlock{Text: "Sie müssen nichts bezahlen. Die Kosten übernimmt: Fachdienst Jugend des Landkreises Musterstadt."},
+	assert.Equal(t, LetterBlock{Text: "Sie müssen nichts bezahlen. Die Kosten übernimmt: Fachdienst Jugend des Landkreises Musterstadt.", Bold: true},
 		letter.Blocks[2], "an invoice of 0 € names the cost bearer instead of the payment text")
 	for _, fact := range letter.Facts {
 		assert.NotEqual(t, "Zahlen bis", fact.Label)

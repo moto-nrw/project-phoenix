@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"slices"
 	"sort"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // teamCourseQueue is every open request with the facts the rank rule reads:
@@ -568,7 +568,7 @@ func (q *teamCourseQueue) waitlists(
 		})
 	}
 	sort.SliceStable(result, func(i, j int) bool {
-		return strings.ToLower(result[i].Name) < strings.ToLower(result[j].Name)
+		return collation.CompareGerman(result[i].Name, result[j].Name) < 0
 	})
 	return result
 }

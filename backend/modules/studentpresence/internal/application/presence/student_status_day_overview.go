@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 type StatusDayOverviewPeople interface {
@@ -128,7 +129,7 @@ func studentEnrollmentWindow(id int64, student *StudentRecord, today calendar.Da
 }
 
 func filterOverviewStudentIDs(ids []int64, students map[int64]*StudentRecord, persons map[int64]*PersonName, query string) []int64 {
-	needle := strings.ToLower(strings.TrimSpace(query))
+	needle := collation.FoldForSearch(strings.TrimSpace(query))
 	filtered := make([]int64, 0, len(ids))
 	for _, id := range ids {
 		student := students[id]
@@ -142,7 +143,7 @@ func filterOverviewStudentIDs(ids []int64, students map[int64]*StudentRecord, pe
 			}
 			continue
 		}
-		if needle == "" || strings.Contains(strings.ToLower(person.FirstName+" "+person.LastName+" "+student.SchoolClass), needle) {
+		if needle == "" || strings.Contains(collation.FoldForSearch(person.FirstName+" "+person.LastName+" "+student.SchoolClass), needle) {
 			filtered = append(filtered, id)
 		}
 	}

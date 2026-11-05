@@ -19,12 +19,21 @@ type TraegerAccountStore interface {
 	// Träger until the caller's transaction ends, then spends every open
 	// invitation of the address there.
 	RevokeOpenTraegerInvitationsForEmail(ctx context.Context, organizationID int64, email string, at time.Time) (domain.OperationStats, error)
+	// LockTraegerInvitationAddress takes the address lock of the Träger
+	// until the caller's transaction ends (#5749).
+	LockTraegerInvitationAddress(ctx context.Context, organizationID int64, email string) (domain.OperationStats, error)
 	// RevokeTraegerInvitation spends one open invitation of the Träger and
 	// returns it; found is false for an unknown, foreign or spent one.
 	RevokeTraegerInvitation(ctx context.Context, organizationID, id int64, at time.Time) (domain.TraegerInvitation, bool, domain.OperationStats, error)
 	// ListOpenTraegerInvitations returns the open, unexpired invitations of
 	// the Träger, newest first.
 	ListOpenTraegerInvitations(ctx context.Context, organizationID int64, now time.Time) ([]domain.TraegerInvitation, domain.OperationStats, error)
+	// ListUnspentTraegerInvitations returns the invitations of the Träger
+	// that are neither used nor revoked, the expired ones included, newest
+	// first (#5749).
+	ListUnspentTraegerInvitations(ctx context.Context, organizationID int64) ([]domain.TraegerInvitation, domain.OperationStats, error)
+	// FindTraegerInvitation reads one invitation of the Träger by its ID.
+	FindTraegerInvitation(ctx context.Context, organizationID, id int64) (domain.TraegerInvitation, bool, domain.OperationStats, error)
 	// FindTraegerInvitationByToken reads the invitation behind a raw token;
 	// forUpdate locks it until the caller's transaction ends.
 	FindTraegerInvitationByToken(ctx context.Context, token string, forUpdate bool) (domain.TraegerInvitation, bool, domain.OperationStats, error)

@@ -140,3 +140,69 @@ export async function revealOperatorSettingValue(
   );
   return typeof result.value === "string" ? result.value : null;
 }
+
+// --- Träger-Einstellungen im Operator-Dashboard (#5748) ---
+
+const traegerSettingsPath = (organizationId: string) =>
+  `/api/operator/provisioning/organizations/${encodeURIComponent(organizationId)}/traeger-settings`;
+
+const traegerSettingValuePath = (organizationId: string, key: string) =>
+  `${traegerSettingsPath(organizationId)}/values/${encodeURIComponent(key)}`;
+
+/**
+ * The settings of one Träger, as the Träger portal shows them: only settings
+ * with the levels `beide` or `traeger`, each writable for the operator.
+ * Every failure throws, so the tab shows it.
+ */
+export async function fetchOperatorTraegerSettingsSchema(
+  organizationId: string,
+): Promise<SettingsSchema> {
+  const schema = await operatorFetch<SettingsSchema | null>(
+    `${traegerSettingsPath(organizationId)}/schema`,
+    { method: "GET" },
+  );
+  return { tabs: schema?.tabs ?? [] };
+}
+
+/** Sets the Träger value of one setting. Throws the ApiError of a failure. */
+export async function setOperatorTraegerSettingValue(
+  organizationId: string,
+  key: string,
+  value: unknown,
+): Promise<void> {
+  try {
+    await operatorFetch<unknown>(traegerSettingValuePath(organizationId, key), {
+      method: "PUT",
+      body: { value },
+    });
+  } catch (error) {
+    logger.warn("set_operator_traeger_setting_value_failed", {
+      organization_id: organizationId,
+      key,
+      status: error instanceof ApiError ? error.status : undefined,
+    });
+    throw error;
+  }
+}
+
+/**
+ * Removes the Träger value of one setting: the schools fall back to the
+ * default or keep their own value. Throws the ApiError of a failure.
+ */
+export async function resetOperatorTraegerSettingValue(
+  organizationId: string,
+  key: string,
+): Promise<void> {
+  try {
+    await operatorFetch<unknown>(traegerSettingValuePath(organizationId, key), {
+      method: "DELETE",
+    });
+  } catch (error) {
+    logger.warn("reset_operator_traeger_setting_value_failed", {
+      organization_id: organizationId,
+      key,
+      status: error instanceof ApiError ? error.status : undefined,
+    });
+    throw error;
+  }
+}

@@ -41,7 +41,7 @@ describe("OfferingPreviewList", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Kinder fallen weg, wenn sie an diesem Tag in keinem gewählten Angebot angemeldet sind.",
+        "Kinder fallen weg, wenn sie an diesem Tag in keinem gewählten Angebot angemeldet sind. Soll ein Kind trotzdem kommen, ändern Sie seine Angebote in der Anmeldung.",
       ),
     ).toBeInTheDocument();
 
@@ -82,9 +82,42 @@ describe("OfferingPreviewList", () => {
     expect(screen.getByText(/Fällt weg \(2\)/)).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Kinder fallen weg, wenn sie an diesem Tag in keinem gewählten Angebot angemeldet sind.",
+        "Kinder fallen weg, wenn sie an diesem Tag in keinem gewählten Angebot angemeldet sind. Soll ein Kind trotzdem kommen, ändern Sie seine Angebote in der Anmeldung.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  // Schule am Berg connected all offerings and still saw a child drop: it
+  // was booked on Monday only, the Regeltermin runs on Tuesday.
+  it("names why each child drops", () => {
+    render(
+      <OfferingPreviewList
+        preview={{
+          from: "2026-11-10",
+          weekdays: [
+            {
+              weekday: 2,
+              added: [],
+              removed: [
+                { studentId: "1", name: "Matilda W.", bookedWeekdays: [1] },
+                { studentId: "2", name: "Noah G.", bookedWeekdays: [] },
+              ],
+              keptCount: 19,
+            },
+          ],
+          segments: [],
+        }}
+      />,
+    );
+
+    const matilda = screen.getByText("Matilda W.").closest("li");
+    expect(matilda).toHaveTextContent("Matilda W.nur Mo angemeldet");
+    const noah = screen.getByText("Noah G.").closest("li");
+    expect(noah).toHaveTextContent(
+      "Noah G.in keinem gewählten Angebot angemeldet",
+    );
+    expect(screen.getByText("Fällt weg (2)")).toBeInTheDocument();
+    expect(screen.getByText("Bleibt (19)")).toBeInTheDocument();
   });
 });

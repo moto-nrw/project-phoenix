@@ -87,14 +87,6 @@ func reviewedOwnerHTTPRule(rule Rule, base, candidate *Policy) bool {
 	return false
 }
 
-func firstPartyAllowedByReviewedOwnerHTTPRule(base, candidate *Policy, scope Scope, source, target Package) bool {
-	if candidate.PolicyEpoch <= base.PolicyEpoch {
-		return false
-	}
-	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
-	return decision.Allowed != nil && len(decision.Overlaps) == 0 && reviewedOwnerHTTPRule(*decision.Allowed, base, candidate)
-}
-
 // ownerHTTPNativeSuccessor preserves the target of an existing HTTP rule while
 // assigning the handler to its actual owner. The finite domain directions are
 // the approved layering; platform targets remain below every domain.

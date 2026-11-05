@@ -31,6 +31,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // MaxRangeDays caps a single report window (a school year plus a day).
@@ -501,7 +502,7 @@ func buildGroupRows(students []studentpresence.StatisticsStudentRow) []studentpr
 		if (rows[i].GroupID == 0) != (rows[j].GroupID == 0) {
 			return rows[j].GroupID == 0
 		}
-		return sortKey(rows[i].Name) < sortKey(rows[j].Name)
+		return nameLess(rows[i].Name, rows[j].Name)
 	})
 	return rows
 }
@@ -518,13 +519,11 @@ func groupCareDays(students []studentpresence.StatisticsStudentRow, groupID int6
 	return careDays
 }
 
-// sortKey folds case and German umlauts so "Bärengruppe" sorts before
-// "Blumengruppe" (byte order would put every umlaut after z).
-func sortKey(s string) string {
-	return umlautFolder.Replace(strings.ToLower(s))
+// nameLess orders names in German dictionary order, so "Bärengruppe" sorts
+// before "Blumengruppe" and "Échecs" before "Zeichnen" (#4949).
+func nameLess(a, b string) bool {
+	return collation.CompareGerman(a, b) < 0
 }
-
-var umlautFolder = strings.NewReplacer("ä", "a", "ö", "o", "ü", "u", "ß", "ss")
 
 // totalsRowName labels the aggregate row of every section.
 const totalsRowName = "Gesamt"
@@ -585,7 +584,7 @@ func (s *service) roomRows(ctx context.Context, filters studentpresence.Statisti
 		if out[i].DaysUsed != out[j].DaysUsed {
 			return out[i].DaysUsed > out[j].DaysUsed
 		}
-		return sortKey(out[i].Name) < sortKey(out[j].Name)
+		return nameLess(out[i].Name, out[j].Name)
 	})
 	return out, nil
 }

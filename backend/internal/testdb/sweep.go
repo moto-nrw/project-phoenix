@@ -241,19 +241,33 @@ func tableSharedPredicates(ctx context.Context, db sqlExecutor) (map[string]stri
 }
 
 func sharedTableStatesDB(ctx context.Context, db sqlExecutor, predicates map[string]string) (map[string]sharedTableState, error) {
-	// One round trip for ~300 tables instead of ~300: the per-table counts are
-	// pushed into the server as query_to_xml sub-selects. The sweep runs this
-	// once per clone (~160 per suite run), so the difference is minutes.
+	// One round trip for all tables. Materialize the XML once per table:
+	// query_to_xml is volatile, so two xpath expressions otherwise execute
+	// the same count/fingerprint query twice. Both values must share one scan.
+	// A zero-byte heap without inheritance children cannot contain rows. It
+	// needs neither a dynamic query nor XML. This is physical storage size,
+	// not an asynchronous statistics estimate; all other tables are scanned.
+	// Resolve regclass even for empty heaps so missing tables still fail.
 	values, args := sharedCountValues(predicates)
 	if len(args) == 0 {
 		return map[string]sharedTableState{}, nil
 	}
 
 	rows, err := db.QueryContext(ctx, `
-		SELECT v.tbl,
-			(xpath('/row/c/text()', query_to_xml(v.q, false, true, '')))[1]::text::bigint,
-			(xpath('/row/f/text()', query_to_xml(v.q, false, true, '')))[1]::text
-		FROM (VALUES `+values+`) AS v(tbl, q)`, args...)
+		WITH counts AS MATERIALIZED (
+			SELECT v.tbl,
+				CASE WHEN pg_relation_size(v.rel::regclass) = 0
+					AND EXISTS (SELECT 1 FROM pg_class c JOIN pg_am a ON a.oid = c.relam
+						WHERE c.oid = v.rel::regclass AND c.relkind = 'r' AND a.amname = 'heap')
+					AND NOT EXISTS (SELECT 1 FROM pg_inherits WHERE inhparent = v.rel::regclass)
+				THEN NULL::xml
+				ELSE query_to_xml(v.q, false, true, '') END AS state
+			FROM (VALUES `+values+`) AS v(tbl, q, rel)
+		)
+		SELECT tbl,
+			COALESCE((xpath('/row/c/text()', state))[1]::text::bigint, 0),
+			COALESCE((xpath('/row/f/text()', state))[1]::text, md5(''))
+		FROM counts`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("snapshot table rows: %w", err)
 	}
@@ -279,7 +293,7 @@ func sharedCountValues(predicates map[string]string) (string, []any) {
 	sort.Strings(tables)
 
 	var values strings.Builder
-	args := make([]any, 0, 2*len(tables))
+	args := make([]any, 0, 3*len(tables))
 	for i, table := range tables {
 		// table and owner come from pg_catalog of the trusted test server.
 		count := `SELECT count(*) AS c, md5(COALESCE(string_agg(md5(row_to_json(t)::text), ',' ORDER BY md5(row_to_json(t)::text)), '')) AS f FROM ` + quoteQualified(table) + ` AS t`
@@ -289,8 +303,8 @@ func sharedCountValues(predicates map[string]string) (string, []any) {
 		if i > 0 {
 			values.WriteString(",")
 		}
-		fmt.Fprintf(&values, "($%d,$%d)", 2*i+1, 2*i+2)
-		args = append(args, table, count)
+		fmt.Fprintf(&values, "($%d,$%d,$%d)", 3*i+1, 3*i+2, 3*i+3)
+		args = append(args, table, count, quoteQualified(table))
 	}
 	return values.String(), args
 }

@@ -26,6 +26,10 @@ func (p *Provisioning) RecordOperatorRead(ctx context.Context, access organizati
 		resource = domain.AuditResourceTagScan
 	case organizationtenancy.ReadTraegerMembers:
 		resource = domain.AuditResourceTraegerMember
+	case organizationtenancy.ReadTraegerSettings:
+		resource = domain.AuditResourceTraegerSetting
+	case organizationtenancy.ReadTraegerInvitations:
+		resource = domain.AuditResourceTraegerInvitation
 	case organizationtenancy.ReadSchoolPersons, organizationtenancy.ReadOrganizationPersons:
 		resource = domain.AuditResourcePerson
 	case organizationtenancy.ReadAnnouncementViews, organizationtenancy.ReadAnnouncements, organizationtenancy.ReadAnnouncement:
@@ -53,6 +57,9 @@ func (p *Provisioning) RecordOperatorRead(ctx context.Context, access organizati
 	}
 	if resource == domain.AuditResourceSchool && access.SchoolID > 0 {
 		resourceID = &access.SchoolID
+	}
+	if resource == domain.AuditResourceTraegerSetting && access.OrganizationID > 0 {
+		resourceID = &access.OrganizationID
 	}
 	_, err := adminValue(ctx, p, func(adminCtx context.Context) (struct{}, error) {
 		return struct{}{}, p.recordAction(adminCtx, access.OperatorID, domain.AuditActionView, resource, resourceID, access.ClientIP, changes)

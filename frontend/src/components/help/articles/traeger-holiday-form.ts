@@ -35,7 +35,7 @@ export function traegerHolidayFormTopic(): HelpTopic {
       {
         title: "Fragen festlegen",
         steps: [
-          "Wählen Sie in der Navigation `Ferien`.",
+          "Wählen Sie in der Navigation `Ferienbetreuung`.",
           "Öffnen Sie den Ferienzeitraum.",
           "Wählen Sie den Reiter `Formular`.",
           "Wählen Sie `Frage hinzufügen` oder `Infotext hinzufügen`.",

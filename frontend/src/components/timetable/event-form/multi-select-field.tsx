@@ -12,6 +12,7 @@ import {
   timetableNestedSurface,
 } from "../timetable-style";
 import type { PersonOption } from "./form-model";
+import { foldForSearch } from "~/lib/search-fold";
 
 const EMPTY_PROTECTED_VALUES: readonly string[] = [];
 
@@ -46,7 +47,7 @@ export function MultiSelectField({
     () => new Set(protectedValues),
     [protectedValues],
   );
-  const normalizedQuery = query.trim().toLocaleLowerCase("de");
+  const normalizedQuery = foldForSearch(query.trim());
 
   const classOptions = useMemo(
     () =>
@@ -89,11 +90,11 @@ export function MultiSelectField({
       options.filter((option) => {
         const matchesQuery =
           normalizedQuery === "" ||
-          [option.name, option.schoolClass, option.groupName]
-            .filter(Boolean)
-            .join(" ")
-            .toLocaleLowerCase("de")
-            .includes(normalizedQuery);
+          foldForSearch(
+            [option.name, option.schoolClass, option.groupName]
+              .filter(Boolean)
+              .join(" "),
+          ).includes(normalizedQuery);
         const matchesClass =
           classFilter === "all" || option.schoolClass?.trim() === classFilter;
         const matchesGrade =

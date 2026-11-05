@@ -430,7 +430,8 @@ const maxSearchTokens = 10
 // a full-name query like "Andrea Bauer" work even though "Andrea" lives in
 // first_name and "Bauer" in last_name — a single full-string LIKE would match
 // neither column and return nothing. Token order is irrelevant, so "Bauer
-// Andrea" matches the same person.
+// Andrea" matches the same person. Names match without accents, so "ozdem"
+// finds "Özdemir" (#4949).
 //
 // LIKE metacharacters in each token are escaped (see escapeLikePattern) so they
 // match literally — the picker's enumeration guard relies on a real minimum
@@ -464,9 +465,14 @@ func (r *guardianProfileRepository) SearchByText(ctx context.Context, searchText
 	// isolated so the groups combine as (t1col OR …) AND (t2col OR …).
 	for _, tok := range tokens {
 		pattern := "%" + escapeLikePattern(tok) + "%"
+		// Escape AFTER unaccent, which can turn fullwidth punctuation into LIKE
+		// metacharacters. Keep email matching on its original, unnormalized token.
+		namePattern := bun.SafeQuery(`'%' || replace(replace(replace(public.f_unaccent(?), '\', '\\'), '%', '\%'), '_', '\_') || '%'`, tok)
+		// A token unaccent removes entirely (accent or enclosing marks alone)
+		// matches nothing instead of widening to every guardian.
 		query = query.Where(
-			`(LOWER("guardian_profile".first_name) LIKE ? ESCAPE '\' OR LOWER("guardian_profile".last_name) LIKE ? ESCAPE '\' OR LOWER("guardian_profile".email) LIKE ? ESCAPE '\')`,
-			pattern, pattern, pattern,
+			`btrim(public.f_unaccent(?)) <> '' AND (public.f_unaccent("guardian_profile".first_name) ILIKE ? ESCAPE '\' OR public.f_unaccent("guardian_profile".last_name) ILIKE ? ESCAPE '\' OR LOWER("guardian_profile".email) LIKE ? ESCAPE '\')`,
+			tok, namePattern, namePattern, pattern,
 		)
 	}
 

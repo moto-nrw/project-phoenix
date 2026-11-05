@@ -9,6 +9,8 @@ import (
 	"net/mail"
 	"net/url"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 )
 
 // VAPIDConfig carries the Voluntary Application Server Identification keys
@@ -112,8 +114,7 @@ func validateVAPIDSubscriber(value string) error {
 	return nil
 }
 
-// webPushSubscriber adapts the RFC contact URI to webpush-go, which adds the
-// mailto scheme itself unless the value starts with https.
+// webPushSubscriber adapts the RFC contact URI to webpush-go.
 func (c VAPIDConfig) webPushSubscriber() string {
-	return strings.TrimPrefix(c.Subscriber, "mailto:")
+	return contract.WebPushProviderSubscriber(c.Subscriber)
 }

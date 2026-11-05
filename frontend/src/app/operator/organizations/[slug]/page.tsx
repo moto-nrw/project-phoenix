@@ -56,8 +56,9 @@ import { AssignTraegerMemberModal } from "~/app/operator/provisioning/assign-tra
 import { InviteTraegerAccountModal } from "~/components/traeger/traeger-account-modals";
 import { TraegerErasureOrderSection } from "./traeger-erasure-order-section";
 import { TestTraegerSection } from "./test-traeger-section";
+import { TraegerSettingsSection } from "./traeger-settings-section";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { traegerMemberColumns } from "./traeger-member-columns";
+import { TraegerBueroTable } from "./traeger-buero-table";
 import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-modal";
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import {
@@ -84,6 +85,7 @@ const TAB_ITEMS = [
   { id: "geraete", label: "Geräte" },
   { id: "personen", label: "Personen" },
   { id: "traeger-buero", label: "Träger-Büro" },
+  { id: "einstellungen", label: "Einstellungen" },
   { id: "loeschauftrag", label: "Löschauftrag" },
 ] as const;
 
@@ -324,6 +326,34 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const {
+    data: traegerInvitations,
+    error: traegerInvitationsError,
+    isLoading: traegerInvitationsLoading,
+    mutate: mutateTraegerInvitations,
+  } = useSWRAuth(
+    traegerMembersActive
+      ? operatorProvisioningKeys.orgTraegerInvitations(organization?.id)
+      : null,
+    () =>
+      operatorProvisioningService.listTraegerInvitations(
+        organization?.id ?? "",
+      ),
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
+  );
+  const reloadTraegerBuero = useCallback(
+    () => Promise.all([mutateTraegerMembers(), mutateTraegerInvitations()]),
+    [mutateTraegerMembers, mutateTraegerInvitations],
+  );
+  const traegerBueroError = traegerMembersError ?? traegerInvitationsError;
+  const traegerBueroLoading =
+    traegerMembersLoading || traegerInvitationsLoading;
+  const traegerBueroEmpty =
+    traegerMembers?.length === 0 && traegerInvitations?.length === 0;
 
   const organizationsLoadError = useSwrLoadError(
     organizationsError,
@@ -352,9 +382,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   );
 
   const traegerMembersLoadError = useSwrLoadError(
-    traegerMembersError,
+    traegerBueroError,
     "die Liste des Träger-Büros",
-    () => void mutateTraegerMembers(),
+    () => void reloadTraegerBuero(),
   );
 
   const handleSchoolClick = useCallback(
@@ -658,7 +688,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       <div className="mt-6">
         <Tabs value={activeTab} onValueChange={handleTabValueChange}>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            {/* Six tabs do not fit a phone: the row scrolls sideways. */}
+            {/* Seven tabs do not fit a phone: the row scrolls sideways. */}
             <TabsList
               variant="line"
               className="max-w-full min-w-0 justify-start overflow-x-auto"
@@ -777,22 +807,30 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
           </TabsPrimitive.Content>
           <TabsPrimitive.Content value="traeger-buero" className="mt-4">
             <LoadErrorAlert error={traegerMembersLoadError} className="mb-4" />
-            {(traegerMembers === undefined && !traegerMembersLoading) ||
-            traegerMembersError ? null : !traegerMembersLoading &&
-              traegerMembers?.length === 0 ? (
+            {((traegerMembers === undefined ||
+              traegerInvitations === undefined) &&
+              !traegerBueroLoading) ||
+            traegerBueroError ? null : !traegerBueroLoading &&
+              traegerBueroEmpty ? (
               <SimpleEmptyState
                 title="Noch niemand im Träger-Büro"
                 description="Noch niemand hat Zugang zum Träger-Portal dieses Trägers. Laden Sie die erste Person oben mit „Person einladen“ ein."
               />
             ) : (
-              <DataTable
-                columns={traegerMemberColumns(setMfaResetMember)}
-                rows={traegerMembers ?? []}
-                getRowKey={(member) => member.accountId}
-                defaultSortKey="email"
-                isLoading={traegerMembersLoading}
+              <TraegerBueroTable
+                organizationId={organization.id}
+                members={traegerMembers ?? []}
+                invitations={traegerInvitations ?? []}
+                isLoading={traegerBueroLoading}
+                onResetMfa={setMfaResetMember}
+                onChanged={reloadTraegerBuero}
               />
             )}
+          </TabsPrimitive.Content>
+          <TabsPrimitive.Content value="einstellungen" className="mt-4">
+            {activeTab === "einstellungen" ? (
+              <TraegerSettingsSection organizationId={organization.id} />
+            ) : null}
           </TabsPrimitive.Content>
           <TabsPrimitive.Content value="loeschauftrag" className="mt-4">
             {activeTab === "loeschauftrag" ? (
@@ -828,13 +866,13 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         onClose={() => setAssignTraegerOpen(false)}
         organizationId={organization.id}
         organizationName={organization.name}
-        onAssigned={() => mutateTraegerMembers()}
+        onAssigned={reloadTraegerBuero}
       />
 
       <InviteTraegerAccountModal
         isOpen={inviteTraegerOpen}
         onClose={() => setInviteTraegerOpen(false)}
-        onInvited={() => mutateTraegerMembers()}
+        onInvited={reloadTraegerBuero}
         invite={(input) =>
           operatorProvisioningService.inviteTraegerMember(organization.id, {
             email: input.email,
@@ -843,7 +881,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         }
         title="Person ins Träger-Büro einladen"
         hint={`Die Person bekommt eine E-Mail mit einem Link zum Träger-Portal von ${organization.name}. Dort legt sie ein Passwort fest oder meldet sich mit ihrem moto-Konto an. Ein Schulkonto braucht sie nicht.`}
-        successText="Die Einladung ist verschickt. Das Träger-Büro sieht sie bei den offenen Einladungen."
+        successText="Die Einladung ist verschickt. Sie steht jetzt in der Liste."
       />
 
       {mfaResetMember ? (

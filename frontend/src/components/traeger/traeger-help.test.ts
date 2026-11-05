@@ -20,11 +20,25 @@ describe("getTraegerHelpTopicForPath", () => {
   });
 
   it("opens the article of the page Briefkopf on the Träger host and below /traeger (#4653)", () => {
-    for (const path of ["/briefkopf", "/traeger/briefkopf"]) {
+    for (const path of [
+      "/einstellungen/briefkopf",
+      "/traeger/einstellungen/briefkopf",
+    ]) {
       expect(getTraegerHelpTopicForPath(path)).toBe(
         HELP_TOPICS.traegerBriefkopf,
       );
     }
+  });
+
+  it.each([
+    "/einstellungen/briefkopf/vorlagen",
+    "/einstellungen/briefkopf/vorlagen/bestaetigung",
+    "/traeger/einstellungen/briefkopf/vorlagen",
+    "/traeger/einstellungen/briefkopf/vorlagen/bestaetigung",
+  ])("opens the template article on %s", (path) => {
+    expect(getTraegerHelpTopicForPath(path)).toBe(
+      HELP_TOPICS.traegerDocumentTemplates,
+    );
   });
 
   it("opens the review article on the registrations of a holiday period (#4663)", () => {
@@ -46,8 +60,11 @@ describe("getTraegerHelpTopicForPath", () => {
     }
   });
 
-  it("opens the article of the contribution rules on the page Ermäßigungen (#4664)", () => {
-    for (const path of ["/beitraege", "/traeger/beitraege"]) {
+  it("opens the article of the contribution rules on the page Abrechnungsvorgaben (#4664, #5685)", () => {
+    for (const path of [
+      "/einstellungen/abrechnung",
+      "/traeger/einstellungen/abrechnung",
+    ]) {
       expect(getTraegerHelpTopicForPath(path)).toBe(
         HELP_TOPICS.traegerHolidayContribution,
       );
@@ -60,6 +77,15 @@ describe("getTraegerHelpTopicForPath", () => {
         HELP_TOPICS.traegerBillingRun,
       );
     }
+  });
+
+  it("opens the articles of the members and the access log (#5685)", () => {
+    expect(getTraegerHelpTopicForPath("/einstellungen/mitglieder")).toBe(
+      HELP_TOPICS.traegerAccounts,
+    );
+    expect(
+      getTraegerHelpTopicForPath("/traeger/einstellungen/zugriffsprotokoll"),
+    ).toBe(HELP_TOPICS.traegerAccessLog);
   });
 
   it("keeps the settings article and the sign-in article for the other pages", () => {

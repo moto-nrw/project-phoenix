@@ -8,6 +8,7 @@ import (
 
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID int64) (*AppointmentOverview, error) {
@@ -66,7 +67,7 @@ func (s *service) buildAppointmentOverview(ctx context.Context, appointment *app
 		if attendees[i].RecipientType != attendees[j].RecipientType {
 			return attendees[i].RecipientType < attendees[j].RecipientType
 		}
-		return strings.ToLower(attendees[i].Name) < strings.ToLower(attendees[j].Name)
+		return collation.CompareGerman(attendees[i].Name, attendees[j].Name) < 0
 	})
 
 	return &AppointmentOverview{

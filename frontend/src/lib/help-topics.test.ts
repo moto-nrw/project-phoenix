@@ -732,6 +732,7 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerBillingRun,
       HELP_TOPICS.traegerAccessLog,
       HELP_TOPICS.traegerBriefkopf,
+      HELP_TOPICS.traegerDocumentTemplates,
       HELP_TOPICS.traegerSettings,
       HELP_TOPICS.errorMessages,
     ]);

@@ -154,6 +154,12 @@ describe("matchesSearchFilter", () => {
     expect(matchesSearchFilter(student, "fisch")).toBe(true);
   });
 
+  it("ignores accents in the name and the search", () => {
+    const student = makeStudent({ first_name: "Zoë", second_name: "Özdemir" });
+    expect(matchesSearchFilter(student, "ozdem")).toBe(true);
+    expect(matchesSearchFilter(student, "ZOE")).toBe(true);
+  });
+
   it("matches by full name", () => {
     const student = makeStudent({ name: "Mia Fischer" });
     expect(matchesSearchFilter(student, "mia")).toBe(true);

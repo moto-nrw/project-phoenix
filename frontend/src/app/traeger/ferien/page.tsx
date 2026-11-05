@@ -72,7 +72,7 @@ export default function TraegerHolidayPeriodsPage() {
 
   return (
     <TenantPage
-      title="Ferien"
+      title="Ferienbetreuung"
       info="Hier planen Sie die Ferienbetreuung für die Schulen Ihres Trägers. Ein neuer Ferienzeitraum ist zuerst ein Entwurf. Eltern melden ihre Kinder erst an, wenn Sie ihn veröffentlicht haben."
       stats={
         periods.length > 0 ? (

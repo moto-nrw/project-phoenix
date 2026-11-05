@@ -101,7 +101,7 @@ const COLUMNS: DataTableColumn<TraegerAccountHistoryEntry>[] = [
 ];
 
 /**
- * The history section of the page „Personen“. `version` changes after every
+ * The history section of the page „Mitglieder und Rollen“. `version` changes after every
  * change on the page; the history then reads its first page again.
  */
 export function TraegerAccountHistory({

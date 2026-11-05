@@ -3073,3 +3073,7 @@ func TestProvisioningResource_ListOrganizationPersons_OrganizationNotFound(t *te
 func (m *mockProvisioningService) RecordOperatorRead(context.Context, organizationtenancy.OperatorReadAccess) error {
 	return nil
 }
+
+func (m *mockProvisioningService) RecordTraegerSettingChange(context.Context, organizationtenancy.TraegerSettingChange) error {
+	return nil
+}

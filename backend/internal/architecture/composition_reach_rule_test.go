@@ -290,3 +290,15 @@ func TestFirstPartyImportsAllowedByTheCompositionReaches(t *testing.T) {
 		t.Error("a root import passed without an epoch increase")
 	}
 }
+
+// firstPartyAllowedByReviewedCompositionReach reports whether the single rule
+// that admits this first-party import in the candidate policy lies inside a
+// standing reach of ADR 0053. The import loosening it implies is then the
+// intended effect of that reach, not a separate widening.
+func firstPartyAllowedByReviewedCompositionReach(base, candidate *Policy, scope Scope, source, target Package) bool {
+	if candidate.PolicyEpoch <= base.PolicyEpoch {
+		return false
+	}
+	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
+	return decision.Allowed != nil && len(decision.Overlaps) == 0 && reviewedCompositionReachRule(*decision.Allowed, ownersByID(candidate))
+}

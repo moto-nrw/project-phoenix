@@ -68,6 +68,7 @@
   "pickup_proof_not_found": "Bu talep için imzanızı içeren bir belge yok.",
   "pickup_signature_invalid": "İmza okunamıyor. Lütfen tekrar imzalayın.",
   "pickup_signature_required": "Lütfen izni imzalayın ve imzanızı onaylayın.",
+  "pickup_signature_too_large": "İmza çok büyük. Lütfen „Yeniden imzala“ ve ardından „Adınızı yazın“ seçeneğine dokunun.",
   "poll_closed": "{object} artık açık değil. Lütfen ilgili kişinize danışın.",
   "primary_guardian_protected": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
   "remove_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",

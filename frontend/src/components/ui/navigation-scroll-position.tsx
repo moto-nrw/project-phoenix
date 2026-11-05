@@ -88,7 +88,9 @@ export function NavigationScrollPosition() {
   const traversalTargetPathname = useRef<string | undefined>(undefined);
   // Aus dem Scroll-Ereignis, nicht aus `window.scrollY` beim Wechsel: Dort hat
   // der Browser die Position schon auf die Höhe der neuen Seite begrenzt. Ein
-  // geplanter Reset setzt ihn vor dem nächsten Frame bewusst auf 0.
+  // geplanter Reset setzt ihn vor dem nächsten Frame bewusst auf 0. Ein Klick
+  // vor der Link-Navigation ergänzt den Wert, falls dessen Ereignis noch in
+  // der Warteschlange steht.
   const lastScrollY = useRef(0);
   const scrollPositions = useRef(new Map<string, number>());
   const resetFrame = useRef<number | undefined>(undefined);
@@ -109,6 +111,11 @@ export function NavigationScrollPosition() {
           lastScrollY.current,
         );
       }
+    };
+    // Die Capture-Phase liegt vor dem Link-Handler. So merken wir auch einen
+    // programmgesteuerten Scrollstand, dessen `scroll`-Ereignis noch aussteht.
+    const handleClick = () => {
+      lastScrollY.current = window.scrollY;
     };
     const handleHistoryTraversal = () => {
       const target = window.location.pathname;
@@ -176,6 +183,7 @@ export function NavigationScrollPosition() {
     };
     handleScroll();
     window.addEventListener("scroll", handleScroll, { passive: true });
+    document.addEventListener("click", handleClick, { capture: true });
     window.addEventListener("popstate", handleHistoryTraversal, {
       capture: true,
     });
@@ -185,6 +193,7 @@ export function NavigationScrollPosition() {
     }
     return () => {
       window.removeEventListener("scroll", handleScroll);
+      document.removeEventListener("click", handleClick, { capture: true });
       window.removeEventListener("popstate", handleHistoryTraversal, {
         capture: true,
       });

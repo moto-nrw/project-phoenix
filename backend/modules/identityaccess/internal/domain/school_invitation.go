@@ -2,8 +2,9 @@ package domain
 
 import (
 	"errors"
-	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // School invitations (#2722): the one-time link that grants an invitee
@@ -137,13 +138,13 @@ type InvitationRegistration struct {
 // Names resolves the invitee's name from the registration, falling back to
 // the names the invitation carries.
 func (r InvitationRegistration) Names(invitation SchoolInvitation) (firstName, lastName string, err error) {
-	firstName = strings.TrimSpace(r.FirstName)
-	lastName = strings.TrimSpace(r.LastName)
+	firstName = textnorm.Name(r.FirstName)
+	lastName = textnorm.Name(r.LastName)
 	if firstName == "" && invitation.FirstName != nil {
-		firstName = strings.TrimSpace(*invitation.FirstName)
+		firstName = textnorm.Name(*invitation.FirstName)
 	}
 	if lastName == "" && invitation.LastName != nil {
-		lastName = strings.TrimSpace(*invitation.LastName)
+		lastName = textnorm.Name(*invitation.LastName)
 	}
 	if firstName == "" || lastName == "" {
 		return "", "", ErrInvitationNameRequired

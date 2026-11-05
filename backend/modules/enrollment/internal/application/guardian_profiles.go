@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // resolveGuardianProfile finds an existing tenant-scoped guardian by
@@ -105,8 +107,8 @@ func (d *Decisions) checkGuardianProfileClaim(ctx context.Context, existing *Gua
 // createSubmittedGuardianProfile builds a fresh profile from the request.
 func (d *Decisions) createSubmittedGuardianProfile(ctx context.Context, request *Request, email string) (*GuardianProfile, error) {
 	profile := &GuardianProfile{
-		FirstName:              strings.TrimSpace(request.GuardianFirstName),
-		LastName:               strings.TrimSpace(request.GuardianLastName),
+		FirstName:              textnorm.Name(request.GuardianFirstName),
+		LastName:               textnorm.Name(request.GuardianLastName),
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
@@ -246,8 +248,8 @@ func (d *Decisions) createCoGuardianProfile(ctx context.Context, extra *enrollme
 		contactMethod = "phone"
 	}
 	profile := &GuardianProfile{
-		FirstName:              strings.TrimSpace(extra.FirstName),
-		LastName:               strings.TrimSpace(extra.LastName),
+		FirstName:              textnorm.Name(extra.FirstName),
+		LastName:               textnorm.Name(extra.LastName),
 		PreferredContactMethod: contactMethod,
 		LanguagePreference:     "de",
 	}

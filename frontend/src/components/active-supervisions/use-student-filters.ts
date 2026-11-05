@@ -11,6 +11,7 @@ import {
 } from "~/lib/student-helpers";
 import type { ActiveSupervisionStudent } from "~/components/active-supervisions/view-model";
 import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
+import { foldForSearch } from "~/lib/search-fold";
 
 interface FilterCriteria {
   readonly searchTerm: string;
@@ -30,9 +31,9 @@ function matchesCriteria(
   { searchTerm, groupFilter, yearFilter }: FilterCriteria,
 ): boolean {
   if (searchTerm) {
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = child.names.some(
-      (name) => name?.toLowerCase().includes(searchLower) ?? false,
+    const searchLower = foldForSearch(searchTerm);
+    const matchesSearch = child.names.some((name) =>
+      foldForSearch(name).includes(searchLower),
     );
     if (!matchesSearch) return false;
   }

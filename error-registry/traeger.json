@@ -27,6 +27,32 @@
       "legacy": "traeger.bank_account_not_found"
     },
     {
+      "code": "traeger.document_template_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.document_template_invalid"
+    },
+    {
+      "code": "traeger.document_template_kind_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.document_template_kind_not_found"
+    },
+    {
+      "code": "traeger.document_template_unchanged",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "traeger.document_template_unchanged"
+    },
+    {
+      "code": "traeger.document_template_unknown_placeholder",
+      "class": "input",
+      "parameters": [
+        "placeholders"
+      ],
+      "legacy": "traeger.document_template_unknown_placeholder"
+    },
+    {
       "code": "traeger.last_administrator",
       "class": "business_rejection",
       "parameters": [],
@@ -69,16 +95,16 @@
       "legacy": "traeger.no_membership"
     },
     {
-      "code": "traeger.second_factor_required",
-      "class": "permission",
-      "parameters": [],
-      "legacy": "traeger.second_factor_required"
-    },
-    {
       "code": "traeger.school_not_found",
       "class": "permission",
       "parameters": [],
       "legacy": "traeger.school_not_found"
+    },
+    {
+      "code": "traeger.second_factor_required",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "traeger.second_factor_required"
     }
   ]
 }

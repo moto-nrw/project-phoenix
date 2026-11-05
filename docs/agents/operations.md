@@ -732,6 +732,37 @@ day, a minimum duration or a separate evidence file is not required
 (decided 2026-09-23, same reasoning as the deployment gates removed in #3453
 and #3455).
 
+## ICU collation of name columns
+
+Name columns that lists sort by (persons, guardians, class lists, enrollment
+requests, groups, rooms and others) use the ICU collation
+`public.german_name` (`de-u-kn`, migration `1.15.755`, #4949). The database
+default `en_US.utf8` sorts by code point on `postgres:*-alpine` (musl), so
+names with an umlaut, an accent or a lowercase particle would land behind Z.
+CI runs the same alpine image as production, demo and local development.
+
+ICU collations are versioned, and an alpine image update can bring another
+ICU version. Postgres then warns that the collation version does not match
+when a session first uses the collation. Indexes on those columns may sort differently afterwards. To fix
+it on the affected database:
+
+1. List the affected indexes:
+   ```sql
+   SELECT DISTINCT i.indrelid::regclass, i.indexrelid::regclass
+   FROM pg_index i
+   JOIN pg_depend d ON d.classid = 'pg_class'::regclass AND d.objid = i.indexrelid
+   WHERE d.refclassid = 'pg_collation'::regclass
+     AND d.refobjid = 'public.german_name'::regcollation;
+   ```
+   This includes expression indexes such as `lower(name)`.
+2. `REINDEX INDEX CONCURRENTLY <index>;` for each one.
+3. `ALTER COLLATION public.german_name REFRESH VERSION;`
+
+Pin the postgres image to an exact alpine tag (`17.x-alpine3.yy`) or digest
+before relying on it: the floating `17-alpine` tag is rebuilt on alpine
+updates and can change the ICU version without a visible change in the
+compose file.
+
 ## Product screenshots (marketing images)
 
 Product screenshots are not PR evidence. They are the images for website, sales
