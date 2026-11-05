@@ -36,6 +36,11 @@ const RETURN_PATH_KEY = "staff-settings-return-path";
 const SETTINGS_PATH = STAFF_FLAT_PAGES.settings.href;
 const SETTINGS_LABEL = STAFF_FLAT_PAGES.settings.label;
 
+/** Der Browser-Speicher teilt sich im Pfadmodus alle Schulen einer Origin. */
+export function staffSettingsReturnPathKey(tenantSlug: string | null): string {
+  return tenantSlug ? `${RETURN_PATH_KEY}:${tenantSlug}` : RETURN_PATH_KEY;
+}
+
 /** Ob die Adresse, ohne Mandanten-Präfix, in den Einstellungen liegt (#5750). */
 export function isStaffSettingsPath(pathname: string): boolean {
   return pathname === SETTINGS_PATH || pathname.startsWith(`${SETTINGS_PATH}/`);
@@ -62,7 +67,7 @@ export function StaffSettingsReturnPathMemory() {
   const routingMode = useTenantRoutingModeSafe();
   return (
     <SettingsReturnPathMemory
-      storageKey={RETURN_PATH_KEY}
+      storageKey={staffSettingsReturnPathKey(tenantSlug)}
       isSettingsPath={(pathname) =>
         isStaffSettingsPath(
           normalizeTenantPathname(pathname, tenantSlug, routingMode),
@@ -74,9 +79,13 @@ export function StaffSettingsReturnPathMemory() {
 
 function useStaffSettingsNav() {
   const tenantPath = useTenantAwarePath();
+  const tenantSlug = useTenantSlugSafe();
   const searchParams = useSearchParams();
   const sections = useSettingsSections();
-  const returnHref = useSettingsReturnHref(RETURN_PATH_KEY, tenantPath("/"));
+  const returnHref = useSettingsReturnHref(
+    staffSettingsReturnPathKey(tenantSlug),
+    tenantPath("/"),
+  );
   const activeId = sections
     ? activeSettingsSectionId(sections, searchParams.get("tab"))
     : "";

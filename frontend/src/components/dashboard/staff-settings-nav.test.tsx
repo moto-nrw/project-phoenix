@@ -3,9 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SettingsSections } from "~/components/settings/settings-nav-items";
 import { settingsConcept } from "~/lib/concepts/settings";
 import { MobileBottomNav } from "./mobile-bottom-nav";
-import { StaffSettingsSidebarNav } from "./staff-settings-nav";
+import {
+  StaffSettingsSidebarNav,
+  staffSettingsReturnPathKey,
+} from "./staff-settings-nav";
 
 const nav = vi.hoisted(() => ({ search: "" }));
+const tenant = vi.hoisted(() => ({ slug: null as string | null }));
 const sections = vi.hoisted(() => ({
   value: null as SettingsSections | null,
 }));
@@ -21,7 +25,7 @@ vi.mock("~/lib/tenant-path", async (importOriginal) => ({
 }));
 
 vi.mock("~/lib/tenant-context", () => ({
-  useTenantSlugSafe: () => null,
+  useTenantSlugSafe: () => tenant.slug,
   useTenantRoutingModeSafe: () => "subdomain",
 }));
 
@@ -48,6 +52,7 @@ describe("staff settings navigation", () => {
   beforeEach(() => {
     sessionStorage.clear();
     nav.search = "";
+    tenant.slug = null;
     sections.value = sectionList(2);
   });
 
@@ -93,6 +98,26 @@ describe("staff settings navigation", () => {
       screen.getByRole("link", { name: "Zurück zur App" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Bereich/ })).toBeNull();
+  });
+
+  it("keeps remembered routes separate for each tenant", () => {
+    sessionStorage.setItem(
+      staffSettingsReturnPathKey("schule-a"),
+      "/schule-a/students",
+    );
+    sessionStorage.setItem(
+      staffSettingsReturnPathKey("schule-b"),
+      "/schule-b/rooms",
+    );
+    tenant.slug = "schule-b";
+
+    render(
+      <StaffSettingsSidebarNav collapsed={false} labelsMounted labelsVisible />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Zurück zur App" }),
+    ).toHaveAttribute("href", "/schule-b/rooms");
   });
 
   it("follows on the phone, with the rest behind Mehr", () => {
