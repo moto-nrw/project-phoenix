@@ -2,7 +2,7 @@
 
 ## Aktueller Stand, 4. November 2026
 
-Lauf „CPU und Peak-RAM halbieren“: Frontend-Vollsuite CPU −67 %, Peak −55 %, Wand −33 %; Backend-Vollsuite inkl. Postgres CPU −46 %, Peak −65 %, Wand −11 % (gepaart n=2, siehe [Abschlussvergleich](#abschlussvergleich-gepaart-baseline-27596d40fb-gegen-kandidat-8ec48d9c88)). Offen: Backend-CPU fehlen ≈47 CPU-s bis zur Hälfte. Folgerunde 5. November: Frontend-Vollsuite gegen 6c6935d85c CPU −17 %, Peak −17 %, Wand −11 % mit warmem Transform-Cache (siehe [Folgerunde](#folgerunde-frontend-mock-register-und-transform-cache-5-november-2026)).
+Lauf „CPU und Peak-RAM halbieren“: Frontend-Vollsuite CPU −67 %, Peak −55 %, Wand −33 %; Backend-Vollsuite inkl. Postgres CPU −46 %, Peak −65 %, Wand −11 % (gepaart n=2, siehe [Abschlussvergleich](#abschlussvergleich-gepaart-baseline-27596d40fb-gegen-kandidat-8ec48d9c88)). Offen: Backend-CPU fehlen ≈47 CPU-s bis zur Hälfte. Zweite Runde 5. November gegen 6c6935d85c: Frontend CPU −16 %, Peak −15 %, Wand −16 %; Backend unverändert im Rauschen (siehe [Abschlussvergleich der zweiten Runde](#abschlussvergleich-der-zweiten-runde-gepaart-basis-6c6935d85c-gegen-kandidat-7a3d3c865b)).
 
 ## Stand, 3. November 2026
 
@@ -1035,3 +1035,22 @@ Basis `6c6935d85c` (Stand nach der ersten Runde). Vier Delegates parallel, je ei
 - Die 19 geänderten Dateien: Testzeit 30,0 → 17,4 s. Je Datei eine Produktionsmutation, auf Basis und Kandidat in denselben Tests mit derselben Meldung rot. Suite gepaart: Wand-Median 131,0 → 126,3 s, CPU im Rauschen (≈3 s).
 - Seitentests mit hoher CPU (timetable-event-modal, enrollment-form, sidebar u. a.) bleiben: ihr Profil ist React-Dev-Rendering, happy-dom und Rollenabfragen ohne Naht bei gleichem Render-Umfang.
 - Beobachtung: Mit `--sequence.shuffle.files` startete der Hauptprozess 805 Threads für 1517 Dateien (Läufe 228–245 s statt ≈130 s). Die Wiederverwendung greift bei gemischter Reihenfolge kaum; Ursache nicht untersucht, normale Läufe sind nicht betroffen.
+
+### Abschlussvergleich der zweiten Runde, gepaart, Basis 6c6935d85c gegen Kandidat 7a3d3c865b
+
+Abwechselnd, je Seite ein Warmlauf, dann n=2; Backend gegen einen privaten Postgres, je Seite aus der eigenen Compose-Datei neu erzeugt. Lastmittel vor den Läufen 3–13 (geteilte Maschine).
+
+| Suite | Metrik | Basis | Kandidat | Δ |
+|---|---|---|---|---|
+| Frontend `full` | CPU | 258,9 / 284,7 s | 225,1 / 229,5 s | −16 % |
+| | Peak-RAM | 1577 / 1584 MB | 1266 / 1423 MB | −15 % |
+| | Wand | 108,9 / 117,3 s | 94,0 / 95,8 s | −16 % |
+| Backend `backend-full` inkl. Postgres | CPU | 605,7 / 608,5 s | 580,6 / 615,6 s | −1 % (Rauschen) |
+| | Peak-RAM | 2487 / 2414 MB | 2432 / 2357 MB | −2 % |
+| | Wand | 272,1 / 275,4 s | 277,1 / 293,8 s | +4 % (Rauschen) |
+
+Inventare identisch: Frontend 1547 Dateien / 24976 Tests, Backend 32878 Tests / 30 bestehende Skips. Gegen die ursprüngliche Baseline `27596d40fb` (776 CPU-s, 3480 MB, 161 s) liegt das Frontend damit bei −71 % CPU, −61 % Peak und −41 % Wand.
+
+- Backend: Die Einsparung im Architekturpaket (−10 CPU-s, −200 MB im Paketlauf) geht in der Vollsuite im Rauschen unter. Der Postgres-Anteil (≈280 CPU-s) bleibt der größte Posten; der Clone-Pool war teurer.
+- Drei lokale Frontend-Worker statt zwei (gleicher Kandidat): CPU 232,1 / 229,3 s, Peak 1605 / 1622 MB, Wand 64,9 / 63,0 s. Das spart gegenüber zwei Workern ein Drittel der Wandzeit, hebt den Peak aber um ≈270 MB über zwei Worker und leicht über die Basis. Mit `recycleHeapMb: 150` blieb der Peak bei 1675 / 1715 MB. Lokal bleiben zwei Worker, weil Peak-RAM die Zielgröße ist.
+- Ein Lauf mit drei Workern deckte einen weiteren Wettlauf auf: `student-payment-card.test.tsx` klickte `Bearbeiten`, solange der Knopf während des Ladens deaktiviert ist, und las die maskierte IBAN vor dem Laden. Mit einer um 30 ms verzögerten Antwort waren 6 von 12 Tests rot; jetzt warten sie auf den geladenen Zustand (`c5d7fbad46`).
