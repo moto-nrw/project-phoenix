@@ -33,6 +33,15 @@ const { api } = vi.hoisted(() => ({
   },
 }));
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+const { session } = vi.hoisted(() => ({
+  session: { permissions: [] as string[] },
+}));
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { permissions: session.permissions } },
+    status: "authenticated",
+  }),
+}));
 const { downloadBlob } = vi.hoisted(() => ({ downloadBlob: vi.fn() }));
 vi.mock("~/lib/file-download", () => ({ downloadBlob }));
 
@@ -208,6 +217,28 @@ describe("TraegerBillingRunPage", () => {
     downloadBlob.mockReset();
     api.fetchBillingRun.mockResolvedValue(PREVIEW);
     api.fetchLetterMailings.mockResolvedValue([]);
+    session.permissions = ["traeger_billing:manage"];
+  });
+
+  it("leads back to its holiday period for whoever may open it (#5688)", async () => {
+    session.permissions = [
+      "traeger_billing:manage",
+      "traeger_enrollment:manage",
+    ];
+    renderPage();
+
+    expect(
+      await screen.findByRole("link", { name: "Zum Ferienzeitraum" }),
+    ).toHaveAttribute("href", "/ferien/5");
+  });
+
+  it("shows no link to a holiday period the person cannot open", async () => {
+    renderPage();
+
+    expect((await screen.findAllByText("Muster, Eva"))[0]).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Zum Ferienzeitraum" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the preview of every family with its positions", async () => {

@@ -46,6 +46,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { HolidayPeriodBillingLink } from "~/components/traeger/holiday-period-billing-link";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   useApiErrorDisplay,
@@ -580,17 +581,20 @@ export default function TraegerHolidayRegistrationsPage() {
         period?.registrationCount,
       )}
       actions={
-        <ExportMenu
-          ariaLabel="Anmeldungen herunterladen"
-          options={EXPORT_FORMATS}
-          busyKey={exporting}
-          unavailable={loading || Boolean(loadError)}
-          onSelect={(option) => {
-            if (option.format === "csv" || option.format === "xlsx") {
-              void exportFile(option.format);
-            }
-          }}
-        />
+        <>
+          <HolidayPeriodBillingLink period={period} />
+          <ExportMenu
+            ariaLabel="Anmeldungen herunterladen"
+            options={EXPORT_FORMATS}
+            busyKey={exporting}
+            unavailable={loading || Boolean(loadError)}
+            onSelect={(option) => {
+              if (option.format === "csv" || option.format === "xlsx") {
+                void exportFile(option.format);
+              }
+            }}
+          />
+        </>
       }
       filters={filters}
       activeFilters={activeFilters}

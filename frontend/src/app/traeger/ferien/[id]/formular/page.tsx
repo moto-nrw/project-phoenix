@@ -12,6 +12,7 @@ import {
   holidayPeriodTabs,
 } from "~/components/traeger/holiday-period-head";
 import { HolidayFormEditor } from "~/components/traeger/holiday-form-editor";
+import { HolidayPeriodBillingLink } from "~/components/traeger/holiday-period-billing-link";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
@@ -85,6 +86,7 @@ export default function TraegerHolidayFormPage() {
       }
       statsLoading={!(period && form) && !loadError}
       tabs={holidayPeriodTabs(id, "formular", period?.registrationCount)}
+      actions={<HolidayPeriodBillingLink period={period} />}
       error={loadError}
       loading={!loadError && !(period && form)}
     >

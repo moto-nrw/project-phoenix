@@ -281,6 +281,7 @@ export const traegerKeys = {
   period: (id: string) =>
     `traeger-holiday-period-detail-${encodeURIComponent(id)}`,
   settings: () => "traeger-settings-schema",
+  billingRuns: () => "traeger-billing-run-list",
   periodPreview(data: unknown, id: string): ListPreview | undefined {
     const row = previewRow(data, id);
     const name = previewText(row?.name);

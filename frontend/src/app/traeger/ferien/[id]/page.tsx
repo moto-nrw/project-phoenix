@@ -13,6 +13,7 @@ import { HolidayPeriodForm } from "~/components/traeger/holiday-period-form";
 import { HolidayPeriodPublishCard } from "~/components/traeger/holiday-period-publish-card";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
+import { HolidayPeriodBillingLink } from "~/components/traeger/holiday-period-billing-link";
 import { TenantPage } from "~/components/ui/tenant-page";
 import type { HolidayPeriod } from "~/lib/traeger-api";
 import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
@@ -67,6 +68,7 @@ export default function TraegerHolidayPeriodPage() {
       stats={period ? <HolidayPeriodStatusLine period={period} /> : null}
       statsLoading={!period && !loadError}
       tabs={holidayPeriodTabs(id, "planung", period?.registrationCount)}
+      actions={<HolidayPeriodBillingLink period={period} />}
       error={shownError}
       loading={!loadError && !(period && schools)}
     >
