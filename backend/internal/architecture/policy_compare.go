@@ -297,7 +297,7 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 		if candidate.PolicyEpoch > base.PolicyEpoch &&
 			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) || reviewedSharedKernelRule(rule) || reviewedParentHTTPRule(rule) ||
 				reviewedCompositionReachRule(rule, candidateOwners) || reviewedHTTPHostRule(rule) || reviewedInternalReachRule(rule, base, candidateOwners) || reviewedProjectionPublicRule(rule, candidateOwners) || reviewedOwnerHTTPRule(rule, base, candidate) ||
-				reviewedSameOwnerContractRule(rule) || reviewedDemoUploadsRule(rule)) {
+				reviewedSameOwnerContractRule(rule) || reviewedDemoUploadsRule(rule) || reviewedDocumentTemplatesRule(rule)) {
 			continue
 		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
@@ -768,7 +768,8 @@ func firstPartyAllowedByReviewedRule(base, candidate *Policy, rule Rule) bool {
 	}
 	if reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) ||
 		reviewedSharedKernelRule(rule) || reviewedParentHTTPRule(rule) ||
-		reviewedSameOwnerContractRule(rule) || reviewedDemoUploadsRule(rule) {
+		reviewedSameOwnerContractRule(rule) || reviewedDemoUploadsRule(rule) ||
+		reviewedDocumentTemplatesRule(rule) {
 		return true
 	}
 	owners := ownersByID(candidate)

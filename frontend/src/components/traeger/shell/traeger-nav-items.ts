@@ -33,7 +33,7 @@ const BILLING_RIGHT = "traeger_billing:manage";
 const ACCESS_LOG_RIGHT = "traeger_access_log:read";
 /**
  * Das Recht, das das Dashboard (#4674), die allgemeinen Einstellungen (ADR 0086,
- * #4652), den Briefkopf (#4653) und die Abrechnungsvorgaben öffnet. Auf den
+ * #4652), Briefkopf und Vorlagen (#4653, #4677) und die Abrechnungsvorgaben öffnet. Auf den
  * Abrechnungsvorgaben stehen die Bankverbindungen für alle mit diesem Recht, wie
  * zuvor auf dem Briefkopf; die Regeln und Rechnungsnummern nur mit dem Recht
  * „Abrechnung" (#5685). Jede Rolle mit „Abrechnung" hat auch dieses Recht.

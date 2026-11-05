@@ -193,7 +193,7 @@ func TestConfirmationLetterWithThePaymentTextOfTheTraeger(t *testing.T) {
 
 	content.letterhead.PaymentText = bissendorfPaymentText
 	content.document.TotalCents = 0
-	assert.Equal(t, LetterBlock{Text: "Sie müssen für diese Betreuung nichts bezahlen."}, confirmationLetter(content).Blocks[2],
+	assert.Equal(t, LetterBlock{Text: "Sie müssen für diese Betreuung nichts bezahlen.", Bold: true}, confirmationLetter(content).Blocks[2],
 		"an invoice of 0 € keeps the fixed sentence, also with a text of the Träger")
 }
 
@@ -251,7 +251,9 @@ func TestConfirmationLetterWithoutAmountAndOptionalParts(t *testing.T) {
 			{Label: "Lina: Befreiung bei Leistungsbezug", Value: "-50,00 €"},
 			{Label: "Gesamtbetrag", Value: "0,00 €", Bold: true},
 		}},
-		{Text: "Sie müssen für diese Betreuung nichts bezahlen."},
+		// The payment paragraph of the template is bold, so the sentence
+		// that nothing is to be paid is too (#4677).
+		{Text: "Sie müssen für diese Betreuung nichts bezahlen.", Bold: true},
 	}, letter.Blocks)
 	assert.Equal(t, "Bankverbindung: Ganztag im Quartier e.V. · IBAN DE02 1203 0000 0000 2020 51 · Beispielbank", letter.Footer[1])
 }
@@ -303,6 +305,52 @@ func TestLetterInputNeedsAPaymentDateAndCompleteEmergencyNumbers(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "Packliste\nHausschuhe", normalized.Notes)
 	assert.Equal(t, []parentbilling.BillingEmergencyContact{{Name: "OGS", Phone: "0170 1"}}, normalized.EmergencyContacts)
+}
+
+// The Träger's own template replaces subject, salutation, body and closing
+// and fills its placeholders with the invoice; address field, facts and
+// footer stay (#4677).
+func TestConfirmationLetterFollowsTheTemplateOfTheTraeger(t *testing.T) {
+	t.Parallel()
+
+	content := goldenLetterContent(t)
+	content.letterhead.Template = parentbilling.LetterTemplate{
+		Version:    3,
+		Subject:    "Ihre Anmeldung {{rechnungsnummer}}",
+		Salutation: "Liebe Familie {{familienname}},",
+		Body: "{{kinder}} ist angemeldet. Summe {{summe}}, zahlbar bis {{zahlen_bis}}.\n\n{{positionen}}\n\n" +
+			"# Notfall\n{{notfallnummern}}\n\n# Hinweise\n{{hinweise}}",
+		Closing: "Viele Grüße\n{{ansprechperson}}",
+	}
+	content.input.Notes = ""
+
+	letter := confirmationLetter(content)
+	assert.Equal(t, "Ihre Anmeldung FE-2026-0007", letter.Subject)
+	assert.Equal(t, "Liebe Familie Beispiel,", letter.Salutation)
+	assert.Equal(t, []string{"Viele Grüße", "Paula Kern"}, letter.Closing)
+	assert.Equal(t, "Lina und Ben ist angemeldet. Summe 92,50 €, zahlbar bis 15.12.2026.", letter.Blocks[0].Text)
+	assert.Len(t, letter.Blocks[1].Facts, 5)
+	assert.Equal(t, LetterBlock{Heading: "Notfall", Facts: []LetterFact{
+		{Label: "OGS Am Lindenhof", Value: "0170 0000001"},
+		{Label: "OGS Schule am Hang", Value: "0170 0000002"},
+	}}, letter.Blocks[2])
+	// Without free text the paragraph "Hinweise" is left out.
+	assert.Len(t, letter.Blocks, 3)
+	assert.Equal(t, []string{"Familie Beispiel", "Erika Beispiel"}, letter.Recipient)
+	assert.Equal(t, "Rechnungsnummer", letter.Facts[0].Label)
+}
+
+// The letter fills every placeholder its kind offers the Träger, so no
+// placeholder in a Träger's template stays empty by accident (#4677).
+func TestConfirmationLetterFillsEveryPlaceholderOfItsKind(t *testing.T) {
+	t.Parallel()
+	content := goldenLetterContent(t)
+	assert.Empty(t, missingLetterValues(letterValues(content)))
+	// Values the invoice does not have stay present and empty.
+	content.document.TotalCents, content.document.IssuedOn = 0, nil
+	assert.Empty(t, missingLetterValues(letterValues(content)))
+	// The check itself notices a placeholder without a value.
+	assert.Contains(t, missingLetterValues(nil), "familienname")
 }
 
 // TestLetterheadTextsPrintLineByLineAndNothingWhenEmpty holds #5693: every

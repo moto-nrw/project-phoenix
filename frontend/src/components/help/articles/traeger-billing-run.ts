@@ -155,6 +155,7 @@ export function traegerBillingRunTopic(): HelpTopic {
       "Eine übernommene Korrektur senkt den Betrag höchstens auf 0 €. Ist der Beitrag jetzt niedriger als auf der alten Rechnung, steht das bei der Korrektur.",
       "Gutschriften der alten Rechnung werden nicht übernommen. Sie sind eigene Dokumente. Die Vorschau nennt sie nur als Hinweis.",
       "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
+      "Den Text des Schreibens legen Sie in den Einstellungen unter `Briefkopf und Vorlagen` fest. Erstellte Schreiben behalten den Text, mit dem sie entstanden sind.",
     ],
     differences: [
       "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",

@@ -1378,6 +1378,22 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites the templates in the settings area to /traeger (#4677, #5685)", () => {
+      for (const path of [
+        "/einstellungen/briefkopf/vorlagen",
+        "/einstellungen/briefkopf/vorlagen/bestaetigung",
+      ]) {
+        const res = proxy(
+          makeRequest(`http://${TRAEGER_HOSTNAME}${path}`, TRAEGER_HOSTNAME),
+        );
+
+        expect(res.headers.get("location")).toBeNull();
+        expect(res.headers.get("x-middleware-rewrite")).toContain(
+          `/traeger${path}`,
+        );
+      }
+    });
+
     it("passes through /api/traeger/* without rewriting", () => {
       for (const path of [
         "/api/traeger/auth/session",

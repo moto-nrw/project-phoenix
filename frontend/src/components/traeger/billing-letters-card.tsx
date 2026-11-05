@@ -66,6 +66,15 @@ export function BillingLettersCard({
           >
             Abrechnungsvorgaben
           </NavigationLink>
+          , der Text aus der{" "}
+          <NavigationLink
+            href={traegerPath(
+              "/traeger/einstellungen/briefkopf/vorlagen/bestaetigung",
+            )}
+            className="font-medium underline"
+          >
+            Vorlage
+          </NavigationLink>
           . Ohne Bankverbindung lassen sich keine Schreiben erstellen; sie legt
           die Verwaltung fest.
         </p>
@@ -115,6 +124,11 @@ export function BillingLettersCard({
           ) : (
             "Keine"
           )}
+        </DataField>
+        <DataField label="Vorlage">
+          {letters.templateVersion > 0
+            ? `Version ${letters.templateVersion}`
+            : "Standardvorlage"}
         </DataField>
       </DataGrid>
     </SectionCard>

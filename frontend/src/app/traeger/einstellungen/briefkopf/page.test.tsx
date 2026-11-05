@@ -37,6 +37,9 @@ const { api, session } = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/traeger-api", () => api);
+vi.mock("~/lib/traeger-url", () => ({
+  traegerPath: (path: string) => path.replace(/^\/traeger/, "") || "/",
+}));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {
@@ -234,6 +237,15 @@ describe("TraegerBriefkopfPage", () => {
     expect(
       screen.queryByRole("button", { name: "Logo hochladen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("leads to the templates, also for a reader (#4677, #5685)", async () => {
+    session.permissions = ["traeger_overview:read"];
+    renderPage();
+
+    expect(
+      await screen.findByRole("link", { name: "Vorlagen öffnen" }),
+    ).toHaveAttribute("href", "/einstellungen/briefkopf/vorlagen");
   });
 
   it("refuses a logo that is no PNG or JPG before uploading it", async () => {

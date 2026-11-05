@@ -31,6 +31,9 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   if (onPage(page, "/einstellungen/zugriffsprotokoll")) {
     return HELP_TOPICS.traegerAccessLog;
   }
+  if (onPage(page, "/einstellungen/briefkopf/vorlagen")) {
+    return HELP_TOPICS.traegerDocumentTemplates;
+  }
   if (onPage(page, "/einstellungen/briefkopf")) {
     return HELP_TOPICS.traegerBriefkopf;
   }

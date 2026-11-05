@@ -198,6 +198,8 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/einstellungen",
   "/einstellungen/abrechnung",
   "/einstellungen/briefkopf",
+  "/einstellungen/briefkopf/vorlagen",
+  "/einstellungen/briefkopf/vorlagen/:kind",
   "/einstellungen/mitglieder",
   "/einstellungen/zugriffsprotokoll",
   "/ferien",

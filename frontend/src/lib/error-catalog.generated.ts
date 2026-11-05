@@ -1413,6 +1413,14 @@ export const ERROR_CATALOG = {
         "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
       "traeger.bank_account_not_found":
         "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.document_template_invalid":
+        "Die Vorlage ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
+      "traeger.document_template_kind_not_found":
+        "Diese Dokumentart gibt es nicht. Bitte wählen Sie eine Vorlage aus der Liste.",
+      "traeger.document_template_unchanged":
+        "Die Vorlage hat sich nicht geändert. Es gibt keine neue Version.",
+      "traeger.document_template_unknown_placeholder":
+        "Diese Platzhalter kennt moto nicht: {placeholders}. Bitte nehmen Sie nur Platzhalter aus der Liste.",
       "traeger.last_administrator":
         "Das Träger-Büro braucht mindestens eine Person mit der Rolle Leitung. Geben Sie die Rolle zuerst einer anderen Person.",
       "traeger.logo_invalid":
@@ -2059,6 +2067,14 @@ export const ERROR_CATALOG = {
         "Another bank account already has this label. Please choose a different label.",
       "traeger.bank_account_not_found":
         "This bank account no longer exists. Please reload the page.",
+      "traeger.document_template_invalid":
+        "The template is incomplete. Please check the marked fields.",
+      "traeger.document_template_kind_not_found":
+        "This kind of document does not exist. Please choose a template from the list.",
+      "traeger.document_template_unchanged":
+        "The template has not changed. No new version was saved.",
+      "traeger.document_template_unknown_placeholder":
+        "moto does not know these placeholders: {placeholders}. Please use only placeholders from the list.",
       "traeger.last_administrator":
         "The Träger office needs at least one person with the role Leitung. Give this role to someone else first.",
       "traeger.logo_invalid":

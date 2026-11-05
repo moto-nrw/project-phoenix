@@ -205,6 +205,18 @@
       "source_role": "module-behavior-test",
       "target_owner": "tenant-runtime",
       "target_role": "public"
+    },
+    {
+      "id": "parent-billing.application.document-rendering-templates",
+      "description": "The Elternabrechnung fills the Träger's template of the confirmation letter with the values of each invoice through the pure template contract of Document Rendering (#4677, ADR 0152).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "application",
+      "target_owner": "document-rendering",
+      "target_role": "contract",
+      "target_package": "modules/documentrendering/templates"
     }
   ]
 }

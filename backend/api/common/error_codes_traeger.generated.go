@@ -5,6 +5,10 @@ const CodeTraegerAccessLogExportTooLarge = "traeger.access_log_export_too_large"
 const CodeTraegerAlreadyMember = "traeger.already_member"
 const CodeTraegerBankAccountLabelTaken = "traeger.bank_account_label_taken"
 const CodeTraegerBankAccountNotFound = "traeger.bank_account_not_found"
+const CodeTraegerDocumentTemplateInvalid = "traeger.document_template_invalid"
+const CodeTraegerDocumentTemplateKindNotFound = "traeger.document_template_kind_not_found"
+const CodeTraegerDocumentTemplateUnchanged = "traeger.document_template_unchanged"
+const CodeTraegerDocumentTemplateUnknownPlaceholder = "traeger.document_template_unknown_placeholder"
 const CodeTraegerLastAdministrator = "traeger.last_administrator"
 const CodeTraegerLogoInvalid = "traeger.logo_invalid"
 const CodeTraegerLogoNotFound = "traeger.logo_not_found"
@@ -20,6 +24,10 @@ var errorCodeClassesTraeger = []errorCodeClass{
 	{CodeTraegerAlreadyMember, "business_rejection"},
 	{CodeTraegerBankAccountLabelTaken, "input"},
 	{CodeTraegerBankAccountNotFound, "input"},
+	{CodeTraegerDocumentTemplateInvalid, "input"},
+	{CodeTraegerDocumentTemplateKindNotFound, "input"},
+	{CodeTraegerDocumentTemplateUnchanged, "business_rejection"},
+	{CodeTraegerDocumentTemplateUnknownPlaceholder, "input"},
 	{CodeTraegerLastAdministrator, "business_rejection"},
 	{CodeTraegerLogoInvalid, "input"},
 	{CodeTraegerLogoNotFound, "input"},

@@ -30,6 +30,17 @@ describe("getTraegerHelpTopicForPath", () => {
     }
   });
 
+  it.each([
+    "/einstellungen/briefkopf/vorlagen",
+    "/einstellungen/briefkopf/vorlagen/bestaetigung",
+    "/traeger/einstellungen/briefkopf/vorlagen",
+    "/traeger/einstellungen/briefkopf/vorlagen/bestaetigung",
+  ])("opens the template article on %s", (path) => {
+    expect(getTraegerHelpTopicForPath(path)).toBe(
+      HELP_TOPICS.traegerDocumentTemplates,
+    );
+  });
+
   it("opens the review article on the registrations of a holiday period (#4663)", () => {
     for (const path of [
       "/traeger/ferien/5/anmeldungen",

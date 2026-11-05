@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { ReactNode } from "react";
 import type { TraegerBankAccount, TraegerContact } from "~/lib/traeger-api";
 import { formatIBAN } from "./traeger-bank-account-format";
 
@@ -11,6 +12,9 @@ interface TraegerLetterheadPreviewProps {
   readonly color: string;
   readonly contact: TraegerContact;
   readonly defaultAccount: TraegerBankAccount | null;
+  /** Der Text des Briefs, etwa eine Vorlage mit Beispieldaten (#4677). */
+  readonly body?: ReactNode;
+  readonly label?: string;
 }
 
 function lines(text: string): string[] {
@@ -24,7 +28,8 @@ function lines(text: string): string[] {
  * The head and foot of a letter of the Träger as documents will print them
  * (#4653): logo, sender lines and contact person at the top, a line in the
  * Träger's colour, the footer with the default bank account at the bottom.
- * A display only: the values are changed in the cards below.
+ * A display only: the values are changed in the cards below. With a body it
+ * shows a whole letter, such as a template filled with sample data (#4677).
  */
 export function TraegerLetterheadPreview({
   logoSrc,
@@ -33,6 +38,8 @@ export function TraegerLetterheadPreview({
   color,
   contact,
   defaultAccount,
+  body,
+  label = "Vorschau des Briefkopfs",
 }: TraegerLetterheadPreviewProps) {
   // The colour is the Träger's own value, not a brand colour of moto;
   // without a valid one the preview stays gray.
@@ -45,7 +52,7 @@ export function TraegerLetterheadPreview({
 
   return (
     <figure
-      aria-label="Vorschau des Briefkopfs"
+      aria-label={label}
       className="mx-auto w-full max-w-2xl rounded-md border border-gray-200 bg-white p-6 text-sm text-gray-800 shadow-sm sm:p-10"
     >
       <div className="flex flex-wrap items-start justify-between gap-6">
@@ -104,7 +111,11 @@ export function TraegerLetterheadPreview({
         )}
       </p>
       {/* Blindtext statt grauer Balken: Balken lasen sich als Ladeskelett. */}
-      <p className="mt-8 text-gray-400">Hier steht der Text des Briefs.</p>
+      {body ? (
+        <div className="mt-8">{body}</div>
+      ) : (
+        <p className="mt-8 text-gray-400">Hier steht der Text des Briefs.</p>
+      )}
       <figcaption className="mt-10 border-t border-gray-200 pt-3 text-sm wrap-anywhere text-gray-600">
         {footer.map((line, index) => (
           <p key={`${index}-${line}`}>{line}</p>

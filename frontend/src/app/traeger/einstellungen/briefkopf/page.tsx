@@ -3,7 +3,8 @@
 // Briefkopf des Trägers (#4653, ADR 0112): Logo, Absender, Farbe und Fußzeile.
 // Alle Dokumente des Trägers nutzen diese Angaben; die Vorschau zeigt Kopf und
 // Fuß eines Briefs, auch mit Ansprechperson und Bankverbindung aus den anderen
-// Einstellungen (#5685). Lesen darf, wer „Übersicht lesen“ hat, ändern nur, wer
+// Einstellungen (#5685). Darunter führt die Karte „Vorlagen“ zum Text der
+// Briefe (#4677). Lesen darf, wer „Übersicht lesen“ hat, ändern nur, wer
 // „Einstellungen“ hat.
 
 import { useCallback } from "react";
@@ -12,6 +13,7 @@ import { SettingsCategory } from "~/components/settings/settings-category";
 import { TraegerLetterheadPreview } from "~/components/traeger/traeger-letterhead-preview";
 import { TraegerLogoCard } from "~/components/traeger/traeger-logo-card";
 import { Alert } from "~/components/ui/alert";
+import { ButtonLink } from "~/components/ui/button";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -22,6 +24,7 @@ import {
   saveTraegerSettingValue,
   traegerLogoSrc,
 } from "~/lib/traeger-api";
+import { traegerPath } from "~/lib/traeger-url";
 import { useTraegerMasterData } from "~/components/traeger/use-traeger-master-data";
 import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
 import { TRAEGER_BRANDING_TAB } from "~/lib/traeger-branding";
@@ -138,6 +141,20 @@ export default function TraegerBriefkopfPage() {
               audience="traeger"
             />
           ))}
+
+          <SectionCard
+            title="Vorlagen"
+            description="Hier legen Sie den Text der Briefe fest, zum Beispiel Betreff, Anrede und Brieftext der Bestätigung."
+            action={
+              <ButtonLink
+                href={traegerPath("/traeger/einstellungen/briefkopf/vorlagen")}
+                variant="outline"
+                size="md"
+              >
+                Vorlagen öffnen
+              </ButtonLink>
+            }
+          />
         </>
       ) : null}
     </TenantPage>

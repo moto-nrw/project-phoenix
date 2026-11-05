@@ -7,5 +7,17 @@
   ],
   "api/traeger/master-data/contact": [
     "PUT traeger /traeger/master-data/contact"
+  ],
+  "api/traeger/master-data/document-templates": [
+    "GET traeger /traeger/master-data/document-templates"
+  ],
+  "api/traeger/master-data/document-templates/[kind]": [
+    "GET traeger /traeger/master-data/document-templates/kind%2F1"
+  ],
+  "api/traeger/master-data/document-templates/[kind]/preview": [
+    "POST traeger /traeger/master-data/document-templates/kind%2F1/preview"
+  ],
+  "api/traeger/master-data/document-templates/[kind]/versions": [
+    "POST traeger /traeger/master-data/document-templates/kind%2F1/versions"
   ]
 }
