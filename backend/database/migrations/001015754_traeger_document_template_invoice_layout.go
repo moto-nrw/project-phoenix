@@ -7,14 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerDocumentTemplateInvoiceLayoutVersion = "1.15.753"
+const traegerDocumentTemplateInvoiceLayoutVersion = "1.15.754"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     traegerDocumentTemplateInvoiceLayoutVersion,
 		Description: "Träger-Portal: Darstellung der Rechnungstabelle je Vorlagenversion (#5691)",
 		DependsOn: []string{
-			traegerDocumentTemplatesVersion, // the last migration before this one and the table it extends
+			traegerSettingOperatorChangesVersion, // the last migration before this one
+			traegerDocumentTemplatesVersion,      // the table it extends
 		},
 	})
 	Migrations.MustRegister(traegerDocumentTemplateInvoiceLayoutUp, traegerDocumentTemplateInvoiceLayoutDown)
