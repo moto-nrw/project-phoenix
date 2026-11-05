@@ -68,6 +68,7 @@
   "pickup_proof_not_found": "Zu dieser Anfrage gibt es keinen Nachweis mit Ihrer Unterschrift.",
   "pickup_signature_invalid": "Die Unterschrift ist nicht lesbar. Bitte unterschreiben Sie noch einmal.",
   "pickup_signature_required": "Bitte unterschreiben Sie die Erlaubnis und bestätigen Sie die Unterschrift.",
+  "pickup_signature_too_large": "Die Unterschrift ist zu groß. Bitte tippen Sie auf „Neu unterschreiben“ und dann auf „Namen tippen“.",
   "poll_closed": "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
   "primary_guardian_protected": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
   "remove_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",

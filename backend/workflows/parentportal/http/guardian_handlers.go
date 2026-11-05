@@ -136,10 +136,11 @@ func (rs *Resource) createGuardianContact(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
+	// The pickup permission may carry its signature image (#5697).
+	r.Body = http.MaxBytesReader(w, r.Body, signedBodyLimit)
 	var body createGuardianContactRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
+		renderPickupSignatureBodyError(w, r, err)
 		return
 	}
 
@@ -189,6 +190,16 @@ func (rs *Resource) updateGuardianContact(w http.ResponseWriter, r *http.Request
 		return
 	}
 	common.Respond(w, r, http.StatusOK, guardianResponse(updated), "Guardian contact updated")
+}
+
+// renderPickupSignatureBodyError answers a body over signedBodyLimit with its own code,
+// so the portal does not show it as a generic input error.
+func renderPickupSignatureBodyError(w http.ResponseWriter, r *http.Request, err error) {
+	if tooLarge := new(http.MaxBytesError); errors.As(err, &tooLarge) {
+		common.RenderError(w, r, common.ErrorRequestTooLargeWithCode(errors.New("request body too large"), common.CodeCarePickupSignatureTooLarge))
+		return
+	}
+	common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 }
 
 func guardianContactInput(body updateGuardianContactRequest) parentService.GuardianContactInput {

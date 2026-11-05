@@ -123,6 +123,8 @@ export const ERROR_CATALOG = {
         "Die Unterschrift ist nicht lesbar. Bitte unterschreiben Sie noch einmal.",
       "care.pickup_signature_required":
         "Bitte unterschreiben Sie die Erlaubnis und bestätigen Sie die Unterschrift.",
+      "care.pickup_signature_too_large":
+        "Die Unterschrift ist zu groß. Bitte tippen Sie auf „Neu unterschreiben“ und dann auf „Namen tippen“.",
       "care.poll_closed":
         "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
       "care.remove_disabled":
@@ -1696,6 +1698,8 @@ export const ERROR_CATALOG = {
         "The signature cannot be read. Please sign again.",
       "care.pickup_signature_required":
         "Please sign the permission and confirm your signature.",
+      "care.pickup_signature_too_large":
+        "The signature is too large. Please tap “Sign again” and then “Type your name”.",
       "care.poll_closed":
         "{object} is no longer open. Please ask your contact person.",
       "care.remove_disabled":
@@ -2207,6 +2211,8 @@ export const ERROR_CATALOG = {
         "Подпись не читается. Пожалуйста, распишитесь ещё раз.",
       "care.pickup_signature_required":
         "Пожалуйста, подпишите разрешение и подтвердите подпись.",
+      "care.pickup_signature_too_large":
+        "Подпись слишком большая. Нажмите «Расписаться заново», а затем «Ввести имя».",
       "care.poll_closed":
         "Больше не открыто: {object}. Обратитесь к контактному лицу.",
       "care.remove_disabled":
@@ -2622,6 +2628,8 @@ export const ERROR_CATALOG = {
         "Nënshkrimi nuk lexohet. Ju lutemi nënshkruani përsëri.",
       "care.pickup_signature_required":
         "Ju lutemi nënshkruani lejen dhe konfirmoni nënshkrimin.",
+      "care.pickup_signature_too_large":
+        "Nënshkrimi është shumë i madh. Ju lutemi prekni „Nënshkruani përsëri“ dhe pastaj „Shkruani emrin“.",
       "care.poll_closed":
         "Nuk është më i hapur: {object}. Pyetni personin tuaj të kontaktit.",
       "care.remove_disabled":
@@ -3051,6 +3059,8 @@ export const ERROR_CATALOG = {
         "Podpis jest nieczytelny. Proszę podpisać się jeszcze raz.",
       "care.pickup_signature_required":
         "Proszę podpisać zgodę i potwierdzić podpis.",
+      "care.pickup_signature_too_large":
+        "Podpis jest za duży. Proszę kliknąć „Podpisz ponownie”, a potem „Wpisz imię i nazwisko”.",
       "care.poll_closed":
         "Już nie jest otwarte: {object}. Zapytaj swoją osobę kontaktową.",
       "care.remove_disabled":
@@ -3467,6 +3477,8 @@ export const ERROR_CATALOG = {
         "İmza okunamıyor. Lütfen tekrar imzalayın.",
       "care.pickup_signature_required":
         "Lütfen izni imzalayın ve imzanızı onaylayın.",
+      "care.pickup_signature_too_large":
+        "İmza çok büyük. Lütfen „Yeniden imzala“ ve ardından „Adınızı yazın“ seçeneğine dokunun.",
       "care.poll_closed":
         "{object} artık açık değil. Lütfen ilgili kişinize danışın.",
       "care.remove_disabled":
@@ -3887,6 +3899,8 @@ export const ERROR_CATALOG = {
         "Підпис неможливо прочитати. Будь ласка, підпишіться ще раз.",
       "care.pickup_signature_required":
         "Будь ласка, підпишіть дозвіл і підтвердьте підпис.",
+      "care.pickup_signature_too_large":
+        "Підпис завеликий. Натисніть «Підписатися знову», а потім «Ввести ім'я».",
       "care.poll_closed":
         "Уже не відкрито: {object}. Зверніться до контактної особи.",
       "care.remove_disabled":

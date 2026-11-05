@@ -489,6 +489,14 @@ func ErrorTooManyRequestsWithCode(err error, code string) render.Renderer {
 	return resp
 }
 
+// ErrorRequestTooLargeWithCode returns a 413 with a stable error code for a
+// request body over the route's limit.
+func ErrorRequestTooLargeWithCode(err error, code string) render.Renderer {
+	resp := newErrResponse(http.StatusRequestEntityTooLarge, err)
+	resp.Code = code
+	return resp
+}
+
 // ErrorRequestTimeout returns a 408 Request Timeout response for request
 // contexts whose deadline expired before the handler could complete.
 func ErrorRequestTimeout(err error) render.Renderer {
