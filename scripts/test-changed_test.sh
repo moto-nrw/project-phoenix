@@ -101,6 +101,10 @@ case "$*" in
     exec "$0" test "$@"
     ;;
   test\ *)
+    if [ "${PHX_FIXTURE_EXPECT_GOGC+x}" = x ] && [ "${GOGC-unset}" != "$PHX_FIXTURE_EXPECT_GOGC" ]; then
+      echo "go test: expected GOGC=$PHX_FIXTURE_EXPECT_GOGC, got ${GOGC-unset}" >&2
+      exit 1
+    fi
     if [ "${PHX_TEST_TEMPLATE:-}" != phoenix_test_template_regression ]; then
       echo 'go test did not receive the bootstrapped template' >&2
       exit 1
@@ -161,7 +165,8 @@ call_log="$fixture/calls.log"
 output_log="$fixture/output.log"
 workspace_log="$fixture/workspace.log"
 run_wrapper() {
-  local wrapper=$1 expected_status=$2
+  local wrapper=$1 expected_status=$2 expected_gogc=${GOGC-unset}
+  if [ "$wrapper" = test-backend.sh ]; then expected_gogc=${GOGC-50}; fi
   shift 2
   : >"$call_log"
   : >"$workspace_log"
@@ -169,6 +174,7 @@ run_wrapper() {
   (
     cd "$fixture"
     PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
+      PHX_FIXTURE_EXPECT_GOGC="$expected_gogc" \
       PHX_FIXTURE_GO_CACHE="$fixture/go-cache" TEST_CHANGED_WORKSPACE_LOG="$workspace_log" \
       GOTMPDIR="${PHX_FIXTURE_GOTMPDIR:-}" TMPDIR="${PHX_FIXTURE_TMPDIR:-}" \
       "scripts/$wrapper" "$@"
@@ -206,7 +212,7 @@ assert_calls() {
 }
 
 fixture_repo_root=$(git -C "$fixture" rev-parse --show-toplevel)
-full_runtime_options="-ldflags=-w -exec env GOGC=${GOGC-50}"
+full_runtime_options='-ldflags=-w'
 key_source_hash=$(git hash-object --no-filters -- "$repo_root/scripts/go-test-link-key.go")
 full_cache_options="-toolexec '$fixture_repo_root/scripts/go-test-link-cache.sh' '$fixture/go-cache/phoenix-test-links-v2' '$fixture/go-cache/phoenix-test-links-v2/key-$key_source_hash'"
 go_test_call() {
@@ -300,7 +306,7 @@ run_wrapper test-backend.sh 0 -toolexec caller-tool ./probe
 assert_calls $'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks '"$full_runtime_options"$' -toolexec caller-tool ./probe\nsweep'
 GOGC=123 run_wrapper test-backend.sh 0 ./probe
 expected=$'bootstrap\n'"$(go_test_call test-backend.sh 2 ./probe)"$'\nsweep'
-assert_calls "${expected/"GOGC=${GOGC-50}"/GOGC=123}"
+assert_calls "$expected"
 
 # Defaults precede explicit CLI flags so users retain their existing override.
 for gotestsum_status in 0 1; do
