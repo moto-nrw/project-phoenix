@@ -1,8 +1,8 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { Suspense } from "react";
-import { PortalOverflowBottomNav } from "~/components/ui/portal-overflow-bottom-nav";
 import {
   PortalSettingsSidebarEntries,
   PortalSidebar,
@@ -22,6 +22,16 @@ import {
 
 const RETURN_PATH_KEY = "school-settings-return-path";
 const NAV_ITEM_ATTRIBUTE = "data-school-nav-item";
+
+// Die Schublade braucht Radix-Dialog-Code und ist nur in den Einstellungen
+// auf schmalen Bildschirmen erreichbar. Sie gehört nicht in jede Schulroute.
+const PortalOverflowBottomNav = dynamic(
+  () =>
+    import("~/components/ui/portal-overflow-bottom-nav").then(
+      (module) => module.PortalOverflowBottomNav,
+    ),
+  { ssr: false },
+);
 
 /** Merkt sich die zuletzt geöffnete App-Seite für „Zurück zur App" (#5750). */
 export function SchoolSettingsReturnPathMemory() {
