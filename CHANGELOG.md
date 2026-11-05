@@ -1,5 +1,72 @@
 # Changelog
 
+## [1.5.0](https://github.com/moto-nrw/project-phoenix/compare/v1.4.0...v1.5.0) (2026-11-05)
+
+
+### Neue Funktionen
+
+* moto-Team ändert Träger-Einstellungen im Operator-Dashboard ohne SQL ([e5355df](https://github.com/moto-nrw/project-phoenix/commit/e5355df1c2891670d1b32aca4433d76921620c6a))
+* Operator sieht und ändert die Einstellungen eines Trägers ([4e54b35](https://github.com/moto-nrw/project-phoenix/commit/4e54b35fbb555f914fa76e7acad299d14f1954ec)), closes [#5748](https://github.com/moto-nrw/project-phoenix/issues/5748)
+* **traeger:** Aktion „Zur Abrechnung“ im Kopf eines Ferienzeitraums ([b4f1e61](https://github.com/moto-nrw/project-phoenix/commit/b4f1e61c12348b3dc107234c6502334c20e15f20)), closes [#5688](https://github.com/moto-nrw/project-phoenix/issues/5688)
+* **traeger:** Bestätigung und Rechnung ganz anpassbar, mit Rechnungstabelle und Vorschau des ganzen Briefs ([41ce6e1](https://github.com/moto-nrw/project-phoenix/commit/41ce6e157d84c7641190c52993104ca327da2e34))
+* **traeger:** Bestätigung und Rechnung mit Rechnungstabelle, einfügbaren Platzhaltern und ganzem Brief in der Vorschau ([163150e](https://github.com/moto-nrw/project-phoenix/commit/163150ef71d95db5e502559fe8fec644913b7bed))
+* **traeger:** Einstellungen in derselben Seitenleiste, Navigation nach Aufgaben gruppiert ([767b0f7](https://github.com/moto-nrw/project-phoenix/commit/767b0f77498aaecd411928e40779773d42a2caca))
+* **traeger:** Rechnungstabelle je Vorlagenversion einstellbar, Vorschau mit Anschrift und Nummern ([9d3ec8a](https://github.com/moto-nrw/project-phoenix/commit/9d3ec8a78a6ece5529cc3baebf14373cb81f6306))
+* **traeger:** vom Ferienzeitraum mit einem Klick zur passenden Abrechnung und zurück ([c6dd94e](https://github.com/moto-nrw/project-phoenix/commit/c6dd94eb450689a03958466f04d259c62f4a4a3f))
+* **traeger:** Vorlagen je Dokumentart mit Platzhaltern, Vorschau und Versionen ([4cd426e](https://github.com/moto-nrw/project-phoenix/commit/4cd426e4eb8cb2f76db589d17a05bdf691208197))
+
+
+### Fehlerbehebungen
+
+* accept a pickup signature when parents add a contact ([e1a8f61](https://github.com/moto-nrw/project-phoenix/commit/e1a8f61d7f8af36aa03537f8a7a8e2135e8ac421)), closes [#5697](https://github.com/moto-nrw/project-phoenix/issues/5697)
+* Arbeitszeitmodelle und Dienstpläne mit Startzeit lassen sich wieder speichern ([63beda8](https://github.com/moto-nrw/project-phoenix/commit/63beda86a5a1e781f12d12a6874c90edc66a5bb0))
+* bound PostgreSQL measurements and preserve test caching ([d696eb8](https://github.com/moto-nrw/project-phoenix/commit/d696eb8deb76f219c04019d396f6709108a62e00))
+* compare decomposed names composed in duplicate checks, replacements and person search ([b509f19](https://github.com/moto-nrw/project-phoenix/commit/b509f19b0a2543767156a2d50e5f13eb7ec45e8b)), closes [#4949](https://github.com/moto-nrw/project-phoenix/issues/4949)
+* **delivery:** VAPID-Kontakt im Push-Outbox nicht doppelt mit mailto versehen ([c183e87](https://github.com/moto-nrw/project-phoenix/commit/c183e875dab10e3694e95904251a1b8615ea9a04))
+* **delivery:** VAPID-Kontakt im Push-Outbox nicht doppelt mit mailto versehen ([56ac955](https://github.com/moto-nrw/project-phoenix/commit/56ac95598d0456d8e045de356398a9e525095bbd))
+* Eltern können neue Kontakte mit unterschriebener Abholerlaubnis wieder speichern ([8ca3316](https://github.com/moto-nrw/project-phoenix/commit/8ca3316939dceba02f6eba059eca7a99d3cf8c24))
+* enforce guardian search guards after accent folding ([587df28](https://github.com/moto-nrw/project-phoenix/commit/587df288814213d3064a7539153f759e4317dc38))
+* Exportdateien und Demo-Schulen behalten Akzente lesbar im Namen ([1376d9b](https://github.com/moto-nrw/project-phoenix/commit/1376d9bf32895600b1a0398493b40e4ed0161c74))
+* find names in searches without typing their accents ([34f37b1](https://github.com/moto-nrw/project-phoenix/commit/34f37b17ce3e1bb840f27a59d254dcce23241bde))
+* **frontend:** Dialog-Knöpfe auf dem Handy bündig ([6449443](https://github.com/moto-nrw/project-phoenix/commit/64494431a66b942c3a70902d204942dca36d00e9))
+* **frontend:** Dialog-Knöpfe auf dem Handy bündig ([f5d2a7b](https://github.com/moto-nrw/project-phoenix/commit/f5d2a7b1f5f3cd3ece75d404d5e4b8b4681441c3))
+* **identity:** erneutes Senden einer Träger-Einladung nimmt die Adresssperre vor dem Ersetzen ([471df00](https://github.com/moto-nrw/project-phoenix/commit/471df0066c300bae8f5867eb75f8ed0b7ade9fa9)), closes [#5749](https://github.com/moto-nrw/project-phoenix/issues/5749)
+* keep enrollment form schema below file-size limit ([187925c](https://github.com/moto-nrw/project-phoenix/commit/187925cf32a0aac133c6a9796e0ec89bd0709e77))
+* keep the three-character floor at the guardian picker, not in the shared search ([bc52351](https://github.com/moto-nrw/project-phoenix/commit/bc52351184147d2c9fb0589b00b8cbfe7693d0b4)), closes [#4949](https://github.com/moto-nrw/project-phoenix/issues/4949)
+* match names across canonical Unicode forms ([77beac4](https://github.com/moto-nrw/project-phoenix/commit/77beac43a29b48ff1850f12291ff9bdc9a58fa34))
+* Migration der Operator-Änderungen auf 1.15.753 verschieben ([6ac0946](https://github.com/moto-nrw/project-phoenix/commit/6ac0946b1a3fd9b1fbebb04a46ca5c39154b243b))
+* **migrations:** Rechnungstabelle als 1.15.754 nach der Operator-Änderungs-Migration ([d0b730e](https://github.com/moto-nrw/project-phoenix/commit/d0b730edc3e4d3f3e1a21c99d034dd5551b1da80))
+* Namen in der Suche auch ohne Akzente finden ([13e4e60](https://github.com/moto-nrw/project-phoenix/commit/13e4e608f656ab154f7342a2c7ec1ea8f44f9ab8))
+* Namen mit Umlaut, Akzent oder kleinem Anfangsbuchstaben stehen nicht mehr hinter Z ([af33395](https://github.com/moto-nrw/project-phoenix/commit/af333953f06bdff79c1a5db7a8c816cf45b15223))
+* Operator-Audit erst nach den Prüfungen der Einstellung schreiben ([09b7cec](https://github.com/moto-nrw/project-phoenix/commit/09b7cec9917afee34d1b305c3be94df979aa7cc3))
+* **operator:** Einladung nicht doppelt erneut senden, Erfolgstext ohne Zusage über das Ablaufen ([a61fb4c](https://github.com/moto-nrw/project-phoenix/commit/a61fb4c6e534cffef94eb7b458190d5e4c82a435)), closes [#5749](https://github.com/moto-nrw/project-phoenix/issues/5749)
+* **operator:** offene Einladungen ins Träger-Büro anzeigen, erneut senden und zurücknehmen ([b9bfe1c](https://github.com/moto-nrw/project-phoenix/commit/b9bfe1c9cebff02999a73a0d6e962322090a080e)), closes [#5749](https://github.com/moto-nrw/project-phoenix/issues/5749)
+* **operator:** offene Einladungen ins Träger-Büro sichtbar machen, erneut senden und zurücknehmen ([b36593b](https://github.com/moto-nrw/project-phoenix/commit/b36593b6eb15649499c8237f934248af8edc62b5))
+* Produkt-Screenshot der Träger-Einladung nutzt die neue Mitglieder-Seite ([0bace34](https://github.com/moto-nrw/project-phoenix/commit/0bace345452c96ea649c3d484a9efbe55b7d5b87))
+* Produkt-Screenshot der Träger-Einladung nutzt die neue Mitglieder-Seite ([154acfb](https://github.com/moto-nrw/project-phoenix/commit/154acfba0e848a56a7b5d15715ea97e1fd0c9d7c))
+* sort names in German dictionary order in the database and in Go ([490e7e8](https://github.com/moto-nrw/project-phoenix/commit/490e7e84a459a7b7462a156cd8ee9daee47df79f)), closes [#4949](https://github.com/moto-nrw/project-phoenix/issues/4949)
+* sort staff in the time-tracking overview and staff pools in German order ([0591dff](https://github.com/moto-nrw/project-phoenix/commit/0591dff79f1e9c16c2887cc164e9a38f29a91b26)), closes [#4949](https://github.com/moto-nrw/project-phoenix/issues/4949)
+* sort the remaining Go name lists and numbers like the database ([4f55056](https://github.com/moto-nrw/project-phoenix/commit/4f55056c1b75c5eb8a293274dbae7be84daa2ccc)), closes [#4949](https://github.com/moto-nrw/project-phoenix/issues/4949)
+* stop marks alone from widening the guardian search ([3b4f17d](https://github.com/moto-nrw/project-phoenix/commit/3b4f17d868c370939c10c42b98a253ada01b5901)), closes [#4949](https://github.com/moto-nrw/project-phoenix/issues/4949)
+* store names in NFC and share one ASCII transliteration ([da313c1](https://github.com/moto-nrw/project-phoenix/commit/da313c1f8acd58fb2d1642244a6ceed43dcaa43d))
+* store work-time start times as normalized wall clocks ([4623635](https://github.com/moto-nrw/project-phoenix/commit/46236358c4c17c4e3507b57cdb12db30760aa2c5)), closes [#5675](https://github.com/moto-nrw/project-phoenix/issues/5675)
+* **timetable:** Hinweis auf offene Handliste auch ohne künftigen Planungszeitraum ([2e0e61d](https://github.com/moto-nrw/project-phoenix/commit/2e0e61dbbab0705d49f184d5d3160d28d7d2aa53))
+* **timetable:** Knöpfe im Regeltermin-Dialog auf dem Handy bündig ([089619f](https://github.com/moto-nrw/project-phoenix/commit/089619fb3db67a892612baa0aa23eccf8f06408f))
+* **timetable:** Knöpfe im Regeltermin-Dialog auf dem Handy bündig ([5a0a3c4](https://github.com/moto-nrw/project-phoenix/commit/5a0a3c4c710a2c342068bf10ca24a779aaa7d765))
+* **timetable:** report open hand lists when no period covers the Stichtag yet ([bfc729f](https://github.com/moto-nrw/project-phoenix/commit/bfc729ff02b371691639388434910d1c6aaf682f)), closes [#5365](https://github.com/moto-nrw/project-phoenix/issues/5365)
+* **timetable:** Vorschau nennt den Grund, warum ein Kind wegfällt ([a538c49](https://github.com/moto-nrw/project-phoenix/commit/a538c49f6d35d7422cb3e96701d66bb18ab54d5c))
+* **timetable:** Vorschau nennt, warum ein Kind aus dem Regeltermin wegfällt ([73ba5ea](https://github.com/moto-nrw/project-phoenix/commit/73ba5ea35dc24f41dd81ea919be31389ec4dcf07))
+* **traeger:** „Zur Abrechnung“ erscheint erst, wenn das Ziel feststeht ([e3c6e92](https://github.com/moto-nrw/project-phoenix/commit/e3c6e921f8ee4282b7718a2bdefe601f531bb786))
+* **traeger:** handle template branding loads and contextual help ([83bcbf0](https://github.com/moto-nrw/project-phoenix/commit/83bcbf0871207acc7cdbc6d05fff5872fa57238a))
+* **traeger:** lade Kontakt über Seitenzustand ([3277c26](https://github.com/moto-nrw/project-phoenix/commit/3277c26294cf6e469b80729e4f007170ac2439e8))
+* **traeger:** preserve template tables and editor state ([1e03133](https://github.com/moto-nrw/project-phoenix/commit/1e03133e278dbfc8149b7c5eeb4bcc5e2a79c360))
+* **traeger:** Statuszeile der Abrechnung zählt die gefilterten Läufe ([6501046](https://github.com/moto-nrw/project-phoenix/commit/6501046723240d4a3d4e8ffaefebb90d9cbf0807))
+* **traeger:** verlinke Abrechnung nur mit Übersicht ([275f1bb](https://github.com/moto-nrw/project-phoenix/commit/275f1bbb6c44ee1a563b01a3aab890fa1274fd0a))
+* **traeger:** verlinke Regeln nur mit Abrechnungsrecht ([9517684](https://github.com/moto-nrw/project-phoenix/commit/9517684cc1d7f132cb65b0bdc539ac84c3d1d8c8))
+* **traeger:** Vorlagen-Editor in schmalen Spalten lesbar halten ([b2fb5ae](https://github.com/moto-nrw/project-phoenix/commit/b2fb5ae5b3094375297a4b2e5dc8427c2d916529))
+* **traeger:** Woche bleibt als Leistungszeitraum fest in der Rechnungstabelle; Platzhalter an der letzten Schreibmarke ([35aaa18](https://github.com/moto-nrw/project-phoenix/commit/35aaa183621a653972cd25d496a1fc488a15d1c5))
+* **ui:** speichere Scrollstand vor Linkwechsel ([fa9b289](https://github.com/moto-nrw/project-phoenix/commit/fa9b2897dc5a216c7847c62686db687a356c2f24))
+
 ## [1.4.0](https://github.com/moto-nrw/project-phoenix/compare/v1.3.0...v1.4.0) (2026-11-05)
 
 
