@@ -243,13 +243,24 @@ func TestDocumentInboxQueryBudget(t *testing.T) {
 	var organization int64
 	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, chain.TenantID).Scan(ctx, &organization))
 	own := newInboxTraeger(t, db, organization)
-	for _, child := range []string{"Felix", "Mia", "Lena"} {
-		own.document(chain.Email, child, true)
-	}
-
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	documents, err := portal.ListBillingDocuments(counter.Context(ctx), chain.AccountID)
-	require.NoError(t, err)
-	assert.Len(t, documents, 3)
-	querybudgets.AssertQueryBudget(t, "workflows.parentportal.billing_documents.list", counter.Queries())
+	created, smallStatements := 0, 0
+	for _, n := range []int{1, 3, 12} {
+		for created < n {
+			own.document(chain.Email, fmt.Sprintf("Kind-%02d", created), true)
+			created++
+		}
+		counter.Reset()
+		documents, err := portal.ListBillingDocuments(counter.Context(ctx), chain.AccountID)
+		require.NoError(t, err)
+		assert.Len(t, documents, n)
+		assert.EqualValues(t, 1, counter.WriteRows(), "one read trail entry per inbox request, not per document")
+		t.Logf("billing documents N=%d total=%d", n, counter.Total())
+		querybudgets.AssertQueryBudget(t, "workflows.parentportal.billing_documents.list", counter.Queries())
+		if n == 1 {
+			smallStatements = counter.Total()
+		} else {
+			assert.Equal(t, smallStatements, counter.Total(), "document growth adds no roundtrips")
+		}
+	}
 }

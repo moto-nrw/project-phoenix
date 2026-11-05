@@ -1,0 +1,6 @@
+{
+  "scenario": "workflows.parentportal.related_accounts.list.n1",
+  "max": 12,
+  "exact": false,
+  "description": "Related-account service with 1 linked profiles (one active caller, remaining contacts); includes admin ownership and tenant list transactions. Profile N+1 is not yet optimized; keep the existing diagnostic error contract."
+}
