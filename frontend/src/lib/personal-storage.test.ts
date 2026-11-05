@@ -232,6 +232,7 @@ describe("inventory", () => {
 
   // Storage files whose keys come from elsewhere. Each line names where.
   const KEYS_FROM_ELSEWHERE: Record<string, string> = {
+    "src/components/ui/settings-return-path.tsx": "storageKey from the portal",
     "src/lib/sidebar-memory.ts": "SIDEBAR_MEMORY_ENTRIES, checked below",
     "src/lib/hooks/use-local-storage-value.ts": "key from the caller",
     "src/lib/hooks/use-unread-count.ts": "cacheKey from the badge hooks",
