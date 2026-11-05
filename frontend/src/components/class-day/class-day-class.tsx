@@ -1027,6 +1027,7 @@ export function ClassDayClass({
           footer={
             <EditActions
               className="p-4"
+              stretchOnPhone
               onCancel={homeworkForm.close}
               onSave={() => void homeworkForm.save()}
               saving={homeworkForm.saving}
@@ -1097,6 +1098,7 @@ export function ClassDayClass({
           footer={
             <EditActions
               className="p-4"
+              stretchOnPhone
               onCancel={() => setHandoverOpen(false)}
               onSave={() => void saveHandover()}
               saving={savingHandover}
@@ -1197,7 +1199,9 @@ export function ClassDayClass({
           error={hintErrors.error}
           isBackdropDismissDisabled={trimmedHint !== ""}
           footer={
-            <div className="flex flex-wrap items-center justify-between gap-2 p-4">
+            // On a phone Abbrechen and Speichern share one full-width row
+            // and „Hinweis löschen“ sits full width below them (#5758).
+            <div className="flex w-full flex-col-reverse gap-2 p-4 sm:flex-row sm:items-center sm:justify-end">
               {existingHint ? (
                 <Button
                   type="button"
@@ -1208,16 +1212,16 @@ export function ClassDayClass({
                     setHintDeleteOpen(true);
                   }}
                   disabled={hintSaving}
+                  className="w-full sm:mr-auto sm:w-auto"
                 >
                   Hinweis löschen
                 </Button>
-              ) : (
-                <span />
-              )}
+              ) : null}
               <EditActions
                 onCancel={closeHint}
                 onSave={() => void saveHint()}
                 saving={hintSaving}
+                stretchOnPhone
               />
             </div>
           }

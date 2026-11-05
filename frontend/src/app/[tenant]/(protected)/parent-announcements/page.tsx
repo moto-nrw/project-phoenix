@@ -1417,12 +1417,25 @@ function AnnouncementFormModal({
   });
 
   const footer =
+    // On a phone every row of the wrapping footer fills the width, so no
+    // button hangs alone at the right edge (#5758).
     step === 0 ? (
       <>
-        <Button type="button" variant="outline" size="md" onClick={onClose}>
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          onClick={onClose}
+          className="grow sm:grow-0"
+        >
           Abbrechen
         </Button>
-        <Button type="button" size="md" onClick={goNext}>
+        <Button
+          type="button"
+          size="md"
+          onClick={goNext}
+          className="grow sm:grow-0"
+        >
           Weiter
         </Button>
       </>
@@ -1434,6 +1447,7 @@ function AnnouncementFormModal({
           size="md"
           onClick={() => setStep(0)}
           disabled={submitting !== null}
+          className="grow sm:grow-0"
         >
           Zurück
         </Button>
@@ -1445,6 +1459,7 @@ function AnnouncementFormModal({
           isLoading={submitting === "draft"}
           loadingText="Wird gespeichert…"
           disabled={submitting === "publish"}
+          className="grow sm:grow-0"
         >
           Als Entwurf speichern
         </Button>
@@ -1455,7 +1470,7 @@ function AnnouncementFormModal({
           isLoading={submitting === "publish"}
           loadingText="Wird veröffentlicht…"
           disabled={submitting === "draft"}
-          className="gap-1.5"
+          className="grow gap-1.5 sm:grow-0"
         >
           <Send className="size-4" aria-hidden />
           Veröffentlichen
