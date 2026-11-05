@@ -330,7 +330,7 @@ for (const analytics of [false, true]) {
         // Anker: authenticated product content, not a login or loading shell.
         await visible(
           page.getByRole("heading", {
-            name: surface === "ogs" ? "Profil" : "Einstellungen",
+            name: surface === "ogs" ? "Profil" : "Benachrichtigungen",
             exact: true,
           }),
         );
