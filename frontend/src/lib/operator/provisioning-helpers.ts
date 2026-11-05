@@ -868,6 +868,39 @@ export interface AssignTraegerMemberRequest {
 /** The operator's invitation into a Träger-Büro (#5144). */
 export type InviteTraegerMemberRequest = AssignTraegerMemberRequest;
 
+/**
+ * An invitation into the Träger-Büro that is neither accepted nor taken back
+ * (#5749). `expired` marks a link the person can no longer use; the backend
+ * deletes it later.
+ */
+export interface BackendTraegerInvitation {
+  id: number;
+  email: string;
+  roles: string[];
+  expires_at: string;
+  expired: boolean;
+}
+
+export interface TraegerInvitation {
+  id: string;
+  email: string;
+  roles: TraegerRole[];
+  expiresAt: string;
+  expired: boolean;
+}
+
+export function mapTraegerInvitation(
+  data: BackendTraegerInvitation,
+): TraegerInvitation {
+  return {
+    id: data.id.toString(),
+    email: data.email,
+    roles: (data.roles ?? []).filter(isTraegerRole),
+    expiresAt: data.expires_at,
+    expired: data.expired === true,
+  };
+}
+
 // Löschauftrag eines deaktivierten Trägers (#4657). Kalenderdaten bleiben
 // "YYYY-MM-DD"-Strings.
 export interface BackendTraegerErasureOrder {

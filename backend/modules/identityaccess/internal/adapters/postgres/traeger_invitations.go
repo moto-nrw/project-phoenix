@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
@@ -126,22 +127,56 @@ const listOpenTraegerInvitationsQuery = `SELECT ` + traegerInvitationColumns + `
 
 // ListOpenTraegerInvitations returns the open, unexpired invitations.
 func (s *Store) ListOpenTraegerInvitations(ctx context.Context, organizationID int64, now time.Time) ([]domain.TraegerInvitation, domain.OperationStats, error) {
+	return s.listTraegerInvitations(ctx, "list open Träger invitations", func(db bun.IDB) *bun.RawQuery {
+		return db.NewRaw(listOpenTraegerInvitationsQuery, organizationID, now)
+	})
+}
+
+const listUnspentTraegerInvitationsQuery = `SELECT ` + traegerInvitationColumns + `
+	FROM auth.traeger_invitations
+	WHERE organization_id = ? AND used_at IS NULL AND revoked_at IS NULL
+	ORDER BY created_at DESC, id DESC`
+
+// ListUnspentTraegerInvitations returns the invitations that are neither
+// used nor revoked, the expired ones included (#5749).
+func (s *Store) ListUnspentTraegerInvitations(ctx context.Context, organizationID int64) ([]domain.TraegerInvitation, domain.OperationStats, error) {
+	return s.listTraegerInvitations(ctx, "list unspent Träger invitations", func(db bun.IDB) *bun.RawQuery {
+		return db.NewRaw(listUnspentTraegerInvitationsQuery, organizationID)
+	})
+}
+
+func (s *Store) listTraegerInvitations(ctx context.Context, operation string, query func(bun.IDB) *bun.RawQuery) ([]domain.TraegerInvitation, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	var rows []traegerInvitationRow
 	started := time.Now()
-	err = db.NewRaw(listOpenTraegerInvitationsQuery, organizationID, now).Scan(ctx, &rows)
+	err = query(db).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
 	if err != nil {
-		return nil, stats, fmt.Errorf("identity access postgres: list open Träger invitations: %w", err)
+		return nil, stats, fmt.Errorf("identity access postgres: %s: %w", operation, err)
 	}
 	invitations := make([]domain.TraegerInvitation, 0, len(rows))
 	for _, row := range rows {
 		invitations = append(invitations, row.toDomain())
 	}
 	return invitations, stats, nil
+}
+
+const findTraegerInvitationQuery = `SELECT ` + traegerInvitationColumns + `
+	FROM auth.traeger_invitations
+	WHERE organization_id = ? AND id = ?`
+
+// FindTraegerInvitation reads one invitation of the Träger by its ID.
+func (s *Store) FindTraegerInvitation(ctx context.Context, organizationID, id int64) (domain.TraegerInvitation, bool, domain.OperationStats, error) {
+	invitations, stats, err := s.listTraegerInvitations(ctx, "find Träger invitation", func(db bun.IDB) *bun.RawQuery {
+		return db.NewRaw(findTraegerInvitationQuery, organizationID, id)
+	})
+	if err != nil || len(invitations) == 0 {
+		return domain.TraegerInvitation{}, false, stats, err
+	}
+	return invitations[0], true, stats, nil
 }
 
 const findTraegerInvitationByTokenQuery = `SELECT ` + traegerInvitationColumns + `

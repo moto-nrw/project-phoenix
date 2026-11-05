@@ -35,10 +35,17 @@
     "POST operator /operator/organizations/id%2F1/traeger-members"
   ],
   "api/operator/provisioning/organizations/[id]/traeger-members/invitations": [
+    "GET operator /operator/organizations/id%2F1/traeger-members/invitations",
     "POST operator /operator/organizations/id%2F1/traeger-members/invitations"
   ],
   "api/operator/provisioning/organizations/[id]/traeger-settings/schema": [
     "GET operator /operator/organizations/id%2F1/traeger-settings/schema"
+  ],
+  "api/operator/provisioning/organizations/[id]/traeger-members/invitations/[invitationId]": [
+    "DELETE operator /operator/organizations/id%2F1/traeger-members/invitations/invitationId%2F1"
+  ],
+  "api/operator/provisioning/organizations/[id]/traeger-members/invitations/[invitationId]/resend": [
+    "POST operator /operator/organizations/id%2F1/traeger-members/invitations/invitationId%2F1/resend"
   ],
   "api/operator/provisioning/organizations/[id]/persons": [
     "GET operator /operator/organizations/id%2F1/persons"

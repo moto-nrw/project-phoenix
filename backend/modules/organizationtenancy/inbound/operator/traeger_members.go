@@ -76,6 +76,58 @@ func (rs *ProvisioningResource) InviteTraegerMember(w http.ResponseWriter, r *ht
 	common.Respond(w, r, http.StatusCreated, invitation, "Träger invitation sent successfully")
 }
 
+// ListTraegerInvitations answers GET
+// /operator/organizations/{id}/traeger-members/invitations (#5749).
+func (rs *ProvisioningResource) ListTraegerInvitations(w http.ResponseWriter, r *http.Request) {
+	common.IDFetch("id", "invalid organization ID", rs.service.ListTraegerInvitations, ProvisioningErrorRenderer, "Träger invitations retrieved successfully")(w, r)
+}
+
+// ResendTraegerInvitation answers POST
+// /operator/organizations/{id}/traeger-members/invitations/{invitationId}/resend (#5749).
+func (rs *ProvisioningResource) ResendTraegerInvitation(w http.ResponseWriter, r *http.Request) {
+	input, ok := traegerInvitationCommand(w, r)
+	if !ok {
+		return
+	}
+	invitation, err := rs.service.ResendTraegerInvitation(r.Context(), input)
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, invitation, "Träger invitation sent again successfully")
+}
+
+// RevokeTraegerInvitation answers DELETE
+// /operator/organizations/{id}/traeger-members/invitations/{invitationId} (#5749).
+func (rs *ProvisioningResource) RevokeTraegerInvitation(w http.ResponseWriter, r *http.Request) {
+	input, ok := traegerInvitationCommand(w, r)
+	if !ok {
+		return
+	}
+	if err := rs.service.RevokeTraegerInvitation(r.Context(), input); err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Träger invitation withdrawn successfully")
+}
+
+// traegerInvitationCommand reads the Träger, the invitation and the acting
+// operator of an invitation route.
+func traegerInvitationCommand(w http.ResponseWriter, r *http.Request) (organizationtenancy.TraegerInvitationCommand, bool) {
+	organizationID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
+	if !ok {
+		return organizationtenancy.TraegerInvitationCommand{}, false
+	}
+	invitationID, ok := common.ParseInt64IDWithError(w, r, "invitationId", "invalid invitation ID")
+	if !ok {
+		return organizationtenancy.TraegerInvitationCommand{}, false
+	}
+	return organizationtenancy.TraegerInvitationCommand{
+		OrganizationID: organizationID, InvitationID: invitationID,
+		OperatorID: int64(sessiontoken.ClaimsFromCtx(r.Context()).ID), ClientIP: common.ParseClientIP(r),
+	}, true
+}
+
 // resetTraegerMemberMFARequest is the body of the second-factor reset; the
 // reason goes to the operator audit.
 type resetTraegerMemberMFARequest struct {
@@ -122,6 +174,8 @@ func traegerErrorRenderer(err error) (render.Renderer, bool) {
 		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "No account with this e-mail address"), true
 	case errors.Is(err, organizationtenancy.ErrTraegerMemberNotFound):
 		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "Account is no member of this Träger-Büro"), true
+	case errors.Is(err, organizationtenancy.ErrTraegerInvitationNotFound):
+		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityInvitationNotFound, "No open invitation of this Träger-Büro"), true
 	case errors.Is(err, organizationtenancy.ErrTraegerAlreadyMember):
 		return common.OperatorRejection(http.StatusConflict, common.CodeTraegerAlreadyMember, "The person already belongs to the Träger-Büro"), true
 	case errors.Is(err, organizationtenancy.ErrTraegerInvalidEmail):

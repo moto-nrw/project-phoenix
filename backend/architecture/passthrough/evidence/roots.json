@@ -2921,6 +2921,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (p ProvisioningIdentity) InviteTraegerAccount(ctx context.Context, organizationID int64, email string, roles []string) (organizationtenancy.TraegerInvitation, error) {\n\tinvitation, err := p.Traeger.InviteTraegerAccountForOperator(ctx, organizationID, email, roles)\n\tif err != nil {\n\t\treturn organizationtenancy.TraegerInvitation{}, provisioningTraegerInvitationError(err)\n\t}\n\treturn provisioningTraegerInvitation(invitation), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/ProvisioningIdentity.InviteTraegerAccount",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (p ProvisioningIdentity) ListAllAccounts(ctx context.Context) ([]organizationCompose.OrganizationAccount, error) {\n\taccounts, err := p.Accounts.ListAllAccounts(ctx)\n\tif err != nil || accounts == nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]organizationCompose.OrganizationAccount, 0, len(accounts))\n\tfor _, account := range accounts {\n\t\tresult = append(result, organizationCompose.OrganizationAccount{SchoolAccount: organizationCompose.SchoolAccount(account.TenantAccountInfo), SchoolID: account.SchoolID, SchoolName: account.SchoolName})\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/ProvisioningIdentity.ListAllAccounts",
@@ -2949,6 +2956,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (p ProvisioningIdentity) ListTraegerInvitations(ctx context.Context, organizationID int64) ([]organizationtenancy.TraegerInvitation, error) {\n\tinvitations, err := p.Traeger.ListTraegerInvitationsForOperator(ctx, organizationID)\n\tif err != nil {\n\t\treturn nil, provisioningTraegerInvitationError(err)\n\t}\n\tresult := make([]organizationtenancy.TraegerInvitation, 0, len(invitations))\n\tfor _, invitation := range invitations {\n\t\tresult = append(result, provisioningTraegerInvitation(invitation))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/ProvisioningIdentity.ListTraegerInvitations",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p ProvisioningIdentity) ResendTraegerInvitation(ctx context.Context, organizationID, invitationID int64) (organizationtenancy.TraegerInvitation, error) {\n\tinvitation, err := p.Traeger.ResendTraegerInvitationForOperator(ctx, organizationID, invitationID)\n\tif err != nil {\n\t\treturn organizationtenancy.TraegerInvitation{}, provisioningTraegerInvitationError(err)\n\t}\n\treturn provisioningTraegerInvitation(invitation), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/ProvisioningIdentity.ResendTraegerInvitation",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (p ProvisioningIdentity) ResetTraegerMFA(ctx context.Context, accountID int64) error {\n\terr := p.Traeger.ResetMFAInTransaction(ctx, accountID)\n\tif errors.Is(err, identityaccess.ErrAccountNotFound) {\n\t\treturn organizationtenancy.ErrTraegerMemberNotFound\n\t}\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/ProvisioningIdentity.ResetTraegerMFA",
@@ -2959,6 +2980,13 @@
       "evidence": "func (p ProvisioningIdentity) RevokeSchoolSessions(ctx context.Context, tenantID int64) (int, error) {\n\treturn p.Sessions.RevokeTokensByTenantID(ctx, tenantID)\n}",
       "form": "forward-debt",
       "id": "roots/owners/ProvisioningIdentity.RevokeSchoolSessions",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p ProvisioningIdentity) RevokeTraegerInvitation(ctx context.Context, organizationID, invitationID int64) (organizationtenancy.TraegerInvitation, error) {\n\tinvitation, err := p.Traeger.RevokeTraegerInvitationForOperator(ctx, organizationID, invitationID)\n\tif err != nil {\n\t\treturn organizationtenancy.TraegerInvitation{}, provisioningTraegerInvitationError(err)\n\t}\n\treturn provisioningTraegerInvitation(invitation), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/ProvisioningIdentity.RevokeTraegerInvitation",
       "owner": "roots"
     },
     {

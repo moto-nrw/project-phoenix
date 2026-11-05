@@ -42,6 +42,8 @@ import type {
   BackendOperatorCaterer,
   InviteTraegerMemberRequest,
   BackendTraegerMember,
+  BackendTraegerInvitation,
+  TraegerInvitation,
   OperatorCaterer,
   TraegerMember,
   RecordTraegerErasureOrderRequest,
@@ -62,6 +64,7 @@ import {
   mapDeviceTransferStatus,
   mapSchoolPWAUsage,
   mapTraegerMember,
+  mapTraegerInvitation,
   mapOperatorCaterer,
   isBackendTraegerErasureOrder,
   mapTraegerErasureOrder,
@@ -192,8 +195,8 @@ class OperatorProvisioningService {
   }
 
   /**
-   * Sends the Träger-Büro's invitation mail (#5144). The Träger-Büro sees
-   * it among its open invitations.
+   * Sends the Träger-Büro's invitation mail (#5144). It appears in
+   * `listTraegerInvitations` at once.
    */
   async inviteTraegerMember(
     orgId: string,
@@ -202,6 +205,40 @@ class OperatorProvisioningService {
     await operatorFetch<unknown>(
       `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/traeger-members/invitations`,
       { method: "POST", body: data },
+    );
+  }
+
+  /** Open and expired invitations into the Träger-Büro (#5749). */
+  async listTraegerInvitations(orgId: string): Promise<TraegerInvitation[]> {
+    const data = await operatorFetch<BackendTraegerInvitation[]>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/traeger-members/invitations`,
+    );
+    return data.map(mapTraegerInvitation);
+  }
+
+  /**
+   * Sends the invitation again with a new link and a new validity; the old
+   * link stops working (#5749).
+   */
+  async resendTraegerInvitation(
+    orgId: string,
+    invitationId: string,
+  ): Promise<TraegerInvitation> {
+    const result = await operatorFetch<BackendTraegerInvitation>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/traeger-members/invitations/${encodeURIComponent(invitationId)}/resend`,
+      { method: "POST" },
+    );
+    return mapTraegerInvitation(result);
+  }
+
+  /** Takes an invitation back; its link stops working (#5749). */
+  async revokeTraegerInvitation(
+    orgId: string,
+    invitationId: string,
+  ): Promise<void> {
+    await operatorFetch<unknown>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/traeger-members/invitations/${encodeURIComponent(invitationId)}`,
+      { method: "DELETE" },
     );
   }
 

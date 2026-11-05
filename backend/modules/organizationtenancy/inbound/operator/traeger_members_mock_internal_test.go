@@ -22,6 +22,18 @@ func (m *mockProvisioningService) InviteTraegerMember(context.Context, organizat
 	return organizationtenancy.TraegerInvitation{}, nil
 }
 
+func (m *mockProvisioningService) ListTraegerInvitations(context.Context, int64) ([]organizationtenancy.TraegerInvitation, error) {
+	return nil, nil
+}
+
+func (m *mockProvisioningService) ResendTraegerInvitation(context.Context, organizationtenancy.TraegerInvitationCommand) (organizationtenancy.TraegerInvitation, error) {
+	return organizationtenancy.TraegerInvitation{}, nil
+}
+
+func (m *mockProvisioningService) RevokeTraegerInvitation(context.Context, organizationtenancy.TraegerInvitationCommand) error {
+	return nil
+}
+
 func (m *mockProvisioningService) ResetTraegerMemberMFA(context.Context, organizationtenancy.ResetTraegerMemberMFA) error {
 	return nil
 }

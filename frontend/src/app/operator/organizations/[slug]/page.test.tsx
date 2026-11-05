@@ -52,6 +52,9 @@ const {
   mockAssignTraegerMember,
   mockInviteTraegerMember,
   mockMutateTraegerMembers,
+  mockMutateTraegerInvitations,
+  mockResendTraegerInvitation,
+  mockRevokeTraegerInvitation,
   mockPush,
   mockReplace,
 } = vi.hoisted(() => ({
@@ -77,6 +80,9 @@ const {
   mockAssignTraegerMember: vi.fn(),
   mockInviteTraegerMember: vi.fn(),
   mockMutateTraegerMembers: vi.fn(),
+  mockMutateTraegerInvitations: vi.fn(),
+  mockResendTraegerInvitation: vi.fn(),
+  mockRevokeTraegerInvitation: vi.fn(),
   mockPush: vi.fn(),
   mockReplace: vi.fn(),
 }));
@@ -140,6 +146,8 @@ vi.mock("~/lib/operator/provisioning-api", async () => {
       deleteDevice: mockDeleteDevice,
       assignTraegerMember: mockAssignTraegerMember,
       inviteTraegerMember: mockInviteTraegerMember,
+      resendTraegerInvitation: mockResendTraegerInvitation,
+      revokeTraegerInvitation: mockRevokeTraegerInvitation,
     },
   };
 });
@@ -265,6 +273,7 @@ interface SetupOpts {
   persons?: unknown[];
   traegerMembers?: unknown[];
   traegerMembersError?: Error;
+  traegerInvitations?: unknown[];
 }
 
 function keyToString(key: unknown): string {
@@ -290,6 +299,7 @@ function setupSWR(opts: SetupOpts = {}) {
     persons = [],
     traegerMembers = [],
     traegerMembersError,
+    traegerInvitations = [],
   } = opts;
 
   mockUseSWR.mockImplementation((key: unknown) => {
@@ -334,6 +344,12 @@ function setupSWR(opts: SetupOpts = {}) {
           error: traegerMembersError,
           isLoading: false,
           mutate: mockMutateTraegerMembers,
+        };
+      case operatorProvisioningKeys.orgTraegerInvitations(mockOrg.id):
+        return {
+          data: traegerInvitations,
+          isLoading: false,
+          mutate: mockMutateTraegerInvitations,
         };
       default:
         return { data: undefined, isLoading: false, mutate: vi.fn() };
@@ -907,10 +923,9 @@ describe("OperatorOrganizationDetailPage", () => {
 
       await renderPage();
 
-      expect(
-        await screen.findByText("buero@traeger.example"),
-      ).toBeInTheDocument();
-      const row = screen.getByText("buero@traeger.example").closest("tr")!;
+      const [email] = await screen.findAllByText("buero@traeger.example");
+      expect(email).toBeInTheDocument();
+      const row = tableRow("buero@traeger.example");
       expect(
         within(row).getByText("Verwaltung, Nur lesen"),
       ).toBeInTheDocument();
@@ -927,6 +942,138 @@ describe("OperatorOrganizationDetailPage", () => {
         await screen.findByText(
           "Noch niemand hat Zugang zum Träger-Portal dieses Trägers. Laden Sie die erste Person oben mit „Person einladen“ ein.",
         ),
+      ).toBeInTheDocument();
+    });
+
+    const openInvitation = {
+      id: "7",
+      email: "offen@traeger.example",
+      roles: ["administration", "leadership"],
+      expiresAt: "2026-09-16T10:00:00Z",
+      expired: false,
+    };
+    const expiredInvitation = {
+      id: "8",
+      email: "alt@traeger.example",
+      roles: ["read_only"],
+      expiresAt: "2026-09-01T10:00:00Z",
+      expired: true,
+    };
+
+    // The kit renders the table and, for phones, the stacked list; the
+    // table row is the first match.
+    function tableRow(email: string) {
+      return screen
+        .getAllByText(email)
+        .map((cell) => cell.closest("tr"))
+        .find((row) => row !== null)!;
+    }
+
+    async function openRowMenu(name: string) {
+      const [menu] = await screen.findAllByRole("button", { name });
+      fireEvent.click(menu!);
+    }
+
+    it("lists open and expired invitations beside the members (#5749)", async () => {
+      currentSearchParams = new URLSearchParams("tab=traeger-buero");
+      setupSWR({
+        traegerMembers: [member],
+        traegerInvitations: [openInvitation, expiredInvitation],
+      });
+
+      await renderPage();
+
+      await screen.findAllByText("offen@traeger.example");
+      const open = tableRow("offen@traeger.example");
+      expect(within(open).getByText("Verwaltung, Leitung")).toBeInTheDocument();
+      expect(within(open).getByText("Eingeladen")).toBeInTheDocument();
+      expect(
+        within(open).getByText("16.09.2026, 12:00 Uhr"),
+      ).toBeInTheDocument();
+      const expired = tableRow("alt@traeger.example");
+      expect(within(expired).getByText("Abgelaufen")).toBeInTheDocument();
+      const active = tableRow("buero@traeger.example");
+      expect(within(active).getByText("Aktiv")).toBeInTheDocument();
+      expect(within(active).getByText("–")).toBeInTheDocument();
+    });
+
+    it("shows a sent invitation even when nobody has access yet (#5749)", async () => {
+      currentSearchParams = new URLSearchParams("tab=traeger-buero");
+      setupSWR({ traegerMembers: [], traegerInvitations: [openInvitation] });
+
+      await renderPage();
+
+      const [sent] = await screen.findAllByText("offen@traeger.example");
+      expect(sent).toBeInTheDocument();
+      expect(
+        screen.queryByText("Noch niemand im Träger-Büro"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("sends an expired invitation again and reloads the list (#5749)", async () => {
+      currentSearchParams = new URLSearchParams("tab=traeger-buero");
+      setupSWR({ traegerInvitations: [expiredInvitation] });
+      mockResendTraegerInvitation.mockResolvedValue({
+        ...expiredInvitation,
+        id: "9",
+        expired: false,
+      });
+      mockMutateTraegerInvitations.mockResolvedValue([]);
+
+      await renderPage();
+
+      await openRowMenu("Aktionen für die Einladung an alt@traeger.example");
+      fireEvent.click(
+        await screen.findByRole("menuitem", {
+          name: "Einladung erneut senden",
+        }),
+      );
+
+      await waitFor(() =>
+        expect(mockResendTraegerInvitation).toHaveBeenCalledWith("1", "8"),
+      );
+      await waitFor(() =>
+        expect(mockMutateTraegerInvitations).toHaveBeenCalled(),
+      );
+      expect(
+        await screen.findByText(
+          "Die Einladung an alt@traeger.example ist neu verschickt. Der alte Link funktioniert nicht mehr.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("takes an invitation back only after the second confirmation (#5749)", async () => {
+      currentSearchParams = new URLSearchParams("tab=traeger-buero");
+      setupSWR({ traegerInvitations: [openInvitation] });
+      mockRevokeTraegerInvitation.mockResolvedValue(undefined);
+      mockMutateTraegerInvitations.mockResolvedValue([]);
+
+      await renderPage();
+
+      await openRowMenu("Aktionen für die Einladung an offen@traeger.example");
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: "Einladung zurücknehmen" }),
+      );
+      expect(
+        await screen.findByRole("heading", { name: "Einladung zurücknehmen?" }),
+      ).toBeInTheDocument();
+      const footer = screen.getByTestId("modal-footer");
+      fireEvent.click(
+        within(footer).getByRole("button", { name: "Ja, zurücknehmen" }),
+      );
+      expect(mockRevokeTraegerInvitation).not.toHaveBeenCalled();
+      fireEvent.click(
+        await within(footer).findByRole("button", { name: "Zurücknehmen" }),
+      );
+
+      await waitFor(() =>
+        expect(mockRevokeTraegerInvitation).toHaveBeenCalledWith("1", "7"),
+      );
+      await waitFor(() =>
+        expect(mockMutateTraegerInvitations).toHaveBeenCalled(),
+      );
+      expect(
+        await screen.findByText("Die Einladung ist zurückgenommen."),
       ).toBeInTheDocument();
     });
 
@@ -1003,7 +1150,7 @@ describe("OperatorOrganizationDetailPage", () => {
       await waitFor(() => expect(mockMutateTraegerMembers).toHaveBeenCalled());
       expect(
         await screen.findByText(
-          "Die Einladung ist verschickt. Das Träger-Büro sieht sie bei den offenen Einladungen.",
+          "Die Einladung ist verschickt. Sie steht in der Liste, bis die Person sie annimmt.",
         ),
       ).toBeInTheDocument();
     });

@@ -309,21 +309,69 @@ func (p ProvisioningIdentity) AssignTraegerRole(ctx context.Context, organizatio
 // transaction (#5144) and reports it in the provisioning vocabulary.
 func (p ProvisioningIdentity) InviteTraegerAccount(ctx context.Context, organizationID int64, email string, roles []string) (organizationtenancy.TraegerInvitation, error) {
 	invitation, err := p.Traeger.InviteTraegerAccountForOperator(ctx, organizationID, email, roles)
+	if err != nil {
+		return organizationtenancy.TraegerInvitation{}, provisioningTraegerInvitationError(err)
+	}
+	return provisioningTraegerInvitation(invitation), nil
+}
+
+// ListTraegerInvitations reads the open invitations on the operator's
+// transaction (#5749).
+func (p ProvisioningIdentity) ListTraegerInvitations(ctx context.Context, organizationID int64) ([]organizationtenancy.TraegerInvitation, error) {
+	invitations, err := p.Traeger.ListTraegerInvitationsForOperator(ctx, organizationID)
+	if err != nil {
+		return nil, provisioningTraegerInvitationError(err)
+	}
+	result := make([]organizationtenancy.TraegerInvitation, 0, len(invitations))
+	for _, invitation := range invitations {
+		result = append(result, provisioningTraegerInvitation(invitation))
+	}
+	return result, nil
+}
+
+// ResendTraegerInvitation sends the invitation again on the operator's
+// transaction (#5749).
+func (p ProvisioningIdentity) ResendTraegerInvitation(ctx context.Context, organizationID, invitationID int64) (organizationtenancy.TraegerInvitation, error) {
+	invitation, err := p.Traeger.ResendTraegerInvitationForOperator(ctx, organizationID, invitationID)
+	if err != nil {
+		return organizationtenancy.TraegerInvitation{}, provisioningTraegerInvitationError(err)
+	}
+	return provisioningTraegerInvitation(invitation), nil
+}
+
+// RevokeTraegerInvitation withdraws the invitation on the operator's
+// transaction (#5749).
+func (p ProvisioningIdentity) RevokeTraegerInvitation(ctx context.Context, organizationID, invitationID int64) (organizationtenancy.TraegerInvitation, error) {
+	invitation, err := p.Traeger.RevokeTraegerInvitationForOperator(ctx, organizationID, invitationID)
+	if err != nil {
+		return organizationtenancy.TraegerInvitation{}, provisioningTraegerInvitationError(err)
+	}
+	return provisioningTraegerInvitation(invitation), nil
+}
+
+// provisioningTraegerInvitationError reports the invitation refusals in the
+// provisioning vocabulary.
+func provisioningTraegerInvitationError(err error) error {
 	switch {
 	case errors.Is(err, identityaccess.ErrInvalidTraegerRole):
-		return organizationtenancy.TraegerInvitation{}, organizationtenancy.ErrInvalidTraegerRole
+		return organizationtenancy.ErrInvalidTraegerRole
 	case errors.Is(err, identityaccess.ErrTraegerInvalidEmail):
-		return organizationtenancy.TraegerInvitation{}, organizationtenancy.ErrTraegerInvalidEmail
+		return organizationtenancy.ErrTraegerInvalidEmail
 	case errors.Is(err, identityaccess.ErrTraegerAlreadyMember):
-		return organizationtenancy.TraegerInvitation{}, organizationtenancy.ErrTraegerAlreadyMember
+		return organizationtenancy.ErrTraegerAlreadyMember
 	case errors.Is(err, identityaccess.ErrNoTraegerMembership):
-		return organizationtenancy.TraegerInvitation{}, organizationtenancy.ErrOrganizationInactive
-	case err != nil:
-		return organizationtenancy.TraegerInvitation{}, err
+		return organizationtenancy.ErrOrganizationInactive
+	case errors.Is(err, identityaccess.ErrInvitationNotFound):
+		return organizationtenancy.ErrTraegerInvitationNotFound
 	}
+	return err
+}
+
+func provisioningTraegerInvitation(invitation identityaccess.TraegerInvitation) organizationtenancy.TraegerInvitation {
 	return organizationtenancy.TraegerInvitation{
 		ID: invitation.ID, Email: invitation.Email, Roles: invitation.Roles, ExpiresAt: invitation.ExpiresAt,
-	}, nil
+		Expired: invitation.Expired,
+	}
 }
 
 // ResetTraegerMFA resets the member's second factor on the operator's

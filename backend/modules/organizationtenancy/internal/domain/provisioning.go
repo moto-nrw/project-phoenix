@@ -19,6 +19,8 @@ const (
 	AuditActionRestore      = "restore"
 	AuditActionGrant        = "grant"
 	AuditActionMFAReset     = "mfa_reset"
+	AuditActionResend       = "resend"
+	AuditActionRevoke       = "revoke"
 	// The Träger erasure order (#4657); the erasure CLI records "erase"
 	// itself when it deletes the Träger root (migration 1.15.533).
 	AuditActionRecordErasureOrder   = "record_erasure_order"

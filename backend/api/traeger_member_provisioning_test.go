@@ -356,6 +356,28 @@ func TestOperatorDoesNotInviteIntoADeactivatedTraeger(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.traeger_invitations WHERE organization_id = ?`, organizationID).Scan(ctx, &stored))
 	assert.Zero(t, stored)
 
+	// An invitation from before the deactivation is listed as expired: its
+	// link cannot be redeemed. It is neither sent again nor withdrawn (#5749).
+	var invitationID int64
+	require.NoError(t, db.NewRaw(`INSERT INTO auth.traeger_invitations (organization_id, email, token, roles, expires_at)
+		VALUES (?, 'vorher@test.local', ?, ARRAY['read_only']::VARCHAR(32)[], now() + interval '1 day') RETURNING id`,
+		organizationID, fmt.Sprintf("vorher-%d", testpkg.UniqueTestTenantID(t))).Scan(ctx, &invitationID))
+	operatorCall := func(method, path string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, nil)
+		req = req.WithContext(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"}))
+		rec := httptest.NewRecorder()
+		operator.ServeHTTP(rec, req)
+		return rec
+	}
+	invitations := fmt.Sprintf("/organizations/%d/traeger-members/invitations", organizationID)
+	rec = operatorCall(http.MethodGet, invitations)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"expired":true`, rec.Body.String())
+	rec = operatorCall(http.MethodPost, fmt.Sprintf("%s/%d/resend", invitations, invitationID))
+	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	rec = operatorCall(http.MethodDelete, fmt.Sprintf("%s/%d", invitations, invitationID))
+	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+
 	live := traegerOrganization(t, db, "Träger an", true)
 	_, err := identity.InviteTraegerAccountForOperator(ctx, live, "an@test.local", []string{"administration"})
 	require.ErrorIs(t, err, identityaccess.ErrTraegerTransactionRequired)
@@ -414,4 +436,168 @@ func TestOperatorInvitationsOfOneAddressQueueInAnEmptyTraegerBuero(t *testing.T)
 	require.NoError(t, db.NewRaw(`SELECT array_to_string(roles, ',') FROM auth.traeger_invitations
 		WHERE organization_id = ? AND email = ? AND used_at IS NULL AND revoked_at IS NULL`, organizationID, address).Scan(ctx, &open))
 	assert.Equal(t, []string{"administration,leadership"}, open, "the later invitation replaces the earlier one, with Leitung in an empty Träger-Büro (#5471)")
+}
+
+// The operator sees the open invitations of a Träger-Büro, sends one again
+// and withdraws one (#5749). An expired invitation stays listed until the
+// cleanup deletes it; a withdrawn link can no longer be accepted, and an
+// accepted invitation leaves the list for the member list.
+func TestOperatorManagesTheOpenInvitationsOfATraegerBuero(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, _ := buildOperatorProvisioningWithIdentity(t, db)
+	ctx := provisioningContext(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	organizationID, _ := provisionTestSchool(t, db, service, operatorID, "traeger-offen")
+	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
+	operator := chi.NewRouter()
+	mountOperatorProvisioningRoutes(operator, resource, nil)
+	call := func(method, path string, body any) *httptest.ResponseRecorder {
+		var payload bytes.Buffer
+		if body != nil {
+			require.NoError(t, json.NewEncoder(&payload).Encode(body))
+		}
+		req := httptest.NewRequest(method, path, &payload)
+		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"}))
+		rec := httptest.NewRecorder()
+		operator.ServeHTTP(rec, req)
+		return rec
+	}
+	type listed struct {
+		ID        int64     `json:"id"`
+		Email     string    `json:"email"`
+		Roles     []string  `json:"roles"`
+		ExpiresAt time.Time `json:"expires_at"`
+		Expired   bool      `json:"expired"`
+	}
+	invitations := fmt.Sprintf("/organizations/%d/traeger-members/invitations", organizationID)
+	list := func() []listed {
+		rec := call(http.MethodGet, invitations, nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		assert.NotContains(t, rec.Body.String(), "token", "the link stays in the mail")
+		return decodeSchoolPortalData[[]listed](t, rec.Body.Bytes())
+	}
+	mailLink := func(invitationID int64) string {
+		var link string
+		require.NoError(t, db.NewRaw(`SELECT payload->'Message'->'Content'->>'InvitationURL' FROM platform.email_outbox
+			WHERE tenant_id IS NULL AND kind = ? AND payload->>'Type' = 'traeger_invitation' AND (payload->>'ReferenceID')::bigint = ?`,
+			owners.TransactionalMailKind, invitationID).Scan(ctx, &link))
+		parsed, err := url.Parse(link)
+		require.NoError(t, err)
+		return parsed.Query().Get("token")
+	}
+	assert.Empty(t, list(), "nobody invited yet")
+
+	first := fmt.Sprintf("erste-%d@test.local", testpkg.UniqueTestTenantID(t))
+	second := "zweite-" + first
+	rec := call(http.MethodPost, invitations, map[string]any{"email": first, "roles": []string{"administration"}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	rec = call(http.MethodPost, invitations, map[string]any{"email": second, "roles": []string{"read_only"}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	open := list()
+	require.Len(t, open, 2, "both invitations appear at once")
+	byEmail := map[string]listed{open[0].Email: open[0], open[1].Email: open[1]}
+	assert.Equal(t, []string{"administration", "leadership"}, byEmail[first].Roles)
+	assert.Equal(t, []string{"leadership", "read_only"}, byEmail[second].Roles, "in an empty Träger-Büro every invitation adds Leitung")
+	assert.False(t, byEmail[first].Expired)
+	var audited int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.operator_audit_log
+		WHERE operator_id = ? AND action = 'view' AND changes->>'view' = 'traeger_invitations'`, operatorID).Scan(ctx, &audited))
+	assert.Positive(t, audited, "reading the addresses is in the operator audit")
+
+	// The expired invitation stays listed and marked until the cleanup.
+	_, err := db.ExecContext(ctx, `UPDATE auth.traeger_invitations SET expires_at = now() - interval '1 minute' WHERE id = ?`, byEmail[second].ID)
+	require.NoError(t, err)
+	open = list()
+	require.Len(t, open, 2)
+	for _, invitation := range open {
+		assert.Equal(t, invitation.Email == second, invitation.Expired, invitation.Email)
+	}
+
+	// Sending again replaces the expired link by a fresh one with the same roles.
+	staleToken := mailLink(byEmail[second].ID)
+	rec = call(http.MethodPost, fmt.Sprintf("%s/%d/resend", invitations, byEmail[second].ID), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	resent := decodeSchoolPortalData[listed](t, rec.Body.Bytes())
+	assert.NotEqual(t, byEmail[second].ID, resent.ID)
+	assert.Equal(t, second, resent.Email)
+	assert.Equal(t, byEmail[second].Roles, resent.Roles, "the same roles as before")
+	assert.False(t, resent.Expired)
+	assert.True(t, resent.ExpiresAt.After(time.Now()))
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.operator_audit_log
+		WHERE operator_id = ? AND action = 'resend' AND resource_type = 'traeger_invitation' AND resource_id = ?`, operatorID, resent.ID).Scan(ctx, &audited))
+	assert.Equal(t, 1, audited, "sending again is in the operator audit")
+	freshToken := mailLink(resent.ID)
+	assert.NotEqual(t, staleToken, freshToken, "the new mail carries a new link")
+	open = list()
+	require.Len(t, open, 2, "the old invitation gives way to the new one")
+	rec = call(http.MethodPost, fmt.Sprintf("%s/%d/resend", invitations, byEmail[second].ID), nil)
+	assert.Equal(t, http.StatusNotFound, rec.Code, "a replaced invitation is not sent again: %s", rec.Body.String())
+
+	// A withdrawn invitation leaves the list and its link no longer works.
+	firstToken := mailLink(byEmail[first].ID)
+	rec = call(http.MethodDelete, fmt.Sprintf("%s/%d", invitations, byEmail[first].ID), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.operator_audit_log
+		WHERE operator_id = ? AND action = 'revoke' AND resource_type = 'traeger_invitation' AND resource_id = ? AND changes->>'email' = ?`,
+		operatorID, byEmail[first].ID, first).Scan(ctx, &audited))
+	assert.Equal(t, 1, audited, "the withdrawal is in the operator audit")
+	open = list()
+	require.Len(t, open, 1)
+	assert.Equal(t, second, open[0].Email)
+	rec = call(http.MethodDelete, fmt.Sprintf("%s/%d", invitations, byEmail[first].ID), nil)
+	assert.Equal(t, http.StatusNotFound, rec.Code, "withdrawn once: %s", rec.Body.String())
+	rec = call(http.MethodDelete, fmt.Sprintf("/organizations/%d/traeger-members/invitations/%d", organizationID+100000, resent.ID), nil)
+	assert.Equal(t, http.StatusNotFound, rec.Code, "only the invitations of this Träger: %s", rec.Body.String())
+
+	traeger, _ := traegerPortalOn(t, db, testpkg.TenantRuntime(t, db))
+	password := testpkg.NewTestPassword()
+	refused := traegerCall(t, traeger, http.MethodPost, "/traeger/invitations/"+firstToken+"/accept", "", map[string]any{"password": password, "confirm_password": password})
+	assert.Equal(t, http.StatusGone, refused.Code, "a withdrawn invitation cannot be accepted: %s", refused.Body.String())
+	refused = traegerCall(t, traeger, http.MethodPost, "/traeger/invitations/"+staleToken+"/accept", "", map[string]any{"password": password, "confirm_password": password})
+	assert.Equal(t, http.StatusGone, refused.Code, "the replaced link cannot be accepted: %s", refused.Body.String())
+
+	// Accepting moves the person from the invitations to the members.
+	accepted := traegerCall(t, traeger, http.MethodPost, "/traeger/invitations/"+freshToken+"/accept", "", map[string]any{"password": password, "confirm_password": password})
+	require.Equal(t, http.StatusOK, accepted.Code, accepted.Body.String())
+	assert.Empty(t, list(), "an accepted invitation leaves the list")
+	members := call(http.MethodGet, fmt.Sprintf("/organizations/%d/traeger-members", organizationID), nil)
+	require.Equal(t, http.StatusOK, members.Code, members.Body.String())
+	assert.Contains(t, members.Body.String(), second, "the person now stands among the members")
+}
+
+func TestOperatorTraegerInvitationListQueryBudgetIsFlat(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, _ := buildOperatorProvisioningWithIdentity(t, db)
+	ctx := provisioningContext(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	organizationID, _ := provisionTestSchool(t, db, service, operatorID, "traeger-einladung-budget")
+	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
+	operator := chi.NewRouter()
+	mountOperatorProvisioningRoutes(operator, resource, nil)
+	invite := func() {
+		_, err := db.ExecContext(ctx, `INSERT INTO auth.traeger_invitations (organization_id, email, token, roles, expires_at)
+			VALUES (?, ?, ?, ARRAY['read_only']::VARCHAR(32)[], now() + interval '1 day')`,
+			organizationID, fmt.Sprintf("budget-%d@test.local", testpkg.UniqueTestTenantID(t)), fmt.Sprintf("budget-%d", testpkg.UniqueTestTenantID(t)))
+		require.NoError(t, err)
+	}
+	list := func() []string {
+		counter := testpkg.CaptureQueriesForContext(t, db)
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/organizations/%d/traeger-members/invitations", organizationID), nil)
+		req = req.WithContext(counter.Context(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"})))
+		rec := httptest.NewRecorder()
+		operator.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return counter.Selects("")
+	}
+	for range 3 {
+		invite()
+	}
+	three := list()
+	invite()
+	invite()
+	assert.Len(t, list(), len(three), "the invitation list reads the same statements for any number of invitations")
+	querybudgets.AssertQueryBudget(t, "api.operator.traeger_invitations", three)
 }
