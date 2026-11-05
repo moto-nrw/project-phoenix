@@ -37,6 +37,9 @@
   "api/operator/provisioning/organizations/[id]/traeger-members/invitations": [
     "POST operator /operator/organizations/id%2F1/traeger-members/invitations"
   ],
+  "api/operator/provisioning/organizations/[id]/traeger-settings/schema": [
+    "GET operator /operator/organizations/id%2F1/traeger-settings/schema"
+  ],
   "api/operator/provisioning/organizations/[id]/persons": [
     "GET operator /operator/organizations/id%2F1/persons"
   ],

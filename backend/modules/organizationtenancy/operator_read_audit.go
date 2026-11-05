@@ -33,6 +33,9 @@ const (
 	ReadDemoPresenceHistory          OperatorReadView = "demo_presence_history"
 	ReadUnregisteredTagScans         OperatorReadView = "unregistered_tag_scans"
 	ReadTraegerMembers               OperatorReadView = "traeger_members"
+	// ReadTraegerSettings is the operator's view of the settings of a
+	// Träger (#5748).
+	ReadTraegerSettings OperatorReadView = "traeger_settings"
 	// ReadCaterers is the operator's list of caterer accounts and their
 	// second factor (#4497).
 	ReadCaterers OperatorReadView = "caterers"

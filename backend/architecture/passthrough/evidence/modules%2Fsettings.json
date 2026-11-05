@@ -226,6 +226,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (rs *TraegerSettingsResource) GetTraegerSettingsSchema(w http.ResponseWriter, r *http.Request) {\n\torganizationID, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid organization ID\")\n\tif !ok {\n\t\treturn\n\t}\n\tschema, err := rs.operations.OperatorSchema(r.Context(), organizationID)\n\tif err != nil {\n\t\tcommon.RenderError(w, r, common.ErrorInternalServerWrap(\"Failed to retrieve Träger settings schema\", err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, schema, \"Schema retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/inbound/operator/TraegerSettingsResource.GetTraegerSettingsSchema",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *TraegerSettingsResource) ResetTraegerSettingValue(w http.ResponseWriter, r *http.Request) {\n\torganizationID, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid organization ID\")\n\tif !ok {\n\t\treturn\n\t}\n\tkey := chi.URLParam(r, \"key\")\n\tif err := rs.operations.OperatorResetValue(r.Context(), organizationID, rs.operatorID(r.Context()), key, rs.beforeChange(w, r, key, true)); err != nil {\n\t\trenderChangeError(w, r, err)\n\t\treturn\n\t}\n\tcommon.RespondNoContent(w, r)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/inbound/operator/TraegerSettingsResource.ResetTraegerSettingValue",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
       "evidence": "func (r *SchoolSetupRepository[S]) RestoreDismissedInTraeger(ctx context.Context, accountID int64) error {\n\tif accountID \u003c= 0 {\n\t\treturn errors.New(\"account ID is required\")\n\t}\n\tdb, err := r.runtime.DB(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewRaw(`SELECT config.restore_school_setup_dismissals_in_traeger(?)`, accountID).Exec(ctx)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"restore school setup in Träger: %w\", err)\n\t}\n\treturn nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/settings/internal/adapters/configpostgres/SchoolSetupRepository[S].RestoreDismissedInTraeger",

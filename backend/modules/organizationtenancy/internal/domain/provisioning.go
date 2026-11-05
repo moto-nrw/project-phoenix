@@ -39,6 +39,9 @@ const (
 	// AuditResourceSampleChildren is the sample children of a test Träger
 	// (#4658); the resource ID is the Träger.
 	AuditResourceSampleChildren = "sample_children"
+	// AuditResourceTraegerSetting is a setting of a Träger the operator read
+	// or changed (#5748); the resource ID is the Träger.
+	AuditResourceTraegerSetting = "traeger_setting"
 )
 
 // Device vocabulary shared with Device Fleet.
