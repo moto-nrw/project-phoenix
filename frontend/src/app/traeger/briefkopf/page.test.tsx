@@ -95,7 +95,7 @@ function brandingSchema(): SettingsSchema {
               setting(
                 "branding.footer_text",
                 "Fußzeile",
-                "Amtsgericht Osnabrück",
+                "Vorstand: Anna Brandt\n\nAmtsgericht Osnabrück",
               ),
             ],
           },
@@ -199,6 +199,17 @@ describe("TraegerBriefkopfPage", () => {
       "49143 Bissendorf",
     ]);
     expect(senderLines[0]).toHaveStyle({ color: "#217A78" });
+    const footer = preview.querySelector("figcaption");
+    expect(
+      Array.from(
+        footer?.querySelectorAll("p") ?? [],
+        (line) => line.textContent,
+      ),
+    ).toEqual([
+      "Vorstand: Anna Brandt",
+      "Amtsgericht Osnabrück",
+      "Bankverbindung: Ganztag im Quartier e.V. · IBAN DE89 3704 0044 0532 0130 00 · BIC COBADEFFXXX · Commerzbank",
+    ]);
     expect(preview).toHaveTextContent("Petra Lindner · +49 5402 1234-0");
     expect(preview).toHaveTextContent("IBAN DE89 3704 0044 0532 0130 00");
     expect(preview).toHaveTextContent("Amtsgericht Osnabrück");

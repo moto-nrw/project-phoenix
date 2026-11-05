@@ -2004,6 +2004,9 @@ function renderField(
           onChange={onLocalChange}
           onBlur={onBlur}
           disabled={disabled}
+          // The payment text shows the sentence letters print without an
+          // own text (#5622), not an example; other fields show the registry
+          // example (#5693).
           placeholder={
             setting.key === PAYMENT_TEXT_KEY
               ? BUILT_IN_PAYMENT_TEXT

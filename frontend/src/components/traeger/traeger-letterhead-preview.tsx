@@ -71,19 +71,17 @@ export function TraegerLetterheadPreview({
           className="min-w-0 text-right wrap-anywhere not-italic"
         >
           {sender.length > 0 ? (
-            sender.map((line, index) =>
-              index === 0 ? (
-                <p
-                  key={`${index}-${line}`}
-                  className="font-semibold text-gray-900"
-                  style={accent ? { color: accent } : undefined}
-                >
-                  {line}
-                </p>
-              ) : (
-                <p key={`${index}-${line}`}>{line}</p>
-              ),
-            )
+            sender.map((line, index) => (
+              <p
+                key={`${index}-${line}`}
+                className={
+                  index === 0 ? "font-semibold text-gray-900" : undefined
+                }
+                style={index === 0 && accent ? { color: accent } : undefined}
+              >
+                {line}
+              </p>
+            ))
           ) : (
             <p className="text-gray-400">Noch kein Absender</p>
           )}

@@ -48,7 +48,7 @@ var brandingDefinitions = []config.Definition{
 		Key:             config.KeyBrandingLetterheadText,
 		Levels:          config.LevelTraeger,
 		Label:           "Absender im Briefkopf",
-		Description:     "Name und Anschrift des Trägers. Sie stehen oben rechts auf Briefen und Rechnungen. Jede Zeile hier ist eine Zeile im Brief. Die erste Zeile steht fett.",
+		Description:     "Name und Anschrift des Trägers. Sie stehen oben rechts auf Briefen und Rechnungen. Jede Zeile hier ist eine Zeile im Brief. Die erste Zeile steht fett und in Ihrer Farbe.",
 		Placeholder:     "Musterträger e. V.\nMusterstraße 1\n12345 Musterstadt",
 		Type:            config.FieldTextarea,
 		Default:         "",
