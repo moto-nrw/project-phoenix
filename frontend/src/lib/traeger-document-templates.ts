@@ -63,7 +63,7 @@ export interface DocumentTemplateInvoiceLayout {
   readonly hideTimeModels: boolean;
 }
 
-export const STANDARD_INVOICE_LAYOUT: DocumentTemplateInvoiceLayout = {
+const STANDARD_INVOICE_LAYOUT: DocumentTemplateInvoiceLayout = {
   groupByChild: false,
   hideWeeks: false,
   hideTimeModels: false,
@@ -163,7 +163,7 @@ export interface DocumentTemplateDetail {
   readonly versions: readonly DocumentTemplateVersion[];
 }
 
-export interface DocumentTemplatePreviewRow {
+interface DocumentTemplatePreviewRow {
   readonly label: string;
   readonly value: string;
   readonly bold: boolean;
