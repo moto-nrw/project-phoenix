@@ -1,8 +1,11 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import dynamic from "next/dynamic";
 import { Suspense } from "react";
+import {
+  PortalBottomNav,
+  PortalBottomNavLink,
+} from "~/components/ui/portal-bottom-nav";
 import {
   PortalSettingsSidebarEntries,
   PortalSidebar,
@@ -22,16 +25,9 @@ import {
 
 const RETURN_PATH_KEY = "school-settings-return-path";
 const NAV_ITEM_ATTRIBUTE = "data-school-nav-item";
-
-// Die Schublade braucht Radix-Dialog-Code und ist nur in den Einstellungen
-// auf schmalen Bildschirmen erreichbar. Sie gehört nicht in jede Schulroute.
-const PortalOverflowBottomNav = dynamic(
-  () =>
-    import("~/components/ui/portal-overflow-bottom-nav").then(
-      (module) => module.PortalOverflowBottomNav,
-    ),
-  { ssr: false },
-);
+const BOTTOM_NAV_PADDING = "px-4";
+const BOTTOM_NAV_LABEL =
+  "hidden text-sm font-semibold whitespace-nowrap min-[480px]:inline";
 
 /** Merkt sich die zuletzt geöffnete App-Seite für „Zurück zur App" (#5750). */
 export function SchoolSettingsReturnPathMemory() {
@@ -97,10 +93,20 @@ export function SchoolSettingsSidebar() {
 function SchoolSettingsBottomNavContent() {
   const { back, items } = useSchoolSettingsNav();
   return (
-    <PortalOverflowBottomNav
-      items={[back, ...items]}
-      navItemAttribute={NAV_ITEM_ATTRIBUTE}
-    />
+    <PortalBottomNav listClassName="gap-0">
+      {[back, ...items].map((item) => (
+        <PortalBottomNavLink
+          key={item.key}
+          href={item.href}
+          label={item.label}
+          concept={item.concept}
+          active={item.active}
+          data-school-nav-item={item.key}
+          paddingClassName={BOTTOM_NAV_PADDING}
+          labelClassName={BOTTOM_NAV_LABEL}
+        />
+      ))}
+    </PortalBottomNav>
   );
 }
 
