@@ -90,8 +90,12 @@ func TestPolicyPermissionMemoCompleteMatrixParity(t *testing.T) {
 		for pass := 0; pass < 2; pass++ {
 			for _, scope := range allScopes() {
 				for _, source := range sources {
+					indexed := memo.firstPartyTargets(scope, source)
 					for _, target := range targets {
 						want := policyAllowsFirstParty(p, scope, source, target)
+						if _, selected := indexed[p.absolutePackage(target.Path)]; want && !selected {
+							t.Fatalf("rule-order=%d pass=%d %s %s -> %s: target index lost an allowed endpoint", ruleOrder, pass, scope, source.Path, target.Path)
+						}
 						if got := memo.allowsFirstParty(scope, source, target); got != want {
 							t.Fatalf("rule-order=%d pass=%d %s %s -> %s: memo=%v direct=%v", ruleOrder, pass, scope, source.Path, target.Path, got, want)
 						}

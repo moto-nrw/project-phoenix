@@ -10,6 +10,7 @@ import {
 import "@testing-library/jest-dom/vitest";
 import { ApiError, reportSessionTenantMismatch } from "~/lib/api-error";
 import { installSessionTenantMismatchObserver } from "~/lib/session-tenant-mismatch-observer";
+import { releaseFakeTimers } from "~/test/clock";
 import { catalogText } from "~/test/error-catalog-text";
 import { runTenantSessionEnd } from "~/lib/tenant-session-end";
 
@@ -1277,10 +1278,17 @@ describe("TenantGuard", () => {
     });
 
     it("asks again while another session lookup of the provider still runs", async () => {
+      vi.useFakeTimers();
       render(<Tab />);
       // The first update() returns nothing: another lookup still runs.
       providerUpdate.mockImplementationOnce(async () => undefined);
       act(() => reportSessionTenantMismatch());
+      // Fake timers skip the pause before the next question; the real event
+      // loop then sees it through.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      releaseFakeTimers();
 
       await waitFor(() => expect(providerUpdate).toHaveBeenCalledTimes(2));
       expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();

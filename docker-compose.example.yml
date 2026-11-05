@@ -235,7 +235,13 @@ services:
       - -c
       - full_page_writes=off
       - -c
-      - shared_buffers=128MB
+      - shared_buffers=32MB
+      - -c
+      # Clones and fixtures are disposable; no replication or WAL archive is
+      # consumed by the test lifecycle. Keep autovacuum and all constraints.
+      - wal_level=minimal
+      - -c
+      - max_wal_senders=0
       - -c
       # 300, nicht 200: `go test` startet bis zu -p Package-Binaries, jedes
       # mit (-parallel + Reserve) Verbindungen plus einem Keeper. Ein nacktes

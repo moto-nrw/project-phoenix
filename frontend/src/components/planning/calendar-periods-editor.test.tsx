@@ -322,7 +322,7 @@ describe("CalendarPeriodsEditor", () => {
     });
     const actions = createPeriodButton.parentElement;
     // Statuszeile statt Erklärsatz (Kopfkarten-Sweep): gezählte Zeiträume.
-    const description = screen.getByText(/1 Zeitraum · 1 aktiv/);
+    const description = await screen.findByText(/1 Zeitraum · 1 aktiv/);
 
     // Seit der Umstellung auf die Kopfkarte (PageIntro/SectionCard) umbrechen
     // die Aktionen auf jeder Breite, und der Textblock bleibt schrumpfbar.

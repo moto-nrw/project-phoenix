@@ -243,7 +243,8 @@ describe("CaregiverCapabilityModal", () => {
     await waitFor(() => {
       expect(mockGetTenantAccountCapability).toHaveBeenCalledWith("42");
     });
-    expect(screen.getByText("Aktuelle Rolle")).toBeInTheDocument();
+    // The capability state renders once the request has resolved.
+    expect(await screen.findByText("Aktuelle Rolle")).toBeInTheDocument();
     expect(screen.getByText("Verwaltung + Betreuung")).toBeInTheDocument();
   });
 
@@ -339,7 +340,8 @@ describe("CaregiverCapabilityModal", () => {
       expect(mockGetOperatorAccountCapability).toHaveBeenCalledWith("7", "42");
     });
 
-    fireEvent.change(screen.getByLabelText("Vorname"), {
+    // The person form renders once the request has resolved.
+    fireEvent.change(await screen.findByLabelText("Vorname"), {
       target: { value: "Ada" },
     });
     fireEvent.change(screen.getByLabelText("Nachname"), {

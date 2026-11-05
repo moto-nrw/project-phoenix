@@ -38,11 +38,20 @@ import {
 // did not approve.
 
 const ROOT = process.cwd();
+// The checkout does not change during the run: every file is stripped once,
+// not once per pattern searched across all files.
+const stripped = new Map<string, string>();
 /** Source without comments: a comment that names Set-Cookie writes nothing. */
-const code = (file: string) =>
-  readFileSync(path.join(ROOT, file), "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+const code = (file: string) => {
+  let source = stripped.get(file);
+  if (source === undefined) {
+    source = readFileSync(path.join(ROOT, file), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    stripped.set(file, source);
+  }
+  return source;
+};
 const ALL = inventoryFiles(ROOT, INVENTORY_ROOTS);
 const matching = (pattern: RegExp) =>
   ALL.filter((file) => pattern.test(code(file))).sort();
@@ -301,6 +310,13 @@ describe("session cookie writers", () => {
       "src/app/api/operator/auth/invitations/session/route.ts": {
         kinds: ["cookie-list"],
         proof: /operatorInvitationCookieName\(/,
+      },
+      // Test support only: a reused Vitest worker returns document to its
+      // first state after every test file and empties the happy-dom cookie
+      // jar, as a fresh worker would start. It sets no cookie.
+      "src/test/setup-worker-reuse.ts": {
+        kinds: ["document-cookie"],
+        proof: /clearCookies: \(\) => container\.clearCookies\(\),/,
       },
       // The parents portal's language, in the browser (#5444: the regex
       // inventory did not see document.cookie).

@@ -340,7 +340,7 @@ describe("GuardiansPanel", () => {
     expect(
       await screen.findByRole("heading", { name: "Verbundene Konten" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("juergen@example.test")).toBeInTheDocument();
+    expect(await screen.findByText("juergen@example.test")).toBeInTheDocument();
     expect(screen.getByText("petra@example.test")).toBeInTheDocument();
     // Outside the public demo a parent's own row carries no marker (#5033).
     expect(screen.queryByText("Das sind Sie")).not.toBeInTheDocument();
@@ -377,7 +377,7 @@ describe("GuardiansPanel", () => {
     expect(
       await screen.findByRole("heading", { name: "Verbundene Konten" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText("Das sind Sie")).toHaveLength(2);
+    expect(await screen.findAllByText("Das sind Sie")).toHaveLength(2);
   });
 
   it("does not offer access for a hidden demo seed address", async () => {

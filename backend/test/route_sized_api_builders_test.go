@@ -113,6 +113,12 @@ func inspectRouteBuilderFunction(source routeBuilderFile, function *ast.FuncDecl
 }
 
 func parseRouteBuilderFiles(backendRoot string) ([]routeBuilderFile, error) {
+	// Share parsed trees with the ratchets that use the absolute backend root.
+	// Relative paths otherwise cache a second AST for every source file.
+	backendRoot, err := filepath.Abs(backendRoot)
+	if err != nil {
+		return nil, err
+	}
 	state := &routeBuilderParseState{
 		backendRoot:       backendRoot,
 		typesByPackage:    make(map[string]map[string]routeBuilderTypeDecl),

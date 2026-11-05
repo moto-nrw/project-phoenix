@@ -66,6 +66,9 @@ func ratchetRepositoryTemplate(t *testing.T, baseline, policy string) ratchetTem
 		t.Fatal(err)
 	}
 	template := ratchetTemplate{directory: directory, base: initializeRatchetRepository(t, directory, baseline, policy)}
+	// Pack only this immutable fixture. Copies keep independent indexes, refs
+	// and objects, without copying one file and directory per loose object.
+	runGit(t, directory, "repack", "-adq", "--threads=1")
 	ratchetTemplates.entries[key] = template
 	return template
 }

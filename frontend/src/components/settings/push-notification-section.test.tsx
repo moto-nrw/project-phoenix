@@ -241,11 +241,14 @@ describe("PushNotificationSection", () => {
     await waitFor(() =>
       expect(pushApi.syncExistingPushSubscription).toHaveBeenCalled(),
     );
-    expect(
-      container.querySelector(
-        '[data-parent-tour="notification-device-unavailable"]',
-      ),
-    ).toBeInTheDocument();
+    // The rejected sync settles after the call; wait for the rendered result.
+    await waitFor(() =>
+      expect(
+        container.querySelector(
+          '[data-parent-tour="notification-device-unavailable"]',
+        ),
+      ).toBeInTheDocument(),
+    );
   });
 
   it("hides the iOS guide when VAPID is not configured", async () => {

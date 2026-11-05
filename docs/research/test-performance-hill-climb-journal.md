@@ -1,6 +1,10 @@
 # Test-Performance: Experimentjournal
 
-## Aktueller Stand, 3. November 2026
+## Aktueller Stand, 4. November 2026
+
+Lauf „CPU und Peak-RAM halbieren“: Frontend-Vollsuite CPU −67 %, Peak −55 %, Wand −33 %; Backend-Vollsuite inkl. Postgres CPU −46 %, Peak −65 %, Wand −11 % (gepaart n=2, siehe [Abschlussvergleich](#abschlussvergleich-gepaart-baseline-27596d40fb-gegen-kandidat-8ec48d9c88)). Offen: Backend-CPU fehlen ≈47 CPU-s bis zur Hälfte. Zweite Runde 5. November gegen 6c6935d85c: Frontend CPU −16 %, Peak −15 %, Wand −16 %; Backend unverändert im Rauschen (siehe [Abschlussvergleich der zweiten Runde](#abschlussvergleich-der-zweiten-runde-gepaart-basis-6c6935d85c-gegen-kandidat-7a3d3c865b)).
+
+## Stand, 3. November 2026
 
 Lauf „Tests und Test-Support“ abgeschlossen: Frontend-Vollsuite 177,05 → 158,75 s (1,115×), Backend-Vollsuite 451,1 → 321,65 s (1,402×), gepaart n=2. 15 Kandidaten mit Endstatus, siehe [Neuer Lauf](#neuer-lauf-tests-und-test-support-3-november-2026). Verworfen in diesem Lauf: Overhead-Paket F-overhead (lucide pro Icon, jest-dom lazy; −3 %), B-mig (OwnTenantRows-Cleanup; −1,4 %), B-test-Paketvariante (AST-Dedup; −6,6 %), Fake-Timer für timetable-event-modal (−7 %).
 
@@ -968,3 +972,85 @@ Auftrag: [test-performance-hill-climb-prompt.md](test-performance-hill-climb-pro
 - Backend `backend-full`: B 457,7/444,5 s (Median 451,1) → C 320,1/323,2 s (Median 321,65); Paare 1,430×/1,375×, Median 1,402×. CPU 915,3 → 686,0 s, RSS 6413 → 6189 MB. Inventar: 0 fehlend, +29 (in B-arch benannte Tabellenfälle), 30 Skips beidseitig; `compare` lehnt deshalb ab, Differenz einzeln geprüft (`tmp/hc4/inv.mjs`).
 - 4×-Ziel verfehlt: Frontend bräuchte 44,3 s (weitere 3,6×), Backend 112,8 s (weitere 2,85×). Frontend-Rest ist Overhead pro Datei (happy-dom-Import, React-Dev-Render), Backend-Rest Paketsumme bei 2 Paketen parallel plus Build.
 - Ein erster C-Backend-Warmlauf war rot (Funktionslängen-Ratchet nach Umbenennung im Import-Testhelfer); behoben in `61545feba3`, Backend-Block vollständig neu gemessen.
+
+## Neuer Lauf: CPU und Peak-RAM halbieren, 4. November 2026
+
+Ziel: CPU-Sekunden und Peak-RAM von `full` und `backend-full` (inklusive Postgres-Testserver) halbieren, Wandzeit höchstens +25 %, Fehlererkennung unverändert. Frontend-Delegate Opus 5.5, Backend-Delegate GPT 6.1 Sol, jeweils eigener Worktree.
+
+### Messplatz-Erweiterung
+- `test-perf.mjs` misst bei Backendprofilen den Postgres-Testcontainer mit: CPU-Delta aus `cpu.stat` (`pgCpuSeconds`), alle 0,5 s abgetastet `memory.current` (`pgPeakMB`, inkl. Page Cache) und `anon+shmem` (`pgPeakAnonShmemMB`). `cpuTotalSeconds` = Prozessbaum + Container; `peakTotalMB` = Summe der getrennten Peaks (obere Schranke). Ohne laufenden Container fehlen die Felder, `compare` lässt sie dann für alle Seiten weg.
+- Messung nur auf privatem Port (5541), Container vor jedem Backendtrial neu gestartet; der geteilte Server 5433 würde fremde Last mitzählen.
+
+### Baseline, Revision 27596d40fb (Richtwert, Delegates liefen parallel)
+- Frontend `full` n=2: Wand 214,3 / 200,2 s, CPU 912,9 / 913,9 s, RSS 3507 / 3533 MB. Summierte Testdauer 215 s von 1547 Dateien: rund ¾ der CPU ist Overhead pro Datei.
+- Backend `backend-full` n=2: Wand 349,0 / 329,1 s; CPU Prozessbaum 741 / 705 s + Postgres 406 / 386 s = 1147 / 1090 s; RSS Baum 6343 / 6387 MB + Postgres 1053 / 794 MB = 7396 / 7181 MB. Paketsumme 521 s bei `-p 2`.
+- Warmlauf Frontend brach mit SIGSEGV ab (Node 26.13.0, V8 `KeyedLoadIC_Megamorphic` in `MessagePort::OnMessage`; vier Crashreports seit 3.11.). Bestehende Instabilität, Lauf ungültig und nicht gewertet.
+
+### Integrierte Runden (Delegates, je eigener Worktree und eigener Postgres-Port)
+- Frontend Worker-Wiederverwendung: Worker laufen über Dateien weiter, Reset pro Datei (Globals, Konstruktoren, Prototypen, ab `aae0e7ec4d` auch alle Node-Builtins); Makrotask nach jedem Test gibt happy-dom-WeakRef-Knoten frei (Heap pro Datei 713 → 86 MB); zehn aufgedeckte Wettläufe in Tests auf Endzustand umgestellt.
+- Frontend RAM: Vite lädt in Tests keine PostCSS/Tailwind-Konfiguration, gecachte Sourcemaps ohne `sourcesContent`, Modulgraph eines grünen Projekts freigegeben. Risiko: Haken in Vite-Interna (`updateModuleTransformResult`).
+- Isolationsleck gefunden und behoben: gepatchtes `ServerResponse.prototype.writeHead` überlebte Dateigrenzen; mit alter Isolation grün, mit Wiederverwendung reihenfolgeabhängig rot. Nach Fix volle Suite mit vier Shuffle-Seeds grün.
+- Backend: `STRATEGY FILE_COPY`, Sweep-Aggregation einmal, leere Heaps ohne Snapshot, `shared_buffers=32MB`, `wal_level=minimal`, `-ldflags=-w`, `GOGC=50` und `GOMAXPROCS=1` für die Vollsuite, Link-Cache für unveränderte Testbinaries (Schlüssel: Link-Action-Hash plus Build-IDs aller Archive; 315 → 0 Links), Architekturpaket indiziert, Quell-/AST-Wiederverwendung in Ratchets, Schema-Cache nur für den unveränderlichen Paket-Clone.
+- Verworfen: `-p 1` (Wand 840 s), hartes GOMEMLIMIT (CPU ×2), `-parallel 1` (Deadlock), UNION statt XML, Policy-Shortcut, `GOGC=100` (+675 MiB), `cacheFs`, Haupt-GC im Takt (+47 CPU-s), Worker-GC per Schwelle, Young-Gen 16 MB.
+
+### Abschlussvergleich, gepaart, Baseline 27596d40fb gegen Kandidat 8ec48d9c88
+- Je Seite Warmlauf, dann B/C abwechselnd, private Postgres-Instanz pro Seite aus dem jeweiligen Compose-File neu erzeugt.
+- Frontend `full`: Wand 161,3 / 161,2 → 104,8 / 110,9 s (−33 %); CPU 776,2 / 776,4 → 249,9 / 260,2 s (−67 %); Peak 3484 / 3479 → 1536 / 1593 MB (−55 %). Inventar 1547 Dateien / 24976 Tests identisch.
+- Backend `backend-full` (CPU und RAM inkl. Postgres-Container): Wand 335,4 / 354,4 → 269,9 / 313,7 s (−11 %); CPU 1103,3 / 1117,3 → 593,3 / 610,9 s (−46 %); Peak 7005 / 7060 → 2515 / 2384 MB (−65 %). Inventar 32878 Tests / 30 bestehende Skips identisch.
+- Ziel verfehlt nur bei Backend-CPU: ≈47 CPU-s über der Hälfte. Rest: Postgres ≈280 CPU-s (Test-SQL und Clone/Drop), Testbinaries ≈310 CPU-s, davon Architekturpaket ≈130. Ein erster Kandidatenblock war rot (Komplexitäts-Ratchet nach Integration), behoben in `8ec48d9c88` und vollständig neu gemessen.
+
+## Zweite Runde, 5. November 2026
+
+Basis `6c6935d85c` (Stand nach der ersten Runde). Vier Delegates parallel, je eigener Worktree; Einzelmessungen der Delegates liefen unter Last der anderen (Lastmittel 8–29) und sind nur innerhalb ihres Paares vergleichbar.
+
+### Architekturpaket: Exportdaten und gepackte Git-Vorlagen
+
+- Profil (`GOMAXPROCS=1`, `-parallel=8`): Paketladen und Typprüfung 638 MiB, Parsen 547 MiB, `os.CopyFS` und Löschen der Git-Vorlagen ≈12 CPU-s.
+- `loadCompositionExternalTypes` lädt ohne `NeedDeps`. x/tools v0.52.0 schaltet mit `NeedDeps` (ohne `NeedExportFile`) das Laden der Compiler-Exportdaten ab und prüft jede Abhängigkeit aus dem Quelltext. Gelesen werden nur exportierte Typen direkt importierter Pakete; alle First-Party-Prüfungen bleiben.
+- Jede unveränderliche Git-Vorlage wird einmal mit `git repack -adq --threads=1` gepackt. Kopien behalten eigene Objekte, Refs und Indizes, ohne je Loose-Object eine Datei zu kopieren.
+- Drei Paare `go test -count=1 ./internal/architecture`, Mittel: CPU 131,1 → 120,6 s (−8 %), RSS 649 → 441 MiB (−32 %), Wand 54,3 → 41,5 s (−24 %). Jedes Paar besser in allen drei Werten.
+- Verworfen: `NeedDeps | NeedExportFile` (129,1 statt 127,4 CPU-s), eingeschränktes `go list -json=<fields>` (CPU im Rauschen, RSS +4 %). Caching veränderlicher Projektladungen nicht versucht: Quell- und Policy-Änderungen müssen sichtbar bleiben.
+- Fehlererkennung: Ein verbotener Reader-Setter (`TestCompositionSurfaceResolvesCrossFileDependenciesAndTestScopes/timestamp_state`) und ein verbotener Import (`TestCheckResolvesRelativeProjectPathsForBaseComparison`) werden auf Basis und Kandidat mit derselben Meldung rot.
+- Die übrigen fünf teuersten Go-Pakete (`test` 32,6, `api` 24,3, `presenceprojection/http` 9,0, `careplan/http` 8,4, `organizationtenancy/compose` 7,2 CPU-s) haben keinen billigen Hebel ohne schwächere Prüfung.
+
+### Postgres: Clone-Pool verworfen
+
+- Ein Pool wiederverwendeter Clone-Datenbanken pro Prozess, zurückgesetzt statt neu angelegt, senkte die `CREATE DATABASE` von 1092 auf 634, kostete aber im Mittel 28,1 CPU-s mehr (gepaart n=2: Basis 690,2 / 673,2, Pool 701,6 / 717,9 CPU-s; Postgres 333,9 / 324,3 gegen 348,0 / 357,3). Das Zurücksetzen ist teurer als `FILE_COPY`.
+- Ebenfalls verworfen: tmpfs für das Datenverzeichnis (Peak 2635 statt 2565 MB), `STRATEGY WAL_LOG` (5,97 / 6,21 CPU-s je 30 Clones gegen 3,10 / 2,72 mit `FILE_COPY`).
+- Die Fehlerproben (Leftover-Zeile, Abhängigkeit zwischen Tests, RLS aus, Schulfilter entfernt) wurden auch mit dem Pool rot; verworfen wurde er nur wegen der Kosten.
+
+### Frontend: Mock-Register und Transform-Cache
+- Profil der Vollsuite (`--cpu-prof`, 2 Worker): Hauptprozess 25 CPU-s, davon Transform (vite, rolldown) ≈12; Worker-Threads 186 CPU-s. Größte vermeidbare Posten: `vi.clearAllMocks` 11 CPU-s, weil `@vitest/spy` jede Mock-Funktion in einem Set pro Worker behält; 21 Worker-Threads durch Heap-Recycling.
+- Integriert: Der Reset pro Datei stellt die Spies der Datei wieder her und entfernt ihre Mocks aus dem Register (Zugriff auf das nicht exportierte Set über den Empfänger von `Set.prototype.forEach`, geprüft mit einer Probe-Mock-Funktion). `@vitest/spy` 11,0 → 1,3 CPU-s, Worker-Threads 21 → 12.
+- Integriert: `experimental.fsModuleCache`. Warmer Cache: Hauptprozess 26 → 9 CPU-s. Kalter Cache (leer, wie in CI oder frischem Worktree) kostet das Schreiben von ≈4800 Dateien / 80 MB.
+- Zwei Wettläufe aufgedeckt (je ein roter Vollsuitenlauf von 14 mit Kandidat, 0 von 7 auf der Baseline): `calendar-periods-editor.test.tsx` las die Statuszeile, `guardians-panel.test.tsx` die Kontozeilen nach dem Fund eines Knopfs bzw. einer Überschrift, die schon während des Ladens stehen. Mit einer um 20 ms verzögerten Mock-Antwort auch mit dem alten Test rot. Jetzt `findBy…`. Ob die geänderte Zeitfolge solche Wettläufe häufiger trifft, ist nicht gemessen.
+- Gepaart n=2, Baseline 6c6935d85c gegen 317de5f815, je ein Warmlauf: CPU 288,9 / 294,9 → 239,0 / 248,3 s (−17 %), Peak 1649 / 1573 → 1393 / 1297 MB (−17 %), Wand 118,1 / 122,4 → 102,5 / 112,4 s (−11 %). Mit vor jedem Lauf geleertem Transform-Cache: CPU 264,9 / 273,4 s, Peak 1521 / 1457 MB, Wand 114,3 / 117,3 s. Inventar 1547 Dateien / 24976 Tests identisch, vier Shuffle-Seeds grün, Lastmittel 9–18 (geteilte Maschine).
+- Nicht verfolgt: Projekte zusammenlegen (die Projekte teilen kaum Module über die Vite-Umgebung `ssr`/`client` hinaus, Transform gesamt nur ≈12 CPU-s); React-Owner-Stacks (`jsxDEV`, ≈10 CPU-s) sind Dev-Verhalten, das Tests sehen; das Snapshot-Restore pro Datei (≈7 CPU-s) ist zum größten Teil echte `defineProperty`-Arbeit.
+
+### Frontend: teuerste Testdateien
+
+- `session-cookie-inventory.test.ts` las für jede seiner ≈10 Suchen alle 3289 Quelldateien neu; der bereinigte Text wird jetzt pro Lauf und die deklarierten Namen je Scope einmal pro Syntaxbaum gehalten (Worker-CPU 7,1 → 4,2 s).
+- Zehn Tests warteten 250 ms bis 1 s echte Zeit (Debounce, Backoff, Retry-Pause, Exit-Animation). Sie stellen genau diese Zeit mit Fake-Timern vor, geben die Timer zurück (`releaseFakeTimers`) und prüfen unverändert mit dem üblichen Timeout.
+- `~/test/wait-for-state`: `waitFor` mit 5 statt 50 ms Abfrageintervall für Zustand ohne DOM-Änderung (Hook-Ergebnisse, Mock-Aufrufe); ersetzt fünf lokale Kopien. Ein globales 5-ms-Intervall ist verworfen, weil DOM-Abfragen in Wartefunktionen dann zehnmal so oft liefen.
+- Die 19 geänderten Dateien: Testzeit 30,0 → 17,4 s. Je Datei eine Produktionsmutation, auf Basis und Kandidat in denselben Tests mit derselben Meldung rot. Suite gepaart: Wand-Median 131,0 → 126,3 s, CPU im Rauschen (≈3 s).
+- Seitentests mit hoher CPU (timetable-event-modal, enrollment-form, sidebar u. a.) bleiben: ihr Profil ist React-Dev-Rendering, happy-dom und Rollenabfragen ohne Naht bei gleichem Render-Umfang.
+- Beobachtung: Mit `--sequence.shuffle.files` startete der Hauptprozess 805 Threads für 1517 Dateien (Läufe 228–245 s statt ≈130 s). Die Wiederverwendung greift bei gemischter Reihenfolge kaum; Ursache nicht untersucht, normale Läufe sind nicht betroffen.
+
+### Abschlussvergleich der zweiten Runde, gepaart, Basis 6c6935d85c gegen Kandidat 7a3d3c865b
+
+Abwechselnd, je Seite ein Warmlauf, dann n=2; Backend gegen einen privaten Postgres, je Seite aus der eigenen Compose-Datei neu erzeugt. Lastmittel vor den Läufen 3–13 (geteilte Maschine).
+
+| Suite | Metrik | Basis | Kandidat | Δ |
+|---|---|---|---|---|
+| Frontend `full` | CPU | 258,9 / 284,7 s | 225,1 / 229,5 s | −16 % |
+| | Peak-RAM | 1577 / 1584 MB | 1266 / 1423 MB | −15 % |
+| | Wand | 108,9 / 117,3 s | 94,0 / 95,8 s | −16 % |
+| Backend `backend-full` inkl. Postgres | CPU | 605,7 / 608,5 s | 580,6 / 615,6 s | −1 % (Rauschen) |
+| | Peak-RAM | 2487 / 2414 MB | 2432 / 2357 MB | −2 % |
+| | Wand | 272,1 / 275,4 s | 277,1 / 293,8 s | +4 % (Rauschen) |
+
+Inventare identisch: Frontend 1547 Dateien / 24976 Tests, Backend 32878 Tests / 30 bestehende Skips. Gegen die ursprüngliche Baseline `27596d40fb` (776 CPU-s, 3480 MB, 161 s) liegt das Frontend damit bei −71 % CPU, −61 % Peak und −41 % Wand.
+
+- Backend: Die Einsparung im Architekturpaket (−10 CPU-s, −200 MB im Paketlauf) geht in der Vollsuite im Rauschen unter. Der Postgres-Anteil (≈280 CPU-s) bleibt der größte Posten; der Clone-Pool war teurer.
+- Drei lokale Frontend-Worker statt zwei (gleicher Kandidat): CPU 232,1 / 229,3 s, Peak 1605 / 1622 MB, Wand 64,9 / 63,0 s. Das spart gegenüber zwei Workern ein Drittel der Wandzeit, hebt den Peak aber um ≈270 MB über zwei Worker und leicht über die Basis. Mit `recycleHeapMb: 150` blieb der Peak bei 1675 / 1715 MB. Lokal bleiben zwei Worker, weil Peak-RAM die Zielgröße ist.
+- Ein Lauf mit drei Workern deckte einen weiteren Wettlauf auf: `student-payment-card.test.tsx` klickte `Bearbeiten`, solange der Knopf während des Ladens deaktiviert ist, und las die maskierte IBAN vor dem Laden. Mit einer um 30 ms verzögerten Antwort waren 6 von 12 Tests rot; jetzt warten sie auf den geladenen Zustand (`c5d7fbad46`).

@@ -76,7 +76,8 @@ async function completePrerequisites() {
   });
   expect(firstStepButton).toBeDisabled();
 
-  fireEvent.click(screen.getByRole("combobox", { name: "Löschgrund" }));
+  // The reason field appears once the deletion impact has loaded.
+  fireEvent.click(await screen.findByRole("combobox", { name: "Löschgrund" }));
   fireEvent.click(await screen.findByRole("option", { name: "Testdaten" }));
   fireEvent.click(screen.getByRole("checkbox"));
 

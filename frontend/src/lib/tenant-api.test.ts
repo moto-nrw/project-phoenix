@@ -691,7 +691,11 @@ describe("tenant-api", () => {
         );
 
       const { listAllTenants } = await import("./tenant-api");
-      const result = await listAllTenants(2);
+      // The backoff before the second attempt is a timer: skip its wait.
+      vi.useFakeTimers();
+      const pending = listAllTenants(2);
+      await vi.runAllTimersAsync();
+      const result = await pending;
 
       expect(global.fetch).toHaveBeenCalledTimes(2);
       expect(result.status).toBe("ok");

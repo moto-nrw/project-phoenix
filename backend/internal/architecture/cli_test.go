@@ -857,49 +857,6 @@ func TestPolicyRejectsProjectionPackageAliasesWithDuplicateGrants(t *testing.T) 
 	}
 }
 
-func runArchitecture(t *testing.T, args ...string) (string, error) {
-	return runArchitectureWithEnv(t, nil, args...)
-}
-
-func runArchitectureWithEnv(t *testing.T, environment map[string]string, args ...string) (string, error) {
-	t.Helper()
-	if hasProjectWithoutBaseline(args) {
-		args = append(args, "--baseline", "")
-	}
-
-	root := filepath.Clean(filepath.Join(packageDir(t), "..", "..", ".."))
-	environmentVariables := gitTestEnvironment()
-	for key, value := range environment {
-		prefix := key + "="
-		filtered := environmentVariables[:0]
-		for _, variable := range environmentVariables {
-			if !strings.HasPrefix(variable, prefix) {
-				filtered = append(filtered, variable)
-			}
-		}
-		environmentVariables = append(filtered, prefix+value)
-	}
-	// These tests compare the CLI's failure diagnostics byte-for-byte. Keep
-	// runner-injected cache telemetry out of the surrounding `go run` process;
-	// the ordinary local Go build cache remains enabled.
-	environmentVariables = append(environmentVariables, "GOCACHEPROG=")
-	output, err := processOutput(root, environmentVariables, filepath.Join(root, "scripts", "backend-architecture.sh"), args...)
-	return string(output), err
-}
-
-func hasProjectWithoutBaseline(args []string) bool {
-	hasProject := false
-	for _, argument := range args {
-		switch {
-		case argument == "--project" || strings.HasPrefix(argument, "--project="):
-			hasProject = true
-		case argument == "--baseline" || strings.HasPrefix(argument, "--baseline="):
-			return false
-		}
-	}
-	return hasProject
-}
-
 func fixturePath(t *testing.T, parts ...string) string {
 	t.Helper()
 	return filepath.Join(append([]string{packageDir(t), "testdata"}, parts...)...)

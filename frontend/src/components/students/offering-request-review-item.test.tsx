@@ -195,7 +195,10 @@ describe("OfferingRequestReviewItem", () => {
     );
     expect(mockDecide).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Änderung freigeben" }));
+    // The confirmation renders once the requested preview has loaded.
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Änderung freigeben" }),
+    );
 
     await waitFor(() =>
       expect(mockDecide).toHaveBeenCalledWith(
