@@ -3,7 +3,8 @@ run-name: Build ${{ github.sha }}
 
 on:
   # Production: Build and deploy on push to main
-  # Staging: Build and deploy on push to development
+  # Staging: Build and deploy on push to development, at most one run per
+  # 30 minutes (see concurrency and staging-cooldown below)
   push:
     branches:
       - main
@@ -35,6 +36,16 @@ on:
 
 permissions: {}
 
+# Staging pushes queue in one group. A run holds it for at least 30 minutes
+# (staging-cooldown), and pushes in that time collapse into one pending run for
+# the newest commit: GitHub replaces an older pending run in the group. In
+# October 2026 that would have cut about 1000 staging builds to about 630; each
+# build costs Blacksmith minutes and writes the sticky-disk layer cache.
+# Production pushes and manual runs get a group per run and never wait here.
+concurrency:
+  group: ${{ github.event_name == 'push' && github.ref == 'refs/heads/development' && 'build-staging-push' || format('build-and-deploy-{0}', github.run_id) }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE: ghcr.io/moto-nrw/phoenix-server
@@ -49,10 +60,12 @@ jobs:
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
       environment: ${{ steps.check.outputs.environment }}
+      started_at: ${{ steps.check.outputs.started_at }}
     steps:
       - name: Determine environment
         id: check
         run: |
+          echo "started_at=$(date +%s)" >> "$GITHUB_OUTPUT"
           # Production: Push to main
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
             echo "should_deploy=true" >> "$GITHUB_OUTPUT"
@@ -519,6 +532,28 @@ jobs:
           repository: ${{ github.repository }}
           commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
           sha: ${{ github.sha }}
+
+  # Holds the staging concurrency group until 30 minutes after this run started,
+  # so the next staging build takes the newest commit pushed in the meantime.
+  # Only after a successful deploy: a fix for a failed build or deploy starts
+  # right away. Hosted runners are free for this public repository.
+  staging-cooldown:
+    name: Staging cooldown
+    needs: [check-environment, deploy-staging]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development' && needs.deploy-staging.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions: {}
+    steps:
+      - name: Wait for the rest of the 30-minute window
+        env:
+          STARTED_AT: ${{ needs.check-environment.outputs.started_at }}
+        run: |
+          remaining=$(( STARTED_AT + 1800 - $(date +%s) ))
+          if (( remaining > 0 )); then
+            echo "Next staging build starts in ${remaining}s at the earliest."
+            sleep "$remaining"
+          fi
 
   # Deploy to production with automatic rollback on failure
   # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed

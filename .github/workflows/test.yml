@@ -383,13 +383,17 @@ jobs:
     # counts; workers are reused with a per-file reset
     # (frontend/src/test/setup-worker-reuse.ts). Only Node needs the browser
     # layout checks.
+    # Hosted runners are free for this public repository, and this job saves
+    # no per-commit cache. Since worker reuse (#5700) every project finishes
+    # well before frontend-build or the seed smoke, which set the pull
+    # request's wall-clock time, so Blacksmith minutes bought nothing here.
     strategy:
       fail-fast: false
       matrix:
         # Changed-only PRs keep one DOM job. Full suites split its files with
         # Vitest's built-in sharding, retaining four workers per DOM runner.
         project: ${{ fromJSON(inputs.frontend-guards-only && '["guards"]' || (!inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '') && '["node","dom-1","dom-2"]' || '["node","dom"]') }}
-    runs-on: ${{ (matrix.project == 'node' || matrix.project == 'guards') && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
 
