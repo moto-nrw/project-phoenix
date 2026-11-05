@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -89,7 +90,7 @@ func requiredClock(value, field string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf("workforce postgres: %s %q is not a %s wall clock: %w", field, value, domain.ClockLayout, err)
 	}
-	return time.Date(1, time.January, 1, parsed.Hour(), parsed.Minute(), parsed.Second(), 0, time.UTC), nil
+	return calendar.NormalizeWallClock(parsed), nil
 }
 
 // wallClockString reads the time-of-day components only, discarding the date
