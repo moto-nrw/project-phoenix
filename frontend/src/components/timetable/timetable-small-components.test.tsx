@@ -99,7 +99,7 @@ describe("small timetable components", () => {
     fireEvent.click(screen.getByRole("button", { name: /mensa/i }));
 
     expect(onClick).toHaveBeenCalledOnce();
-    expect(screen.getByLabelText("läuft")).toBeInTheDocument();
+    expect(screen.getByText("läuft")).toBeInTheDocument();
     expect(screen.getByLabelText("1 Konflikte")).toBeInTheDocument();
     expect(screen.getByText(/1 anwesend/)).toBeInTheDocument();
   });

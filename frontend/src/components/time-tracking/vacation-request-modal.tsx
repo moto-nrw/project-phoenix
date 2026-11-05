@@ -23,6 +23,7 @@ import { dispatchAbsencesRefresh } from "~/lib/absence-helpers";
 import { createLogger } from "~/lib/logger";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import type { StaffAbsence } from "~/lib/time-tracking-helpers";
+import { StatusDot } from "~/components/ui/status-dot";
 
 // Forward-looking presets specific to vacation requests. Covers ~90% of
 // real-world cases (single Brückentag, current/next week, current/next
@@ -372,15 +373,27 @@ export function VacationRequestModal({
               {blockingVacations.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-gray-500">
                   <span className="inline-flex items-center gap-1">
-                    <span className="bg-moto-orange/50 h-2 w-2 rounded-full" />
+                    <StatusDot
+                      className="bg-moto-orange/50"
+                      size="md"
+                      decorative
+                    />
                     Beantragt
                   </span>
                   <span className="inline-flex items-center gap-1">
-                    <span className="bg-moto-purple/50 h-2 w-2 rounded-full" />
+                    <StatusDot
+                      className="bg-moto-purple/50"
+                      size="md"
+                      decorative
+                    />
                     {"Rückfrage"}
                   </span>
                   <span className="inline-flex items-center gap-1">
-                    <span className="bg-moto-green/50 h-2 w-2 rounded-full" />
+                    <StatusDot
+                      className="bg-moto-green/50"
+                      size="md"
+                      decorative
+                    />
                     Genehmigt oder eingetragen
                   </span>
                 </div>

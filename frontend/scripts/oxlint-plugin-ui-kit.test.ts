@@ -1586,6 +1586,126 @@ describe.concurrent("ui-kit/no-pill-dot", () => {
   });
 });
 
+describe.concurrent("ui-kit/no-hand-rolled-dot (#5598)", () => {
+  it.each([
+    [
+      "a fill class",
+      `<span className="h-2 w-2 rounded-full bg-gray-400" aria-hidden />`,
+    ],
+    [
+      "a data colour",
+      `<span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />`,
+    ],
+    [
+      "a computed fill class",
+      `<span className={\`size-2 rounded-full \${fill}\`} />`,
+    ],
+    [
+      "a colour bar",
+      `<span className="h-9 w-1 shrink-0 rounded-full" style={{ backgroundColor: color }} />`,
+    ],
+  ])("fails a hand-built dot with %s", async (_name, element) => {
+    const result = await lintSource(
+      `function Probe({ color, fill }: { color: string; fill: string }) {
+        void color; void fill;
+        return ${element};
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-hand-rolled-dot");
+  });
+
+  it("accepts the kit, skeletons, spinners, tracks and the kit folder", async () => {
+    const accepted = await lintSource(
+      `import { StatusDot } from "~/components/ui/status-dot";
+      import { Skeleton } from "~/components/ui/skeleton";
+      function Probe() {
+        return (
+          <>
+            <StatusDot className="bg-gray-400" decorative />
+            <Skeleton className="h-2.5 w-2.5 rounded-full" />
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-current" />
+            <span className="h-2 w-2/3 rounded-full bg-gray-100" />
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const kit = await lintSource(
+      `function Probe() { return <span className="h-2 w-2 rounded-full bg-white" />; }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(accepted.output).not.toContain("no-hand-rolled-dot");
+    expect(kit.output).not.toContain("no-hand-rolled-dot");
+  });
+
+  it("leaves a dot inside a pill to no-pill-dot", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return (
+          <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs">
+            <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
+            Offen
+          </span>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("no-hand-rolled-dot");
+  });
+});
+
+describe.concurrent("ui-kit/no-status-dot-outside-plans (#5598)", () => {
+  const source = `import { StatusDot } from "~/components/ui/status-dot";
+    function Probe() { return <StatusDot label="Läuft" />; }
+    void Probe;`;
+
+  it("fails a StatusDot outside legends and plans", async () => {
+    const result = await lintSource(source, "src/components/devices/probe.tsx");
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-status-dot-outside-plans");
+  });
+
+  it("also catches the other import alias", async () => {
+    const result = await lintSource(
+      source.replace("~/components", "@/components"),
+      "src/components/devices/probe.tsx",
+    );
+
+    expect(result.output).toContain("no-status-dot-outside-plans");
+  });
+
+  it("accepts a StatusDot in a plan", async () => {
+    const result = await lintSource(
+      source,
+      "src/components/timetable/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("no-status-dot-outside-plans");
+  });
+});
+
+describe("dot ratchet baseline", () => {
+  it("matches the current findings exactly", () => {
+    const result = spawnSync(
+      process.execPath,
+      [resolve("scripts/ui-kit-dot-baseline-update.mjs"), "--check"],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
+  }, 120_000);
+});
+
 describe.concurrent("ui-kit/no-hex-alpha-tint", () => {
   it("fails a hex alpha tint in a pill's style", async () => {
     const result = await lintSource(

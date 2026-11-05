@@ -1,8 +1,12 @@
+import { COLOR_BAR_FALLBACK, ColorBar } from "./color-bar";
+import { StatusDot } from "./status-dot";
+
 /**
  * PlanLegend resolves the categories and block states of a planning grid into a
  * compact wrapping legend. Category entries render a vertical edge-bar swatch that mirrors
  * the 3px PlanBlock edge; state entries render a 12px glyph that echoes a
- * PlanBlock status.
+ * PlanBlock status. An entry may carry a `value` (Zähler) and a round `dot`
+ * swatch; `size="md"` is the legend under a chart or a list, outside a plan.
  *
  * The hatched glyph is drawn with SVG lines, NOT a CSS repeating gradient:
  * the sanctioned hatch stays encapsulated in plan-block.tsx (Abschnitt 5,
@@ -11,31 +15,40 @@
  */
 
 /** Mirrors the PlanBlock statuses that need a distinct legend glyph. */
-type PlanLegendEntryVariant = "bar" | "hatched" | "cancelled";
+type PlanLegendEntryVariant = "bar" | "dot" | "hatched" | "cancelled";
 
 export interface PlanLegendEntry {
   readonly key: string;
   readonly label: string;
-  /** Swatch color as a 6-digit hex ("#RRGGBB"); used by the "bar" variant. */
+  /** Count shown before the label. */
+  readonly value?: number;
+  /** Swatch color as a 6-digit hex ("#RRGGBB"); used by "bar" and "dot". */
   readonly color?: string;
   /** Glyph variant. Defaults to the colored edge bar. */
   readonly variant?: PlanLegendEntryVariant;
 }
 
+type PlanLegendSize = "sm" | "md";
+
 interface PlanLegendProps {
   readonly entries: readonly PlanLegendEntry[];
+  readonly size?: PlanLegendSize;
   readonly className?: string;
   readonly "aria-label"?: string;
 }
 
-/** Neutral fallback edge (UNTYPED_EDGE_COLOR), matching PlanBlock. */
-const FALLBACK_BAR_COLOR = "#D1D5DB";
 /** Grays reused for the state glyphs (cancelled edge / hatch strokes). */
 const CANCELLED_GLYPH_COLOR = "#9CA3AF";
 const HATCH_STROKE_COLOR = "#6B7280";
 const HEX6_RE = /^#[0-9a-fA-F]{6}$/;
 
-function LegendGlyph({ entry }: { entry: PlanLegendEntry }) {
+function LegendGlyph({
+  entry,
+  size,
+}: {
+  entry: PlanLegendEntry;
+  size: PlanLegendSize;
+}) {
   const variant = entry.variant ?? "bar";
 
   if (variant === "hatched") {
@@ -76,34 +89,53 @@ function LegendGlyph({ entry }: { entry: PlanLegendEntry }) {
     );
   }
 
-  return (
-    <span
-      aria-hidden="true"
-      className="h-3 w-1 shrink-0 rounded-full"
-      style={{
-        backgroundColor:
-          entry.color != null && HEX6_RE.test(entry.color)
-            ? entry.color
-            : FALLBACK_BAR_COLOR,
-      }}
-    />
-  );
+  const color =
+    entry.color != null && HEX6_RE.test(entry.color)
+      ? entry.color
+      : COLOR_BAR_FALLBACK;
+
+  if (variant === "dot") {
+    return (
+      <StatusDot color={color} size={size === "md" ? "lg" : "md"} decorative />
+    );
+  }
+
+  return <ColorBar color={color} />;
 }
+
+const SM_TEXT = "text-[11px]";
+
+const SIZE_CLASSES = {
+  sm: {
+    list: "gap-x-4",
+    label: `${SM_TEXT} text-gray-600`,
+    value: `${SM_TEXT} font-semibold text-gray-900 tabular-nums`,
+  },
+  md: {
+    list: "gap-x-5",
+    label: "text-sm text-gray-500",
+    value: "text-sm font-medium text-gray-900 tabular-nums",
+  },
+} as const;
 
 export function PlanLegend({
   entries,
+  size = "sm",
   className,
   "aria-label": ariaLabel,
 }: PlanLegendProps) {
   return (
     <div
       aria-label={ariaLabel}
-      className={`flex flex-wrap items-center gap-x-4 gap-y-1 ${className ?? ""}`}
+      className={`flex flex-wrap items-center gap-y-1 ${SIZE_CLASSES[size].list} ${className ?? ""}`}
     >
       {entries.map((entry) => (
         <span key={entry.key} className="inline-flex items-center gap-1.5">
-          <LegendGlyph entry={entry} />
-          <span className="text-[11px] text-gray-600">{entry.label}</span>
+          <LegendGlyph entry={entry} size={size} />
+          {entry.value === undefined ? null : (
+            <span className={SIZE_CLASSES[size].value}>{entry.value}</span>
+          )}
+          <span className={SIZE_CLASSES[size].label}>{entry.label}</span>
         </span>
       ))}
     </div>

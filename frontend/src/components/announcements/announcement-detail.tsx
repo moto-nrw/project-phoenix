@@ -31,7 +31,6 @@ import type { Group } from "~/lib/api";
 import type { Activity } from "~/lib/activity-helpers";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { LONG_POLL_OPTIONS } from "~/lib/announcement-poll-options";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -63,6 +62,7 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { parentAnnouncementKeys } from "~/lib/swr/portal-keys";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { ProgressBar } from "~/components/ui/progress-bar";
 
 const logger = createLogger({ component: "AnnouncementDetail" });
 
@@ -328,15 +328,12 @@ function PollResultsPanel({
                       {option.count}
                     </span>
                   </div>
-                  <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-100">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${share}%`,
-                        backgroundColor: LOCATION_COLORS.GROUP_ROOM,
-                      }}
-                    />
-                  </div>
+                  <ProgressBar
+                    value={share}
+                    max={100}
+                    label={`${option.label}: ${share} %`}
+                    className="mt-1"
+                  />
                 </li>
               );
             })}

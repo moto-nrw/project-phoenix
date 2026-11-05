@@ -138,26 +138,26 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/timetable/weekly-calendar-grid.tsx",
-    lines: [388],
+    lines: [389],
     reason: "Tagesauswahl (aria-pressed), Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/staff/dienstplan-resource-grid.tsx",
-    lines: [718],
+    lines: [719],
     reason: "Tagesauswahl (aria-pressed), Auswahlzeile",
   },
   {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [855, 888, 988, 1157],
+    lines: [856, 889, 989, 1158],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
   {
     rule: "no-button-override",
     file: "src/components/parent/calendar/parent-calendar-page.tsx",
-    lines: [548, 797],
+    lines: [549, 799],
     reason:
       "Termin-Zeilen und Monats-Chips im Elternkalender, optisch Listeneinträge (#5529: nicht angleichen)",
   },
@@ -170,7 +170,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1059],
+    lines: [1061],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
@@ -195,7 +195,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/home/home-block-content.tsx",
-    lines: [203, 275],
+    lines: [218, 292],
     reason: "Listenzeilen der Startseite, verlinken weiter",
   },
   {
@@ -280,7 +280,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [277],
+    lines: [275],
     reason: "Zeitraum-Option im Auswahlmenü: Menüeintrag",
   },
   // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder
@@ -294,7 +294,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [277],
+    lines: [275],
     reason:
       "Auswahlzeile im Zeitraum-Menü: grau markiert den gewählten Zeitraum",
   },

@@ -38,6 +38,8 @@ import { childrenConcept } from "~/lib/concepts/children";
 import { closingDaysConcept } from "~/lib/concepts/closingDays";
 import { peopleConcept } from "~/lib/concepts/people";
 import { roomsConcept } from "~/lib/concepts/rooms";
+import { StatusDot } from "~/components/ui/status-dot";
+import { ColorBar } from "~/components/ui/color-bar";
 
 export type CalendarViewMode = "day" | "week" | "month";
 
@@ -1151,11 +1153,7 @@ function AgendaRow({
           </>
         )}
       </div>
-      <span
-        className="h-9 w-1 shrink-0 rounded-full"
-        style={{ backgroundColor: tone.bar }}
-        aria-hidden
-      />
+      <ColorBar color={tone.bar} size="lg" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span
@@ -1211,11 +1209,7 @@ function EventPill({
       } ${cancelled ? "opacity-70" : ""}`}
       style={{ backgroundColor: tone.bg }}
     >
-      <span
-        className="h-2 w-2 shrink-0 rounded-full"
-        style={{ backgroundColor: tone.bar }}
-        aria-hidden
-      />
+      <StatusDot color={tone.bar} size="md" decorative />
       <span
         className={`min-w-0 flex-1 truncate text-xs font-medium text-gray-900 ${
           cancelled ? "line-through" : ""

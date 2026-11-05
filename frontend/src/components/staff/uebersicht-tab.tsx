@@ -48,6 +48,7 @@ import {
 
 import { formatSignedDuration, KpiCard } from "./staff-time-views";
 import { StundenkontoPanel } from "./stundenkonto-panel";
+import { StatusDot } from "~/components/ui/status-dot";
 
 /**
  * Soll-Minuten je Kalendertag, aufgelöst gegen den Plan, der AN diesem Tag
@@ -439,10 +440,7 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
                     className={`flex items-center justify-between gap-3 text-sm ${point.value === 0 ? "opacity-40" : ""}`}
                   >
                     <span className="flex items-center gap-2 text-gray-700">
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ backgroundColor: point.color }}
-                      />
+                      <StatusDot color={point.color} size="lg" decorative />
                       {point.label}
                     </span>
                     <span className="text-gray-500 tabular-nums">

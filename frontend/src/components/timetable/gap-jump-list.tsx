@@ -19,6 +19,7 @@ import type { GapInstance } from "~/lib/timetable-types";
 
 import { formatDate } from "~/lib/date-helpers";
 import { timetablePopoverSurface } from "./timetable-style";
+import { StatusDot } from "~/components/ui/status-dot";
 
 interface GapJumpListProps {
   /** Offene (nicht quittierte) Lücken des sichtbaren Zeitraums. */
@@ -95,7 +96,7 @@ export function GapJumpList({
         aria-expanded={open}
         title={`${label} — Sprungliste öffnen`}
       >
-        <span aria-hidden className="bg-moto-orange h-1.5 w-1.5 rounded-full" />
+        <StatusDot className="bg-moto-orange" decorative />
         {label}
       </Button>
 

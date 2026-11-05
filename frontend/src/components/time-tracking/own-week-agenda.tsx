@@ -14,6 +14,7 @@ import {
   type StaffShift,
 } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
+import { ColorBar } from "~/components/ui/color-bar";
 
 // Handy-Fassung des eigenen Dienstplans (#3821), wie „Mein Kalender“ auf dem
 // Handy: statt des Wochenrasters, das man seitlich wischen müsste, eine
@@ -108,11 +109,7 @@ function AgendaShiftRow({
         </span>
         <span className="text-xs text-gray-500">{shift.endTime}</span>
       </div>
-      <span
-        aria-hidden
-        className={`h-9 w-1 shrink-0 rounded-full ${color ? "" : "bg-gray-300"}`}
-        style={color ? { backgroundColor: color } : undefined}
-      />
+      <ColorBar color={color} size="lg" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span
