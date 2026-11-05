@@ -302,3 +302,11 @@ func TestTimetableRoomIDPrefersAssignmentOverride(t *testing.T) {
 	assert.Equal(t, int64(70), timetableRoomID(instance, nil))
 	assert.Equal(t, int64(0), timetableRoomID(nil, nil))
 }
+
+// The recipient picker finds "Özdemir" for "ozdem" (#4949).
+func TestMatchesRecipientQueryIgnoresAccents(t *testing.T) {
+	t.Parallel()
+	assert.True(t, matchesRecipientQuery("Zoë Özdemir", normalizeRecipientQuery(" Zoe OZDEM ")))
+	assert.False(t, matchesRecipientQuery("Kim Becker", normalizeRecipientQuery("ozdem")))
+	assert.True(t, matchesRecipientQuery("Kim Becker", normalizeRecipientQuery("  ")))
+}

@@ -412,7 +412,7 @@ func applyGroupFilterField(query *bun.SelectQuery, field string, value any) *bun
 	switch field {
 	case "name_like":
 		if strValue, ok := value.(string); ok {
-			return query.Where(`"group".name ILIKE ?`, "%"+strValue+"%")
+			return query.Where(`public.f_unaccent("group".name) ILIKE public.f_unaccent(?)`, "%"+strValue+"%")
 		}
 		return query
 	case "has_room":
@@ -438,7 +438,7 @@ func applyGroupListQuery(query *bun.SelectQuery, params *domain.GroupListQuery) 
 		query = query.Where(`"group".name = ?`, params.Name)
 	}
 	if params.NameContains != "" {
-		query = query.Where(`"group".name ILIKE ?`, "%"+params.NameContains+"%")
+		query = query.Where(`public.f_unaccent("group".name) ILIKE public.f_unaccent(?)`, "%"+params.NameContains+"%")
 	}
 	if params.RoomID != nil {
 		query = query.Where(`"group".room_id = ?`, *params.RoomID)

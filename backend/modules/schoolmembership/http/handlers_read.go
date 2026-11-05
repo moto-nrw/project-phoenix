@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // listStaffFilters holds the parsed query parameters of the directory read.
@@ -42,8 +43,9 @@ func matchesNameFilter(person *Person, firstName, lastName string) bool {
 	return true
 }
 
+// containsFold ignores case and accents, so "gomez" finds "Gómez" (#4949).
 func containsFold(haystack, needle string) bool {
-	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
+	return strings.Contains(collation.FoldForSearch(haystack), collation.FoldForSearch(needle))
 }
 
 // passesRoleFilter checks the optional ?role= filter against the person's

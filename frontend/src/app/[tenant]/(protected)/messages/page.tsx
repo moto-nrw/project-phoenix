@@ -32,6 +32,7 @@ import { formatChatDateTime } from "~/lib/date-helpers";
 import { childrenConcept } from "~/lib/concepts/children";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 import { parentsConcept } from "~/lib/concepts/parents";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "MessagesInboxPage" });
 
@@ -139,11 +140,11 @@ function MessagesInboxContent() {
   const filteredThreads = useMemo(() => {
     const list: InboxThread[] = threads ?? [];
     if (!searchTerm) return list;
-    const term = searchTerm.toLowerCase();
+    const term = foldForSearch(searchTerm);
     return list.filter(
       (thread) =>
-        thread.guardian_name.toLowerCase().includes(term) ||
-        thread.student_name.toLowerCase().includes(term),
+        foldForSearch(thread.guardian_name).includes(term) ||
+        foldForSearch(thread.student_name).includes(term),
     );
   }, [threads, searchTerm]);
 

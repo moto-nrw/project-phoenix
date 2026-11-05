@@ -38,6 +38,7 @@ import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { ModuleRouteGuard } from "~/components/tenant/module-route-guard";
 import { activitiesConcept } from "~/lib/concepts/activities";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "DatabaseActivitiesPage" });
 
@@ -181,12 +182,12 @@ function ActivitiesPageContent() {
     const activities = activitiesData ?? [];
     let arr = [...activities];
     if (searchTerm) {
-      const q = searchTerm.toLowerCase();
+      const q = foldForSearch(searchTerm);
       arr = arr.filter(
         (a) =>
-          a.name.toLowerCase().includes(q) ||
-          (a.category_name?.toLowerCase().includes(q) ?? false) ||
-          (a.supervisor_name?.toLowerCase().includes(q) ?? false),
+          foldForSearch(a.name).includes(q) ||
+          foldForSearch(a.category_name).includes(q) ||
+          foldForSearch(a.supervisor_name).includes(q),
       );
     }
     if (categoryFilter !== "all") {

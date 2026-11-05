@@ -27,6 +27,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-entry";
 import { staffConcept } from "~/lib/concepts/staff";
 import { IconTile } from "~/components/ui/icon-tile";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "SpontaneousActivityStart" });
 const EMPTY_OCCUPIED_ROOM_IDS: readonly string[] = [];
@@ -276,10 +277,10 @@ export function SpontaneousActivityStart({
     !isStarting;
   const suggestedActivities = activities.slice(0, 5);
   const filteredActivities = useMemo(() => {
-    const query = activityInput.trim().toLocaleLowerCase("de");
+    const query = foldForSearch(activityInput.trim());
     const matches = query
       ? activities.filter((activity) =>
-          activity.name.toLocaleLowerCase("de").includes(query),
+          foldForSearch(activity.name).includes(query),
         )
       : activities;
     return matches.slice(0, 8);

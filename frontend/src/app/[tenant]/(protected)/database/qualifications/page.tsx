@@ -34,6 +34,7 @@ import {
 import { staffQualificationKeys } from "~/lib/swr/staff-keys";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { foldForSearch } from "~/lib/search-fold";
 
 const OTHER_KIND = "other";
 
@@ -77,15 +78,15 @@ export default function QualificationsPage() {
   }, [rows]);
 
   const filtered = useMemo(() => {
-    const needle = search.trim().toLocaleLowerCase("de");
+    const needle = foldForSearch(search.trim());
     return rows.filter(
       (row) =>
         (status === "all" || row.status === status) &&
         (kind === "all" ||
           (kind === OTHER_KIND ? row.typeId === null : row.typeId === kind)) &&
         (needle === "" ||
-          personName(row).toLocaleLowerCase("de").includes(needle) ||
-          row.name.toLocaleLowerCase("de").includes(needle)),
+          foldForSearch(personName(row)).includes(needle) ||
+          foldForSearch(row.name).includes(needle)),
     );
   }, [rows, status, kind, search]);
 

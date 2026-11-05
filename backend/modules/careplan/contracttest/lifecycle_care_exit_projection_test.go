@@ -51,6 +51,8 @@ func TestCareLifecycleDirectoryReadsWithoutStudentCompatibilityView(t *testing.T
 	require.Equal(t, 1, total)
 	require.Len(t, rows, 1)
 	require.Equal(t, ended.ID, rows[0].StudentID)
+	_, total = archive(ctx, careplan.EndedCareFilter{Search: "Ówner"})
+	require.Equal(t, 1, total, "the name search ignores accents (#4949)")
 	children := blocking(ctx)
 	require.Len(t, children, 1)
 	require.Equal(t, strconv.FormatInt(inCare.ID, 10), children[0].StudentID)

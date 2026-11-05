@@ -396,3 +396,14 @@ func TestCareUsageRowCarriesManualAndAutomaticDays(t *testing.T) {
 	assert.Equal(t, []string{"mon", "tue", "wed", "thu"}, row.Offerings[0].AutomaticSelectedDays)
 	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, row.Offerings[0].Days)
 }
+
+// The care usage search finds "Gómez" for "gomez" (#4949).
+func TestCareUsageSearchIgnoresAccents(t *testing.T) {
+	t.Parallel()
+	row := enrollmentNative.CareUsageRow{ChildFirstName: "Zoë", ChildLastName: "Gómez", GuardianFirstName: "Łucja", GuardianLastName: "Özdemir"}
+
+	for _, search := range []string{"zoe gomez", "LUCJA", "ozdem"} {
+		assert.True(t, careUsageRowMatchesSearch(row, search), search)
+	}
+	assert.False(t, careUsageRowMatchesSearch(row, "becker"))
+}

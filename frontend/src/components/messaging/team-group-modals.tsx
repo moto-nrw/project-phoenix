@@ -17,6 +17,7 @@ import {
   staffRoleKindLabel,
 } from "~/lib/staff-messages-api";
 import { createLogger } from "~/lib/logger";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "TeamGroupModals" });
 
@@ -78,11 +79,11 @@ function PeoplePicker({
   }, [api, loadAttempt, showLoadError, clearLoadError]);
 
   const filtered = useMemo(() => {
-    const term = query.trim().toLowerCase();
+    const term = foldForSearch(query.trim());
     return people.filter(
       (person) =>
         !exclude.has(person.account_id) &&
-        (!term || person.name.toLowerCase().includes(term)),
+        (!term || foldForSearch(person.name).includes(term)),
     );
   }, [people, query, exclude]);
 

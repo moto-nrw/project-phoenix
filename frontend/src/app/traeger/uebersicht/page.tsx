@@ -33,6 +33,7 @@ import type {
 } from "~/lib/traeger-api";
 import { TRAEGER_HANDOFF_OPEN } from "~/lib/traeger-handoff";
 import { traegerPath } from "~/lib/traeger-url";
+import { foldForSearch } from "~/lib/search-fold";
 
 const EMPTY_VALUE = "–";
 
@@ -62,11 +63,9 @@ function presentShare(figures: TraegerSchoolFigures): number {
 }
 
 function matchesSearch(school: TraegerSchoolToday, search: string): boolean {
-  const needle = search.trim().toLocaleLowerCase("de-DE");
+  const needle = foldForSearch(search.trim());
   if (needle === "") return true;
-  return `${school.name} ${school.city}`
-    .toLocaleLowerCase("de-DE")
-    .includes(needle);
+  return foldForSearch(`${school.name} ${school.city}`).includes(needle);
 }
 
 /**

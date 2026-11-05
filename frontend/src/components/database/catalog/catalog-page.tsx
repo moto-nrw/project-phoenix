@@ -46,6 +46,7 @@ import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { configToFormSection, type SectionConfig } from "~/lib/database/types";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { createLogger } from "~/lib/logger";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "CatalogPage" });
 
@@ -217,10 +218,10 @@ export function CatalogPage<T extends CatalogItem>({
   }, [createOpen, clearCreateErrors]);
 
   const visible = useMemo(() => {
-    const needle = searchTerm.trim().toLocaleLowerCase("de");
+    const needle = foldForSearch(searchTerm.trim());
     if (!needle) return all;
     return all.filter((item) =>
-      config.toRow(item).name.toLocaleLowerCase("de").includes(needle),
+      foldForSearch(config.toRow(item).name).includes(needle),
     );
   }, [all, searchTerm, config]);
 

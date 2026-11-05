@@ -6,13 +6,14 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 func (s *service) RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error) {
 	if limit <= 0 || limit > 50 {
 		limit = 25
 	}
-	query = strings.ToLower(strings.TrimSpace(query))
+	query = normalizeRecipientQuery(query)
 
 	staffOptions, err := s.staffRecipientOptions(ctx, query, limit)
 	if err != nil {
@@ -44,10 +45,16 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 	}, nil
 }
 
-// matchesRecipientQuery reports whether name matches the lower-cased search
-// query; an empty query matches everything.
+// normalizeRecipientQuery trims the search query and folds it for
+// matchesRecipientQuery.
+func normalizeRecipientQuery(query string) string {
+	return collation.FoldForSearch(strings.TrimSpace(query))
+}
+
+// matchesRecipientQuery reports whether name matches the normalized search
+// query, ignoring case and accents (#4949); an empty query matches everything.
 func matchesRecipientQuery(name, query string) bool {
-	return query == "" || strings.Contains(strings.ToLower(name), query)
+	return query == "" || strings.Contains(collation.FoldForSearch(name), query)
 }
 
 func (s *service) staffRecipientOptions(ctx context.Context, query string, limit int) ([]StaffOption, error) {

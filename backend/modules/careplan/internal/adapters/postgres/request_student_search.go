@@ -23,6 +23,6 @@ func filterRequestQueueStudentName(directory StudentDirectory, query *bun.Select
   SELECT student.id FROM (?) AS student
   JOIN users.persons AS person ON person.id = student.person_id AND person.tenant_id = student.tenant_id
   WHERE student.tenant_id = ?
-  AND (person.first_name || ' ' || person.last_name) ILIKE ? ESCAPE '\'
+  AND public.f_unaccent(person.first_name || ' ' || person.last_name) ILIKE public.f_unaccent(?) ESCAPE '\'
  )`, bun.Ident(alias+".student_id"), directory.AllSchoolsStudentRows(query.DB()), bun.Ident(alias+".tenant_id"), "%"+escapeILike(search)+"%"))
 }

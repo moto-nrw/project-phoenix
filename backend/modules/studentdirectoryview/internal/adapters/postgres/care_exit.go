@@ -66,9 +66,9 @@ func ListEndedCare(ctx context.Context, db bun.IDB, tenantID int64, asOfDay stri
 			Where(`"membership".enrolled_until < ?`, asOf).
 			Where(`"membership".status <> 'alumnus'`)
 		if search := strings.TrimSpace(filter.Search); search != "" {
-			pattern := "%" + strings.ToLower(search) + "%"
+			pattern := "%" + search + "%"
 			query = query.Where(
-				`(LOWER("person".first_name) LIKE ? OR LOWER("person".last_name) LIKE ? OR LOWER("membership".school_class) LIKE ?)`,
+				`(public.f_unaccent("person".first_name) ILIKE public.f_unaccent(?) OR public.f_unaccent("person".last_name) ILIKE public.f_unaccent(?) OR "membership".school_class ILIKE ?)`,
 				pattern, pattern, pattern,
 			)
 		}
