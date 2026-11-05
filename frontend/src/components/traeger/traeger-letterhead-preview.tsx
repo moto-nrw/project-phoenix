@@ -14,6 +14,17 @@ interface TraegerLetterheadPreviewProps {
   readonly defaultAccount: TraegerBankAccount | null;
   /** Der Text des Briefs, etwa eine Vorlage mit Beispieldaten (#4677). */
   readonly body?: ReactNode;
+  /** Anschriftfeld eines ganzen Briefs (#5691). */
+  readonly recipient?: readonly string[];
+  /**
+   * Nummern und Daten neben der Anschrift (#5691). Mit ihnen stehen
+   * Ansprechperson, Telefon und E-Mail wie im PDF in diesem Block statt in
+   * einer Zeile unter dem Kopf.
+   */
+  readonly facts?: readonly {
+    readonly label: string;
+    readonly value: string;
+  }[];
   readonly label?: string;
 }
 
@@ -39,6 +50,8 @@ export function TraegerLetterheadPreview({
   contact,
   defaultAccount,
   body,
+  recipient,
+  facts,
   label = "Vorschau des Briefkopfs",
 }: TraegerLetterheadPreviewProps) {
   // The colour is the Träger's own value, not a brand colour of moto;
@@ -49,6 +62,16 @@ export function TraegerLetterheadPreview({
   const contactLine = [contact.name, contact.phone, contact.email]
     .filter((value) => value !== "")
     .join(" · ");
+  const letterFacts = facts
+    ? [
+        ...facts,
+        ...[
+          { label: "Ansprechperson", value: contact.name },
+          { label: "Telefon", value: contact.phone },
+          { label: "E-Mail", value: contact.email },
+        ].filter((fact) => fact.value !== ""),
+      ]
+    : null;
 
   return (
     <figure
@@ -99,17 +122,51 @@ export function TraegerLetterheadPreview({
         style={accent ? { backgroundColor: accent } : undefined}
         aria-hidden="true"
       />
-      <p className="mt-4 wrap-anywhere text-gray-600">
-        <span
-          className="font-medium text-gray-900"
-          style={accent ? { color: accent } : undefined}
-        >
-          Ansprechpartner:
-        </span>{" "}
-        {contactLine || (
-          <span className="text-gray-400">noch nicht eingetragen</span>
-        )}
-      </p>
+      {letterFacts ? (
+        // Wie im PDF: links das Anschriftfeld, rechts Nummern, Daten und die
+        // Ansprechperson des Trägers.
+        <div className="mt-6 grid gap-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <address
+            aria-label="Anschrift"
+            role="group"
+            className="min-w-0 wrap-anywhere text-gray-900 not-italic"
+          >
+            {(recipient ?? []).map((line, index) => (
+              <p key={`${index}-${line}`}>{line}</p>
+            ))}
+          </address>
+          {/* Eine Druckansicht, kein Feldgitter: jede Zeile Bezeichnung
+              und Wert wie im Infoblock des PDFs. */}
+          <div
+            role="group"
+            aria-label="Angaben zum Schreiben"
+            className="min-w-0 space-y-0.5 text-sm"
+          >
+            {letterFacts.map((fact) => (
+              <p key={fact.label} className="flex justify-between gap-4">
+                <span className="shrink-0 whitespace-nowrap text-gray-500">
+                  {fact.label}
+                </span>
+                <span className="min-w-0 text-right wrap-break-word text-gray-900 tabular-nums">
+                  {fact.value}
+                </span>
+              </p>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="mt-4 wrap-anywhere text-gray-600">
+          <span
+            className="font-medium text-gray-900"
+            style={accent ? { color: accent } : undefined}
+          >
+            Ansprechpartner:
+          </span>{" "}
+          {contactLine || (
+            <span className="text-gray-400">noch nicht eingetragen</span>
+          )}
+        </p>
+      )}
       {/* Blindtext statt grauer Balken: Balken lasen sich als Ladeskelett. */}
       {body ? (
         <div className="mt-8">{body}</div>

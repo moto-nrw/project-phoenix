@@ -45,7 +45,7 @@ describe("TraegerVorlagenPage", () => {
     );
     // The table renders a desktop and a stacked phone layout.
     const [confirmation] = await screen.findAllByText(
-      "Bestätigung der Ferienanmeldung",
+      "Bestätigung und Rechnung",
     );
     expect(screen.getAllByText("Eigene, Version 2").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Standardvorlage").length).toBeGreaterThan(0);

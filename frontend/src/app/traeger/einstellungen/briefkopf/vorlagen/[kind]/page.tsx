@@ -1,13 +1,17 @@
 "use client";
 
 // Eine Vorlage des Trägers (#4677, ADR 0152): Betreff, Anrede, Brieftext und
-// Grußformel mit Platzhaltern, die Vorschau mit Beispieldaten im Briefkopf
-// des Trägers und die gespeicherten Versionen. Speichern legt eine neue
-// Version an; unbekannte Platzhalter lehnt das Backend ab.
+// Grußformel mit Platzhaltern, bei Schreiben mit Rechnung die Darstellung der
+// Rechnungstabelle (#5691), die Vorschau des ganzen Briefs mit Beispieldaten
+// im Briefkopf des Trägers und die gespeicherten Versionen. Auf breiten
+// Bildschirmen steht die Vorschau neben dem Formular und bleibt beim Scrollen
+// sichtbar. Speichern legt eine neue Version an; unbekannte Platzhalter lehnt
+// das Backend ab.
 
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { DocumentTemplateInvoiceFields } from "~/components/traeger/document-template-invoice-fields";
 import { DocumentTemplatePlaceholdersCard } from "~/components/traeger/document-template-placeholders-card";
 import { DocumentTemplatePreviewBody } from "~/components/traeger/document-template-preview-body";
 import { DocumentTemplateVersionsCard } from "~/components/traeger/document-template-versions-card";
@@ -41,12 +45,17 @@ import {
   DOCUMENT_TEMPLATE_KIND_USE,
   type DocumentTemplateDetail,
   type DocumentTemplateKind,
+  type DocumentTemplatePlaceholder,
   type DocumentTemplatePreview,
   type DocumentTemplateText,
   fetchDocumentTemplate,
+  hasInvoiceTable,
+  invoiceLayoutOf,
   isDocumentTemplateKind,
   previewDocumentTemplate,
+  sameTemplateText,
   saveDocumentTemplate,
+  templateTextOf,
 } from "~/lib/traeger-document-templates";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -54,24 +63,6 @@ const logger = createLogger({ component: "TraegerVorlagePage" });
 
 /** Das Träger-Recht, das Vorlagen ändert (ADR 0084 Abschnitt 4). */
 const SETTINGS_RIGHT = "traeger_settings:manage";
-
-function textOf(template: DocumentTemplateText): DocumentTemplateText {
-  return {
-    subject: template.subject,
-    salutation: template.salutation,
-    body: template.body,
-    closing: template.closing,
-  };
-}
-
-function sameText(a: DocumentTemplateText, b: DocumentTemplateText): boolean {
-  return (
-    a.subject === b.subject &&
-    a.salutation === b.salutation &&
-    a.body === b.body &&
-    a.closing === b.closing
-  );
-}
 
 interface PageData {
   readonly detail: DocumentTemplateDetail;
@@ -120,6 +111,10 @@ function TemplateEditorPage({
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const formRef = useRef<HTMLFormElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  // Die letzte Schreibmarke im Brieftext. Ein Klick auf einen Platzhalter
+  // nimmt dem Feld den Fokus; ohne Marke kommt der Platzhalter ans Ende.
+  const caret = useRef<{ start: number; end: number } | null>(null);
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
 
@@ -131,7 +126,7 @@ function TemplateEditorPage({
         fetchDocumentTemplate(kind),
         fetchTraegerMasterData(),
       ]);
-      const current = textOf(detail.current);
+      const current = templateTextOf(detail.current);
       const preview = await previewDocumentTemplate(kind, current);
       setData({ detail, masterData, preview });
       setDraft(current);
@@ -197,11 +192,11 @@ function TemplateEditorPage({
   };
 
   const error = pageLoad.error ?? schemaError;
-  const current = data ? textOf(data.detail.current) : null;
+  const current = data ? templateTextOf(data.detail.current) : null;
   const changed =
-    draft !== null && current !== null && !sameText(draft, current);
+    draft !== null && current !== null && !sameTemplateText(draft, current);
   const previewStale =
-    draft !== null && previewed !== null && !sameText(draft, previewed);
+    draft !== null && previewed !== null && !sameTemplateText(draft, previewed);
   const standard = data?.detail.standardTemplate ?? null;
   const branding =
     schema?.tabs.find((tab) => tab.key === TRAEGER_BRANDING_TAB) ?? null;
@@ -211,8 +206,42 @@ function TemplateEditorPage({
       .find((candidate) => candidate.key === key);
     return typeof item?.value === "string" ? item.value : "";
   };
-  const set = (part: keyof DocumentTemplateText, value: string) =>
-    setDraft((before) => (before ? { ...before, [part]: value } : before));
+  const set = (
+    part: "subject" | "salutation" | "body" | "closing",
+    value: string,
+  ) => setDraft((before) => (before ? { ...before, [part]: value } : before));
+  const rememberCaret = (field: HTMLTextAreaElement) => {
+    caret.current = { start: field.selectionStart, end: field.selectionEnd };
+  };
+  // Setzt den Platzhalter an die letzte Schreibmarke des Brieftexts, ohne
+  // Marke ans Ende, und lässt die Marke hinter ihm stehen.
+  const insertPlaceholder = (placeholder: DocumentTemplatePlaceholder) => {
+    if (!draft) return;
+    const field = bodyRef.current;
+    const token = `{{${placeholder.name}}}`;
+    const length = draft.body.length;
+    const end = Math.min(caret.current?.end ?? length, length);
+    const start = Math.min(caret.current?.start ?? length, end);
+    // Eine Tabelle druckt nur allein in ihrer Zeile.
+    const before =
+      placeholder.table && start > 0 && draft.body[start - 1] !== "\n"
+        ? "\n"
+        : "";
+    const after =
+      placeholder.table && end < draft.body.length && draft.body[end] !== "\n"
+        ? "\n"
+        : "";
+    const insert = before + token + after;
+    const body = draft.body.slice(0, start) + insert + draft.body.slice(end);
+    set("body", body);
+    const next = start + insert.length;
+    caret.current = { start: next, end: next };
+    requestAnimationFrame(() => {
+      field?.focus();
+      field?.setSelectionRange(next, next);
+    });
+  };
+  const invoice = data && hasInvoiceTable(data.detail.placeholders);
 
   return (
     <TenantPage
@@ -251,154 +280,185 @@ function TemplateEditorPage({
               message="Sie können die Vorlage nur ansehen. Ändern kann, wer im Träger-Büro das Recht „Einstellungen“ hat."
             />
           ) : null}
-          <SectionCard
-            title="Text der Vorlage"
-            description="Das steht im Brief unter dem Briefkopf. Speichern legt eine neue Version an."
-            action={
-              canEdit && standard && !sameText(draft, standard) ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  disabled={saving}
-                  onClick={() => {
-                    setDraft(textOf(standard));
-                    formErrors.clear();
+          {/* Zwei Spalten ab xl: links bearbeiten, rechts die Vorschau, die
+              beim Scrollen stehen bleibt. Auf schmalen Bildschirmen folgt
+              die Vorschau direkt auf das Formular. */}
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:items-start">
+            <div className="flex min-w-0 flex-col gap-6">
+              <SectionCard
+                title="Text der Vorlage"
+                description="Das steht im Brief unter dem Briefkopf. Speichern legt eine neue Version an."
+                action={
+                  canEdit && standard && !sameTemplateText(draft, standard) ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
+                      disabled={saving}
+                      onClick={() => {
+                        setDraft(templateTextOf(standard));
+                        formErrors.clear();
+                      }}
+                    >
+                      Standardtext laden
+                    </Button>
+                  ) : null
+                }
+              >
+                <form
+                  ref={formRef}
+                  noValidate
+                  className="space-y-4"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void save();
                   }}
                 >
-                  Standardtext laden
-                </Button>
-              ) : null
-            }
-          >
-            <form
-              ref={formRef}
-              noValidate
-              className="space-y-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void save();
-              }}
-            >
-              <FormErrorAlert message={formErrors.error} />
-              <Input
-                id="template-subject"
-                label="Betreff"
-                name="subject"
-                required
-                value={draft.subject}
-                onChange={(e) => set("subject", e.target.value)}
-                error={formErrors.fieldError("subject")}
-                maxLength={200}
-                disabled={!canEdit || saving}
-              />
-              <Input
-                id="template-salutation"
-                label="Anrede"
-                name="salutation"
-                value={draft.salutation}
-                onChange={(e) => set("salutation", e.target.value)}
-                error={formErrors.fieldError("salutation")}
-                maxLength={200}
-                disabled={!canEdit || saving}
-              />
-              <Textarea
-                id="template-body"
-                label="Brieftext"
-                name="body"
-                required
-                rows={14}
-                value={draft.body}
-                onChange={(e) => set("body", e.target.value)}
-                error={formErrors.fieldError("body")}
-                maxLength={10000}
-                disabled={!canEdit || saving}
-                className="font-mono"
-              />
-              <Textarea
-                id="template-closing"
-                label="Grußformel"
-                name="closing"
-                rows={3}
-                value={draft.closing}
-                onChange={(e) => set("closing", e.target.value)}
-                error={formErrors.fieldError("closing")}
-                maxLength={500}
-                disabled={!canEdit || saving}
-              />
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  disabled={saving || previewing || !previewStale}
-                  onClick={() => void showPreview()}
-                >
-                  {previewing ? "Vorschau lädt…" : "Vorschau zeigen"}
-                </Button>
-                {canEdit && changed ? (
-                  <EditActions
-                    onCancel={() => {
-                      if (current) setDraft(current);
-                      formErrors.clear();
-                    }}
-                    saving={saving}
-                    saveType="submit"
+                  <FormErrorAlert message={formErrors.error} />
+                  <Input
+                    id="template-subject"
+                    label="Betreff"
+                    name="subject"
+                    required
+                    value={draft.subject}
+                    onChange={(e) => set("subject", e.target.value)}
+                    error={formErrors.fieldError("subject")}
+                    maxLength={200}
+                    disabled={!canEdit || saving}
+                  />
+                  <Input
+                    id="template-salutation"
+                    label="Anrede"
+                    name="salutation"
+                    value={draft.salutation}
+                    onChange={(e) => set("salutation", e.target.value)}
+                    error={formErrors.fieldError("salutation")}
+                    maxLength={200}
+                    disabled={!canEdit || saving}
+                  />
+                  <Textarea
+                    id="template-body"
+                    label="Brieftext"
+                    name="body"
+                    required
+                    rows={14}
+                    ref={bodyRef}
+                    onBlur={(e) => rememberCaret(e.currentTarget)}
+                    value={draft.body}
+                    onChange={(e) => set("body", e.target.value)}
+                    error={formErrors.fieldError("body")}
+                    maxLength={10000}
+                    disabled={!canEdit || saving}
+                    className="font-mono"
+                  />
+                  <Textarea
+                    id="template-closing"
+                    label="Grußformel"
+                    name="closing"
+                    rows={3}
+                    value={draft.closing}
+                    onChange={(e) => set("closing", e.target.value)}
+                    error={formErrors.fieldError("closing")}
+                    maxLength={500}
+                    disabled={!canEdit || saving}
+                  />
+                  {invoice ? (
+                    <DocumentTemplateInvoiceFields
+                      layout={invoiceLayoutOf(draft)}
+                      onChange={(layout) =>
+                        setDraft((before) =>
+                          before
+                            ? templateTextOf({ ...before, invoice: layout })
+                            : before,
+                        )
+                      }
+                      disabled={!canEdit || saving}
+                      error={formErrors.fieldError("invoice")}
+                    />
+                  ) : null}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
+                      disabled={saving || previewing || !previewStale}
+                      onClick={() => void showPreview()}
+                    >
+                      {previewing ? "Vorschau lädt…" : "Vorschau zeigen"}
+                    </Button>
+                    {canEdit && changed ? (
+                      <EditActions
+                        onCancel={() => {
+                          if (current) setDraft(current);
+                          formErrors.clear();
+                        }}
+                        saving={saving}
+                        saveType="submit"
+                      />
+                    ) : null}
+                  </div>
+                </form>
+              </SectionCard>
+            </div>
+            <div className="min-w-0 xl:sticky xl:top-6 xl:row-span-3">
+              <SectionCard
+                title="Vorschau"
+                description="So sieht der ganze Brief mit erfundenen Beispieldaten aus. Logo, Absender, Ansprechperson und Fußzeile kommen aus dem Briefkopf."
+              >
+                {previewStale ? (
+                  <Alert
+                    type="info"
+                    message="Die Vorschau zeigt noch den Text vor Ihren Änderungen. Tippen Sie auf „Vorschau zeigen“."
                   />
                 ) : null}
-              </div>
-            </form>
-          </SectionCard>
-
-          <SectionCard
-            title="Vorschau"
-            description="So sieht der Brief mit erfundenen Beispieldaten aus. Logo, Absender und Fußzeile kommen aus dem Briefkopf."
-          >
-            {previewStale ? (
-              <Alert
-                type="info"
-                message="Die Vorschau zeigt noch den Text vor Ihren Änderungen. Tippen Sie auf „Vorschau zeigen“."
+                <div className={previewStale ? "mt-4" : undefined}>
+                  <TraegerLetterheadPreview
+                    label="Vorschau des Briefs"
+                    logoSrc={
+                      data.masterData.logo
+                        ? traegerLogoSrc(data.masterData.logo)
+                        : null
+                    }
+                    letterheadText={brandingValue("branding.letterhead_text")}
+                    footerText={brandingValue("branding.footer_text")}
+                    color={brandingValue("branding.primary_color")}
+                    contact={data.masterData.contact}
+                    defaultAccount={
+                      data.masterData.bankAccounts.find(
+                        (account) => account.isDefault,
+                      ) ?? null
+                    }
+                    recipient={data.preview.recipient}
+                    facts={data.preview.facts}
+                    body={
+                      <DocumentTemplatePreviewBody preview={data.preview} />
+                    }
+                  />
+                </div>
+              </SectionCard>
+            </div>
+            <div className="flex min-w-0 flex-col gap-6">
+              <DocumentTemplatePlaceholdersCard
+                placeholders={data.detail.placeholders}
+                onInsert={canEdit ? insertPlaceholder : undefined}
+                disabled={saving}
               />
-            ) : null}
-            <div className={previewStale ? "mt-4" : undefined}>
-              <TraegerLetterheadPreview
-                label="Vorschau des Briefs"
-                logoSrc={
-                  data.masterData.logo
-                    ? traegerLogoSrc(data.masterData.logo)
-                    : null
-                }
-                letterheadText={brandingValue("branding.letterhead_text")}
-                footerText={brandingValue("branding.footer_text")}
-                color={brandingValue("branding.primary_color")}
-                contact={data.masterData.contact}
-                defaultAccount={
-                  data.masterData.bankAccounts.find(
-                    (account) => account.isDefault,
-                  ) ?? null
-                }
-                body={<DocumentTemplatePreviewBody preview={data.preview} />}
+
+              <DocumentTemplateVersionsCard
+                versions={data.detail.versions}
+                canEdit={canEdit}
+                disabled={saving}
+                onLoad={(version) => {
+                  setDraft(templateTextOf(version));
+                  formErrors.clear();
+                  formRef.current?.scrollIntoView?.({
+                    behavior: "smooth",
+                    block: "start",
+                  });
+                }}
               />
             </div>
-          </SectionCard>
-
-          <DocumentTemplatePlaceholdersCard
-            placeholders={data.detail.placeholders}
-          />
-
-          <DocumentTemplateVersionsCard
-            versions={data.detail.versions}
-            canEdit={canEdit}
-            disabled={saving}
-            onLoad={(version) => {
-              setDraft(textOf(version));
-              formErrors.clear();
-              formRef.current?.scrollIntoView?.({
-                behavior: "smooth",
-                block: "start",
-              });
-            }}
-          />
+          </div>
         </>
       ) : null}
     </TenantPage>

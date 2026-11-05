@@ -248,6 +248,17 @@ describe("TraegerBriefkopfPage", () => {
     ).toHaveAttribute("href", "/einstellungen/briefkopf/vorlagen");
   });
 
+  it("leads straight to the letter of confirmation and invoice (#5691)", async () => {
+    renderPage();
+
+    expect(
+      await screen.findByRole("heading", { name: "Bestätigung und Rechnung" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Schreiben anpassen" }),
+    ).toHaveAttribute("href", "/einstellungen/briefkopf/vorlagen/bestaetigung");
+  });
+
   it("refuses a logo that is no PNG or JPG before uploading it", async () => {
     renderPage();
     await screen.findByRole("button", { name: "Logo hochladen" });

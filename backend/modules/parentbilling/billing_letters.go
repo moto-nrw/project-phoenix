@@ -130,14 +130,19 @@ type Letterhead struct {
 }
 
 // LetterTemplate is a version of the template of the confirmation letter
-// with its placeholders (#4677, ADR 0152). Version 0 is the standard
-// template.
+// with its placeholders (#4677, ADR 0152) and the layout of its table of
+// amounts (#5691). Version 0 is the standard template.
 type LetterTemplate struct {
 	Version    int
 	Subject    string
 	Salutation string
 	Body       string
 	Closing    string
+	// GroupByChild names each child once above its positions with a
+	// subtotal; HideTimeModels leaves the time model out of a booking's
+	// line. The week always stays: it is the period of the service.
+	GroupByChild   bool
+	HideTimeModels bool
 }
 
 // BillingLetterheads is the master data and the branding settings of the

@@ -377,3 +377,31 @@ func TestLetterheadTextsPrintLineByLineAndNothingWhenEmpty(t *testing.T) {
 		assert.NotContains(t, line, "Muster")
 	}
 }
+
+// The layout of the Träger's template decides how the table of amounts lists
+// the positions; amounts, discount, correction and total stay (#5691). The
+// debtor number fills its placeholder.
+func TestConfirmationLetterPrintsTheTableInTheLayoutOfTheTemplate(t *testing.T) {
+	t.Parallel()
+	content := goldenLetterContent(t)
+	content.document.DebtorNumber = "10234"
+	content.letterhead.Template = parentbilling.LetterTemplate{
+		Version: 4, Subject: "Rechnung {{rechnungsnummer}}", Body: "Debitorennummer {{debitorennummer}}\n\n{{positionen}}",
+		GroupByChild: true, HideTimeModels: true,
+	}
+
+	letter := confirmationLetter(content)
+	require.Len(t, letter.Blocks, 2)
+	assert.Equal(t, "Debitorennummer 10234", letter.Blocks[0].Text)
+	assert.Equal(t, []LetterFact{
+		{Label: "Lina", Bold: true},
+		{Label: "Woche 04.01. bis 08.01.2027", Value: "50,00 €"},
+		{Label: "Summe für Lina", Value: "50,00 €"},
+		{Label: "Ben", Bold: true},
+		{Label: "Woche 04.01. bis 08.01.2027", Value: "65,00 €"},
+		{Label: "Ermäßigung für Geschwister", Value: "-32,50 €"},
+		{Label: "Korrektur: Zusätzlicher Ausflug", Value: "20,00 €"},
+		{Label: "Summe für Ben", Value: "52,50 €"},
+		{Label: "Gesamtbetrag", Value: "92,50 €", Bold: true},
+	}, letter.Blocks[1].Facts)
+}

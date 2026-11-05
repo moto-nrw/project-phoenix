@@ -111,7 +111,8 @@ func seedTraegerBankAccountsOnce(client *Client, auth AuthRef) error {
 
 // seedTraegerLetterTemplate is the demo Träger's own template of the
 // confirmation letter (#4677): the standard letter with a warmer opening and
-// closing, so the seeded letters show version 1 of a Träger template.
+// closing and the table of amounts grouped by child (#5691), so the seeded
+// letters show version 1 of a Träger template.
 var seedTraegerLetterTemplate = map[string]any{
 	"subject":    "Ihre Anmeldung für {{zeitraum}}: Bestätigung und Rechnung",
 	"salutation": "Liebe Familie {{familienname}},",
@@ -122,6 +123,7 @@ var seedTraegerLetterTemplate = map[string]any{
 		"# Notfallnummern\nIn dringenden Fällen und wenn Ihr Kind krank ist, erreichen Sie die Betreuung hier:\n{{notfallnummern}}\n\n" +
 		"{{rueckfragen}}",
 	"closing": "Herzliche Grüße\n{{ansprechperson}}\n{{traeger}}",
+	"invoice": map[string]any{"group_by_child": true},
 }
 
 // seedTraegerLetterTemplateOnce saves the template while the Träger still
