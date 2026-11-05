@@ -383,18 +383,13 @@ jobs:
     # counts; workers are reused with a per-file reset
     # (frontend/src/test/setup-worker-reuse.ts). Only Node needs the browser
     # layout checks.
-    # Four vCPUs for every project: Blacksmith bills the same per vCPU-minute
-    # on every size, rounded up per job, and since worker reuse (#5700) the
-    # DOM projects finish well before frontend-build or the seed smoke, which
-    # set the pull request's wall-clock time. Eight vCPUs only shortened jobs
-    # that wait for those anyway.
     strategy:
       fail-fast: false
       matrix:
         # Changed-only PRs keep one DOM job. Full suites split its files with
-        # Vitest's built-in sharding; vitest.config.ts sets the workers.
+        # Vitest's built-in sharding, retaining four workers per DOM runner.
         project: ${{ fromJSON(inputs.frontend-guards-only && '["guards"]' || (!inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '') && '["node","dom-1","dom-2"]' || '["node","dom"]') }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (matrix.project == 'node' || matrix.project == 'guards') && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     permissions:
       contents: read
 
