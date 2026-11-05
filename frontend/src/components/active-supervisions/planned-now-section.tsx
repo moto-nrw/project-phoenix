@@ -37,6 +37,7 @@ import { emergencyConcept } from "~/lib/concepts/emergency";
 import { roomsConcept } from "~/lib/concepts/rooms";
 import { substitutionConcept } from "~/lib/concepts/substitution";
 import { responsibilityConcept } from "~/lib/concepts/responsibility";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 interface PlannedNowSectionProps {
   readonly plannedNow: PlannedTimetableInstance[];
@@ -171,9 +172,7 @@ export function PlannedNowSection({
           className="group focus-visible:ring-moto-blue/30 flex min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:outline-none"
           aria-expanded={isSectionExpanded}
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
-            <MotoConceptIcon concept={carePlanConcept} size={20} />
-          </span>
+          <ConceptIconTile concept={carePlanConcept} size="sm" />
           <span className="min-w-0">
             <span className="block text-base font-semibold text-gray-900">
               Als Nächstes

@@ -41,6 +41,7 @@ import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { childrenConcept } from "~/lib/concepts/children";
 import { groupsConcept } from "~/lib/concepts/groups";
 import { atSchoolConcept } from "~/lib/concepts/atSchool";
+import { inClassConcept } from "~/lib/concepts/inClass";
 import { excusedConcept } from "~/lib/concepts/excused";
 import { homeConcept } from "~/lib/concepts/home";
 import { presentConcept } from "~/lib/concepts/present";
@@ -339,6 +340,12 @@ const STUDENT_STATUS_ROWS: readonly {
     concept: atSchoolConcept,
     status: "schule",
     count: (a) => a.studentsAtSchool,
+  },
+  {
+    label: "Im Unterricht",
+    concept: inClassConcept,
+    status: "unterricht",
+    count: (a) => a.studentsInClass,
   },
   {
     label: "Zuhause",

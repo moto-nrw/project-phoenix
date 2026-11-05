@@ -16,6 +16,7 @@ import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
+import { FieldLabel } from "~/components/ui/field-label";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -28,6 +29,7 @@ import {
 } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
+  cancelHolidayRegistration,
   changeHolidayDebtorNumber,
   confirmHolidayRegistration,
   type HolidayContribution,
@@ -64,7 +66,7 @@ function benefitsText(
   if (contribution?.exemptionAvailable) {
     return "Die Eltern geben an, dass sie Leistungen beziehen. Bitte prüfen Sie den Nachweis.";
   }
-  return "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung braucht es eine Regel unter „Ermäßigungen“.";
+  return "Die Eltern geben an, dass sie Leistungen beziehen. Am ersten gebuchten Tag gilt keine Befreiungsregel. Sie legen sie unter „Ermäßigungen“ an.";
 }
 
 /** The hint under the debtor number, at the confirmation and at a change. */
@@ -246,7 +248,7 @@ function PayerChoice({
     options.push({
       value: "exemption",
       label: "Von der Zahlung befreien (Leistungsbezug)",
-      description: "Niemand bezahlt den Betrag.",
+      description: "Dann gilt die Befreiungsregel. Niemand bezahlt den Betrag.",
     });
   }
   if (costBearers.length > 0) {
@@ -259,7 +261,7 @@ function PayerChoice({
   }
   return (
     <fieldset className="space-y-2">
-      <legend className="mb-2 text-sm font-medium text-gray-900">
+      <legend className="mb-2 text-sm font-medium text-gray-700">
         Wer bezahlt den Beitrag?
       </legend>
       <div className="flex flex-col gap-2 sm:max-w-md">
@@ -293,13 +295,12 @@ function PayerChoice({
         })}
         {payer === "cost_bearer" ? (
           <div>
-            <label
+            <FieldLabel
               id="holiday-registration-cost-bearer-label"
               htmlFor="holiday-registration-cost-bearer"
-              className="mb-1 block text-sm font-medium text-gray-700"
             >
               Kostenträger
-            </label>
+            </FieldLabel>
             <CustomSelect
               id="holiday-registration-cost-bearer"
               name="cost_bearer_id"
@@ -331,7 +332,7 @@ export function HolidayRegistrationStatusCard({
   costBearerId = null,
   onCostBearerChange,
   onChanged,
-  onConfirmed,
+  onReload,
   onDebtorNumberChanged,
 }: Readonly<{
   periodId: string;
@@ -351,13 +352,17 @@ export function HolidayRegistrationStatusCard({
   costBearerId?: string | null;
   onCostBearerChange?: (costBearerId: string | null) => void;
   onChanged: (registration: HolidayRegistrationDetail) => void;
-  /** After a confirmation; the page reads the registration again. */
-  onConfirmed: () => Promise<void>;
+  /**
+   * After a confirmation or a cancellation; the page reads the registration
+   * and its contribution again. A cancellation can change the sibling group
+   * (#5662).
+   */
+  onReload: () => Promise<void>;
   /** After a change of the debtor number; the page reads it again. */
   onDebtorNumberChanged: () => Promise<unknown>;
 }>) {
   const [running, setRunning] = useState<
-    HolidayRegistrationAction | "confirm" | null
+    HolidayRegistrationAction | "confirm" | "cancel" | null
   >(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   // A sibling group pays with one number (#5628): its current number is the
@@ -415,7 +420,7 @@ export function HolidayRegistrationStatusCard({
         debtorNumber.trim(),
         payer === "cost_bearer" ? (costBearerId ?? undefined) : undefined,
       );
-      await onConfirmed();
+      await onReload();
     } catch (err) {
       logger.error("holiday_registration_confirm_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -426,12 +431,19 @@ export function HolidayRegistrationStatusCard({
     }
   };
 
-  const run = async (action: HolidayRegistrationAction) => {
+  const run = async (action: HolidayRegistrationAction | "cancel") => {
     setRunning(action);
     try {
-      onChanged(
-        await changeHolidayRegistration(periodId, registration.id, action),
-      );
+      if (action === "cancel") {
+        // The Elternabrechnung cancels and computes the siblings again
+        // (#5662); the page reads both again.
+        await cancelHolidayRegistration(periodId, registration.id);
+        await onReload();
+      } else {
+        onChanged(
+          await changeHolidayRegistration(periodId, registration.id, action),
+        );
+      }
     } catch (err) {
       logger.error("holiday_registration_change_failed", {
         action,
@@ -456,8 +468,75 @@ export function HolidayRegistrationStatusCard({
     onCostBearerChange?.(null);
     onExemptionChange(next === "exemption");
   };
+  // Hauptaktion rechts, wie „Speichern“ in den Formularen (#5684).
+  const actions = open ? (
+    <div className="flex flex-wrap justify-end gap-2">
+      {registration.frozen ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          isLoading={running === "reopen"}
+          loadingText="Öffnet …"
+          disabled={running !== null}
+          onClick={() => void run("reopen")}
+        >
+          Wieder öffnen
+        </Button>
+      ) : (
+        <>
+          <Button
+            type="button"
+            variant="outline_danger"
+            size="md"
+            disabled={running !== null}
+            onClick={() => setConfirmingCancel(true)}
+          >
+            Stornieren
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            isLoading={running === "freeze"}
+            loadingText="Friert ein …"
+            disabled={running !== null}
+            onClick={() => void run("freeze")}
+          >
+            Einfrieren
+          </Button>
+        </>
+      )}
+      {showsDebtorNumber && !invoiced && !editingDebtorNumber ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          disabled={running !== null}
+          onClick={() => setEditingDebtorNumber(true)}
+        >
+          {registration.debtorNumber
+            ? "Debitorennummer ändern"
+            : "Debitorennummer eintragen"}
+        </Button>
+      ) : null}
+      {registration.status === "received" ? (
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          isLoading={running === "confirm"}
+          loadingText="Bestätigt …"
+          disabled={confirmBlocked}
+          onClick={() => confirmRef.current?.requestSubmit()}
+        >
+          Bestätigen
+        </Button>
+      ) : null}
+    </div>
+  ) : undefined;
   return (
-    <SectionCard title="Status">
+    <SectionCard title="Status" footer={actions}>
       <div className="space-y-4 text-sm text-gray-700">
         <p>{statusText(registration)}</p>
         {registration.status === "received" ? (
@@ -525,72 +604,6 @@ export function HolidayRegistrationStatusCard({
             onCostBearerChange={(id) => onCostBearerChange?.(id)}
           />
         ) : null}
-        {open ? (
-          <div className="flex flex-wrap gap-2">
-            {registration.status === "received" ? (
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                isLoading={running === "confirm"}
-                loadingText="Bestätigt …"
-                disabled={confirmBlocked}
-                onClick={() => confirmRef.current?.requestSubmit()}
-              >
-                Bestätigen
-              </Button>
-            ) : null}
-            {showsDebtorNumber && !invoiced && !editingDebtorNumber ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                disabled={running !== null}
-                onClick={() => setEditingDebtorNumber(true)}
-              >
-                {registration.debtorNumber
-                  ? "Debitorennummer ändern"
-                  : "Debitorennummer eintragen"}
-              </Button>
-            ) : null}
-            {registration.frozen ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                isLoading={running === "reopen"}
-                loadingText="Öffnet …"
-                disabled={running !== null}
-                onClick={() => void run("reopen")}
-              >
-                Wieder öffnen
-              </Button>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  isLoading={running === "freeze"}
-                  loadingText="Friert ein …"
-                  disabled={running !== null}
-                  onClick={() => void run("freeze")}
-                >
-                  Einfrieren
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline_danger"
-                  size="md"
-                  disabled={running !== null}
-                  onClick={() => setConfirmingCancel(true)}
-                >
-                  Stornieren
-                </Button>
-              </>
-            )}
-          </div>
-        ) : null}
       </div>
       <ConfirmationModal
         isOpen={confirmingCancel}
@@ -607,6 +620,12 @@ export function HolidayRegistrationStatusCard({
           Eine stornierte Anmeldung lässt sich nicht wieder öffnen. Eltern
           bekommen keine Nachricht von moto.
         </p>
+        {contribution?.siblings?.length ? (
+          <p className="mt-2 text-sm text-gray-700">
+            Die Anmeldung zählt dann nicht mehr zu den Geschwistern. moto
+            berechnet den Ferienbeitrag der Geschwister neu.
+          </p>
+        ) : null}
       </ConfirmationModal>
     </SectionCard>
   );

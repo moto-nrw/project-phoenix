@@ -369,6 +369,21 @@ describe("mapOfferingPreview and laterSegmentSentence", () => {
   });
 });
 
+describe("mapOfferingPreview other offerings", () => {
+  it("maps the offerings that keep dropped children", () => {
+    const preview = mapOfferingPreview({
+      from: "2026-11-04",
+      other_offerings: [{ offering_id: 6, name: "Ganztag", child_count: 5 }],
+    });
+    expect(preview.otherOfferings).toEqual([
+      { offeringId: "6", name: "Ganztag", childCount: 5 },
+    ]);
+    expect(mapOfferingPreview({ from: "2026-11-04" }).otherOfferings).toEqual(
+      [],
+    );
+  });
+});
+
 describe("untouchedSegmentSentence", () => {
   const preview = mapOfferingPreview({
     from: "2026-10-28",

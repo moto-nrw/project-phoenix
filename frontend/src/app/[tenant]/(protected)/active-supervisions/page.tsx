@@ -63,7 +63,10 @@ import {
 import { SupervisionHeadFacts } from "~/components/active-supervisions/supervision-head-facts";
 import { useSupervisionDashboard } from "~/components/active-supervisions/use-supervision-dashboard";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
-import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
+import type {
+  PlannedTimetableInstance,
+  TimetableRosterRow,
+} from "~/lib/timetable-operations-types";
 import { useStudentFilters } from "~/components/active-supervisions/use-student-filters";
 import {
   reopenBannerMessage,
@@ -482,7 +485,10 @@ function MeinRaumPageContent() {
     <div>
       <Alert
         type="success"
-        message={reopenBannerMessage(reopen.reopenable.title)}
+        message={reopenBannerMessage(
+          reopen.reopenable.title,
+          reopen.reopenable.expiresAt,
+        )}
         action={
           <Button
             type="button"
@@ -498,6 +504,14 @@ function MeinRaumPageContent() {
       />
     </div>
   ) : null;
+  // Ein aus Versehen beendeter Block öffnet sich auch nach dem Banner wieder,
+  // aus der Liste der beendeten Blöcke (#5676).
+  const reopenPastBlock = (block: PlannedTimetableInstance) =>
+    actions.handleReopenTimetableInstance({
+      instanceId: block.id,
+      title: block.title,
+      roomId: block.roomId,
+    });
 
   // Zusätzliche Betreuer (#2806): auf der eigenen aktiven Aufsicht steht die
   // Aktion in der Kopfkarte; das Gerüst regelt die mobile Darstellung, eine
@@ -949,7 +963,7 @@ function MeinRaumPageContent() {
           />
           {/* The day review must survive the empty state: after the last block
               ends, supervisors land exactly here (#2335). */}
-          <PastBlocksSection />
+          <PastBlocksSection onReopen={reopenPastBlock} />
         </>
       ) : (
         <>
@@ -1027,8 +1041,8 @@ function MeinRaumPageContent() {
             renderStudentContent(null)
           )}
 
-          {/* Read-only end-of-day review of finished and expired blocks (#2335) */}
-          <PastBlocksSection />
+          {/* End-of-day review of finished and expired blocks (#2335) */}
+          <PastBlocksSection onReopen={reopenPastBlock} />
         </>
       )}
     </TenantPage>

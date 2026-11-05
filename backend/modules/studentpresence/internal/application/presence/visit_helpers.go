@@ -132,6 +132,9 @@ func (s *service) syncAttendanceForVisitRevision(
 		row.CheckOutTime = updated.ExitTime
 		if updated.ExitTime == nil {
 			row.CheckedOutBy = nil
+			// A reopened stay is no checkout to class any more; a later home
+			// checkout stores no reason and would keep this one (#5656).
+			row.CheckOutReason = nil
 		} else if row.CheckedOutBy == nil {
 			_, staffID := s.extractContextIDs(ctx)
 			if staffID > 0 {

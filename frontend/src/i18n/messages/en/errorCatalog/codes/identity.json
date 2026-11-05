@@ -13,7 +13,7 @@
   "invalid_credentials": "The email address or the password is not correct. Please check your entry.",
   "invitation_account_login_required": "There is already an account for this email address. Please sign in with it first and then open the invitation again.",
   "invitation_account_mismatch": "You are signed in with a different account. Please sign in with the invited email address.",
-  "invitation_expired": "This invitation has expired or has already been used. Please ask your school for a new invitation.",
+  "invitation_expired": "This invitation has expired or has already been used. Please ask the person who invited you for a new invitation.",
   "invitation_not_found": "This invitation does not exist. Please check the link in the email.",
   "mfa_blocked": "Too many attempts. Please wait a few minutes and then try again.",
   "mfa_code_invalid": "{object} could not be saved. Please check your entries.",

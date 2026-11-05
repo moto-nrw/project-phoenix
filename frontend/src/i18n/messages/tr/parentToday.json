@@ -10,6 +10,8 @@
     "presentNoTime": "Bugün OGS'de",
     "left": "{time} saatinde eve gitti",
     "leftNoTime": "Bugün eve gitti",
+    "inClass": "Saat {time} itibarıyla derse gitti",
+    "inClassNoTime": "Bugün derse gitti",
     "expected": "Bugün {time} saatinde geliyor",
     "expectedNoTime": "Bugün geliyor",
     "notArrived": "{time} saatinden beri bekleniyor",

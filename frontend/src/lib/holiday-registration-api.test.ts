@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchHolidayRegistrationFamily } from "./holiday-registration-api";
+import {
+  fetchHolidayRegistrationFamily,
+  quoteHolidayContribution,
+} from "./holiday-registration-api";
 
 function answer(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -94,5 +97,44 @@ describe("fetchHolidayRegistrationFamily (#4662)", () => {
     await expect(fetchHolidayRegistrationFamily("token")).rejects.toMatchObject(
       { status: 404, code: "enrollment.holiday_registration_not_found" },
     );
+  });
+});
+
+describe("quoteHolidayContribution (#5664)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("sends the order of the children by age, never a date of birth", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            children: [],
+            total_cents: 0,
+            exemption_available: false,
+            benefits_exemption: false,
+          },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await quoteHolidayContribution(
+      "abc",
+      [[{ week_id: 1, time_model_id: 2 }], []],
+      false,
+      [2, 1],
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as unknown;
+    expect(body).toEqual({
+      children: [
+        { bookings: [{ week_id: 1, time_model_id: 2 }], age_rank: 2 },
+        { bookings: [], age_rank: 1 },
+      ],
+      benefits_declared: false,
+    });
   });
 });

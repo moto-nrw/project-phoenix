@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { NavLink, type NavLinkProps } from "~/components/ui/nav-link";
 import {
@@ -8,6 +8,59 @@ import {
   portalSidebarRowClasses,
 } from "~/components/dashboard/sidebar-geometry";
 import type { MotoConcept } from "~/lib/moto-concepts";
+
+/** Ab dieser Fensterposition klebt die Leiste; die Klasse `top-[73px]` passt dazu. */
+const STICKY_TOP_PX = 73;
+
+/**
+ * Hält die Unterkante der Leiste am Fensterrand, auch wenn ein Hinweis über der
+ * Kopfzeile sie tiefer beginnen lässt (Testsystem, #5680). Der Hinweis scrollt
+ * mit der Seite weg, deshalb folgt die Höhe der Position; CSS allein kennt
+ * weder seine Höhe noch die Scrollposition. Ohne Hinweis gilt die Klasse.
+ *
+ * Gemessen wird im nächsten Frame: Ein Schreibzugriff direkt im
+ * ResizeObserver würde Fehler „ResizeObserver loop“ auslösen. Der Beobachter
+ * läuft auch, weil der Hinweis erst nach dem Laden des Trägers erscheint und
+ * dabei weder Scroll- noch Resize-Ereignis auslöst.
+ */
+function useFitSidebarToWindow() {
+  const asideRef = useRef<HTMLElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const aside = asideRef.current;
+    const inner = innerRef.current;
+    if (!aside || !inner) return;
+
+    const fit = () => {
+      const { top } = aside.getBoundingClientRect();
+      inner.style.height = top > STICKY_TOP_PX ? `calc(100vh - ${top}px)` : "";
+    };
+    let frame = 0;
+    const scheduleFit = () => {
+      frame ||= requestAnimationFrame(() => {
+        frame = 0;
+        fit();
+      });
+    };
+
+    fit();
+    window.addEventListener("scroll", scheduleFit, { passive: true });
+    window.addEventListener("resize", scheduleFit);
+    const observer = new ResizeObserver(scheduleFit);
+    observer.observe(aside);
+    observer.observe(document.body);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", scheduleFit);
+      window.removeEventListener("resize", scheduleFit);
+      observer.disconnect();
+    };
+  }, []);
+
+  return { asideRef, innerRef };
+}
 
 /**
  * Die feste Seitenleiste eines Portals mit eigener Navigation ab 1024 px:
@@ -33,9 +86,16 @@ export function PortalSidebar({
   /** Der Name des unteren Blocks für Vorleseprogramme. */
   readonly secondaryLabel?: string;
 }) {
+  const { asideRef, innerRef } = useFitSidebarToWindow();
   return (
-    <aside className="hidden min-h-screen w-64 shrink-0 border-r border-gray-200/70 bg-white/95 lg:block">
-      <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+    <aside
+      ref={asideRef}
+      className="hidden w-64 shrink-0 border-r border-gray-200/70 bg-white/95 lg:block"
+    >
+      <div
+        ref={innerRef}
+        className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col"
+      >
         <nav
           aria-label="Hauptnavigation"
           className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3"

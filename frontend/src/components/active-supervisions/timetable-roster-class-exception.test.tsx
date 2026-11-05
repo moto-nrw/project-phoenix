@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => {
@@ -155,6 +155,9 @@ describe("TimetableRosterContent class arrival exception", () => {
         }),
       ]),
     );
+
+    // Das gegangene Kind steht im eingeklappten Abschnitt.
+    fireEvent.click(screen.getByText("Nicht mehr im Raum (1)"));
 
     // Anker: die Zeilen aller drei Kinder sind gerendert.
     // „Abwesend“ steht zusätzlich als Status der Zeile da.

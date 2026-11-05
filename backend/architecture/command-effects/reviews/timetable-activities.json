@@ -19517,6 +19517,17 @@
     },
     {
       "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.LifecyclePresence.ListAttendance",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListAttendance; modules/studentpresence/internal/application/attendance.go:82; modules/studentpresence/internal/adapters/postgres/attendance.go:63. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
       "classification": "leaf",
       "effect": "lock",

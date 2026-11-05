@@ -213,13 +213,14 @@ Anmeldung. Für Ferienanmeldungen eines Zeitraums gilt jetzt:
    hat. Die Elternabrechnung liest die weiteren
    Anmeldungen über ihren Port `HolidayRegistrations`; jeder Lesezugriff
    steht im Protokoll der jeweiligen Anmeldung (ADR 0114 Punkt 6).
-3. **Fassungen statt Änderung (zu Punkt 5).** Zusammenführen, Trennen und
-   das Bestätigen einer Anmeldung der Gruppe rechnen den festgehaltenen
-   Beitrag jeder bestätigten Anmeldung der Gruppe neu. Ändert er sich, kommt
-   er als neue Fassung dazu (`holiday_contributions.version`); die alte
-   bleibt. Gültig ist die höchste Fassung. Die Anfrage-Rolle fügt weiter nur
-   ein und liest. Eine neue Fassung behält die Zeit der Bestätigung; ihr
-   Konto ist das, das zusammengeführt oder getrennt hat.
+3. **Fassungen statt Änderung (zu Punkt 5).** Zusammenführen, Trennen,
+   das Stornieren (Punkt 8) und das Bestätigen einer Anmeldung der Gruppe
+   rechnen den festgehaltenen Beitrag jeder bestätigten Anmeldung der
+   Gruppe neu. Ändert er sich, kommt er als neue Fassung dazu
+   (`holiday_contributions.version`); die alte bleibt. Gültig ist die
+   höchste Fassung. Die Anfrage-Rolle fügt weiter nur ein und liest. Eine
+   neue Fassung behält die Zeit der Bestätigung; ihr Konto ist das, das
+   zusammengeführt, getrennt oder storniert hat.
 4. **Grenze: ausgestellte Rechnung.** Zusammenführen und Trennen gehen nur,
    solange keine Anmeldung der Gruppe eine ausgestellte Rechnung hat
    (ADR 0119); sonst 409 `parent_billing.sibling_group_invoiced`. Die
@@ -247,9 +248,63 @@ Anmeldung. Für Ferienanmeldungen eines Zeitraums gilt jetzt:
    anderen Anmeldungen im Protokoll jeder betroffenen Anmeldung
    (`sibling_merge`, `sibling_split`), geschrieben über den Port in
    derselben Träger-Transaktion (ADR 0067, wie die Bestätigung).
+8. **Stornierung (#5662).** Die Elternabrechnung storniert eine Anmeldung
+   über Enrollment, wie sie bestätigt (Route
+   `/traeger/holiday-contributions/{periodId}/registrations/{registrationId}/cancel`,
+   Recht „Anmeldung verwalten“); die Route unter
+   `/traeger/holiday-periods` entfällt. Sie nimmt dieselben Sperren wie ein
+   Zusammenführen und liest die Gruppe erst danach. In derselben
+   Transaktion nimmt sie die stornierte Anmeldung aus der Gruppe und rechnet
+   jede übrige bestätigte Anmeldung der Gruppe neu (neue Fassung, Punkt 3),
+   auch eine, die eine ausgestellte Rechnung abrechnet: Die Rechnung behält
+   ihre eigenen Positionen (ADR 0119), und nach ihrem Storno stellt der
+   nächste Lauf den neuen Beitrag aus. Solange die gültige Rechnung ohne die
+   Korrekturen des Laufs der Familie oder dem Kostenträger einen anderen
+   Betrag abrechnet als der Beitrag, meldet die Einzelansicht
+   `correction_needed`; korrigiert wird mit Storno oder Gutschrift (#4690). Eine festgehaltene Befreiung, die keine Regel mehr erlaubt,
+   behält ihren Beitrag, statt die Stornierung abzulehnen. Jede betroffene
+   Anmeldung bekommt den Eintrag `sibling_cancel` mit den anderen
+   Anmeldungen.
 
 Nicht in diesem Nachtrag: das Alter als Rang, Stufenregeln, Geschwister über
 Zeiträume, Schulen und Verträge (#4685), eine Rechnung je Familie (#4689).
-Storniert Enrollment eine bestätigte Anmeldung der Gruppe, rechnet die
-Elternabrechnung die übrigen erst beim nächsten Zusammenführen, Trennen oder
-Bestätigen neu; das Büro trennt die stornierte Anmeldung dafür.
+
+## Nachtrag 2026-11-04: Rang und Kostenübernahme je Träger einstellbar (#5664)
+
+Die Kita-Satzung der Gemeinde Bissendorf nennt das ältere Kind als erstes, und
+ob der Landkreis den vollen Preis erstattet, ist offen. Beide Regeln der Kette
+werden deshalb zu Einstellungen des Trägers. Die Standardwerte sind die feste
+Kette von vorher.
+
+1. **Einstellungen statt Beitragsregeln.** `parent_billing.sibling_rank`
+   (`highest_contribution`, `oldest_child`) und
+   `parent_billing.cost_takeover_order` (`after_discount`, `before_discount`)
+   sind Träger-Einstellungen (ADR 0086, ADR 0107) unter Einstellungen →
+   Ferienbetreuung, mit dem Recht „Einstellungen“. Sie sind Wahlen in der
+   Kette, keine Regelart mit Gültigkeit (Punkt 2). Ein unbekannter Wert oder
+   ein Lesefehler lehnt die Rechnung ab; es gibt keinen Rückfall auf den
+   Standard.
+2. **Ältestes Kind zuerst.** Das Geburtsdatum liest die Elternabrechnung aus
+   der Anmeldung über den Port `HolidayRegistrations`; es steht im Protokoll
+   wie jeder Lesezugriff (ADR 0114 Punkt 6). Sie speichert es nicht. Bei
+   gleichem Datum gilt die frühere Anmeldung, dann die Reihenfolge im Formular.
+3. **Öffentliche Zusammenfassung (zu Punkt 7).** Das Formular schickt je Kind
+   nur den Platz nach Alter (`age_rank`), nicht das Geburtsdatum. Die Anfrage
+   trägt weiter keine personenbezogenen Daten, und der Browser rechnet keinen
+   Beitrag.
+4. **Vor dem Rabatt (zu Punkt 3).** Der Kostenträger übernimmt den vollen Preis
+   der Kinder seiner Anmeldung. Sie behalten ihren Rang und zählen weiter als
+   Geschwister, bekommen aber keine Ermäßigung; die Ermäßigung der übrigen
+   Kinder ändert sich nicht. Die Befreiung folgt weiter nach der Ermäßigung.
+5. **Festhalten (zu Punkt 5).** Jeder festgehaltene Beitrag hält beide Werte
+   (`holiday_contributions.sibling_rank`, `.cost_takeover_order`, Migration
+   1.15.749). Eine Gruppe mit festgehaltenem Beitrag rechnet mit dessen Werten,
+   auch beim Bestätigen einer weiteren Anmeldung, beim Zusammenführen und beim
+   Trennen: Eine spätere Umstellung ändert keinen festgehaltenen Beitrag.
+   Vorschau und Bestätigung nehmen dieselben Werte. Nur wenn Anmeldungen mit
+   verschiedenen Werten zusammenkommen, gelten für die Gruppe die aktuellen;
+   jede Anmeldung, deren Werte oder Beträge sich dadurch ändern, bekommt eine
+   neue Fassung.
+
+Offen bleibt die Entscheidung der Gemeinde vom 11.11.2026. Sie ändert nur, was
+Bissendorf einstellt, nicht diesen Code.

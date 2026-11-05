@@ -10,6 +10,8 @@
     "presentNoTime": "Sot këtu",
     "left": "Shkoi në shtëpi në orën {time}",
     "leftNoTime": "Sot shkoi në shtëpi",
+    "inClass": "Shkoi në mësim në orën {time}",
+    "inClassNoTime": "Sot shkoi në mësim",
     "expected": "Vjen sot në orën {time}",
     "expectedNoTime": "Vjen sot",
     "notArrived": "Pritet që nga ora {time}",

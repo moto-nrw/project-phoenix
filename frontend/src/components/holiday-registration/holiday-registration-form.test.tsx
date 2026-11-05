@@ -694,6 +694,39 @@ describe("HolidayRegistrationForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("offers parallel weeks as one choice with the school (#5689)", () => {
+    const firstWeek = offer.weeks[0]!;
+    renderForm(null, {
+      ...offer,
+      weeks: [
+        firstWeek,
+        {
+          ...firstWeek,
+          id: "12",
+          hostSchoolName: "OGS Süd",
+          timeModels: [
+            { ...firstWeek.timeModels[0]!, id: "22", name: "bis 16 Uhr" },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      screen.getByText(
+        "Diese Woche gibt es an mehreren Schulen. Wählen Sie eine Schule und die Zeit.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("combobox", { name: /04\.01\.2027 bis 08\.01\.2027/ }),
+    );
+    expect(
+      screen.getByRole("option", { name: /^OGS Nord: bis 13 Uhr/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: /^OGS Süd: bis 16 Uhr/ }),
+    ).toBeInTheDocument();
+  });
+
   it("lets parents send the registration when the contribution cannot be shown", async () => {
     mockQuote.mockRejectedValue(new Error("offline"));
     renderForm();

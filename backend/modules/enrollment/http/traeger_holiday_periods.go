@@ -218,6 +218,7 @@ func renderHolidayPeriodError(w http.ResponseWriter, r *http.Request, err error)
 	tenant.MarkRollback(r.Context())
 	var fields validation.Errors
 	var refusedHost *capability.HolidayHostSchoolRefusal
+	var refusedDates *capability.HolidayWeeksBookedTogetherRefusal
 	switch {
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayPeriodInvalid))
@@ -226,6 +227,9 @@ func renderHolidayPeriodError(w http.ResponseWriter, r *http.Request, err error)
 	case errors.As(err, &refusedHost):
 		field := fmt.Sprintf("weeks.%d.host_school_id", refusedHost.Week)
 		common.RenderError(w, r, common.ErrorInvalidOnField(err, common.CodeEnrollmentHolidayHostSchoolOutsideTraeger, field))
+	case errors.As(err, &refusedDates):
+		field := fmt.Sprintf("weeks.%d.starts_on", refusedDates.Week)
+		common.RenderError(w, r, common.ErrorInvalidOnField(err, common.CodeEnrollmentHolidayWeeksBookedTogether, field))
 	case errors.Is(err, capability.ErrHolidayWeekBooked):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayWeekBooked))
 	case errors.Is(err, capability.ErrHolidayPeriodIncomplete):

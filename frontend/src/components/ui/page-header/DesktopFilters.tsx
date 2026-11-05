@@ -1,10 +1,13 @@
 "use client";
 
-import { Z_LAYER } from "../overlay-styles";
-import React, { useState, useRef, useEffect } from "react";
 import { normalizeFilterValues, type FilterConfig } from "./types";
+import {
+  ListboxChevron,
+  ListboxDropdown,
+} from "~/components/ui/listbox-dropdown";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { ToggleChip } from "~/components/ui/toggle-chip";
+import { cn } from "~/lib/utils";
 
 interface DesktopFiltersProps {
   readonly filters: ReadonlyArray<FilterConfig>;
@@ -94,6 +97,31 @@ function FilterControl({ filter }: Readonly<{ filter: FilterConfig }>) {
   return null;
 }
 
+function FilterIcon({
+  path,
+  className,
+}: Readonly<{ path: string; className: string }>) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d={path}
+      />
+    </svg>
+  );
+}
+
+// The filter chip keeps its own look (white, no frame, blue ring while a
+// restriction is active); menu, options, keyboard and portal come from the
+// kit listbox (#5580).
 function DropdownFilter({
   filter,
   showIcons = false,
@@ -101,45 +129,8 @@ function DropdownFilter({
   filter: FilterConfig;
   showIcons?: boolean;
 }>) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [dropdownPosition, setDropdownPosition] = useState<"left" | "right">(
-    "left",
-  );
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
   const isMulti = !!filter.multiSelect;
   const selectedValues = normalizeFilterValues(filter.value);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Calculate dropdown position when opening
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const buttonRect = buttonRef.current.getBoundingClientRect();
-      const dropdownWidth = 192; // w-48 = 12rem = 192px
-      const windowWidth = window.innerWidth;
-
-      // Check if dropdown would overflow on the right
-      if (buttonRect.left + dropdownWidth > windowWidth - 16) {
-        // 16px margin
-        setDropdownPosition("right");
-      } else {
-        setDropdownPosition("left");
-      }
-    }
-  }, [isOpen]);
 
   const selectedOption = isMulti
     ? undefined
@@ -166,110 +157,85 @@ function DropdownFilter({
     ? selectedValues.length > 0 && (!allOptionsSelected || hasHiddenSelection)
     : filter.value !== filter.options[0]?.value;
 
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`flex h-10 items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium whitespace-nowrap shadow-sm transition-all ${isFiltered ? "ring-moto-blue ring-2 ring-offset-1" : ""} ${isOpen ? "bg-gray-50" : "hover:bg-gray-50"} `}
-      >
-        {showIcons && selectedOption?.icon && (
-          <svg
-            className="h-4 w-4 flex-shrink-0 text-gray-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d={selectedOption.icon}
-            />
-          </svg>
-        )}
-        <span
-          className={`whitespace-nowrap ${selectedOption && filter.value !== filter.options[0]?.value ? "text-gray-900" : "text-gray-600"}`}
-        >
-          {isMulti ? filter.label : (selectedOption?.label ?? filter.label)}
-        </span>
-        <svg
-          className={`h-4 w-4 flex-shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
-      </button>
+  const options = filter.options.map((option) => ({
+    value: option.value,
+    label:
+      option.count !== undefined
+        ? `${option.label} (${option.count})`
+        : option.label,
+  }));
 
-      {isOpen && (
-        <div
-          className={`moto-popover-surface absolute top-full ${Z_LAYER.dropdown} mt-1 w-48 overflow-hidden rounded-xl border py-1 ${
-            dropdownPosition === "right" ? "right-0" : "left-0"
-          }`}
-        >
-          {filter.options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => {
-                if (isMulti) {
-                  const next = selectedValues.includes(option.value)
-                    ? selectedValues.filter((v) => v !== option.value)
-                    : [...selectedValues, option.value];
-                  filter.onChange(next);
-                } else {
-                  filter.onChange(option.value);
-                  setIsOpen(false);
-                }
-              }}
-              className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition-colors hover:bg-gray-50 ${selectedValues.includes(option.value) ? "bg-gray-50 font-medium text-gray-900" : "text-gray-700"} `}
-            >
-              {showIcons && option.icon && (
-                <svg
-                  className="h-4 w-4 flex-shrink-0"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d={option.icon}
-                  />
-                </svg>
-              )}
-              <span className="flex-1">{option.label}</span>
-              {isMulti && selectedValues.includes(option.value) && (
-                <svg
-                  className="h-4 w-4 text-gray-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              )}
-              {option.count !== undefined && (
-                <span className="ml-1 text-gray-500">({option.count})</span>
-              )}
-            </button>
-          ))}
-        </div>
+  return (
+    <ListboxDropdown
+      value={
+        isMulti ? (selectedValues[0] ?? "") : (selectedOption?.value ?? "")
+      }
+      selectedValues={isMulti ? selectedValues : undefined}
+      options={options}
+      onChange={(next) => {
+        if (isMulti) {
+          filter.onChange(
+            selectedValues.includes(next)
+              ? selectedValues.filter((v) => v !== next)
+              : [...selectedValues, next],
+          );
+        } else {
+          filter.onChange(next);
+        }
+      }}
+      // A single-select chip names itself by its current value, as before
+      // ("Alle Status"); the multi chip shows the filter's label anyway.
+      ariaLabel={isMulti ? filter.label : undefined}
+      menuClassName="min-w-48"
+      unstyledTrigger
+      className={cn(
+        "flex h-10 items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium whitespace-nowrap shadow-sm transition-all hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-gray-400 aria-expanded:bg-gray-50",
+        isFiltered && "ring-moto-blue ring-2 ring-offset-1",
       )}
-    </div>
+      renderTrigger={({ open }) => (
+        <>
+          {showIcons && selectedOption?.icon ? (
+            <FilterIcon
+              path={selectedOption.icon}
+              className="h-4 w-4 flex-shrink-0 text-gray-600"
+            />
+          ) : null}
+          <span
+            className={cn(
+              "whitespace-nowrap",
+              selectedOption && filter.value !== filter.options[0]?.value
+                ? "text-gray-900"
+                : "text-gray-600",
+            )}
+          >
+            {isMulti ? filter.label : (selectedOption?.label ?? filter.label)}
+          </span>
+          <ListboxChevron open={open} />
+        </>
+      )}
+      renderOption={(option) => {
+        const source = filter.options.find(
+          (entry) => entry.value === option.value,
+        );
+        return (
+          <>
+            {showIcons && source?.icon ? (
+              <FilterIcon
+                path={source.icon}
+                className="h-4 w-4 flex-shrink-0"
+              />
+            ) : null}
+            <span className="min-w-0 flex-1 truncate">
+              {source?.label ?? option.label}
+            </span>
+            {source?.count !== undefined ? (
+              <span className="ml-1 font-normal text-gray-500">
+                ({source.count})
+              </span>
+            ) : null}
+          </>
+        );
+      }}
+    />
   );
 }

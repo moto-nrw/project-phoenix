@@ -13,7 +13,7 @@ vi.mock("./use-absence-type-options", () => ({
 }));
 
 import { useAbsenceTypeSelect } from "./use-absence-type-select";
-import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+import { CustomSelect } from "~/components/ui/custom-select";
 import type { AbsenceTypeOption } from "./use-absence-type-options";
 
 const OPTIONS: AbsenceTypeOption[] = [
@@ -30,7 +30,7 @@ function Select({
   readonly onChange?: (next: string) => void;
 }) {
   const props = useAbsenceTypeSelect({ value, onChange, canManage: true });
-  return <ListboxDropdown {...props} ariaLabel="Art der Abwesenheit" />;
+  return <CustomSelect {...props} ariaLabel="Art der Abwesenheit" />;
 }
 
 function open(): void {
@@ -69,7 +69,7 @@ describe("useAbsenceTypeSelect", () => {
       target: { value: "Ferienzeit" },
     });
 
-    expect(screen.getByText("Kein Treffer.")).toBeTruthy();
+    expect(screen.getByText("Keine Treffer.")).toBeTruthy();
   });
 
   it("moves option focus with the arrow, home, and end keys", () => {

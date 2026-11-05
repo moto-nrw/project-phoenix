@@ -60,6 +60,11 @@ const (
 	// took it out of its sibling group (#5628).
 	HolidayAuditSiblingMerge = "sibling_merge"
 	HolidayAuditSiblingSplit = "sibling_split"
+	// HolidayAuditSiblingCancel records that a cancellation took a
+	// registration of the sibling group out of it and the Elternabrechnung
+	// computed the rest of the group again (#5662), in the trail of the
+	// cancelled registration and of every other one of the group.
+	HolidayAuditSiblingCancel = "sibling_cancel"
 )
 
 // HolidayDebtorNumberMaxLength is the longest debtor number a registration
@@ -362,9 +367,10 @@ type HolidaySiblingTrail interface {
 	// none changes while the Elternabrechnung reads and decides on several
 	// of them (#5628). It reads no personal data and records nothing.
 	HoldHolidayPeriod(ctx context.Context, reviewer HolidayReviewer, periodID int64) error
-	// RecordHolidaySiblings records a sibling merge or split of the
-	// Elternabrechnung (#5628): action is HolidayAuditSiblingMerge or
-	// HolidayAuditSiblingSplit, siblingIDs the other registrations it
+	// RecordHolidaySiblings records a sibling merge, split or cancellation
+	// of the Elternabrechnung (#5628, #5662): action is
+	// HolidayAuditSiblingMerge, HolidayAuditSiblingSplit or
+	// HolidayAuditSiblingCancel, siblingIDs the other registrations it
 	// concerns. Any state of the registration takes it.
 	RecordHolidaySiblings(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, action string, siblingIDs []int64) error
 }

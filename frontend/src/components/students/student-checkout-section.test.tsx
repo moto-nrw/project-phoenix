@@ -16,9 +16,7 @@ describe("StudentCheckoutSection", () => {
 
   it("renders subtitle text", () => {
     render(<StudentCheckoutSection onCheckoutClick={vi.fn()} />);
-    expect(
-      screen.getByText("Für heute aus der OGS abmelden"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Aus der OGS abmelden")).toBeInTheDocument();
   });
 
   it("calls onCheckoutClick when card is clicked", () => {

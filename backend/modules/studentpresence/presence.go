@@ -154,12 +154,15 @@ type AttendanceCommands interface {
 	// visit in the same transaction (issue #895).
 	CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error)
 	// CheckOutStudentWithNote is CheckOutStudent with the optional reason for
-	// an early checkout (#3324). The note is stored only when this call closes
-	// the open stay; a blank note stores nothing.
-	CheckOutStudentWithNote(ctx context.Context, studentID, staffID int64, note string, skipAuthCheck bool) (*AttendanceResult, error)
+	// an early checkout (#3324) or, with reason CheckoutReasonClass, for a child
+	// going to class (#5656). Both are stored only when this call closes the
+	// open stay; blank values store nothing.
+	CheckOutStudentWithNote(ctx context.Context, studentID, staffID int64, note, reason string, skipAuthCheck bool) (*AttendanceResult, error)
 	// ProcessSchoolCheckinBatch applies one explicit school check-in/out
-	// action ("in" | "out") to a set of students in a single call (#2359).
-	ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action string) (*SchoolCheckinBatchResult, error)
+	// action ("in" | "out") to a set of students in a single call (#2359). The
+	// reason is CheckoutReasonClass for children going to class together
+	// (#5656), else empty; it lands only on the stays this call closes.
+	ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action, reason string) (*SchoolCheckinBatchResult, error)
 	// ConfirmDailyCheckout processes a deferred daily-checkout confirmation
 	// of an IoT device. Returns ErrNoAttendanceRecordForCheckout when no
 	// attendance record exists today.

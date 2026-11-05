@@ -18,6 +18,9 @@ type HolidayStore interface {
 	// IssuedRegistrations names the registrations of the period that an
 	// invoice of the service already bills.
 	IssuedRegistrations(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]bool, error)
+	// IssuedContributions names them with what their invoice billed the
+	// family and the cost bearer, without the corrections of the run (#5662).
+	IssuedContributions(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]parentbilling.IssuedContribution, error)
 	// LockPeriodBilling holds the invoices of the service and period until
 	// the transaction ends, so the release of a run and a change of what it
 	// copies run one after another.
@@ -123,7 +126,8 @@ func (h *HolidayContributions) HolidayContribution(ctx context.Context, reviewer
 }
 
 // memberContribution is the frozen contribution of the registration with
-// whether an issued invoice bills it, or else its preview across its group
+// whether an issued invoice bills it and whether that invoice billed
+// another amount (#5662), or else its preview across its group
 // with the exemption or the cost bearer the Träger-Büro is about to choose.
 func (h *HolidayContributions) memberContribution(ctx context.Context, organizationID, periodID int64, members []siblingMember,
 	registration parentbilling.HolidayRegistration, benefitsExemption *bool, bearer *parentbilling.CostBearer,
@@ -132,12 +136,14 @@ func (h *HolidayContributions) memberContribution(ctx context.Context, organizat
 		if member.id() != registration.ID || member.frozen == nil {
 			continue
 		}
-		issued, err := h.store.IssuedRegistrations(ctx, organizationID, parentbilling.ServiceHoliday, periodID)
+		billed, err := h.store.IssuedContributions(ctx, organizationID, parentbilling.ServiceHoliday, periodID)
 		if err != nil {
 			return parentbilling.HolidayContribution{}, fmt.Errorf("parent billing: read issued invoices: %w", err)
 		}
 		frozen := *member.frozen
-		frozen.Invoiced = issued[registration.ID]
+		issued, invoiced := billed[registration.ID]
+		frozen.Invoiced = invoiced
+		frozen.CorrectionNeeded = invoiced && issued != billedBy(frozen)
 		return frozen, nil
 	}
 	exemption := registration.BenefitsDeclared && bearer == nil
@@ -262,7 +268,30 @@ func (h *HolidayContributions) compute(ctx context.Context, organizationID int64
 	if err != nil {
 		return parentbilling.HolidayContribution{}, fmt.Errorf("parent billing: read contribution rules: %w", err)
 	}
-	return computeHolidayContribution(children, validHolidayRules(rules, firstHolidayDay(children)), exemption, bearer), nil
+	chain, err := h.chainSettings(ctx, organizationID)
+	if err != nil {
+		return parentbilling.HolidayContribution{}, err
+	}
+	valid := validHolidayRules(rules, firstHolidayDay(children))
+	valid.chain = chain
+	return computeHolidayContribution(children, valid, exemption, bearer), nil
+}
+
+// chainSettings reads how the Träger ranks siblings and when a cost bearer
+// takes over (#5664). A value the chain does not know fails, it never falls
+// back to another way of billing.
+func (h *HolidayContributions) chainSettings(ctx context.Context, organizationID int64) (parentbilling.HolidayChainSettings, error) {
+	chain, err := h.settings.HolidayChain(ctx, organizationID)
+	if err != nil {
+		return parentbilling.HolidayChainSettings{}, fmt.Errorf("parent billing: read chain settings: %w", err)
+	}
+	switch {
+	case chain.SiblingRank != parentbilling.SiblingRankHighestContribution && chain.SiblingRank != parentbilling.SiblingRankOldestChild:
+		return parentbilling.HolidayChainSettings{}, fmt.Errorf("parent billing: unknown sibling rank %q", chain.SiblingRank)
+	case chain.CostTakeoverOrder != parentbilling.CostTakeoverAfterDiscount && chain.CostTakeoverOrder != parentbilling.CostTakeoverBeforeDiscount:
+		return parentbilling.HolidayChainSettings{}, fmt.Errorf("parent billing: unknown cost takeover order %q", chain.CostTakeoverOrder)
+	}
+	return chain, nil
 }
 
 // chosenCostBearer reads the cost bearer the Träger-Büro chose (#5627):
@@ -310,7 +339,10 @@ func quotedChildren(weeks []parentbilling.HolidayWeek, children []parentbilling.
 	}
 	priced := make([]parentbilling.HolidayChild, len(children))
 	for i, child := range children {
-		priced[i] = parentbilling.HolidayChild{Position: i + 1, Bookings: make([]parentbilling.HolidayBooking, 0, len(child.Bookings))}
+		if child.AgeRank < 0 || child.AgeRank > len(children) {
+			return nil, fmt.Errorf("%w: child %d has an age rank out of range", parentbilling.ErrInvalidHolidayQuote, i+1)
+		}
+		priced[i] = parentbilling.HolidayChild{Position: i + 1, AgeRank: child.AgeRank, Bookings: make([]parentbilling.HolidayBooking, 0, len(child.Bookings))}
 		booked := map[int64]bool{}
 		for _, booking := range child.Bookings {
 			known, ok := models[booking.TimeModelID]
@@ -325,4 +357,19 @@ func quotedChildren(weeks []parentbilling.HolidayWeek, children []parentbilling.
 		}
 	}
 	return priced, nil
+}
+
+// billedBy is what a contribution bills the family and the cost bearer. A
+// full cost takeover keeps the family at nothing when the contribution
+// changes, so the invoice is compared by both (review of #5671).
+func billedBy(contribution parentbilling.HolidayContribution) parentbilling.IssuedContribution {
+	billed := parentbilling.IssuedContribution{TotalCents: contribution.TotalCents}
+	for _, child := range contribution.Children {
+		for _, line := range child.Lines {
+			if line.Kind == parentbilling.LineCostTakeover {
+				billed.CostTakeoverCents += line.AmountCents
+			}
+		}
+	}
+	return billed
 }

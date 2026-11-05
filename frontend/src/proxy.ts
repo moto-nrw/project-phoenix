@@ -69,6 +69,7 @@ const TENANT_DOMAIN: string = (() => {
 // the policy names no analytics host.
 // Keep Next.js inline bootstrap/hydration scripts working without a nonce
 // migration. This is not a strict XSS policy; see docs/operations/browser-csp-3842.md.
+const BLOB_FRAME_SRC = "frame-src 'self' blob:";
 const CSP_HEADER = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
@@ -76,6 +77,9 @@ const CSP_HEADER = [
   "img-src 'self' data: blob:",
   "connect-src 'self'",
   "object-src 'none'",
+  // A PDF the page loaded through the signed-in API shows in a frame from
+  // its object URL (#5692); no other origin may be framed.
+  BLOB_FRAME_SRC,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -84,11 +88,10 @@ const CSP_HEADER = [
 // Only the public tenant phase form mounts Turnstile. Parent-authenticated,
 // preview, status and staff pages keep the same-origin policy.
 const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
-const TURNSTILE_CSP_HEADER =
-  CSP_HEADER.replace(
-    "script-src 'self'",
-    `script-src 'self' ${TURNSTILE_ORIGIN}`,
-  ) + `; frame-src ${TURNSTILE_ORIGIN}`;
+const TURNSTILE_CSP_HEADER = CSP_HEADER.replace(
+  "script-src 'self'",
+  `script-src 'self' ${TURNSTILE_ORIGIN}`,
+).replace(BLOB_FRAME_SRC, `frame-src ${TURNSTILE_ORIGIN}`);
 
 function isPublicEnrollmentForm(pathname: string): boolean {
   const [, tenant, surface, phase, extra] = pathname.split("/");
@@ -603,8 +606,8 @@ if (!TRAEGER_HOSTNAME) {
  * the reset link (#5149), the holiday periods (#4659), the Träger-Büro persons, the invitation
  * link, which opens /invite (#4650), the access log (#4655), the
  * letterhead (#4653), the Träger settings (#4652), the contribution
- * rules (#4664) and the billing runs (#4668). The school list
- * itself lives at the root ("/" →
+ * rules (#4664), the billing runs (#4668), the view of one school
+ * (#5686) and the dashboard over all schools at /uebersicht (#4674). The school list itself lives at the root ("/" →
  * /traeger). The client guard sends a visitor without a session to the
  * login. */
 const TRAEGER_PUBLIC_PATHS = [
@@ -618,6 +621,8 @@ const TRAEGER_PUBLIC_PATHS = [
   "/einstellungen",
   "/beitraege",
   "/abrechnung",
+  "/schulen",
+  "/uebersicht",
 ];
 
 function isTraegerHost(hostname: string): boolean {

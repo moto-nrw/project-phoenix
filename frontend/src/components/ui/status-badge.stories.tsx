@@ -30,6 +30,22 @@ export const Gray: Story = {
   args: { label: "Zurückgezogen", tone: "gray" },
 };
 
+export const Purple: Story = {
+  args: { label: "Entschuldigt", tone: "purple" },
+};
+
+export const Cyan: Story = {
+  args: { label: "Klassenfahrt", tone: "cyan" },
+};
+
+export const Outline: Story = {
+  args: { label: "Entwurf", tone: "outline" },
+};
+
+export const SizeXs: Story = {
+  args: { label: "Ausflug", tone: "cyan", size: "xs" },
+};
+
 export const AllTones: Story = {
   args: { label: "Bestätigt", tone: "green" },
   render: () => (
@@ -39,6 +55,9 @@ export const AllTones: Story = {
       <StatusBadge label="Warteliste" tone="orange" />
       <StatusBadge label="Abgelehnt" tone="red" />
       <StatusBadge label="Zurückgezogen" tone="gray" />
+      <StatusBadge label="Entschuldigt" tone="purple" />
+      <StatusBadge label="Klassenfahrt" tone="cyan" />
+      <StatusBadge label="Entwurf" tone="outline" />
     </div>
   ),
 };

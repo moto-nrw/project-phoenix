@@ -592,3 +592,37 @@ func TestUpdateVisitClosedIntervalEditAndReopenReconcileSlot(t *testing.T) {
 		})
 	}
 }
+
+type revisionCapturingRepository struct {
+	lockingAttendanceRepository
+	revised *studentpresence.Attendance
+}
+
+func (r *revisionCapturingRepository) ReviseAttendance(_ context.Context, row studentpresence.Attendance) (studentpresence.Attendance, error) {
+	r.revised = &row
+	return row, nil
+}
+
+func TestSyncAttendanceForVisitRevision_ReopeningDropsTheClassReason(t *testing.T) {
+	t.Parallel()
+
+	entry := time.Date(2026, 9, 29, 8, 0, 0, 0, calendar.Berlin)
+	exit := entry.Add(time.Hour)
+	reason := studentpresence.CheckoutReasonClass
+	revise := func(updatedExit *time.Time) *studentpresence.Attendance {
+		repo := &revisionCapturingRepository{lockingAttendanceRepository: lockingAttendanceRepository{
+			row: studentpresence.Attendance{StudentID: 200, CheckInTime: entry, CheckOutTime: &exit, CheckOutReason: &reason},
+		}}
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: repo}}
+		previous := &studentpresence.Visit{StudentID: 200, EntryTime: entry, ExitTime: &exit}
+		updated := &studentpresence.Visit{StudentID: 200, EntryTime: entry, ExitTime: updatedExit}
+		require.NoError(t, svc.syncAttendanceForVisitRevision(context.Background(), previous, updated))
+		require.NotNil(t, repo.revised)
+		return repo.revised
+	}
+
+	assert.Nil(t, revise(nil).CheckOutReason, "a later home checkout must not inherit the class reason")
+
+	later := exit.Add(15 * time.Minute)
+	assert.Equal(t, &reason, revise(&later).CheckOutReason, "moving the checkout time keeps the reason")
+}

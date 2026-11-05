@@ -66,9 +66,7 @@ export function EntityHeaderCard({
       ) : null}
       <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
         <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
-          {concept ? (
-            <ConceptIconTile concept={concept} variant="page" />
-          ) : null}
+          {concept ? <ConceptIconTile concept={concept} size="page" /> : null}
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">

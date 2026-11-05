@@ -830,9 +830,6 @@ export function FieldEditorRow({
   );
 }
 
-const conditionInputClass =
-  "moto-content-surface h-10 w-full rounded-lg border px-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 disabled:text-gray-600";
-
 // Field-source operators offered in the condition editor. "includes" is
 // reserved for the care-offering source and is not listed here.
 const FIELD_CONDITION_OPERATORS: ConditionOperator[] = [
@@ -996,7 +993,6 @@ function ConditionEditor({
                 )
               }
               disabled={disabled}
-              className={conditionInputClass}
               options={sources.map((source) => ({
                 value: source,
                 label: conditionSourceLabels[source],
@@ -1088,7 +1084,6 @@ function ConditionFieldControls({
           value={condition.field ?? ""}
           onChange={changeController}
           disabled={disabled}
-          className={conditionInputClass}
           options={controllers.map((controller) => ({
             value: controller.key,
             label: controller.label.trim() || controller.key,
@@ -1109,7 +1104,6 @@ function ConditionFieldControls({
           value={condition.operator}
           onChange={(value) => changeOperator(value as ConditionOperator)}
           disabled={disabled}
-          className={conditionInputClass}
           options={FIELD_CONDITION_OPERATORS.map((operator) => ({
             value: operator,
             label: conditionOperatorLabels[operator],
@@ -1132,7 +1126,6 @@ function ConditionFieldControls({
               value={condition.value === true ? "true" : "false"}
               onChange={(value) => onPatch({ value: value === "true" })}
               disabled={disabled}
-              className={conditionInputClass}
               options={[
                 { value: "true", label: "Ja" },
                 { value: "false", label: "Nein" },
@@ -1145,7 +1138,6 @@ function ConditionFieldControls({
               value={String(condition.value ?? "")}
               onChange={(value) => onPatch({ value })}
               disabled={disabled}
-              className={conditionInputClass}
               options={(controller.options ?? []).map((option) => ({
                 value: option.value,
                 label: option.label,
@@ -1186,7 +1178,6 @@ function ConditionGradeControls({
             onPatch({ operator: value as ConditionOperator })
           }
           disabled={disabled}
-          className={conditionInputClass}
           options={[
             { value: "eq", label: conditionOperatorLabels.eq },
             { value: "neq", label: conditionOperatorLabels.neq },

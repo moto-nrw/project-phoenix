@@ -70,7 +70,7 @@ describe("TraegerBeitraegePage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getAllByText(
-        "Keine Befreiung. Ohne Regel zahlen alle Familien.",
+        "Keine Befreiungsregel. Alle Familien zahlen, auch bei Leistungsbezug.",
       )[0],
     ).toBeInTheDocument();
   });
@@ -116,10 +116,30 @@ describe("TraegerBeitraegePage", () => {
     renderPage();
     await screen.findAllByText("ab 01.08.2026");
 
+    expect(
+      screen.getAllByText(
+        "Die Regel gilt für alle Familien mit Leistungsbezug. Welche Familie befreit ist, wählen Sie beim Bestätigen der Anmeldung. Befreite Familien zahlen nichts.",
+      )[0],
+    ).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "Befreiung hinzufügen" }),
+      screen.getByRole("button", { name: "Befreiungsregel hinzufügen" }),
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+    expect(
+      await screen.findByRole("heading", {
+        name: "Befreiungsregel hinzufügen",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Regel gilt für alle Familien mit Leistungsbezug. Welche Familie befreit ist, wählen Sie beim Bestätigen der Anmeldung.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Vermerk auf dem Beitrag"),
+    ).toHaveAccessibleDescription(
+      "Der Vermerk steht beim Beitrag jeder befreiten Familie.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     expect(
       await screen.findByText("Bitte geben Sie den Vermerk an."),
     ).toBeInTheDocument();

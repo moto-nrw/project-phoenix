@@ -34,6 +34,7 @@
 import type { ReactNode } from "react";
 import Link from "~/components/ui/navigation-link";
 import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
+import { IconTile } from "~/components/ui/icon-tile";
 import { Skeleton } from "~/components/ui/skeleton";
 
 /**
@@ -205,10 +206,9 @@ export function StatCard(props: StatCardProps | StatTileProps) {
             // Auch auf dem Telefon: ohne Symbol waren vier Kacheln dort nur
             // noch Versalien und Zahl, und die Bedeutung, die das Symbol trägt
             // (die Zahl steht bewusst in Textfarbe), fehlte gerade dort.
-            // Eine Stufe kleiner, damit das Label daneben Platz behält.
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 max-sm:h-8 max-sm:w-8 max-sm:rounded-lg max-sm:[&_svg]:size-5">
-              {icon}
-            </span>
+            // Kartenkopf-Kachel wie bei SectionCard: auf dem Telefon 36 px
+            // statt 40 px, damit das Label daneben Platz behält.
+            <IconTile icon={icon} />
           ) : null}
         </div>
         {hint !== undefined && hint !== "" ? (

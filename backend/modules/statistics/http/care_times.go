@@ -143,6 +143,14 @@ type careTimeDayResponse struct {
 	DeviationMinutes *int    `json:"deviation_minutes"`
 	EarlyMinutes     int     `json:"early_minutes"`
 	LateMinutes      int     `json:"late_minutes"`
+	// ClassTimes are the day's stretches in class (#5656); the end is null when
+	// the child did not come back. They change none of the minutes.
+	ClassTimes []careTimeClassTimeResponse `json:"class_times"`
+}
+
+type careTimeClassTimeResponse struct {
+	Start *string `json:"start"`
+	End   *string `json:"end"`
 }
 
 type studentCareTimesResponse struct {
@@ -188,6 +196,14 @@ func formatClock(clock *calendar.WallClock) *string {
 	return &value
 }
 
+func toCareTimeClassTimes(classTimes []studentpresence.CareTimeClassTime) []careTimeClassTimeResponse {
+	out := make([]careTimeClassTimeResponse, 0, len(classTimes))
+	for _, classTime := range classTimes {
+		out = append(out, careTimeClassTimeResponse{Start: formatClock(&classTime.Start), End: formatClock(classTime.End)})
+	}
+	return out
+}
+
 func toStudentCareTimesResponse(result *studentpresence.StudentCareTimes) studentCareTimesResponse {
 	days := make([]careTimeDayResponse, 0, len(result.Days))
 	for _, day := range result.Days {
@@ -196,7 +212,7 @@ func toStudentCareTimesResponse(result *studentpresence.StudentCareTimes) studen
 			PlannedStart: formatClock(day.PlannedStart), PlannedEnd: formatClock(day.PlannedEnd),
 			ActualStart: formatClock(day.ActualStart), ActualEnd: formatClock(day.ActualEnd),
 			PlannedMinutes: day.PlannedMinutes, ActualMinutes: day.ActualMinutes, DeviationMinutes: day.DeviationMinutes,
-			EarlyMinutes: day.EarlyMinutes, LateMinutes: day.LateMinutes,
+			EarlyMinutes: day.EarlyMinutes, LateMinutes: day.LateMinutes, ClassTimes: toCareTimeClassTimes(day.ClassTimes),
 		})
 	}
 	return studentCareTimesResponse{

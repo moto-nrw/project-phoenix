@@ -80,6 +80,7 @@ describe("Absprung from the Träger portal (#4654)", () => {
     );
 
     expect(user?.tenantId).toBe(12);
+    expect(user?.viaTraeger).toBe(true);
     expect(user?.token).toBe(access);
     expect(user?.refreshToken).toBe(REFRESH);
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];

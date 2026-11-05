@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { AlertTriangle, Check, Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { databaseConcept } from "~/lib/concepts/database";
+import { IconTile } from "~/components/ui/icon-tile";
 
 interface StatsCardsProps {
   readonly total: number;
@@ -26,9 +27,7 @@ function StatCard({ title, value, icon }: StatCardProps) {
           <p className="text-xs font-medium text-gray-600">{title}</p>
           <p className="text-2xl font-bold text-gray-900">{value}</p>
         </div>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
-          {icon}
-        </div>
+        <IconTile icon={icon} />
       </div>
     </div>
   );

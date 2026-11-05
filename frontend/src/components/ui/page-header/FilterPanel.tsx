@@ -301,11 +301,7 @@ export function FilterPanel({
                 filter.summaryLabel ??
                 ((count) => `${count} ${filter.label} gewählt`)
               }
-              triggerClassName={
-                isQuiet
-                  ? "moto-content-surface h-10 w-full font-medium"
-                  : "h-10 w-full border-gray-200 bg-gray-50 font-medium"
-              }
+              className="font-medium"
               options={filter.options.map((option) => ({
                 value: option.value,
                 label:
@@ -323,11 +319,7 @@ export function FilterPanel({
             testId={`filter-${filter.id}`}
             value={filter.value as string}
             onChange={(next) => filter.onChange(next)}
-            triggerClassName={
-              isQuiet
-                ? "moto-content-surface h-10 w-full font-medium"
-                : "h-10 w-full border-gray-200 bg-gray-50 font-medium"
-            }
+            className="font-medium"
             options={filter.options.map((option) => ({
               value: option.value,
               label:

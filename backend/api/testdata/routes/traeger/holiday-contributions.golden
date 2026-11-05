@@ -2,6 +2,7 @@ DELETE /traeger/holiday-contributions/{periodId}/sibling-groups/registrations/{r
 GET /traeger/holiday-contributions/confirmation-settings
 GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
 GET /traeger/holiday-contributions/{periodId}/sibling-groups
+POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/cancel
 POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm
 POST /traeger/holiday-contributions/{periodId}/sibling-groups
 PUT /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/debtor-number

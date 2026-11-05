@@ -6,6 +6,7 @@ import (
 	fmt "fmt"
 	slog "log/slog"
 	http "net/http"
+	slices "slices"
 	sort "sort"
 	strconv "strconv"
 	strings "strings"
@@ -47,6 +48,11 @@ type dayLogGroup struct {
 	Counters dayLogCounters  `json:"counters"`
 }
 
+type dayLogClassPeriod struct {
+	From  time.Time  `json:"from"`
+	Until *time.Time `json:"until,omitempty"`
+}
+
 type dayLogStudent struct {
 	StudentID   string `json:"student_id"`
 	FirstName   string `json:"first_name"`
@@ -61,6 +67,10 @@ type dayLogStudent struct {
 	// CheckOutNote carries the reasons staff left when the child went home
 	// earlier than planned (#3324), in the order of the day's stays.
 	CheckOutNote string `json:"check_out_note,omitempty"`
+	// ClassPeriods are the times the child was in class between the day's stays
+	// (#5656), in order. A period without Until is still running or ended
+	// without a return: the child never checked back in.
+	ClassPeriods []dayLogClassPeriod `json:"class_periods,omitempty"`
 	// ReportedAt/Source describe the sign-off behind an absence verdict.
 	ReportedAt *time.Time `json:"reported_at,omitempty"`
 	Source     string     `json:"source,omitempty"`
@@ -515,6 +525,7 @@ func classifyDayLogStudent(row *dayLogStudent, attendance []*studentpresence.Att
 		row.CheckInTime = &checkIn
 		row.CheckOutTime = checkOut
 		row.CheckOutNote = dayLogCheckOutNote(attendance)
+		row.ClassPeriods = dayLogClassPeriods(attendance)
 		row.Hint = dayLogPresentHint(eff)
 		return
 	}
@@ -612,6 +623,30 @@ func dayLogCheckOutNote(rows []*studentpresence.Attendance) string {
 		notes = append(notes, *row.CheckOutNote)
 	}
 	return strings.Join(notes, " · ")
+}
+
+// dayLogClassPeriods reads the class times off a day's stays: each one starts
+// at a checkout to class and ends at the next check-in, if there is one.
+func dayLogClassPeriods(rows []*studentpresence.Attendance) []dayLogClassPeriod {
+	if !slices.ContainsFunc(rows, func(row *studentpresence.Attendance) bool { return row.LeftForClass() }) {
+		return nil
+	}
+	ordered := slices.Clone(rows)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		return ordered[i].CheckInTime.Before(ordered[j].CheckInTime)
+	})
+	var periods []dayLogClassPeriod
+	for i, row := range ordered {
+		if row.CheckOutTime == nil || !row.LeftForClass() {
+			continue
+		}
+		period := dayLogClassPeriod{From: *row.CheckOutTime}
+		if i+1 < len(ordered) {
+			period.Until = &ordered[i+1].CheckInTime
+		}
+		periods = append(periods, period)
+	}
+	return periods
 }
 
 func dayLogPresentHint(eff studentpresence.EffectiveStatus) string {

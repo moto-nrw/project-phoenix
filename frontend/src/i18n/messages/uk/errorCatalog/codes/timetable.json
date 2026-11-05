@@ -81,6 +81,7 @@
   "reopen_attendance_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "reopen_staff_busy": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "reopen_student_active": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "reopen_student_left": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "reopen_supervision_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "room_occupied": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "school_vacation_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",

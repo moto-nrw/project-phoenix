@@ -111,6 +111,9 @@ type Definition struct {
 	Description string    `json:"description"`
 	Type        FieldType `json:"type"`
 	Default     any       `json:"default"`
+	// Placeholder is the grey example an empty textarea shows (#5693).
+	// It is never a value: an empty field stays empty when saved and read.
+	Placeholder string `json:"placeholder,omitempty"`
 
 	Validation *ValidationRules `json:"validation,omitempty"`
 
@@ -211,6 +214,9 @@ func (d *Definition) Validate() error {
 	if err := d.validateMaxLength(); err != nil {
 		return err
 	}
+	if err := d.validatePlaceholder(); err != nil {
+		return err
+	}
 	return d.validateDefaultRange()
 }
 
@@ -225,6 +231,15 @@ func (d *Definition) validateMaxLength() error {
 	}
 	if *d.Validation.MaxLength <= 0 {
 		return fmt.Errorf("max length of setting %s must be positive", d.Key)
+	}
+	return nil
+}
+
+// validatePlaceholder admits an example text only for a multi-line text
+// field, the one input that shows it.
+func (d *Definition) validatePlaceholder() error {
+	if d.Placeholder != "" && d.Type != FieldTextarea {
+		return fmt.Errorf("placeholder can only be set for textarea fields, setting %s has type %s", d.Key, d.Type)
 	}
 	return nil
 }

@@ -40,9 +40,10 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/ui/page-header/DesktopFilters.tsx",
-    lines: [171],
-    reason: "Auslöser eines Filter-Auswahlfelds, sieht aus wie ein Select",
+    file: "src/components/ui/listbox-dropdown.tsx",
+    lines: [1010],
+    reason:
+      "Auslöser des Kit-Auswahlfelds (ListboxDropdown), Eingabefeld, kein Knopf (#5580)",
   },
   {
     rule: "no-hand-rolled-button",
@@ -113,7 +114,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/auth/auth-shell.tsx",
-    lines: [360],
+    lines: [361],
     reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
   },
   {
@@ -125,7 +126,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3150],
+    lines: [3140],
     reason: "Schalter (role=switch)",
   },
   {
@@ -163,7 +164,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/active-supervisions/spontaneous-activity-start.tsx",
-    lines: [376],
+    lines: [377],
     reason: "Startkachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
@@ -182,7 +183,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1302, 1503, 1538],
+    lines: [1327, 1528, 1563],
     reason: "Navigationszeilen der Seitenleiste und der unteren Leiste",
   },
   {
@@ -194,7 +195,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/home/home-block-content.tsx",
-    lines: [202, 274],
+    lines: [203, 275],
     reason: "Listenzeilen der Startseite, verlinken weiter",
   },
   {
@@ -206,7 +207,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/home/my-group-block.tsx",
-    lines: [253, 284, 316],
+    lines: [257, 288, 320],
     reason: "Listenzeilen der Startseite, verlinken weiter",
   },
   {
@@ -230,13 +231,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1318],
+    lines: [1319],
     reason: "Tagesauswahl mit Auswahlzustand: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1561],
+    lines: [1560],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
@@ -254,13 +255,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/planned-status-days-modal.tsx",
-    lines: [947],
+    lines: [946],
     reason: "Kalendertag zum Umschalten: Kalender-/Auswahlzelle",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/student-detail-components.tsx",
-    lines: [1175],
+    lines: [1166],
     reason: "Verlaufskachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
@@ -287,7 +288,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1318],
+    lines: [1319],
     reason: "Tageskachel: grau markiert den gewählten Tag, kein Knopf",
   },
   {
@@ -300,7 +301,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1538],
+    lines: [1563],
     reason:
       "Mehr-Eintrag der Handy-Navigation: grau markiert den aktiven Bereich",
   },

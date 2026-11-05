@@ -9,8 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// NewHolidayPeriods builds the holiday periods of a Träger (#4659) in the
-// Träger transaction the Träger-Portal route opens (ADR 0105).
+// NewHolidayPeriods builds a Träger's holiday periods (#4659) in the Träger-Portal's Träger transaction (ADR 0105).
 func NewHolidayPeriods() enrollment.HolidayPeriods {
 	return applicationNative.NewHolidayPeriods(postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore())
 }
@@ -23,8 +22,7 @@ func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail en
 	})
 }
 
-// NewHolidayRegistrationRetention deletes ended holiday registrations hourly
-// (#4661, #4667); a nil today uses the Berlin calendar day.
+// NewHolidayRegistrationRetention deletes ended holiday registrations hourly (#4661, #4667); nil today: Berlin day.
 func NewHolidayRegistrationRetention(today func() calendar.Date) enrollment.HolidayRegistrationRetention {
 	return applicationNative.NewHolidayRegistrationRetention(postgres.NewHolidayRegistrationStore(), today)
 }
@@ -44,8 +42,12 @@ func NewHolidayGuests(people enrollment.HolidayGuestPeople, schools enrollment.H
 	return applicationNative.NewHolidayGuests(postgres.NewHolidayGuestStore(), people, schools, care, health, log, today)
 }
 
-// NewHolidayAccessTrail builds the holiday trail of the Träger-Portal's access
-// log (#5326), read in the Träger projection's transaction (ADR 0137).
+// NewHolidayGuestBadgeList builds only the hints „Gast aus …“, for the tablet (PyrePortal#499); nil today: Berlin day.
+func NewHolidayGuestBadgeList(today func() calendar.Date) enrollment.HolidayGuestBadgeList {
+	return applicationNative.NewHolidayGuestBadgeList(postgres.NewHolidayGuestStore(), today)
+}
+
+// NewHolidayAccessTrail builds the Träger access log's holiday trail (#5326), read in the Träger projection's transaction (ADR 0137).
 func NewHolidayAccessTrail() enrollment.HolidayAccessTrail {
 	return postgres.NewHolidayRegistrationStore()
 }

@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { HolidayPeriod, TraegerSchool } from "~/lib/traeger-api";
@@ -66,6 +72,29 @@ describe("HolidayPeriodForm", () => {
   beforeEach(() => {
     mockCreate.mockReset();
     mockUpdate.mockReset();
+  });
+
+  it("keeps Speichern and Abbrechen in the container of the whole form (#5684)", () => {
+    render(
+      <ToastProvider>
+        <HolidayPeriodForm
+          period={stored}
+          schools={schools}
+          onSaved={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+    const card = screen
+      .getByRole("button", { name: "Speichern" })
+      .closest("section");
+    expect(card).not.toBeNull();
+    const form = within(card as HTMLElement);
+    expect(form.getByLabelText("Name des Ferienzeitraums")).toBeInTheDocument();
+    expect(
+      form.getByRole("button", { name: "Woche hinzufügen" }),
+    ).toBeInTheDocument();
+    expect(form.getByRole("button", { name: "Abbrechen" })).toBeInTheDocument();
   });
 
   it.each([false, true])(

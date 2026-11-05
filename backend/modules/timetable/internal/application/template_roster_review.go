@@ -212,7 +212,8 @@ func (r *templateRosterReview) SeriesSegments(ctx context.Context, templateID in
 	for _, segment := range segments {
 		result = append(result, timetable.TemplateSeriesSegment{
 			TemplateID: segment.Group.ID, CalendarPeriodID: segment.Group.CalendarPeriodID,
-			ValidFrom: segment.ValidFrom, ValidUntil: segment.ValidUntil,
+			OfferingKind: timetable.RosterOfferingKindFor(segment.Group.Type, segment.Group.ListKind),
+			ValidFrom:    segment.ValidFrom, ValidUntil: segment.ValidUntil,
 		})
 	}
 	return result, nil

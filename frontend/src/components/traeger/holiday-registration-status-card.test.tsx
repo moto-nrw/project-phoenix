@@ -11,11 +11,13 @@ import {
 
 const {
   mockChange,
+  mockCancel,
   mockConfirm,
   mockConfirmDebtorNumber,
   mockChangeDebtorNumber,
 } = vi.hoisted(() => ({
   mockChange: vi.fn(),
+  mockCancel: vi.fn(),
   mockConfirm: vi.fn(),
   mockConfirmDebtorNumber: vi.fn(),
   mockChangeDebtorNumber: vi.fn(),
@@ -27,6 +29,8 @@ vi.mock("~/lib/traeger-holiday-registrations-api", () => ({
 }));
 
 vi.mock("~/lib/traeger-contributions-api", () => ({
+  cancelHolidayRegistration: (periodId: string, id: string) =>
+    mockCancel(periodId, id),
   confirmHolidayRegistration: (
     periodId: string,
     id: string,
@@ -52,7 +56,7 @@ function renderCard(
   registration: HolidayRegistrationDetail,
   onChanged = vi.fn(),
   contribution: HolidayContribution = HOLIDAY_CONTRIBUTION,
-  onConfirmed = vi.fn(() => Promise.resolve()),
+  onReload = vi.fn(() => Promise.resolve()),
 ) {
   const onExemptionChange = vi.fn();
   render(
@@ -64,17 +68,18 @@ function renderCard(
         exemption={registration.benefitsDeclared}
         onExemptionChange={onExemptionChange}
         onChanged={onChanged}
-        onConfirmed={onConfirmed}
+        onReload={onReload}
         onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
       />
     </ToastProvider>,
   );
-  return { onChanged, onConfirmed, onExemptionChange };
+  return { onChanged, onReload, onExemptionChange };
 }
 
 describe("HolidayRegistrationStatusCard", () => {
   beforeEach(() => {
     mockChange.mockReset();
+    mockCancel.mockReset();
     mockConfirm.mockReset();
     mockConfirmDebtorNumber.mockReset();
     mockChangeDebtorNumber.mockReset();
@@ -82,7 +87,7 @@ describe("HolidayRegistrationStatusCard", () => {
 
   it("confirms a received registration through the contribution and says parents get no message yet", async () => {
     mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
-    const { onConfirmed, onExemptionChange } = renderCard(HOLIDAY_REGISTRATION);
+    const { onReload, onExemptionChange } = renderCard(HOLIDAY_REGISTRATION);
 
     expect(
       screen.getByText(
@@ -95,12 +100,17 @@ describe("HolidayRegistrationStatusCard", () => {
     const exemptionChoice = screen.getByRole("radio", {
       name: /Von der Zahlung befreien \(Leistungsbezug\)/,
     });
+    expect(
+      screen.getByText(
+        "Dann gilt die Befreiungsregel. Niemand bezahlt den Betrag.",
+      ),
+    ).toBeInTheDocument();
     expect(exemptionChoice).not.toBeChecked();
     fireEvent.click(exemptionChoice);
     expect(onExemptionChange).toHaveBeenCalledWith(true);
     fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
 
-    await waitFor(() => expect(onConfirmed).toHaveBeenCalled());
+    await waitFor(() => expect(onReload).toHaveBeenCalled());
     expect(mockConfirm).toHaveBeenCalledWith("5", "7", false);
     expect(mockChange).not.toHaveBeenCalled();
   });
@@ -137,7 +147,7 @@ describe("HolidayRegistrationStatusCard", () => {
           exemption
           onExemptionChange={vi.fn()}
           onChanged={vi.fn()}
-          onConfirmed={vi.fn(() => Promise.resolve())}
+          onReload={vi.fn(() => Promise.resolve())}
           onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
         />
       </ToastProvider>,
@@ -167,7 +177,7 @@ describe("HolidayRegistrationStatusCard", () => {
       ],
       onCostBearerChange,
       onChanged: vi.fn(),
-      onConfirmed: vi.fn(() => Promise.resolve()),
+      onReload: vi.fn(() => Promise.resolve()),
       onDebtorNumberChanged: vi.fn(() => Promise.resolve()),
     };
     const { rerender } = render(
@@ -214,31 +224,54 @@ describe("HolidayRegistrationStatusCard", () => {
 
     expect(
       screen.getByText(
-        "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung braucht es eine Regel unter „Ermäßigungen“.",
+        "Die Eltern geben an, dass sie Leistungen beziehen. Am ersten gebuchten Tag gilt keine Befreiungsregel. Sie legen sie unter „Ermäßigungen“ an.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
     expect(screen.queryByRole("radio")).toBeNull();
   });
 
-  it("cancels only after the confirmation", async () => {
-    mockChange.mockResolvedValue({
-      ...HOLIDAY_REGISTRATION,
-      status: "cancelled",
-    });
-    renderCard(HOLIDAY_REGISTRATION);
+  it("cancels only after the confirmation, through the contribution, and reads the page again", async () => {
+    mockCancel.mockResolvedValue(undefined);
+    const { onReload, onChanged } = renderCard(HOLIDAY_REGISTRATION);
 
     fireEvent.click(screen.getByRole("button", { name: "Stornieren" }));
-    expect(mockChange).not.toHaveBeenCalled();
+    expect(mockCancel).not.toHaveBeenCalled();
     expect(
       await screen.findByText("Anmeldung stornieren?"),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/berechnet den Ferienbeitrag der Geschwister neu/),
+    ).not.toBeInTheDocument();
     const buttons = screen.getAllByRole("button", { name: "Stornieren" });
     fireEvent.click(buttons[buttons.length - 1]!);
 
-    await waitFor(() =>
-      expect(mockChange).toHaveBeenCalledWith("5", "7", "cancel"),
-    );
+    await waitFor(() => expect(mockCancel).toHaveBeenCalledWith("5", "7"));
+    await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1));
+    expect(mockChange).not.toHaveBeenCalled();
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it("says before a cancellation that the siblings are computed again (#5662)", async () => {
+    renderCard(HOLIDAY_REGISTRATION, vi.fn(), {
+      ...HOLIDAY_CONTRIBUTION,
+      siblings: [
+        {
+          registrationId: "8",
+          cancelled: false,
+          children: [{ id: "81", name: "Tom Muster" }],
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Stornieren" }));
+
+    expect(
+      await screen.findByText(
+        "Die Anmeldung zählt dann nicht mehr zu den Geschwistern. moto berechnet den Ferienbeitrag der Geschwister neu.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockCancel).not.toHaveBeenCalled();
   });
 
   it("offers only reopening for a frozen registration and names why", () => {
@@ -303,7 +336,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
           />
         </ToastProvider>,
@@ -357,7 +390,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
           />
         </ToastProvider>,
@@ -382,7 +415,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
           />
         </ToastProvider>
@@ -459,7 +492,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
           />
         </ToastProvider>,
@@ -521,7 +554,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={onDebtorNumberChanged}
           />
         </ToastProvider>,

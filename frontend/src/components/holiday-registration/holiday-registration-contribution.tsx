@@ -32,6 +32,7 @@ import {
 } from "~/lib/holiday-registration-api";
 import { createLogger } from "~/lib/logger";
 import {
+  quoteAgeRanks,
   quoteBookings,
   type RegistrationDraft,
 } from "./holiday-registration-model";
@@ -89,6 +90,10 @@ export function HolidayRegistrationContribution({
     () => draft.children.map((child) => quoteBookings(child, offer)),
     [draft.children, offer],
   );
+  const ageRanks = useMemo(
+    () => quoteAgeRanks(draft.children),
+    [draft.children],
+  );
   const benefitsDeclared = draft.benefitsDeclared;
 
   // Only the newest request may show its answer: a quick change of the
@@ -105,6 +110,7 @@ export function HolidayRegistrationContribution({
         token,
         children,
         benefitsDeclared,
+        ageRanks,
       );
       if (request === latest.current) {
         setContribution(quoted);
@@ -119,7 +125,7 @@ export function HolidayRegistrationContribution({
       setContribution(null);
       setFailed(true);
     }
-  }, [token, children, benefitsDeclared]);
+  }, [token, children, benefitsDeclared, ageRanks]);
 
   useEffect(() => {
     void load();

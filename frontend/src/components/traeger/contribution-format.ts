@@ -33,7 +33,7 @@ export function contributionLineLabel(line: ContributionLine): string {
   switch (line.kind) {
     case "base":
       return line.weekStartsOn && line.weekEndsOn
-        ? `${formatDateRange(line.weekStartsOn, line.weekEndsOn)} · ${line.timeModelName}`
+        ? `${formatDateRange(line.weekStartsOn, line.weekEndsOn)}: ${line.timeModelName}`
         : line.timeModelName;
     case "sibling":
       return `Geschwister: ${line.childRank ?? ""}. Kind, ${discountText(line.discountBasisPoints, line.discountCents)}`;

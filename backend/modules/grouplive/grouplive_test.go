@@ -173,6 +173,10 @@ func (f *fakes) DecideDay(inputs DayInputs) DayDecision {
 	return f.decide(inputs)
 }
 
+func (f *fakes) InClassUntilCareDayEnd(careDayEnd string, now time.Time) bool {
+	return careDayEnd == "" || now.Format("15:04") < careDayEnd
+}
+
 func (f *fakes) AtSchoolBeforeCheckIn(inputs AtSchoolInputs) bool {
 	if f.atSchool == nil {
 		return false
@@ -275,6 +279,7 @@ func TestCountAtSchoolToday(t *testing.T) {
 		snapshot: func(context.Context, []int64, Date) (PresenceSnapshot, error) {
 			return presenceFake{attendances: map[int64]Attendance{
 				2: {CheckInTime: &fakeNow},
+				4: {CheckInTime: &fakeNow, CheckOutTime: &fakeNow, InClass: true},
 			}}, nil
 		},
 		pickups: func(context.Context, []int64, Date) (map[int64]Pickup, error) {
@@ -289,11 +294,12 @@ func TestCountAtSchoolToday(t *testing.T) {
 		},
 	}
 
-	count, err := newService(f).CountAtSchoolToday(context.Background(), []int64{1, 2, 3})
+	atSchool, inClass, err := newService(f).CountAtSchoolToday(context.Background(), []int64{1, 2, 3, 4})
 
 	require.NoError(t, err)
-	assert.Equal(t, 1, count)
-	assert.Equal(t, []int64{1, 2, 3}, f.snapshotIDs)
+	assert.Equal(t, 1, atSchool)
+	assert.Equal(t, 1, inClass)
+	assert.Equal(t, []int64{1, 2, 3, 4}, f.snapshotIDs)
 }
 
 func fullCaller(context.Context) (Caller, error) {

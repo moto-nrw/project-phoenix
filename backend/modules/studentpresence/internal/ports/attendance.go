@@ -25,6 +25,7 @@ type Attendance struct {
 	CheckedOutDeviceID   *int64
 	YardSince            *time.Time
 	CheckOutNote         *string
+	CheckOutReason       *string
 }
 
 type AttendanceDay struct {

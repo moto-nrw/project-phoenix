@@ -56,6 +56,9 @@ declare module "next-auth" {
       tenantId?: number;
       orgId?: number;
       scope?: string;
+      // Absprung aus dem Träger-Portal (#4654): diese OGS-Sitzung kam über
+      // das Träger-Büro, ohne eigenen Zugang zur Schule.
+      viaTraeger?: boolean;
       // Admin staff-view preview (#2893): true while the session renders the
       // tenant portal through a read-only preview token; previewTargetName /
       // previewTargetAccountId identify the previewed staff member for the
@@ -78,6 +81,7 @@ declare module "next-auth" {
     tenantId?: number;
     orgId?: number;
     scope?: string;
+    viaTraeger?: boolean;
   }
 }
 
@@ -96,6 +100,7 @@ declare module "next-auth/jwt" {
     tenantId?: number;
     orgId?: number;
     scope?: string;
+    viaTraeger?: boolean;
     tokenExpiry?: number;
     refreshTokenExpiry?: number;
     refreshRecoveryProof?: string;
@@ -198,6 +203,7 @@ function syncTokenFromPayload(
 ): void {
   token.tenantId = payload.tenant_id;
   token.orgId = payload.org_id;
+  token.viaTraeger = payload.via_traeger ?? false;
   token.roles = payload.roles ?? [];
   token.roleIsSystem = payload.role_is_system ?? [];
   token.permissions = payload.permissions ?? [];
@@ -249,6 +255,7 @@ export function buildAuthUser(
     tenantId: payload.tenant_id,
     orgId: payload.org_id,
     scope: scope ?? payload.scope,
+    viaTraeger: payload.via_traeger ?? false,
   };
 }
 
@@ -1384,6 +1391,7 @@ const maintainSessionJwt: typeof sharedJwtCallback = async ({
     token.tenantId = user.tenantId;
     token.orgId = user.orgId;
     token.scope = user.scope;
+    token.viaTraeger = user.viaTraeger;
     const accessClaims = authUser.token
       ? parseJwtPayload(authUser.token)
       : null;
@@ -1712,6 +1720,7 @@ export const sharedSessionCallback: NonNullable<
       tenantId: token.tenantId as number | undefined,
       orgId: token.orgId as number | undefined,
       scope: token.scope as string | undefined,
+      viaTraeger: (token.viaTraeger as boolean | undefined) ?? false,
       isPreview: isPreviewActive(token),
       previewTargetName: token.previewTargetName as string | undefined,
       previewTargetAccountId: token.previewTargetAccountId as

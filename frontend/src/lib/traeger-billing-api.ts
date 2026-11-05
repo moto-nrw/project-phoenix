@@ -76,6 +76,22 @@ interface BillingCorrection {
   readonly totalAfterCents: number;
   readonly reason: string;
   readonly createdAt: string;
+  /** The cancelled invoice a release took this correction over from (#5663). */
+  readonly carriedFromNumber: string;
+}
+
+/**
+ * A correction of the cancelled invoice a draft proposes (#5663). The draft
+ * applies `amountCents`; it differs from `sourceAmountCents` only when the
+ * proposal stops at zero.
+ */
+export interface BillingCarriedCorrection {
+  /** Its position on the cancelled invoice; names the proposal. */
+  readonly positionId: string;
+  readonly sourceNumber: string;
+  readonly amountCents: number;
+  readonly sourceAmountCents: number;
+  readonly reason: string;
 }
 
 export interface BillingChild {
@@ -84,6 +100,7 @@ export interface BillingChild {
   readonly lastName: string;
   readonly positions: readonly BillingPosition[];
   readonly corrections: readonly BillingCorrection[];
+  readonly carriedCorrections: readonly BillingCarriedCorrection[];
   readonly totalCents: number;
 }
 
@@ -100,6 +117,8 @@ export interface BillingDocument {
   readonly reason: string;
   /** Storno, Gutschriften and the replacing invoice of an issued invoice. */
   readonly history: readonly BillingDocumentLink[];
+  /** Gutschriften of the cancelled invoice a draft replaces (#5663). */
+  readonly replacedCredits: readonly BillingDocumentLink[];
   /** Empty for a draft. */
   readonly number: string;
   readonly issuedOn: string | null;
@@ -214,6 +233,7 @@ interface BackendDocument {
   reference_number?: string;
   reason?: string;
   history?: BackendDocumentLink[] | null;
+  replaced_credits?: BackendDocumentLink[] | null;
   number: string;
   issued_on: string | null;
   registration_id: number;
@@ -237,6 +257,16 @@ interface BackendDocument {
               total_after_cents: number;
               reason: string;
               created_at: string;
+              carried_from_number?: string;
+            }[]
+          | null;
+        carried_corrections?:
+          | {
+              position_id: number;
+              source_number: string;
+              amount_cents: number;
+              source_amount_cents: number;
+              reason: string;
             }[]
           | null;
         total_cents: number;
@@ -310,21 +340,30 @@ function positionFromBackend(position: BackendPosition): BillingPosition {
   };
 }
 
+function documentLinkFromBackend(
+  link: BackendDocumentLink,
+): BillingDocumentLink {
+  return {
+    id: String(link.id),
+    runId: String(link.run_id),
+    kind: link.kind,
+    number: link.number,
+    issuedOn: link.issued_on,
+    totalCents: link.total_cents,
+    reason: link.reason,
+  };
+}
+
 function documentFromBackend(document: BackendDocument): BillingDocument {
   return {
     id: document.id ? String(document.id) : "",
     kind: document.kind ?? "invoice",
     referenceNumber: document.reference_number ?? "",
     reason: document.reason ?? "",
-    history: (document.history ?? []).map((link) => ({
-      id: String(link.id),
-      runId: String(link.run_id),
-      kind: link.kind,
-      number: link.number,
-      issuedOn: link.issued_on,
-      totalCents: link.total_cents,
-      reason: link.reason,
-    })),
+    history: (document.history ?? []).map(documentLinkFromBackend),
+    replacedCredits: (document.replaced_credits ?? []).map(
+      documentLinkFromBackend,
+    ),
     number: document.number,
     issuedOn: document.issued_on,
     registrationId: String(document.registration_id),
@@ -348,6 +387,14 @@ function documentFromBackend(document: BackendDocument): BillingDocument {
         totalAfterCents: correction.total_after_cents,
         reason: correction.reason,
         createdAt: correction.created_at,
+        carriedFromNumber: correction.carried_from_number ?? "",
+      })),
+      carriedCorrections: (child.carried_corrections ?? []).map((carried) => ({
+        positionId: String(carried.position_id),
+        sourceNumber: carried.source_number,
+        amountCents: carried.amount_cents,
+        sourceAmountCents: carried.source_amount_cents,
+        reason: carried.reason,
       })),
     })),
   };
@@ -424,6 +471,38 @@ export async function correctBillingRun(
         total_cents: correction.totalCents,
         reason: correction.reason,
       },
+    }),
+  );
+}
+
+const carriedPath = (runId: string, positionId: string) =>
+  `${runPath(runId)}/carried-corrections/${encodeURIComponent(positionId)}`;
+
+/**
+ * Replaces a correction a draft proposes with a correction of the run: the
+ * new amount of the child and its reason (#5663).
+ */
+export async function changeCarriedCorrection(
+  runId: string,
+  positionId: string,
+  change: { readonly totalCents: number; readonly reason: string },
+): Promise<BillingRunDetail> {
+  return detailFromBackend(
+    await traegerRequest<BackendRunDetail>(carriedPath(runId, positionId), {
+      method: "PUT",
+      body: { total_cents: change.totalCents, reason: change.reason },
+    }),
+  );
+}
+
+/** Removes a correction a draft proposes; the release leaves it out (#5663). */
+export async function removeCarriedCorrection(
+  runId: string,
+  positionId: string,
+): Promise<BillingRunDetail> {
+  return detailFromBackend(
+    await traegerRequest<BackendRunDetail>(carriedPath(runId, positionId), {
+      method: "DELETE",
     }),
   );
 }

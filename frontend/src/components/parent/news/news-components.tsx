@@ -20,7 +20,6 @@ import { Check, ChevronRight, ExternalLink } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Modal } from "~/components/ui/modal";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { LinkifiedText } from "~/components/ui/linkified-text";
 import { Alert } from "~/components/ui/alert";
@@ -814,8 +813,8 @@ export function NewsCard({
       onClick={() => onOpen(item)}
       className="min-h-12 w-full p-4 shadow-sm active:bg-gray-100"
     >
-      <span className="relative flex size-10 shrink-0 items-center justify-center rounded-xl bg-gray-100">
-        <MotoConceptIcon concept={concept} tone="blue" size={22} />
+      <span className="relative shrink-0">
+        <ConceptIconTile concept={concept} iconTone="blue" />
         {outstanding && (
           <>
             <span
@@ -1072,8 +1071,8 @@ function NewsActionContext({
     <div className="flex items-start gap-3 px-1">
       <ConceptIconTile
         concept={confirmationsConcept}
-        variant="section"
-        tone="blue"
+        size="section"
+        iconTone="blue"
       />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center justify-between gap-2">
