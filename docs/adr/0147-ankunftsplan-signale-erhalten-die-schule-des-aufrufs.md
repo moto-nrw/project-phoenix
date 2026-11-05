@@ -49,7 +49,10 @@ Dies ist die ausdrücklich begrenzte Vertragsmigration gemäß ADR 0067
 Punkt 6 und ADR 0070 Punkt 4, keine Relokation und keine Registererhöhung.
 Die Zahl der Notices bleibt gleich. Positive und negative Fixtures prüfen
 alle 13 Paare. Sobald die Basis diese Migration enthält, ist die
-Normalisierung wirkungslos; sie kann nach dem Merge entfernt werden.
+Normalisierung wirkungslos. Nach dem Produktions-Deploy von #5541 (v1.3.0)
+wurden Hook und Fixtures mit
+[#5545](https://github.com/moto-nrw/project-phoenix/issues/5545) entfernt;
+`sideEffectRegisterOnlyShrinks` vergleicht wieder direkt mit der Basis.
 Typed-Effects- und Pass-through-Inventare müssen die neue schulgebundene
 Bindung abbilden. Policy-Regeln, Owner, Datenobjekte und Transaktionen
 ändern sich nicht.
