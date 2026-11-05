@@ -1,6 +1,6 @@
 {
   "scenario": "workforce.staff_growth.export",
-  "max": 23,
+  "max": 22,
   "exact": true,
   "description": "Full protected resource request, paired positive N=3/N=8 staff and sessions. Includes tenant transaction, real settings and handler. Fixtures outside capture; no SQL floor claimed."
 }
