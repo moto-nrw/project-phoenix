@@ -59,7 +59,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17-alpine
         env:
           POSTGRES_DB: phoenix_perf
           POSTGRES_USER: postgres

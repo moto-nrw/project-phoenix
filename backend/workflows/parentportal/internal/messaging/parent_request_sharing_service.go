@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
 )
 
@@ -361,7 +361,7 @@ func buildSharingRecipients(
 
 func sortSharingRecipients(recipients []RequestSharingRecipient, accountIDs []int64) {
 	sort.Slice(recipients, func(i, j int) bool {
-		return strings.ToLower(recipients[i].LastName+recipients[i].FirstName) < strings.ToLower(recipients[j].LastName+recipients[j].FirstName)
+		return collation.CompareGermanNames(recipients[i].LastName, recipients[i].FirstName, recipients[j].LastName, recipients[j].FirstName) < 0
 	})
 	sort.Slice(accountIDs, func(i, j int) bool { return accountIDs[i] < accountIDs[j] })
 }

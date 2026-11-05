@@ -2,9 +2,9 @@ package timetable
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // Person is a People Directory person as the timetable names it: a staff
@@ -52,11 +52,12 @@ func (s *StaffMember) DisplayName() string {
 // staff pool and the Dienstplan overview present them in.
 func SortStaffByName(staff []*StaffMember) {
 	sort.Slice(staff, func(i, j int) bool {
-		left, right := staffSortName(staff[i]), staffSortName(staff[j])
-		if left == right {
-			return staffSortID(staff[i]) < staffSortID(staff[j])
+		leftLast, leftFirst := staffSortName(staff[i])
+		rightLast, rightFirst := staffSortName(staff[j])
+		if order := collation.CompareGermanNames(leftLast, leftFirst, rightLast, rightFirst); order != 0 {
+			return order < 0
 		}
-		return left < right
+		return staffSortID(staff[i]) < staffSortID(staff[j])
 	})
 }
 
@@ -67,11 +68,11 @@ func staffSortID(staff *StaffMember) int64 {
 	return staff.ID
 }
 
-func staffSortName(staff *StaffMember) string {
+func staffSortName(staff *StaffMember) (last, first string) {
 	if staff == nil || staff.Person == nil {
-		return ""
+		return "", ""
 	}
-	return strings.ToLower(staff.Person.LastName + "\x00" + staff.Person.FirstName)
+	return staff.Person.LastName, staff.Person.FirstName
 }
 
 // LifecycleStudent is the part of a child the instance lifecycle checks:

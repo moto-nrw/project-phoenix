@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // phaseResponseCountedStatuses are the child statuses that count as "the
@@ -368,10 +369,7 @@ func phaseResponseRowLess(a, b enrollment.PhaseResponseRow) bool {
 	if a.Responded != b.Responded {
 		return !a.Responded
 	}
-	if c := strings.Compare(strings.ToLower(a.LastName), strings.ToLower(b.LastName)); c != 0 {
-		return c < 0
-	}
-	return strings.ToLower(a.FirstName) < strings.ToLower(b.FirstName)
+	return collation.CompareGermanNames(a.LastName, a.FirstName, b.LastName, b.FirstName) < 0
 }
 
 func sortedPhaseResponseExclusions(counts map[string]int) []enrollment.PhaseResponseExclusion {

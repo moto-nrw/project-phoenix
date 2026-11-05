@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // ListFolders returns the folders the actor may see plus what the actor may
@@ -183,7 +184,7 @@ func (s *Service) audienceRoles(ctx context.Context) ([]filestorage.AudienceRole
 		return nil, err
 	}
 	slices.SortStableFunc(roles, func(left, right filestorage.AudienceRole) int {
-		return strings.Compare(strings.ToLower(left.Name), strings.ToLower(right.Name))
+		return collation.CompareGerman(left.Name, right.Name)
 	})
 	return roles, nil
 }
@@ -212,10 +213,7 @@ func (s *Service) audienceAccounts(ctx context.Context) ([]filestorage.AudienceA
 		result = append(result, filestorage.AudienceAccount{AccountID: id, FirstName: name.FirstName, LastName: name.LastName})
 	}
 	slices.SortStableFunc(result, func(left, right filestorage.AudienceAccount) int {
-		if order := strings.Compare(strings.ToLower(left.LastName), strings.ToLower(right.LastName)); order != 0 {
-			return order
-		}
-		return strings.Compare(strings.ToLower(left.FirstName), strings.ToLower(right.FirstName))
+		return collation.CompareGermanNames(left.LastName, left.FirstName, right.LastName, right.FirstName)
 	})
 	return result, nil
 }

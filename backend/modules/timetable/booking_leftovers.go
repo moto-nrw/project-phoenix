@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // Booking leftovers (#5102, ADR 0128 addendum of 2026-11-01): the save
@@ -360,7 +361,7 @@ func groupLeftoverDays(templates []BookingLeftoverTemplate, days map[leftoverKey
 		result = append(result, *leftover)
 	}
 	slices.SortFunc(result, func(a, b BookingLeftover) int {
-		if c := strings.Compare(strings.ToLower(a.TemplateName), strings.ToLower(b.TemplateName)); c != 0 {
+		if c := collation.CompareGerman(a.TemplateName, b.TemplateName); c != 0 {
 			return c
 		}
 		if a.TemplateID != b.TemplateID {

@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 )
@@ -25,7 +27,7 @@ type exportEntry struct {
 	request   *Request
 	child     *ExportChildRow               // nil = registration has no children
 	guardians []*capability.RequestGuardian // co-guardians of this submission (nil when none)
-	sortLast  string                        // lower-cased sort key (child surname, or guardian surname when childless)
+	sortLast  string                        // sort key in German collation (child surname, or guardian surname when childless)
 	sortFirst string
 }
 
@@ -62,8 +64,8 @@ func orderedExportEntries(data *PhaseExport) []exportEntry {
 			entries = append(entries, exportEntry{
 				request:   row.Request,
 				guardians: row.Guardians,
-				sortLast:  strings.ToLower(strings.TrimSpace(row.Request.GuardianLastName)),
-				sortFirst: strings.ToLower(strings.TrimSpace(row.Request.GuardianFirstName)),
+				sortLast:  strings.TrimSpace(row.Request.GuardianLastName),
+				sortFirst: strings.TrimSpace(row.Request.GuardianFirstName),
 			})
 			continue
 		}
@@ -73,17 +75,14 @@ func orderedExportEntries(data *PhaseExport) []exportEntry {
 				request:   row.Request,
 				child:     &ch,
 				guardians: row.Guardians,
-				sortLast:  strings.ToLower(strings.TrimSpace(ch.Child.LastName)),
-				sortFirst: strings.ToLower(strings.TrimSpace(ch.Child.FirstName)),
+				sortLast:  strings.TrimSpace(ch.Child.LastName),
+				sortFirst: strings.TrimSpace(ch.Child.FirstName),
 			})
 		}
 	}
 	// Stable so children with identical names keep their submission order.
 	sort.SliceStable(entries, func(i, j int) bool {
-		if entries[i].sortLast != entries[j].sortLast {
-			return entries[i].sortLast < entries[j].sortLast
-		}
-		return entries[i].sortFirst < entries[j].sortFirst
+		return collation.CompareGermanNames(entries[i].sortLast, entries[i].sortFirst, entries[j].sortLast, entries[j].sortFirst) < 0
 	})
 	return entries
 }

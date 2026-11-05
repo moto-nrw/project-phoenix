@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // Period values for the dashboard summary (#1417).
@@ -470,10 +471,7 @@ func compareOverviewRows(a, b TimeTrackingOverviewRow, key string) int {
 	case OverviewSortVacation:
 		order = compareOrdered(a.RemainingVacationDays, b.RemainingVacationDays)
 	default:
-		order = compareOrdered(
-			strings.ToLower(a.LastName+" "+a.FirstName),
-			strings.ToLower(b.LastName+" "+b.FirstName),
-		)
+		order = collation.CompareGermanNames(a.LastName, a.FirstName, b.LastName, b.FirstName)
 	}
 	return orderOr(order, compareOrdered(a.StaffID, b.StaffID))
 }

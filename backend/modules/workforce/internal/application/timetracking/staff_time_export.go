@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // Cross-staff time-tracking export (#1417 Tranche 2b).
@@ -422,7 +423,7 @@ func exportFilename(base string, req TimeExportRequest) string {
 // compareExportStaff preserves name ordering and the staff-ID tiebreak across
 // daily and monthly exports.
 func compareExportStaff(a, b TimeExportStaff) int {
-	order := compareOrdered(strings.ToLower(a.LastName+" "+a.FirstName), strings.ToLower(b.LastName+" "+b.FirstName))
+	order := collation.CompareGermanNames(a.LastName, a.FirstName, b.LastName, b.FirstName)
 	return orderOr(order, compareOrdered(a.ID, b.ID))
 }
 

@@ -128,7 +128,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17-alpine
         env:
           POSTGRES_DB: phoenix_test
           POSTGRES_USER: postgres
@@ -216,10 +216,10 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: backend/.db-snapshot
-          # pg17: bump manually when the postgres service image major version
-          # changes. No restore-keys on purpose — a stale snapshot must never
+          # pg17-alpine: bump manually when the postgres service image changes.
+          # No restore-keys on purpose — a stale snapshot must never
           # be restored; a miss only costs the ~25s migrate path below.
-          key: db-snapshot-pg17-${{ hashFiles('backend/database/migrations/*.go', 'backend/cmd/migrate.go') }}
+          key: db-snapshot-pg17-alpine-${{ hashFiles('backend/database/migrations/*.go', 'backend/cmd/migrate.go') }}
 
       - name: Restore database from snapshot
         if: matrix.shard != 1 && steps.db-snapshot.outputs.cache-hit == 'true'
@@ -236,7 +236,7 @@ jobs:
           # this block too, including role memberships such as pg_read_all_data.
           # A role the dump references fails the restore (ON_ERROR_STOP); a role
           # used only through SET ROLE fails later, in the tests that need it.
-          # Everything runs inside the postgres:17 service container: the
+          # Everything runs inside the postgres:17-alpine service container: the
           # local socket is trust-auth and the runner's psql is v16, which
           # refuses a v17 server.
           docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d phoenix_test <<EOF
@@ -490,7 +490,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17-alpine
         env:
           POSTGRES_DB: phoenix_seed
           POSTGRES_USER: postgres
