@@ -181,7 +181,7 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
 
     fireEvent.click(row("Muster, Eva"));
     const first = screen.getByRole("region", {
-      name: "Vorschau: Rechnung FE-0001",
+      name: "Schreiben: Rechnung FE-0001",
     });
     expect(within(first).getByText("Eva Muster")).toBeInTheDocument();
     expect(await shownLetter("Rechnung FE-0001")).toBe("%PDF FE-0001");
@@ -190,7 +190,7 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
 
     fireEvent.click(row("Beispiel, Jonas"));
     expect(
-      screen.getByRole("region", { name: "Vorschau: Rechnung FE-0002" }),
+      screen.getByRole("region", { name: "Schreiben: Rechnung FE-0002" }),
     ).toBeInTheDocument();
     expect(await shownLetter("Rechnung FE-0002")).toBe("%PDF FE-0002");
     expect(row("Beispiel, Jonas")).toHaveAttribute("aria-current", "true");
@@ -278,7 +278,9 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
     expect(
       screen.getByRole("heading", { name: "Rechnung FE-0001" }),
     ).toHaveFocus();
-    fireEvent.click(screen.getByRole("button", { name: "Vorschau schließen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Schreiben schließen" }),
+    );
     expect(screen.getByText("Noch kein Schreiben gewählt")).toBeInTheDocument();
     expect(row("Muster, Eva")).not.toHaveAttribute("aria-current");
     await waitFor(() => expect(menu).toHaveFocus());

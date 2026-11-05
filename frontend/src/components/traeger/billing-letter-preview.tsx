@@ -96,7 +96,7 @@ export function BillingLetterPreview({
   }, [runId, documentId, attempt, clearLoadError, showLoadError]);
 
   return (
-    <section aria-label={`Vorschau: ${title}`} className="space-y-4">
+    <section aria-label={`Schreiben: ${title}`} className="space-y-4">
       <BackAction
         onClick={onClose}
         label="Zurück zu den Rechnungen"
@@ -130,7 +130,7 @@ export function BillingLetterPreview({
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="Vorschau schließen"
+          aria-label="Schreiben schließen"
           onClick={onClose}
           className="hidden shrink-0 xl:inline-flex"
         >
