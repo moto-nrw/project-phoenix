@@ -83,12 +83,14 @@ func operatorIdentityResponses() identityOperatorAPI.Responses {
 	return identityOperatorAPI.OperatorResponses(provisioningOperatorAPI.ProvisioningErrorRenderer)
 }
 
-// operatorSchoolSettings are the per-school settings routes: Settings
-// Platform's values and Care Plan's review before a school switches to
-// booking-led care (#4072). Both are required.
+// operatorSchoolSettings are the settings routes: Settings Platform's values
+// and Care Plan's review before a school switches to booking-led care
+// (#4072), both required, and Settings Platform's Träger values of an
+// organization (#5748), mounted when present.
 type operatorSchoolSettings struct {
 	values                 *settingsOperatorAPI.SettingsResource
 	bookingAuthorityImpact http.Handler
+	traegerValues          *settingsOperatorAPI.TraegerSettingsResource
 }
 
 // operatorRouter builds the operator routes. billing (#2791) and
@@ -138,6 +140,9 @@ func operatorRouter(
 
 		identityRoutes.mountPasskeyRoutes(r)
 		mountOperatorProvisioningRoutes(r, provisioningRoutes, sampleChildren)
+		if schoolSettings != nil && schoolSettings.traegerValues != nil {
+			mountOperatorTraegerSettingsRoutes(r, provisioningRoutes, schoolSettings.traegerValues)
+		}
 		mountOperatorSchoolRoutes(r, provisioningRoutes, identityRoutes.mfaAdmin, schoolSettings, demoPresenceHistory)
 		mountOperatorPersonRoutes(r, provisioningRoutes)
 		r.Mount("/staff-person-merges", staffPersonMerge)
@@ -313,6 +318,16 @@ func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOpe
 			r.Post("/{id}/sample-children", sampleChildren)
 		}
 	})
+}
+
+// mountOperatorTraegerSettingsRoutes registers the settings of a Träger
+// (#5748) below /organizations/{id}. Reading records an operator read, a
+// change its operator audit entry before it runs; the Träger value and its
+// change log then commit in the Träger transaction.
+func mountOperatorTraegerSettingsRoutes(r chi.Router, provisioning *provisioningOperatorAPI.ProvisioningResource, traeger *settingsOperatorAPI.TraegerSettingsResource) {
+	r.Get("/organizations/{id}/traeger-settings/schema", provisioning.AuditReadAccess(organizationtenancy.ReadTraegerSettings, traeger.GetTraegerSettingsSchema))
+	r.Put("/organizations/{id}/traeger-settings/values/{key}", provisioning.AuditTraegerSettingChange(false, traeger.SetTraegerSettingValue))
+	r.Delete("/organizations/{id}/traeger-settings/values/{key}", provisioning.AuditTraegerSettingChange(true, traeger.ResetTraegerSettingValue))
 }
 
 // mountOperatorSchoolRoutes registers the /schools subtree, including the

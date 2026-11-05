@@ -56,6 +56,7 @@ import { AssignTraegerMemberModal } from "~/app/operator/provisioning/assign-tra
 import { InviteTraegerAccountModal } from "~/components/traeger/traeger-account-modals";
 import { TraegerErasureOrderSection } from "./traeger-erasure-order-section";
 import { TestTraegerSection } from "./test-traeger-section";
+import { TraegerSettingsSection } from "./traeger-settings-section";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { traegerMemberColumns } from "./traeger-member-columns";
 import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-modal";
@@ -84,6 +85,7 @@ const TAB_ITEMS = [
   { id: "geraete", label: "Geräte" },
   { id: "personen", label: "Personen" },
   { id: "traeger-buero", label: "Träger-Büro" },
+  { id: "einstellungen", label: "Einstellungen" },
   { id: "loeschauftrag", label: "Löschauftrag" },
 ] as const;
 
@@ -658,7 +660,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       <div className="mt-6">
         <Tabs value={activeTab} onValueChange={handleTabValueChange}>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            {/* Six tabs do not fit a phone: the row scrolls sideways. */}
+            {/* Seven tabs do not fit a phone: the row scrolls sideways. */}
             <TabsList
               variant="line"
               className="max-w-full min-w-0 justify-start overflow-x-auto"
@@ -793,6 +795,11 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
                 isLoading={traegerMembersLoading}
               />
             )}
+          </TabsPrimitive.Content>
+          <TabsPrimitive.Content value="einstellungen" className="mt-4">
+            {activeTab === "einstellungen" ? (
+              <TraegerSettingsSection organizationId={organization.id} />
+            ) : null}
           </TabsPrimitive.Content>
           <TabsPrimitive.Content value="loeschauftrag" className="mt-4">
             {activeTab === "loeschauftrag" ? (

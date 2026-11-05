@@ -161,6 +161,16 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0132",
+      "id": "modules/settings/inbound/operator/TraegerSettingsResource.GetTraegerSettingsSchema",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0132",
+      "id": "modules/settings/inbound/operator/TraegerSettingsResource.ResetTraegerSettingValue",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0090",
       "id": "modules/settings/internal/adapters/configpostgres/SchoolSetupRepository[S].RestoreDismissedInTraeger",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

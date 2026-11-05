@@ -13,6 +13,7 @@ import (
 // request address stored with it.
 type Provisioning interface {
 	OperatorReadAudit
+	TraegerSettingChangeAudit
 	OrganizationProvisioning
 	SchoolProvisioning
 	AccountProvisioning

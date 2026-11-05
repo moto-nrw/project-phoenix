@@ -98,7 +98,7 @@ func newOperatorRouter(
 	hub *realtime.Hub, active studentpresence.Presence, settingsWrites SettingsWrites, identity identityaccess.Owner,
 	provisioning organizationtenancy.Provisioning, caregivers peoplePorts.CaregiverCapabilityService,
 	lifecycle carePlanModule.CareLifecycle, communication communicationModule.Capability,
-	students importModels.RowImporter[importModels.StudentImportRow],
+	students importModels.RowImporter[importModels.StudentImportRow], traegerSettings settingsOperatorAPI.TraegerOperations,
 ) (chi.Router, error) {
 	tagScanReview := tagScanOperatorAPI.NewResource(tagScanOperatorAPI.Config{
 		Scans:     iot.Fleet(),
@@ -148,6 +148,7 @@ func newOperatorRouter(
 				OperatorID: operatorIDFromSession,
 			}),
 			bookingAuthorityImpact: newBookingAuthorityImpact(lifecycle),
+			traegerValues:          settingsOperatorAPI.NewTraegerSettingsResource(traegerSettings, operatorIDFromSession),
 		},
 		communication,
 		tagScanReview.Router(),
