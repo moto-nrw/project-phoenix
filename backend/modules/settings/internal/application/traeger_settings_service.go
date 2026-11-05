@@ -302,39 +302,7 @@ func (t *TraegerSettings) change(ctx context.Context, organizationID int64, acto
 		}
 	}
 	err := t.deps.Runtime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
-		// The row lock below cannot hold a value that does not exist yet: two
-		// first writes, or a first write and a reset, would both log no old
-		// value. The advisory lock orders every change of this Träger and key.
-		if err := t.deps.Runtime.AcquireLock(txCtx, traegerSettingLockKey(organizationID, key), false); err != nil {
-			return err
-		}
-		existing, err := t.deps.Values.LockByOrganizationAndKey(txCtx, organizationID, key)
-		if err != nil {
-			return err
-		}
-		if action == "set" {
-			err = t.deps.Values.Upsert(txCtx, &config.TraegerSettingValue{OrganizationID: organizationID, SettingKey: key, Value: value, UpdatedBy: actor.account})
-		} else {
-			err = t.deps.Values.Delete(txCtx, organizationID, key)
-		}
-		if err != nil {
-			return err
-		}
-		var old json.RawMessage
-		if existing != nil {
-			old = existing.Value
-		}
-		now := t.deps.Now()
-		entry := &config.TraegerSettingAuditEntry{
-			OrganizationID: organizationID, SettingKey: key, OldValue: old, NewValue: value,
-			Action: action, ChangedBy: actor.account, ChangedByOperator: actor.operator, ChangedAt: now,
-		}
-		// Retention: changes are kept as long as the school's setting
-		// changes; each change of the Träger drops older ones.
-		if err := t.deps.Values.RecordChange(txCtx, entry, now.AddDate(-t.deps.AuditRetentionYears, 0, 0)); err != nil {
-			return err
-		}
-		return nil
+		return t.writeChange(txCtx, organizationID, actor, key, action, value)
 	})
 	if err != nil {
 		return &config.SettingsError{Op: "traeger_" + action + "_value", Err: err}
@@ -347,6 +315,44 @@ func (t *TraegerSettings) change(ctx context.Context, organizationID int64, acto
 	)
 	// The command owns its Träger transaction, so it has committed here.
 	t.notifySchools(ctx, organizationID, key)
+	return nil
+}
+
+// writeChange writes the Träger value of key and its change-log entry in the
+// caller's Träger transaction.
+func (t *TraegerSettings) writeChange(txCtx context.Context, organizationID int64, actor traegerActor, key, action string, value json.RawMessage) error {
+	// The row lock below cannot hold a value that does not exist yet: two
+	// first writes, or a first write and a reset, would both log no old
+	// value. The advisory lock orders every change of this Träger and key.
+	if err := t.deps.Runtime.AcquireLock(txCtx, traegerSettingLockKey(organizationID, key), false); err != nil {
+		return err
+	}
+	existing, err := t.deps.Values.LockByOrganizationAndKey(txCtx, organizationID, key)
+	if err != nil {
+		return err
+	}
+	if action == "set" {
+		err = t.deps.Values.Upsert(txCtx, &config.TraegerSettingValue{OrganizationID: organizationID, SettingKey: key, Value: value, UpdatedBy: actor.account})
+	} else {
+		err = t.deps.Values.Delete(txCtx, organizationID, key)
+	}
+	if err != nil {
+		return err
+	}
+	var old json.RawMessage
+	if existing != nil {
+		old = existing.Value
+	}
+	now := t.deps.Now()
+	entry := &config.TraegerSettingAuditEntry{
+		OrganizationID: organizationID, SettingKey: key, OldValue: old, NewValue: value,
+		Action: action, ChangedBy: actor.account, ChangedByOperator: actor.operator, ChangedAt: now,
+	}
+	// Retention: changes are kept as long as the school's setting
+	// changes; each change of the Träger drops older ones.
+	if err := t.deps.Values.RecordChange(txCtx, entry, now.AddDate(-t.deps.AuditRetentionYears, 0, 0)); err != nil {
+		return err
+	}
 	return nil
 }
 
