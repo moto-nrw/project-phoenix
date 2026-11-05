@@ -18,9 +18,9 @@ type TraegerSettingChange struct {
 }
 
 // TraegerSettingChangeAudit records the operator audit entry of a Träger
-// setting change. It commits before the change runs, so no change happens
-// without its operator audit entry; an unknown Träger answers
-// OrganizationNotFoundError.
+// setting change. The change calls it after its checks and before it writes,
+// so no change happens without its operator audit entry; an unknown Träger
+// answers OrganizationNotFoundError.
 type TraegerSettingChangeAudit interface {
 	RecordTraegerSettingChange(ctx context.Context, change TraegerSettingChange) error
 }

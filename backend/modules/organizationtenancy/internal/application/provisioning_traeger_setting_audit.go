@@ -14,10 +14,11 @@ var settingKeyPattern = regexp.MustCompile(`^[a-z0-9_.]{1,255}$`)
 
 // RecordTraegerSettingChange records the operator audit entry of a change of
 // a Träger setting (#5748) on the administrative unit, after checking that
-// the Träger exists. It commits before the change runs: the Träger value and
-// its change log live in the Träger transaction, which cannot join an
-// administrative one, so the entry is the record of the attempt and a failed
-// audit stops the change.
+// the Träger exists. The settings change calls it after the registry's checks
+// and before it writes: the Träger value and its change log live in the
+// Träger transaction, which cannot join an administrative one. A failed audit
+// stops the change; the change log names the operator of every change that
+// committed.
 func (p *Provisioning) RecordTraegerSettingChange(ctx context.Context, change organizationtenancy.TraegerSettingChange) error {
 	if change.OperatorID <= 0 {
 		return invalidData("operator is required")

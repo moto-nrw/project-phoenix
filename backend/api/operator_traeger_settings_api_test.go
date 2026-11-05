@@ -22,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	provisioningAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
-	settingsOperatorAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
 	"github.com/moto-nrw/project-phoenix/modules/settings/records"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -48,7 +47,7 @@ func TestOperatorChangesTheSettingsOfOneTraeger(t *testing.T) {
 	operator := chi.NewRouter()
 	mountOperatorTraegerSettingsRoutes(operator,
 		provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: buildOperatorProvisioning(t, db)}),
-		settingsOperatorAPI.NewTraegerSettingsResource(traegerSettings, operatorIDFromSession))
+		traegerSettings)
 	call := func(method, path string, body any) *httptest.ResponseRecorder {
 		var payload bytes.Buffer
 		if body != nil {
@@ -86,10 +85,10 @@ func TestOperatorChangesTheSettingsOfOneTraeger(t *testing.T) {
 
 	rec = call(http.MethodPut, base+"/values/"+key, map[string]any{"value": true})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	// The entry commits before the change runs, so every attempt on this
-	// Träger stands in it: the invalid value, the school-only key and the
-	// change. The unknown Träger left none.
-	assert.Equal(t, 3, operatorAudit("update"), "every change attempt is in the operator audit")
+	// The entry commits after the registry's checks and before the change:
+	// the invalid value and the school-only key left none, the unknown
+	// Träger neither.
+	assert.Equal(t, 1, operatorAudit("update"), "the change is in the operator audit")
 	var unknown int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.operator_audit_log
 		WHERE operator_id = ? AND resource_type = 'traeger_setting' AND resource_id = ?`, operatorID, foreign+100000).Scan(ctx, &unknown))

@@ -54,6 +54,8 @@ export function TraegerSettingsSection({
     "die Einstellungen des Trägers",
     () => void mutate(),
   );
+  // The catch stays silent: SWR keeps the failed reload's error, and
+  // useSwrLoadError shows it with a retry in place of the tab.
   const refresh = useCallback(
     () => void mutate().catch(() => undefined),
     [mutate],
@@ -108,7 +110,7 @@ export function TraegerSettingsSection({
     <div className="space-y-8">
       <Alert
         type="info"
-        message="Sie ändern hier die Werte des Trägers für alle seine Schulen, so wie im Träger-Portal. Jede Änderung steht im Änderungsprotokoll des Trägers, mit Ihnen als Operator."
+        message="Sie ändern hier die Werte des Trägers für alle seine Schulen, so wie im Träger-Portal. moto speichert zu jeder Änderung, dass Sie sie als Operator gemacht haben."
       />
       {data.tabs.map((tab) => {
         const paymentText =

@@ -148,7 +148,7 @@ func newOperatorRouter(
 				OperatorID: operatorIDFromSession,
 			}),
 			bookingAuthorityImpact: newBookingAuthorityImpact(lifecycle),
-			traegerValues:          settingsOperatorAPI.NewTraegerSettingsResource(traegerSettings, operatorIDFromSession),
+			traegerValues:          traegerSettings,
 		},
 		communication,
 		tagScanReview.Router(),

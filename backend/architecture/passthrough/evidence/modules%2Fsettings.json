@@ -233,7 +233,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (rs *TraegerSettingsResource) ResetTraegerSettingValue(w http.ResponseWriter, r *http.Request) {\n\torganizationID, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid organization ID\")\n\tif !ok {\n\t\treturn\n\t}\n\tif err := rs.operations.OperatorResetValue(r.Context(), organizationID, rs.operatorID(r.Context()), chi.URLParam(r, \"key\")); err != nil {\n\t\trenderOperatorSettingsError(w, r, err)\n\t\treturn\n\t}\n\tcommon.RespondNoContent(w, r)\n}",
+      "evidence": "func (rs *TraegerSettingsResource) ResetTraegerSettingValue(w http.ResponseWriter, r *http.Request) {\n\torganizationID, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid organization ID\")\n\tif !ok {\n\t\treturn\n\t}\n\tkey := chi.URLParam(r, \"key\")\n\tif err := rs.operations.OperatorResetValue(r.Context(), organizationID, rs.operatorID(r.Context()), key, rs.beforeChange(w, r, key, true)); err != nil {\n\t\trenderChangeError(w, r, err)\n\t\treturn\n\t}\n\tcommon.RespondNoContent(w, r)\n}",
       "form": "unclassified-evidence",
       "id": "modules/settings/inbound/operator/TraegerSettingsResource.ResetTraegerSettingValue",
       "owner": "modules/settings"
