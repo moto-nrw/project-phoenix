@@ -7,6 +7,7 @@ const { state } = vi.hoisted(() => ({
   state: {
     permissions: [] as string[],
     runs: undefined as BillingRun[] | undefined,
+    error: undefined as Error | undefined,
     keys: [] as (string | null)[],
   },
 }));
@@ -20,7 +21,10 @@ vi.mock("next-auth/react", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (key: string | null) => {
     state.keys.push(key);
-    return { data: key ? state.runs : undefined };
+    return {
+      data: key ? state.runs : undefined,
+      error: key ? state.error : undefined,
+    };
   },
 }));
 vi.mock("~/lib/traeger-billing-api", () => ({ fetchBillingRuns: vi.fn() }));
@@ -58,7 +62,7 @@ describe("billingPathForPeriod", () => {
     );
   });
 
-  it("filters the list with several runs, none, or before they load", () => {
+  it("filters the list with several runs, none, or when they cannot be read", () => {
     const filtered = "/traeger/abrechnung?ferienzeitraum=5";
     expect(billingPathForPeriod("5", [run("9", "5"), run("10", "5")])).toBe(
       filtered,
@@ -72,7 +76,34 @@ describe("HolidayPeriodBillingLink", () => {
   beforeEach(() => {
     state.permissions = ["traeger_billing:manage"];
     state.runs = [run("9", "5")];
+    state.error = undefined;
     state.keys = [];
+  });
+
+  it("waits for the runs before it offers a destination", () => {
+    state.runs = undefined;
+    const pending = render(<HolidayPeriodBillingLink period={PERIOD} />);
+
+    expect(pending.container).toBeEmptyDOMElement();
+    expect(state.keys).toEqual(["traeger-billing-run-list"]);
+    pending.unmount();
+
+    state.runs = [run("9", "5")];
+    render(<HolidayPeriodBillingLink period={PERIOD} />);
+    // Anker: sobald die Läufe da sind, führt die Aktion zum einzigen Lauf.
+    expect(
+      screen.getByRole("link", { name: "Zur Abrechnung" }),
+    ).toHaveAttribute("href", "/abrechnung/9");
+  });
+
+  it("leads to the filtered list when the runs cannot be read", () => {
+    state.runs = undefined;
+    state.error = new Error("load failed");
+    render(<HolidayPeriodBillingLink period={PERIOD} />);
+
+    expect(
+      screen.getByRole("link", { name: "Zur Abrechnung" }),
+    ).toHaveAttribute("href", "/abrechnung?ferienzeitraum=5");
   });
 
   it("leads to the run of the period with the billing right", () => {

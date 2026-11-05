@@ -30,7 +30,7 @@ function billingListPathForPeriod(periodId: string): string {
 
 /**
  * Wohin „Zur Abrechnung“ führt: genau ein Lauf des Zeitraums öffnet seine
- * Seite, sonst (kein Lauf, mehrere, noch nicht geladen) die gefilterte Liste.
+ * Seite, sonst (kein Lauf, mehrere, Läufe nicht lesbar) die gefilterte Liste.
  */
 export function billingPathForPeriod(
   periodId: string,
@@ -52,11 +52,13 @@ export function HolidayPeriodBillingLink({
     period?.status === "published";
   // Ein Fehler beim Laden der Läufe zeigt nichts an: Die Aktion führt dann
   // zur gefilterten Liste, und die meldet ihren eigenen Ladefehler.
-  const { data: runs } = useSWRAuth(
+  const { data: runs, error } = useSWRAuth(
     allowed ? traegerKeys.billingRuns() : null,
     fetchBillingRuns,
   );
-  if (!allowed || !period) return null;
+  // Erst mit den Läufen steht das Ziel fest; ein Klick davor führte an einem
+  // einzigen Lauf vorbei zur Liste.
+  if (!allowed || !period || (runs === undefined && !error)) return null;
   return (
     <ButtonLink
       href={traegerPath(billingPathForPeriod(period.id, runs))}
