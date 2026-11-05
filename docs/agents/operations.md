@@ -742,8 +742,8 @@ names with an umlaut, an accent or a lowercase particle would land behind Z.
 CI runs the same alpine image as production, demo and local development.
 
 ICU collations are versioned, and an alpine image update can bring another
-ICU version. Postgres then warns on connect that the collation version does
-not match. Indexes on those columns may sort differently afterwards. To fix
+ICU version. Postgres then warns that the collation version does not match
+when a session first uses the collation. Indexes on those columns may sort differently afterwards. To fix
 it on the affected database:
 
 1. List the affected indexes:

@@ -19,7 +19,9 @@ var germanCollators = sync.Pool{
 	New: func() any {
 		// IgnoreCase keeps diacritics significant (Müller != Muller)
 		// while ignoring letter case; Loose would drop diacritics too.
-		return collate.New(language.German, collate.IgnoreCase)
+		// Numeric compares digit runs by value ("Raum 2" < "Raum 10"),
+		// like the database collation public.german_name (#4949).
+		return collate.New(language.German, collate.IgnoreCase, collate.Numeric)
 	},
 }
 

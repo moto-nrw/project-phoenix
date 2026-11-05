@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 type rosterDeviationResponse struct {
@@ -198,7 +199,7 @@ func namedDeviationChildren(children []timetable.RosterDeviationChild, names map
 		}
 	}
 	slices.SortFunc(result, func(left, right rosterDeviationChildResponse) int {
-		return strings.Compare(strings.ToLower(left.Name), strings.ToLower(right.Name))
+		return collation.CompareGerman(left.Name, right.Name)
 	})
 	return result
 }
@@ -490,7 +491,7 @@ func namedPreviewStudents(studentIDs []int64, names map[int64]string) []offering
 		}
 	}
 	slices.SortFunc(students, func(left, right offeringPreviewStudentResponse) int {
-		return strings.Compare(strings.ToLower(left.Name), strings.ToLower(right.Name))
+		return collation.CompareGerman(left.Name, right.Name)
 	})
 	return students
 }
