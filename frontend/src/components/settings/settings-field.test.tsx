@@ -685,6 +685,45 @@ describe("SettingsField", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the example of the registry in an empty textarea, also after a reset (#5693)", async () => {
+    const example = "Musterträger e. V.\nMusterstraße 1\n12345 Musterstadt";
+    const onReset = vi.fn().mockResolvedValue(null);
+    const props = { onSave: vi.fn().mockResolvedValue(null), onReset };
+    const filled = makeSetting({
+      key: "branding.letterhead_text",
+      label: "Absender im Briefkopf",
+      type: "textarea",
+      default: "",
+      value: "Förderverein OGS e. V.",
+      is_default: false,
+      placeholder: example,
+    });
+    const { getByRole, rerender } = renderWithProviders(
+      <SettingsField setting={filled} {...props} />,
+    );
+    const field = getByRole("textbox", { name: "Absender im Briefkopf" });
+    expect(field).toHaveValue("Förderverein OGS e. V.");
+    expect(field).toHaveAttribute("placeholder", example);
+    // As tall as the example plus two lines to type, not the ten of a long text.
+    expect(field).toHaveAttribute("rows", "5");
+
+    fireEvent.click(getByRole("button", { name: /zurücksetzen/i }));
+    await waitFor(() => expect(onReset).toHaveBeenCalledWith(filled.key));
+    rerender(
+      <ToastProvider>
+        <SettingsField
+          setting={{ ...filled, value: "", is_default: true }}
+          {...props}
+        />
+      </ToastProvider>,
+    );
+
+    // The example is only a placeholder: the field itself stays empty.
+    expect(field).toHaveValue("");
+    expect(field).toHaveAttribute("placeholder", example);
+    expect(props.onSave).not.toHaveBeenCalled();
+  });
+
   it("hides reset button for enrollment legal text fields", () => {
     const { container, getByText } = renderWithProviders(
       <SettingsField
@@ -1476,5 +1515,63 @@ describe("SettingsField", () => {
         ),
       );
     });
+  });
+});
+
+// A text limit of the registry counts characters (code points) like the
+// backend, not UTF-16 units like the browser's maxLength (#5622): an emoji
+// is one character.
+describe("SettingsField text limit", () => {
+  const limited = makeSetting({
+    key: "test.limited_text",
+    type: "textarea",
+    default: "",
+    value: "",
+    validation: { allow_empty: true, max_length: 10 },
+  });
+
+  it("takes as many characters as the limit allows, with an emoji at the end", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={limited}
+        onSave={onSave}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    const field = getByRole("textbox", { name: "Test Setting" });
+    // The browser would count the emoji as two and refuse the last one.
+    expect(field).not.toHaveAttribute("maxlength");
+
+    const text = `${"a".repeat(9)}😀`;
+    expect(text).toHaveLength(11);
+    fireEvent.change(field, { target: { value: text } });
+    fireEvent.blur(field);
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith("test.limited_text", text),
+    );
+    expect(field).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("refuses one character more at the field before saving", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole, findByText } = renderWithProviders(
+      <SettingsField
+        setting={limited}
+        onSave={onSave}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+    const field = getByRole("textbox", { name: "Test Setting" });
+    fireEvent.change(field, { target: { value: `${"a".repeat(10)}😀` } });
+    fireEvent.blur(field);
+
+    const hint = await findByText(
+      "Der Text ist zu lang. Erlaubt sind 10 Zeichen.",
+    );
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAttribute("aria-describedby", hint.id);
+    expect(onSave).not.toHaveBeenCalled();
   });
 });

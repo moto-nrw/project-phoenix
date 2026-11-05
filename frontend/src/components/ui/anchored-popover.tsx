@@ -1,7 +1,9 @@
 "use client";
 
+import { Z_INDEX } from "./overlay-styles";
 import {
   type CSSProperties,
+  type HTMLAttributes,
   type ReactNode,
   type RefObject,
   useCallback,
@@ -24,6 +26,16 @@ interface AnchoredPopoverProps {
   readonly onOpenChange: (open: boolean) => void;
   readonly ariaLabel: string;
   readonly initialFocusRef?: RefObject<HTMLElement | null>;
+  /**
+   * Ob der Fokus beim Schließen auf den Auslöser zurückgeht. Aus nur für einen
+   * Rahmen, der den Fokus nie bekommen hat, etwa beim Öffnen per Darüberfahren.
+   */
+  readonly restoreFocusOnClose?: boolean;
+  /** Handler für den Rahmen selbst, samt Rand und Scrollleiste. */
+  readonly panelHandlers?: Pick<
+    HTMLAttributes<HTMLDivElement>,
+    "onPointerEnter" | "onPointerLeave" | "onFocus"
+  >;
   readonly preferredWidth?: number;
   readonly align?: "start" | "end";
   readonly className?: string;
@@ -44,6 +56,8 @@ export function AnchoredPopover({
   onOpenChange,
   ariaLabel,
   initialFocusRef,
+  restoreFocusOnClose = true,
+  panelHandlers,
   preferredWidth,
   align = "start",
   className,
@@ -64,9 +78,9 @@ export function AnchoredPopover({
   const close = useCallback(
     (restoreFocus = true) => {
       onOpenChange(false);
-      if (restoreFocus) triggerRef.current?.focus();
+      if (restoreFocus && restoreFocusOnClose) triggerRef.current?.focus();
     },
-    [onOpenChange],
+    [onOpenChange, restoreFocusOnClose],
   );
 
   const updatePosition = useCallback(() => {
@@ -95,7 +109,7 @@ export function AnchoredPopover({
 
     const style: CSSProperties = {
       position: scope ? "absolute" : "fixed",
-      zIndex: 10000,
+      zIndex: Z_INDEX.menu,
       left: coordinateLeft,
       width,
       maxHeight: Math.min(DEFAULT_MAX_HEIGHT, availableHeight),
@@ -181,6 +195,7 @@ export function AnchoredPopover({
         role="dialog"
         aria-label={ariaLabel}
         data-overflow-menu-scope="true"
+        {...panelHandlers}
         onKeyDown={(event) => {
           if (event.key !== "Escape") return;
           event.preventDefault();
@@ -196,7 +211,7 @@ export function AnchoredPopover({
       >
         {children({
           close: () => close(),
-          overflowMenuPortal: { ownerId: panelId, zIndex: 10001 },
+          overflowMenuPortal: { ownerId: panelId, zIndex: Z_INDEX.popover },
         })}
       </div>
     ) : null;

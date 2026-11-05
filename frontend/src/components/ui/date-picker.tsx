@@ -1,5 +1,6 @@
 "use client";
 
+import { Z_INDEX, Z_LAYER } from "./overlay-styles";
 import {
   Suspense,
   useState,
@@ -546,7 +547,7 @@ export function DatePicker({
               <FocusScope asChild loop trapped>
                 <div
                   ref={popoverRef}
-                  className="fixed z-[10001] max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain"
+                  className={`fixed ${Z_LAYER.popover} max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain`}
                   style={{
                     top: popoverPosition.top,
                     left: popoverPosition.left,
@@ -561,7 +562,7 @@ export function DatePicker({
             ) : (
               <div
                 ref={popoverRef}
-                className="fixed z-[10001] max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain"
+                className={`fixed ${Z_LAYER.popover} max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain`}
                 style={{
                   top: popoverPosition.top,
                   left: popoverPosition.left,
@@ -1080,22 +1081,16 @@ function buildMonthLabels(locale: Locale): string[] {
 const DEFAULT_YEARS_BACK = 100;
 const DEFAULT_YEARS_AHEAD = 5;
 
-// One above the calendar's own portal (z-[10001]), so the month/year menu opens
-// on top of the calendar surface instead of behind it.
-const NAV_MENU_Z_INDEX = 10002;
+// One above the calendar's own portal (`Z_LAYER.popover`), so the month/year
+// menu opens on top of the calendar surface instead of behind it.
+const NAV_MENU_Z_INDEX = Z_INDEX.popoverMenu;
 
-// The menu surface is the caller's job in this kit component — without these it
-// renders as unstyled text floating over the calendar. min-w keeps a 46px-wide
-// year trigger from producing an unclickably narrow list.
-const NAV_MENU_CLASS =
-  "scrollbar-thin min-w-24 overflow-y-auto moto-popover-surface rounded-xl border py-1";
-const NAV_OPTION_CLASS =
-  "flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50";
-const NAV_OPTION_ACTIVE_CLASS =
-  "flex w-full cursor-pointer items-center gap-2 bg-gray-50 px-4 py-2 text-left text-sm font-medium text-gray-900 transition-colors";
+// min-w keeps a 46px-wide year trigger from producing an unclickably narrow
+// list. Surface and options are the kit listbox's own.
+const NAV_MENU_CLASS = "min-w-24";
 
 const NAV_SELECT_CLASS =
-  "inline-flex h-9 w-full min-w-0 cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-lg border border-gray-200 bg-white px-2.5 text-sm leading-5 font-medium text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
+  "w-full min-w-0 cursor-pointer gap-1.5 overflow-hidden px-2.5 leading-5 font-medium";
 
 // The offered years always include the month currently on screen, so a value
 // outside the caller's bounds (legacy data) still shows its own year instead of
@@ -1185,10 +1180,9 @@ function CalendarNavHeader({
               onMonthChange(new Date(month.getFullYear(), Number(next), 1))
             }
             containerClassName="relative min-w-0"
+            size="compact"
             className={NAV_SELECT_CLASS}
             menuClassName={NAV_MENU_CLASS}
-            optionClassName={NAV_OPTION_CLASS}
-            activeOptionClassName={NAV_OPTION_ACTIVE_CLASS}
             menuZIndex={NAV_MENU_Z_INDEX}
             portalScopeSelector="[data-date-picker-panel]"
             triggerRole="combobox"
@@ -1204,10 +1198,9 @@ function CalendarNavHeader({
               onMonthChange(new Date(Number(next), month.getMonth(), 1))
             }
             containerClassName="relative min-w-0"
+            size="compact"
             className={NAV_SELECT_CLASS}
             menuClassName={NAV_MENU_CLASS}
-            optionClassName={NAV_OPTION_CLASS}
-            activeOptionClassName={NAV_OPTION_ACTIVE_CLASS}
             menuZIndex={NAV_MENU_Z_INDEX}
             portalScopeSelector="[data-date-picker-panel]"
             triggerRole="combobox"

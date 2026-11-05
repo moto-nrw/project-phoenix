@@ -55,6 +55,8 @@ type contributionBody struct {
 	BenefitsExemption  bool    `json:"benefits_exemption"`
 	Frozen             bool    `json:"frozen"`
 	ConfirmedAt        *string `json:"confirmed_at"`
+	// Invoiced reports an issued invoice of the registration (#5621).
+	Invoiced bool `json:"invoiced"`
 }
 
 type confirmationBody struct {
@@ -69,6 +71,12 @@ func holidayContributionPath(periodID, registrationID int64) string {
 
 func holidayConfirmPath(periodID, registrationID int64) string {
 	return holidayContributionPath(periodID, registrationID) + "/confirm"
+}
+
+// holidayCancelPath is the cancellation, which the Elternabrechnung serves
+// so it can compute the sibling group again (#5662).
+func holidayCancelPath(periodID, registrationID int64) string {
+	return holidayContributionPath(periodID, registrationID) + "/cancel"
 }
 
 func holidayQuotePath(token string) string { return "/traeger/holiday-quotes/" + token }

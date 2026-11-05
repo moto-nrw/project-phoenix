@@ -44,6 +44,8 @@ export interface ResolvedSetting {
   key: string;
   label: string;
   description: string;
+  /** Grey example of an empty textarea; never a value (#5693). */
+  placeholder?: string;
   type:
     | "boolean"
     | "number"
@@ -79,6 +81,8 @@ export interface ResolvedSetting {
     min?: number;
     max?: number;
     pattern?: string;
+    allow_empty?: boolean;
+    max_length?: number;
   } | null;
   depends_on?: {
     key: string;

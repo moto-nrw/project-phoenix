@@ -28,7 +28,7 @@ func TestCheckOutStudentWithNote_StoresTrimmedNoteOnClosedStay(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "checkout-note-device-001")
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, time.Now().Add(-1*time.Hour), nil)
 
-	result, err := service.CheckOutStudentWithNote(ctx, student.ID, staff.ID, "  Arzttermin  ", true)
+	result, err := service.CheckOutStudentWithNote(ctx, student.ID, staff.ID, "  Arzttermin  ", "", true)
 	require.NoError(t, err)
 	require.True(t, result.Changed)
 
@@ -39,7 +39,7 @@ func TestCheckOutStudentWithNote_StoresTrimmedNoteOnClosedStay(t *testing.T) {
 	assert.Equal(t, "Arzttermin", *status.CheckOutNote)
 
 	// An idempotent retry with another note must not rewrite the closed stay.
-	repeat, err := service.CheckOutStudentWithNote(ctx, student.ID, staff.ID, "Anderer Grund", true)
+	repeat, err := service.CheckOutStudentWithNote(ctx, student.ID, staff.ID, "Anderer Grund", "", true)
 	require.NoError(t, err)
 	assert.False(t, repeat.Changed)
 
@@ -61,7 +61,7 @@ func TestCheckOutStudentWithNote_BlankNoteStoresNothing(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "checkout-note-device-002")
 	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, time.Now().Add(-1*time.Hour), nil)
 
-	_, err := service.CheckOutStudentWithNote(ctx, student.ID, staff.ID, "   ", true)
+	_, err := service.CheckOutStudentWithNote(ctx, student.ID, staff.ID, "   ", "", true)
 	require.NoError(t, err)
 
 	status, err := service.GetStudentAttendanceStatus(ctx, student.ID)
@@ -84,7 +84,7 @@ func TestCheckOutStudentWithNote_RejectsTooLongNoteWithoutCheckingOut(t *testing
 
 	// Multi-byte runes: the limit counts characters, not bytes.
 	exact := strings.Repeat("ä", studentpresence.MaxCheckoutNoteLength)
-	_, err := service.CheckOutStudentWithNote(ctx, student.ID, staff.ID, exact+"ä", true)
+	_, err := service.CheckOutStudentWithNote(ctx, student.ID, staff.ID, exact+"ä", "", true)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, studentpresence.ErrCheckoutNoteTooLong))
 
@@ -92,7 +92,7 @@ func TestCheckOutStudentWithNote_RejectsTooLongNoteWithoutCheckingOut(t *testing
 	require.NoError(t, err)
 	assert.Equal(t, "checked_in", status.Status, "a rejected note must leave the child checked in")
 
-	_, err = service.CheckOutStudentWithNote(ctx, student.ID, staff.ID, exact, true)
+	_, err = service.CheckOutStudentWithNote(ctx, student.ID, staff.ID, exact, "", true)
 	require.NoError(t, err)
 	status, err = service.GetStudentAttendanceStatus(ctx, student.ID)
 	require.NoError(t, err)

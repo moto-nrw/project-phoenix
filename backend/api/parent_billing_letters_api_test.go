@@ -305,7 +305,7 @@ func TestBillingLettersWithStoredInterlacedLogo(t *testing.T) {
 
 // The letters are written with the Träger's current template of the
 // confirmation letter and keep its version; a later version changes no
-// issued letter (#4677, ADR 0150).
+// issued letter (#4677, ADR 0152).
 func TestBillingLettersKeepTheTemplateVersionTheyWereWrittenWith(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Träger Schreiben Vorlage")

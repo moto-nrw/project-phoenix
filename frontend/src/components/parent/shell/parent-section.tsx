@@ -34,7 +34,7 @@ export function ParentSection({
         description={description}
         leading={
           concept ? (
-            <ConceptIconTile concept={concept} variant="section" />
+            <ConceptIconTile concept={concept} size="section" />
           ) : undefined
         }
         actions={

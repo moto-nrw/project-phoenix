@@ -184,6 +184,23 @@ describe("CSP security boundaries", () => {
     );
   });
 
+  it.each([
+    ["school-a.localhost:3000", "/dashboard"],
+    [SCHOOL_HOSTNAME, "/login"],
+    [OPERATOR_HOSTNAME, "/login"],
+  ])(
+    "frames only the own origin and loaded PDFs on %s%s (#5692)",
+    (host, path) => {
+      const res = proxy(makeRequest(`http://${host}${path}`, host));
+      const directives = res.headers
+        .get("Content-Security-Policy")
+        ?.split("; ");
+      expect(
+        directives?.filter((value) => value.startsWith("frame-src ")),
+      ).toEqual(["frame-src 'self' blob:"]);
+    },
+  );
+
   it.each(["production", "development"])(
     "keeps the expected script sources in %s",
     async (environment) => {
@@ -1257,6 +1274,28 @@ describe("proxy", () => {
       expect(res.headers.get("location")).toBeNull();
       expect(res.headers.get("x-middleware-rewrite")).toContain(
         "/traeger/access-log",
+      );
+    });
+
+    it("rewrites the view of a school to /traeger/schulen (#5686)", () => {
+      const res = proxy(
+        makeRequest(`http://${TRAEGER_HOSTNAME}/schulen/2`, TRAEGER_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/schulen/2",
+      );
+    });
+
+    it("rewrites the dashboard to /traeger/uebersicht (#4674)", () => {
+      const res = proxy(
+        makeRequest(`http://${TRAEGER_HOSTNAME}/uebersicht`, TRAEGER_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/uebersicht",
       );
     });
 

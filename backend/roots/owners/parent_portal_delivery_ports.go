@@ -32,7 +32,7 @@ func (r parentAttendanceReader) ListAttendance(ctx context.Context, filter paren
 	}
 	out := make([]parentportal.Attendance, len(rows))
 	for i, row := range rows {
-		out[i] = parentportal.Attendance{CheckInTime: row.CheckInTime, CheckOutTime: row.CheckOutTime}
+		out[i] = parentportal.Attendance{LeftForClass: row.LeftForClass(), CheckInTime: row.CheckInTime, CheckOutTime: row.CheckOutTime}
 	}
 	return out, nil
 }

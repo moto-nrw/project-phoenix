@@ -37,6 +37,7 @@ import {
 } from "~/lib/calendar-period-helpers";
 import type { CalendarPeriodsState } from "~/components/planning/use-calendar-periods";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 export { useCalendarPeriods } from "~/components/planning/use-calendar-periods";
 
@@ -253,11 +254,7 @@ export function CalendarPeriodsEditor({
   if (showEmptyState) {
     body = (
       <EmptyState
-        icon={
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-            <MotoConceptIcon concept={calendarPeriodsConcept} size={28} />
-          </span>
-        }
+        icon={<ConceptIconTile concept={calendarPeriodsConcept} size="page" />}
         title="Noch keine Kalenderzeiträume"
         description="Legen Sie das nächste Halbjahr an, damit Anmeldephasen und Betreuungsplan darauf verweisen können."
       />

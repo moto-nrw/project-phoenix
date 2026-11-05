@@ -41,6 +41,9 @@ func TestHolidayRegistrationsGoNinetyTwoDaysAfterTheirPeriodAndInvoicesStay(t *t
 	ctx := context.Background()
 	organization := f.office.organization
 	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	_, err := f.db.ExecContext(ctx, `UPDATE enrollment.holiday_registrations SET guardian_address_street = 'Musterweg 12',
+		guardian_address_postal_code = '01234', guardian_address_city = 'Bissendorf' WHERE id = ?`, f.siblings)
+	require.NoError(t, err)
 
 	// Both families confirmed and invoiced with a correction and the letters.
 	for _, id := range []int64{f.siblings, f.again} {
@@ -89,6 +92,7 @@ func TestHolidayRegistrationsGoNinetyTwoDaysAfterTheirPeriodAndInvoicesStay(t *t
 		require.NotEmpty(t, part, "the run issued invoices with positions and letters")
 	}
 	assert.Contains(t, issued[1], `"kind": "correction"`)
+	assert.Contains(t, issued[0], `"recipient_address_street": "Musterweg 12"`, "the invoice copied the address (#5625)")
 
 	personal := func() map[string]int {
 		counts := map[string]int{}
@@ -144,7 +148,7 @@ func TestHolidayRegistrationsGoNinetyTwoDaysAfterTheirPeriodAndInvoicesStay(t *t
 	assert.Len(t, deletions(), 1, "a period with nothing left writes no further entry")
 
 	// The log keeps an entry for three years.
-	_, err := f.db.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_deletions
+	_, err = f.db.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_deletions
 			(organization_id, holiday_period_id, period_ended_on, registrations, children, audit_entries, deleted_at)
 		VALUES (?0, ?1, '2022-01-14', 1, 1, 0, NOW() - INTERVAL '3 years 1 day'),
 			(?0, ?1, '2024-01-12', 1, 1, 0, NOW() - INTERVAL '2 years 11 months')`, organization, f.period.ID)

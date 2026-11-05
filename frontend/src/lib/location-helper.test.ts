@@ -12,6 +12,7 @@ import {
   canSeeDetailedLocation,
   isPresentLocation,
   isAtSchoolLocation,
+  isInClassLocation,
   isHomeLocation,
   isNotCheckedInLocation,
   isSchoolyardLocation,
@@ -719,5 +720,26 @@ describe("getAccessibleTextColor", () => {
     for (const color of [undefined, null, "", "  ", "currentColor"]) {
       expect(getAccessibleTextColor(color)).toBe("#374151");
     }
+  });
+});
+
+// #5656: „Geht zum Unterricht“ ist ein eigener Status, kein „Zuhause“.
+describe("Im Unterricht", () => {
+  it("is its own status and needs a new check-in", () => {
+    expect(parseLocation("Im Unterricht").status).toBe(
+      LOCATION_STATUSES.IN_CLASS,
+    );
+    expect(isInClassLocation("Im Unterricht")).toBe(true);
+    expect(isHomeLocation("Im Unterricht")).toBe(false);
+    expect(isAtSchoolLocation("Im Unterricht")).toBe(false);
+    expect(isNotCheckedInLocation("Im Unterricht")).toBe(true);
+  });
+
+  it("does not take the color of home or the expected child", () => {
+    expect(LOCATION_COLORS.IN_CLASS).not.toBe(LOCATION_COLORS.HOME);
+    expect(LOCATION_COLORS.IN_CLASS).not.toBe(LOCATION_COLORS.AT_SCHOOL);
+    expect(getLocationBadgeTone(LOCATION_COLORS.IN_CLASS).backgroundColor).toBe(
+      MOTO_COLOR_PALETTE.indigo.soft,
+    );
   });
 });

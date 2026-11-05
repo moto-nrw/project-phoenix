@@ -114,6 +114,7 @@ func (e TemplateRosterEntry) appliesOn(date calendar.Date, periodID int64) bool 
 
 // TemplateSeriesSegment is one segment of a split series.
 type TemplateSeriesSegment struct {
+	OfferingKind     RosterOfferingKind
 	TemplateID       int64
 	CalendarPeriodID *int64
 	ValidFrom        *calendar.Date

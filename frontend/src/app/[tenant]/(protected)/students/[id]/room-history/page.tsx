@@ -195,6 +195,14 @@ function DayCard({
                 checkedOut={day.attendance.checkedOutActor}
               />
             )}
+            {day.attendance?.leftForClassAt.map((at) => (
+              <span
+                key={at.getTime()}
+                className="mt-0.5 block text-xs text-gray-600"
+              >
+                Zum Unterricht gegangen: {formatTime(at)} Uhr
+              </span>
+            ))}
             {day.attendance?.checkOutNote && (
               <span className="mt-0.5 block text-xs text-gray-600">
                 Grund für das frühe Gehen: {day.attendance.checkOutNote}
@@ -366,15 +374,13 @@ function HistoryTable({
 
   return (
     <>
-      {/* bodyClassName hebt die Kartenpolsterung wieder auf: die Tabelle bringt
-          ihre eigene Zellpolsterung mit und läuft randlos bis zur Kartenkante. */}
+      {/* flush: die Tabelle bringt ihre eigene Zellpolsterung mit und läuft
+          bis zur Kartenkante. */}
       <SectionCard
         title="Anwesenheitsprotokoll"
         description={`${ROOM_HISTORY_DESCRIPTION} Letzte ${caps.attendanceDays} Tage · Raumdetails für ${caps.roomDetailDays} Tage`}
-        leading={
-          <ConceptIconTile concept={changeHistoryConcept} variant="section" />
-        }
-        bodyClassName="mt-4 -mx-5 -mb-5"
+        concept={changeHistoryConcept}
+        flush
       >
         {days.length === 0 ? null : (
           <>
@@ -457,6 +463,14 @@ function HistoryTable({
                                   )}
                                 </span>
                               )}
+                            {day.attendance?.leftForClassAt.map((at) => (
+                              <span
+                                key={at.getTime()}
+                                className="mt-0.5 block text-xs text-gray-500"
+                              >
+                                Zum Unterricht gegangen: {formatTime(at)} Uhr
+                              </span>
+                            ))}
                             {day.attendance?.checkOutNote && (
                               <span className="mt-0.5 block text-xs text-gray-500">
                                 Grund für das frühe Gehen:{" "}
@@ -823,9 +837,7 @@ function StudentRoomHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={
-          <ConceptIconTile concept={changeHistoryConcept} variant="page" />
-        }
+        leading={<ConceptIconTile concept={changeHistoryConcept} size="page" />}
         title={displayName || "Anwesenheitsprotokoll"}
         stats={studentMeta || dayLine}
         statsLoading={loading}

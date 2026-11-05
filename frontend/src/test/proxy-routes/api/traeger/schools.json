@@ -1,5 +1,11 @@
 {
   "api/traeger/schools": [
     "GET traeger /traeger/schools"
+  ],
+  "api/traeger/schools/[id]": [
+    "GET traeger /traeger/schools/id%2F1"
+  ],
+  "api/traeger/schools/today": [
+    "GET traeger /traeger/schools/today"
   ]
 }

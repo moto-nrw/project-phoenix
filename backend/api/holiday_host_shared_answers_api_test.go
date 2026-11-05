@@ -112,7 +112,9 @@ func TestTraegerSharesAHealthQuestionWithTheHostingSchool(t *testing.T) {
 
 // submitShared registers Ida (OGS Süd) and Jan (no school of the Träger)
 // Sommer on version 2 with a second guardian and answers to every question,
-// Ida for week 1, Jan for both weeks, and returns the registration.
+// Ida for week 1, Jan for both weeks, and returns the registration. Like the
+// siblings it stands for a registration from before the consent texts of
+// version 2 (#4722), so no health information reaches the hosting school.
 func (f holidayHostFixture) submitShared(t *testing.T) int64 {
 	t.Helper()
 	body := siblingsRegistration(f.offer, "familie.sommer@example.org")
@@ -126,9 +128,13 @@ func (f holidayHostFixture) submitShared(t *testing.T) int64 {
 	children[1]["custom_data"] = map[string]any{"darf_allein_nach_hause": false, "tetanus_impfschutz": "nein", "lieblingsessen": "Nudeln"}
 	rec := publicJSON(t, f.public, http.MethodPost, registrationPath(f.link), body)
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	return decodeSchoolPortalData[struct {
+	id := decodeSchoolPortalData[struct {
 		ID int64 `json:"id"`
 	}](t, rec.Body.Bytes()).ID
+	_, err := f.db.ExecContext(t.Context(), `UPDATE enrollment.holiday_registrations
+		SET consent_version = NULL, custody_confirmed_at = NULL, declaration_name = NULL WHERE id = ?`, id)
+	require.NoError(t, err)
+	return id
 }
 
 // sharedPrivate are the values of the Sommer registration that must never
@@ -155,7 +161,7 @@ func TestHolidayHostSeesSharedAnswersAndTheSecondGuardian(t *testing.T) {
 	for _, question := range list.Questions {
 		keys = append(keys, question.Key)
 	}
-	assert.Equal(t, []string{"darf_allein_nach_hause", "darf_an_ausfluegen_teilnehmen", "ausflug_ab", "abholung"}, keys,
+	assert.Equal(t, []string{"darf_allein_nach_hause", "darf_an_ausfluegen_teilnehmen", "klasse", "ausflug_ab", "abholung"}, keys,
 		"the questions of version 1 (siblings) and version 2 (Sommer), each once")
 	require.Len(t, list.Participants, 4)
 	byName := map[string]int{}
@@ -176,6 +182,7 @@ func TestHolidayHostSeesSharedAnswersAndTheSecondGuardian(t *testing.T) {
 	assert.Equal(t, []hostAnswerBody{
 		{Key: "darf_allein_nach_hause", Label: "Darf allein nach Hause gehen", Type: "boolean"},
 		{Key: "darf_an_ausfluegen_teilnehmen", Label: "Darf an Ausflügen teilnehmen", Type: "boolean"},
+		{Key: "klasse", Label: "Klasse", Type: "text"},
 	}, lia.Answers, "a registration without answers keeps its row; the shared questions stay unanswered")
 	for _, private := range sharedPrivate {
 		assert.NotContains(t, rec.Body.String(), private, "the list keeps %s back", private)
@@ -186,11 +193,11 @@ func TestHolidayHostSeesSharedAnswersAndTheSecondGuardian(t *testing.T) {
 	csv := strings.TrimPrefix(rec.Body.String(), "\xEF\xBB\xBF")
 	assert.Equal(t, strings.Join([]string{
 		"Nachname;Vorname;Geburtsdatum;Heimatschule;Zeitmodell;Zweite sorgeberechtigte Person;Telefon zweite sorgeberechtigte Person;" +
-			"Darf allein nach Hause gehen;Darf an Ausflügen teilnehmen;Ausflug ab;Abholung",
-		"Muster;Ben;12.09.2016;Feriengast (Grundschule Melle);bis 13 Uhr;;;;;;",
-		"Muster;Lia;01.03.2018;" + f.offer.Schools[0].Name + ";bis 16 Uhr;;;;;;",
-		"Sommer;Ida;01.03.2018;" + f.offer.Schools[1].Name + ";bis 16 Uhr;Tom Zweit;0170 2222222;Ja;;07.07.2099;Mit dem Bus",
-		"Sommer;Jan;12.09.2016;Feriengast (Grundschule Melle);bis 13 Uhr;Tom Zweit;0170 2222222;Nein;;;Mit dem Bus",
+			"Darf allein nach Hause gehen;Darf an Ausflügen teilnehmen;Klasse;Ausflug ab;Abholung",
+		"Muster;Ben;12.09.2016;Feriengast (Grundschule Melle);bis 13 Uhr;;;;;;;",
+		"Muster;Lia;01.03.2018;" + f.offer.Schools[0].Name + ";bis 16 Uhr;;;;;;;",
+		"Sommer;Ida;01.03.2018;" + f.offer.Schools[1].Name + ";bis 16 Uhr;Tom Zweit;0170 2222222;Ja;;;07.07.2099;Mit dem Bus",
+		"Sommer;Jan;12.09.2016;Feriengast (Grundschule Melle);bis 13 Uhr;Tom Zweit;0170 2222222;Nein;;;;Mit dem Bus",
 	}, "\n")+"\n", csv, "one column per shared question and the second guardian")
 	for _, private := range sharedPrivate {
 		assert.NotContains(t, csv, strings.Trim(private, `"`)+";", "the export keeps %s back", private)
@@ -261,7 +268,7 @@ func TestHolidayGuestSheetCarriesTheSecondGuardianAndTheSharedAnswersUntilTheyEx
 	}
 	ben, _ := sheetOf("Ben Muster")
 	require.Len(t, ben.Emergency, 2, "without a second guardian the sheet keeps its contacts of before")
-	assert.Len(t, ben.Answers, 2, "the siblings answered none of the shared questions of version 1")
+	assert.Len(t, ben.Answers, 3, "the siblings answered none of the shared questions of version 1")
 	for _, answer := range ben.Answers {
 		assert.Nil(t, answer.Value)
 	}
@@ -284,7 +291,7 @@ func TestHolidayGuestSheetCarriesTheSecondGuardianAndTheSharedAnswersUntilTheyEx
 	f.reconcile(t)
 	ben, _ = sheetOf("Ben Muster")
 	assert.True(t, ben.ReadOnly)
-	assert.Len(t, ben.Answers, 2, "the answers stay readable for seven days after the week")
+	assert.Len(t, ben.Answers, 3, "the answers stay readable for seven days after the week")
 	f.today.Store(calendar.NewDate(2099, 7, 18))
 	f.reconcile(t)
 	assert.Equal(t, http.StatusNotFound, f.sheet(t, lead, children["Ben Muster"]).Code)

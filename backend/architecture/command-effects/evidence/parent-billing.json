@@ -90,7 +90,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
-      "binding_digest": "0006fc171489440f76b1b822a9804015",
+      "binding_digest": "1aecf1bced507c5c4e3d84f60bdce5f6",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
@@ -98,7 +98,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
-      "binding_digest": "0eeedc4478c9e319caac5120a728a106",
+      "binding_digest": "86be16e931ea198ac5fd14e51b959a0f",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentTemplates.Current",
@@ -106,7 +106,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
-      "binding_digest": "5939501fc0535864a8c76d58f9b5b84c",
+      "binding_digest": "54265cd25a82d87a3061099bd1c837c3",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.LogoImage",
@@ -114,7 +114,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
-      "binding_digest": "89854f342d9e520fdced1645ad51e8f9",
+      "binding_digest": "d94d8ad98b7cca664828098fc9c7f374",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",
@@ -122,10 +122,10 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.ConfirmedHolidayRegistrations",
-      "binding_digest": "9d84c94cb53231a0605b729334f27740",
+      "binding_digest": "e4e8a4e182c95b65aee0af7bee7b381f",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.ConfirmedHolidayRegistrations",
       "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ListHolidayRegistrations",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ListHolidayRegistrationRecipients",
       "target_owner": "enrollment"
     },
     {
@@ -145,11 +145,59 @@
       "target_owner": "enrollment"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.ConfirmHolidayRegistration",
-      "binding_digest": "e3100902cc0d002a139bbdf52f6be208",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.ConfirmHolidayRegistration",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.HolidayProofRegistrations",
+      "binding_digest": "8eab5993e00957266ae32dac80ca3452",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.HolidayProofRegistrations",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ListHolidayRegistrationRecipients",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.AsksDebtorNumber",
+      "binding_digest": "db60dc26922e4178b3e6a438cd0ce069",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.AsksDebtorNumber",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.HolidayChain",
+      "binding_digest": "afbd199f50918cb936fe614bfc350674",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.HolidayChain",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.PaymentText",
+      "binding_digest": "83d624cc49d619b633bf32106f30e472",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.PaymentText",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.CancelHolidayRegistration",
+      "binding_digest": "49fb6964b6d70def0e499429e5cacbf6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.CancelHolidayRegistration",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ChangeHolidayRegistration",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.ConfirmHolidayRegistration",
+      "binding_digest": "1150ba49d8cc5e69f7035867becf1ba7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.ConfirmHolidayRegistration",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ConfirmHolidayRegistration",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.HoldHolidayPeriod",
+      "binding_digest": "b18f15f69e56b78110dd16b6b43fa67d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.HoldHolidayPeriod",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.HoldHolidayPeriod",
       "target_owner": "enrollment"
     },
     {
@@ -169,11 +217,27 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.RecordHolidaySiblings",
+      "binding_digest": "d3df29bf15223626937d4d04464be1a8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.RecordHolidaySiblings",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.RecordHolidaySiblings",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.ResolveHolidayLink",
       "binding_digest": "ef2051c6014ac358119f4e3e96343e26",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.ResolveHolidayLink",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrations.ResolveHolidayRegistrationLink",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.SetHolidayDebtorNumber",
+      "binding_digest": "cac8a11a458ebb7241d568033435478f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.SetHolidayDebtorNumber",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.SetHolidayDebtorNumber",
       "target_owner": "enrollment"
     }
   ]

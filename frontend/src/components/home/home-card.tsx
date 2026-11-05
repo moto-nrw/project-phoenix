@@ -1,5 +1,5 @@
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConcept } from "~/lib/moto-concepts";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 /**
  * Gemeinsame Bauteile jeder Karte der Startseite. Sie liegen bewusst neben
@@ -27,9 +27,5 @@ export const HOME_CARD_BODY =
  * einer Fläche nebeneinander fällt genau das auf.
  */
 export function HomeCardIcon({ concept }: { readonly concept: MotoConcept }) {
-  return (
-    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
-      <MotoConceptIcon concept={concept} size={20} />
-    </span>
-  );
+  return <ConceptIconTile concept={concept} size="section" />;
 }

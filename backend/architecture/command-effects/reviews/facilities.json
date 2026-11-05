@@ -348,7 +348,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudentWithNote",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application/presence.presenceFacade.CheckOutStudentWithNote; modules/studentpresence/internal/application/presence/attendance_service.go:243.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application/presence.presenceFacade.CheckOutStudentWithNote; modules/studentpresence/internal/application/presence/attendance_service.go:243.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. #5656: the signature gained the optional checkout reason; effect and transaction stay as reviewed.",
       "source_owner": "facilities",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CheckOutStudentWithNote",
       "target_owner": "student-presence"
@@ -359,7 +359,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudentWithNote",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Presence.CheckOutStudentWithNote; modules/studentpresence.Presence (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Presence.CheckOutStudentWithNote; modules/studentpresence.Presence (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. #5656: the signature gained the optional checkout reason; effect and transaction stay as reviewed.",
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudentWithNote",
       "target_owner": "student-presence"
@@ -1182,7 +1182,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSchoolCheckinBatch",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application/presence.presenceFacade.ProcessSchoolCheckinBatch; modules/studentpresence/internal/application/presence/school_checkin_batch.go:55.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application/presence.presenceFacade.ProcessSchoolCheckinBatch; modules/studentpresence/internal/application/presence/school_checkin_batch.go:55.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. #5656: the signature gained the optional checkout reason; effect and transaction stay as reviewed.",
       "source_owner": "facilities",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ProcessSchoolCheckinBatch",
       "target_owner": "student-presence"
@@ -1193,7 +1193,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSchoolCheckinBatch",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Presence.ProcessSchoolCheckinBatch; modules/studentpresence.Presence (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Presence.ProcessSchoolCheckinBatch; modules/studentpresence.Presence (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here. #5656: the signature gained the optional checkout reason; effect and transaction stay as reviewed.",
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSchoolCheckinBatch",
       "target_owner": "student-presence"

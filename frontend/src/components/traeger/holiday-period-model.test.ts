@@ -107,8 +107,21 @@ describe("holiday period model", () => {
       ],
     });
     expect(errors["weeks.1.starts_on"]).toBe(
-      "Diese Woche überschneidet sich mit Woche 1.",
+      "Diese Woche überschneidet sich mit Woche 1 an derselben Schule.",
     );
+  });
+
+  it("allows the same days at another school", () => {
+    const draft = completeDraft();
+    const week = draft.weeks[0]!;
+    const errors = validateHolidayPeriod({
+      ...draft,
+      weeks: [
+        { ...week, hostSchoolId: "31" },
+        { ...week, key: "parallel", hostSchoolId: "32" },
+      ],
+    });
+    expect(errors["weeks.1.starts_on"]).toBeUndefined();
   });
 
   it("calls a period complete only with weeks that all have a time model", () => {

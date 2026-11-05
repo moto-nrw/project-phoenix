@@ -209,6 +209,8 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/invite",
   "/login",
   "/reset-password",
+  "/schulen/:id",
+  "/uebersicht",
   "/vorlagen",
   "/vorlagen/:kind",
 ] as const;

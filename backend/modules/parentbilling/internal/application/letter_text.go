@@ -15,9 +15,12 @@ import (
 // the children, the total, the reference to pay with, the payment date,
 // the bank account of the Träger, the free text of the run (packing list,
 // rule on illness), the emergency numbers of the hosting OGS and whom to
-// ask. The registration has no postal address, so the address field names
-// the family and the person who registered; the invoice number is the
-// reference to pay with, as the Bissendorf address number was.
+// ask. The address field names the family and the person who registered,
+// then the postal address the invoice copied from the registration when the
+// form asked for it (ADR 0121 addendum, #5625). The reference to pay with is
+// the debtor number of the family the invoice copied from the registration,
+// the Bissendorf address number, and without one the invoice number (ADR
+// 0121 addendum, #5621).
 
 // Letter is a confirmation letter as the Elternabrechnung writes it: every
 // text, in the parts of a letter. The LetterRenderer lays it out in the
@@ -58,19 +61,23 @@ type LetterRenderer interface {
 	RenderLetter(letter Letter, filenameBase string) (parentbilling.BillingLetterFile, error)
 }
 
-// letterContent is everything one letter prints.
+// letterContent is everything one letter prints. The letter of a
+// cancellation or a credit also names its invoice and what the invoice
+// still asks for after it (#4690).
 type letterContent struct {
 	run        parentbilling.BillingRun
 	document   parentbilling.BillingDocument
 	input      parentbilling.BillingLetterInput
 	letterhead parentbilling.Letterhead
+	invoice    *parentbilling.BillingDocument
+	leftCents  int64
 }
 
 // confirmationLetter writes the letter of one issued invoice: the
 // address field, the facts and the footer come from the invoice and the
 // letterhead; subject, salutation, body and closing come from the Träger's
 // template of the confirmation letter, filled with the values of this
-// invoice (#4677, ADR 0150). Without a template of its own the Träger
+// invoice (#4677, ADR 0152). Without a template of its own the Träger
 // writes with the standard template, the letter of ADR 0121.
 func confirmationLetter(content letterContent) Letter {
 	document, head := content.document, content.letterhead
@@ -80,7 +87,7 @@ func confirmationLetter(content letterContent) Letter {
 		AccentColor: head.AccentColor,
 		Logo:        head.Logo,
 		Sender:      textLines(head.SenderText),
-		Recipient:   nonBlank("Familie "+document.RecipientLastName, fullName(document.RecipientFirstName, document.RecipientLastName)),
+		Recipient:   recipientLines(document),
 		Facts:       letterFacts(content),
 		Subject:     filled.Subject,
 		Salutation:  filled.Salutation,
@@ -171,8 +178,22 @@ func letterBlocks(blocks []templates.Block) []LetterBlock {
 	return result
 }
 
+// recipientLines are the lines of the address field: the family, the
+// person who registered and, when the invoice has one, the street and the
+// postal code with the city.
+func recipientLines(document parentbilling.BillingDocument) []string {
+	lines := []string{"Familie " + document.RecipientLastName, fullName(document.RecipientFirstName, document.RecipientLastName)}
+	if address := document.RecipientAddress; address != nil {
+		lines = append(lines, address.Street, strings.TrimSpace(address.PostalCode)+" "+strings.TrimSpace(address.City))
+	}
+	return nonBlank(lines...)
+}
+
 func letterFacts(content letterContent) []LetterFact {
 	facts := []LetterFact{{Label: "Rechnungsnummer", Value: content.document.Number}}
+	if number := strings.TrimSpace(content.document.DebtorNumber); number != "" {
+		facts = append(facts, LetterFact{Label: "Debitorennummer", Value: number})
+	}
 	if content.document.IssuedOn != nil {
 		facts = append(facts, LetterFact{Label: "Datum", Value: germanDate(*content.document.IssuedOn)})
 	}
@@ -213,6 +234,8 @@ func positionLabel(position parentbilling.BillingPosition) string {
 		return "Ermäßigung für Geschwister"
 	case parentbilling.LineBenefitsExemption:
 		return "Befreiung bei Leistungsbezug"
+	case parentbilling.LineCostTakeover:
+		return "Kosten übernimmt: " + strings.TrimSpace(position.CostBearerName)
 	case parentbilling.LineCorrection:
 		return "Korrektur: " + strings.TrimSpace(position.Note)
 	}
@@ -224,12 +247,55 @@ func positionLabel(position parentbilling.BillingPosition) string {
 	return strings.TrimSuffix(label, ",")
 }
 
+// The placeholders of the payment text of a Träger (#5622). The settings
+// registry admits exactly these four (parent_billing.payment_text).
+const (
+	placeholderAmount        = "{Betrag}"
+	placeholderPaymentDueOn  = "{Zahlungsfrist}"
+	placeholderInvoiceNumber = "{Rechnungsnummer}"
+	placeholderDebtorNumber  = "{Debitorennummer}"
+)
+
+// paymentText asks for the transfer. A Träger's own payment text replaces
+// the built-in sentence with its placeholders filled in (ADR 0121 addendum,
+// #5622); an invoice of 0 € keeps the fixed sentence, which names the cost
+// bearer when one takes the costs over (#5627). The reference to pay with of
+// the built-in sentence is the debtor number of the family when the invoice
+// has one (ADR 0121 addendum, #5621), otherwise the invoice number.
 func paymentText(content letterContent) string {
 	if content.document.TotalCents == 0 {
+		if bearer := costBearerName(content.document); bearer != "" {
+			return "Sie müssen nichts bezahlen. Die Kosten übernimmt: " + bearer + "."
+		}
 		return "Sie müssen für diese Betreuung nichts bezahlen."
 	}
-	return fmt.Sprintf("Bitte überweisen Sie %s bis zum %s auf das Konto unten. Geben Sie als Verwendungszweck die Rechnungsnummer %s an.",
-		formatEuro(content.document.TotalCents), germanDate(content.input.PaymentDueOn), content.document.Number)
+	if text := strings.TrimSpace(content.letterhead.PaymentText); text != "" {
+		return strings.NewReplacer(
+			placeholderAmount, formatEuro(content.document.TotalCents),
+			placeholderPaymentDueOn, germanDate(content.input.PaymentDueOn),
+			placeholderInvoiceNumber, content.document.Number,
+			placeholderDebtorNumber, strings.TrimSpace(content.document.DebtorNumber),
+		).Replace(text)
+	}
+	reference := "die Rechnungsnummer " + content.document.Number
+	if number := strings.TrimSpace(content.document.DebtorNumber); number != "" {
+		reference = "Ihre Debitorennummer " + number
+	}
+	return fmt.Sprintf("Bitte überweisen Sie %s bis zum %s auf das Konto unten. Geben Sie als Verwendungszweck %s an.",
+		formatEuro(content.document.TotalCents), germanDate(content.input.PaymentDueOn), reference)
+}
+
+// costBearerName is the name of the cost bearer of the first cost takeover
+// of the invoice, or empty without one.
+func costBearerName(document parentbilling.BillingDocument) string {
+	for _, child := range document.Children {
+		for _, position := range child.Positions {
+			if position.Kind == parentbilling.LineCostTakeover {
+				return strings.TrimSpace(position.CostBearerName)
+			}
+		}
+	}
+	return ""
 }
 
 func questionText(head parentbilling.Letterhead) string {

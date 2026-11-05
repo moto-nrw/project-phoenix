@@ -821,8 +821,11 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   other branches attach nothing. It seeds a fresh stack, captures every shot,
   attaches the output as the artifact `product-screenshots-<version>` (7 days)
   and as `product-screenshots-<version>.zip` to the GitHub release `v<version>`.
-  A rerun of the same version replaces the ZIP. Pull requests that touch the
-  pipeline run the capture without the release asset.
+  A rerun of the same version replaces the ZIP. Pull requests into `main` that
+  touch the pipeline run the capture without the release asset; pull requests
+  into `development` do not run it. To test a pipeline change on a feature
+  branch, start it by hand (`gh workflow run product-screenshots.yml --ref
+  <branch>`).
 - Only Berlin weekdays: on a weekend the run stops before seeding; start it by
   hand on the next weekday from the release tag.
 - A broken shot fails the capture job, and the release-asset job never starts,

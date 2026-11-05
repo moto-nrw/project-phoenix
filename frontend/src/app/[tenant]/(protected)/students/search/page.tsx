@@ -39,7 +39,7 @@ import { HELP_TOPICS } from "~/lib/help-topics";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { Modal } from "~/components/ui/modal";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
@@ -67,11 +67,13 @@ import {
 } from "~/lib/date-helpers";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { schoolClassesLabel } from "~/lib/school-class-label";
+import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   LOCATION_STATUSES,
   parseLocation,
   isAtSchoolLocation,
+  isInClassLocation,
   isNotCheckedInLocation,
   isPresentLocation,
   isSchoolyardLocation,
@@ -201,6 +203,7 @@ type StatusFilter =
   | "all"
   | "anwesend"
   | "schule"
+  | "unterricht"
   | "abwesend"
   | "unterwegs"
   | "schulhof"
@@ -225,6 +228,7 @@ const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "all", label: "Alle" },
   { value: "anwesend", label: "Anwesend" },
   { value: "schule", label: "Schule" },
+  { value: "unterricht", label: "Im Unterricht" },
   { value: "abwesend", label: "Zuhause" },
   { value: "krank", label: "Krank" },
   { value: "klassenfahrt", label: "Klassenfahrt" },
@@ -378,7 +382,8 @@ const STATUS_GROUP_ORDER = new Map([
   ["Krank", 3],
   ["Entschuldigt", 4],
   ["Schule", 5],
-  ["Zuhause", 6],
+  ["Im Unterricht", 6],
+  ["Zuhause", 7],
 ]);
 
 const BOOLEAN_FILTER_VALUES: readonly BooleanFilter[] = ["all", "yes", "no"];
@@ -420,6 +425,7 @@ const PICKUP_STATUS_FILTER_OPTIONS: Array<{
 const LIVE_STATUS_FILTER_OPTIONS = [
   { value: "anwesend", label: "Anwesend" },
   { value: "schule", label: "Schule" },
+  { value: "unterricht", label: "Im Unterricht" },
   { value: "abwesend", label: "Zuhause" },
   { value: "unterwegs", label: "Unterwegs" },
   { value: "schulhof", label: "Schulhof" },
@@ -446,6 +452,7 @@ const STATUS_FILTER_LABELS: Record<
   string
 > = {
   schule: "Schule",
+  unterricht: "Im Unterricht",
   abwesend: "Zuhause",
   unterwegs: "Unterwegs",
   schulhof: "Schulhof",
@@ -717,6 +724,7 @@ function statusLabelForStudent(student: Student): string {
   if (isSchoolyardLocation(student.current_location)) return "Schulhof";
   if (isTransitLocation(student.current_location)) return "Unterwegs";
   if (isAtSchoolLocation(student.current_location)) return "Schule";
+  if (isInClassLocation(student.current_location)) return "Im Unterricht";
   if (HOME_STATUSES.has(parseLocation(student.current_location).status)) {
     return "Zuhause";
   }
@@ -1470,8 +1478,8 @@ function SearchPageContent() {
   const schoolCheckin = useSchoolCheckinMode();
   // A checkout well before today's pickup time asks for an optional reason
   // (#3324); every other checkout keeps its current behaviour.
-  const earlyCheckout = useEarlyCheckoutDialog((studentId, note) => {
-    void schoolCheckin.toggle(studentId, "anwesend", note);
+  const earlyCheckout = useEarlyCheckoutDialog((studentId, note, reason) => {
+    void schoolCheckin.toggle(studentId, "anwesend", note, reason);
   });
   const requestEarlyCheckout = earlyCheckout.request;
   // Checkout of a student who is currently in a room asks first and names the
@@ -2438,6 +2446,7 @@ function SearchPageContent() {
       const statusLabels: Record<Exclude<StatusFilter, "all">, string> = {
         anwesend: "Anwesend",
         schule: "Schule",
+        unterricht: "Im Unterricht",
         abwesend: "Zuhause",
         unterwegs: "Unterwegs",
         schulhof: "Schulhof",
@@ -2806,6 +2815,7 @@ function SearchPageContent() {
     // Gruppenseite zeigte sie als „X von Y da“.
     let inCare = 0;
     let atSchool = 0;
+    let inClass = 0;
     let atHome = 0;
     for (const student of students) {
       if (student.sick === true) {
@@ -2828,6 +2838,10 @@ function SearchPageContent() {
         atSchool += 1;
         continue;
       }
+      if (status === LOCATION_STATUSES.IN_CLASS) {
+        inClass += 1;
+        continue;
+      }
       if (
         status === LOCATION_STATUSES.PRESENT ||
         status === LOCATION_STATUSES.UNPLANNED_PRESENT ||
@@ -2841,7 +2855,7 @@ function SearchPageContent() {
         atHome += 1;
       }
     }
-    return `${total} ${total === 1 ? "Kind" : "Kinder"} · ${inCare} in der OGS · ${atSchool} in der Schule · ${atHome} zuhause · ${sick} krank`;
+    return `${total} ${total === 1 ? "Kind" : "Kinder"} · ${inCare} in der OGS · ${atSchool} in der Schule${inClass > 0 ? ` · ${inClass} im Unterricht` : ""} · ${atHome} zuhause · ${sick} krank`;
   }, [isToday, students, rowsLoaded]);
 
   const selectedStudentsForBulk = useMemo(
@@ -2998,6 +3012,7 @@ function SearchPageContent() {
   // Kacheln oder Tabelle (#3834). Die Tabelle trägt dieselben Angaben wie
   // die Karte, eine Spalte je Angabe, und markiert Kinder per Kästchen für
   // die Sammelaktionen. Auf dem Telefon wird sie zur dichten Zeilenliste.
+  const holidayGuestLabel = useHolidayGuestLabels(students);
   const tableColumns = useMemo(
     () =>
       compactColumns<Student>([
@@ -3014,7 +3029,7 @@ function SearchPageContent() {
             supervisedRooms={mySupervisedRooms}
           />
         )),
-        classColumn(),
+        classColumn({ label: holidayGuestLabel }),
         groupColumn(),
         arrivalColumn((student) => searchStudentDay(student, isToday)),
         pickupColumn((student) => searchStudentDay(student, isToday)),
@@ -3029,6 +3044,7 @@ function SearchPageContent() {
       myGroupRooms,
       mySupervisedRooms,
       trackingData,
+      holidayGuestLabel,
     ],
   );
   const tableColumnDefaults = useMemo(
@@ -3108,6 +3124,7 @@ function SearchPageContent() {
         trackingData={trackingData}
         onOpen={handleOpenStudent}
         onCheckinClick={handleCheckinClick}
+        classLabel={holidayGuestLabel(student)}
       />
     );
   };
@@ -3306,20 +3323,55 @@ function SearchPageContent() {
             {/* Checkout out of a room ends the running room visit, so it asks
           first and names the room (#2220). Roomless states never reach
           this dialog — they stay a single tap. */}
-            <ConfirmationModal
+            <Modal
               isOpen={pendingRoomCheckout !== null}
               onClose={() => setPendingRoomCheckout(null)}
-              onConfirm={() => {
-                if (!pendingRoomCheckout) return;
-                void schoolCheckin.toggle(
-                  pendingRoomCheckout.studentId,
-                  "anwesend",
-                );
-                setPendingRoomCheckout(null);
-              }}
               title="Aus der Betreuung abmelden?"
-              confirmText="Abmelden"
-              confirmVariant="danger"
+              mobileSheet
+              footer={
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => setPendingRoomCheckout(null)}
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="surface"
+                    size="md"
+                    onClick={() => {
+                      if (!pendingRoomCheckout) return;
+                      void schoolCheckin.toggle(
+                        pendingRoomCheckout.studentId,
+                        "anwesend",
+                        undefined,
+                        "class",
+                      );
+                      setPendingRoomCheckout(null);
+                    }}
+                  >
+                    Geht zum Unterricht
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="md"
+                    onClick={() => {
+                      if (!pendingRoomCheckout) return;
+                      void schoolCheckin.toggle(
+                        pendingRoomCheckout.studentId,
+                        "anwesend",
+                      );
+                      setPendingRoomCheckout(null);
+                    }}
+                  >
+                    Geht nach Hause
+                  </Button>
+                </>
+              }
             >
               <p className="text-sm text-gray-600">
                 <span className="font-medium text-gray-900">
@@ -3329,10 +3381,9 @@ function SearchPageContent() {
                 <span className="font-medium text-gray-900">
                   {pendingRoomCheckout?.room}
                 </span>
-                . Beim Abmelden wird der laufende Raumbesuch beendet und das
-                Kind gilt für heute als gegangen.
+                . Beim Abmelden wird der laufende Raumbesuch beendet.
               </p>
-            </ConfirmationModal>
+            </Modal>
 
             {bulkCheckin.dialogs}
 
@@ -3613,7 +3664,8 @@ function SearchPageContent() {
                       extraContent={
                         <>
                           <StudentInfoRow icon={<SchoolClassIcon />}>
-                            {student.school_class || "–"}
+                            {holidayGuestLabel(student) ??
+                              (student.school_class || "–")}
                           </StudentInfoRow>
                           <StudentInfoRow icon={<GroupIcon />}>
                             Gruppe: {student.group_name || "–"}

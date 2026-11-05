@@ -63,6 +63,7 @@ vi.mock("./input", () => ({
     value,
     onChange,
     disabled,
+    controlSize,
     ...props
   }: {
     id: string;
@@ -75,10 +76,12 @@ vi.mock("./input", () => ({
     required?: boolean;
     className?: string;
     label?: string;
+    controlSize?: "default" | "compact";
   }) => (
     <input
       id={id}
       data-testid={`input-${id}`}
+      data-control-size={controlSize}
       value={value}
       onChange={onChange}
       disabled={disabled}
@@ -148,7 +151,25 @@ describe("PasswordResetModal", () => {
   it("renders email input field", () => {
     render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
-    expect(screen.getByTestId("input-reset-email")).toBeInTheDocument();
+    expect(screen.getByTestId("input-reset-email")).toHaveAttribute(
+      "data-control-size",
+      "default",
+    );
+  });
+
+  it("uses the requested email input size", () => {
+    render(
+      <ResetModal
+        isOpen={true}
+        onClose={mockOnClose}
+        inputControlSize="compact"
+      />,
+    );
+
+    expect(screen.getByTestId("input-reset-email")).toHaveAttribute(
+      "data-control-size",
+      "compact",
+    );
   });
 
   it("renders submit and cancel buttons", () => {

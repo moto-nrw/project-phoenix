@@ -47,6 +47,9 @@ export const LOCATION_STATUSES = {
   // Erwartetes Kind vor dem ersten Check-in des Tages (#3260): es sitzt noch
   // im Unterricht, nicht zu Hause. Das Backend liefert den Wert selbst.
   AT_SCHOOL: "Schule",
+  // Mit „Geht zum Unterricht“ abgemeldet und noch nicht zurück (#5656). Anders
+  // als AT_SCHOOL steht dahinter eine erfasste Abmeldung, keine Planung.
+  IN_CLASS: "Im Unterricht",
   SCHOOLYARD: "Schulhof",
   TRANSIT: "Unterwegs",
   UNKNOWN: "Unbekannt",
@@ -90,8 +93,6 @@ export const MOTO_COLOR_PALETTE = {
     hover: "#74B825",
     active: "#6DB118",
     strong: "#3F6F12",
-    // Fläche unter weißer Schrift/Icon (#5141), 4,84:1 zu Weiß. base trägt
-    // kein Weiß (1,96:1).
     fill: "#4A7F14",
   },
   blue: {
@@ -193,10 +194,6 @@ export const MOTO_COLOR_PALETTE = {
   },
   neutral: {
     soft: "#F3F4F6",
-    // Tailwind gray-300: die neutrale Blockkante für Termine ohne
-    // Planungsspur (timetable-style, ui/plan-block). Liegt wie green.muted
-    // zwischen soft und light; als Token, weil die Kante über style-Props
-    // läuft und keine Klasse tragen kann.
     muted: "#D1D5DB",
     light: "#9CA3AF",
     base: "#6B7280",
@@ -208,15 +205,7 @@ export const MOTO_COLOR_PALETTE = {
     base: "#78716C",
     strong: "#44403C",
   },
-  // Akzent je Raumkategorie (lib/room-helpers.ts): Raumkarte und
-  // Belegungshistorie zeigen dieselbe Farbe. Keine Duotone-Familie, sondern
-  // drei Bestandswerte, die nirgends sonst in der Palette liegen; „Normaler
-  // Raum“ ist indigo.base und steht darum nicht noch einmal hier.
-  roomCategory: {
-    group: "#10B981",
-    theme: "#8B5CF6",
-    sport: "#EC4899",
-  },
+  roomCategory: { group: "#10B981", theme: "#8B5CF6", sport: "#EC4899" },
 } as const;
 
 export interface LocationBadgeTone {
@@ -275,6 +264,10 @@ const LOCATION_BADGE_TONES: Record<string, LocationBadgeTone> = {
   [MOTO_COLOR_PALETTE.magenta.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.magenta.soft,
     textColor: MOTO_COLOR_PALETTE.magenta.strong,
+  },
+  [MOTO_COLOR_PALETTE.indigo.base]: {
+    backgroundColor: MOTO_COLOR_PALETTE.indigo.soft,
+    textColor: MOTO_COLOR_PALETTE.indigo.strong,
   },
   [MOTO_COLOR_PALETTE.neutral.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.neutral.soft,
@@ -343,6 +336,7 @@ export const LOCATION_COLORS = {
   CLASS_TRIP: MOTO_COLOR_PALETTE.cyan.base,
   NOT_ARRIVAL: MOTO_COLOR_PALETTE.navy.base,
   AT_SCHOOL: MOTO_COLOR_PALETTE.petrol.base,
+  IN_CLASS: MOTO_COLOR_PALETTE.indigo.base,
   DANGER: MOTO_COLOR_PALETTE.red.base,
   // Amber "needs attention, but nothing is wrong yet": a pending request, an
   // unstaffed slot, an open invitation. Exists because SICK used to be amber
@@ -532,6 +526,7 @@ const LEGACY_STATUS_MAP: Record<string, string> = {
   zuhause: LOCATION_STATUSES.HOME,
   home: LOCATION_STATUSES.HOME,
   schule: LOCATION_STATUSES.AT_SCHOOL,
+  "im unterricht": LOCATION_STATUSES.IN_CLASS,
   unbekannt: LOCATION_STATUSES.UNKNOWN,
   unknown: LOCATION_STATUSES.UNKNOWN,
   anwesend: LOCATION_STATUSES.PRESENT,
@@ -609,6 +604,7 @@ export function parseLocation(location?: string | null): ParsedLocation {
 const STATUS_COLOR_MAP: Record<string, string> = {
   [LOCATION_STATUSES.HOME]: LOCATION_COLORS.HOME,
   [LOCATION_STATUSES.AT_SCHOOL]: LOCATION_COLORS.AT_SCHOOL,
+  [LOCATION_STATUSES.IN_CLASS]: LOCATION_COLORS.IN_CLASS,
   [LOCATION_STATUSES.SCHOOLYARD]: LOCATION_COLORS.SCHOOLYARD,
   [LOCATION_STATUSES.TRANSIT]: LOCATION_COLORS.TRANSIT,
 };
@@ -835,13 +831,26 @@ export function isAtSchoolLocation(location?: string | null): boolean {
 }
 
 /**
+ * Indicates whether the student left for class and is not back yet (#5656).
+ */
+export function isInClassLocation(location?: string | null): boolean {
+  return parseLocation(location).status === LOCATION_STATUSES.IN_CLASS;
+}
+
+const NOT_CHECKED_IN_STATUSES: ReadonlySet<string> = new Set([
+  LOCATION_STATUSES.HOME,
+  LOCATION_STATUSES.AT_SCHOOL,
+  LOCATION_STATUSES.IN_CLASS,
+]);
+
+/**
  * Indicates whether the student has no open check-in: at home, still in class
- * before the first check-in, or without any location. Use this, not
- * isHomeLocation, wherever the question is "check in or check out?".
+ * before the first check-in, checked out to class, or without any location. Use
+ * this, not isHomeLocation, wherever the question is "check in or check out?".
  */
 export function isNotCheckedInLocation(location?: string | null): boolean {
   if (!location?.trim()) return true;
-  return isHomeLocation(location) || isAtSchoolLocation(location);
+  return NOT_CHECKED_IN_STATUSES.has(parseLocation(location).status);
 }
 
 /**

@@ -65,6 +65,7 @@ func TestProcessSchoolCheckinBatch_CheckOutEndsOpenVisits(t *testing.T) {
 	// Duplicate ids collapse to one result at the service layer too.
 	result, err := service.ProcessSchoolCheckinBatch(
 		ctx, []int64{student.ID, lateStudent.ID, student.ID}, staff.ID, activeSvc.SchoolCheckinActionOut,
+		"",
 	)
 	require.NoError(t, err)
 	require.Len(t, result.Results, 2, "duplicate ids must collapse")
@@ -91,6 +92,7 @@ func TestProcessSchoolCheckinBatch_CheckOutEndsOpenVisits(t *testing.T) {
 	// (exercises the empty-changed analytics/broadcast short-circuits).
 	repeat, err := service.ProcessSchoolCheckinBatch(
 		ctx, []int64{student.ID}, staff.ID, activeSvc.SchoolCheckinActionOut,
+		"",
 	)
 	require.NoError(t, err)
 	require.Len(t, repeat.Results, 1)
@@ -127,6 +129,7 @@ func TestProcessSchoolCheckinBatch_CheckInClearsPlannedStatusDay(t *testing.T) {
 
 	result, err := service.ProcessSchoolCheckinBatch(
 		ctx, []int64{student.ID}, staff.ID, activeSvc.SchoolCheckinActionIn,
+		"",
 	)
 	require.NoError(t, err)
 	require.Len(t, result.Results, 1)
@@ -153,7 +156,7 @@ func TestProcessSchoolCheckinBatch_UnknownActionRejected(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "BatchAction", "Staff")
 
 	// The action check fires before any student lookup, so any id works.
-	result, err := service.ProcessSchoolCheckinBatch(ctx, []int64{staff.ID}, staff.ID, "toggle")
+	result, err := service.ProcessSchoolCheckinBatch(ctx, []int64{staff.ID}, staff.ID, "toggle", "")
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "unknown action")

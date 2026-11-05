@@ -1,5 +1,5 @@
 // Package templates is the contract of the document templates of a Träger
-// (#4677, spec #4611 user stories 91 and 92, ADR 0150): the kinds of
+// (#4677, spec #4611 user stories 91 and 92, ADR 0152): the kinds of
 // document, the placeholders each kind knows, the standard template of each
 // kind, the check that refuses unknown placeholders and the filling of a
 // template with the values of one document. It is pure: the owner of the

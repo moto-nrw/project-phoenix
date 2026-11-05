@@ -143,3 +143,168 @@ Punkt 5, ADR 0070).
   der Prüfungen in `contribution_rules` dazu (#4684, #4685, #4687).
 - Die Zusammenfassung zeigt den Beitrag nach den Regeln von heute; was gilt,
   hält erst die Bestätigung fest.
+
+## Nachtrag 2026-11-03: Kostenübernahme durch einen Kostenträger (#5627)
+
+Für Familien mit Leistungsbezug, deren Beitrag eine Stelle erstattet (zum
+Beispiel das Jugendamt nach § 90 Abs. 4 SGB VIII), reicht die Befreiung
+nicht: Sie erlässt den Betrag, niemand schuldet ihn. Der schmale Schnitt vor
+#4687:
+
+1. **Kostenträger des Trägers.** `parent_billing.cost_bearers` (Owner
+   Elternabrechnung, Träger-Policy aus ADR 0105) hält Name, Anschrift,
+   Aktenzeichen und ob die Stelle noch zur Wahl steht. Die Abrechnung pflegt
+   sie mit den Regeln (`ContributionRules`), weil ADR 0088 §4 den
+   Kostenträger als Zahler der Kette führt. Das Träger-Büro sieht beim
+   Bestätigen nur die aktiven, über die Einstellungen der Bestätigung.
+2. **Neue Zeilenart in der festen Kette.** Nach Grundpreis und Geschwister
+   setzt `cost_takeover` den Rest jedes Kindes auf 0 €: Der Kostenträger
+   übernimmt, was die Familie nach der Geschwisterermäßigung zahlen müsste.
+   Befreiung und Kostenübernahme schließen sich aus; die Kostenübernahme gilt
+   für alle Kinder der Anmeldung.
+3. **Zahler als Kopie an der Zeile.** Die Zeile und die Position der
+   Rechnung halten ID und Namen des Kostenträgers fest. Eine Umbenennung
+   ändert keinen festgehaltenen Beitrag und keine ausgestellte Rechnung
+   (ADR 0119). Die ID trägt keinen Fremdschlüssel: Die Löschung eines Trägers
+   entfernt Kostenträger und Rechnungen in einer Kaskade, die ein
+   Fremdschlüssel abweisen würde. Einen Kostenträger, den eine Zeile oder
+   Position nennt, löscht die Elternabrechnung nicht; er lässt sich nur
+   ausschalten.
+4. **Brief, Übersicht und Liste.** Die Rechnung zeigt 0 €; der Brief nennt
+   den Kostenträger statt des Zahlungstexts. Die Übersicht für die Kämmerei
+   (ADR 0122) nennt unter der Gesamtsumme je Kostenträger, was er übernimmt;
+   die Gesamtsumme bleibt, was die Familien zahlen. Je freigegebenem Lauf und
+   Kostenträger gibt es eine Liste für die Erstattung, deren Download im
+   Protokoll des Laufs steht.
+5. **Nachweis.** Das Träger-Büro lädt einen Nachweis, den die Familie auf
+   Papier bringt, zur Anmeldung hoch, mit den Grenzen des Nachweises der
+   Eltern (#5238). Er ist keine Bedingung der Kostenübernahme.
+
+Ein eigenes Beitragsdokument an den Kostenträger, Anteile, Ablaufdaten und
+die Kostenübernahme je Kind bleiben #4687.
+
+## Nachtrag 2026-11-03: Geschwister aus getrennten Anmeldungen (#5628)
+
+Eltern melden Geschwister oft in zwei Formularen an, und ein Formular nimmt
+höchstens drei Kinder auf. Punkt 3 kannte Geschwister nur in derselben
+Anmeldung. Für Ferienanmeldungen eines Zeitraums gilt jetzt:
+
+1. **Geschwistergruppe.** Das Träger-Büro führt Anmeldungen desselben
+   Zeitraums per Klick als Geschwister zusammen, nie automatisch. Gleiche
+   E-Mail oder gleicher Nachname des Elternteils sind nur ein Hinweis in der
+   Liste. Die Gruppe gehört der Elternabrechnung:
+   `parent_billing.holiday_sibling_groups` und
+   `parent_billing.holiday_sibling_group_members` (Träger-Policy aus
+   ADR 0105). Eine Anmeldung gehört höchstens zu einer Gruppe. Das Mitglied
+   geht mit seiner Anmeldung (ADR 0118); eine Gruppe mit nur noch einer
+   Anmeldung geht mit (Trigger). Eine stornierte Anmeldung lässt sich nicht
+   zusammenführen, wohl aber trennen.
+2. **Rang über die Gruppe.** Die Regelkette rankt die Kinder aller nicht
+   stornierten Anmeldungen der Gruppe wie eine Anmeldung: höchster Beitrag
+   zuerst, bei Gleichstand die früher abgesendete Anmeldung, dann die
+   Reihenfolge im Formular. Es gelten die Regeln am ersten gebuchten Tag der
+   Gruppe. Jede Anmeldung hält nur die Zeilen ihrer eigenen Kinder fest. Eine
+   bestätigte Anmeldung rankt mit den Grundpreisen und der Befreiung, die sie
+   festgehalten hat; ein späterer Preis ändert sie nicht. Die Befreiung
+   bleibt Sache jeder Anmeldung, ebenso die Kostenübernahme (#5627): Sie
+   folgt nach der Geschwisterermäßigung und übernimmt nur den Rest der
+   Kinder ihrer Anmeldung; die Ermäßigung der anderen Anmeldungen bleibt.
+   Eine bestätigte Anmeldung rankt mit dem Kostenträger, den sie festgehalten
+   hat. Die Elternabrechnung liest die weiteren
+   Anmeldungen über ihren Port `HolidayRegistrations`; jeder Lesezugriff
+   steht im Protokoll der jeweiligen Anmeldung (ADR 0114 Punkt 6).
+3. **Fassungen statt Änderung (zu Punkt 5).** Zusammenführen, Trennen,
+   das Stornieren (Punkt 8) und das Bestätigen einer Anmeldung der Gruppe
+   rechnen den festgehaltenen Beitrag jeder bestätigten Anmeldung der
+   Gruppe neu. Ändert er sich, kommt er als neue Fassung dazu
+   (`holiday_contributions.version`); die alte bleibt. Gültig ist die
+   höchste Fassung. Die Anfrage-Rolle fügt weiter nur ein und liest. Eine
+   neue Fassung behält die Zeit der Bestätigung; ihr Konto ist das, das
+   zusammengeführt, getrennt oder storniert hat.
+4. **Grenze: ausgestellte Rechnung.** Zusammenführen und Trennen gehen nur,
+   solange keine Anmeldung der Gruppe eine ausgestellte Rechnung hat
+   (ADR 0119); sonst 409 `parent_billing.sibling_group_invoiced`. Die
+   Einzelansicht jeder Anmeldung der Gruppe erfährt diese Sperre. Sie laufen
+   unter derselben Sperre der Rechnungen des Zeitraums wie die Freigabe
+   eines Laufs und halten danach den Zeitraum in Enrollment
+   (`HoldHolidayPeriod`), bevor sie die Gruppe lesen: Eine Stornierung oder
+   Umbuchung läuft vorher ganz oder danach. Ein offener Lauf zeigt die neuen
+   Beträge in seiner Vorschau, und die Freigabe prüft ohnehin die geprüfte
+   Vorschau. Das Bestätigen und das Ändern der Debitorennummer nehmen
+   dieselben Sperren.
+5. **Ein Brief je Anmeldung.** Rechnung und Brief bleiben je Anmeldung. Die
+   Ermäßigung steht auf der Rechnung des Kindes, das sie bekommt. Ein Brief
+   nennt nie Kinder oder Eltern einer anderen Anmeldung; zwei Anmeldungen
+   können von getrennt lebenden Eltern kommen.
+6. **Debitorennummer.** Eine Gruppe zahlt mit einer Nummer (ADR 0121
+   Nachtrag #5621): Beim Zusammenführen bekommen die bestätigten Anmeldungen
+   die Nummer der ersten nicht stornierten Anmeldung der Gruppe, die eine
+   hat. Eine Bestätigung ohne Nummer übernimmt die Nummer der Gruppe; eine
+   neue, geänderte oder entfernte Nummer gilt für alle bestätigten
+   Anmeldungen der Gruppe ohne ausgestellte Rechnung.
+7. **Protokoll und Recht.** Die Routen liegen unter
+   `/traeger/holiday-contributions/{periodId}/sibling-groups` hinter dem
+   Recht „Anmeldung verwalten“. Zusammenführen und Trennen stehen mit den
+   anderen Anmeldungen im Protokoll jeder betroffenen Anmeldung
+   (`sibling_merge`, `sibling_split`), geschrieben über den Port in
+   derselben Träger-Transaktion (ADR 0067, wie die Bestätigung).
+8. **Stornierung (#5662).** Die Elternabrechnung storniert eine Anmeldung
+   über Enrollment, wie sie bestätigt (Route
+   `/traeger/holiday-contributions/{periodId}/registrations/{registrationId}/cancel`,
+   Recht „Anmeldung verwalten“); die Route unter
+   `/traeger/holiday-periods` entfällt. Sie nimmt dieselben Sperren wie ein
+   Zusammenführen und liest die Gruppe erst danach. In derselben
+   Transaktion nimmt sie die stornierte Anmeldung aus der Gruppe und rechnet
+   jede übrige bestätigte Anmeldung der Gruppe neu (neue Fassung, Punkt 3),
+   auch eine, die eine ausgestellte Rechnung abrechnet: Die Rechnung behält
+   ihre eigenen Positionen (ADR 0119), und nach ihrem Storno stellt der
+   nächste Lauf den neuen Beitrag aus. Solange die gültige Rechnung ohne die
+   Korrekturen des Laufs der Familie oder dem Kostenträger einen anderen
+   Betrag abrechnet als der Beitrag, meldet die Einzelansicht
+   `correction_needed`; korrigiert wird mit Storno oder Gutschrift (#4690). Eine festgehaltene Befreiung, die keine Regel mehr erlaubt,
+   behält ihren Beitrag, statt die Stornierung abzulehnen. Jede betroffene
+   Anmeldung bekommt den Eintrag `sibling_cancel` mit den anderen
+   Anmeldungen.
+
+Nicht in diesem Nachtrag: das Alter als Rang, Stufenregeln, Geschwister über
+Zeiträume, Schulen und Verträge (#4685), eine Rechnung je Familie (#4689).
+
+## Nachtrag 2026-11-04: Rang und Kostenübernahme je Träger einstellbar (#5664)
+
+Die Kita-Satzung der Gemeinde Bissendorf nennt das ältere Kind als erstes, und
+ob der Landkreis den vollen Preis erstattet, ist offen. Beide Regeln der Kette
+werden deshalb zu Einstellungen des Trägers. Die Standardwerte sind die feste
+Kette von vorher.
+
+1. **Einstellungen statt Beitragsregeln.** `parent_billing.sibling_rank`
+   (`highest_contribution`, `oldest_child`) und
+   `parent_billing.cost_takeover_order` (`after_discount`, `before_discount`)
+   sind Träger-Einstellungen (ADR 0086, ADR 0107) unter Einstellungen →
+   Ferienbetreuung, mit dem Recht „Einstellungen“. Sie sind Wahlen in der
+   Kette, keine Regelart mit Gültigkeit (Punkt 2). Ein unbekannter Wert oder
+   ein Lesefehler lehnt die Rechnung ab; es gibt keinen Rückfall auf den
+   Standard.
+2. **Ältestes Kind zuerst.** Das Geburtsdatum liest die Elternabrechnung aus
+   der Anmeldung über den Port `HolidayRegistrations`; es steht im Protokoll
+   wie jeder Lesezugriff (ADR 0114 Punkt 6). Sie speichert es nicht. Bei
+   gleichem Datum gilt die frühere Anmeldung, dann die Reihenfolge im Formular.
+3. **Öffentliche Zusammenfassung (zu Punkt 7).** Das Formular schickt je Kind
+   nur den Platz nach Alter (`age_rank`), nicht das Geburtsdatum. Die Anfrage
+   trägt weiter keine personenbezogenen Daten, und der Browser rechnet keinen
+   Beitrag.
+4. **Vor dem Rabatt (zu Punkt 3).** Der Kostenträger übernimmt den vollen Preis
+   der Kinder seiner Anmeldung. Sie behalten ihren Rang und zählen weiter als
+   Geschwister, bekommen aber keine Ermäßigung; die Ermäßigung der übrigen
+   Kinder ändert sich nicht. Die Befreiung folgt weiter nach der Ermäßigung.
+5. **Festhalten (zu Punkt 5).** Jeder festgehaltene Beitrag hält beide Werte
+   (`holiday_contributions.sibling_rank`, `.cost_takeover_order`, Migration
+   1.15.749). Eine Gruppe mit festgehaltenem Beitrag rechnet mit dessen Werten,
+   auch beim Bestätigen einer weiteren Anmeldung, beim Zusammenführen und beim
+   Trennen: Eine spätere Umstellung ändert keinen festgehaltenen Beitrag.
+   Vorschau und Bestätigung nehmen dieselben Werte. Nur wenn Anmeldungen mit
+   verschiedenen Werten zusammenkommen, gelten für die Gruppe die aktuellen;
+   jede Anmeldung, deren Werte oder Beträge sich dadurch ändern, bekommt eine
+   neue Fassung.
+
+Offen bleibt die Entscheidung der Gemeinde vom 11.11.2026. Sie ändert nur, was
+Bissendorf einstellt, nicht diesen Code.

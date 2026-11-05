@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -20,6 +21,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { useApiLoadError } from "~/contexts/ToastContext";
+import { berlinClockFromISO } from "~/lib/date-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
@@ -33,9 +35,10 @@ import type {
 
 const logger = createLogger({ component: "PastBlocksSection" });
 
-// Read-only end-of-day review (#2335): today's completed blocks plus planned
-// blocks whose end time passed without a start. Everything here is display
-// only — no start button, no attendance actions.
+// End-of-day review (#2335): today's completed blocks plus planned blocks
+// whose end time passed without a start. No start button, no attendance
+// actions. The one action is „Wieder öffnen“ on a block that was ended by
+// mistake and can still be reopened (#5676).
 
 // Deliberately local, not shared with planned-now-section's rosterStatusLabel:
 // that one describes the LIVE state of an upcoming block ("Erwartet"), these
@@ -63,7 +66,17 @@ function pastRosterDotColor(row: TimetableRosterRow): string {
   return LOCATION_COLORS.NOT_ARRIVAL;
 }
 
-export function PastBlocksSection() {
+interface PastBlocksSectionProps {
+  /**
+   * Reopens a finished block and shows its own failure; without it the
+   * review stays display only.
+   */
+  readonly onReopen?: (block: PlannedTimetableInstance) => Promise<void>;
+}
+
+export function PastBlocksSection({
+  onReopen,
+}: Readonly<PastBlocksSectionProps> = {}) {
   const [expanded, setExpanded] = useState(false);
   const [blocks, setBlocks] = useState<PlannedTimetableInstance[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -72,8 +85,20 @@ export function PastBlocksSection() {
     show: showLoadError,
     clear: clearLoadError,
   } = useApiLoadError();
-  // Erhöht von „Wiederholen“: lädt die Liste erneut.
+  // Erhöht von „Wiederholen“ und nach „Wieder öffnen“: lädt die Liste erneut.
   const [attempt, setAttempt] = useState(0);
+  // Nach dem Wiederöffnen gehört der Block nicht mehr hierher; scheitert es,
+  // zeigt die neue Liste, ob er sich noch öffnen lässt (#5676).
+  const reopenAndReload = useMemo(
+    () =>
+      onReopen
+        ? async (block: PlannedTimetableInstance) => {
+            await onReopen(block);
+            setAttempt((value) => value + 1);
+          }
+        : undefined,
+    [onReopen],
+  );
 
   // Lazy: the list loads when the section opens, and reloads on every open so
   // a block that ended in the meantime shows up without a page refresh.
@@ -116,7 +141,8 @@ export function PastBlocksSection() {
       defaultCollapsed
       onCollapsedChange={(collapsed) => setExpanded(!collapsed)}
       className="mt-5"
-      bodyClassName="-mx-5 -mb-5 mt-5 border-t border-gray-100 bg-gray-50/50 p-5"
+      flush
+      bodyClassName="compact:p-4 mt-5 border-t border-gray-100 bg-gray-50/50 p-5 max-sm:p-4"
     >
       {isLoading && blocks === null ? (
         <SkeletonRegion label="Vergangene Blöcke werden geladen">
@@ -135,7 +161,11 @@ export function PastBlocksSection() {
       ) : blocks !== null ? (
         <div className="grid gap-3 xl:grid-cols-2">
           {blocks.map((block) => (
-            <PastBlockCard key={block.id} block={block} />
+            <PastBlockCard
+              key={block.id}
+              block={block}
+              onReopen={reopenAndReload}
+            />
           ))}
         </div>
       ) : null}
@@ -145,7 +175,35 @@ export function PastBlocksSection() {
 
 function PastBlockCard({
   block,
-}: Readonly<{ block: PlannedTimetableInstance }>) {
+  onReopen,
+}: Readonly<{
+  block: PlannedTimetableInstance;
+  onReopen?: (block: PlannedTimetableInstance) => Promise<void>;
+}>) {
+  const [isReopening, setIsReopening] = useState(false);
+  const reopenDeadline =
+    block.status === "completed" && block.canReopen && block.reopenUntil
+      ? Date.parse(block.reopenUntil)
+      : Number.NaN;
+  const [reopenExpired, setReopenExpired] = useState(
+    () => Number.isFinite(reopenDeadline) && reopenDeadline <= Date.now(),
+  );
+  // Die Frist läuft auch ab, während die Liste offen bleibt: dann nimmt das
+  // Backend das Wiederöffnen nicht mehr an (#5676).
+  useEffect(() => {
+    if (!Number.isFinite(reopenDeadline)) return;
+    const remainingMs = reopenDeadline - Date.now();
+    if (remainingMs <= 0) {
+      setReopenExpired(true);
+      return;
+    }
+    setReopenExpired(false);
+    const timeoutId = window.setTimeout(
+      () => setReopenExpired(true),
+      remainingMs,
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [reopenDeadline]);
   const [expanded, setExpanded] = useState(false);
   const [roster, setRoster] = useState<TimetableRoster | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -155,6 +213,14 @@ function PastBlockCard({
     clear: clearLoadError,
   } = useApiLoadError();
   const completed = block.status === "completed";
+  const reopenUntil =
+    completed &&
+    block.canReopen &&
+    onReopen &&
+    block.reopenUntil &&
+    !reopenExpired
+      ? berlinClockFromISO(block.reopenUntil)
+      : "";
   // „Wiederholen“ lädt die Kinderliste dieses Blocks erneut.
   const reloadRef = useRef<() => void>(() => undefined);
 
@@ -198,6 +264,70 @@ function PastBlockCard({
         )
       }
       bodyClassName="mt-2"
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            size="md"
+            onClick={toggleRoster}
+            className="w-full justify-between"
+            aria-expanded={expanded}
+          >
+            <span>Kinder</span>
+            <ChevronDown
+              className={`h-4 w-4 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
+              aria-hidden="true"
+            />
+          </Button>
+
+          {expanded ? (
+            <div className="mt-3">
+              {isLoading ? (
+                <SkeletonRegion label="Kinderliste wird geladen">
+                  <ListSkeleton rows={4} avatar={false} />
+                </SkeletonRegion>
+              ) : loadError ? (
+                <LoadErrorAlert error={loadError} />
+              ) : roster !== null ? (
+                <div className="space-y-2">
+                  {!completed ? (
+                    <p className="text-moto-amber-strong text-xs">
+                      Keine Anwesenheit erfasst: Der Block wurde nicht
+                      gestartet.
+                    </p>
+                  ) : null}
+                  {roster.rows.length === 0 ? (
+                    <p className="text-sm text-gray-600">
+                      Keine Kinder eingeplant.
+                    </p>
+                  ) : (
+                    <>
+                      {roster.pickupTimesLoaded === false &&
+                      !roster.pickupTimesRedacted ? (
+                        <Alert
+                          type="warning"
+                          announce="polite"
+                          message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
+                        />
+                      ) : null}
+                      {roster.rows.map((row) => (
+                        <PastRosterRow
+                          key={row.studentId}
+                          row={row}
+                          pickupTimesLoaded={roster.pickupTimesLoaded}
+                          pickupTimesRedacted={roster.pickupTimesRedacted}
+                          showStatus={completed}
+                        />
+                      ))}
+                    </>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </>
+      }
     >
       <div className="flex flex-wrap gap-3 text-sm text-gray-600">
         <span>
@@ -209,68 +339,29 @@ function PastBlockCard({
           {block.assignedStaffIds.length === 1 ? "Betreuer" : "Betreuende"}
         </span>
       </div>
-
-      <div className="-mx-5 mt-4 -mb-5 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
-        <Button
-          type="button"
-          variant="ghost"
-          size="md"
-          onClick={toggleRoster}
-          className="w-full justify-between"
-          aria-expanded={expanded}
-        >
-          <span>Kinder</span>
-          <ChevronDown
-            className={`h-4 w-4 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
-            aria-hidden="true"
-          />
-        </Button>
-
-        {expanded ? (
-          <div className="mt-3">
-            {isLoading ? (
-              <SkeletonRegion label="Kinderliste wird geladen">
-                <ListSkeleton rows={4} avatar={false} />
-              </SkeletonRegion>
-            ) : loadError ? (
-              <LoadErrorAlert error={loadError} />
-            ) : roster !== null ? (
-              <div className="space-y-2">
-                {!completed ? (
-                  <p className="text-moto-amber-strong text-xs">
-                    Keine Anwesenheit erfasst: Der Block wurde nicht gestartet.
-                  </p>
-                ) : null}
-                {roster.rows.length === 0 ? (
-                  <p className="text-sm text-gray-600">
-                    Keine Kinder eingeplant.
-                  </p>
-                ) : (
-                  <>
-                    {roster.pickupTimesLoaded === false &&
-                    !roster.pickupTimesRedacted ? (
-                      <Alert
-                        type="warning"
-                        announce="polite"
-                        message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
-                      />
-                    ) : null}
-                    {roster.rows.map((row) => (
-                      <PastRosterRow
-                        key={row.studentId}
-                        row={row}
-                        pickupTimesLoaded={roster.pickupTimesLoaded}
-                        pickupTimesRedacted={roster.pickupTimesRedacted}
-                        showStatus={completed}
-                      />
-                    ))}
-                  </>
-                )}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+      {reopenUntil && onReopen ? (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-gray-700">
+            Aus Versehen beendet? Sie können ihn bis {reopenUntil} Uhr wieder
+            öffnen.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => {
+              setIsReopening(true);
+              void onReopen(block).finally(() => setIsReopening(false));
+            }}
+            isLoading={isReopening}
+            loadingText="Öffne wieder …"
+            disabled={isReopening}
+            aria-label={`${block.title} wieder öffnen`}
+          >
+            Wieder öffnen
+          </Button>
+        </div>
+      ) : null}
     </SectionCard>
   );
 }

@@ -535,6 +535,12 @@
       "legacy": "timetable.reopen_student_active"
     },
     {
+      "code": "timetable.reopen_student_left",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "timetable.reopen_student_left"
+    },
+    {
       "code": "timetable.reopen_supervision_changed",
       "class": "business_rejection",
       "parameters": [],

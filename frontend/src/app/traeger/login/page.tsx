@@ -400,6 +400,7 @@ function LoginForm() {
         isOpen={isResetModalOpen}
         onClose={() => setIsResetModalOpen(false)}
         onRequestReset={requestTraegerPasswordReset}
+        inputControlSize="compact"
         errorPath={resetErrors}
         formRef={resetFormRef}
       />

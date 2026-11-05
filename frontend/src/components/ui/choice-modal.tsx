@@ -2,7 +2,7 @@
 
 /**
  * ChoiceModal — generic N-option scope dialog built on the shared Modal
- * (inherits portal, z-[9999], FocusScope and useModal registration).
+ * (inherits portal, `Z_LAYER.modal`, FocusScope and useModal registration).
  *
  * Use it when an action needs the user to pick exactly one of a small set
  * of scopes/strategies before proceeding, e.g. "Nur diesen Termin" vs.

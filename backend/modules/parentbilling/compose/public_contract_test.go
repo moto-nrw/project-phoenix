@@ -32,10 +32,44 @@ func (c confirmedRegistration) HolidayRegistration(context.Context, parentbillin
 	return c.registration, nil
 }
 
-func (c confirmedRegistration) ConfirmHolidayRegistration(context.Context, parentbilling.HolidayReviewer, int64, int64) (parentbilling.HolidayRegistration, error) {
+func (c confirmedRegistration) ConfirmHolidayRegistration(_ context.Context, _ parentbilling.HolidayReviewer, _, _ int64, debtorNumber string) (parentbilling.HolidayRegistration, error) {
 	confirmed := c.registration
 	confirmed.Status = parentbilling.HolidayRegistrationConfirmed
+	confirmed.DebtorNumber = debtorNumber
 	return confirmed, nil
+}
+
+func (c confirmedRegistration) SetHolidayDebtorNumber(context.Context, parentbilling.HolidayReviewer, int64, int64, string) (parentbilling.HolidayRegistration, error) {
+	return parentbilling.HolidayRegistration{}, parentbilling.ErrHolidayRegistrationStateConflict
+}
+
+func (c confirmedRegistration) CancelHolidayRegistration(context.Context, parentbilling.HolidayReviewer, int64, int64) (parentbilling.HolidayRegistration, error) {
+	return parentbilling.HolidayRegistration{}, parentbilling.ErrHolidayRegistrationStateConflict
+}
+
+func (c confirmedRegistration) HoldHolidayPeriod(context.Context, parentbilling.HolidayReviewer, int64) error {
+	return nil
+}
+
+func (c confirmedRegistration) RecordHolidaySiblings(context.Context, parentbilling.HolidayReviewer, int64, int64, string, []int64) error {
+	return nil
+}
+
+// settingsDouble is the Träger's switch for the debtor number (#5621).
+type settingsDouble struct{ asksDebtorNumber bool }
+
+func (s settingsDouble) AsksDebtorNumber(context.Context, int64) (bool, error) {
+	return s.asksDebtorNumber, nil
+}
+
+func (s settingsDouble) PaymentText(context.Context, int64) (string, error) {
+	return "", nil
+}
+
+func (s settingsDouble) HolidayChain(context.Context, int64) (parentbilling.HolidayChainSettings, error) {
+	return parentbilling.HolidayChainSettings{
+		SiblingRank: parentbilling.SiblingRankHighestContribution, CostTakeoverOrder: parentbilling.CostTakeoverAfterDiscount,
+	}, nil
 }
 
 func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) {
@@ -67,7 +101,7 @@ func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) 
 		}}},
 	}}
 	rules := compose.NewContributionRules()
-	contributions := compose.NewHolidayContributions(enrollment)
+	contributions := compose.NewHolidayContributions(enrollment, settingsDouble{})
 	reviewer := parentbilling.HolidayReviewer{OrganizationID: organization, AccountID: account.ID}
 
 	var exemption parentbilling.ContributionRule
@@ -81,13 +115,13 @@ func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) 
 		if err != nil {
 			return err
 		}
-		if confirmation, err = contributions.ConfirmHolidayRegistration(txCtx, reviewer, period, registration, true); err != nil {
+		if confirmation, err = contributions.ConfirmHolidayRegistration(txCtx, reviewer, period, registration, true, 0, ""); err != nil {
 			return err
 		}
 		if err = rules.DeleteContributionRule(txCtx, organization, exemption.ID); err != nil {
 			return err
 		}
-		later, err = contributions.HolidayContribution(txCtx, reviewer, period, registration, nil)
+		later, err = contributions.HolidayContribution(txCtx, reviewer, period, registration, nil, 0)
 		return err
 	}))
 

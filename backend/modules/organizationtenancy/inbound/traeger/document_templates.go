@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
 
-// Document templates of the Träger (#4677, ADR 0150) at
+// Document templates of the Träger (#4677, ADR 0152) at
 // /traeger/master-data/document-templates. Reading and the preview with
 // sample data need "Übersicht lesen", saving a version "Einstellungen".
 

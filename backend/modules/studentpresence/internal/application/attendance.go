@@ -22,7 +22,7 @@ func attendanceToPublic(row *ports.Attendance) studentpresence.Attendance {
 		StudentID: row.StudentID, Date: row.Date.String(), CheckInTime: row.CheckInTime,
 		CheckOutTime: row.CheckOutTime, CheckedInBy: row.CheckedInBy, CheckedOutBy: row.CheckedOutBy,
 		DeviceID: row.DeviceID, CheckedOutDeviceID: row.CheckedOutDeviceID, YardSince: row.YardSince,
-		CheckOutNote: row.CheckOutNote,
+		CheckOutNote: row.CheckOutNote, CheckOutReason: row.CheckOutReason,
 	}
 }
 
@@ -34,7 +34,7 @@ func attendanceFromPublic(value studentpresence.Attendance) (*ports.Attendance, 
 	row := &ports.Attendance{StudentID: value.StudentID, Date: date, CheckInTime: value.CheckInTime,
 		CheckOutTime: value.CheckOutTime, CheckedInBy: value.CheckedInBy, CheckedOutBy: value.CheckedOutBy,
 		DeviceID: value.DeviceID, CheckedOutDeviceID: value.CheckedOutDeviceID, YardSince: value.YardSince,
-		CheckOutNote: value.CheckOutNote}
+		CheckOutNote: value.CheckOutNote, CheckOutReason: value.CheckOutReason}
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row, nil
 }

@@ -53,6 +53,23 @@ func (r *HolidayHostSchoolRefusal) Unwrap() []error {
 	return []error{r.Err, ErrHolidayHostSchoolOutsideTraeger}
 }
 
+// ErrHolidayWeeksBookedTogether reports a change of dates that would put a
+// child in two weeks sharing a day.
+var ErrHolidayWeeksBookedTogether = errors.New("a child has booked both weeks, which would share a day")
+
+// HolidayWeeksBookedTogetherRefusal names the week, by its position in the
+// written period, that may not share a day with a week booked by the same
+// child. It unwraps to ErrHolidayWeeksBookedTogether.
+type HolidayWeeksBookedTogetherRefusal struct {
+	Week int
+}
+
+func (r *HolidayWeeksBookedTogetherRefusal) Error() string {
+	return fmt.Sprintf("week %d: %v", r.Week+1, ErrHolidayWeeksBookedTogether)
+}
+
+func (r *HolidayWeeksBookedTogetherRefusal) Unwrap() error { return ErrHolidayWeeksBookedTogether }
+
 // HolidayTimeModel is a bookable care time of one week, such as "bis
 // 13 Uhr", with its price in cent. Times are wall-clock "HH:MM".
 type HolidayTimeModel struct {
@@ -141,6 +158,7 @@ type HolidayPeriods interface {
 	// with the standard template (#5198).
 	HolidayPeriodForm(ctx context.Context, organizationID, periodID int64) (HolidayFormEditor, error)
 	// SaveHolidayPeriodForm writes the next version of the period's form
-	// and returns it. accountID is the person of the Träger-Büro who saves.
-	SaveHolidayPeriodForm(ctx context.Context, organizationID, periodID, accountID int64, fields []HolidayFormField, blocks []FormLegalBlock) (HolidayFormEditor, error)
+	// and returns it. accountID is the person of the Träger-Büro who saves;
+	// address is the building block "Anschrift" of the version (#5625).
+	SaveHolidayPeriodForm(ctx context.Context, organizationID, periodID, accountID int64, fields []HolidayFormField, blocks []FormLegalBlock, address HolidayAddressRequirement) (HolidayFormEditor, error)
 }

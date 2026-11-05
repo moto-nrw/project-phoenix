@@ -124,6 +124,28 @@ describe("GET /api/staff/[id]/avatar", () => {
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
   });
 
+  it("lets the browser keep a versioned avatar address without refetching", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "image/png" }),
+      arrayBuffer: async () => new Uint8Array([1]).buffer,
+    });
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/staff/42/avatar?v=42_abc.png"),
+      { params: Promise.resolve({ id: "42" }) },
+    );
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/api/staff/42/avatar",
+      expect.anything(),
+    );
+    expect(response.headers.get("Cache-Control")).toBe(
+      "private, max-age=86400, immutable",
+    );
+  });
+
   it("passes backend error statuses through unchanged", async () => {
     mockFetch.mockResolvedValue(new Response("Not found", { status: 404 }));
 

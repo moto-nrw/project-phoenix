@@ -10,6 +10,7 @@ import enMessages from "~/i18n/messages/en.generated";
 import type { HolidayRegistrationOffer } from "~/lib/holiday-registration-api";
 import { ParentLocaleProvider } from "~/lib/parent-locale-context";
 import { HolidayRegistrationForm } from "./holiday-registration-form";
+import { HOLIDAY_CONSENT_TEXTS } from "~/test/fixtures/holiday-consent-texts";
 
 // A language switch must keep the half-filled registration (#5327). The real
 // catalogs show that the form re-renders in the new language.
@@ -65,6 +66,7 @@ const offer: HolidayRegistrationOffer = {
   ],
   schools: [{ id: "31", name: "OGS Nord" }],
   captchaSiteKey: "site",
+  consentTexts: HOLIDAY_CONSENT_TEXTS,
   form: { version: 1, fields: [] },
 };
 
@@ -124,6 +126,10 @@ function fillRegistration() {
   fireEvent.click(
     screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist. *"),
   );
+  fireEvent.click(
+    screen.getByLabelText(/Ich darf die Anmeldung allein abgeben/),
+  );
+  type(screen.getByLabelText("Ihr Vor- und Nachname"), "Eva Maria Muster");
 }
 
 describe("HolidayRegistrationForm language switch", () => {
@@ -148,6 +154,14 @@ describe("HolidayRegistrationForm language switch", () => {
 
     // Back in the form, the fields still hold what was typed.
     fireEvent.click(screen.getByRole("button", { name: "Back and change" }));
+    // The German declaration binds; the translation stands below it (#5626).
+    const custody = screen.getByRole("checkbox", {
+      name: /Ich darf die Anmeldung allein abgeben:.*Translation, the German text applies: I may submit the registration on my own:/,
+    });
+    expect(custody).toBeChecked();
+    expect(screen.getByLabelText("Your first and last name")).toHaveValue(
+      "Eva Maria Muster",
+    );
     const [childFirst, guardianFirst] = screen.getAllByLabelText("First name");
     expect(childFirst).toHaveValue("Ben");
     expect(guardianFirst).toHaveValue("Eva");

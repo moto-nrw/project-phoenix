@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports"
 )
 
-// Document templates of a Träger (#4677, ADR 0150). Like the master data,
+// Document templates of a Träger (#4677, ADR 0152). Like the master data,
 // the service opens no transaction: the Träger-Portal route runs it in the
 // Träger transaction of the session's Träger. A save checks the template
 // against the placeholders of its kind before it writes, locks the Träger,

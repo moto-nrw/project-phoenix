@@ -9,10 +9,11 @@ import {
   type ReactNode,
 } from "react";
 
-import { getAccessibleTextColor, LOCATION_COLORS } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Skeleton } from "~/components/ui/skeleton";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 type SortDirection = "asc" | "desc";
 
@@ -49,8 +50,9 @@ export interface DataTableColumn<T> {
  * Row selection of a DataTable (#3834): a checkbox column in front, with an
  * "alle auswählen" box in the header that covers every row of the table, not
  * only the rows paged in so far. The caller owns the selection; the table
- * only reports changes. Keys are `String(getRowKey(row))`. The "row"
- * stacked phone layout shows the row checkboxes too, without the header box.
+ * only reports changes. Keys are `String(getRowKey(row))`. The "row" and
+ * "lines" stacked phone layouts show the row checkboxes too, without the
+ * header box.
  */
 interface DataTableSelection<T> {
   readonly selectedKeys: ReadonlySet<string>;
@@ -120,6 +122,9 @@ interface DataTableProps<T> {
   hiddenColumns?: ReadonlySet<string>;
   selection?: DataTableSelection<T>;
   heading?: DataTableHeading;
+  // The row whose detail stands beside the table (list left, detail right,
+  // #5692). It carries aria-current and the selected tint in both layouts.
+  activeRowKey?: string | number | null;
 }
 
 const alignClass: Record<
@@ -154,6 +159,10 @@ const bodyRowClass = "border-b border-gray-50 last:border-0";
 // the table fits, sticky changes nothing. The cell needs its own background,
 // which follows the row's hover and selection.
 const PINNED_COLUMN_KEY = "actions";
+// The row shown beside the table: the tint plus a dark bar on its leading
+// edge, so it stays apart from a row under the pointer.
+const ACTIVE_ROW_CLASS =
+  "bg-gray-50 shadow-[inset_3px_0_0_0_var(--color-gray-900)]";
 const pinnedCellClass = "sticky right-0";
 
 function pinnedBodyCellClass(selected: boolean, clickable: boolean): string {
@@ -263,6 +272,36 @@ const STACKED_ROW_PADDING: Record<"lines" | "row" | "form", string> = {
 const STACKED_ROW_CONTROL = "[data-row-control]";
 
 /**
+ * The checkbox of a phone row. The row ignores clicks from this label
+ * (STACKED_ROW_CONTROL): the checkbox marks the row, it must not also open
+ * it.
+ */
+function StackedRowCheckbox<T>({
+  row,
+  rowKey,
+  selection,
+}: Readonly<{
+  row: T;
+  rowKey: string;
+  selection: DataTableSelection<T>;
+}>) {
+  const selected = selection.selectedKeys.has(rowKey);
+  return (
+    <label
+      data-row-control=""
+      className="-m-2 flex shrink-0 cursor-pointer items-center p-2"
+    >
+      <Checkbox
+        checked={selected}
+        disabled={selection.disabled}
+        onChange={() => selection.onChange([rowKey], !selected)}
+      />
+      <span className="sr-only">{`${selection.rowLabel(row)} auswählen`}</span>
+    </label>
+  );
+}
+
+/**
  * The phone list row (#3834): one entry per line. Optional checkbox, the
  * title with one chosen detail column under it, the meta value at the
  * right. Every other column stays off the phone: a list that grows back
@@ -283,23 +322,10 @@ function RowStackedRow<T>({
   detail: DataTableColumn<T> | undefined;
   selection?: DataTableSelection<T>;
 }>) {
-  const selected = selection?.selectedKeys.has(rowKey) ?? false;
   return (
     <div className="flex min-h-8 items-center gap-3">
       {selection ? (
-        // The row ignores clicks from this label (STACKED_ROW_CONTROL):
-        // the checkbox marks the row, it must not also open it.
-        <label
-          data-row-control=""
-          className="-m-2 flex shrink-0 cursor-pointer items-center p-2"
-        >
-          <Checkbox
-            checked={selected}
-            disabled={selection.disabled}
-            onChange={() => selection.onChange([rowKey], !selected)}
-          />
-          <span className="sr-only">{`${selection.rowLabel(row)} auswählen`}</span>
-        </label>
+        <StackedRowCheckbox row={row} rowKey={rowKey} selection={selection} />
       ) : null}
       {/* The title keeps at least 5rem and the meta value at most 9.5rem
           (one badge): a second badge wraps below the first instead of
@@ -371,6 +397,7 @@ function StackedRows<T>({
   selection,
   detail,
   heading,
+  activeRowKey,
 }: Readonly<{
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -389,6 +416,7 @@ function StackedRows<T>({
   selection?: DataTableSelection<T>;
   detail?: DataTableColumn<T>;
   heading?: DataTableHeading;
+  activeRowKey?: string | number | null;
 }>) {
   const title =
     layout === "form" && stackedTitle
@@ -438,83 +466,97 @@ function StackedRows<T>({
       <div className={layout === "form" ? "" : surfaceClass}>
         {heading ? <SurfaceHeading heading={heading} /> : null}
         <ul className="divide-y divide-gray-100">
-          {rows.map((row) => (
-            <li
-              key={getRowKey(row)}
-              className={`${STACKED_ROW_PADDING[layout]} ${clickable ? "cursor-pointer" : ""} ${rowClassName ? rowClassName(row) : ""}`}
-              onClick={
-                onRowClick
-                  ? (event) => {
-                      if (
-                        event.target instanceof Element &&
-                        event.target.closest(STACKED_ROW_CONTROL)
-                      ) {
-                        return;
+          {rows.map((row) => {
+            const active =
+              activeRowKey != null && getRowKey(row) === activeRowKey;
+            return (
+              <li
+                key={getRowKey(row)}
+                aria-current={active ? "true" : undefined}
+                className={`${STACKED_ROW_PADDING[layout]} ${clickable ? "cursor-pointer" : ""} ${active ? ACTIVE_ROW_CLASS : ""} ${rowClassName ? rowClassName(row) : ""}`}
+                onClick={
+                  onRowClick
+                    ? (event) => {
+                        if (
+                          event.target instanceof Element &&
+                          event.target.closest(STACKED_ROW_CONTROL)
+                        ) {
+                          return;
+                        }
+                        onRowClick(row);
                       }
-                      onRowClick(row);
-                    }
-                  : undefined
-              }
-              onKeyDown={
-                keyboardClickable
-                  ? (event) => {
-                      if (event.target !== event.currentTarget) return;
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        onRowClick?.(row);
+                    : undefined
+                }
+                onKeyDown={
+                  keyboardClickable
+                    ? (event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          onRowClick?.(row);
+                        }
                       }
+                    : undefined
+                }
+                tabIndex={keyboardClickable ? 0 : undefined}
+                role={keyboardClickable ? "button" : undefined}
+              >
+                {layout === "form" ? (
+                  <FormStackedRow
+                    row={row}
+                    headline={
+                      stackedTitle ? stackedTitle(row) : title?.render(row)
                     }
-                  : undefined
-              }
-              tabIndex={keyboardClickable ? 0 : undefined}
-              role={keyboardClickable ? "button" : undefined}
-            >
-              {layout === "form" ? (
-                <FormStackedRow
-                  row={row}
-                  headline={
-                    stackedTitle ? stackedTitle(row) : title?.render(row)
-                  }
-                  meta={meta}
-                  fields={fields}
-                />
-              ) : layout === "row" ? (
-                <RowStackedRow
-                  row={row}
-                  rowKey={String(getRowKey(row))}
-                  title={title}
-                  meta={meta}
-                  detail={detail}
-                  selection={selection}
-                />
-              ) : (
-                <>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="min-w-0">{title?.render(row)}</span>
-                    {meta ? (
-                      <span className="shrink-0 text-xs text-gray-500">
-                        {meta.render(row)}
+                    meta={meta}
+                    fields={fields}
+                  />
+                ) : layout === "row" ? (
+                  <RowStackedRow
+                    row={row}
+                    rowKey={String(getRowKey(row))}
+                    title={title}
+                    meta={meta}
+                    detail={detail}
+                    selection={selection}
+                  />
+                ) : (
+                  <>
+                    <div className="flex items-baseline justify-between gap-3">
+                      {selection ? (
+                        <StackedRowCheckbox
+                          row={row}
+                          rowKey={String(getRowKey(row))}
+                          selection={selection}
+                        />
+                      ) : null}
+                      <span className="min-w-0 flex-1">
+                        {title?.render(row)}
                       </span>
-                    ) : null}
-                  </div>
-                  {fields.length > 0 && (
-                    <dl className="mt-2 space-y-1 text-sm">
-                      {fields.map((col) => {
-                        // A cell without a value for this row (null) drops
-                        // its line instead of showing a bare label.
-                        const value = col.render(row);
-                        return value === null ? null : (
-                          <StackedField key={col.key} label={col.header}>
-                            {value}
-                          </StackedField>
-                        );
-                      })}
-                    </dl>
-                  )}
-                </>
-              )}
-            </li>
-          ))}
+                      {meta ? (
+                        <span className="shrink-0 text-xs text-gray-500">
+                          {meta.render(row)}
+                        </span>
+                      ) : null}
+                    </div>
+                    {fields.length > 0 && (
+                      <dl className="mt-2 space-y-1 text-sm">
+                        {fields.map((col) => {
+                          // A cell without a value for this row (null) drops
+                          // its line instead of showing a bare label.
+                          const value = col.render(row);
+                          return value === null ? null : (
+                            <StackedField key={col.key} label={col.header}>
+                              {value}
+                            </StackedField>
+                          );
+                        })}
+                      </dl>
+                    )}
+                  </>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
       {hasMore && (
@@ -594,6 +636,7 @@ export function DataTable<T>({
   hiddenColumns,
   selection,
   heading,
+  activeRowKey,
 }: Readonly<DataTableProps<T>>) {
   const clickable = Boolean(onRowClick);
   const shownColumns = useMemo(
@@ -728,6 +771,7 @@ export function DataTable<T>({
             selection={selection}
             detail={stackedDetail}
             heading={heading}
+            activeRowKey={activeRowKey}
           />
         </div>
       )}
@@ -856,12 +900,16 @@ export function DataTable<T>({
               ) : (
                 visibleRows.map((row) => {
                   const rowKey = getRowKey(row);
+                  const active =
+                    activeRowKey != null && rowKey === activeRowKey;
                   const selected =
                     selection?.selectedKeys.has(String(rowKey)) ?? false;
+                  const tinted = selected || active;
                   const rowClasses = [
                     `${bodyRowClass} transition-colors`,
                     clickable ? "group cursor-pointer hover:bg-gray-50" : "",
-                    selected ? "bg-gray-50" : "",
+                    tinted ? "bg-gray-50" : "",
+                    active ? ACTIVE_ROW_CLASS : "",
                     rowClassName ? rowClassName(row) : "",
                   ]
                     .filter(Boolean)
@@ -869,6 +917,7 @@ export function DataTable<T>({
                   return (
                     <tr
                       key={rowKey}
+                      aria-current={active ? "true" : undefined}
                       className={rowClasses}
                       onClick={onRowClick ? () => onRowClick(row) : undefined}
                       onKeyDown={
@@ -912,7 +961,7 @@ export function DataTable<T>({
                         const align = alignClass[col.align ?? "left"];
                         const pinned =
                           col.key === PINNED_COLUMN_KEY
-                            ? pinnedBodyCellClass(selected, clickable)
+                            ? pinnedBodyCellClass(tinted, clickable)
                             : "";
                         return (
                           <td
@@ -977,13 +1026,7 @@ export function DataTableStatusBadge({
     : active
       ? LOCATION_COLORS.GROUP_ROOM
       : LOCATION_COLORS.DANGER;
-  const textColor = getAccessibleTextColor(color, "#F9FAFB");
-  return (
-    <span
-      className="inline-flex items-center rounded-full bg-gray-50 px-3 py-1 text-xs font-medium"
-      style={{ color: textColor }}
-    >
-      {label}
-    </span>
-  );
+  // Same pill as StatusBadge and StatusColorBadge (#5584): the tint of the
+  // state's colour with its accessible text shade.
+  return <StatusColorBadge label={label} color={color} />;
 }

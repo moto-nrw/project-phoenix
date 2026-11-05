@@ -105,6 +105,7 @@ import { useTenantMutate } from "~/lib/swr";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -914,9 +915,7 @@ export function PhasesEditor() {
               description:
                 "Legen Sie zuerst fest, für welchen Zeitraum Eltern anmelden können, zum Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung.",
               icon: (
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-                  <MotoConceptIcon concept={calendarPeriodsConcept} size={24} />
-                </span>
+                <ConceptIconTile concept={calendarPeriodsConcept} size="page" />
               ),
             }
           : null

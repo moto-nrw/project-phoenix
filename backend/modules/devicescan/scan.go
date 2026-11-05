@@ -70,6 +70,7 @@ const (
 	ScanActionCheckedIn               = "checked_in"
 	ScanActionCheckedOut              = "checked_out"
 	ScanActionCheckedOutDaily         = "checked_out_daily"
+	ScanActionCheckedOutClass         = "checked_out_class"
 	ScanActionTransferred             = "transferred"
 	ScanActionNoAction                = "no_action"
 	ScanActionSupervisorAuthenticated = "supervisor_authenticated"
@@ -85,6 +86,9 @@ const (
 
 	DestinationHome    = "zuhause"
 	DestinationTransit = "unterwegs"
+	// DestinationClass is additive (#5656): kiosks that do not know it keep
+	// sending the two destinations above and get the same answers as before.
+	DestinationClass = "unterricht"
 )
 
 // FailureKind is the HTTP class a classified refusal renders as.

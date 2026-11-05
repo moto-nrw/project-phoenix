@@ -719,6 +719,8 @@ describe("getParentHelpTopicForPath", () => {
     expect(traegerTopics.map((topic) => topic.id)).toEqual([
       HELP_TOPICS.traegerInvitation,
       HELP_TOPICS.traegerLogin,
+      HELP_TOPICS.traegerDashboard,
+      HELP_TOPICS.traegerSchoolView,
       HELP_TOPICS.traegerSchoolSwitch,
       HELP_TOPICS.traegerTestSystem,
       HELP_TOPICS.traegerAccounts,

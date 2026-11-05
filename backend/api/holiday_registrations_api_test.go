@@ -151,6 +151,7 @@ func siblingsRegistration(offer holidayOfferBody, email string) map[string]any {
 		"emergency_contacts": []map[string]any{{"name": "Oma Muster", "phone": "05402 1234", "relationship": "Großmutter"}},
 		"pickup_persons":     []map[string]any{{"name": "Opa Muster"}},
 		"privacy_consent":    true, "health_consent": true, "binding_confirmed": true,
+		"custody_confirmed": true, "declaration_name": "Eva Muster", "consent_version": enrollment.HolidayConsentVersionCurrent,
 		"captcha_token": "valid-token",
 	}
 }

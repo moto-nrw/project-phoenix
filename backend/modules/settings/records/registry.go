@@ -111,6 +111,9 @@ type Definition struct {
 	Description string    `json:"description"`
 	Type        FieldType `json:"type"`
 	Default     any       `json:"default"`
+	// Placeholder is the grey example an empty textarea shows (#5693).
+	// It is never a value: an empty field stays empty when saved and read.
+	Placeholder string `json:"placeholder,omitempty"`
 
 	Validation *ValidationRules `json:"validation,omitempty"`
 
@@ -145,8 +148,9 @@ type ValidationRules struct {
 	AllowEmpty      bool           `json:"allow_empty,omitempty"` // Permit an empty string without applying Pattern
 	Min             *float64       `json:"min,omitempty"`
 	Max             *float64       `json:"max,omitempty"`
-	Pattern         *string        `json:"pattern,omitempty"` // Regex pattern for string/password fields
-	CompiledPattern *regexp.Regexp `json:"-"`                 // Pre-compiled pattern, set during Validate()
+	Pattern         *string        `json:"pattern,omitempty"`    // Regex pattern for string/password fields
+	MaxLength       *int           `json:"max_length,omitempty"` // Most characters (runes) of a string field
+	CompiledPattern *regexp.Regexp `json:"-"`                    // Pre-compiled pattern, set during Validate()
 }
 
 // Dependency makes a setting conditionally visible based on another setting's value.
@@ -207,7 +211,37 @@ func (d *Definition) Validate() error {
 	if err := d.validateColorPresets(); err != nil {
 		return err
 	}
+	if err := d.validateMaxLength(); err != nil {
+		return err
+	}
+	if err := d.validatePlaceholder(); err != nil {
+		return err
+	}
 	return d.validateDefaultRange()
+}
+
+// validateMaxLength admits a length limit only for a text field and only a
+// positive one.
+func (d *Definition) validateMaxLength() error {
+	if d.Validation == nil || d.Validation.MaxLength == nil {
+		return nil
+	}
+	if d.Type != FieldText && d.Type != FieldTextarea {
+		return fmt.Errorf("max length can only be set for text fields, setting %s has type %s", d.Key, d.Type)
+	}
+	if *d.Validation.MaxLength <= 0 {
+		return fmt.Errorf("max length of setting %s must be positive", d.Key)
+	}
+	return nil
+}
+
+// validatePlaceholder admits an example text only for a multi-line text
+// field, the one input that shows it.
+func (d *Definition) validatePlaceholder() error {
+	if d.Placeholder != "" && d.Type != FieldTextarea {
+		return fmt.Errorf("placeholder can only be set for textarea fields, setting %s has type %s", d.Key, d.Type)
+	}
+	return nil
 }
 
 // validateShape checks the definition's key, type, placement, options and

@@ -26,8 +26,9 @@ import (
 // holiday periods: the same Träger session, the right "Anmeldung verwalten"
 // and the Träger transaction of the session's Träger. The Träger and the
 // person come from the session, never from the request. A confirmation
-// freezes the contribution, so the Elternabrechnung serves it at
-// /traeger/holiday-contributions (#4664, ADR 0115).
+// freezes the contribution and a cancellation computes the sibling group
+// again, so the Elternabrechnung serves both at
+// /traeger/holiday-contributions (#4664, #5662, ADR 0115).
 
 // registrationRoutes adds the review routes to the period routes.
 func (rs *HolidayPeriodResource) registrationRoutes(r chi.Router, withTx common.Middleware) {
@@ -37,10 +38,11 @@ func (rs *HolidayPeriodResource) registrationRoutes(r chi.Router, withTx common.
 	review.Get("/{id}/registrations/{registrationId}", rs.getRegistration)
 	r.With(rs.requireManage, rs.requireHealth, withTx).Get("/{id}/registrations/{registrationId}/health", rs.getRegistrationHealth)
 	review.Get("/{id}/registrations/{registrationId}/proofs/{proofId}", rs.openProof)
-	review.Post("/{id}/registrations/{registrationId}/cancel", rs.registrationAction(capability.HolidayAuditCancel))
+	review.Post("/{id}/registrations/{registrationId}/proofs", rs.uploadOfficeProof)
 	review.Post("/{id}/registrations/{registrationId}/freeze", rs.registrationAction(capability.HolidayAuditFreeze))
 	review.Post("/{id}/registrations/{registrationId}/reopen", rs.registrationAction(capability.HolidayAuditReopen))
 	review.Put("/{id}/registrations/{registrationId}/children/{childId}/bookings", rs.rebookChild)
+	r.With(rs.requireManage, rs.withSchoolNames, withTx).Put("/{id}/registrations/{registrationId}/details", rs.editRegistration)
 }
 
 // reviewerOf returns the Träger and the account of the session, or renders
@@ -122,8 +124,9 @@ func (rs *HolidayPeriodResource) getRegistrationHealth(w http.ResponseWriter, r 
 	common.Respond(w, r, http.StatusOK, health, "Holiday registration health information retrieved successfully")
 }
 
-// registrationAction answers cancel, freeze and reopen with the changed
-// registration.
+// registrationAction answers freeze and reopen with the changed
+// registration. The Elternabrechnung cancels a registration, so it can
+// compute its sibling group again (#5662), as it confirms one.
 func (rs *HolidayPeriodResource) registrationAction(action string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		reviewer, periodID, registrationID, ok := registrationKey(w, r)
@@ -210,6 +213,9 @@ func renderHolidayReviewError(w http.ResponseWriter, r *http.Request, err error)
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentHolidayRegistrationEntryNotFound))
 	case errors.Is(err, capability.ErrHolidayProofNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentUploadNotFound))
+	case errors.Is(err, capability.ErrHolidayProofLimit):
+		common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeEnrollmentHolidayProofLimit,
+			map[string]any{"max_files": capability.HolidayProofOptions.MaxFiles()}))
 	case errors.Is(err, capability.ErrHolidayRegistrationFrozen):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayRegistrationFrozen))
 	case errors.Is(err, capability.ErrHolidayRegistrationStateConflict):
@@ -305,8 +311,12 @@ var holidayRegistrationColumns = []lists.Column{
 	{ID: "guardian", Label: "Elternteil"},
 	{ID: "email", Label: "E-Mail"},
 	{ID: "phone", Label: "Telefon"},
+	{ID: "address_street", Label: "Straße und Hausnummer"},
+	{ID: "address_postal_code", Label: "PLZ"},
+	{ID: "address_city", Label: "Ort"},
 	{ID: "second_guardian", Label: "Zweites Elternteil"},
 	{ID: "second_guardian_phone", Label: "Telefon zweites Elternteil"},
+	{ID: "debtor_number", Label: "Debitorennummer"},
 	{ID: "duplicate", Label: "Mögliche Doppelanmeldung"},
 }
 
@@ -350,7 +360,9 @@ func holidayRegistrationDocument(export capability.HolidayRegistrationExport, fi
 			"guardian": row.Registration.GuardianFirstName + " " + row.Registration.GuardianLastName,
 			"email":    row.Registration.GuardianEmail, "phone": row.Registration.GuardianPhone, "duplicate": duplicate,
 			"second_guardian": secondName, "second_guardian_phone": secondPhone,
+			"debtor_number": row.Registration.DebtorNumber,
 		}
+		addHolidayAddress(values, row.GuardianAddress)
 		addHolidayAnswers(values, row.AnswerFields, row.Answers)
 		for id, value := range values {
 			values[id] = lists.SanitizeUserText(value)
@@ -380,7 +392,7 @@ func holidayRegistrationFilterLabels(period capability.HolidayPeriod, filter cap
 	}
 	for _, week := range period.Weeks {
 		if week.ID == filter.WeekID {
-			labels = append(labels, "Woche: "+week.StartsOn.Format("02.01.")+" bis "+week.EndsOn.Format("02.01.2006"))
+			labels = append(labels, "Woche: "+week.StartsOn.Format("02.01.")+" bis "+week.EndsOn.Format("02.01.2006")+", "+schoolName(week.HostSchoolID))
 		}
 	}
 	if filter.TimeModel != "" {
@@ -395,6 +407,17 @@ func holidaySecondGuardianContact(guardian *capability.HolidayGuardianInput) (st
 		return "", ""
 	}
 	return guardian.FirstName + " " + guardian.LastName, guardian.Phone
+}
+
+// addHolidayAddress adds the postal address of the parent who registered
+// (#5625); a registration without one keeps the columns empty.
+func addHolidayAddress(values map[lists.ColumnID]string, address *capability.HolidayAddress) {
+	if address == nil {
+		return
+	}
+	values["address_street"] = address.Street
+	values["address_postal_code"] = address.PostalCode
+	values["address_city"] = address.City
 }
 
 // addHolidayAnswers adds the answers of a row to its question columns.

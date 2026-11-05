@@ -10,6 +10,8 @@
     "presentNoTime": "Dziś obecne",
     "left": "Poszło do domu o {time}",
     "leftNoTime": "Dziś poszło do domu",
+    "inClass": "O {time} poszło na lekcje",
+    "inClassNoTime": "Dziś poszło na lekcje",
     "expected": "Przyjdzie dziś o {time}",
     "expectedNoTime": "Przyjdzie dziś",
     "notArrived": "Oczekiwane od {time}",

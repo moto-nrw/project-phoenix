@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleEnrollment "github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
@@ -30,18 +31,57 @@ type HolidayGuestDirectory interface {
 }
 
 // NewHolidayGuests binds the holiday guests (#4666, ADR 0120) to Enrollment,
-// their children to the People Directory and every transfer and sheet read
-// to the school's access log at the Audit Platform; health opens and seals
-// the health information (#4722). A nil today uses the Berlin calendar day.
-func NewHolidayGuests(people HolidayGuestDirectory, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher, today func() calendar.Date) enrollmentOwner.HolidayGuests {
-	return enrollmentCompose.NewHolidayGuests(NewHolidayGuestPeople(people), NewHolidayGuestCareDays(care, staff), health,
+// their children to the People Directory, the names of their home schools
+// to Organisation & Tenancy (#5630) and every transfer and sheet read to the
+// school's access log at the Audit Platform; health opens and seals the
+// health information (#4722). A nil today uses the Berlin calendar day.
+func NewHolidayGuests(people HolidayGuestDirectory, schools HolidayHostSchools, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher, today func() calendar.Date) enrollmentOwner.HolidayGuests {
+	return enrollmentCompose.NewHolidayGuests(NewHolidayGuestPeople(people), NewHolidayHostSchoolNames(schools), NewHolidayGuestCareDays(care, staff), health,
 		NewHolidayGuestAccessLog(accessLog), today)
+}
+
+// HolidayHostSchools is the Organisation & Tenancy read that names the
+// schools of the hosting school's Träger.
+type HolidayHostSchools interface {
+	FindSchool(ctx context.Context, id int64) (organizationtenancy.School, error)
+	ListSchoolsByOrganization(ctx context.Context, organizationID int64) ([]organizationtenancy.School, error)
+}
+
+// NewHolidayHostSchoolNames names the schools of the hosting school's
+// Träger, deleted ones included, for the home schools of the participant
+// list (ADR 0116) and of the guest copies (#5630). In the school's tenant
+// transaction it reads platform.schools, which the school role may read.
+func NewHolidayHostSchoolNames(schools HolidayHostSchools) enrollmentOwner.HolidayHostSchoolNames {
+	if schools == nil {
+		return nil
+	}
+	return holidayHostSchoolNames{schools: schools}
+}
+
+type holidayHostSchoolNames struct {
+	schools HolidayHostSchools
+}
+
+func (n holidayHostSchoolNames) HolidayHostSchoolNames(ctx context.Context, schoolID int64) (map[int64]string, error) {
+	school, err := n.schools.FindSchool(ctx, schoolID)
+	if err != nil {
+		return nil, err
+	}
+	schools, err := n.schools.ListSchoolsByOrganization(ctx, school.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[int64]string, len(schools))
+	for _, sibling := range schools {
+		names[sibling.ID] = sibling.Name
+	}
+	return names, nil
 }
 
 // schedulerHolidayGuests binds the Worker's hourly reconciliation to the
 // holiday guests of the school whose tenant transaction the Worker opened.
-func schedulerHolidayGuests(people HolidayGuestDirectory, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher) schedulerPorts.HolidayGuestReconciliation {
-	guests := NewHolidayGuests(people, care, staff, accessLog, health, nil)
+func schedulerHolidayGuests(people HolidayGuestDirectory, schools HolidayHostSchools, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher) schedulerPorts.HolidayGuestReconciliation {
+	guests := NewHolidayGuests(people, schools, care, staff, accessLog, health, nil)
 	return func(ctx context.Context) error {
 		return guests.ReconcileHolidayGuests(ctx, tenant.FromContext(ctx))
 	}

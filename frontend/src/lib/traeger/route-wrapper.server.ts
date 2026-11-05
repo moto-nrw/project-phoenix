@@ -196,13 +196,21 @@ async function traegerServerFile(
 }
 
 /** Hands the backend's file through, with its type and file name. */
-function fileResponse(backend: Response, request: NextRequest): Response {
+function fileResponse(
+  backend: Response,
+  request: NextRequest,
+  backendCacheControl = false,
+): Response {
   if (!backend.ok || !backend.body) {
     const response = forwardBackendResponse(backend, request);
     response.headers.set("Cache-Control", "no-store");
     return response;
   }
-  const headers = new Headers({ "Cache-Control": "no-store" });
+  const headers = new Headers({
+    "Cache-Control":
+      (backendCacheControl && backend.headers.get("Cache-Control")) ||
+      "no-store",
+  });
   // An inline file a parent uploaded, like a proof of benefits (#5238),
   // keeps the backend's sandbox and nosniff: this proxy is all the browser
   // talks to.
@@ -229,10 +237,15 @@ const FILE_POST_MAX_BYTES = 64 * 1024;
  * parameters, like the export of a holiday period's registrations (#4663).
  * With `method: "POST"` it forwards the JSON body instead, read once so it
  * can be sent again after a refresh, like the preview of a letter (#4669).
+ * `backendCacheControl` keeps the backend's Cache-Control on success, for a
+ * versioned image the browser may keep, like the logo; otherwise no-store.
  */
 export function proxyFile(
   endpoint: string | ((params: Record<string, unknown>) => string),
-  options: { readonly method?: "GET" | "POST" } = {},
+  options: {
+    readonly method?: "GET" | "POST";
+    readonly backendCacheControl?: boolean;
+  } = {},
 ) {
   return withTraegerAuth(async (request: NextRequest, context) => {
     try {
@@ -252,7 +265,8 @@ export function proxyFile(
         body = new TextDecoder().decode(bytes);
       }
       const first = await traegerServerFile(target, token, body);
-      if (first.status !== 401) return fileResponse(first, request);
+      if (first.status !== 401)
+        return fileResponse(first, request, options.backendCacheControl);
 
       const { uncachedTraegerAuth } = await import("~/server/auth/traeger");
       const updated = await uncachedTraegerAuth();
@@ -261,7 +275,7 @@ export function proxyFile(
       }
       const retried = await traegerServerFile(target, updated.user.token, body);
       if (retried.status === 401) return createTokenExpiredResponse(request);
-      return fileResponse(retried, request);
+      return fileResponse(retried, request, options.backendCacheControl);
     } catch (error) {
       return handleApiError(error, request);
     }
@@ -331,7 +345,12 @@ async function readBounded(
 export function proxyUpload(
   endpoint: string | ((params: Record<string, unknown>) => string),
   maxFileBytes: number,
-  options: { method?: "PUT" | "POST"; tooLargeCode?: ErrorCode } = {},
+  options: {
+    method?: "PUT" | "POST";
+    tooLargeCode?: ErrorCode;
+    /** Values the catalog text of tooLargeCode names, like max_mb. */
+    tooLargeDetails?: Record<string, unknown>;
+  } = {},
 ) {
   return withTraegerAuth(async (request: NextRequest, context) => {
     try {
@@ -348,12 +367,14 @@ export function proxyUpload(
       if (declared > limit) {
         throw bffError(400, "Upload too large", {
           code: options.tooLargeCode ?? "traeger.logo_too_large",
+          details: options.tooLargeDetails,
         });
       }
       const body = await readBounded(request, limit);
       if (body === null) {
         throw bffError(400, "Upload too large", {
           code: options.tooLargeCode ?? "traeger.logo_too_large",
+          details: options.tooLargeDetails,
         });
       }
 

@@ -136,9 +136,11 @@
   "holiday_registration_not_found": "Bu kayıt bağlantısı mevcut değil. Lütfen kurumdan aldığınız bağlantıyı kullanın.",
   "holiday_registration_state_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "holiday_week_booked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "holiday_weeks_booked_together": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "hosted_holiday_week_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "holiday_guest_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "holiday_guest_group_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "holiday_form_field_not_allowed": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-  "holiday_registration_form_changed": "Kurum formu az önce değiştirdi. Lütfen bilgilerinizi kontrol edin ve kaydı tekrar gönderin."
+  "holiday_registration_form_changed": "Kurum formu az önce değiştirdi. Lütfen bilgilerinizi kontrol edin ve kaydı tekrar gönderin.",
+  "holiday_proof_limit": "{object} değiştirilemedi. Güncel durumu kontrol edin."
 }

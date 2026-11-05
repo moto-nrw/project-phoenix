@@ -487,6 +487,11 @@ type reopenVisitStub struct {
 	findErr error
 }
 
+// ListAttendance answers no school stays: no child of the stub left school.
+func (r *reopenVisitStub) ListAttendance(context.Context, studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error) {
+	return nil, nil
+}
+
 func (r *reopenVisitStub) ListVisits(_ context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
 	if r.findErr != nil {
 		return nil, r.findErr

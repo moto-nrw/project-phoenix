@@ -267,6 +267,8 @@ export function validateHolidayPeriod(
     const overlap = draft.weeks.findIndex(
       (other, otherIndex) =>
         otherIndex < index &&
+        week.hostSchoolId !== "" &&
+        week.hostSchoolId === other.hostSchoolId &&
         weekDatesValid(week) &&
         weekDatesValid(other) &&
         week.startsOn <= other.endsOn &&
@@ -274,7 +276,7 @@ export function validateHolidayPeriod(
     );
     if (overlap >= 0 && !errors[`${prefix}.starts_on`]) {
       errors[`${prefix}.starts_on`] =
-        `Diese Woche überschneidet sich mit Woche ${overlap + 1}.`;
+        `Diese Woche überschneidet sich mit Woche ${overlap + 1} an derselben Schule.`;
     }
     checkTimeModels(week, prefix, errors);
   });

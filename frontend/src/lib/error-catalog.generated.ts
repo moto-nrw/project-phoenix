@@ -417,6 +417,8 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die markierten Felder.",
       "enrollment.holiday_period_not_found":
         "Diesen Ferienzeitraum gibt es nicht. Bitte öffnen Sie ihn aus der Liste der Ferien.",
+      "enrollment.holiday_proof_limit":
+        "Diese Anmeldung hat schon {max_files} Nachweise. Mehr Dateien gehen nicht.",
       "enrollment.holiday_registration_closed":
         "Die Anmeldung für diese Ferien ist nicht offen. Bitte achten Sie auf Anmeldebeginn und Anmeldeschluss.",
       "enrollment.holiday_registration_entry_not_found":
@@ -433,6 +435,8 @@ export const ERROR_CATALOG = {
         "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_week_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen.",
+      "enrollment.holiday_weeks_booked_together":
+        "Ein Kind ist schon für beide Wochen angemeldet. Darum dürfen die Wochen nicht auf dieselben Tage fallen.",
       "enrollment.hosted_holiday_week_not_found":
         "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
       "enrollment.invalid_email":
@@ -604,7 +608,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Sie sind mit einem anderen Konto angemeldet. Bitte melden Sie sich mit der eingeladenen E-Mail-Adresse an.",
       "identity.invitation_expired":
-        "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie Ihre Schule nach einer neuen Einladung.",
+        "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie die Person, die Sie eingeladen hat, nach einer neuen Einladung.",
       "identity.invitation_not_found":
         "Diese Einladung gibt es nicht. Bitte prüfen Sie den Link in der E-Mail.",
       "identity.invitation_rate_limited":
@@ -731,6 +735,10 @@ export const ERROR_CATALOG = {
         "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Ermäßigungen“. Bitte fragen Sie die Abrechnung.",
       "parent_billing.billing_correction_invalid":
         "Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.billing_document_correction_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.billing_document_not_found":
+        "Diese Rechnung gibt es in diesem Lauf nicht. Bitte laden Sie die Seite neu.",
       "parent_billing.billing_family_not_found":
         "Dieses Kind ist nicht mehr im Lauf. Bitte laden Sie die Seite neu.",
       "parent_billing.billing_letter_not_found":
@@ -753,14 +761,34 @@ export const ERROR_CATALOG = {
         "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
       "parent_billing.billing_run_released":
         "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
+      "parent_billing.carried_correction_not_found":
+        "Diese Korrektur wird in diesem Lauf nicht mehr vorgeschlagen. Bitte laden Sie die Seite neu.",
       "parent_billing.contribution_rule_invalid":
         "Bitte prüfen Sie die markierten Felder.",
       "parent_billing.contribution_rule_not_found":
         "Diese Regel gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.contribution_rule_overlap":
         "In dieser Zeit gilt schon eine Regel dieser Art. Bitte ändern Sie zuerst „Gilt bis“ der anderen Regel.",
+      "parent_billing.cost_bearer_in_use":
+        "Dieser Kostenträger wurde schon gewählt. Sie können ihn nur ausschalten.",
+      "parent_billing.cost_bearer_inactive":
+        "Dieser Kostenträger ist ausgeschaltet. Bitte wählen Sie einen anderen.",
+      "parent_billing.cost_bearer_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.cost_bearer_not_found":
+        "Diesen Kostenträger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.cost_takeover_with_exemption":
+        "Bitte wählen Sie entweder die Befreiung oder einen Kostenträger.",
+      "parent_billing.debtor_number_invalid":
+        "Bitte prüfen Sie die Debitorennummer.",
+      "parent_billing.debtor_number_locked":
+        "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
       "parent_billing.holiday_quote_invalid":
         "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
+      "parent_billing.invoice_cancelled":
+        "Diese Rechnung ist schon storniert. Sie lässt sich nicht mehr ändern.",
+      "parent_billing.invoice_credited":
+        "Diese Rechnung hat schon eine Gutschrift. Schreiben Sie den Rest gut, statt zu stornieren.",
       "parent_billing.invoice_number_taken":
         "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnung“.",
       "parent_billing.letter_mail_pending":
@@ -773,8 +801,16 @@ export const ERROR_CATALOG = {
         "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnung“ fest.",
       "parent_billing.parent_document_not_found":
         "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.payment_text_debtor_number_missing":
+        "Rechnungen ohne Debitorennummer: {count}. Ihr Zahlungstext nennt aber die Debitorennummer. Löschen Sie den eigenen Zahlungstext unter „Einstellungen“ im Bereich „Ferienbetreuung“ oder nehmen Sie dort den Platzhalter für die Debitorennummer heraus.",
       "parent_billing.recipient_email_missing":
         "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
+      "parent_billing.sibling_group_invalid":
+        "Bitte wählen Sie mindestens zwei Anmeldungen aus, die nicht storniert sind.",
+      "parent_billing.sibling_group_invoiced":
+        "Für diese Anmeldung gibt es schon eine Rechnung. Geschwister können Sie jetzt nicht mehr ändern.",
+      "parent_billing.sibling_group_not_found":
+        "Diese Anmeldung gehört nicht mehr zu Geschwistern. Bitte laden Sie die Seite neu.",
       "pickup.bulk_exception_confirmation_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "pickup.invalid":
@@ -1057,6 +1093,8 @@ export const ERROR_CATALOG = {
         "Die Person ist nicht mehr als Kontakt des Kindes eingetragen. Bitte lehnen Sie die Anfrage ab.",
       "students.pickup_proof_not_found":
         "Zu dieser Anfrage gibt es keine Unterschrift.",
+      "students.pickup_reset_still_needed":
+        "Die gebuchte Abholzeit können Sie erst ab {possible_from} übernehmen. Bis {needed_until} gilt an diesem Wochentag noch die eingetragene Zeit.",
       "students.reason_required":
         "Für {object} fehlt eine Begründung. Bitte tragen Sie eine ein.",
       "students.request_not_decided":
@@ -1244,6 +1282,8 @@ export const ERROR_CATALOG = {
         "Eine Betreuungsperson betreut inzwischen eine andere Gruppe. Der Termin lässt sich nicht wieder öffnen.",
       "timetable.reopen_student_active":
         "Ein Kind ist inzwischen woanders eingecheckt. Der Termin lässt sich nicht wieder öffnen.",
+      "timetable.reopen_student_left":
+        "Ein Kind ist inzwischen nach Hause gegangen. Der Termin lässt sich nicht wieder öffnen.",
       "timetable.reopen_supervision_changed":
         "Die Betreuung wurde nach dem Abschluss geändert. Der Termin lässt sich nicht wieder öffnen.",
       "timetable.room_occupied":
@@ -1837,6 +1877,8 @@ export const ERROR_CATALOG = {
         "This is not possible for this registration right now. Please reload the page.",
       "enrollment.holiday_week_booked":
         "This week already has registrations. That is why the week and its booked time models cannot be removed.",
+      "enrollment.holiday_weeks_booked_together":
+        "A child is already registered for both weeks. That is why the weeks cannot fall on the same days.",
       "enrollment.hosted_holiday_week_not_found":
         "There is no participant list for this week any more. It is only available until the last day of the week.",
       "enrollment.invalid_email": "Please enter a valid email address.",
@@ -1912,7 +1954,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "You are signed in with a different account. Please sign in with the invited email address.",
       "identity.invitation_expired":
-        "This invitation has expired or has already been used. Please ask your school for a new invitation.",
+        "This invitation has expired or has already been used. Please ask the person who invited you for a new invitation.",
       "identity.invitation_not_found":
         "This invitation does not exist. Please check the link in the email.",
       "identity.mfa_blocked":
@@ -2376,7 +2418,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Вы вошли в другой аккаунт. Войдите с адресом электронной почты из приглашения.",
       "identity.invitation_expired":
-        "Это приглашение истекло или уже было использовано. Попросите в школе новое приглашение.",
+        "Это приглашение истекло или уже было использовано. Попросите человека, который вас пригласил, отправить новое приглашение.",
       "identity.invitation_not_found":
         "Такого приглашения нет. Проверьте ссылку в письме.",
       "identity.mfa_blocked":
@@ -2803,7 +2845,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Jeni i identifikuar me një llogari tjetër. Hyni me adresën e e-mailit që është ftuar.",
       "identity.invitation_expired":
-        "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini shkollës suaj një ftesë të re.",
+        "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini personit që ju ftoi një ftesë të re.",
       "identity.invitation_not_found":
         "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
       "identity.mfa_blocked":
@@ -3220,7 +3262,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Jesteś zalogowany na inne konto. Zaloguj się adresem e-mail, na który przyszło zaproszenie.",
       "identity.invitation_expired":
-        "To zaproszenie wygasło lub zostało już użyte. Poproś swoją szkołę o nowe zaproszenie.",
+        "To zaproszenie wygasło lub zostało już użyte. Poproś osobę, która Cię zaprosiła, o nowe zaproszenie.",
       "identity.invitation_not_found":
         "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
       "identity.mfa_blocked":
@@ -3642,7 +3684,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Başka bir hesapla giriş yaptınız. Lütfen davet edilen e-posta adresiyle giriş yapın.",
       "identity.invitation_expired":
-        "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen okulunuzdan yeni bir davet isteyin.",
+        "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen sizi davet eden kişiden yeni bir davet isteyin.",
       "identity.invitation_not_found":
         "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
       "identity.mfa_blocked":
@@ -4056,7 +4098,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Ви увійшли в інший обліковий запис. Увійдіть з адресою ел. пошти, на яку надійшло запрошення.",
       "identity.invitation_expired":
-        "Це запрошення вже недійсне або його вже використали. Попросіть у школи нове запрошення.",
+        "Це запрошення вже недійсне або його вже використали. Попросіть людину, яка вас запросила, надіслати нове запрошення.",
       "identity.invitation_not_found":
         "Такого запрошення немає. Перевірте посилання в листі.",
       "identity.mfa_blocked":

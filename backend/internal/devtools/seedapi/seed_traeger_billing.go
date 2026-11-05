@@ -30,8 +30,9 @@ type seedBillingRunDetail struct {
 // Abrechnung keeps its number range, starts a run for the period, lowers
 // the amount of one child with a reason and releases the run, which issues
 // the numbered invoice of the confirmed siblings. It downloads the overview
-// of the run for the Kämmerei (#4672) and returns the run.
-func seedHolidayBillingRun(client *Client, auth AuthRef, periodID int64) (int64, error) {
+// of the run for the Kämmerei (#4672) and the list of the cost bearer
+// (#5627), when there is one, and returns the run.
+func seedHolidayBillingRun(client *Client, auth AuthRef, periodID, costBearerID int64) (int64, error) {
 	if _, err := client.PutWithAuth(auth, "/traeger/number-ranges/holiday", map[string]any{"pattern": seedBillingNumberPattern}); err != nil {
 		return 0, fmt.Errorf("keep the number range: %w", err)
 	}
@@ -58,6 +59,9 @@ func seedHolidayBillingRun(client *Client, auth AuthRef, periodID int64) (int64,
 	if err != nil {
 		return 0, fmt.Errorf("correct the billing run: %w", err)
 	}
+	if run, err = seedCorrectSecondFamily(client, auth, runID, run); err != nil {
+		return 0, err
+	}
 	if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/billing-runs/%d/release", runID), map[string]any{
 		"document_count": run.PreviewCount, "total_cents": run.PreviewCents,
 	}); err != nil {
@@ -72,8 +76,40 @@ func seedHolidayBillingRun(client *Client, auth AuthRef, periodID int64) (int64,
 	if len(overview) == 0 {
 		return 0, fmt.Errorf("the overview of the billing run is empty")
 	}
+	// The list for the reimbursement by the cost bearer (#5627) is
+	// downloaded once too.
+	if costBearerID > 0 {
+		if _, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/billing-runs/%d/cost-takeovers/%d/export?format=csv", runID, costBearerID)); err != nil {
+			return 0, fmt.Errorf("download the list of the cost bearer: %w", err)
+		}
+	}
 	fmt.Printf("  Abrechnung: holiday run released with %d invoice(s) and one correction, overview downloaded\n", run.PreviewCount)
 	return runID, nil
+}
+
+// seedCorrectSecondFamily corrects the first child of the second family twice,
+// when there is one, so a later Storno leaves the next run two corrections to
+// propose (#5663).
+func seedCorrectSecondFamily(client *Client, auth AuthRef, runID int64, run seedBillingRunDetail) (seedBillingRunDetail, error) {
+	if len(run.Documents) < 2 || len(run.Documents[1].Children) == 0 {
+		return run, nil
+	}
+	family, child := run.Documents[1], run.Documents[1].Children[0]
+	total := child.TotalCents
+	for _, correction := range []struct {
+		cents  int64
+		reason string
+	}{{1500, "Eigenanteil für den Ausflug."}, {250, "Nachbuchung Mittagessen."}} {
+		total += correction.cents
+		var err error
+		run, err = seedReadBillingRun(client.PostWithAuth(auth, fmt.Sprintf("/traeger/billing-runs/%d/corrections", runID), map[string]any{
+			"registration_id": family.RegistrationID, "child_id": child.ChildID, "total_cents": total, "reason": correction.reason,
+		}))
+		if err != nil {
+			return run, fmt.Errorf("correct the second family: %w", err)
+		}
+	}
+	return run, nil
 }
 
 func seedReadBillingRun(raw []byte, err error) (seedBillingRunDetail, error) {

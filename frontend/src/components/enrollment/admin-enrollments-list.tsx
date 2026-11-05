@@ -14,7 +14,6 @@ import {
   type LucideIcon,
   Settings2,
 } from "lucide-react";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   type AdminEnrollmentChangeRequest,
   type AdminRequestSummary,
@@ -49,6 +48,7 @@ import NavigationLink from "~/components/ui/navigation-link";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "AdminEnrollmentsList" });
 
@@ -314,9 +314,10 @@ function ChangeRequestsOverview({
     <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
-            <MotoConceptIcon concept={parentConversationsConcept} size={20} />
-          </span>
+          <ConceptIconTile
+            concept={parentConversationsConcept}
+            size="section"
+          />
           <div>
             <h2 className="text-base font-semibold text-gray-900">
               Änderungsanfragen

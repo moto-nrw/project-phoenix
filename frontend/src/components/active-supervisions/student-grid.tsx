@@ -46,6 +46,7 @@ import {
   type StudentTableDay,
 } from "~/components/students/student-table";
 import { childrenConcept } from "~/lib/concepts/children";
+import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 
 /**
  * Arrival, pickup or absence of one visitor for the table view (#3834). Same
@@ -110,6 +111,7 @@ export function buildSupervisionTableColumns({
   now,
   photosEnabled,
   hrefFor,
+  classLabel,
 }: Readonly<{
   pickupTimesData: ReadonlyMap<string, BulkPickupTime> | undefined;
   arrivalTimesData: ReadonlyMap<string, BulkArrivalTime> | undefined;
@@ -119,6 +121,8 @@ export function buildSupervisionTableColumns({
   now: Date;
   photosEnabled: boolean;
   hrefFor: (student: ActiveSupervisionStudent) => string;
+  /** Hinweis „Gast aus …“ statt der Klasse eines Feriengasts (#5630). */
+  classLabel?: (student: ActiveSupervisionStudent) => string | undefined;
 }>): StudentTableColumn<ActiveSupervisionStudent>[] {
   const day = (student: ActiveSupervisionStudent) =>
     supervisionStudentDay(student, pickupTimesData, arrivalTimesData, now);
@@ -134,7 +138,7 @@ export function buildSupervisionTableColumns({
         size="md"
       />
     )),
-    classColumn(),
+    classColumn({ label: classLabel }),
     groupColumn(),
     {
       key: "activity",
@@ -201,6 +205,7 @@ export function SupervisionStudentGrid({
   onOpenStudent,
   table,
 }: SupervisionStudentGridProps) {
+  const holidayGuestLabel = useHolidayGuestLabels(students);
   // Leer- und Filterzustand sitzen auf derselben Fläche wie die Karten, die
   // sie ersetzen: freier Text auf dem gemusterten Grund liest sich als Lücke,
   // nicht als Zustand.
@@ -282,7 +287,7 @@ export function SupervisionStudentGrid({
                 <>
                   {student.school_class && (
                     <StudentInfoRow icon={<SchoolClassIcon />}>
-                      {student.school_class}
+                      {holidayGuestLabel(student) ?? student.school_class}
                     </StudentInfoRow>
                   )}
                   {student.group_name && (

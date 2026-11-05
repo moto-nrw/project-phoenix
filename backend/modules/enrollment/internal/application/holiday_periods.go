@@ -12,6 +12,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Holiday periods of a Träger (#4659). The caller runs every operation in the
@@ -43,6 +44,10 @@ type HolidayPeriodStore interface {
 	// left out.
 	UpdateHolidayPeriod(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayPeriodInput) error
 	PublishHolidayPeriod(ctx context.Context, organizationID, periodID int64) error
+	// HolidayWeeksBookedTogether lists the pairs of the period's weeks one
+	// child has booked, those of a cancelled registration included: reopening
+	// it brings its bookings back.
+	HolidayWeeksBookedTogether(ctx context.Context, organizationID, periodID int64) ([][2]int64, error)
 }
 
 // HolidayPeriods serves enrollment.HolidayPeriods.
@@ -96,7 +101,7 @@ func (h *HolidayPeriods) CreateHolidayPeriod(ctx context.Context, organizationID
 	if err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
-	if _, err := h.forms.InsertHolidayPeriodForm(ctx, organizationID, periodID, 0, enrollment.HolidayFormTemplate(), nil); err != nil {
+	if _, err := h.forms.InsertHolidayPeriodForm(ctx, organizationID, periodID, 0, enrollment.HolidayFormTemplate(), nil, enrollment.HolidayAddressOff); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
 	return foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))
@@ -120,10 +125,47 @@ func (h *HolidayPeriods) UpdateHolidayPeriod(ctx context.Context, organizationID
 	if current.Status == enrollment.HolidayPeriodPublished && !holidayInputComplete(input) {
 		return enrollment.HolidayPeriod{}, enrollment.ErrHolidayPeriodIncomplete
 	}
+	if err := h.refuseBookedTogether(ctx, organizationID, periodID, input.Weeks); err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
 	if err := h.store.UpdateHolidayPeriod(ctx, organizationID, periodID, input); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
 	return foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))
+}
+
+// refuseBookedTogether keeps a child from ending up in two weeks that share a
+// day: a stored week may not move onto a week the same child has booked. The
+// caller holds the lock of the period.
+func (h *HolidayPeriods) refuseBookedTogether(ctx context.Context, organizationID, periodID int64, weeks []enrollment.HolidayWeekInput) error {
+	overlapping := map[[2]int64]int{}
+	for i, week := range weeks {
+		for _, other := range weeks[:i] {
+			if week.ID != 0 && other.ID != 0 && holidayWeeksOverlap(week, other) {
+				overlapping[holidayWeekPair(week.ID, other.ID)] = i
+			}
+		}
+	}
+	if len(overlapping) == 0 {
+		return nil
+	}
+	together, err := h.store.HolidayWeeksBookedTogether(ctx, organizationID, periodID)
+	if err != nil {
+		return fmt.Errorf("enrollment: read weeks booked together: %w", err)
+	}
+	for _, pair := range together {
+		if index, found := overlapping[holidayWeekPair(pair[0], pair[1])]; found {
+			return &enrollment.HolidayWeeksBookedTogetherRefusal{Week: index}
+		}
+	}
+	return nil
+}
+
+func holidayWeekPair(a, b int64) [2]int64 {
+	if b < a {
+		return [2]int64{b, a}
+	}
+	return [2]int64{a, b}
 }
 
 // PublishHolidayPeriod offers a complete period for registration. Publishing
@@ -318,7 +360,8 @@ func validateHolidayWeek(week enrollment.HolidayWeekInput) validation.Errors {
 }
 
 // overlappingHolidayWeeks maps the index of each valid week that shares a day
-// with an earlier valid week to that earlier week's index.
+// with an earlier valid week of the same school to that earlier week's index.
+// Weeks at different schools may run in parallel (#5689).
 func overlappingHolidayWeeks(weeks []enrollment.HolidayWeekInput) map[int]int {
 	overlaps := map[int]int{}
 	for i, week := range weeks {
@@ -327,13 +370,21 @@ func overlappingHolidayWeeks(weeks []enrollment.HolidayWeekInput) map[int]int {
 		}
 		for j := range i {
 			other := weeks[j]
-			if holidayWeekDatesValid(other) && !week.StartsOn.After(other.EndsOn) && !other.StartsOn.After(week.EndsOn) {
+			if week.HostSchoolID == other.HostSchoolID && holidayWeekDatesValid(other) && holidayWeeksOverlap(week, other) {
 				overlaps[i] = j
 				break
 			}
 		}
 	}
 	return overlaps
+}
+
+func holidayWeeksOverlap(a, b enrollment.HolidayWeekInput) bool {
+	return holidayDaysOverlap(a.StartsOn, a.EndsOn, b.StartsOn, b.EndsOn)
+}
+
+func holidayDaysOverlap(startsOn, endsOn, otherStartsOn, otherEndsOn calendar.Date) bool {
+	return !startsOn.After(otherEndsOn) && !otherStartsOn.After(endsOn)
 }
 
 func holidayWeekDatesValid(week enrollment.HolidayWeekInput) bool {

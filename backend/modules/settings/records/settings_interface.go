@@ -241,6 +241,7 @@ type ResolvedSetting struct {
 	Key          string       `json:"key"`
 	Label        string       `json:"label"`
 	Description  string       `json:"description"`
+	Placeholder  string       `json:"placeholder,omitempty"`
 	Type         FieldType    `json:"type"`
 	Default      any          `json:"default"`
 	Value        any          `json:"value"`

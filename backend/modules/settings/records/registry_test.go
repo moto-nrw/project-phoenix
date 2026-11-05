@@ -288,6 +288,61 @@ func TestValidate_ValidPattern(t *testing.T) {
 	assert.NotNil(t, def.Validation.CompiledPattern)
 }
 
+// A length limit belongs to a text field and is positive (#5622).
+func TestValidate_MaxLength(t *testing.T) {
+	t.Parallel()
+
+	length := func(n int) *int { return &n }
+	for name, tc := range map[string]struct {
+		fieldType FieldType
+		max       int
+		wantErr   string
+	}{
+		"textarea":       {fieldType: FieldTextarea, max: 600},
+		"text":           {fieldType: FieldText, max: 35},
+		"number refused": {fieldType: FieldNumber, max: 10, wantErr: "only be set for text fields"},
+		"zero refused":   {fieldType: FieldTextarea, max: 0, wantErr: "must be positive"},
+	} {
+		def := Definition{
+			Key: "test.max_length", Type: tc.fieldType, Tab: "system", Category: "general",
+			Validation: &ValidationRules{MaxLength: length(tc.max)},
+		}
+		err := def.Validate()
+		if tc.wantErr == "" {
+			assert.NoError(t, err, name)
+			continue
+		}
+		require.Error(t, err, name)
+		assert.Contains(t, err.Error(), tc.wantErr, name)
+	}
+}
+
+// An example text belongs to a textarea, the one input that shows it (#5693).
+func TestValidate_Placeholder(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		fieldType FieldType
+		wantErr   string
+	}{
+		"textarea":       {fieldType: FieldTextarea},
+		"text refused":   {fieldType: FieldText, wantErr: "only be set for textarea fields"},
+		"number refused": {fieldType: FieldNumber, wantErr: "only be set for textarea fields"},
+	} {
+		def := Definition{
+			Key: "test.placeholder", Type: tc.fieldType, Tab: "system", Category: "general",
+			Placeholder: "Musterstraße 1",
+		}
+		err := def.Validate()
+		if tc.wantErr == "" {
+			assert.NoError(t, err, name)
+			continue
+		}
+		require.Error(t, err, name)
+		assert.Contains(t, err.Error(), tc.wantErr, name)
+	}
+}
+
 func TestValidate_DefaultBelowMin(t *testing.T) {
 	t.Parallel()
 

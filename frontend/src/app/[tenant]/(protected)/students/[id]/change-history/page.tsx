@@ -198,9 +198,7 @@ function StudentChangeHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={
-          <ConceptIconTile concept={changeHistoryConcept} variant="page" />
-        }
+        leading={<ConceptIconTile concept={changeHistoryConcept} size="page" />}
         title={displayName || "Änderungsverlauf"}
         stats={studentMeta || entryLine}
         statsLoading={loading}
@@ -216,15 +214,13 @@ function StudentChangeHistoryPageContent() {
             : null
         }
       >
-        {/* bodyClassName hebt die Kartenpolsterung auf: die Tabelle bringt ihre
-            eigene Zellpolsterung mit und läuft bis zur Kartenkante. */}
+        {/* flush: die Tabelle bringt ihre eigene Zellpolsterung mit und läuft
+            bis zur Kartenkante. */}
         <SectionCard
           title="Änderungsverlauf"
           description="Wer hat wann welche Angaben zu diesem Kind geändert"
-          leading={
-            <ConceptIconTile concept={changeHistoryConcept} variant="section" />
-          }
-          bodyClassName="mt-4 -mx-5 -mb-5"
+          concept={changeHistoryConcept}
+          flush
         >
           <>
             {/* Desktop table */}

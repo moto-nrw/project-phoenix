@@ -46,9 +46,19 @@ jobs:
             done
             if [ "$code" != 200 ]; then failures="$failures $name=$code"; fi
           done
-          expiry="$(printf '' | openssl s_client -connect "$FRONTEND_HOST:443" -servername "$FRONTEND_HOST" 2>/dev/null \
-            | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)"
-          end_seconds="$(date -u -d "$expiry" +%s 2>/dev/null || echo 0)"
+          expiry=''
+          for attempt in 1 2 3; do
+            expiry="$(printf '' | timeout 15 openssl s_client -connect "$FRONTEND_HOST:443" -servername "$FRONTEND_HOST" 2>/dev/null \
+              | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)"
+            if [ -n "$expiry" ]; then break; fi
+            if [ "$attempt" != 3 ]; then sleep 20; fi
+          done
+          # GNU date reads an empty string as today's midnight, which would
+          # report an unreadable certificate as one that expires today.
+          end_seconds=0
+          if [ -n "$expiry" ]; then
+            end_seconds="$(date -u -d "$expiry" +%s 2>/dev/null || echo 0)"
+          fi
           if [ "$end_seconds" -gt 0 ]; then
             days=$(( (end_seconds - $(date -u +%s)) / 86400 ))
             echo "certificate valid for $days more days"

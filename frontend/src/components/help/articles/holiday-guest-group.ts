@@ -28,9 +28,10 @@ export function holidayGuestGroupTopic(): HelpTopic {
       "Wählen Sie `Feriengäste übernehmen`.",
     ],
     result:
-      "Ab dem ersten Tag der Woche stehen die Feriengäste in der Gruppe und im Check-in. Ihr Team sieht bei jedem Feriengast Betreuung, Notfall, Abholung und die Angaben, die der Träger freigibt.",
+      "Ab dem ersten Tag der Woche stehen die Feriengäste in der Gruppe, im Check-in und unter `Alle Kinder`. Bei jedem steht seine Schule, zum Beispiel `Gast aus Grundschule am See`. Ihr Team sieht Betreuung, Notfall, Abholung und die Angaben, die der Träger freigibt.",
     notes: [
       "Feriengäste sind Kinder anderer Schulen Ihres Trägers und Kinder ohne Schule beim Träger. Kinder Ihrer OGS bleiben in ihrer Gruppe.",
+      "Vor der Woche sehen Sie die Feriengäste nur hier unter `Ferienwochen`.",
       "Bestätigt der Träger später weitere Kinder, kommen sie innerhalb einer Stunde in die Gruppe. Storniert er, gehen sie innerhalb einer Stunde.",
       "Jede Übernahme steht im Zugriffsprotokoll Ihrer OGS.",
     ],

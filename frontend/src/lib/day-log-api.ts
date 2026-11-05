@@ -29,6 +29,8 @@ export interface DayLogStudent {
   check_out_time?: string;
   /** Why the child went home early (#3324). */
   check_out_note?: string;
+  /** Times in class between the day's stays (#5656); no `until`: no return. */
+  class_periods?: { from: string; until?: string }[];
   reported_at?: string;
   source?: string;
   hint?: string;

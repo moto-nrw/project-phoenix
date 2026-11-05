@@ -10,6 +10,8 @@
     "presentNoTime": "Сьогодні в OGS",
     "left": "Дитина пішла додому о {time}",
     "leftNoTime": "Сьогодні дитина пішла додому",
+    "inClass": "Дитина пішла на урок о {time}",
+    "inClassNoTime": "Дитина сьогодні пішла на урок",
     "expected": "Сьогодні прийде о {time}",
     "expectedNoTime": "Сьогодні прийде",
     "notArrived": "Очікується з {time}",

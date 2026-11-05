@@ -10,38 +10,18 @@
 // „Datenverwaltung → Abwesenheitsarten"; das Feld daneben verlinkt sie.
 //
 // Bewusst weiterhin ein Hook und keine Komponente: alles Sichtbare kommt aus
-// `ListboxDropdown`, lokal ist nur der getippte Suchtext.
+// `CustomSelect` mit Suchfeld (#5580), lokal ist nur die Auswahl der Arten.
 
-import { ChevronDown } from "lucide-react";
-import { useEffect, useMemo, useState, type ComponentProps } from "react";
+import { useMemo, type ComponentProps } from "react";
 
 import {
   STANDARD_ABSENCE_OPTIONS,
   useAbsenceTypeOptions,
   type AbsenceTypeOption,
 } from "./use-absence-type-options";
-import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+import { CustomSelect } from "~/components/ui/custom-select";
 
-type ListboxProps = ComponentProps<typeof ListboxDropdown<string>>;
-
-const TRIGGER_CLASS =
-  "moto-content-surface flex h-10 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 disabled:cursor-not-allowed disabled:text-gray-500 disabled:opacity-80";
-
-const MENU_CLASS = "moto-popover-surface rounded-xl border";
-const LIST_CLASS = "scrollbar-thin overflow-y-auto px-2 pb-2";
-
-const ROW_CLASS =
-  "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors";
-const OPTION_CLASS = `${ROW_CLASS} text-gray-700 hover:bg-gray-50`;
-const ACTIVE_OPTION_CLASS = `${ROW_CLASS} bg-gray-50 font-medium text-gray-900`;
-const DISABLED_OPTION_CLASS = `${ROW_CLASS} cursor-not-allowed text-gray-500 opacity-60`;
-
-const PLACEHOLDER = "Bitte wählen";
-const SEARCH_PLACEHOLDER = "Suchen";
-
-function normalize(value: string): string {
-  return value.trim().toLowerCase();
-}
+type CustomSelectProps = ComponentProps<typeof CustomSelect>;
 
 interface UseAbsenceTypeSelectArgs {
   readonly value: string;
@@ -56,104 +36,40 @@ interface UseAbsenceTypeSelectArgs {
 }
 
 /**
- * useAbsenceTypeSelect liefert die Eigenschaften für ein `ListboxDropdown`,
- * das die Standardarten und die eigenen Namen der Schule in einer Liste zeigt.
+ * useAbsenceTypeSelect liefert die Eigenschaften für ein `CustomSelect`, das
+ * die Standardarten und die eigenen Namen der Schule in einer durchsuchbaren
+ * Liste zeigt.
  */
 export function useAbsenceTypeSelect({
   value,
   onChange,
   canManage,
   disabled = false,
-}: UseAbsenceTypeSelectArgs): ListboxProps {
+}: UseAbsenceTypeSelectArgs): CustomSelectProps {
   const { options } = useAbsenceTypeOptions(
     canManage,
     STANDARD_ABSENCE_OPTIONS,
     value,
   );
 
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-
-  useEffect(() => {
-    if (!open) setQuery("");
-  }, [open]);
-
-  const selected = options.find((option) => option.value === value);
-
   // Eine abgeschaltete Art steht nur da, solange sie der gewählte Wert ist:
   // sonst würde das Bearbeiten einer alten Abwesenheit sie still austauschen.
   const visible = useMemo(
     () =>
-      options.filter(
-        (option: AbsenceTypeOption) =>
-          !option.inactive || option.value === value,
-      ),
+      options
+        .filter(
+          (option: AbsenceTypeOption) =>
+            !option.inactive || option.value === value,
+        )
+        .map((option) => ({ value: option.value, label: option.label })),
     [options, value],
   );
 
-  const filtered = useMemo(() => {
-    const needle = normalize(query);
-    if (!needle) return visible;
-    return visible.filter((option) => normalize(option.label).includes(needle));
-  }, [visible, query]);
-
-  const listOptions = useMemo(
-    () =>
-      filtered.map((option) => ({
-        value: option.value,
-        label: option.label,
-      })),
-    [filtered],
-  );
-
-  const menuHeader =
-    filtered.length === 0 ? (
-      <p className="px-2 py-2 text-sm text-gray-500">Kein Treffer.</p>
-    ) : null;
-
   return {
     value,
-    options: listOptions,
+    options: visible,
     onChange,
-    open: open && !disabled,
-    onOpenChange: setOpen,
     disabled,
-    placeholder: PLACEHOLDER,
-    triggerRole: "combobox",
-    // Das Menü trägt ein Suchfeld, und die Fokusfalle eines Dialogs (Radix
-    // FocusScope) zieht den Fokus aus allem heraus, was an document.body
-    // hängt — das Feld ließe sich anklicken, aber nicht beschreiben. Außerhalb
-    // eines Dialogs greift der Selektor nicht und das Menü hängt wie sonst am
-    // Body.
-    portalScopeSelector: '[data-modal-focus-scope="true"]',
-    className: TRIGGER_CLASS,
-    menuClassName: MENU_CLASS,
-    listClassName: LIST_CLASS,
-    optionClassName: OPTION_CLASS,
-    activeOptionClassName: ACTIVE_OPTION_CLASS,
-    disabledOptionClassName: DISABLED_OPTION_CLASS,
-    searchValue: query,
-    onSearchChange: setQuery,
-    searchPlaceholder: SEARCH_PLACEHOLDER,
-    menuHeader,
-    renderTrigger: ({ open: isOpen }) => (
-      <>
-        {/* Die Beschriftung kommt aus der VOLLEN Liste: während die Suche das
-            Menü verengt, muss der Auslöser weiter zeigen, was gewählt ist. */}
-        <span
-          className={`min-w-0 flex-1 truncate ${
-            selected ? "text-gray-900" : "text-gray-500"
-          }`}
-        >
-          {selected?.label ?? PLACEHOLDER}
-        </span>
-        <ChevronDown
-          aria-hidden="true"
-          className={`h-4 w-4 flex-shrink-0 text-gray-400 transition-transform ${
-            isOpen ? "rotate-180" : ""
-          }`}
-        />
-      </>
-    ),
+    searchable: true,
   };
 }

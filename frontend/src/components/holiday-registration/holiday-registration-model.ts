@@ -2,6 +2,7 @@
 // Die Feldnamen folgen dem Backend ("children.0.first_name"), damit Fehler
 // vom Server am selben Feld landen wie die eigene Prüfung.
 
+import { bookedWeeksOverlap } from "~/lib/holiday-week-groups";
 import {
   buildFieldsByKey,
   type ConditionContext,
@@ -23,11 +24,15 @@ import type {
 } from "~/lib/holiday-registration-api";
 
 /**
- * Version of the consent texts the form shows (#4722). Version 2 names the
- * OGS that hosts a holiday week as a reader of the health information; the
- * backend shares health information only for registrations under it.
+ * Version of the consent texts the translations of this form belong to
+ * (#4722, #5626). The German texts come with the offer and bind; a
+ * translation is shown below them only while the offer has this version.
+ * Version 3 adds the custody and the name as the declaration.
  */
-const HOLIDAY_CONSENT_VERSION = 2;
+export const HOLIDAY_CONSENT_VERSION = 3;
+
+/** Bounds the typed name like the name of the parent. */
+export const DECLARATION_NAME_MAX_LENGTH = 100;
 
 export const MAX_CHILDREN = 3;
 // Mirrors HolidayRegistrationMaxEmergencyContacts / MaxPickupPersons in
@@ -68,6 +73,12 @@ export interface ContactDraft {
   readonly relationship: string;
 }
 
+export interface AddressDraft {
+  readonly street: string;
+  readonly postalCode: string;
+  readonly city: string;
+}
+
 export interface RegistrationDraft {
   readonly guardian: {
     readonly firstName: string;
@@ -75,6 +86,8 @@ export interface RegistrationDraft {
     readonly email: string;
     readonly phone: string;
   };
+  /** Postal address of the parent, when the form asks for it (#5625). */
+  readonly guardianAddress: AddressDraft;
   readonly secondGuardian: RegistrationDraft["guardian"];
   readonly children: readonly ChildDraft[];
   readonly contacts: readonly ContactDraft[];
@@ -82,6 +95,10 @@ export interface RegistrationDraft {
   readonly privacyConsent: boolean;
   readonly healthConsent: boolean;
   readonly bindingConfirmed: boolean;
+  /** The parent has the custody or the other custodian agrees (#5626). */
+  readonly custodyConfirmed: boolean;
+  /** The name the parent types to give the declarations (#5626). */
+  readonly declarationName: string;
   /** The family receives benefits; the Träger checks it (#4664). */
   readonly benefitsDeclared: boolean;
   /**
@@ -103,16 +120,20 @@ export type FieldErrorKey =
   | "phone"
   | "school"
   | "weeks"
+  | "weeksOverlap"
   | "privacy"
   | "health"
   | "binding"
+  | "custody"
+  | "declarationName"
   | "yesNo"
   | "choose"
   | "contactRole"
   | "emergencyRequired"
   | "emergencyLimit"
   | "pickupLimit"
-  | "contactLimit";
+  | "contactLimit"
+  | "postalCode";
 
 let keyCounter = 0;
 const nextKey = (prefix: string) => `${prefix}-${++keyCounter}`;
@@ -147,12 +168,15 @@ export function emptyContact(): ContactDraft {
 export function emptyRegistration(): RegistrationDraft {
   return {
     guardian: { firstName: "", lastName: "", email: "", phone: "" },
+    guardianAddress: { street: "", postalCode: "", city: "" },
     secondGuardian: { firstName: "", lastName: "", email: "", phone: "" },
     children: [emptyChild()],
     contacts: [emptyContact()],
     privacyConsent: false,
     healthConsent: false,
     bindingConfirmed: false,
+    custodyConfirmed: false,
+    declarationName: "",
     benefitsDeclared: false,
     benefitsProofs: [],
     answers: {},
@@ -412,6 +436,41 @@ export function hasSecondGuardian(draft: RegistrationDraft): boolean {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** A German postal code; the backend checks the same (#5625). */
+const POSTAL_CODE = /^[0-9]{5}$/;
+
+/** Whether the form asks for the address of the parent (#5625). */
+export function asksForAddress(form: HolidayFormVersion): boolean {
+  return (form.addressRequirement ?? "off") !== "off";
+}
+
+/** Whether the parent filled in some part of the address. */
+export function hasAddress(draft: RegistrationDraft): boolean {
+  return Object.values(draft.guardianAddress).some(
+    (value) => value.trim() !== "",
+  );
+}
+
+/**
+ * Checks the address against the form: all three parts or none, all three
+ * when it is required, and a postal code of five digits.
+ */
+function validateAddress(
+  errors: Record<string, FieldErrorKey>,
+  draft: RegistrationDraft,
+  form: HolidayFormVersion,
+) {
+  if (!asksForAddress(form)) return;
+  if (form.addressRequirement !== "required" && !hasAddress(draft)) return;
+  const address = draft.guardianAddress;
+  requireText(errors, "guardian_address.street", address.street);
+  const postalCode = address.postalCode.trim();
+  if (postalCode === "") errors["guardian_address.postal_code"] = "required";
+  else if (!POSTAL_CODE.test(postalCode))
+    errors["guardian_address.postal_code"] = "postalCode";
+  requireText(errors, "guardian_address.city", address.city);
+}
+
 function requireText(
   errors: Record<string, FieldErrorKey>,
   field: string,
@@ -477,8 +536,16 @@ export function validateRegistration(
     requireText(errors, `${prefix}.last_name`, child.lastName);
     requireText(errors, `${prefix}.birth_date`, child.birthDate);
     if (child.school === "") errors[`${prefix}.home_school_id`] = "school";
-    if (bookedWeeks(child, offer).length === 0) {
+    const booked = bookedWeeks(child, offer);
+    if (booked.length === 0) {
       errors[`${prefix}.bookings`] = "weeks";
+    } else if (
+      bookedWeeksOverlap(
+        offer.weeks,
+        booked.map((booking) => booking.weekId),
+      )
+    ) {
+      errors[`${prefix}.bookings`] = "weeksOverlap";
     }
     requireAnswers(
       errors,
@@ -498,6 +565,7 @@ export function validateRegistration(
       draft.guardian.email.trim() === "" ? "required" : "email";
   }
   requireText(errors, "guardian.phone", draft.guardian.phone);
+  validateAddress(errors, draft, offer.form);
   if (hasSecondGuardian(draft)) {
     const second = draft.secondGuardian;
     requireText(errors, "second_guardian.first_name", second.firstName);
@@ -524,10 +592,13 @@ export function validateRegistration(
   if (offer.binding && !draft.bindingConfirmed) {
     errors.binding_confirmed = "binding";
   }
+  if (!draft.custodyConfirmed) errors.custody_confirmed = "custody";
   for (const block of offer.form.legalBlocks ?? []) {
     if (block.enabled && block.required && !draft.legalAcceptances?.[block.key])
       errors[`legal_acceptances.${block.key}`] = "required";
   }
+  if (draft.declarationName.trim() === "")
+    errors.declaration_name = "declarationName";
   return errors;
 }
 
@@ -550,6 +621,19 @@ export function quoteBookings(
   }));
 }
 
+/**
+ * The place of every child among the children by age, 1 for the oldest, for
+ * Träger that rank siblings by age (#5664). The date of birth stays in the
+ * form: the contribution needs only the order. A child without a date gets 0;
+ * children of the same age share a place.
+ */
+export function quoteAgeRanks(children: readonly ChildDraft[]): number[] {
+  const dates = [
+    ...new Set(children.map((child) => child.birthDate).filter(Boolean)),
+  ].sort((a, b) => a.localeCompare(b));
+  return children.map((child) => dates.indexOf(child.birthDate) + 1);
+}
+
 /** The registration as the backend reads it. */
 export function payloadFromDraft(
   draft: RegistrationDraft,
@@ -563,6 +647,15 @@ export function payloadFromDraft(
       email: draft.guardian.email.trim(),
       phone: draft.guardian.phone.trim(),
     },
+    ...(asksForAddress(offer.form) && hasAddress(draft)
+      ? {
+          guardian_address: {
+            street: draft.guardianAddress.street.trim(),
+            postal_code: draft.guardianAddress.postalCode.trim(),
+            city: draft.guardianAddress.city.trim(),
+          },
+        }
+      : {}),
     ...(hasSecondGuardian(draft)
       ? {
           second_guardian: {
@@ -602,13 +695,16 @@ export function payloadFromDraft(
     privacy_consent: draft.privacyConsent,
     health_consent: hasHealthInfo(draft, offer.form) && draft.healthConsent,
     binding_confirmed: offer.binding && draft.bindingConfirmed,
+    custody_confirmed: draft.custodyConfirmed,
+    declaration_name: draft.declarationName.trim(),
     benefits_declared: draft.benefitsDeclared,
     benefits_proof_tokens: draft.benefitsDeclared
       ? draft.benefitsProofs.map((proof) => proof.token)
       : [],
     captcha_token: captchaToken,
     form_version: offer.form.version,
-    consent_version: HOLIDAY_CONSENT_VERSION,
+    // The version of the texts the form showed, as the offer named them.
+    consent_version: offer.consentTexts.version,
     custom_data: familyAnswersToSend(draft, offer.form),
   };
 }

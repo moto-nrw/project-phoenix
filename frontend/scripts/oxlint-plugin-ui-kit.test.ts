@@ -17,6 +17,8 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
+import { pillRatchetBaseline } from "./ui-kit-pill-baseline.mjs";
+import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import {
   lintSource as lintProbe,
   removeProbeDirectories,
@@ -83,6 +85,93 @@ async function ruleHits(
       output.match(new RegExp(String.raw`ui-kit\(${rule}\)`, "g"))?.length ?? 0,
   };
 }
+
+describe.concurrent("ui-kit/no-hand-rolled-icon-tile", () => {
+  it("reports grey and tinted icon tiles, also across className branches", async () => {
+    const { count, output } = await ruleHits(
+      `
+      declare const BellIcon: () => JSX.Element;
+      function Probe({ icon, done }: { icon: JSX.Element; done: boolean }) {
+        return <>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
+            <BellIcon />
+          </span>
+          <div className="bg-moto-red/10 text-moto-red flex h-9 w-9 items-center justify-center rounded-lg">{icon}</div>
+          <span className={\`flex h-8 w-8 items-center justify-center rounded-xl \${done ? "bg-moto-green/15" : "bg-gray-100"}\`}>
+            <BellIcon />
+          </span>
+          <span className="relative inline-flex size-10 items-center justify-center rounded-xl bg-gray-100">
+            <BellIcon />
+          </span>
+        </>;
+      }
+      void Probe;
+    `,
+      "no-hand-rolled-icon-tile",
+    );
+
+    expect(count, output).toBe(4);
+  });
+
+  it("reports a hand-rolled tile inside the kit outside IconTile", async () => {
+    const { count, output } = await ruleHits(
+      `
+      function Probe({ icon }: { icon: JSX.Element }) {
+        return <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-100">{icon}</div>;
+      }
+      void Probe;
+    `,
+      "no-hand-rolled-icon-tile",
+      "src/components/ui/probe-card.tsx",
+    );
+
+    expect(count, output).toBe(1);
+  });
+
+  it("accepts text circles, buttons, the kit tile and other sizes", async () => {
+    const { count, output } = await ruleHits(
+      `
+      declare const BellIcon: () => JSX.Element;
+      declare const IconTile: (props: { icon: JSX.Element }) => JSX.Element;
+      function Probe({ initials }: { initials: string }) {
+        return <>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs">{initials}</div>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">3</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100"><span>3</span></span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100"><span>{initials}</span></span>
+          <button type="button" className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100"><BellIcon /></button>
+          <span className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-gray-100"><BellIcon /></span>
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100"><BellIcon /></span>
+          <div className="flex h-10 w-full items-center justify-center rounded-lg bg-gray-100"><BellIcon /></div>
+          <IconTile icon={<BellIcon />} />
+        </>;
+      }
+      void Probe;
+    `,
+      "no-hand-rolled-icon-tile",
+    );
+
+    expect(count, output).toBe(0);
+  });
+
+  it("reports an icon wrapped in a presentational element", async () => {
+    const { count, output } = await ruleHits(
+      `
+      declare const BellIcon: () => JSX.Element;
+      function Probe() {
+        return <>
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100"><span><BellIcon /></span></span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100"><span>{<BellIcon />}</span></span>
+        </>;
+      }
+      void Probe;
+    `,
+      "no-hand-rolled-icon-tile",
+    );
+
+    expect(count, output).toBe(2);
+  });
+});
 
 describe.concurrent("ui-kit/no-dead-surface-utility", () => {
   it("reports colour, shadow, ring and blur utilities beside a kit surface", async () => {
@@ -429,6 +518,104 @@ describe.concurrent("ui-kit/no-rounded-3xl", () => {
       const output = result.output;
       expect(result.status, output).toBe(0);
       expect(output).not.toContain("no-rounded-3xl");
+    }
+  });
+});
+
+describe.concurrent("ui-kit/no-rounded-3xl per side", () => {
+  it("reports the per-side and per-corner forms (#5579)", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return (
+          <>
+            <div className="rounded-t-3xl" />
+            <div className="sm:rounded-br-3xl" />
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-rounded-3xl\)/g)).toHaveLength(2);
+  });
+
+  it("accepts rounded-t-2xl", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <div className="rounded-t-2xl" />;
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).not.toContain("no-rounded-3xl");
+  });
+});
+
+describe.concurrent("ui-kit/no-shadcn-tokens", () => {
+  it("reports shadcn theme tokens, also inside the kit", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return (
+          <div className="bg-background focus-visible:ring-ring">
+            <span className="text-muted-foreground" />
+          </div>
+        );
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-shadcn-tokens\)/g)).toHaveLength(3);
+  });
+
+  it("accepts the kit's white and gray scale", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <div className="bg-white text-gray-500 ring-moto-blue border-gray-200" />;
+      }
+      void Probe;`,
+      "src/probe.tsx",
+    );
+
+    expect(result.status, result.output).toBe(0);
+    expect(result.output).not.toContain("no-shadcn-tokens");
+  });
+});
+
+describe.concurrent("ui-kit/no-raw-z-index", () => {
+  it("reports a stacking number inside the kit", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <div className="fixed inset-0 z-[9999]" />;
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-raw-z-index)");
+  });
+
+  it("accepts Z_LAYER itself and leaves files outside the kit alone", async () => {
+    const [layers, outside] = await Promise.all([
+      lintSource(
+        `export const Z_LAYER = { modal: "z-[9999]" } as const;`,
+        "src/components/ui/overlay-styles.ts",
+      ),
+      lintSource(
+        `export const layer = "z-[60]";`,
+        "src/components/students/probe.ts",
+      ),
+    ]);
+
+    for (const result of [layers, outside]) {
+      expect(result.status, result.output).toBe(0);
+      expect(result.output).not.toContain("no-raw-z-index");
     }
   });
 });
@@ -820,6 +1007,65 @@ describe.concurrent("ui-kit/no-raw-input", () => {
   });
 });
 
+describe.concurrent("ui-kit/no-select-override", () => {
+  it("reports frame, fill, height and radius classes on kit selects", async () => {
+    const result = await lintSource(`
+      import { CustomSelect } from "~/components/ui/custom-select";
+      import { MultiSelect } from "~/components/ui/multi-select";
+      import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+      const TRIGGER = "moto-content-surface h-9 w-56";
+      export function Probe() {
+        return <form>
+          <CustomSelect value="" options={[]} onChange={() => {}} className={TRIGGER} />
+          <MultiSelect value={[]} options={[]} onChange={() => {}} className="border-gray-200 bg-gray-50" />
+          <ListboxDropdown value="" options={[]} onChange={() => {}} menuClassName="rounded-lg shadow-lg" />
+        </form>;
+      }
+    `);
+    const output = result.output;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-select-override\)/g)).toHaveLength(3);
+  });
+
+  it("rejects unstyledTrigger outside the kit", async () => {
+    const result = await lintSource(`
+      import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+      export function Probe() {
+        return <ListboxDropdown value="" options={[]} onChange={() => {}} unstyledTrigger />;
+      }
+    `);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-select-override)");
+  });
+
+  it("allows size and layout classes", async () => {
+    const result = await lintSource(`
+      import { CustomSelect } from "~/components/ui/custom-select";
+      export function Probe() {
+        return <CustomSelect value="" options={[]} onChange={() => {}} controlSize="compact" className="w-full md:w-56 font-medium" menuClassName="min-w-48" />;
+      }
+    `);
+
+    expect(result.output).not.toContain("no-select-override");
+  });
+
+  it("leaves the kit itself alone", async () => {
+    const result = await lintSource(
+      `
+      import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
+      export function Chip() {
+        return <ListboxDropdown value="" options={[]} onChange={() => {}} unstyledTrigger className="rounded-xl bg-white" />;
+      }
+    `,
+      "src/components/ui/page-header/chip.tsx",
+    );
+
+    expect(result.output).not.toContain("no-select-override");
+  });
+});
+
 // #5531: Button-Ratchet. Ein Fund je Element; die Baseline hält den Ist-Stand
 // je Datei fest und darf nur sinken, bewusste Ausnahmen stehen begründet in
 // der Allowlist.
@@ -1135,6 +1381,7 @@ describe("button ratchet baseline", () => {
     mkdirSync(join(directory, "scripts"));
     for (const file of [
       "ui-kit-button-baseline-update.mjs",
+      "ui-kit-ratchet-baseline.mjs",
       "ui-kit-button-baseline.mjs",
       "ui-kit-button-baseline.json",
     ]) {
@@ -1153,6 +1400,8 @@ describe("button ratchet baseline", () => {
         },
       }),
     );
+    // Eine Ausnahme für die graue Ruhefläche steht auf derselben Zeile wie
+    // die für den handgebauten Knopf; ihr Fund trifft deshalb beide Regeln.
     const findingAt: Record<string, string> = {
       "no-hand-rolled-button": `<button type="button" className="rounded-lg bg-gray-900 px-4 py-2">A</button>`,
       "no-button-override": `<Button className="h-10">A</Button>`,
@@ -1217,6 +1466,281 @@ describe("button ratchet baseline", () => {
     }
     for (const entry of buttonRatchetAllowlist) {
       expect(existsSync(resolve(entry.file)), entry.file).toBe(true);
+    }
+  });
+});
+
+// #5584: Pillen-Ratchet. Ein Fund je Element; die Baseline hält den Ist-Stand
+// je Datei fest und darf nur sinken.
+describe.concurrent("ui-kit/no-hand-rolled-pill", () => {
+  const handRolled = (count: number) =>
+    `function Probe() {
+      return <div>${Array.from(
+        { length: count },
+        (_, index) =>
+          `<span key="${index}" className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Entwurf</span>`,
+      ).join("")}</div>;
+    }
+    void Probe;`;
+
+  it("fails a tinted span with pill shape outside the kit", async () => {
+    const result = await lintSource(handRolled(1), "src/components/probe.tsx");
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-hand-rolled-pill\)/g)).toHaveLength(
+      1,
+    );
+    expect(result.output).toContain("StatusBadge");
+  });
+
+  it("fails a pill whose surface comes from the style prop", async () => {
+    const result = await lintSource(
+      `function Probe({ color }: { color: string }) {
+        return <span className="rounded-md px-1.5 py-px text-[10px] uppercase" style={{ backgroundColor: color }}>Neu</span>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain("ui-kit(no-hand-rolled-pill)");
+  });
+
+  it("accepts kit pills, text without a surface and tooltips", async () => {
+    const result = await lintSource(
+      `import { StatusBadge } from "~/components/ui/status-badge";
+      function Probe() {
+        return (
+          <>
+            <StatusBadge label="Entwurf" tone="outline" size="xs" />
+            <span className="rounded-full px-2 py-0.5 text-xs text-gray-600">Ohne Fläche</span>
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-sm">Größere Schrift</span>
+            <span role="tooltip" className="rounded-md bg-gray-900 px-2 py-1 text-xs text-white">Hilfe</span>
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("no-hand-rolled-pill");
+  });
+
+  it("keeps the shrink-only baseline: equal and fewer pass, more fails", async () => {
+    const [file, count] = Object.entries(
+      pillRatchetBaseline["no-hand-rolled-pill"] ?? {},
+    ).find(([candidate]) => candidate.endsWith(".tsx"))!;
+    const [equal, more, fewer] = await Promise.all([
+      lintSource(handRolled(count), file),
+      lintSource(handRolled(count + 1), file),
+      lintSource(handRolled(count - 1), file),
+    ]);
+    expect(equal.output).not.toContain("no-hand-rolled-pill");
+
+    expect(more.status).toBe(1);
+    expect(more.output).toContain("ui-kit(no-hand-rolled-pill)");
+
+    expect(fewer.output).not.toContain("no-hand-rolled-pill");
+  });
+});
+
+describe.concurrent("ui-kit/no-pill-dot", () => {
+  it("fails a dot inside a pill (#2476)", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs">
+            <span className="h-1.5 w-1.5 rounded-full bg-gray-400" aria-hidden />
+            Keine Lücken
+          </span>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-pill-dot\)/g)).toHaveLength(1);
+  });
+
+  it("accepts an icon inside a pill and a dot outside of one", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return (
+          <>
+            <span className="inline-flex gap-1 rounded-full px-2.5 py-0.5 text-xs">
+              <svg className="h-3 w-3" aria-hidden />
+              Erledigt
+            </span>
+            <div className="flex gap-2">
+              <span className="h-2 w-2 rounded-full bg-gray-400" aria-hidden />
+              Legende
+            </div>
+          </>
+        );
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("no-pill-dot");
+  });
+});
+
+describe.concurrent("ui-kit/no-hex-alpha-tint", () => {
+  it("fails a hex alpha tint in a pill's style", async () => {
+    const result = await lintSource(
+      `function Probe({ color }: { color: string }) {
+        return <span className="rounded-full px-2.5 py-0.5 text-xs" style={{ backgroundColor: \`\${color}1A\`, color }}>Übernommen</span>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hex-alpha-tint)");
+  });
+
+  it("accepts a kit tone value in the style", async () => {
+    const result = await lintSource(
+      `function Probe({ tone }: { tone: { bg: string } }) {
+        return <span className="rounded-full px-2.5 py-0.5 text-xs" style={{ backgroundColor: tone.bg, borderColor: \`\${tone.bg}33\` }}>A</span>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("no-hex-alpha-tint");
+  });
+});
+
+describe("pill ratchet baseline", () => {
+  it("matches the current findings exactly", () => {
+    const result = spawnSync(
+      process.execPath,
+      [resolve("scripts/ui-kit-pill-baseline-update.mjs"), "--check"],
+      { encoding: "utf8" },
+    );
+
+    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
+  }, 120_000);
+
+  it("names only files that exist and positive counts", () => {
+    for (const [rule, files] of Object.entries(pillRatchetBaseline)) {
+      for (const [file, count] of Object.entries(files)) {
+        expect(existsSync(resolve(file)), `${rule}: ${file}`).toBe(true);
+        expect(count).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
+describe.concurrent("ui-kit/no-important-override (#5581)", () => {
+  it("reports an important utility on a kit component", async () => {
+    const result = await lintSource(`
+      import { SectionCard } from "~/components/ui/section-card";
+      import { StatusBadge as Badge } from "~/components/ui/status-badge";
+      function Probe() {
+        return <>
+          <SectionCard className="!p-0">Inhalt</SectionCard>
+          <Badge label="Offen" tone="gray" className="md:!rounded-md" />
+          <SectionCard bodyClassName={\`mt-2 p-0!\`}>Inhalt</SectionCard>
+        </>;
+      }
+      void Probe;
+    `);
+
+    expect(result.status).toBe(1);
+    expect(
+      result.output.match(/ui-kit\(no-important-override\)/g),
+    ).toHaveLength(3);
+  });
+
+  it("allows kit props, plain utilities and native elements", async () => {
+    const result = await lintSource(`
+      import { SectionCard } from "~/components/ui/section-card";
+      function Probe() {
+        return <>
+          <SectionCard padding="none" className="mt-4">Inhalt</SectionCard>
+          <div className="!p-0">Kein Kit</div>
+        </>;
+      }
+      void Probe;
+    `);
+
+    expect(result.output).not.toContain("no-important-override");
+  });
+});
+
+describe.concurrent("ui-kit/no-section-card-bleed (#5581)", () => {
+  it("reports negative margins that undo the SectionCard padding", async () => {
+    const result = await lintSource(`
+      import { SectionCard } from "~/components/ui/section-card";
+      function Probe() {
+        return <SectionCard title="Verlauf" bodyClassName="mt-4 -mx-5 -mb-5">
+          <table />
+        </SectionCard>;
+      }
+      void Probe;
+    `);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-section-card-bleed)");
+  });
+
+  it("allows flush and spacing in bodyClassName", async () => {
+    const result = await lintSource(`
+      import { SectionCard } from "~/components/ui/section-card";
+      function Probe() {
+        return <SectionCard title="Verlauf" flush bodyClassName="mt-4">
+          <table />
+        </SectionCard>;
+      }
+      void Probe;
+    `);
+
+    expect(result.output).not.toContain("no-section-card-bleed");
+  });
+});
+
+describe.concurrent("ui-kit/no-important-override baseline (#5581)", () => {
+  it("fails a second override in a baselined file", async () => {
+    const result = await lintSource(
+      `
+      import { Input } from "~/components/ui/input";
+      function Probe() {
+        return <>
+          <Input aria-label="A" className="!h-11" />
+          <Input aria-label="B" className="px-3!" />
+        </>;
+      }
+      void Probe;
+    `,
+      "src/components/help/help-view.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-important-override)");
+  });
+});
+
+describe("ui-kit/no-important-override baseline is current (#5581)", () => {
+  // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken,
+  // sonst könnte die nächste Änderung den Abbau unbemerkt wieder auffüllen.
+  it("records exactly the findings each baselined file still has", async () => {
+    const previous = process.env.UI_KIT_IMPORTANT_OVERRIDE;
+    process.env.UI_KIT_IMPORTANT_OVERRIDE = "count";
+    try {
+      for (const [file, expected] of Object.entries(
+        importantOverrideBaseline,
+      )) {
+        const result = await lintSource(readFileSync(file, "utf8"), file);
+        const found =
+          result.output.match(/ui-kit\(no-important-override\)/g)?.length ?? 0;
+        expect({ file, found }).toEqual({ file, found: expected });
+      }
+    } finally {
+      if (previous === undefined) delete process.env.UI_KIT_IMPORTANT_OVERRIDE;
+      else process.env.UI_KIT_IMPORTANT_OVERRIDE = previous;
     }
   });
 });

@@ -1,7 +1,11 @@
 "use client";
 
 // Verlauf einer Ferienanmeldung (#4663): jede Änderung des Träger-Büros mit
-// Zeitpunkt, beim Umbuchen die Wochen vorher und nachher. Nur zum Lesen.
+// Zeitpunkt, beim Umbuchen die Wochen vorher und nachher, bei der
+// Debitorennummer die Nummer vorher und nachher (#5621), beim Ändern der
+// Angaben die geänderten Felder ohne ihre Werte (#5629), bei Geschwistern
+// die anderen Anmeldungen (#5628), auch wenn eine Stornierung die Gruppe
+// löst (#5662). Nur zum Lesen.
 
 import { SectionCard } from "~/components/ui/section-card";
 import { formatBerlinDate } from "~/lib/date-helpers";
@@ -11,6 +15,7 @@ import type {
   HolidayRegistrationDetail,
   HolidayRegistrationEvent,
 } from "~/lib/traeger-holiday-registrations-api";
+import { editedFieldsText } from "./holiday-registration-edit-fields";
 import { formatHolidayWeek } from "./holiday-registration-format";
 
 const ACTION_LABELS: Readonly<
@@ -21,6 +26,12 @@ const ACTION_LABELS: Readonly<
   freeze: "Eingefroren",
   reopen: "Wieder geöffnet",
   rebook: "Umgebucht",
+  debtor_number: "Debitorennummer geändert",
+  edit: "Angaben geändert",
+  proof_upload: "Nachweis hochgeladen",
+  sibling_merge: "Als Geschwister zusammengeführt",
+  sibling_split: "Von Geschwistern getrennt",
+  sibling_cancel: "Aus Geschwistergruppe gelöst (storniert)",
 };
 
 const BERLIN_TIME = new Intl.DateTimeFormat("de-DE", {
@@ -31,6 +42,7 @@ const BERLIN_TIME = new Intl.DateTimeFormat("de-DE", {
 
 function bookingsText(
   period: HolidayPeriod,
+  names: ReadonlyMap<string, string>,
   changes: readonly HolidayBookingChange[],
 ): string {
   if (changes.length === 0) return "keine Woche";
@@ -41,29 +53,49 @@ function bookingsText(
         (entry) => entry.id === change.timeModelId,
       );
       if (!week || !model) return "eine entfernte Woche";
-      return `${formatHolidayWeek(week.startsOn, week.endsOn)}: ${model.name}`;
+      return `${formatHolidayWeek(week.startsOn, week.endsOn)}, ${names.get(week.hostSchoolId) ?? "Schule nicht mehr vorhanden"}: ${model.name}`;
     })
     .join("; ");
+}
+
+/** The debtor number a confirmation entered or a change changed (#5621). */
+function debtorNumberText(change: {
+  readonly before: string;
+  readonly after: string;
+}): string {
+  if (!change.before) return `Debitorennummer ${change.after}`;
+  if (!change.after) return `Debitorennummer ${change.before} entfernt`;
+  return `Debitorennummer vorher ${change.before}, jetzt ${change.after}`;
 }
 
 function eventDetail(
   event: HolidayRegistrationEvent,
   period: HolidayPeriod,
+  names: ReadonlyMap<string, string>,
   registration: HolidayRegistrationDetail,
 ): string | null {
+  if (event.action === "edit") {
+    return editedFieldsText(event.fields, registration.form.fields) || null;
+  }
+  if (event.debtorNumber) return debtorNumberText(event.debtorNumber);
+  if (event.siblings.length > 0) {
+    return `Anmeldung Nr. ${event.siblings.join(", ")}`;
+  }
   if (event.action !== "rebook") return null;
   const child = registration.children.find(
     (entry) => entry.id === event.childId,
   );
   const name = child ? `${child.firstName} ${child.lastName}: ` : "";
-  return `${name}vorher ${bookingsText(period, event.before)}, jetzt ${bookingsText(period, event.after)}`;
+  return `${name}vorher ${bookingsText(period, names, event.before)}, jetzt ${bookingsText(period, names, event.after)}`;
 }
 
 export function HolidayRegistrationHistory({
   period,
+  names,
   registration,
 }: Readonly<{
   period: HolidayPeriod;
+  names: ReadonlyMap<string, string>;
   registration: HolidayRegistrationDetail;
 }>) {
   return (
@@ -73,9 +105,11 @@ export function HolidayRegistrationHistory({
           Das Träger-Büro hat diese Anmeldung noch nicht geändert.
         </p>
       ) : (
-        <ol className="space-y-2 text-sm text-gray-700">
+        // Eine Debitorennummer hat bis zu 35 Zeichen ohne Leerzeichen (#5621);
+        // sie bricht um, statt am Kartenrand abgeschnitten zu werden.
+        <ol className="space-y-2 text-sm wrap-anywhere text-gray-700">
           {registration.history.map((event, index) => {
-            const detail = eventDetail(event, period, registration);
+            const detail = eventDetail(event, period, names, registration);
             return (
               <li key={`${event.occurredAt}-${index}`}>
                 <span className="text-gray-500">
@@ -85,7 +119,12 @@ export function HolidayRegistrationHistory({
                 <span className="font-medium text-gray-900">
                   {ACTION_LABELS[event.action]}
                 </span>
-                {detail ? <span>. {detail}</span> : null}
+                {detail ? (
+                  <span>
+                    {event.action === "edit" ? ": " : ". "}
+                    {detail}
+                  </span>
+                ) : null}
               </li>
             );
           })}

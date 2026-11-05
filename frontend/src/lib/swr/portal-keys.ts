@@ -257,11 +257,21 @@ export const parentAnnouncementKeys = {
 export const displayKeys = { list: () => "info-displays" } as const;
 export const timeTrackingKeys = {
   current: () => "time-tracking-current",
+  // Eigene Schichten auf „Mein Dienstplan“ (#3821). Beide teilen das Präfix
+  // `time-tracking-own-shifts-week-` aus PLAN_CACHE_KEY_PREFIXES und den
+  // SSE-Präfixen: eine Planänderung frischt so auch die Suche nach der
+  // nächsten Schicht auf (#5639).
+  ownShiftsWeek: (from: string, to: string) =>
+    `time-tracking-own-shifts-week-${from}-${to}`,
+  ownShiftsAhead: (from: string, to: string) =>
+    `time-tracking-own-shifts-week-ahead-${from}-${to}`,
 } as const;
 
 /** Träger metadata only. Registrations, people and audit logs are never cached. */
 export const traegerKeys = {
   schools: () => "traeger-schools",
+  school: (id: string) => `traeger-school-${encodeURIComponent(id)}`,
+  schoolsToday: () => "traeger-schools-today",
   periodsFamily: "traeger-holiday-period-",
   periods: () => "traeger-holiday-period-list",
   period: (id: string) =>
@@ -325,9 +335,15 @@ export const catererKeys = {
 
 /**
  * Die Gesundheitsangaben aus der Ferienanmeldung bei einem eigenen Kind der
- * ausrichtenden OGS (#4722).
+ * ausrichtenden OGS (#4722) und die Hinweise „Gast aus …“ an den
+ * Feriengästen der Listen (#5630).
  */
 export const holidayKeys = {
   studentHealth: (studentId: string) =>
     `holiday-student-health:${encodeURIComponent(studentId)}`,
+  /** Je Satz von Feriengästen ein Schlüssel: ein neuer Gast fragt neu. */
+  guestBadges: (studentIds: readonly string[]) =>
+    `holiday-guest-badges:${[...studentIds]
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      .join(",")}`,
 };

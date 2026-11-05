@@ -11,9 +11,10 @@ GET /traeger/holiday-periods/{id}/registrations/{registrationId}/proofs/{proofId
 POST /traeger/holiday-periods/ -> basis
 POST /traeger/holiday-periods/{id}/form/documents -> basis
 POST /traeger/holiday-periods/{id}/publish -> basis
-POST /traeger/holiday-periods/{id}/registrations/{registrationId}/cancel -> basis
 POST /traeger/holiday-periods/{id}/registrations/{registrationId}/freeze -> basis
+POST /traeger/holiday-periods/{id}/registrations/{registrationId}/proofs -> basis
 POST /traeger/holiday-periods/{id}/registrations/{registrationId}/reopen -> basis
 PUT /traeger/holiday-periods/{id} -> basis
 PUT /traeger/holiday-periods/{id}/form -> basis
 PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings -> basis
+PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/details -> basis

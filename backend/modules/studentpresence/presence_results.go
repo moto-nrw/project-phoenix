@@ -74,6 +74,9 @@ type DailyAttendanceStatus struct {
 	Date         calendar.Date `json:"date"`
 	CheckInTime  *time.Time    `json:"check_in_time"`
 	CheckOutTime *time.Time    `json:"check_out_time"`
+	// ArrivalTime is when the child arrived: CheckInTime, except that a return
+	// from class keeps the arrival before it (#5656). Read it through Arrival.
+	ArrivalTime *time.Time `json:"-"`
 	// YardSince, when non-nil, marks the moment the student moved to the
 	// schoolyard without checking out. Only meaningful while Status == "on_yard".
 	YardSince    *time.Time `json:"yard_since,omitempty"`
@@ -89,6 +92,36 @@ type DailyAttendanceStatus struct {
 	// CheckOutNote is the optional reason recorded when the child went home
 	// earlier than planned (#3324). Only set on a checked-out status.
 	CheckOutNote *string `json:"check_out_note,omitempty"`
+	// CheckOutReason is CheckoutReasonClass when the child went to class and
+	// is expected back (#5656). Only set on a checked-out status.
+	CheckOutReason *string `json:"check_out_reason,omitempty"`
+}
+
+// Arrival is when the child arrived today. It stays the same across a return
+// from class, so that the return does not read as a late arrival (#5656).
+func (s *DailyAttendanceStatus) Arrival() *time.Time {
+	if s == nil {
+		return nil
+	}
+	if s.ArrivalTime != nil {
+		return s.ArrivalTime
+	}
+	return s.CheckInTime
+}
+
+// PickupTime is when the child left for the day. Leaving for class is no pickup
+// (#5656): the child is still expected back.
+func (s *DailyAttendanceStatus) PickupTime() *time.Time {
+	if s == nil || s.IsInClass() {
+		return nil
+	}
+	return s.CheckOutTime
+}
+
+// IsInClass reports a child whose last stay today ended with "Geht zum
+// Unterricht" and who has not come back yet (#5656).
+func (s *DailyAttendanceStatus) IsInClass() bool {
+	return s != nil && s.Status == "checked_out" && isClassReason(s.CheckOutReason)
 }
 
 // IsCurrentlyPresent reports whether the attendance row represents a child
@@ -108,8 +141,9 @@ func (s *DailyAttendanceStatus) IsCurrentlyPresent() bool {
 // DailyCheckoutResult represents the outcome of confirming a deferred daily
 // checkout from an IoT device.
 type DailyCheckoutResult struct {
-	// Action is "checked_out_daily" when the student went home ("zuhause") or
-	// "checked_out" when they stayed in transit ("unterwegs").
+	// Action is "checked_out_daily" when the student went home ("zuhause"),
+	// "checked_out" when they stayed in transit ("unterwegs") and
+	// "checked_out_class" when they went to class ("unterricht", #5656).
 	Action string
 }
 

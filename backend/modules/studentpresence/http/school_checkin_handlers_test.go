@@ -40,7 +40,7 @@ func TestLabelForAttendanceStatus(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.status, func(t *testing.T) {
-			assert.Equal(t, tc.want, labelForAttendanceStatus(tc.status))
+			assert.Equal(t, tc.want, labelForAttendanceStatus(tc.status, false))
 		})
 	}
 }

@@ -77,7 +77,7 @@ export default function TraegerHolidayFormPage() {
         period && form ? (
           <HolidayPeriodStatusLine period={period}>
             <span>
-              · Formular Version {form.version}, gespeichert am{" "}
+              Formular Version {form.version}, gespeichert am{" "}
               {formatBerlinDate(form.createdAt)}
             </span>
           </HolidayPeriodStatusLine>

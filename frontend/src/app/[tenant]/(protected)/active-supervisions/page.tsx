@@ -63,7 +63,10 @@ import {
 import { SupervisionHeadFacts } from "~/components/active-supervisions/supervision-head-facts";
 import { useSupervisionDashboard } from "~/components/active-supervisions/use-supervision-dashboard";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
-import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
+import type {
+  PlannedTimetableInstance,
+  TimetableRosterRow,
+} from "~/lib/timetable-operations-types";
 import { useStudentFilters } from "~/components/active-supervisions/use-student-filters";
 import {
   reopenBannerMessage,
@@ -91,6 +94,7 @@ import {
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
 import {
@@ -481,7 +485,10 @@ function MeinRaumPageContent() {
     <div>
       <Alert
         type="success"
-        message={reopenBannerMessage(reopen.reopenable.title)}
+        message={reopenBannerMessage(
+          reopen.reopenable.title,
+          reopen.reopenable.expiresAt,
+        )}
         action={
           <Button
             type="button"
@@ -497,6 +504,14 @@ function MeinRaumPageContent() {
       />
     </div>
   ) : null;
+  // Ein aus Versehen beendeter Block öffnet sich auch nach dem Banner wieder,
+  // aus der Liste der beendeten Blöcke (#5676).
+  const reopenPastBlock = (block: PlannedTimetableInstance) =>
+    actions.handleReopenTimetableInstance({
+      instanceId: block.id,
+      title: block.title,
+      roomId: block.roomId,
+    });
 
   // Zusätzliche Betreuer (#2806): auf der eigenen aktiven Aufsicht steht die
   // Aktion in der Kopfkarte; das Gerüst regelt die mobile Darstellung, eine
@@ -607,6 +622,7 @@ function MeinRaumPageContent() {
   // Aufsicht und der offenen Räume; die Stundenplan-Liste hat ihre eigene
   // Form und bleibt, wie sie ist.
   const { enabled: photosEnabled } = useStudentPhotosEnabled();
+  const holidayGuestLabel = useHolidayGuestLabels(students);
   const tableColumns = useMemo(
     () =>
       buildSupervisionTableColumns({
@@ -619,6 +635,7 @@ function MeinRaumPageContent() {
         photosEnabled,
         hrefFor: (student) =>
           `/students/${student.id}?from=/active-supervisions`,
+        classLabel: holidayGuestLabel,
       }),
     [
       dashboard.pickupTimesData,
@@ -628,6 +645,7 @@ function MeinRaumPageContent() {
       dashboard.myGroupRooms,
       now,
       photosEnabled,
+      holidayGuestLabel,
     ],
   );
   const tableColumnDefaults = useMemo(
@@ -945,7 +963,7 @@ function MeinRaumPageContent() {
           />
           {/* The day review must survive the empty state: after the last block
               ends, supervisors land exactly here (#2335). */}
-          <PastBlocksSection />
+          <PastBlocksSection onReopen={reopenPastBlock} />
         </>
       ) : (
         <>
@@ -1023,8 +1041,8 @@ function MeinRaumPageContent() {
             renderStudentContent(null)
           )}
 
-          {/* Read-only end-of-day review of finished and expired blocks (#2335) */}
-          <PastBlocksSection />
+          {/* End-of-day review of finished and expired blocks (#2335) */}
+          <PastBlocksSection onReopen={reopenPastBlock} />
         </>
       )}
     </TenantPage>

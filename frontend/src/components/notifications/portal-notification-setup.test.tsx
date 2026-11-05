@@ -32,6 +32,19 @@ describe("PortalNotificationSetup", () => {
     );
   });
 
+  it("does not ask in a session opened from the Träger-Portal", () => {
+    shellAuth.useShellAuthSafe.mockReturnValue({
+      status: "authenticated",
+      user: { id: "42" },
+      isViaTraeger: true,
+    });
+
+    const { container } = render(<PortalNotificationSetup portal="tenant" />);
+
+    expect(container).toBeEmptyDOMElement();
+    expect(setup.DeferredNotificationSetup).not.toHaveBeenCalled();
+  });
+
   it("stays out of the way while no one is signed in", () => {
     shellAuth.useShellAuthSafe.mockReturnValue({
       status: "loading",

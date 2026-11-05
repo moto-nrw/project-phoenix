@@ -78,6 +78,7 @@
   "pickup_permission_contact_gone": "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
   "pickup_proof_not_found": "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
   "pickup_reset_requires_offering": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "pickup_reset_still_needed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "reason_required": "{object} için gerekçe eksik. Lütfen bir gerekçe girin.",
   "request_not_decided": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "request_not_past": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

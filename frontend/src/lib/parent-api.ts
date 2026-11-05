@@ -881,6 +881,7 @@ export async function getChildFeatures(
 type ChildTodayState =
   | "present"
   | "left"
+  | "in_class"
   | "expected"
   | "not_arrived"
   | "absent"
@@ -892,7 +893,7 @@ export interface ChildToday {
   readonly state: ChildTodayState;
   /** "HH:MM", nur bei present. */
   readonly since?: string;
-  /** "HH:MM", nur bei left. */
+  /** "HH:MM", nur bei left und in_class. */
   readonly until?: string;
   /** "HH:MM", nur bei expected und not_arrived. */
   readonly expected_from?: string;
@@ -2450,7 +2451,9 @@ export interface ParentDocument {
   readonly id: string;
   readonly organization_id: string;
   readonly traeger_name: string;
-  readonly kind: "confirmation_letter";
+  /** The confirmation letter, or the letter of its Storno or Gutschrift (#4690). */
+  readonly kind:
+    "confirmation_letter" | "cancellation_letter" | "credit_letter";
   readonly number: string;
   readonly period_name: string;
   readonly service_from: string;

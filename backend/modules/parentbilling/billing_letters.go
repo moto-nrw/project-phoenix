@@ -3,6 +3,7 @@ package parentbilling
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -45,7 +46,25 @@ var (
 	// ErrLetterheadTooLong reports a letterhead or footer of the Träger
 	// that leaves too little room on a page for the letter.
 	ErrLetterheadTooLong = errors.New("the letterhead or footer of the Träger is too long for a letter")
+	// ErrPaymentTextDebtorNumberMissing reports letters whose payment text
+	// names the debtor number while an invoice of the run has none (#5622).
+	ErrPaymentTextDebtorNumberMissing = errors.New("the payment text names the debtor number but an invoice has none")
 )
+
+// PaymentTextDebtorNumberMissingError names the invoices of a run without
+// a debtor number when the payment text of the Träger asks for one. It is
+// ErrPaymentTextDebtorNumberMissing.
+type PaymentTextDebtorNumberMissingError struct {
+	InvoiceNumbers []string
+}
+
+func (e *PaymentTextDebtorNumberMissingError) Error() string {
+	return fmt.Sprintf("%s: %d invoices", ErrPaymentTextDebtorNumberMissing, len(e.InvoiceNumbers))
+}
+
+func (e *PaymentTextDebtorNumberMissingError) Unwrap() error {
+	return ErrPaymentTextDebtorNumberMissing
+}
 
 // BillingEmergencyContact is the emergency number of a hosting OGS.
 type BillingEmergencyContact struct {
@@ -92,7 +111,9 @@ type LetterheadBankAccount struct {
 
 // Letterhead is the layout of the Träger a letter prints: the logo (PNG or
 // JPEG, nil without), the colour and the texts of letterhead and footer,
-// the contact person and the default bank account (nil without).
+// the contact person and the default bank account (nil without). The
+// payment text is the Träger's own payment sentence with its placeholders
+// (#5622); empty keeps the built-in sentence.
 type Letterhead struct {
 	Logo         []byte
 	AccentColor  string
@@ -102,13 +123,14 @@ type Letterhead struct {
 	ContactPhone string
 	ContactEmail string
 	BankAccount  *LetterheadBankAccount
+	PaymentText  string
 	// Template is the Träger's current template of the confirmation letter
 	// (#4677).
 	Template LetterTemplate
 }
 
 // LetterTemplate is a version of the template of the confirmation letter
-// with its placeholders (#4677, ADR 0150). Version 0 is the standard
+// with its placeholders (#4677, ADR 0152). Version 0 is the standard
 // template.
 type LetterTemplate struct {
 	Version    int
@@ -128,10 +150,19 @@ type BillingLetterheads interface {
 }
 
 // BillingLetterService lets the Abrechnung of a Träger create the letters
-// of a released run, look at one before and read each one after. Every
-// operation runs in the Träger transaction of the session's Träger, which
-// the caller opens, and is recorded in the run's trail.
+// of a released run, look at one before and read each one after, and cancel
+// or credit an issued invoice with a document and a letter of its own
+// (#4690). Every operation runs in the Träger transaction of the session's
+// Träger, which the caller opens, and is recorded in the run's trail.
 type BillingLetterService interface {
+	// CancelBillingDocument issues the cancellation of an invoice of the
+	// run. Once the run has its letters, the cancellation gets its letter at
+	// once; otherwise it gets it with the letters of the run.
+	CancelBillingDocument(ctx context.Context, reviewer HolidayReviewer, runID, documentID int64, input BillingCancellationInput) (BillingDocument, error)
+	// CreditBillingDocument issues a credit for one child of an invoice of
+	// the run, at most what is left of the child's amount, with its letter
+	// like a cancellation.
+	CreditBillingDocument(ctx context.Context, reviewer HolidayReviewer, runID, documentID int64, input BillingCreditInput) (BillingDocument, error)
 	// CreateBillingLetters renders and stores the letter of every invoice
 	// of the run. A run has its letters once.
 	CreateBillingLetters(ctx context.Context, reviewer HolidayReviewer, runID int64, input BillingLetterInput) (BillingLetters, error)

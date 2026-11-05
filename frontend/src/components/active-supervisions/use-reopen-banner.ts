@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { berlinClockFromISO } from "~/lib/date-helpers";
+
 const REOPEN_STORAGE_KEY = "timetable-reopenable-instance";
 const REOPEN_WINDOW_MS = 5 * 60 * 1000;
 
@@ -18,6 +20,11 @@ export interface ReopenableInstance {
 }
 
 interface StoredReopenable extends ReopenableInstance {
+  readonly expiresAt: number;
+}
+
+/** The banner's block with the end of its reopen window (epoch ms). */
+export interface ReopenBannerInstance extends ReopenableInstance {
   readonly expiresAt: number;
 }
 
@@ -63,13 +70,21 @@ function readStoredReopenBanner(): StoredReopenable | null {
 
 /**
  * Text des Banners nach dem Beenden. Er nennt die beendete Aktivität, weil er
- * über jeder Aufsicht steht, die danach offen ist (#3887).
+ * über jeder Aufsicht steht, die danach offen ist (#3887), und die Uhrzeit,
+ * bis zu der das Rückgängigmachen geht: bis zum geplanten Ende, mindestens
+ * fünf Minuten (#5676).
  */
-export function reopenBannerMessage(title: string | null): string {
+export function reopenBannerMessage(
+  title: string | null,
+  expiresAt: number,
+): string {
   const ended = title
     ? `„${title}“ wurde beendet.`
     : "Die Aktivität wurde beendet.";
-  return `${ended} Sie können das fünf Minuten lang rückgängig machen.`;
+  const until = berlinClockFromISO(new Date(expiresAt).toISOString());
+  return until
+    ? `${ended} Sie können das bis ${until} Uhr rückgängig machen.`
+    : `${ended} Sie können das kurz rückgängig machen.`;
 }
 
 /**
@@ -79,7 +94,7 @@ export function reopenBannerMessage(title: string | null): string {
  * without a render from outside.
  */
 export function useReopenBanner(): {
-  reopenable: ReopenableInstance | null;
+  reopenable: ReopenBannerInstance | null;
   /**
    * Remember a just-completed instance. `reopenUntil` is the backend's
    * ISO deadline; an absent or invalid value falls back to now + 5 minutes,
@@ -141,13 +156,14 @@ export function useReopenBanner(): {
     [],
   );
 
-  const reopenable = useMemo<ReopenableInstance | null>(
+  const reopenable = useMemo<ReopenBannerInstance | null>(
     () =>
       storedReopen
         ? {
             instanceId: storedReopen.instanceId,
             title: storedReopen.title,
             roomId: storedReopen.roomId,
+            expiresAt: storedReopen.expiresAt,
           }
         : null,
     [storedReopen],

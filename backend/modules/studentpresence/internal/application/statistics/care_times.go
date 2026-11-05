@@ -152,11 +152,13 @@ type careTimeInputs struct {
 }
 
 // attendanceSpan is the Ist of one child-day: the first check-in and the last
-// check-out, nil while any attendance row of the day is still open.
+// check-out, nil while any attendance row of the day is still open. classTimes
+// are the stretches the child spent in class (#5656).
 type attendanceSpan struct {
 	firstCheckIn time.Time
 	lastCheckOut *time.Time
 	open         bool
+	classTimes   []studentpresence.CareTimeClassTime
 }
 
 // compareCareTimes compares every child-day from the later of from and the
@@ -270,7 +272,50 @@ func attendanceSpans(rows []*ports.Attendance) map[dayKey]attendanceSpan {
 		}
 		spans[key] = span
 	}
+	addClassTimes(spans, rows)
 	return spans
+}
+
+// addClassTimes records the time in class of each day: from a checkout to class
+// to the next check-in, open when the child did not come back. It is shown next
+// to the comparison and takes nothing off either side of it (#4774, #5656).
+func addClassTimes(spans map[dayKey]attendanceSpan, rows []*ports.Attendance) {
+	checkIns := make(map[dayKey][]time.Time, len(spans))
+	for _, row := range rows {
+		if row != nil {
+			key := dayKey{row.StudentID, row.Date}
+			checkIns[key] = append(checkIns[key], row.CheckInTime)
+		}
+	}
+	for _, row := range rows {
+		if row == nil || row.CheckOutTime == nil || row.CheckOutReason == nil || *row.CheckOutReason != studentpresence.CheckoutReasonClass {
+			continue
+		}
+		key := dayKey{row.StudentID, row.Date}
+		span := spans[key]
+		span.classTimes = append(span.classTimes, classTimeFrom(*row.CheckOutTime, checkIns[key]))
+		spans[key] = span
+	}
+	for _, span := range spans {
+		sort.Slice(span.classTimes, func(i, j int) bool {
+			return clockMinutes(span.classTimes[i].Start) < clockMinutes(span.classTimes[j].Start)
+		})
+	}
+}
+
+// classTimeFrom is the stretch in class from a checkout to the next check-in.
+func classTimeFrom(checkOut time.Time, checkIns []time.Time) studentpresence.CareTimeClassTime {
+	var back *time.Time
+	for _, checkIn := range checkIns {
+		if checkIn.After(checkOut) && (back == nil || checkIn.Before(*back)) {
+			back = &checkIn
+		}
+	}
+	classTime := studentpresence.CareTimeClassTime{Start: *wallClock(checkOut)}
+	if back != nil {
+		classTime.End = wallClock(*back)
+	}
+	return classTime
 }
 
 // classifyCareTimeDay applies the definitions to one child-day. It reports
@@ -279,6 +324,7 @@ func classifyCareTimeDay(date calendar.Date, planned studentpresence.PlannedCare
 	day := studentpresence.CareTimeDay{Date: date}
 	present := span != nil
 	if present {
+		day.ClassTimes = span.classTimes
 		day.ActualStart = wallClock(span.firstCheckIn)
 		if span.lastCheckOut != nil && !span.open {
 			day.ActualEnd = wallClock(*span.lastCheckOut)

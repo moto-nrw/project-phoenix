@@ -1,5 +1,5 @@
 /**
- * Vorlagen des Trägers je Dokumentart (#4677, ADR 0150): Betreff, Anrede,
+ * Vorlagen des Trägers je Dokumentart (#4677, ADR 0152): Betreff, Anrede,
  * Brieftext und Grußformel mit Platzhaltern wie `{{familienname}}`. Jedes
  * Speichern ist eine neue Version; ohne eigene Version gilt die
  * Standardvorlage (Version 0).

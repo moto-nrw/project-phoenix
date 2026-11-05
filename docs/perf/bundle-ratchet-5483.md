@@ -1,5 +1,7 @@
 # Bundle-Referenzen nach unten nachziehen (#5483)
 
+> Historisch: Die Budgets je Route und dieser Ratchet sind abgelöst. Heute prüft CI den Zuwachs je PR und wenige Obergrenzen, siehe [frontend-performance.md](../agents/frontend-performance.md).
+
 ## Ergebnis und Ausgangsstand
 
 Gemessenes Development: `2446b9837128419bb7fdc98da871d0848e813834`, einschließlich

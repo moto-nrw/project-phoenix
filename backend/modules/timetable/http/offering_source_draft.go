@@ -71,8 +71,6 @@ func (rs *Resource) suggestDraftOfferingSource(w http.ResponseWriter, r *http.Re
 		}
 	}
 	roster.Ends = draftRosterEnds(roster, query.Get("end_time"))
-	listKind := query.Get("list_kind")
-	roster.OfferingKind = timetable.RosterOfferingKindFor(query.Get("type"), &listKind)
 	bookings, err := rs.OfferingSourceOptions.OfferingWeekdayBookings(r.Context(), &periodID, rs.todayDate())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("offering suggestion failed", err))
@@ -161,9 +159,10 @@ func (rs *Resource) draftOfferingPreview(
 		return offeringPreviewResponse{}, err
 	}
 	return offeringPreviewResponse{
-		From:     from.String(),
-		Weekdays: offeringPreviewWeekdays(changes, names),
-		Segments: []offeringPreviewSegmentResponse{},
+		From:           from.String(),
+		Weekdays:       offeringPreviewWeekdays(changes, names),
+		Segments:       []offeringPreviewSegmentResponse{},
+		OtherOfferings: offeringPreviewAlternatives(roster.OfferingKind, filter, bookings, changes),
 	}, nil
 }
 
@@ -183,7 +182,11 @@ func draftRosterFromRequest(w http.ResponseWriter, r *http.Request) (int64, time
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return 0, timetable.TemplateFutureRoster{}, false
 	}
-	return *periodID, timetable.TemplateFutureRoster{Weekdays: weekdays}, true
+	listKind := r.URL.Query().Get("list_kind")
+	return *periodID, timetable.TemplateFutureRoster{
+		Weekdays:     weekdays,
+		OfferingKind: timetable.RosterOfferingKindFor(r.URL.Query().Get("type"), &listKind),
+	}, true
 }
 
 // parseDraftRoster reads `roster` values "W:id,id" into the children per ISO

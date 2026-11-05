@@ -10,6 +10,9 @@ import (
 type Attendance struct {
 	CheckInTime  time.Time
 	CheckOutTime *time.Time
+	// LeftForClass reports that this stay ended with "Geht zum Unterricht"
+	// (#5656): the child did not go home, and may come back the same day.
+	LeftForClass bool
 }
 
 // AttendanceFilter selects a child's day or the school's attendance window.

@@ -29,16 +29,19 @@ import (
 // behind the right "Abrechnung", the contribution and confirmation of a
 // holiday registration at /traeger/holiday-contributions behind the right
 // "Anmeldung verwalten", and the public contribution of the registration
-// form at /traeger/holiday-quotes, and the billing runs and number ranges
-// at /traeger/billing-runs and /traeger/number-ranges behind the right
-// "Abrechnung" (#4668, ADR 0119), with the confirmation letters of a
-// released run in the layout of the Träger (#4669, ADR 0121), its overview
-// for the Kämmerei (#4672, ADR 0122), and the mail of the letters as mails
-// of the Träger on Delivery's outbox and their print in one file (#4670,
-// ADR 0123).
+// form at /traeger/holiday-quotes, the cost bearers of a Träger at
+// /traeger/cost-bearers behind the right "Abrechnung" (#5627), and the
+// billing runs and number ranges at /traeger/billing-runs and
+// /traeger/number-ranges behind the right "Abrechnung" (#4668, ADR 0119),
+// with the confirmation letters of a released run in the layout of the
+// Träger (#4669, ADR 0121), its overview for the Kämmerei (#4672, ADR 0122)
+// and the list for the reimbursement by a cost bearer (#5627), and the mail
+// of the letters as mails of the Träger on Delivery's outbox and their
+// print in one file (#4670, ADR 0123).
 func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) {
-	rules, holiday := NewParentBillingHTTP(organizations, delivery, healthData, logger)
+	rules, holiday := NewParentBillingHTTP(organizations, settings, delivery, healthData, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
+	root.Mount("/traeger/cost-bearers", rules.CostBearerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-contributions", holiday.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-quotes", holiday.QuoteRouter())
 	runs := NewBillingRunHTTP(settings, delivery, healthData)
@@ -56,7 +59,7 @@ func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntim
 	}
 	letterheads := parentBillingLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(),
 		templates: organizationTenancyCompose.NewTraegerDocumentTemplates(), settings: settings}
-	return parentBillingHTTP.NewBillingRunResource(parentBillingCompose.NewBillingRuns(registrations),
+	return parentBillingHTTP.NewBillingRunResource(parentBillingCompose.NewBillingRuns(registrations, parentBillingSettings{settings: settings}),
 		parentBillingCompose.NewBillingLetters(letterheads),
 		parentBillingCompose.NewBillingLetterMail(parentBillingLetterPost{settings: settings, delivery: delivery}),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
@@ -148,16 +151,57 @@ func parentBillingMailStatus(status deliveryContract.Status) string {
 }
 
 // TraegerBrandingSettings is the Träger level of the settings system as the
-// letters read the branding of a Träger (ADR 0112).
+// letters read the branding of a Träger (ADR 0112) and the Elternabrechnung
+// its switches (#5621).
 type TraegerBrandingSettings interface {
 	TraegerTexts(ctx context.Context, organizationID int64, keys []string) (map[string]string, error)
+	TraegerBools(ctx context.Context, organizationID int64, keys []string) (map[string]bool, error)
+}
+
+// parentBillingSettings binds the Elternabrechnung's settings port to the
+// Träger level of the settings system: whether the Träger enters the debtor
+// number of the family when it confirms a holiday registration (#5621), its
+// payment text, which the billing run checks before the release (#5622), and
+// its choices in the chain of the holiday contribution (#5664).
+type parentBillingSettings struct {
+	settings TraegerBrandingSettings
+}
+
+func (s parentBillingSettings) AsksDebtorNumber(ctx context.Context, organizationID int64) (bool, error) {
+	values, err := s.settings.TraegerBools(ctx, organizationID, []string{configModels.KeyParentBillingDebtorNumberOnConfirm})
+	if err != nil {
+		return false, err
+	}
+	return values[configModels.KeyParentBillingDebtorNumberOnConfirm], nil
+}
+
+func (s parentBillingSettings) PaymentText(ctx context.Context, organizationID int64) (string, error) {
+	texts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingPaymentText})
+	if err != nil {
+		return "", err
+	}
+	return texts[configModels.KeyParentBillingPaymentText], nil
+}
+
+func (s parentBillingSettings) HolidayChain(ctx context.Context, organizationID int64) (parentbilling.HolidayChainSettings, error) {
+	texts, err := s.settings.TraegerTexts(ctx, organizationID, []string{
+		configModels.KeyParentBillingSiblingRank, configModels.KeyParentBillingCostTakeoverOrder,
+	})
+	if err != nil {
+		return parentbilling.HolidayChainSettings{}, err
+	}
+	return parentbilling.HolidayChainSettings{
+		SiblingRank:       texts[configModels.KeyParentBillingSiblingRank],
+		CostTakeoverOrder: texts[configModels.KeyParentBillingCostTakeoverOrder],
+	}, nil
 }
 
 // parentBillingLetterheads binds the letterhead of the letters to the
 // master data of Organisation & Tenancy, which logs the read of the
-// contact person and the bank accounts, and to the branding settings of
-// the Träger (ADR 0112, ADR 0121), and the template of the confirmation
-// letter to the document templates of the Träger (#4677, ADR 0150).
+// contact person and the bank accounts, to the branding settings and the
+// payment text of the Träger (ADR 0112, ADR 0121, #5622), and the template
+// of the confirmation letter to the document templates of the Träger
+// (#4677, ADR 0152).
 type parentBillingLetterheads struct {
 	masterData organizationtenancy.TraegerMasterData
 	templates  organizationtenancy.TraegerDocumentTemplates
@@ -169,8 +213,10 @@ func (b parentBillingLetterheads) Letterhead(ctx context.Context, reviewer paren
 	if err != nil {
 		return parentbilling.Letterhead{}, err
 	}
-	texts, err := b.settings.TraegerTexts(ctx, reviewer.OrganizationID,
-		[]string{configModels.KeyBrandingPrimaryColor, configModels.KeyBrandingLetterheadText, configModels.KeyBrandingFooterText})
+	texts, err := b.settings.TraegerTexts(ctx, reviewer.OrganizationID, []string{
+		configModels.KeyBrandingPrimaryColor, configModels.KeyBrandingLetterheadText, configModels.KeyBrandingFooterText,
+		configModels.KeyParentBillingPaymentText,
+	})
 	if err != nil {
 		return parentbilling.Letterhead{}, err
 	}
@@ -178,6 +224,7 @@ func (b parentBillingLetterheads) Letterhead(ctx context.Context, reviewer paren
 		AccentColor: texts[configModels.KeyBrandingPrimaryColor], SenderText: texts[configModels.KeyBrandingLetterheadText],
 		FooterText: texts[configModels.KeyBrandingFooterText], ContactName: profile.Contact.Name,
 		ContactPhone: profile.Contact.Phone, ContactEmail: profile.Contact.Email,
+		PaymentText: texts[configModels.KeyParentBillingPaymentText],
 	}
 	template, err := b.templates.Current(ctx, reviewer.OrganizationID, templates.KindConfirmation)
 	if err != nil {
@@ -206,16 +253,16 @@ func (b parentBillingLetterheads) Letterhead(ctx context.Context, reviewer paren
 }
 
 // NewParentBillingHTTP binds the Elternabrechnung's routes to the Träger
-// rights and its holiday contribution to Enrollment's holiday
-// registrations.
-func NewParentBillingHTTP(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) (*parentBillingHTTP.RuleResource, *parentBillingHTTP.HolidayResource) {
+// rights, its holiday contribution to Enrollment's holiday registrations and
+// to the Träger's switch for the debtor number (#5621).
+func NewParentBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) (*parentBillingHTTP.RuleResource, *parentBillingHTTP.HolidayResource) {
 	registrations := parentBillingHolidayRegistrations{
 		links:  newHolidayRegistrations(organizations, delivery, healthData, logger.With("service", "parent-billing-holiday-registrations")),
 		review: enrollmentCompose.NewHolidayRegistrationReview(healthData),
 	}
 	rules := parentBillingHTTP.NewRuleResource(parentBillingCompose.NewContributionRules(),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
-	holiday := parentBillingHTTP.NewHolidayResource(parentBillingCompose.NewHolidayContributions(registrations),
+	holiday := parentBillingHTTP.NewHolidayResource(parentBillingCompose.NewHolidayContributions(registrations, parentBillingSettings{settings: settings}),
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage))
 	return rules, holiday
 }
@@ -261,12 +308,39 @@ func (b parentBillingHolidayRegistrations) HolidayRegistration(ctx context.Conte
 	return parentBillingRegistration(detail), nil
 }
 
-func (b parentBillingHolidayRegistrations) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64) (parentbilling.HolidayRegistration, error) {
-	detail, err := b.review.ChangeHolidayRegistration(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, enrollmentOwner.HolidayAuditConfirm)
+func (b parentBillingHolidayRegistrations) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, debtorNumber string) (parentbilling.HolidayRegistration, error) {
+	detail, err := b.review.ConfirmHolidayRegistration(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, debtorNumber)
 	if err != nil {
 		return parentbilling.HolidayRegistration{}, parentBillingHolidayError(err)
 	}
 	return parentBillingRegistration(detail), nil
+}
+
+func (b parentBillingHolidayRegistrations) SetHolidayDebtorNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, debtorNumber string) (parentbilling.HolidayRegistration, error) {
+	detail, err := b.review.SetHolidayDebtorNumber(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, debtorNumber)
+	if err != nil {
+		return parentbilling.HolidayRegistration{}, parentBillingHolidayError(err)
+	}
+	return parentBillingRegistration(detail), nil
+}
+
+// CancelHolidayRegistration cancels the registration through the review,
+// which checks the Träger and the deadline and records the cancellation
+// (#5662).
+func (b parentBillingHolidayRegistrations) CancelHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64) (parentbilling.HolidayRegistration, error) {
+	detail, err := b.review.ChangeHolidayRegistration(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, enrollmentOwner.HolidayAuditCancel)
+	if err != nil {
+		return parentbilling.HolidayRegistration{}, parentBillingHolidayError(err)
+	}
+	return parentBillingRegistration(detail), nil
+}
+
+func (b parentBillingHolidayRegistrations) HoldHolidayPeriod(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) error {
+	return parentBillingHolidayError(b.review.HoldHolidayPeriod(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID))
+}
+
+func (b parentBillingHolidayRegistrations) RecordHolidaySiblings(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, action string, siblingIDs []int64) error {
+	return parentBillingHolidayError(b.review.RecordHolidaySiblings(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, action, siblingIDs))
 }
 
 // parentBillingBillingRegistrations binds the billing run's port to
@@ -316,29 +390,49 @@ func parentBillingPeriod(period enrollmentOwner.HolidayPeriod) parentbilling.Hol
 }
 
 func (b parentBillingBillingRegistrations) ConfirmedHolidayRegistrations(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) ([]parentbilling.HolidayBillingRegistration, error) {
-	list, err := b.review.ListHolidayRegistrations(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID,
+	confirmed, err := b.review.ListHolidayRegistrationRecipients(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID,
 		enrollmentOwner.HolidayRegistrationFilter{Status: enrollmentOwner.HolidayRegistrationConfirmed})
 	if err != nil {
 		return nil, parentBillingHolidayError(err)
 	}
-	registrations := make([]parentbilling.HolidayBillingRegistration, len(list.Registrations))
-	for i, registration := range list.Registrations {
+	registrations := make([]parentbilling.HolidayBillingRegistration, len(confirmed))
+	for i, registration := range confirmed {
 		children := make([]parentbilling.HolidayBillingChild, len(registration.Children))
 		for j, child := range registration.Children {
 			children[j] = parentbilling.HolidayBillingChild{ID: child.ID, FirstName: child.FirstName, LastName: child.LastName}
 		}
 		registrations[i] = parentbilling.HolidayBillingRegistration{
 			ID: registration.ID, GuardianFirstName: registration.GuardianFirstName, GuardianLastName: registration.GuardianLastName,
-			GuardianEmail: registration.GuardianEmail, Children: children,
+			GuardianEmail: registration.GuardianEmail, DebtorNumber: registration.DebtorNumber, Children: children,
+		}
+		if address := registration.GuardianAddress; address != nil {
+			registrations[i].GuardianAddress = &parentbilling.PostalAddress{Street: address.Street, PostalCode: address.PostalCode, City: address.City}
 		}
 	}
 	return registrations, nil
 }
 
+// HolidayProofRegistrations reads every registration of the period through
+// the review, with no status filter, so a registration cancelled after its
+// invoice still names its proof (#5627); the review checks the Träger and
+// records the read like the list.
+func (b parentBillingBillingRegistrations) HolidayProofRegistrations(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) (map[int64]bool, error) {
+	registrations, err := b.review.ListHolidayRegistrationRecipients(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID,
+		enrollmentOwner.HolidayRegistrationFilter{})
+	if err != nil {
+		return nil, parentBillingHolidayError(err)
+	}
+	proofs := make(map[int64]bool, len(registrations))
+	for _, registration := range registrations {
+		proofs[registration.ID] = registration.HasBenefitsProof
+	}
+	return proofs, nil
+}
+
 func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail) parentbilling.HolidayRegistration {
 	registration := parentbilling.HolidayRegistration{
-		ID: detail.ID, Status: detail.Status, BenefitsDeclared: detail.BenefitsDeclared,
-		Children: make([]parentbilling.HolidayChild, len(detail.Children)),
+		ID: detail.ID, Status: detail.Status, SubmittedAt: detail.SubmittedAt, BenefitsDeclared: detail.BenefitsDeclared,
+		DebtorNumber: detail.DebtorNumber, Children: make([]parentbilling.HolidayChild, len(detail.Children)),
 	}
 	for i, child := range detail.Children {
 		bookings := make([]parentbilling.HolidayBooking, len(child.Bookings))
@@ -348,7 +442,9 @@ func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail)
 				TimeModelID: booking.TimeModelID, TimeModelName: booking.TimeModelName, PriceCents: booking.PriceCents,
 			}
 		}
-		registration.Children[i] = parentbilling.HolidayChild{ID: child.ID, Position: i + 1, Bookings: bookings}
+		registration.Children[i] = parentbilling.HolidayChild{
+			ID: child.ID, Position: i + 1, FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate, Bookings: bookings,
+		}
 	}
 	return registration
 }
@@ -361,6 +457,7 @@ func parentBillingHolidayError(err error) error {
 		{enrollmentOwner.ErrHolidayPeriodNotFound, parentbilling.ErrHolidayPeriodNotFound},
 		{enrollmentOwner.ErrHolidayRegistrationEntryNotFound, parentbilling.ErrHolidayRegistrationNotFound},
 		{enrollmentOwner.ErrHolidayRegistrationStateConflict, parentbilling.ErrHolidayRegistrationStateConflict},
+		{enrollmentOwner.ErrHolidayRegistrationFrozen, parentbilling.ErrHolidayRegistrationFrozen},
 	} {
 		if errors.Is(err, known.from) {
 			return fmt.Errorf("%w: %w", known.to, err)

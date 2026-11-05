@@ -5,6 +5,8 @@ import { FieldLabel, isInvalidAria, isRequiredField } from "./field-label";
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   readonly label?: string;
   readonly error?: string;
+  /** A line under the field that stays visible, read out with the field. */
+  readonly hint?: string;
   /**
    * Read the hint out the moment it appears (`role="alert"`), for a check
    * that runs while the person types. A hint after Speichern stays quiet:
@@ -21,6 +23,7 @@ export function Textarea({
   name,
   id,
   error,
+  hint,
   errorLive = false,
   className = "",
   "aria-describedby": describedBy,
@@ -29,6 +32,7 @@ export function Textarea({
 }: TextareaProps) {
   const inputId = id ?? name;
   const errorId = error && inputId ? `${inputId}-error` : undefined;
+  const hintId = hint && inputId ? `${inputId}-hint` : undefined;
 
   return (
     <div>
@@ -47,10 +51,15 @@ export function Textarea({
         {...props}
         aria-invalid={error ? true : ariaInvalid}
         aria-describedby={
-          [describedBy, errorId].filter(Boolean).join(" ") || undefined
+          [describedBy, hintId, errorId].filter(Boolean).join(" ") || undefined
         }
         className={`aria-[invalid=true]:ring-moto-red block w-full resize-none rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 read-only:bg-gray-50 read-only:text-gray-500 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 ${className}`}
       />
+      {hint && (
+        <p id={hintId} className="mt-1 text-xs text-gray-600">
+          {hint}
+        </p>
+      )}
       {error && (
         <p
           id={errorId}

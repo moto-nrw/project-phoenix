@@ -585,6 +585,12 @@
       "legacy": "enrollment.holiday_week_booked"
     },
     {
+      "code": "enrollment.holiday_weeks_booked_together",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.holiday_weeks_booked_together"
+    },
+    {
       "code": "enrollment.invalid_email",
       "class": "input",
       "parameters": [],
@@ -871,6 +877,14 @@
       "class": "permission",
       "parameters": [],
       "legacy": "enrollment.withdraw_not_allowed"
+    },
+    {
+      "code": "enrollment.holiday_proof_limit",
+      "class": "business_rejection",
+      "parameters": [
+        "max_files"
+      ],
+      "legacy": "enrollment.holiday_proof_limit"
     }
   ]
 }

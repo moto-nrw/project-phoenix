@@ -243,6 +243,141 @@ describe("TraegerSettingsPage", () => {
     expect(mockFetchSchema).toHaveBeenCalledTimes(2);
   });
 
+  describe("payment text of the letters (#5622)", () => {
+    function holidaySchema(text: string, asksDebtorNumber: boolean) {
+      return {
+        tabs: [
+          {
+            key: "ferien",
+            label: "ferien",
+            categories: [
+              {
+                key: "ferien-bestaetigung",
+                label: "ferien-bestaetigung",
+                items: [
+                  item({
+                    key: "parent_billing.debtor_number_on_confirm",
+                    label: "Debitorennummer beim Bestätigen abfragen",
+                    value: asksDebtorNumber,
+                    levels: "traeger",
+                  }),
+                ],
+              },
+              {
+                key: "ferien-schreiben",
+                label: "ferien-schreiben",
+                items: [
+                  item({
+                    key: "parent_billing.payment_text",
+                    label: "Zahlungstext im Schreiben",
+                    type: "textarea",
+                    default: "",
+                    value: text,
+                    levels: "traeger",
+                    validation: { allow_empty: true, max_length: 600 },
+                  }),
+                ],
+              },
+            ],
+          },
+        ],
+      } satisfies SettingsSchema;
+    }
+
+    it("shows the built-in sentence as example and in the preview", async () => {
+      mockFetchSchema.mockResolvedValue(holidaySchema("", true));
+      renderPage();
+
+      const field = await screen.findByRole("textbox", {
+        name: "Zahlungstext im Schreiben",
+      });
+      expect(field).toHaveAttribute(
+        "placeholder",
+        "Bitte überweisen Sie {Betrag} bis zum {Zahlungsfrist} auf das Konto unten. Geben Sie als Verwendungszweck die Rechnungsnummer {Rechnungsnummer} an.",
+      );
+      // The limit counts characters like the backend, not UTF-16 units.
+      expect(field).not.toHaveAttribute("maxlength");
+      expect(
+        screen.getByRole("heading", { name: "Schreiben an die Familien" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("figure", { name: "Vorschau des Zahlungstexts" }),
+      ).toHaveTextContent(
+        "Bitte überweisen Sie 124,00 € bis zum 15.12.2026 auf das Konto unten. Geben Sie als Verwendungszweck Ihre Debitorennummer 10 4711 an.",
+      );
+    });
+
+    it("previews the Träger's own text with example values", async () => {
+      mockFetchSchema.mockResolvedValue(
+        holidaySchema(
+          "Bitte überweisen Sie {Betrag} bis zum {Zahlungsfrist}. Verwendungszweck: {Rechnungsnummer}, {Debitorennummer}. Haben Sie uns bereits ein SEPA-Lastschriftmandat erteilt, buchen wir den Betrag ab.",
+          false,
+        ),
+      );
+      renderPage();
+
+      expect(
+        await screen.findByRole("figure", {
+          name: "Vorschau des Zahlungstexts",
+        }),
+      ).toHaveTextContent(
+        "Bitte überweisen Sie 124,00 € bis zum 15.12.2026. Verwendungszweck: FE-2026-0007, 10 4711. Haben Sie uns bereits ein SEPA-Lastschriftmandat erteilt, buchen wir den Betrag ab.",
+      );
+    });
+
+    it("saves 600 characters with an emoji at the end", async () => {
+      mockFetchSchema.mockResolvedValue(holidaySchema("", false));
+      renderPage();
+
+      const field = await screen.findByRole("textbox", {
+        name: "Zahlungstext im Schreiben",
+      });
+      const text = `{Betrag}${"a".repeat(591)}😀`;
+      expect([...text]).toHaveLength(600);
+      fireEvent.change(field, { target: { value: text } });
+      fireEvent.blur(field);
+
+      await waitFor(() =>
+        expect(mockSave).toHaveBeenCalledWith(
+          "parent_billing.payment_text",
+          text,
+        ),
+      );
+    });
+
+    it("refuses an unknown placeholder at the field before saving", async () => {
+      mockFetchSchema.mockResolvedValue(holidaySchema("", false));
+      renderPage();
+
+      const field = await screen.findByRole("textbox", {
+        name: "Zahlungstext im Schreiben",
+      });
+      fireEvent.change(field, {
+        target: { value: "Bitte überweisen Sie {Betrag} für {Kind}." },
+      });
+      fireEvent.blur(field);
+
+      const hint = await screen.findByText(
+        "„{Kind}“ ist kein Platzhalter. Erlaubt sind {Betrag}, {Zahlungsfrist}, {Rechnungsnummer} und {Debitorennummer}.",
+      );
+      expect(field).toHaveAttribute("aria-invalid", "true");
+      expect(field).toHaveAttribute("aria-describedby", hint.id);
+      expect(mockSave).not.toHaveBeenCalled();
+
+      fireEvent.change(field, {
+        target: { value: "Bitte überweisen Sie {Betrag}." },
+      });
+      fireEvent.blur(field);
+      await waitFor(() =>
+        expect(mockSave).toHaveBeenCalledWith(
+          "parent_billing.payment_text",
+          "Bitte überweisen Sie {Betrag}.",
+        ),
+      );
+      expect(field).not.toHaveAttribute("aria-invalid");
+    });
+  });
+
   it("leaves the branding to the page Briefkopf (#4653)", async () => {
     mockFetchSchema.mockResolvedValue({
       tabs: [

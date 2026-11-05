@@ -113,7 +113,7 @@ export function DailyTrendChart({
   readonly data: readonly DailyTrendPoint[];
 }) {
   return (
-    <ChartContainer config={config} className="!aspect-auto h-64 w-full">
+    <ChartContainer config={config} className="aspect-auto h-64 w-full">
       <LineChart
         accessibilityLayer
         data={data}
@@ -202,7 +202,7 @@ export function BalanceTrendChart({
   readonly data: readonly { weekLabel: string; balance: number }[];
 }) {
   return (
-    <ChartContainer config={config} className="!aspect-auto h-64 w-full">
+    <ChartContainer config={config} className="aspect-auto h-64 w-full">
       <AreaChart
         accessibilityLayer
         data={data}

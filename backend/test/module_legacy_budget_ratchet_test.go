@@ -201,9 +201,12 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0145: realtime construction adds 40 LOC and retires the 8-LOC local wrapper.
 // ADR 0148: the demo school file erasure constructor of
 // modules/organizationtenancy/compose adds exactly 10 LOC.
-// ADR 0150: the document template constructor of
+// ADR 0151: the school figure constructors of modules/schoolmembership/compose
+// (+6), modules/studentpresence/compose (+13), modules/careplan/compose (+13)
+// and modules/workforce/compose (+13) add exactly 45 LOC.
+// ADR 0152: the document template constructor of
 // modules/organizationtenancy/compose adds exactly 6 LOC.
-const moduleComposeBudgetTotal = 12806
+const moduleComposeBudgetTotal = 12851
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -217,7 +220,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0103: the signature ledger constructor, construction only.
 	"modules/auditlog/compose": 189,
 	// Raised by ADR 0128: the manual plans port of the booking materialization (+1).
-	"modules/careplan/compose":             1645,
+	// ADR 0151: the school figure constructor (+13).
+	"modules/careplan/compose":             1658,
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,
@@ -253,7 +257,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	// Raised by ADR 0112: the Träger master data constructor (+13).
 	// Raised by ADR 0148: the demo school file erasure constructor (+10).
-	// Raised by ADR 0150: the document template constructor (+6).
+	// Raised by ADR 0152: the document template constructor (+6).
 	"modules/organizationtenancy/compose": 299,
 	// Added by ADR 0115: the Elternabrechnung's construction only.
 	// Raised by ADR 0119: the billing run constructor (+7).
@@ -272,7 +276,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schoolcalendar/compose":        166,
 	"modules/schoolcalendar/portal/compose": 112,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
-	"modules/schoolmembership/compose": 196,
+	// ADR 0151: the school figure constructor (+6).
+	"modules/schoolmembership/compose": 202,
 	"modules/schoolsetup/compose":      56,
 	// #4722: the field cipher of the health information, construction only;
 	// the 7 LOC come out of modules/enrollment/compose, the total stays.
@@ -282,7 +287,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/settings/compose":             322,
 	"modules/studentdirectoryview/compose": 9,
 	// Raised by ADR 0125: the dev-tools presence history constructor (+7).
-	"modules/studentpresence/compose":                 250,
+	// ADR 0151: the school figure constructor (+13).
+	"modules/studentpresence/compose":                 263,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
 	// Raised by ADR 0128: the student template days constructor (+5) and by
@@ -294,7 +300,8 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0105: the Träger transaction binding (+4).
 	"modules/transactionruntime/compose": 137,
 	// Raised by ADR 0141: the payroll dispatch constructor (+9).
-	"modules/workforce/compose":         896,
+	// ADR 0151: the school figure constructor (+13).
+	"modules/workforce/compose":         909,
 	"workflows/catererportal/compose":   37, // added by ADR 0077
 	"workflows/gradetransition/compose": 49,
 	"workflows/openroommove/compose":    46,

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -65,16 +66,23 @@ func goldenLetterContent(t *testing.T) letterContent {
 // field. The template's merge fields and fixed texts map like this:
 //
 //	«Familienname» in the address field  → Recipient "Familie Beispiel"
-//	«Anschrift», «PLZ_Ort»               → none: a holiday registration has no
-//	                                         postal address (ADR 0121); the
-//	                                         person who registered instead
+//	«Anschrift», «PLZ_Ort»               → the person who registered, then
+//	                                         street and postal code with city
+//	                                         when the invoice copied an address
+//	                                         from the registration (ADR 0121
+//	                                         addendum, #5625); without one the
+//	                                         two lines of before
 //	Infoblock (Sachbearbeiterin, phone)  → Facts Ansprechperson, Telefon, E-Mail
 //	Datum                                → Facts Datum (issue date of the invoice)
 //	Betreff                              → Subject with the period
 //	"Sehr geehrte Familie «Familienname»"→ Salutation
 //	«Vorname_Kind»                       → the first names in the confirmation
 //	«Gesamtbeitrag»                      → Gesamtbetrag, after every position
-//	«Adressnummer» as payment reference  → the invoice number
+//	«Adressnummer» as payment reference  → the debtor number the invoice
+//	                                         copied from the registration, in
+//	                                         the facts under the invoice number
+//	                                         (ADR 0121 addendum, #5621); without
+//	                                         one the invoice number
 //	Zahlungsfrist                        → the payment date of the run
 //	Konto bei der Sparkasse              → Footer Bankverbindung (default account)
 //	Packliste, Krankheitsregel           → the free text of the run
@@ -129,6 +137,93 @@ func TestConfirmationLetterFollowsTheBissendorfTemplate(t *testing.T) {
 		},
 	}
 	assert.Equal(t, want, confirmationLetter(goldenLetterContent(t)))
+
+	withAddress := goldenLetterContent(t)
+	withAddress.document.RecipientAddress = &parentbilling.PostalAddress{Street: "Musterweg 12", PostalCode: "49143", City: "Bissendorf"}
+	want.Recipient = []string{"Familie Beispiel", "Erika Beispiel", "Musterweg 12", "49143 Bissendorf"}
+	assert.Equal(t, want, confirmationLetter(withAddress), "the address field names the postal address in four lines")
+
+	withDebtor := goldenLetterContent(t)
+	withDebtor.document.DebtorNumber = "10 4711"
+	want.Recipient = []string{"Familie Beispiel", "Erika Beispiel"}
+	want.Facts = append([]LetterFact{want.Facts[0], {Label: "Debitorennummer", Value: "10 4711"}}, want.Facts[1:]...)
+	want.Blocks[2] = LetterBlock{
+		Text: "Bitte überweisen Sie 92,50 € bis zum 15.12.2026 auf das Konto unten. Geben Sie als Verwendungszweck Ihre Debitorennummer 10 4711 an.",
+		Bold: true,
+	}
+	assert.Equal(t, want, confirmationLetter(withDebtor),
+		"the debtor number stands under the invoice number and is the reference to pay with")
+}
+
+// bissendorfPaymentText is the payment text of the Bissendorf letter with
+// the sentence for families with a direct debit mandate (#5622). It stands
+// in every letter: moto does not know which family gave a mandate.
+const bissendorfPaymentText = "Bitte überweisen Sie {Betrag} bis zum {Zahlungsfrist} auf das Konto unten. " +
+	"Geben Sie als Verwendungszweck Ihre Debitorennummer {Debitorennummer} an. " +
+	"Haben Sie uns bereits ein SEPA-Lastschriftmandat erteilt, buchen wir den Betrag ab."
+
+// TestConfirmationLetterWithThePaymentTextOfTheTraeger is the golden test
+// of the Träger's own payment text (#5622, ADR 0121 addendum): it replaces
+// the built-in sentence, every placeholder is filled in, amount and date in
+// the format of the built-in sentence, and the sentence stays bold. The rest
+// of the letter does not change.
+func TestConfirmationLetterWithThePaymentTextOfTheTraeger(t *testing.T) {
+	t.Parallel()
+
+	builtIn := goldenLetterContent(t)
+	builtIn.document.DebtorNumber = "10 4711"
+	content := goldenLetterContent(t)
+	content.document.DebtorNumber = "10 4711"
+	content.letterhead.PaymentText = bissendorfPaymentText
+	want := confirmationLetter(builtIn)
+	want.Blocks[2] = LetterBlock{
+		Text: "Bitte überweisen Sie 92,50 € bis zum 15.12.2026 auf das Konto unten. " +
+			"Geben Sie als Verwendungszweck Ihre Debitorennummer 10 4711 an. " +
+			"Haben Sie uns bereits ein SEPA-Lastschriftmandat erteilt, buchen wir den Betrag ab.",
+		Bold: true,
+	}
+	assert.Equal(t, want, confirmationLetter(content), "the Bissendorf text with the sentence on the mandate")
+
+	content.letterhead.PaymentText = "  {Rechnungsnummer}, {Betrag}, {Zahlungsfrist}, {Debitorennummer}, {Betrag} again.\n"
+	assert.Equal(t, "FE-2026-0007, 92,50 €, 15.12.2026, 10 4711, 92,50 € again.", confirmationLetter(content).Blocks[2].Text,
+		"every placeholder is filled in, as often as it stands")
+
+	content.letterhead.PaymentText = "   "
+	assert.Equal(t, confirmationLetter(builtIn), confirmationLetter(content), "a blank text keeps the built-in sentence")
+
+	content.letterhead.PaymentText = bissendorfPaymentText
+	content.document.TotalCents = 0
+	assert.Equal(t, LetterBlock{Text: "Sie müssen für diese Betreuung nichts bezahlen."}, confirmationLetter(content).Blocks[2],
+		"an invoice of 0 € keeps the fixed sentence, also with a text of the Träger")
+}
+
+// TestPaymentTextRefusesLettersWithoutTheDebtorNumberItNames holds that no
+// letter prints a gap where the reference to pay with belongs (#5622): a
+// payment text with {Debitorennummer} needs the number on every invoice
+// that asks for payment.
+func TestPaymentTextRefusesLettersWithoutTheDebtorNumberItNames(t *testing.T) {
+	t.Parallel()
+
+	documents := []parentbilling.BillingDocument{
+		{Number: "FE-0001", TotalCents: 9250, DebtorNumber: "10 4711"},
+		{Number: "FE-0002", TotalCents: 5000},
+		{Number: "FE-0003", TotalCents: 0},
+		{Number: "FE-0004", TotalCents: 2000, DebtorNumber: "  "},
+	}
+	err := debtorNumbersForPaymentText(parentbilling.Letterhead{PaymentText: bissendorfPaymentText}, documents)
+	var missing *parentbilling.PaymentTextDebtorNumberMissingError
+	require.ErrorAs(t, err, &missing)
+	assert.ErrorIs(t, err, parentbilling.ErrPaymentTextDebtorNumberMissing)
+	assert.Equal(t, []string{"FE-0002", "FE-0004"}, missing.InvoiceNumbers, "an invoice of 0 € needs no reference")
+
+	for name, text := range map[string]string{
+		"built-in sentence":       "",
+		"text without the number": "Bitte überweisen Sie {Betrag} mit der Rechnungsnummer {Rechnungsnummer}.",
+	} {
+		assert.NoError(t, debtorNumbersForPaymentText(parentbilling.Letterhead{PaymentText: text}, documents), name)
+	}
+	assert.NoError(t, debtorNumbersForPaymentText(parentbilling.Letterhead{PaymentText: bissendorfPaymentText}, documents[:1]),
+		"every invoice has its number")
 }
 
 // A family that pays nothing gets no payment date and no request to pay;
@@ -256,4 +351,29 @@ func TestConfirmationLetterFillsEveryPlaceholderOfItsKind(t *testing.T) {
 	assert.Empty(t, missingLetterValues(letterValues(content)))
 	// The check itself notices a placeholder without a value.
 	assert.Contains(t, missingLetterValues(nil), "familienname")
+}
+
+// TestLetterheadTextsPrintLineByLineAndNothingWhenEmpty holds #5693: every
+// entered line of sender and footer is one line of the letter, and an empty
+// field prints nothing. The grey example of the settings form is only a
+// placeholder; it never reaches the letter.
+func TestLetterheadTextsPrintLineByLineAndNothingWhenEmpty(t *testing.T) {
+	t.Parallel()
+
+	content := goldenLetterContent(t)
+	content.letterhead.SenderText = "Förderverein OGS e. V.\r\n  Schulstraße 5 \n\n49143 Bissendorf\n"
+	content.letterhead.FooterText = "Vorstand: Anna Brandt\nAmtsgericht Osnabrück VR 200123"
+	letter := confirmationLetter(content)
+	assert.Equal(t, []string{"Förderverein OGS e. V.", "Schulstraße 5", "49143 Bissendorf"}, letter.Sender)
+	assert.Equal(t, []string{"Vorstand: Anna Brandt", "Amtsgericht Osnabrück VR 200123"}, letter.Footer[:2])
+
+	content.letterhead.SenderText, content.letterhead.FooterText = "", " \n "
+	letter = confirmationLetter(content)
+	assert.Empty(t, letter.Sender)
+	assert.Equal(t, []string{"Mit freundlichen Grüßen"}, letter.Closing)
+	require.Len(t, letter.Footer, 1, "only the bank account stays")
+	assert.Contains(t, letter.Footer[0], "Bankverbindung")
+	for _, line := range append(letter.Footer, letter.Closing...) {
+		assert.NotContains(t, line, "Muster")
+	}
 }

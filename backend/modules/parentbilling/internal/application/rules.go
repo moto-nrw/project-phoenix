@@ -14,9 +14,10 @@ import (
 // errTraegerRequired reports a call without the Träger of the session.
 var errTraegerRequired = errors.New("parent billing: the Träger is required")
 
-// Store persists the rules and the frozen holiday contributions of a Träger
-// in its Träger transaction.
+// Store persists the rules, the cost bearers (#5627) and the frozen holiday
+// contributions of a Träger in its Träger transaction.
 type Store interface {
+	CostBearerStore
 	ListContributionRules(ctx context.Context, organizationID int64, service string) ([]parentbilling.ContributionRule, error)
 	// InsertContributionRule and UpdateContributionRule report an overlap
 	// with another rule of the same kind as ErrContributionRuleOverlap;

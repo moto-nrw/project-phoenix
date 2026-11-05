@@ -87,6 +87,7 @@ const CodeEnrollmentHolidayHostSchoolOutsideTraeger = "enrollment.holiday_host_s
 const CodeEnrollmentHolidayPeriodIncomplete = "enrollment.holiday_period_incomplete"
 const CodeEnrollmentHolidayPeriodInvalid = "enrollment.holiday_period_invalid"
 const CodeEnrollmentHolidayPeriodNotFound = "enrollment.holiday_period_not_found"
+const CodeEnrollmentHolidayProofLimit = "enrollment.holiday_proof_limit"
 const CodeEnrollmentHolidayRegistrationClosed = "enrollment.holiday_registration_closed"
 const CodeEnrollmentHolidayRegistrationEntryNotFound = "enrollment.holiday_registration_entry_not_found"
 const CodeEnrollmentHolidayRegistrationFormChanged = "enrollment.holiday_registration_form_changed"
@@ -95,6 +96,7 @@ const CodeEnrollmentHolidayRegistrationInvalid = "enrollment.holiday_registratio
 const CodeEnrollmentHolidayRegistrationNotFound = "enrollment.holiday_registration_not_found"
 const CodeEnrollmentHolidayRegistrationStateConflict = "enrollment.holiday_registration_state_conflict"
 const CodeEnrollmentHolidayWeekBooked = "enrollment.holiday_week_booked"
+const CodeEnrollmentHolidayWeeksBookedTogether = "enrollment.holiday_weeks_booked_together"
 const CodeEnrollmentHostedHolidayWeekNotFound = "enrollment.hosted_holiday_week_not_found"
 const CodeEnrollmentInvalidEmail = "enrollment.invalid_email"
 const CodeEnrollmentInvalidPhone = "enrollment.invalid_phone"
@@ -231,6 +233,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentHolidayPeriodIncomplete, "business_rejection"},
 	{CodeEnrollmentHolidayPeriodInvalid, "input"},
 	{CodeEnrollmentHolidayPeriodNotFound, "business_rejection"},
+	{CodeEnrollmentHolidayProofLimit, "business_rejection"},
 	{CodeEnrollmentHolidayRegistrationClosed, "business_rejection"},
 	{CodeEnrollmentHolidayRegistrationEntryNotFound, "business_rejection"},
 	{CodeEnrollmentHolidayRegistrationFormChanged, "business_rejection"},
@@ -239,6 +242,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentHolidayRegistrationNotFound, "business_rejection"},
 	{CodeEnrollmentHolidayRegistrationStateConflict, "business_rejection"},
 	{CodeEnrollmentHolidayWeekBooked, "business_rejection"},
+	{CodeEnrollmentHolidayWeeksBookedTogether, "input"},
 	{CodeEnrollmentHostedHolidayWeekNotFound, "business_rejection"},
 	{CodeEnrollmentInvalidEmail, "input"},
 	{CodeEnrollmentInvalidPhone, "input"},

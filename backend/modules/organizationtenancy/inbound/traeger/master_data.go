@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -138,6 +139,17 @@ func (rs *MasterDataResource) profile(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, profile, "Träger master data retrieved successfully")
 }
 
+// logoCacheControl lets the browser keep the logo for a year when the
+// request's v names the stored logo's updated_at, as the master data hand it
+// out. A new upload moves updated_at and with it the address, so the old
+// entry is never asked for again. Any other request is not stored.
+func logoCacheControl(version string, updatedAt time.Time) string {
+	if v, err := time.Parse(time.RFC3339Nano, version); err == nil && v.Equal(updatedAt) {
+		return "private, max-age=31536000, immutable"
+	}
+	return "private, no-store"
+}
+
 // logo serves the stored image. Only PNG and JPEG are ever stored, and the
 // type comes from the stored content check, never from the request.
 func (rs *MasterDataResource) logo(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +164,7 @@ func (rs *MasterDataResource) logo(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", logo.ContentType)
 	w.Header().Set("Content-Length", strconv.Itoa(len(logo.Data)))
-	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Cache-Control", logoCacheControl(r.URL.Query().Get("v"), logo.UpdatedAt))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Disposition", "inline")
 	w.WriteHeader(http.StatusOK)
