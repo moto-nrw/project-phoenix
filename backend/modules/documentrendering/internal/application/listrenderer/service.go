@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // RendererService renders list/record documents to PDF, XLSX, DOCX, and CSV files.
@@ -65,12 +66,7 @@ func (s *RendererService) RenderLetter(letter listrecords.Letter, filenameBase s
 }
 
 func safeFilename(input string) string {
-	input = strings.TrimSpace(strings.ToLower(input))
-	replacer := strings.NewReplacer(
-		"ä", "ae", "ö", "oe", "ü", "ue", "ß", "ss",
-		" ", "-", "/", "-", "\\", "-", ":", "-", ";", "-",
-	)
-	input = replacer.Replace(input)
+	input = strings.TrimSpace(strings.ToLower(textnorm.ASCII(input)))
 	var b strings.Builder
 	lastDash := false
 	for _, r := range input {

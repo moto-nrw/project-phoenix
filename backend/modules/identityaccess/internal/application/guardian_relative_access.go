@@ -10,6 +10,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // Guardian relative access: invite a further guardian to a child, approve or
@@ -182,7 +184,7 @@ func (l *AccountLifecycle) findOrCreateProfileByEmail(ctx context.Context, email
 	if found {
 		return resolvedProfile{profile: existing}, nil
 	}
-	profile := domain.GuardianProfile{TenantID: tenantID, FirstName: strings.TrimSpace(firstName), LastName: strings.TrimSpace(lastName), Email: email}
+	profile := domain.GuardianProfile{TenantID: tenantID, FirstName: textnorm.Name(firstName), LastName: textnorm.Name(lastName), Email: email}
 	profile.ID, err = l.guardians.CreateGuardianProfile(ctx, profile)
 	if err != nil {
 		return resolvedProfile{}, failed(opGuardianInviteToStudent, err)

@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // parentAccountGuardianIndexes are the DemoGuardians who get a parent-portal
@@ -223,12 +225,10 @@ func relatedAccountInvite(parent ParentCredentials, scope string) map[string]any
 	}
 }
 
-// asciiMailPart lowercases a name for an e-mail address and spells out the
-// German umlauts.
+// asciiMailPart lowercases a name for an e-mail address in ASCII.
 func asciiMailPart(name string) string {
-	replacer := strings.NewReplacer("ä", "ae", "ö", "oe", "ü", "ue", "ß", "ss")
 	var out strings.Builder
-	for _, r := range replacer.Replace(strings.ToLower(name)) {
+	for _, r := range strings.ToLower(textnorm.ASCII(name)) {
 		if (r >= 'a' && r <= 'z') || r == '-' {
 			out.WriteRune(r)
 		}

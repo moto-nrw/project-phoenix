@@ -12,6 +12,8 @@ import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 type caregiverCapabilityService struct {
@@ -55,8 +57,8 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 		}
 	}
 
-	input.FirstName = strings.TrimSpace(input.FirstName)
-	input.LastName = strings.TrimSpace(input.LastName)
+	input.FirstName = textnorm.Name(input.FirstName)
+	input.LastName = textnorm.Name(input.LastName)
 	input.Position = strings.TrimSpace(input.Position)
 
 	var result *peopleValues.CaregiverCapabilityState
