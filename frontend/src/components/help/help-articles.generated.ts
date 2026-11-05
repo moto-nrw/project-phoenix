@@ -9757,6 +9757,19 @@ export const traegerBillingRunTopic =
           ],
         },
         {
+          title: "Vom Ferienzeitraum zur Abrechnung",
+          description:
+            "Sie bearbeiten gerade einen Ferienzeitraum und wollen zu seinen Rechnungen.",
+          steps: [
+            "Öffnen Sie den Ferienzeitraum unter `Ferienbetreuung`.",
+            "Wählen Sie oben rechts `Zur Abrechnung`. Der Knopf steht bei `Planung`, `Formular` und `Anmeldungen`.",
+            "Hat der Zeitraum genau einen Lauf, öffnet sich dieser Lauf. Sonst sehen Sie die Abrechnung nur mit den Läufen dieses Zeitraums.",
+            "Den Filter `Ferienzeitraum` entfernen Sie mit dem Kreuz. Dann sehen Sie wieder alle Läufe.",
+            "Hat der Zeitraum noch keinen Lauf, wählen Sie `Lauf starten`. Der Zeitraum ist schon gewählt.",
+            "Im Lauf führt `Zum Ferienzeitraum` unter dem Titel zurück zur Planung.",
+          ],
+        },
+        {
           title: "Einen Betrag korrigieren",
           steps: [
             "Wählen Sie bei der Rechnung das Menü mit den drei Punkten.",
@@ -9878,6 +9891,8 @@ export const traegerBillingRunTopic =
       ],
       differences: [
         "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+        "Im Ferienzeitraum fehlt `Zur Abrechnung`? Der Zeitraum ist noch ein Entwurf, oder Ihre Rolle ist nicht Abrechnung.",
+        "Im Lauf fehlt `Zum Ferienzeitraum`? Ihre Rolle darf die Ferienbetreuung nicht öffnen.",
         "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",
         "Sie sehen oben in der Karte `Rechnungen` kein Menü mit den drei Punkten? Der Lauf ist noch nicht freigegeben.",
         "Ein Klick auf eine Rechnung zeigt kein Schreiben? Die Schreiben des Laufs sind noch nicht erstellt. Erstellen Sie sie bei `Bestätigungsschreiben`.",

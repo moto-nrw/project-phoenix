@@ -7,8 +7,10 @@
 // Lauf hat die Übersicht für die Kämmerei (#4672). Eine ausgestellte Rechnung
 // lässt sich stornieren und gutschreiben (#4690); eine stornierte Rechnung
 // stellt der nächste Lauf des Zeitraums neu aus und schlägt ihre Korrekturen
-// wieder vor (#5663).
+// wieder vor (#5663). Die Statuszeile führt zurück zum Ferienzeitraum des
+// Laufs, für alle, die die Ferienbetreuung öffnen dürfen (#5688).
 
+import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -26,10 +28,13 @@ import {
 } from "~/components/traeger/billing-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { formatDateRange } from "~/components/traeger/holiday-period-format";
+import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -38,6 +43,8 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
+import { hasPermission } from "~/lib/auth-utils";
+import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
 import { formatDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
@@ -53,6 +60,9 @@ import {
 import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerBillingRunPage" });
+
+/** Das Recht, das die Ferienzeiträume öffnet (#4659). */
+const TRAEGER_ENROLLMENT_RIGHT = "traeger_enrollment:manage";
 
 function runDescription(run: BillingRunDetail): string {
   if (run.status === "released") {
@@ -100,6 +110,11 @@ export default function TraegerBillingRunPage() {
   const releaseErrors = useApiErrorDisplay();
   const letterErrors = useApiErrorDisplay();
   const { success } = useToast();
+  const { data: session } = useSession();
+  const canOpenPeriod = hasPermission(
+    session ?? null,
+    TRAEGER_ENROLLMENT_RIGHT,
+  );
 
   const load = useCallback(async () => {
     try {
@@ -186,10 +201,23 @@ export default function TraegerBillingRunPage() {
       backLabel="Zurück zur Abrechnung"
       stats={
         run ? (
-          <StatusBadge
-            label={BILLING_RUN_STATUS_LABELS[run.status]}
-            tone={BILLING_RUN_STATUS_TONES[run.status]}
-          />
+          <HolidayHeadFacts>
+            <StatusBadge
+              label={BILLING_RUN_STATUS_LABELS[run.status]}
+              tone={BILLING_RUN_STATUS_TONES[run.status]}
+            />
+            {canOpenPeriod ? (
+              <NavigationLink
+                href={traegerPath(
+                  `/traeger/ferien/${encodeURIComponent(run.holidayPeriodId)}`,
+                )}
+                className="inline-flex items-center gap-1.5 font-medium text-gray-900 underline-offset-2 hover:underline"
+              >
+                <MotoConceptIcon concept={holidayWeeksConcept} size={16} />
+                Zum Ferienzeitraum
+              </NavigationLink>
+            ) : null}
+          </HolidayHeadFacts>
         ) : null
       }
       statsLoading={!run && !pageLoad.error}
