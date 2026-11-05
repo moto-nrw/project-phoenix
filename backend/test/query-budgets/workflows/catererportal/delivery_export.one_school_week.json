@@ -1,0 +1,6 @@
+{
+  "scenario": "workflows.catererportal.delivery_export.one_school_week",
+  "max": 43,
+  "exact": true,
+  "description": "One supplied school over five weekdays through the production router, with 1 then 8 children in that same school. School cardinality is held fixed so per-child growth cannot hide behind the existing per-school slope."
+}

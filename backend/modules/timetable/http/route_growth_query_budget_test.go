@@ -51,11 +51,7 @@ func TestParticipantsRouteGrowthQueryBudget(t *testing.T) {
 			ids = append(ids, child.StudentID)
 			require.NotEmpty(t, child.DisplayName)
 		}
-		want := make([]int64, 0, n)
-		for _, child := range s.StudentIDs {
-			want = append(want, child)
-		}
-		require.ElementsMatch(t, want, ids)
+		require.ElementsMatch(t, s.StudentIDs, ids)
 		require.Zero(t, counter.WriteRows(), "read request must not write")
 		queries := counter.Operation("SELECT")
 		if n == 3 {
