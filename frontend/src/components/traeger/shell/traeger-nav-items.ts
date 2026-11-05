@@ -14,6 +14,7 @@ import type { MotoConcept } from "~/lib/moto-concepts";
 import { billingConcept } from "~/lib/concepts/billing";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { contributionsConcept } from "~/lib/concepts/contributions";
+import { dashboardConcept } from "~/lib/concepts/dashboard";
 import { documentsConcept } from "~/lib/concepts/documents";
 import { helpConcept } from "~/lib/concepts/help";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
@@ -30,8 +31,8 @@ const BILLING_RIGHT = "traeger_billing:manage";
 /** Das Recht, das das Zugriffsprotokoll öffnet (#4655). */
 const ACCESS_LOG_RIGHT = "traeger_access_log:read";
 /**
- * Das Recht, das die Einstellungen (ADR 0086, #4652) und den Briefkopf
- * (#4653) öffnet.
+ * Das Recht, das das Dashboard (#4674), die Einstellungen (ADR 0086, #4652)
+ * und den Briefkopf (#4653) öffnet.
  */
 const OVERVIEW_RIGHT = "traeger_overview:read";
 
@@ -47,6 +48,14 @@ export interface TraegerNavItem {
 }
 
 const TRAEGER_PRIMARY_NAV: readonly TraegerNavItem[] = [
+  {
+    // Die Zahlen von jetzt über alle Schulen (#4674).
+    key: "dashboard",
+    href: "/traeger/uebersicht",
+    label: "Dashboard",
+    concept: dashboardConcept,
+    right: OVERVIEW_RIGHT,
+  },
   {
     key: "schulen",
     href: "/traeger",

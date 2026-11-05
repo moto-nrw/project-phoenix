@@ -32,9 +32,11 @@ type Query interface {
 }
 
 // AtSchoolCounter is the tenant-scoped day-plan projection the presence
-// dashboard uses to split children still in class from the home figure.
+// dashboard uses to split children still in class from the home figure:
+// "Schule" before the first check-in (#3260), "Im Unterricht" after a checkout
+// to class (#5656).
 type AtSchoolCounter interface {
-	CountAtSchoolToday(ctx context.Context, studentIDs []int64) (int, error)
+	CountAtSchoolToday(ctx context.Context, studentIDs []int64) (atSchool, inClass int, err error)
 }
 
 // Dependencies are the consumer-owned ports the projection reads through.
@@ -219,66 +221,101 @@ func (s *service) LiveGroup(ctx context.Context, requestedGroupID int64) (*Proje
 	return s.finishProjection(ctx, state)
 }
 
-// CountAtSchoolToday applies the same planning and pre-check-in rule as the
-// live-group projection, without loading group membership or caller access.
+// CountAtSchoolToday applies the same planning, pre-check-in and in-class rules
+// as the live-group projection, without loading group membership or caller
+// access.
 // Its callers already provide the dashboard's tenant-scoped home candidates.
-func (s *service) CountAtSchoolToday(ctx context.Context, studentIDs []int64) (int, error) {
+func (s *service) CountAtSchoolToday(ctx context.Context, studentIDs []int64) (int, int, error) {
 	if len(studentIDs) == 0 {
-		return 0, nil
+		return 0, 0, nil
 	}
 	if err := s.validateAtSchoolCounterDependencies(); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	ctx, err := s.deps.Settings.Prepare(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("resolve projection settings: %w", err)
+		return 0, 0, fmt.Errorf("resolve projection settings: %w", err)
 	}
 	today := s.deps.Calendar.Today()
 	presence, err := s.deps.Presence.Snapshot(ctx, studentIDs, today)
 	if err != nil {
-		return 0, fmt.Errorf("load student locations: %w", err)
+		return 0, 0, fmt.Errorf("load student locations: %w", err)
 	}
 	arrivals, err := s.deps.Planning.Arrivals(ctx, studentIDs, today)
 	if err != nil {
-		return 0, fmt.Errorf("load arrival times: %w", err)
+		return 0, 0, fmt.Errorf("load arrival times: %w", err)
 	}
 	pickups, err := s.deps.Planning.Pickups(ctx, studentIDs, today)
 	if err != nil {
-		return 0, fmt.Errorf("load pickup times: %w", err)
+		return 0, 0, fmt.Errorf("load pickup times: %w", err)
 	}
 	timetable, err := s.deps.Planning.TimetablePlannedStudentIDs(ctx, studentIDs, today)
 	if err != nil {
-		return 0, fmt.Errorf("load timetable planning: %w", err)
+		return 0, 0, fmt.Errorf("load timetable planning: %w", err)
 	}
 	careDayEnd, err := s.deps.Settings.CareDayEnd(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("resolve care day end: %w", err)
+		return 0, 0, fmt.Errorf("resolve care day end: %w", err)
 	}
 
-	count := 0
-	now := s.deps.Calendar.Now()
+	in := notHomeInputs{presence, arrivals, pickups, timetable, careDayEnd, s.deps.Calendar.Now()}
+	atSchool, inClass := 0, 0
 	for _, studentID := range studentIDs {
-		attendance, _ := presence.Attendance(studentID)
-		inputs := DayInputs{Present: attendance.Present, HasTimetable: timetable[studentID]}
-		if arrival, ok := arrivals[studentID]; ok {
-			inputs.Arrival = &arrival
-		}
-		var pickupTime *time.Time
-		if pickup, ok := pickups[studentID]; ok {
-			inputs.Pickup = &pickup
-			pickupTime = pickup.PickupTime
-		}
-		if s.deps.Planning.AtSchoolBeforeCheckIn(AtSchoolInputs{
-			Decision:   s.deps.Planning.DecideDay(inputs),
-			CheckedIn:  attendance.CheckInTime != nil,
-			PickupTime: pickupTime,
-			CareDayEnd: careDayEnd,
-			Now:        now,
-		}) {
-			count++
+		switch s.notHomeReason(in, studentID) {
+		case notHomeAtSchool:
+			atSchool++
+		case notHomeInClass:
+			inClass++
 		}
 	}
-	return count, nil
+	return atSchool, inClass, nil
+}
+
+type notHomeReason int
+
+const (
+	notHomeNone notHomeReason = iota
+	notHomeAtSchool
+	notHomeInClass
+)
+
+type notHomeInputs struct {
+	presence   PresenceSnapshot
+	arrivals   map[int64]Arrival
+	pickups    map[int64]Pickup
+	timetable  map[int64]bool
+	careDayEnd string
+	now        time.Time
+}
+
+// notHomeReason says why a child without an open stay does not count as home.
+func (s *service) notHomeReason(in notHomeInputs, studentID int64) notHomeReason {
+	attendance, _ := in.presence.Attendance(studentID)
+	if attendance.InClass {
+		if s.deps.Planning.InClassUntilCareDayEnd(in.careDayEnd, in.now) {
+			return notHomeInClass
+		}
+		return notHomeNone
+	}
+	inputs := DayInputs{Present: attendance.Present, HasTimetable: in.timetable[studentID]}
+	if arrival, ok := in.arrivals[studentID]; ok {
+		inputs.Arrival = &arrival
+	}
+	var pickupTime *time.Time
+	if pickup, ok := in.pickups[studentID]; ok {
+		inputs.Pickup = &pickup
+		pickupTime = pickup.PickupTime
+	}
+	if s.deps.Planning.AtSchoolBeforeCheckIn(AtSchoolInputs{
+		Decision:   s.deps.Planning.DecideDay(inputs),
+		CheckedIn:  attendance.CheckInTime != nil,
+		PickupTime: pickupTime,
+		CareDayEnd: in.careDayEnd,
+		Now:        in.now,
+	}) {
+		return notHomeAtSchool
+	}
+	return notHomeNone
 }
 
 func (s *service) validateDependencies() error {
@@ -482,12 +519,19 @@ func (s *service) applyTeacherHints(ctx context.Context, state *buildState, ids 
 const (
 	absentLocation   = "Abwesend"
 	atSchoolLocation = "Schule"
+	inClassLocation  = "Im Unterricht"
 )
 
 // applyAtSchool turns "Abwesend" into "Schule" when the owner's rule says the
 // expected child is still in class. It needs the decision applyPlanning just
-// resolved, so it runs right after it.
+// resolved, so it runs right after it. A child still "Im Unterricht" after the
+// care day's end reads "Abwesend" again (#5656).
 func (s *service) applyAtSchool(state *buildState, student *Student, decision DayDecision, attendance Attendance) {
+	if student.Location == inClassLocation && !s.deps.Planning.InClassUntilCareDayEnd(state.careDayEnd, s.deps.Calendar.Now()) {
+		student.Location = absentLocation
+		student.LocationSince = nil
+		return
+	}
 	if student.Location != absentLocation {
 		return
 	}
@@ -634,7 +678,10 @@ func applyTimes(student *Student, arrival *Arrival, attendance Attendance, calen
 	}
 	if attendance.Recorded {
 		student.ActualArrivalTime = clock(calendar, attendance.CheckInTime)
-		student.ActualPickupTime = clock(calendar, attendance.CheckOutTime)
+		// Leaving for class is no pickup (#5656).
+		if !attendance.InClass {
+			student.ActualPickupTime = clock(calendar, attendance.CheckOutTime)
+		}
 	}
 }
 

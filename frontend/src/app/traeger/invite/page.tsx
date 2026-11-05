@@ -52,7 +52,7 @@ const SHELL_COPY = {
   // Akzentfarbe wie die Eyebrow des Schul-Logins (#5145).
   eyebrowClassName: "text-moto-blue",
   title: "Einladung ins Träger-Büro",
-  subtitle: "Nehmen Sie die Einladung an. Danach sind Sie angemeldet.",
+  subtitle: "Nehmen Sie die Einladung an. Danach melden Sie sich an.",
 } as const;
 
 /**
@@ -283,11 +283,8 @@ function InviteContent() {
   }
   if (invitationLoad.error || !invitation) {
     return (
-      <div className="space-y-4 text-left">
+      <div className="text-left">
         <LoadErrorAlert error={invitationLoad.error} />
-        <p className="text-sm text-gray-700">
-          Bitten Sie die Person, die Sie eingeladen hat, um eine neue Einladung.
-        </p>
       </div>
     );
   }

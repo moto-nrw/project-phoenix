@@ -269,7 +269,7 @@ func TestUploadStudentPhoto_HappyPath_ConsentOnRow(t *testing.T) {
 	imageResponse := testutil.ExecuteRequest(tc.router(), getReq)
 	require.Equal(t, http.StatusOK, imageResponse.Code)
 	assert.Equal(t, jpegBytes(t), imageResponse.Body.Bytes())
-	assert.Equal(t, "private, no-cache", imageResponse.Header().Get("Cache-Control"))
+	assert.Equal(t, "private, max-age=86400, immutable", imageResponse.Header().Get("Cache-Control"))
 	lastModified := imageResponse.Header().Get("Last-Modified")
 	require.NotEmpty(t, lastModified)
 	getReq.Header.Set("If-Modified-Since", lastModified)
@@ -659,9 +659,9 @@ func TestDeleteStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 }
 
 // TestServeStudentPhoto_HappyPath — admin fetching a real seeded
-// photo. Response is 200, Cache-Control is "private, no-cache" (so
-// feature/consent/delete take effect on the next image load), and
-// the body contains the on-disk bytes.
+// photo. Response is 200 and Cache-Control lets only the viewer's browser
+// keep the per-upload URL without revalidation, so remounted avatars do not
+// refetch. Disable/withdrawal/delete take effect because payloads drop the URL.
 func TestServeStudentPhoto_HappyPath(t *testing.T) {
 	t.Parallel()
 
@@ -677,8 +677,8 @@ func TestServeStudentPhoto_HappyPath(t *testing.T) {
 	rr := testutil.ExecuteRequest(tc.router(), req)
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
-	assert.Equal(t, "private, no-cache", rr.Header().Get("Cache-Control"),
-		"cache header must force revalidation so disable/withdrawal take effect on next load")
+	assert.Equal(t, "private, max-age=86400, immutable", rr.Header().Get("Cache-Control"),
+		"per-upload photo URLs must be private and reusable without revalidation")
 }
 
 // TestServeStudentPhoto_InvalidStudentID — non-numeric URL param.

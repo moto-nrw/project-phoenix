@@ -4,6 +4,7 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
+import { pillRatchetBaseline } from "./ui-kit-pill-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
@@ -76,6 +77,26 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     text-muted-foreground …); bg-white/gray-*
 //   ui-kit/no-raw-z-index           — no `z-[n]` inside src/components/ui/;
 //                                     levels come from Z_LAYER
+//
+// One more keeps icon tiles on the kit (#5582):
+//
+//   ui-kit/no-hand-rolled-icon-tile — no hand-built icon tile (symbol on a
+//                                     grey or tinted h-8…h-12 square/circle),
+//                                     also inside src/components/ui/; use
+//                                     IconTile or ConceptIconTile
+//
+// Three more are the shrink-only pill ratchet (#5584):
+//
+//   ui-kit/no-hand-rolled-pill      — tinted `span` pills outside StatusBadge
+//   ui-kit/no-pill-dot              — a dot inside a pill (#2476)
+//   ui-kit/no-hex-alpha-tint        — `${color}1A` tints in a pill's style
+//
+// One more keeps select fields on one look (#5580):
+//
+//   ui-kit/no-select-override       — no frame, fill, height or radius
+//                                     classes on CustomSelect, MultiSelect
+//                                     or ListboxDropdown outside the kit;
+//                                     pick controlSize, pass layout only
 //
 // Two more keep SectionCard the only card head (#5581):
 //
@@ -1114,37 +1135,37 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 ]);
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
-src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@193
-src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1335 text-[11px]@1335 text-[10px]@1339 text-[10px]@1348 text-[11px]@1348
+src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@202
+src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1336 text-[11px]@1336 text-[10px]@1340 text-[10px]@1349 text-[11px]@1349
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
-src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@232 text-[11px]@276
+src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@233 text-[11px]@277
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
-src/components/active-supervisions/planned-now-section.tsx|text-[11px]@431
+src/components/active-supervisions/planned-now-section.tsx|text-[11px]@430
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@905 text-[11px]@933 text-[11px]@1020 text-[11px]@1081 text-[11px]@1089 text-[11px]@1095 text-[11px]@1142 text-[11px]@1148 text-[10px]@1168 text-[11px]@1221 text-[11px]@1301 text-[11px]@1312 text-[11px]@1317
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@43 text-[10px]@99
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@969 text-[11px]@988
-src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1469
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@970 text-[11px]@989
+src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1471
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
-src/components/enrollment/phases-editor.tsx|text-[11px]@768 text-[11px]@773
+src/components/enrollment/phases-editor.tsx|text-[11px]@769 text-[11px]@774
 src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@377
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@742 text-[11px]@807
-src/components/parent/parent-enroll-picker.tsx|text-[11px]@229 text-[11px]@233
+src/components/parent/parent-enroll-picker.tsx|text-[11px]@228 text-[11px]@232
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/planning/closing-day-marker.tsx|text-[10px]@54
 src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@484 text-[11px]@580 text-[11px]@589 text-[11px]@596 text-[10px]@730
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
-src/components/students/care-schedule-manager.tsx|text-[10px]@1231 text-[11px]@1392 text-[11px]@1481 text-[11px]@1491 text-[11px]@1521
-src/components/students/planned-status-days-modal.tsx|text-[10px]@937 text-[11px]@937
+src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1393 text-[11px]@1482 text-[11px]@1492 text-[11px]@1520
+src/components/students/planned-status-days-modal.tsx|text-[10px]@936 text-[11px]@936
 src/components/students/school-checkin-fab.tsx|text-[10px]@199
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
 src/components/time-tracking/leave-requests-card.tsx|text-[10px]@543
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@373
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@481 text-[11px]@525
-src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@299 text-[11px]@305
+src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@300 text-[11px]@306
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@299 text-[10px]@338 text-[10px]@345 text-[10px]@355
@@ -1160,7 +1181,7 @@ src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@400 text-[9px]@416 text-[10px]@479 text-[11px]@479 text-[11px]@484 text-[10px]@507 text-[10px]@542 text-[11px]@542
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
-src/components/ui/location-badge.tsx|text-[11px]@122 text-[11px]@123 text-[10px]@294 text-[10px]@321
+src/components/ui/location-badge.tsx|text-[11px]@122 text-[11px]@123 text-[10px]@295 text-[10px]@322
 src/components/ui/notification-badge.tsx|text-[10px]@15
 src/components/ui/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
@@ -1168,7 +1189,7 @@ src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@463 text-[11px]@535
 src/components/ui/parent-visible-badge.tsx|text-[11px]@44
 src/components/ui/plan-block.tsx|text-[11px]@154 text-[11px]@175
 src/components/ui/plan-legend.tsx|text-[11px]@106
-src/components/ui/presence-badge.tsx|text-[11px]@82 text-[11px]@83 text-[10px]@232
+src/components/ui/presence-badge.tsx|text-[11px]@83 text-[11px]@84 text-[10px]@239
 `);
 
 const noTinyText = makeClassStringRule({
@@ -1842,9 +1863,9 @@ function buttonRatchetImports(node, bindings) {
   }
 }
 
-function splitAllowlistedFindings(rule, key, findings) {
+function splitAllowlistedFindings(rule, key, findings, allowlist) {
   const allowances = new Map();
-  for (const entry of buttonRatchetAllowlist) {
+  for (const entry of allowlist) {
     if (entry.rule !== rule || entry.file !== key) continue;
     for (const line of entry.lines) {
       allowances.set(line, (allowances.get(line) ?? 0) + 1);
@@ -1870,7 +1891,16 @@ function splitAllowlistedFindings(rule, key, findings) {
  * baseline at Program:exit. With UI_KIT_BUTTON_RATCHET=count every finding
  * is reported on its own; the baseline generator subtracts the allowlist.
  */
-function makeButtonRatchetRule({ ruleName, description, message, detect }) {
+function makeRatchetRule({
+  ruleName,
+  description,
+  message,
+  detect,
+  baselines = buttonRatchetBaseline,
+  allowlist = buttonRatchetAllowlist,
+  countEnv = "UI_KIT_BUTTON_RATCHET",
+  kitFile = BUTTON_KIT_FILE,
+}) {
   return {
     meta: {
       type: "problem",
@@ -1885,7 +1915,7 @@ function makeButtonRatchetRule({ ruleName, description, message, detect }) {
       const key = fileKey(context);
       if (
         EXEMPT_FILE_RE.test(key) ||
-        key.endsWith(BUTTON_KIT_FILE) ||
+        key.endsWith(kitFile) ||
         key.includes("src/test/")
       ) {
         return {};
@@ -1898,7 +1928,7 @@ function makeButtonRatchetRule({ ruleName, description, message, detect }) {
         navigationRows: new Set(NAVIGATION_ROWS),
       };
       const findings = [];
-      const countMode = process.env.UI_KIT_BUTTON_RATCHET === "count";
+      const countMode = process.env[countEnv] === "count";
       return {
         Program(node) {
           for (const statement of node.body) {
@@ -1916,14 +1946,16 @@ function makeButtonRatchetRule({ ruleName, description, message, detect }) {
           classText: (node) => classText(node, constants),
           found: (node) => findings.push(node),
           bindings,
+          constants,
         }),
         "Program:exit"() {
           const { allowlisted, remaining } = splitAllowlistedFindings(
             ruleName,
             key,
             findings,
+            allowlist,
           );
-          const baseline = buttonRatchetBaseline[ruleName]?.[key] ?? 0;
+          const baseline = baselines[ruleName]?.[key] ?? 0;
           const allowed = allowlisted + baseline;
           if (countMode) {
             for (const node of findings) {
@@ -1951,7 +1983,7 @@ function makeButtonRatchetRule({ ruleName, description, message, detect }) {
   };
 }
 
-const noHandRolledButton = makeButtonRatchetRule({
+const noHandRolledButton = makeRatchetRule({
   ruleName: "no-hand-rolled-button",
   description:
     "Build actions from Button, ButtonLink or buttonClassName instead of a hand-styled native element.",
@@ -1972,7 +2004,7 @@ const noHandRolledButton = makeButtonRatchetRule({
   }),
 });
 
-const noButtonOverride = makeButtonRatchetRule({
+const noButtonOverride = makeRatchetRule({
   ruleName: "no-button-override",
   description:
     "Keep size and look of kit buttons in the kit; className carries layout only.",
@@ -2078,7 +2110,7 @@ function hasGreyRestFill(text) {
   });
 }
 
-const noGreyButtonFill = makeButtonRatchetRule({
+const noGreyButtonFill = makeRatchetRule({
   ruleName: "no-grey-button-fill",
   description:
     "Disallow a light-grey resting fill on buttons; neutral actions are outline, surface or ghost.",
@@ -2109,6 +2141,397 @@ const noGreyButtonFill = makeButtonRatchetRule({
     },
   }),
 });
+
+// --- Pillen-Ratchet (#5584) --------------------------------------------------
+
+const PILL_KIT_FILE = "src/components/ui/status-badge.tsx";
+const PILL_RADIUS_RE = /^rounded-(?:full|md)$/;
+const PILL_TEXT_RE = /^text-(?:xs|\[10px\]|\[11px\])$/;
+const DOT_SIZE_RE = /^(?:h|w|size)-(?:1|1\.5|2|2\.5)$/;
+const HEX_ALPHA_RE = /^[0-9a-fA-F]{2}$/;
+const BACKGROUND_KEYS = new Set(["background", "backgroundColor"]);
+
+function pillTokens(text) {
+  return unprefixedTokens(text).map((token) => token.replace(/^!/, ""));
+}
+
+function isPillShape(text) {
+  const tokens = pillTokens(text);
+  return (
+    tokens.some((token) => PILL_RADIUS_RE.test(token)) &&
+    tokens.some((token) => token.startsWith("px-")) &&
+    tokens.some((token) => token.startsWith("py-")) &&
+    tokens.some((token) => PILL_TEXT_RE.test(token))
+  );
+}
+
+function isDot(text) {
+  const tokens = pillTokens(text);
+  return (
+    tokens.includes("rounded-full") &&
+    (tokens.some((token) => /^size-/.test(token) && DOT_SIZE_RE.test(token)) ||
+      (tokens.some((token) => token.startsWith("h-") && DOT_SIZE_RE.test(token)) &&
+        tokens.some(
+          (token) => token.startsWith("w-") && DOT_SIZE_RE.test(token),
+        )))
+  );
+}
+
+function propertyName(property) {
+  if (property.type !== "Property") return null;
+  if (property.key.type === "Identifier") return property.key.name;
+  if (property.key.type === "Literal") return String(property.key.value);
+  return null;
+}
+
+function styleBackgroundValues(openingElement, constants) {
+  const value = jsxAttribute(openingElement, "style")?.value;
+  if (value?.type !== "JSXExpressionContainer") return [];
+  let object = value.expression;
+  if (object.type === "Identifier") object = constants.get(object.name);
+  if (object?.type !== "ObjectExpression") return [];
+  return object.properties
+    .filter((property) => BACKGROUND_KEYS.has(propertyName(property) ?? ""))
+    .map((property) => property.value);
+}
+
+function hasHexAlphaTemplate(node) {
+  if (!node || typeof node !== "object") return false;
+  if (node.type === "TemplateLiteral") {
+    return node.quasis.some(
+      (quasi, index) => index > 0 && HEX_ALPHA_RE.test(quasi.value.raw.trim()),
+    );
+  }
+  if (node.type === "ConditionalExpression") {
+    return hasHexAlphaTemplate(node.consequent) || hasHexAlphaTemplate(node.alternate);
+  }
+  if (node.type === "LogicalExpression") {
+    return hasHexAlphaTemplate(node.left) || hasHexAlphaTemplate(node.right);
+  }
+  return false;
+}
+
+function pillClassText(node, textOf) {
+  if (jsxName(node.name) !== "span") return null;
+  if (staticAttributeValue(jsxAttribute(node, "role")) === "tooltip") return null;
+  const className = jsxAttribute(node, "className");
+  if (!className?.value) return null;
+  const text = textOf(className.value);
+  return isPillShape(text) ? text : null;
+}
+
+function makePillRatchetRule(options) {
+  return makeRatchetRule({
+    ...options,
+    baselines: pillRatchetBaseline,
+    allowlist: [],
+    countEnv: "UI_KIT_PILL_RATCHET",
+    kitFile: PILL_KIT_FILE,
+  });
+}
+
+const noHandRolledPill = makePillRatchetRule({
+  ruleName: "no-hand-rolled-pill",
+  description:
+    "Build status pills from StatusBadge, StatusColorBadge or DataTableStatusBadge instead of a hand-styled span.",
+  message:
+    "Keine eigene Pille: StatusBadge (Töne blue, green, orange, red, gray, purple, cyan, outline; size xs für dichte Raster) oder StatusColorBadge (Farbe aus LOCATION_COLORS, amber über LOCATION_COLORS.WARNING) nehmen (#5584, .claude/rules/frontend-ui-kit.md).",
+  detect: ({ classText: textOf, found, constants }) => ({
+    JSXOpeningElement(node) {
+      const text = pillClassText(node, textOf);
+      if (text === null) return;
+      const surface =
+        pillTokens(text).some((token) => BG_COLOR_RE.test(token)) ||
+        styleBackgroundValues(node, constants).length > 0;
+      if (surface) found(node);
+    },
+  }),
+});
+
+const noPillDot = makePillRatchetRule({
+  ruleName: "no-pill-dot",
+  description: "Disallow a decorative dot inside a status pill (#2476).",
+  message:
+    "Kein Punkt in einer Pille: Tönung und Text nennen den Status schon (#2476, #5584). Punkte nur über StatusDot in Legenden und Plänen.",
+  detect: ({ classText: textOf, found }) => ({
+    JSXOpeningElement(node) {
+      if (pillClassText(node, textOf) === null) return;
+      for (const child of node.parent?.children ?? []) {
+        if (child.type !== "JSXElement") continue;
+        const className = jsxAttribute(child.openingElement, "className");
+        if (className?.value && isDot(textOf(className.value))) {
+          found(child.openingElement);
+        }
+      }
+    },
+  }),
+});
+
+const noHexAlphaTint = makePillRatchetRule({
+  ruleName: "no-hex-alpha-tint",
+  description:
+    "Disallow `${color}1A`-style hex alpha tints in a pill's style; the kit tone carries the tint.",
+  message:
+    "Keine Tönung per Hex-Alpha (`${…}1A`) im style einer Pille: StatusColorBadge color={…} tönt mit lesbarem Text (#5584).",
+  detect: ({ classText: textOf, found, constants }) => ({
+    JSXOpeningElement(node) {
+      if (pillClassText(node, textOf) === null) return;
+      if (styleBackgroundValues(node, constants).some(hasHexAlphaTemplate)) {
+        found(node);
+      }
+    },
+  }),
+});
+
+// --- ui-kit/no-hand-rolled-icon-tile (#5582) --------------------------------
+//
+// Eine Icon-Kachel (zentriertes Symbol auf grauer oder getönter Fläche) kommt
+// aus `IconTile` / `ConceptIconTile`. Erkannt wird die Klassenkette
+// `flex h-(8–12) w-(8–12)` (oder `size-(8–12)`) `items-center justify-center
+// rounded-(lg|xl|2xl|full) bg-(gray|moto)-…` an einem Element, dessen Kind ein Symbol ist. Kreise mit
+// Initialen oder Schrittnummern (Text als Kind) und Schaltflächen bleiben frei.
+
+const ICON_TILE_FILE = "src/components/ui/icon-tile.tsx";
+// `size-10` steht für `h-10 w-10`; `inline-flex` baut dieselbe Kachel.
+const ICON_TILE_BOX_RE =
+  /(?:^|\s)(?:size-(?:8|9|10|11|12)|h-(?:8|9|10|11|12)\s(?:\S+\s)*?w-(?:8|9|10|11|12)|w-(?:8|9|10|11|12)\s(?:\S+\s)*?h-(?:8|9|10|11|12))(?=\s|$)/;
+const ICON_TILE_TOKENS = [
+  /(?:^|\s)(?:inline-)?flex(?=\s|$)/,
+  ICON_TILE_BOX_RE,
+  /(?:^|\s)items-center(?=\s|$)/,
+  /(?:^|\s)justify-center(?=\s|$)/,
+  /(?:^|\s)rounded-(?:lg|xl|2xl|full)(?=\s|$)/,
+  /(?:^|\s)bg-(?:gray|moto)-\S+/,
+];
+const INTERACTIVE_ELEMENTS = new Set([
+  "button",
+  "a",
+  "Link",
+  "NavLink",
+  "NavigationLink",
+  "Button",
+  "ButtonLink",
+  "label",
+]);
+
+const isIconTileCombo = (text) =>
+  ICON_TILE_TOKENS.every((token) => token.test(text));
+
+function expressionNamesIcon(expression) {
+  if (!expression) return false;
+  if (expression.type === "Identifier") return /icon/i.test(expression.name);
+  if (expression.type === "MemberExpression") {
+    return (
+      expression.property?.type === "Identifier" &&
+      /icon/i.test(expression.property.name)
+    );
+  }
+  if (expression.type === "JSXElement")
+    return elementNamesIcon(expression) || hasIconChild(expression);
+  if (expression.type === "JSXFragment")
+    return hasIconChild(expression);
+  if (expression.type === "ConditionalExpression") {
+    return (
+      expressionNamesIcon(expression.consequent) ||
+      expressionNamesIcon(expression.alternate)
+    );
+  }
+  if (expression.type === "LogicalExpression") {
+    return expressionNamesIcon(expression.right);
+  }
+  return false;
+}
+
+function elementNamesIcon(element) {
+  const name = element.openingElement?.name;
+  if (name?.type !== "JSXIdentifier") return false;
+  if (name.name === "svg" || /icon/i.test(name.name)) return true;
+  return /^[A-Z]/.test(name.name) && (element.children?.length ?? 0) === 0;
+}
+
+/** Ein Symbol als Kind, kein Text: Initialen und Schrittnummern sind keine Kachel. */
+function hasIconChild(element) {
+  let icon = false;
+  for (const child of element.children ?? []) {
+    if (child.type === "JSXText") {
+      if (child.value.trim() !== "") return false;
+      continue;
+    }
+    if (child.type === "JSXElement") {
+      if (elementNamesIcon(child)) icon = true;
+      else if (hasIconChild(child)) icon = true;
+      else return false;
+      continue;
+    }
+    if (child.type === "JSXExpressionContainer") {
+      if (child.expression.type === "JSXEmptyExpression") continue;
+      if (expressionNamesIcon(child.expression)) icon = true;
+      else return false;
+    }
+  }
+  return icon;
+}
+
+const noHandRolledIconTile = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow hand-rolled icon tiles; use IconTile or ConceptIconTile from the kit.",
+    },
+    messages: {
+      handRolledIconTile:
+        "Handgebaute Icon-Kachel. IconTile (~/components/ui/icon-tile) mit size, shape und tone nehmen, für ein fachliches Konzept ConceptIconTile (#5582, .claude/rules/frontend-ui-kit.md).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || key === ICON_TILE_FILE) return {};
+    const sourceCode = context.sourceCode ?? context.getSourceCode?.();
+
+    return {
+      JSXOpeningElement(node) {
+        const name = jsxName(node.name);
+        if (name === null || INTERACTIVE_ELEMENTS.has(name)) return;
+        const classAttribute = node.attributes.find(
+          (attribute) =>
+            attribute.type === "JSXAttribute" &&
+            attribute.name.type === "JSXIdentifier" &&
+            attribute.name.name === "className",
+        );
+        if (!classAttribute?.value) return;
+        const combos = classCombinations(
+          classAttribute.value,
+          new WeakSet(),
+          sourceCode,
+        ) ?? [
+          (() => {
+            const chunks = [];
+            collectStaticStrings(classAttribute.value, chunks);
+            return chunks.join(" ");
+          })(),
+        ];
+        if (!combos.some(isIconTileCombo)) return;
+        if (!hasIconChild(node.parent)) return;
+        context.report({ node, messageId: "handRolledIconTile" });
+      },
+    };
+  },
+};
+
+// --- ui-kit/no-select-override (#5580) --------------------------------------
+//
+// Auswahlfelder bringen ihre Optik aus dem Kit mit: ListboxDropdown zeichnet
+// Auslöser, Menü, Option und Kästchen, CustomSelect und MultiSelect setzen
+// darauf auf. Ein Aufrufer wählt `controlSize`/`size` und gibt nur Layout
+// (Breite, flex, Schriftgewicht) in className/menuClassName. Rahmen-,
+// Hintergrund-, Höhen- und Radiusklassen sowie die Flächen-Utilities sind
+// dort verboten, ebenso `unstyledTrigger` außerhalb des Kits. Hart null.
+
+const SELECT_COMPONENT_MODULES = new Map([
+  ["~/components/ui/custom-select", "CustomSelect"],
+  ["@/components/ui/custom-select", "CustomSelect"],
+  ["~/components/ui/multi-select", "MultiSelect"],
+  ["@/components/ui/multi-select", "MultiSelect"],
+  ["~/components/ui/listbox-dropdown", "ListboxDropdown"],
+  ["@/components/ui/listbox-dropdown", "ListboxDropdown"],
+]);
+const SELECT_COMPONENTS = new Set(["CustomSelect", "MultiSelect", "ListboxDropdown"]);
+const SELECT_CLASS_PROPS = [
+  "className",
+  "triggerClassName",
+  "menuClassName",
+  "containerClassName",
+];
+const SELECT_OVERRIDE_RES = [
+  /^border(?:-|$)/,
+  /^bg-/,
+  /^(?:min-|max-)?h-/,
+  /^size-/,
+  /^rounded(?:-|$)/,
+  /^moto-(?:content|popover)-surface$/,
+];
+
+function selectOverrideTokens(text) {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((token) =>
+      SELECT_OVERRIDE_RES.some((re) => re.test(bareToken(token))),
+    );
+}
+
+const noSelectOverride = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Keep frame, fill, height and radius of select fields in the kit; class props carry layout only.",
+    },
+    messages: {
+      override:
+        "Keine eigene Optik am Auswahlfeld ({{tokens}}): Rahmen, Hintergrund, Höhe und Radius kommen aus dem Kit. controlSize=\"compact\" (ListboxDropdown: size) wählen, className nur für Layout (#5580, .claude/rules/frontend-ui-kit.md).",
+      unstyled:
+        "unstyledTrigger ist nur im Kit erlaubt; außerhalb gilt die Feldoptik von ListboxDropdown (#5580).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (EXEMPT_FILE_RE.test(key) || key.includes(UI_KIT_DIR)) return {};
+    const constants = new Map();
+    const selects = new Set();
+    const pending = [];
+    return {
+      ImportDeclaration(node) {
+        const source =
+          node.source.type === "Literal" ? String(node.source.value) : "";
+        const exported = SELECT_COMPONENT_MODULES.get(source);
+        if (!exported) return;
+        for (const specifier of node.specifiers) {
+          if (specifier.type !== "ImportSpecifier") continue;
+          const imported =
+            specifier.imported.type === "Identifier"
+              ? specifier.imported.name
+              : String(specifier.imported.value);
+          if (SELECT_COMPONENTS.has(imported)) {
+            selects.add(specifier.local.name);
+          }
+        }
+      },
+      VariableDeclarator(node) {
+        if (node.id?.type === "Identifier" && node.init) {
+          constants.set(node.id.name, node.init);
+        }
+      },
+      JSXOpeningElement(node) {
+        if (!selects.has(jsxName(node.name) ?? "")) return;
+        pending.push(node);
+      },
+      "Program:exit"() {
+        for (const node of pending) {
+          if (jsxAttribute(node, "unstyledTrigger")) {
+            context.report({ node, messageId: "unstyled" });
+          }
+          const tokens = SELECT_CLASS_PROPS.flatMap((name) => {
+            const attribute = jsxAttribute(node, name);
+            if (!attribute?.value) return [];
+            return selectOverrideTokens(classText(attribute.value, constants));
+          });
+          if (tokens.length > 0) {
+            context.report({
+              node,
+              messageId: "override",
+              data: { tokens: [...new Set(tokens)].join(" ") },
+            });
+          }
+        }
+      },
+    };
+  },
+};
 
 // --- ui-kit/no-important-override + ui-kit/no-section-card-bleed (#5581) ---
 //
@@ -2269,12 +2692,17 @@ export default {
     "no-generic-brand-colors": noGenericBrandColors,
     "no-grey-button-fill": noGreyButtonFill,
     "no-hand-rolled-button": noHandRolledButton,
+    "no-hand-rolled-icon-tile": noHandRolledIconTile,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
+    "no-hand-rolled-pill": noHandRolledPill,
     "no-hand-rolled-surface": noHandRolledSurface,
+    "no-hex-alpha-tint": noHexAlphaTint,
     "no-important-override": noImportantOverride,
+    "no-pill-dot": noPillDot,
     "no-raw-input": noRawInput,
     "no-raw-z-index": noRawZIndex,
+    "no-select-override": noSelectOverride,
     "no-rounded-3xl": noRounded3xl,
     "no-section-card-bleed": noSectionCardBleed,
     "no-shadcn-tokens": noShadcnTokens,

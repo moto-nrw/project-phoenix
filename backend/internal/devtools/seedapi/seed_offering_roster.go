@@ -32,7 +32,7 @@ func (s seedOfferingRosterStep) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 	for _, studentID := range studentIDs {
-		if err := postSchoolAttendance(rt, studentID, "in", "checked_in", ""); err != nil {
+		if err := postSchoolAttendance(rt, studentID, "in", "checked_in", nil); err != nil {
 			return err
 		}
 	}

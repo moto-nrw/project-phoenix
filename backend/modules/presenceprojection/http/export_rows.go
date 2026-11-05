@@ -589,6 +589,8 @@ func exportStatusLabel(status string) string {
 		return "Zuhause"
 	case "schule":
 		return "Schule"
+	case "unterricht":
+		return studentpresence.InClassLocationLabel
 	case "unterwegs":
 		return "Unterwegs"
 	case "schulhof":
@@ -638,6 +640,8 @@ func exportStatus(student StudentResponse) string {
 		return "abwesend"
 	case studentpresence.AtSchoolLocationLabel:
 		return "schule"
+	case studentpresence.InClassLocationLabel:
+		return "unterricht"
 	case "Unterwegs":
 		return "unterwegs"
 	case "Schulhof":

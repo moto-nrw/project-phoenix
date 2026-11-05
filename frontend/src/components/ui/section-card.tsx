@@ -5,6 +5,8 @@ import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { IconTile } from "~/components/ui/icon-tile";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { cn } from "~/lib/utils";
@@ -72,17 +74,17 @@ const CONCEPT_ICON_COLORS: Record<MotoDuotoneTone, string> = {
 function SectionCardConceptIcon({
   concept,
 }: Readonly<{ concept: MotoConcept }>) {
-  const Icon = concept.icon;
   return (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
-      <Icon
-        size={22}
-        weight={concept.weight}
-        className={cn("moto-duotone-icon", CONCEPT_ICON_COLORS[concept.tone])}
-        data-moto-duotone-tone={concept.tone}
-        aria-hidden="true"
-      />
-    </span>
+    <IconTile
+      size="section"
+      icon={
+        <MotoConceptIcon
+          concept={concept}
+          colorMode="class"
+          className={CONCEPT_ICON_COLORS[concept.tone]}
+        />
+      }
+    />
   );
 }
 
@@ -394,11 +396,7 @@ export function SectionCard({
             )}
           >
             {leadingVisual ??
-              (Icon && (
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 shadow-sm">
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                </span>
-              ))}
+              (Icon && <IconTile icon={<Icon aria-hidden="true" />} />)}
             <div className="min-w-0">
               {kicker && (
                 <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">

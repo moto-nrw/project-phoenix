@@ -46,6 +46,13 @@ export interface PlannedTimetableInstance {
   startAvailableAt?: string;
   startExpiresAt?: string;
   /**
+   * A finished block of the past scope the caller may reopen now (#5676):
+   * ended before its planned end, reopenable until then.
+   */
+  canReopen?: boolean;
+  /** End of that reopen window (RFC 3339), set with canReopen. */
+  reopenUntil?: string;
+  /**
    * Live session behind a running block (#2383) — the Tagesplan jumps to
    * /active-supervisions?session=<id>. Null unless the block is running.
    */
@@ -252,6 +259,8 @@ interface BackendPlannedTimetableInstance {
   can_start?: boolean;
   start_available_at?: string;
   start_expires_at?: string;
+  can_reopen?: boolean;
+  reopen_until?: string;
   active_group_id?: number | null;
   cancel_reason?: string | null;
   planning_track_name?: string | null;
@@ -381,6 +390,12 @@ export function mapPlannedInstance(
     canStart: raw.can_start ?? false,
     startAvailableAt: raw.start_available_at ?? "",
     startExpiresAt: raw.start_expires_at ?? "",
+    ...(raw.can_reopen === true
+      ? {
+          canReopen: true,
+          ...(raw.reopen_until ? { reopenUntil: raw.reopen_until } : {}),
+        }
+      : {}),
     activeGroupId: raw.active_group_id?.toString() ?? null,
     cancelReason: raw.cancel_reason ?? null,
     planningTrackName: raw.planning_track_name ?? null,

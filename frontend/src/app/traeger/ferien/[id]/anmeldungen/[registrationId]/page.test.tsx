@@ -208,6 +208,28 @@ describe("TraegerHolidayRegistrationPage", () => {
         screen.queryByRole("button", { name: "Trennen" }),
       ).not.toBeInTheDocument();
     });
+
+    it("asks to check the invoice when a cancelled sibling changed the amount (#5662)", async () => {
+      mockRegistration.mockResolvedValue({
+        ...HOLIDAY_REGISTRATION,
+        status: "confirmed",
+      });
+      mockContribution.mockResolvedValue({
+        ...HOLIDAY_CONTRIBUTION,
+        frozen: true,
+        confirmedAt: "2026-09-08T10:00:00Z",
+        invoiced: true,
+        correctionNeeded: true,
+      });
+      renderPage();
+
+      expect(await screen.findByText("Rechnung prüfen")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Der Beitrag hat sich geändert, zum Beispiel durch ein Storno bei den Geschwistern. Die Rechnung zeigt noch den alten Betrag. Stornieren Sie die Rechnung. Der nächste Abrechnungslauf stellt dann den neuen Betrag aus.",
+        ),
+      ).toBeInTheDocument();
+    });
   });
 
   it("names the parents in the title and keeps the number in the status line (#5146)", async () => {
@@ -226,9 +248,11 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).toBeInTheDocument();
     // Export and duplicate hint refer to „Anmeldung Nr. 7“, so the number
     // stays visible next to the status.
-    expect(
-      await screen.findByText(/Nr\. 7 · Winterferien 2027 · Eingegangen am/),
-    ).toBeInTheDocument();
+    // Anker: die Angaben der Statuszeile stehen einzeln, ohne Trennpunkte (#5684).
+    expect(await screen.findByText("Nr. 7")).toBeInTheDocument();
+    expect(screen.getByText("Winterferien 2027")).toBeInTheDocument();
+    expect(screen.getByText(/^Eingegangen am/)).toBeInTheDocument();
+    expect(screen.queryByText(/·/)).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Zurück zu den Anmeldungen/ }),
     ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen");
@@ -332,6 +356,19 @@ describe("TraegerHolidayRegistrationPage", () => {
     expect(open).toHaveAttribute("target", "_blank");
     expect(open).toHaveAttribute("rel", "noopener");
     expect(open).toHaveAttribute("title", "In neuem Tab öffnen");
+    // Öffnen und Herunterladen wie bei den PDFs der Hinweise (#5684).
+    expect(
+      card.getByRole("link", { name: "Bescheid Bürgergeld.pdf öffnen" }),
+    ).toHaveAttribute(
+      "href",
+      "/api/traeger/holiday-periods/5/registrations/7/proofs/91?inline=1",
+    );
+    expect(
+      card.getByRole("link", { name: "Bescheid Bürgergeld.pdf herunterladen" }),
+    ).toHaveAttribute(
+      "href",
+      "/api/traeger/holiday-periods/5/registrations/7/proofs/91",
+    );
   });
 
   it("asks the office to collect a proof the parents did not upload (#5238)", async () => {

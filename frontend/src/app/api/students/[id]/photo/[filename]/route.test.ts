@@ -81,7 +81,7 @@ describe("GET /api/students/[id]/photo/[filename] — happy path", () => {
     mockFetch.mockResolvedValueOnce(
       imageResponse(200, bytes, {
         "content-type": "image/jpeg",
-        "cache-control": "private, no-cache",
+        "cache-control": "private, max-age=86400, immutable",
         etag: 'W/"abc123"',
         "last-modified": "Wed, 21 Oct 2026 07:28:00 GMT",
       }),
@@ -94,7 +94,9 @@ describe("GET /api/students/[id]/photo/[filename] — happy path", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/jpeg");
-    expect(response.headers.get("cache-control")).toBe("private, no-cache");
+    expect(response.headers.get("cache-control")).toBe(
+      "private, max-age=86400, immutable",
+    );
     expect(response.headers.get("etag")).toBe('W/"abc123"');
     expect(response.headers.get("last-modified")).toBe(
       "Wed, 21 Oct 2026 07:28:00 GMT",
@@ -117,7 +119,7 @@ describe("GET /api/students/[id]/photo/[filename] — 304 Not Modified", () => {
     mockAuth.mockResolvedValue(defaultSession);
     mockFetch.mockResolvedValueOnce(
       imageResponse(304, null, {
-        "cache-control": "private, no-cache",
+        "cache-control": "private, max-age=86400, immutable",
         etag: 'W/"abc123"',
         "last-modified": "Wed, 21 Oct 2026 07:28:00 GMT",
       }),
@@ -129,7 +131,9 @@ describe("GET /api/students/[id]/photo/[filename] — 304 Not Modified", () => {
     });
 
     expect(response.status).toBe(304);
-    expect(response.headers.get("cache-control")).toBe("private, no-cache");
+    expect(response.headers.get("cache-control")).toBe(
+      "private, max-age=86400, immutable",
+    );
     expect(response.headers.get("etag")).toBe('W/"abc123"');
     expect(response.headers.get("last-modified")).toBe(
       "Wed, 21 Oct 2026 07:28:00 GMT",

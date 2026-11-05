@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.schools_today",
+  "max": 9,
+  "exact": true,
+  "description": "modules/traegerview — GET /traeger/schools/today (#4674): the Träger\nrow, the school IDs of the Träger, the school rows and six figure reads\nat the owners (two rosters, presence, sick days, sick flags, on-site\nstaff) for the whole school set, in one administrative transaction.\nFlat in the number of schools."
+}

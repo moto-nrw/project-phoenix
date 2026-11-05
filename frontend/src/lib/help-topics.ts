@@ -230,6 +230,8 @@ export const HELP_TOPICS = {
   traegerSettings: "traeger-einstellungen",
   traegerBriefkopf: "briefkopf-des-traegers",
   traegerSchoolSwitch: "in-eine-schule-wechseln",
+  traegerSchoolView: "zahlen-und-stammdaten-einer-schule-ansehen",
+  traegerDashboard: "alle-schulen-auf-einen-blick",
   teacherSettings: "als-lehrkraft-benachrichtigungen-einstellen",
   teacherClassDay: "meinen-klassentag-ansehen",
   teacherClassList: "die-liste-einer-klasse-lesen",

@@ -5,12 +5,14 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	webpush "github.com/SherClockHolmes/webpush-go"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -290,6 +292,24 @@ func TestWebPushSendOneSynchronouslyClassifiesResponses(t *testing.T) {
 
 		require.ErrorIs(t, channel.sendOneSynchronously(context.Background(), event, []byte(`{}`), sub, 60, webpush.UrgencyNormal),
 			deleteErr)
+	})
+
+	t.Run("a permanent rejection is final and keeps the subscription", func(t *testing.T) {
+		// Sentry BACKEND-15: 403 also answers an invalid VAPID JWT (RFC 8292),
+		// which hits every device, so it must not prune like an expiry.
+		for _, status := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusRequestEntityTooLarge} {
+			repo := &fakePushRepo{}
+			channel := testChannel(repo, &fakeSender{})
+			channel.sender = scriptedSender{respond: func(string) (*http.Response, error) {
+				return okResponse(status), nil
+			}}
+			sub := testSub(14, 41, "https://fcm.googleapis.com/rejected")
+
+			err := channel.sendOneSynchronously(context.Background(), event, []byte(`{}`), sub, 60, webpush.UrgencyNormal)
+			require.ErrorIs(t, err, deliveryContract.ErrPermanent)
+			assert.ErrorContains(t, err, strconv.Itoa(status))
+			assert.Empty(t, repo.deleted)
+		}
 	})
 
 	t.Run("any other rejection is reported with its status", func(t *testing.T) {

@@ -26,14 +26,11 @@ async function GETHandler(
 
   const backendUrl = `${getServerApiUrl()}/api/students/${encodeURIComponent(id)}/photo/${encodeURIComponent(filename)}`;
 
-  // Forward the browser's revalidation headers so the backend's
-  // http.ServeContent path can return 304 Not Modified instead of the
-  // full body. Without this, browsers always re-download the bytes even
-  // though the backend sets `Cache-Control: private, no-cache` (which
-  // means "you may store, but MUST revalidate" — useless if the proxy
-  // strips the conditional headers). On pages that render many avatars
-  // (search results, room views, supervision lists) this materially
-  // increases bandwidth and disk reads on the backend.
+  // The backend marks each per-upload photo URL as privately cacheable
+  // and immutable, so browsers normally reuse their copy without asking.
+  // When they do revalidate (expired entry, forced reload), forward the
+  // conditional headers so http.ServeContent can answer 304 instead of
+  // re-sending the full body.
   const buildHeaders = (bearer: string): HeadersInit => {
     const h: Record<string, string> = { Authorization: `Bearer ${bearer}` };
     const ifNoneMatch = request.headers.get("if-none-match");
@@ -81,10 +78,9 @@ async function GETHandler(
   }
 
   // 200 path — stream the body through unchanged. Preserve Content-Type,
-  // the backend's Cache-Control (private, no-cache so the browser
-  // revalidates next time), and the validators (ETag / Last-Modified) so
-  // the conditional-GET round-trip on the next render can short-circuit
-  // to 304 above without re-downloading the full image.
+  // the backend's Cache-Control (private browser cache, no revalidation
+  // while fresh), and the validators (ETag / Last-Modified) so a later
+  // conditional GET can short-circuit to 304 above.
   const headers = new Headers();
   const contentType = upstream.headers.get("content-type");
   if (contentType) headers.set("content-type", contentType);

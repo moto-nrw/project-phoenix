@@ -30,7 +30,6 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/holiday-periods/{id}/form"}: notCaptured,
 	// The review of the holiday registrations (#4663) belongs to the
 	// Träger, not to a school: no school to count it for.
-	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/cancel"}:                     notCaptured,
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/freeze"}:                     notCaptured,
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/reopen"}:                     notCaptured,
 	{http.MethodPut, "/traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings"}: notCaptured,
@@ -70,12 +69,18 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	// Träger too.
 	{http.MethodPost, "/traeger/holiday-contributions/{periodId}/sibling-groups"}:                                  notCaptured,
 	{http.MethodDelete, "/traeger/holiday-contributions/{periodId}/sibling-groups/registrations/{registrationId}"}: notCaptured,
+	// The cancellation of a holiday registration moved to the
+	// Elternabrechnung, which computes the sibling group again (#5662).
+	{http.MethodPost, "/traeger/holiday-contributions/{periodId}/registrations/{registrationId}/cancel"}: notCaptured,
 	// The billing run of a holiday period (#4668, ADR 0119) belongs to the
 	// Träger: no school to count it for.
 	{http.MethodPost, "/traeger/billing-runs/"}:                 notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/corrections"}: notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/release"}:     notCaptured,
-	{http.MethodPut, "/traeger/number-ranges/{service}"}:        notCaptured,
+	// The corrections a reissued invoice carries over (#5663).
+	{http.MethodPut, "/traeger/billing-runs/{id}/carried-corrections/{positionID}"}:    notCaptured,
+	{http.MethodDelete, "/traeger/billing-runs/{id}/carried-corrections/{positionID}"}: notCaptured,
+	{http.MethodPut, "/traeger/number-ranges/{service}"}:                               notCaptured,
 	// The confirmation letters of a released run (#4669, ADR 0121) belong
 	// to the Träger as well.
 	{http.MethodPost, "/traeger/billing-runs/{id}/letters"}:         notCaptured,

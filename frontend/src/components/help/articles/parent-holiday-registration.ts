@@ -19,7 +19,7 @@ export function parentHolidayRegistrationTopic(): HelpTopic {
       "Öffnen Sie den Link.",
       "Tragen Sie unter `Kinder` Vorname, Nachname und Geburtsdatum ein.",
       "Wählen Sie die `Schule` Ihres Kindes. Steht sie nicht in der Liste? Wählen Sie `Eine andere Schule`.",
-      "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt. Bei jeder Zeit steht der Preis pro Woche.",
+      "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt. Bei jeder Zeit steht der Preis pro Woche. Gibt es eine Woche an mehreren Schulen, wählen Sie auch die Schule.",
       "Weitere Kinder fügen Sie mit `Geschwisterkind hinzufügen` hinzu.",
       "Tragen Sie `Ihre Angaben` ein.",
       "Fragt der Träger die `Anschrift` ab, tragen Sie Straße, PLZ und Ort ein. Die Anschrift steht auf der Rechnung.",

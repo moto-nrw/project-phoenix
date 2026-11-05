@@ -111,7 +111,7 @@ describe("TimetableRosterContent for a spontaneous block (#3921)", () => {
     renderSpontaneous("active");
 
     expect(headFigure("Teilnehmende")).toBe("2");
-    expect(headFigure("Gegangen")).toBe("1");
+    expect(headFigure("Nicht mehr im Raum")).toBe("1");
     expect(screen.getByText("Teilnehmende (2)")).toBeInTheDocument();
     for (const label of ["Anwesend", "Erwartet", "Abwesend", "Ungeplant"]) {
       expect(

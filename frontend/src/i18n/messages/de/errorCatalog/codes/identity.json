@@ -13,7 +13,7 @@
   "invalid_credentials": "Die E-Mail-Adresse oder das Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
   "invitation_account_login_required": "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte melden Sie sich zuerst damit an und öffnen Sie dann die Einladung erneut.",
   "invitation_account_mismatch": "Sie sind mit einem anderen Konto angemeldet. Bitte melden Sie sich mit der eingeladenen E-Mail-Adresse an.",
-  "invitation_expired": "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie Ihre Schule nach einer neuen Einladung.",
+  "invitation_expired": "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie die Person, die Sie eingeladen hat, nach einer neuen Einladung.",
   "invitation_not_found": "Diese Einladung gibt es nicht. Bitte prüfen Sie den Link in der E-Mail.",
   "mfa_blocked": "Das waren zu viele Versuche. Bitte warten Sie einige Minuten und versuchen Sie es dann erneut.",
   "mfa_code_invalid": "Der Code stimmt nicht oder ist abgelaufen. Bitte geben Sie ihn erneut ein oder fordern Sie einen neuen Code an.",

@@ -8,12 +8,12 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { presentConcept } from "~/lib/concepts/present";
 import { roomsConcept } from "~/lib/concepts/rooms";
 import type { MotoConcept } from "~/lib/moto-concepts";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 export interface HistoryChartPoint {
   readonly date: string;
@@ -211,11 +211,7 @@ function HistoryCard({
     <SectionCard
       title={title}
       description={subtitle}
-      leading={
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
-          <MotoConceptIcon concept={concept} size={20} />
-        </span>
-      }
+      leading={<ConceptIconTile concept={concept} size="section" />}
     >
       {children}
     </SectionCard>

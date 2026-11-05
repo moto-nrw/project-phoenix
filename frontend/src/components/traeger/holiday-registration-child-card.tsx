@@ -15,6 +15,7 @@ import {
   InfoText,
 } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
@@ -36,10 +37,15 @@ import {
   rebookingDraft,
 } from "./holiday-rebooking-model";
 import {
+  bookedWeeksOverlap,
+  groupParallelWeeks,
+  weekGroupBooking,
+  withWeekGroupBooking,
+} from "~/lib/holiday-week-groups";
+import {
   answeredQuestions,
   HolidayRegistrationAnswers,
 } from "./holiday-registration-answers";
-import { EDIT_TITLE } from "./holiday-registration-edit-fields";
 import {
   childSchoolLabel,
   formatHolidayWeek,
@@ -128,26 +134,34 @@ export function HolidayRegistrationChildCard({
       </Button>
     );
 
-  if (editor) {
-    return (
-      <SectionCard
-        title={EDIT_TITLE}
-        description={`${child.firstName} ${child.lastName}`}
-      >
-        {editor}
-      </SectionCard>
-    );
-  }
+  if (editor) return editor;
 
   return (
     <SectionCard
       title={`${child.firstName} ${child.lastName}`}
-      description={`Geboren am ${formatDate(child.birthDate)} · ${childSchoolLabel(child, names)}`}
+      description={`Geboren am ${formatDate(child.birthDate)}, ${childSchoolLabel(child, names)}`}
+      footer={
+        draft ? (
+          <EditActions
+            onCancel={() => {
+              saveErrors.clear();
+              setDraft(null);
+            }}
+            onSave={() => void save()}
+            saving={saving}
+            disabled={
+              bookings.length === 0 ||
+              !rebookingChanged(child, bookings) ||
+              (draft !== null && weeksOverlap(period, draft))
+            }
+          />
+        ) : undefined
+      }
       action={
         edit || rebook ? (
           <span className="flex flex-wrap gap-2">
-            {edit}
             {rebook}
+            {edit}
           </span>
         ) : undefined
       }
@@ -183,19 +197,6 @@ export function HolidayRegistrationChildCard({
             names={names}
             onChange={setDraft}
             error={saveErrors.error}
-            footer={
-              <EditActions
-                onCancel={() => {
-                  saveErrors.clear();
-                  setDraft(null);
-                }}
-                onSave={() => void save()}
-                saving={saving}
-                disabled={
-                  bookings.length === 0 || !rebookingChanged(child, bookings)
-                }
-              />
-            }
           />
         ) : (
           <InfoSection title="Gebuchte Wochen">
@@ -269,48 +270,68 @@ function ChildAnswers({
   );
 }
 
+function weeksOverlap(
+  period: HolidayPeriod,
+  draft: HolidayRebookingDraft,
+): boolean {
+  return bookedWeeksOverlap(
+    period.weeks,
+    rebookingBookings(period, draft).map((booking) => booking.weekId),
+  );
+}
+
 function RebookingEditor({
   period,
   draft,
   names,
   onChange,
   error,
-  footer,
 }: Readonly<{
   period: HolidayPeriod;
   draft: HolidayRebookingDraft;
   names: ReadonlyMap<string, string>;
   onChange: (draft: HolidayRebookingDraft) => void;
   error: Parameters<typeof FormErrorAlert>[0]["message"];
-  footer: React.ReactNode;
 }>) {
   return (
     <div className="space-y-3">
       <FormErrorAlert message={error} />
       <p className="text-sm text-gray-700">
-        Wählen Sie je Woche ein Zeitmodell. Mindestens eine Woche bleibt
+        Wählen Sie je Woche ein Zeitmodell. Gibt es eine Woche an mehreren
+        Schulen, wählen Sie auch die Schule. Mindestens eine Woche bleibt
         gebucht.
       </p>
       <ul className="space-y-3">
-        {period.weeks.map((week) => {
-          const weekId = week.id ?? "";
-          const label = `${formatHolidayWeek(week.startsOn, week.endsOn)}, ${names.get(week.hostSchoolId) ?? "Schule nicht mehr vorhanden"}`;
+        {groupParallelWeeks(period.weeks).map((group) => {
+          const schoolOf = (week: (typeof group)[number]) =>
+            names.get(week.hostSchoolId) ?? "Schule nicht mehr vorhanden";
+          const first = group[0]!;
+          const range = formatHolidayWeek(first.startsOn, first.endsOn);
+          const parallel = group.length > 1;
+          const label = parallel ? range : `${range}, ${schoolOf(first)}`;
           return (
             <li
-              key={weekId}
+              key={first.id ?? range}
               className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"
             >
               <span className="text-sm text-gray-900">{label}</span>
               <CustomSelect
-                value={draft[weekId] ?? ""}
+                value={weekGroupBooking(draft, group)}
+                wrapLabels={parallel}
                 options={[
                   { value: "", label: "Nicht angemeldet" },
-                  ...week.timeModels.map((model) => ({
-                    value: model.id ?? "",
-                    label: model.name,
-                  })),
+                  ...group.flatMap((week) =>
+                    week.timeModels.map((model) => ({
+                      value: model.id ?? "",
+                      label: parallel
+                        ? `${schoolOf(week)}: ${model.name}`
+                        : model.name,
+                    })),
+                  ),
                 ]}
-                onChange={(value) => onChange({ ...draft, [weekId]: value })}
+                onChange={(value) =>
+                  onChange(withWeekGroupBooking(draft, group, value))
+                }
                 ariaLabel={`Zeitmodell ${label}`}
                 className="w-full sm:w-56"
               />
@@ -318,7 +339,14 @@ function RebookingEditor({
           );
         })}
       </ul>
-      {footer}
+      <FieldErrorHint
+        id="holiday-rebooking-overlap"
+        message={
+          weeksOverlap(period, draft)
+            ? "Zwei dieser Wochen überschneiden sich. Bitte wählen Sie nur eine davon."
+            : null
+        }
+      />
     </div>
   );
 }

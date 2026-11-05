@@ -11,7 +11,6 @@ import {
 } from "react";
 import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
@@ -45,6 +44,7 @@ import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { setupStorageKey } from "./notification-setup-decision";
 import { notificationsConcept } from "~/lib/concepts/notifications";
 import { devicesConcept } from "~/lib/concepts/devices";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 export { setupStorageKey } from "./notification-setup-decision";
 
@@ -387,16 +387,13 @@ export function NotificationSetupDialog({
           <PushInstallSteps platform="android" />
         ) : (
           <div className="flex items-start gap-4">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gray-100">
-              <MotoConceptIcon
-                concept={
-                  mode.startsWith("install-")
-                    ? devicesConcept
-                    : notificationsConcept
-                }
-                size={22}
-              />
-            </div>
+            <ConceptIconTile
+              concept={
+                mode.startsWith("install-")
+                  ? devicesConcept
+                  : notificationsConcept
+              }
+            />
             <p>
               {mode === "install-android"
                 ? t("installAndroidIntro")

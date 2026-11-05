@@ -15,6 +15,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strconv"
 	"testing"
@@ -267,6 +268,28 @@ func TestTraegerLogoUploadChecksTypeSizeAndContent(t *testing.T) {
 	assert.Equal(t, "image/png", served.Header().Get("Content-Type"))
 	assert.Equal(t, "nosniff", served.Header().Get("X-Content-Type-Options"))
 	assert.Equal(t, logo, served.Body.Bytes())
+	assert.Equal(t, "private, no-store", served.Header().Get("Cache-Control"),
+		"an address without the logo's version is not stored")
+
+	// The master data hand out updated_at as the logo's version. Only that
+	// address may stay in the browser cache; a new upload changes it.
+	version := decodeSchoolPortalData[struct {
+		Logo struct {
+			UpdatedAt string `json:"updated_at"`
+		} `json:"logo"`
+	}](t, traegerJSON(t, router, office.token, http.MethodGet, "/traeger/master-data/", nil).Body.Bytes()).Logo.UpdatedAt
+	require.NotEmpty(t, version)
+	for v, want := range map[string]string{
+		version:                "private, max-age=31536000, immutable",
+		"2020-01-01T00:00:00Z": "private, no-store",
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/traeger/master-data/logo?v="+url.QueryEscape(v), nil)
+		req.Header.Set("Authorization", "Bearer "+office.token)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		assert.Equal(t, want, rec.Header().Get("Cache-Control"), "version %s", v)
+	}
 
 	refusals := []struct {
 		name, field, filename string

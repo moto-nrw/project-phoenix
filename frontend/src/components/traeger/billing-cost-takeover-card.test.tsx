@@ -53,6 +53,7 @@ function child(id: string, positions: BillingPosition[]) {
     lastName: "Muster",
     totalCents: 0,
     corrections: [],
+    carriedCorrections: [],
     positions,
   };
 }
@@ -85,6 +86,7 @@ const RUN: BillingRunDetail = {
       referenceNumber: "",
       reason: "",
       history: [],
+      replacedCredits: [],
       issuedOn: "2026-09-02",
       registrationId: "31",
       recipientFirstName: "Eva",
@@ -113,6 +115,7 @@ const RUN: BillingRunDetail = {
       referenceNumber: "",
       reason: "",
       history: [],
+      replacedCredits: [],
       issuedOn: "2026-09-02",
       registrationId: "32",
       recipientFirstName: "Tom",

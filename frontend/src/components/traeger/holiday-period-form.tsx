@@ -176,7 +176,7 @@ export function HolidayPeriodForm({
     <form
       ref={formRef}
       noValidate
-      className="space-y-6"
+      className="compact:space-y-4 space-y-6 max-sm:space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
         void save();
@@ -184,12 +184,18 @@ export function HolidayPeriodForm({
     >
       <FormErrorAlert message={errorPath.error} />
 
-      {/* Locked while saving: the answer replaces the draft, so an edit made
-          meanwhile would be lost. */}
-      <fieldset disabled={saving} className="min-w-0 space-y-6">
-        <SectionCard title="Anmeldung">
+      <SectionCard
+        title="Anmeldung und Wochen"
+        footer={
+          <EditActions onCancel={onCancel} saving={saving} saveType="submit" />
+        }
+      >
+        {/* Locked while saving: the answer replaces the draft, so an edit made
+            meanwhile would be lost. */}
+        <fieldset disabled={saving} className="min-w-0 space-y-6">
           <div className="space-y-4">
             <Input
+              controlSize="compact"
               name="name"
               label="Name des Ferienzeitraums"
               placeholder="Osterferien 2027"
@@ -252,53 +258,61 @@ export function HolidayPeriodForm({
               }
             />
           </div>
-        </SectionCard>
 
-        <SectionCard
-          title="Wochen"
-          description="Jede Woche findet an einer Schule Ihres Trägers statt."
-        >
-          <div className="space-y-4">
-            {draft.weeks.length === 0 ? (
+          <div className="space-y-4 border-t border-gray-200 pt-6">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-600">Wochen</h3>
               <p className="text-sm text-gray-600">
-                Noch keine Woche. Zum Veröffentlichen braucht der Ferienzeitraum
-                mindestens eine Woche.
+                Jede Woche findet an einer Schule Ihres Trägers statt. Wollen
+                Sie dieselben Tage an mehreren Schulen anbieten? Legen Sie dafür
+                je Schule eine Woche an. Eltern wählen dann eine Schule.
               </p>
-            ) : (
-              draft.weeks.map((week, index) => (
-                <HolidayWeekEditor
-                  key={week.key}
-                  index={index}
-                  week={week}
-                  schools={schools}
-                  fieldError={fieldError}
-                  onChange={(next) => setWeek(index, next)}
-                  onDateValidity={weekDateValidity}
-                  onRemove={() => {
-                    // The week's date flags go with it, so a later invalid
-                    // date of another week reports again.
-                    setInvalidDates((current) => {
-                      const prefix = `${week.key}:`;
-                      if (![...current].some((key) => key.startsWith(prefix))) {
-                        return current;
-                      }
-                      return new Set(
-                        [...current].filter((key) => !key.startsWith(prefix)),
-                      );
-                    });
-                    setDraft({
-                      ...draft,
-                      weeks: draft.weeks.filter((_, i) => i !== index),
-                    });
-                  }}
-                />
-              ))
-            )}
+            </div>
+            <div className="space-y-4">
+              {draft.weeks.length === 0 ? (
+                <p className="text-sm text-gray-600">
+                  Noch keine Woche. Zum Veröffentlichen braucht der
+                  Ferienzeitraum mindestens eine Woche.
+                </p>
+              ) : (
+                draft.weeks.map((week, index) => (
+                  <HolidayWeekEditor
+                    key={week.key}
+                    index={index}
+                    week={week}
+                    schools={schools}
+                    fieldError={fieldError}
+                    onChange={(next) => setWeek(index, next)}
+                    onDateValidity={weekDateValidity}
+                    onRemove={() => {
+                      // The week's date flags go with it, so a later invalid
+                      // date of another week reports again.
+                      setInvalidDates((current) => {
+                        const prefix = `${week.key}:`;
+                        if (
+                          ![...current].some((key) => key.startsWith(prefix))
+                        ) {
+                          return current;
+                        }
+                        return new Set(
+                          [...current].filter((key) => !key.startsWith(prefix)),
+                        );
+                      });
+                      setDraft({
+                        ...draft,
+                        weeks: draft.weeks.filter((_, i) => i !== index),
+                      });
+                    }}
+                  />
+                ))
+              )}
+            </div>
             {draft.weeks.length < MAX_HOLIDAY_WEEKS ? (
               <Button
                 type="button"
                 variant="outline"
                 size="md"
+                className="gap-2"
                 onClick={() =>
                   setDraft({ ...draft, weeks: [...draft.weeks, emptyWeek()] })
                 }
@@ -312,10 +326,8 @@ export function HolidayPeriodForm({
               </p>
             )}
           </div>
-        </SectionCard>
-      </fieldset>
-
-      <EditActions onCancel={onCancel} saving={saving} saveType="submit" />
+        </fieldset>
+      </SectionCard>
     </form>
   );
 }

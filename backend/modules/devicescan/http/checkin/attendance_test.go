@@ -234,11 +234,40 @@ func TestToggleAttendance_DailyCheckout(t *testing.T) {
 		t.Parallel()
 		k := setupAttendanceRoute(t)
 		tag, _, _ := k.studentCard(t, "NoVisit", "Student", "2a")
-		for _, destination := range []string{"zuhause", "unterwegs"} {
+		for _, destination := range []string{"zuhause", "unterwegs", "unterricht"} {
 			rr := k.call(t, "POST", "/toggle", dailyCheckout(tag, destination), k.device(t, "daily-"+destination))
 			testutil.AssertErrorResponse(t, rr, 404)
 			assert.Contains(t, rr.Body.String(), "student has no attendance record for today")
 		}
+	})
+	// #5656: the additive destination. Older kiosks never send it; the two
+	// destinations they do send keep their actions, pinned by the cases below.
+	t.Run("unterricht checks the child out to class", func(t *testing.T) {
+		t.Parallel()
+		k := setupAttendanceRoute(t)
+		device, deviceID := k.deviceRow(t, "daily-unterricht")
+		_, staffID, _ := k.staff(t, "Unterricht", "Staff")
+		tag, studentID, _ := k.studentCard(t, "Unterricht", "CheckedIn", "5a")
+		testpkg.CreateTestAttendance(t, k.db, studentID, staffID, deviceID, time.Now().Add(-2*time.Hour), nil)
+
+		rr := k.call(t, "POST", "/toggle", dailyCheckout(tag, "unterricht"), device)
+
+		testutil.AssertSuccessResponse(t, rr, 200)
+		data := responseData(t, rr.Body.Bytes())
+		assert.Equal(t, "checked_out_class", data["action"])
+		assert.Contains(t, data["message"], "Bis später")
+		records := k.todayAttendance(t, studentID)
+		require.Len(t, records, 1)
+		assert.NotNil(t, records[0].CheckOutTime)
+		require.NotNil(t, records[0].CheckOutReason)
+		assert.Equal(t, "class", *records[0].CheckOutReason)
+	})
+	t.Run("an unknown destination stays refused", func(t *testing.T) {
+		t.Parallel()
+		k := setupAttendanceRoute(t)
+		tag, _, _ := k.studentCard(t, "Unbekannt", "Ziel", "5a")
+		rr := k.call(t, "POST", "/toggle", dailyCheckout(tag, "garten"), k.device(t, "daily-garten"))
+		testutil.AssertErrorResponse(t, rr, 400)
 	})
 	t.Run("zuhause with a supervisor stays device-attributed", func(t *testing.T) {
 		t.Parallel()
@@ -304,6 +333,25 @@ func TestToggleAttendance_DailyCheckout(t *testing.T) {
 
 		testutil.AssertSuccessResponse(t, rr, 200)
 		assert.Equal(t, "checked_out_daily", responseData(t, rr.Body.Bytes())["action"])
+	})
+	t.Run("unterricht for a child already home answers the checkout on record", func(t *testing.T) {
+		t.Parallel()
+		k := setupAttendanceRoute(t)
+		device, deviceID := k.deviceRow(t, "daily-home-unterricht")
+		staff, staffID, _ := k.staff(t, "Zuhause", "Staff3")
+		tag, studentID, _ := k.studentCard(t, "Zuhause", "Daheim", "5c")
+		checkOut := time.Now().Add(-30 * time.Minute)
+		testpkg.CreateTestAttendance(t, k.db, studentID, staffID, deviceID, time.Now().Add(-2*time.Hour), &checkOut)
+
+		rr := k.call(t, "POST", "/toggle", dailyCheckout(tag, "unterricht"), device, staff)
+
+		testutil.AssertSuccessResponse(t, rr, 200)
+		data := responseData(t, rr.Body.Bytes())
+		assert.Equal(t, "checked_out_daily", data["action"])
+		assert.Contains(t, data["message"], "Tschüss")
+		records := k.todayAttendance(t, studentID)
+		require.Len(t, records, 1)
+		assert.Nil(t, records[0].CheckOutReason, "a home checkout is not relabelled")
 	})
 	t.Run("unterwegs keeps the attendance", func(t *testing.T) {
 		t.Parallel()

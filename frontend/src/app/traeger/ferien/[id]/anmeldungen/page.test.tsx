@@ -93,11 +93,12 @@ describe("TraegerHolidayRegistrationsPage", () => {
   it("lists the registrations with status, schools, weeks and the duplicate hint", async () => {
     renderPage();
 
-    expect(
-      await screen.findByText(
-        "2 Anmeldungen · 1 eingegangen · 0 bestätigt · 1 storniert",
-      ),
-    ).toBeInTheDocument();
+    // Anker: die Zahlen stehen einzeln, ohne Trennpunkte dazwischen (#5684).
+    expect(await screen.findByText("2 Anmeldungen")).toBeInTheDocument();
+    expect(screen.getByText("1 eingegangen")).toBeInTheDocument();
+    expect(screen.getByText("0 bestätigt")).toBeInTheDocument();
+    expect(screen.getByText("1 storniert")).toBeInTheDocument();
+    expect(screen.queryByText(/·/)).not.toBeInTheDocument();
     const table = within(screen.getByRole("table"));
     expect(table.getByText("Eva Muster")).toBeInTheDocument();
     expect(table.getByText("Lia Muster")).toBeInTheDocument();
@@ -106,7 +107,7 @@ describe("TraegerHolidayRegistrationsPage", () => {
       table.getByText("Feriengast (Grundschule Melle)"),
     ).toBeInTheDocument();
     expect(
-      table.getByText("04.01. bis 08.01.2027: bis 16 Uhr"),
+      table.getByText("04.01. bis 08.01.2027, OGS Nord: bis 16 Uhr"),
     ).toBeInTheDocument();
     expect(table.getByText("Mögliche Doppelanmeldung")).toBeInTheDocument();
     expect(
@@ -172,7 +173,7 @@ describe("TraegerHolidayRegistrationsPage", () => {
     // Die Filter stehen in der Filterzeile des Seitenkopfs (#5146); jeder
     // Auslöser nennt seinen aktuellen Wert.
     fireEvent.click(screen.getByRole("button", { name: "Alle Status" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Bestätigt" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Bestätigt" }));
     await waitFor(() =>
       expect(mockFetchList).toHaveBeenLastCalledWith(
         "5",
@@ -181,7 +182,7 @@ describe("TraegerHolidayRegistrationsPage", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Alle Schulen" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Feriengäste" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Feriengäste" }));
     await waitFor(() =>
       expect(mockFetchList).toHaveBeenLastCalledWith(
         "5",
@@ -191,12 +192,12 @@ describe("TraegerHolidayRegistrationsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Alle Wochen" }));
     fireEvent.click(
-      await screen.findByRole("button", {
+      await screen.findByRole("option", {
         name: "11.01. bis 15.01.2027, OGS Süd",
       }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Alle Zeitmodelle" }));
-    fireEvent.click(await screen.findByRole("button", { name: "bis 13 Uhr" }));
+    fireEvent.click(await screen.findByRole("option", { name: "bis 13 Uhr" }));
     await waitFor(() =>
       expect(mockFetchList).toHaveBeenLastCalledWith("5", {
         status: "confirmed",
@@ -395,7 +396,7 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
       }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Alle Status" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Eingegangen" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Eingegangen" }));
 
     await waitFor(() =>
       expect(

@@ -85,3 +85,28 @@ func (p *Projection) Schools(ctx context.Context, schools []int64) ([]traegervie
 	}
 	return result, nil
 }
+
+// schoolContactsQuery reads the contact data of the schools of the set.
+const schoolContactsQuery = `SELECT "school".id, "school".name, "school".slug, "school".subdomain,
+		COALESCE("school".city, '') AS city, COALESCE("school".address, '') AS address,
+		COALESCE("school".zip, '') AS zip, COALESCE("school".phone, '') AS phone,
+		COALESCE("school".email, '') AS email
+	FROM platform.schools AS "school"
+	WHERE "school".id = ANY(?0) AND "school".deleted_at IS NULL
+	ORDER BY "school".name, "school".id`
+
+// SchoolContacts reads the contact data of the schools of the set.
+func (p *Projection) SchoolContacts(ctx context.Context, schools []int64) ([]traegerview.SchoolContact, error) {
+	result := []traegerview.SchoolContact{}
+	if len(schools) == 0 {
+		return result, nil
+	}
+	db, err := p.scopedDB(ctx, schools)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.NewRaw(schoolContactsQuery, pgdialect.Array(schools)).Scan(ctx, &result); err != nil {
+		return nil, fmt.Errorf("traeger view postgres: school contacts: %w", err)
+	}
+	return result, nil
+}

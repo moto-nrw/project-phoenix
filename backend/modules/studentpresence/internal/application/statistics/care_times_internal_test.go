@@ -256,3 +256,81 @@ func TestStudentCareTimesWaitsForTodayAndNeedsBookedTimes(t *testing.T) {
 	assert.Equal(t, studentpresence.CareTimeDayNoPlan, kinds[from], "attended, but the booking names no times")
 	assert.Equal(t, 1, result.Summary.AbsentDays, "only Thursday is a shortfall")
 }
+
+func classSpan(studentID int64, date calendar.Date, fromHour, fromMinute, toHour, toMinute int) *ports.Attendance {
+	row := span(studentID, date, fromHour, fromMinute, toHour, toMinute)
+	reason := studentpresence.CheckoutReasonClass
+	row.CheckOutReason = &reason
+	return row
+}
+
+// Soll is the booking and Ist runs from the first check-in to the last check-out
+// (#4774). Time in class takes nothing off either side and is only shown (#5656).
+func TestClassifyCareTimeDayShowsTimeInClassWithoutDeducting(t *testing.T) {
+	t.Parallel()
+
+	const child = int64(7)
+	date := calendar.NewDate(2026, 8, 17)
+	key := dayKey{child, date}
+	classify := func(plan ports.PlannedCareDay, rows ...*ports.Attendance) studentpresence.CareTimeDay {
+		attended := attendanceSpans(rows)[key]
+		day, listed := classifyCareTimeDay(date, plan, &attended, "", true)
+		require.True(t, listed)
+		return day
+	}
+	wholeDay := booked(wallClockAt(7, 30), wallClockAt(16, 0))
+	at := func(hour, minute int) calendar.WallClock { return *wallClockAt(hour, minute) }
+
+	t.Run("no return reads as the checkout, with the class time open", func(t *testing.T) {
+		t.Parallel()
+		day := classify(wholeDay, classSpan(child, date, 7, 30, 8, 30))
+		assert.Equal(t, studentpresence.CareTimeDayWithinPlan, day.Kind)
+		assert.Equal(t, minutes(60), day.ActualMinutes)
+		assert.Equal(t, minutes(510), day.PlannedMinutes)
+		assert.Equal(t, minutes(-450), day.DeviationMinutes)
+		require.Len(t, day.ClassTimes, 1)
+		assert.Equal(t, at(8, 30), day.ClassTimes[0].Start)
+		assert.Nil(t, day.ClassTimes[0].End)
+	})
+
+	t.Run("return keeps the class hours in both sides and shows the gap", func(t *testing.T) {
+		t.Parallel()
+		day := classify(wholeDay, span(child, date, 13, 0, 16, 0), classSpan(child, date, 7, 30, 8, 30))
+		assert.Equal(t, studentpresence.CareTimeDayWithinPlan, day.Kind)
+		assert.Equal(t, minutes(510), day.ActualMinutes)
+		assert.Equal(t, minutes(510), day.PlannedMinutes)
+		assert.Equal(t, minutes(0), day.DeviationMinutes)
+		require.Len(t, day.ClassTimes, 1)
+		assert.Equal(t, at(8, 30), day.ClassTimes[0].Start)
+		require.NotNil(t, day.ClassTimes[0].End)
+		assert.Equal(t, at(13, 0), *day.ClassTimes[0].End)
+	})
+
+	t.Run("overrun is measured against the booking", func(t *testing.T) {
+		t.Parallel()
+		day := classify(booked(wallClockAt(13, 0), wallClockAt(16, 0)),
+			classSpan(child, date, 7, 30, 8, 30), span(child, date, 13, 0, 16, 0))
+		assert.Equal(t, studentpresence.CareTimeDayOverrun, day.Kind)
+		assert.Equal(t, 330, day.EarlyMinutes, "the first check-in is 07:30, the booking starts at 13:00")
+		assert.Equal(t, minutes(330), day.DeviationMinutes)
+	})
+
+	t.Run("unbooked day counts first check-in to last check-out", func(t *testing.T) {
+		t.Parallel()
+		day := classify(ports.PlannedCareDay{},
+			span(child, date, 12, 0, 14, 0), classSpan(child, date, 8, 0, 9, 0), classSpan(child, date, 7, 0, 7, 30))
+		assert.Equal(t, studentpresence.CareTimeDayUnbooked, day.Kind)
+		assert.Equal(t, minutes(420), day.ActualMinutes)
+		require.Len(t, day.ClassTimes, 2)
+		assert.Equal(t, at(7, 30), day.ClassTimes[0].Start, "earliest first, whatever the row order")
+		require.NotNil(t, day.ClassTimes[0].End)
+		assert.Equal(t, at(8, 0), *day.ClassTimes[0].End)
+	})
+
+	t.Run("going home shows no class time", func(t *testing.T) {
+		t.Parallel()
+		day := classify(wholeDay, span(child, date, 7, 30, 8, 30))
+		assert.Empty(t, day.ClassTimes)
+		assert.Equal(t, minutes(-450), day.DeviationMinutes)
+	})
+}

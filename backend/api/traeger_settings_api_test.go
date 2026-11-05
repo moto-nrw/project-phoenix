@@ -39,10 +39,11 @@ func traegerSettingsRequest(t *testing.T, router http.Handler, token, method, pa
 }
 
 type traegerSchemaItem struct {
-	Key      string `json:"key"`
-	Value    any    `json:"value"`
-	Source   string `json:"source"`
-	Writable bool   `json:"writable"`
+	Key         string `json:"key"`
+	Value       any    `json:"value"`
+	Source      string `json:"source"`
+	Writable    bool   `json:"writable"`
+	Placeholder string `json:"placeholder"`
 }
 
 func traegerSchemaItems(t *testing.T, router http.Handler, token string) (int, map[string]traegerSchemaItem) {
@@ -91,6 +92,11 @@ func TestTraegerSettingsWriteReachesOnlyTheTraegerOfTheSession(t *testing.T) {
 	assert.Equal(t, "traeger", items[key].Source)
 	assert.True(t, items[key].Writable)
 	assert.NotContains(t, items, records.KeyMFAMode, "school-only settings are no Träger settings")
+	sender := items[records.KeyBrandingLetterheadText]
+	assert.Equal(t, "", sender.Value, "the sender stays empty without an entry (#5693)")
+	assert.Equal(t, records.GetDefinition(records.KeyBrandingLetterheadText).Placeholder, sender.Placeholder,
+		"the schema carries the example of an empty field")
+	assert.NotEmpty(t, sender.Placeholder)
 
 	module, err := owners.NewSettingsTestModule(testpkg.NewDatabase(t, db), unit)
 	require.NoError(t, err)

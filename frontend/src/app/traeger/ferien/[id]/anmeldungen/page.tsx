@@ -17,7 +17,10 @@ import {
   holidayTimeModelNames,
   schoolNames,
 } from "~/components/traeger/holiday-registration-format";
-import { holidayPeriodTabs } from "~/components/traeger/holiday-period-head";
+import {
+  HolidayHeadFacts,
+  holidayPeriodTabs,
+} from "~/components/traeger/holiday-period-head";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { Alert } from "~/components/ui/alert";
@@ -220,6 +223,9 @@ function columns(
                       booking.weekStartsOn,
                       booking.weekEndsOn,
                     )}
+                    ,{" "}
+                    {names.get(booking.hostSchoolId) ??
+                      "Schule nicht mehr vorhanden"}
                     : {booking.timeModelName}
                   </li>
                 ))}
@@ -259,9 +265,27 @@ function columns(
   ];
 }
 
-function statusLine(list: HolidayRegistrationList): string {
-  const total = list.total === 1 ? "1 Anmeldung" : `${list.total} Anmeldungen`;
-  return `${total} · ${list.statusCounts.received} eingegangen · ${list.statusCounts.confirmed} bestätigt · ${list.statusCounts.cancelled} storniert`;
+/** Die Zahlen je Status in denselben Farben wie die Plaketten der Tabelle. */
+function StatusLine({ list }: Readonly<{ list: HolidayRegistrationList }>) {
+  return (
+    <HolidayHeadFacts>
+      <span>
+        {list.total === 1 ? "1 Anmeldung" : `${list.total} Anmeldungen`}
+      </span>
+      <StatusBadge
+        tone={HOLIDAY_REGISTRATION_STATUS_TONES.received}
+        label={`${list.statusCounts.received} eingegangen`}
+      />
+      <StatusBadge
+        tone={HOLIDAY_REGISTRATION_STATUS_TONES.confirmed}
+        label={`${list.statusCounts.confirmed} bestätigt`}
+      />
+      <StatusBadge
+        tone={HOLIDAY_REGISTRATION_STATUS_TONES.cancelled}
+        label={`${list.statusCounts.cancelled} storniert`}
+      />
+    </HolidayHeadFacts>
+  );
 }
 
 /** Registrations with a child that is maybe registered twice. */
@@ -541,7 +565,7 @@ export default function TraegerHolidayRegistrationsPage() {
       back
       backHref={traegerPath("/traeger/ferien")}
       backLabel="Zurück zu den Ferien"
-      stats={list ? statusLine(list) : null}
+      stats={list ? <StatusLine list={list} /> : null}
       statsLoading={!list && !loadError}
       tabs={holidayPeriodTabs(
         periodId,

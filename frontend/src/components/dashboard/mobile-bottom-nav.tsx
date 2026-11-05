@@ -15,6 +15,8 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { isSharedOpenRoom } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { useTraegerReturnHref } from "~/lib/hooks/use-traeger-return-href";
+import { TRAEGER_RETURN_LABEL } from "~/lib/traeger-handoff";
 import {
   canReadSupervisionData,
   hasEffectiveAdminScope,
@@ -762,6 +764,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Get shell auth mode
   const { mode, isSessionExpired, canStartStaffPreview, profileUrl } =
     useShellAuth();
+  const traegerReturnHref = useTraegerReturnHref();
 
   // Check if current path matches nav item
   const isActiveRoute = useCallback(
@@ -1255,6 +1258,28 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
             </DrawerHeader>
             <div className="px-4 pt-6 pb-4">
               <div className="space-y-5">
+                {/* Rückweg ins Träger-Portal (#5687): ganz oben, unter 1024 px
+                    gibt es weder Seitenleiste noch Kopfzeile. */}
+                {traegerReturnHref ? (
+                  <ButtonLink
+                    href={traegerReturnHref}
+                    variant="surface"
+                    size="md"
+                    className="w-full justify-start gap-3"
+                  >
+                    <MobileNavIcon
+                      item={{
+                        iconKey: "profile",
+                        concept: organizationsConcept,
+                      }}
+                      active={false}
+                      className="h-5 w-5 text-gray-600"
+                    />
+                    <span className="text-base font-medium text-gray-900">
+                      {TRAEGER_RETURN_LABEL}
+                    </span>
+                  </ButtonLink>
+                ) : null}
                 {visibleDrawerGroups.map((group) => (
                   <div key={group.key} className="space-y-2">
                     {/* Gruppenüberschrift wie in der Seitenleiste; die

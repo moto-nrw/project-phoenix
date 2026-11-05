@@ -1501,7 +1501,7 @@ describe("staff-api", () => {
 
       const staff = mapStaffRecord(await staffService.getStaffRecord("1"));
 
-      expect(staff.avatarUrl).toBe("/api/staff/1/avatar");
+      expect(staff.avatarUrl).toBe("/api/staff/1/avatar?v=lea.png");
     });
 
     it("leaves the profile picture empty without a stored avatar", async () => {

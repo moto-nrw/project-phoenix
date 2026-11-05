@@ -93,6 +93,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.run_correction_dismissals",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.run_corrections",
       "write_owner": "parent-billing"
     },

@@ -82,3 +82,17 @@ func TestIsAtSchoolBeforeCheckIn(t *testing.T) {
 		})
 	}
 }
+
+func TestInClassUntilCareDayEnd(t *testing.T) {
+	t.Parallel()
+
+	berlin := func(hour, minute int) time.Time {
+		return time.Date(2026, time.September, 16, hour, minute, 0, 0, calendar.Berlin)
+	}
+
+	assert.True(t, InClassUntilCareDayEnd("16:00", berlin(15, 59)))
+	assert.False(t, InClassUntilCareDayEnd("16:00", berlin(16, 0)), "the status ends with the care day")
+	assert.True(t, InClassUntilCareDayEnd("  ", berlin(23, 0)), "without an end it holds for the day")
+	// The clock is Berlin wall time, whatever zone the instant arrives in.
+	assert.False(t, InClassUntilCareDayEnd("16:00", berlin(16, 30).UTC()))
+}

@@ -22,6 +22,7 @@ import {
   formatChatDateTime,
   formatChatClockTime,
   formatBerlinDate,
+  formatBerlinTime,
   relativeDaysLabel,
   careWeekDayCount,
   isCareWeekendDay,
@@ -270,6 +271,19 @@ describe("formatBerlinDate", () => {
     expect(formatBerlinDate("2026-07-20T21:59:59.000Z", "en-GB")).toBe(
       "20/07/2026",
     );
+  });
+});
+
+describe("formatBerlinTime", () => {
+  it("keeps the school clock for a viewer outside Europe/Berlin", () => {
+    const previousTZ = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+    try {
+      expect(formatBerlinTime("2026-09-09T10:00:00Z")).toBe("12:00");
+    } finally {
+      if (previousTZ === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTZ;
+    }
   });
 });
 

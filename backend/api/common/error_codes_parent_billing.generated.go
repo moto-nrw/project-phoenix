@@ -17,6 +17,7 @@ const CodeParentBillingBillingRunNotFound = "parent_billing.billing_run_not_foun
 const CodeParentBillingBillingRunNotReleased = "parent_billing.billing_run_not_released"
 const CodeParentBillingBillingRunOpen = "parent_billing.billing_run_open"
 const CodeParentBillingBillingRunReleased = "parent_billing.billing_run_released"
+const CodeParentBillingCarriedCorrectionNotFound = "parent_billing.carried_correction_not_found"
 const CodeParentBillingContributionRuleInvalid = "parent_billing.contribution_rule_invalid"
 const CodeParentBillingContributionRuleNotFound = "parent_billing.contribution_rule_not_found"
 const CodeParentBillingContributionRuleOverlap = "parent_billing.contribution_rule_overlap"
@@ -59,6 +60,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBillingRunNotReleased, "business_rejection"},
 	{CodeParentBillingBillingRunOpen, "business_rejection"},
 	{CodeParentBillingBillingRunReleased, "business_rejection"},
+	{CodeParentBillingCarriedCorrectionNotFound, "business_rejection"},
 	{CodeParentBillingContributionRuleInvalid, "input"},
 	{CodeParentBillingContributionRuleNotFound, "business_rejection"},
 	{CodeParentBillingContributionRuleOverlap, "business_rejection"},

@@ -374,8 +374,8 @@ function StaffOnboardingForPerson() {
         loadingText="Wird ausgeblendet…"
       >
         <p className="text-sm text-gray-700">
-          Die Checkliste verschwindet für Sie. Sie können sie nicht wieder
-          einblenden.
+          Die Checkliste verschwindet für Sie in jeder OGS, in der Sie arbeiten.
+          Sie können sie nicht wieder einblenden.
         </p>
         <p className="mt-2 text-sm text-gray-700">
           Die Anleitungen zu allen Schritten finden Sie weiter unter „Hilfe“.

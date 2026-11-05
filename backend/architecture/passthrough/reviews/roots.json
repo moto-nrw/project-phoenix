@@ -802,6 +802,11 @@
     },
     {
       "decision": "0115",
+      "id": "api/parentBillingHolidayRegistrations.CancelHolidayRegistration",
+      "reason": "ADR 0115 addendum (#5662): Consumer-port adapter of the Elternabrechnung's holiday registrations; it cancels through Enrollment's review in the caller's Träger transaction, so the Elternabrechnung computes the sibling group again in the same unit, and translates the registration and Enrollment's refusals into the Elternabrechnung's vocabulary."
+    },
+    {
+      "decision": "0115",
       "id": "api/parentBillingHolidayRegistrations.ConfirmHolidayRegistration",
       "reason": "ADR 0115 (#4664), ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's holiday registrations; it confirms with the debtor number through Enrollment's review in the caller's Träger transaction and translates the registration and Enrollment's refusals into the Elternabrechnung's vocabulary."
     },
@@ -849,6 +854,11 @@
       "decision": "0121",
       "id": "api/parentBillingSettings.AsksDebtorNumber",
       "reason": "ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's settings port; it reads the Träger switch for the debtor number through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed switch into the port's answer."
+    },
+    {
+      "decision": "0115",
+      "id": "api/parentBillingSettings.HolidayChain",
+      "reason": "ADR 0115 addendum (#5664): Consumer-port adapter of the Elternabrechnung's settings port; it reads how the Träger ranks siblings and when a cost bearer takes over through the Settings Platform's Träger level in the caller's Träger transaction and translates the two keys into the chain settings of the Elternabrechnung."
     },
     {
       "decision": "0121",

@@ -9,7 +9,7 @@ import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
-import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import { MultiSelect } from "~/components/ui/multi-select";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
   filesService,
@@ -218,18 +218,18 @@ export function FolderModal({
               >
                 Rollen
               </label>
-              <MultiCheckboxSelect
+              <MultiSelect
                 id="ordner-rollen"
                 value={roleIds}
                 options={roleOptions}
                 onChange={setRoleIds}
-                emptyLabel="Keine Rolle gewählt"
+                placeholder="Keine Rolle gewählt"
                 unavailableLabel="Keine Rollen vorhanden"
-                multipleLabel={(count) => `${count} Rollen`}
+                summaryLabel={(count) => `${count} Rollen`}
                 searchable
+                selectAll
                 searchPlaceholder="Rolle suchen"
-                className="w-full"
-                ariaInvalid={audienceHint ? true : undefined}
+                invalid={Boolean(audienceHint)}
                 ariaDescribedBy={
                   audienceHint ? "ordner-rollen-hinweis" : undefined
                 }
@@ -250,17 +250,17 @@ export function FolderModal({
               >
                 Personen
               </label>
-              <MultiCheckboxSelect
+              <MultiSelect
                 id="ordner-personen"
                 value={accountIds}
                 options={accountOptions}
                 onChange={setAccountIds}
-                emptyLabel="Keine Person gewählt"
+                placeholder="Keine Person gewählt"
                 unavailableLabel="Keine Personen mit Zugang"
-                multipleLabel={(count) => `${count} Personen`}
+                summaryLabel={(count) => `${count} Personen`}
                 searchable
+                selectAll
                 searchPlaceholder="Person suchen"
-                className="w-full"
               />
             </div>
             <p className="text-xs leading-5 text-gray-500">

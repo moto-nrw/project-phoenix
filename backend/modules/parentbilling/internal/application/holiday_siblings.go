@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Siblings from separate holiday registrations (#5628, ADR 0115 addendum).
@@ -54,14 +55,19 @@ type holidayMemberChoice struct {
 // chainMember is the registration as the chain ranks it: a frozen one with
 // the base prices, the exemption and the cost bearer it froze (#5627), so a
 // later price or a renamed cost bearer changes nothing; else with its
-// bookings and the parents' statement.
+// bookings and the parents' statement. The frozen lines hold no date of
+// birth; it comes with the registration (#5664).
 func (m siblingMember) chainMember() holidayMember {
 	if m.frozen == nil {
 		return holidayMember{children: m.registration.Children, exemption: m.registration.BenefitsDeclared}
 	}
+	birthDates := make(map[int64]calendar.Date, len(m.registration.Children))
+	for _, child := range m.registration.Children {
+		birthDates[child.ID] = child.BirthDate
+	}
 	children := make([]parentbilling.HolidayChild, len(m.frozen.Children))
 	for i, child := range m.frozen.Children {
-		children[i] = parentbilling.HolidayChild{ID: child.ChildID, Position: child.Position}
+		children[i] = parentbilling.HolidayChild{ID: child.ChildID, Position: child.Position, BirthDate: birthDates[child.ChildID]}
 		for _, line := range child.Lines {
 			if line.Kind != parentbilling.LineBase || line.WeekStartsOn == nil || line.WeekEndsOn == nil {
 				continue
@@ -281,9 +287,9 @@ func sentOrder(members []siblingMember) []siblingMember {
 
 // computeSiblings runs the chain over the registrations of a group that
 // are not cancelled, in the order they were sent, with the rules valid on
-// the first booked day of the group. chosen overrides the exemption and the
-// cost bearer of one registration: the one the Träger-Büro is about to
-// confirm or preview (#5627).
+// the first booked day of the group and the choices groupChain names. chosen
+// overrides the exemption and the cost bearer of one registration: the one
+// the Träger-Büro is about to confirm or preview (#5627).
 func (h *HolidayContributions) computeSiblings(ctx context.Context, organizationID int64, members []siblingMember, chosen map[int64]holidayMemberChoice) (map[int64]parentbilling.HolidayContribution, error) {
 	var ranked []siblingMember
 	var chain []holidayMember
@@ -304,7 +310,13 @@ func (h *HolidayContributions) computeSiblings(ctx context.Context, organization
 	if err != nil {
 		return nil, fmt.Errorf("parent billing: read contribution rules: %w", err)
 	}
-	results := computeHolidaySiblings(chain, validHolidayRules(rules, firstHolidayDay(children)))
+	current, err := h.chainSettings(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	valid := validHolidayRules(rules, firstHolidayDay(children))
+	valid.chain = groupChain(ranked, current)
+	results := computeHolidaySiblings(chain, valid)
 	computed := make(map[int64]parentbilling.HolidayContribution, len(ranked))
 	for i, member := range ranked {
 		computed[member.id()] = results[i]
@@ -312,11 +324,41 @@ func (h *HolidayContributions) computeSiblings(ctx context.Context, organization
 	return computed, nil
 }
 
+// groupChain names the choices a group computes with (#5664). A group with a
+// frozen contribution keeps the choices it froze, so a later change of the
+// settings changes no frozen contribution, also when the group is computed
+// again and when a further registration of it is confirmed. Only registrations
+// frozen under different choices, merged after the change, take the current
+// ones.
+func groupChain(members []siblingMember, current parentbilling.HolidayChainSettings) parentbilling.HolidayChainSettings {
+	var frozen *parentbilling.HolidayChainSettings
+	for _, member := range members {
+		switch {
+		case member.frozen == nil:
+		case frozen == nil:
+			frozen = &member.frozen.Chain
+		case *frozen != member.frozen.Chain:
+			return current
+		}
+	}
+	if frozen == nil {
+		return current
+	}
+	return *frozen
+}
+
 // refreezeSiblings computes the group again and stores a new version of the
 // frozen contribution of every confirmed registration whose contribution
 // changes. A registration an issued invoice bills keeps its own. An
 // exemption it froze stays only while a rule allows it.
 func (h *HolidayContributions) refreezeSiblings(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64, members []siblingMember, issued map[int64]bool) error {
+	return h.refreeze(ctx, reviewer, periodID, members, issued, false)
+}
+
+// refreeze is refreezeSiblings; with keepExemptions a registration whose
+// frozen exemption no rule allows any more keeps its contribution instead
+// of refusing: an exempt family pays nothing either way (#5662).
+func (h *HolidayContributions) refreeze(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64, members []siblingMember, issued map[int64]bool, keepExemptions bool) error {
 	if len(members) == 0 {
 		return nil
 	}
@@ -330,10 +372,11 @@ func (h *HolidayContributions) refreezeSiblings(ctx context.Context, reviewer pa
 			member.registration.Status != parentbilling.HolidayRegistrationConfirmed {
 			continue
 		}
-		if member.frozen.BenefitsExemption && !next.BenefitsExemption {
-			return parentbilling.ErrBenefitsExemptionUnavailable
+		changed, err := refrozen(*member.frozen, next, keepExemptions)
+		if err != nil {
+			return err
 		}
-		if sameContribution(*member.frozen, next) {
+		if !changed {
 			continue
 		}
 		if err := h.store.InsertHolidayContributions(ctx, reviewer.OrganizationID, periodID, member.id(), reviewer.AccountID, next); err != nil {
@@ -341,6 +384,19 @@ func (h *HolidayContributions) refreezeSiblings(ctx context.Context, reviewer pa
 		}
 	}
 	return nil
+}
+
+// refrozen reports whether next is a new version of the frozen
+// contribution: other amounts or other chain settings (#5664). A frozen exemption no rule allows any more refuses, or with
+// keepExemptions keeps the frozen contribution.
+func refrozen(frozen, next parentbilling.HolidayContribution, keepExemptions bool) (bool, error) {
+	if frozen.BenefitsExemption && !next.BenefitsExemption {
+		if keepExemptions {
+			return false, nil
+		}
+		return false, parentbilling.ErrBenefitsExemptionUnavailable
+	}
+	return !sameContribution(frozen, next) || frozen.Chain != next.Chain, nil
 }
 
 // shareDebtorNumber gives every confirmed registration of the group that no

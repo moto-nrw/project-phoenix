@@ -30,6 +30,7 @@ func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request
 		StudentsExcused:      analytics.StudentsExcused,
 		StudentsHome:         analytics.StudentsHome,
 		StudentsAtSchool:     analytics.StudentsAtSchool,
+		StudentsInClass:      analytics.StudentsInClass,
 		ActiveActivities:     analytics.ActiveActivities,
 		FreeRooms:            analytics.FreeRooms,
 		TotalRooms:           analytics.TotalRooms,

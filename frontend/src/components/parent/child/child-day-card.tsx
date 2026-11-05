@@ -58,6 +58,10 @@ function explainState(today: ChildToday, t: TodayTranslator): string {
       return today.until
         ? t("state.left", { time: today.until })
         : t("state.leftNoTime");
+    case "in_class":
+      return today.until
+        ? t("state.inClass", { time: today.until })
+        : t("state.inClassNoTime");
     case "expected":
       return today.expected_from
         ? t("state.expected", { time: today.expected_from })

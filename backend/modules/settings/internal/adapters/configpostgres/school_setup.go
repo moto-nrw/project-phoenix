@@ -147,6 +147,25 @@ func (r *SchoolSetupRepository[S]) IsDismissed(ctx context.Context, accountID in
 	return exists, nil
 }
 
+// DismissedInTraeger reports whether the account hid the wizard in any school
+// of the Träger of the ambient school. RLS hides those rows from the tenant
+// role, so the function checks the Träger membership itself (#5659).
+func (r *SchoolSetupRepository[S]) DismissedInTraeger(ctx context.Context, accountID int64) (bool, error) {
+	if accountID <= 0 {
+		return false, errors.New("account ID is required")
+	}
+	db, err := r.runtime.DB(ctx)
+	if err != nil {
+		return false, err
+	}
+	var dismissed bool
+	err = db.NewRaw(`SELECT config.school_setup_dismissed_in_traeger(?)`, accountID).Scan(ctx, &dismissed)
+	if err != nil {
+		return false, fmt.Errorf("find school setup dismissal in Träger: %w", err)
+	}
+	return dismissed, nil
+}
+
 // SetDismissed hides or shows the wizard for the account. Both directions are
 // idempotent.
 func (r *SchoolSetupRepository[S]) SetDismissed(ctx context.Context, tenantID, accountID int64, dismissed bool) error {
@@ -176,6 +195,24 @@ func (r *SchoolSetupRepository[S]) SetDismissed(ctx context.Context, tenantID, a
 		Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("restore school setup: %w", err)
+	}
+	return nil
+}
+
+// RestoreDismissedInTraeger restores the wizard in every school of the
+// ambient school's Träger. The SECURITY DEFINER function verifies the active
+// Träger membership before reaching sibling-school rows (#5659).
+func (r *SchoolSetupRepository[S]) RestoreDismissedInTraeger(ctx context.Context, accountID int64) error {
+	if accountID <= 0 {
+		return errors.New("account ID is required")
+	}
+	db, err := r.runtime.DB(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = db.NewRaw(`SELECT config.restore_school_setup_dismissals_in_traeger(?)`, accountID).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("restore school setup in Träger: %w", err)
 	}
 	return nil
 }

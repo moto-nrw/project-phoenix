@@ -69,6 +69,7 @@ import type {
 import { isCareDayExpected, isNotScheduledRow } from "~/lib/timetable-types";
 import { rosterRunState } from "~/components/active-supervisions/view-model";
 import { presentConcept } from "~/lib/concepts/present";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 /**
  * Marks the attendance mutation as our own before firing the request so the
@@ -796,9 +797,7 @@ function TimetableRosterHeader({
         {/* Ab sm hält der Titel seine Mindestbreite: viele Knöpfe brechen
             um, statt Raum und Uhrzeit abzuschneiden. */}
         <div className="flex min-w-0 items-center gap-3 sm:min-w-64">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
-            <MotoConceptIcon concept={presentConcept} size={18} />
-          </span>
+          <ConceptIconTile concept={presentConcept} size="sm" />
           <div className="min-w-0">
             {/* Der Kicker folgt dem Zustand des Blocks. Fest "Aktiv" war
                 gelogen, sobald der Roster eines beendeten Termins offen ist —
@@ -903,7 +902,10 @@ function TimetableRosterHeader({
         // Kinder im Raum heißen hier wie die Liste darunter (#3921).
         <div className="grid grid-cols-2 gap-2 p-4">
           <RosterSummaryStat label="Teilnehmende" value={summary.unplanned} />
-          <RosterSummaryStat label="Gegangen" value={summary.departed} />
+          <RosterSummaryStat
+            label="Nicht mehr im Raum"
+            value={summary.departed}
+          />
         </div>
       ) : showTimetableCounts ? (
         <div
@@ -920,7 +922,10 @@ function TimetableRosterHeader({
             />
           ) : null}
           <RosterSummaryStat label="Abwesend" value={summary.absent} />
-          <RosterSummaryStat label="Gegangen" value={summary.departed} />
+          <RosterSummaryStat
+            label="Nicht mehr im Raum"
+            value={summary.departed}
+          />
           <RosterSummaryStat label="Ungeplant" value={summary.unplanned} />
         </div>
       ) : null}

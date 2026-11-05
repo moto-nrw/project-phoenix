@@ -27,6 +27,9 @@ vi.mock("~/components/ui/custom-select", () => ({
     ariaDescribedBy,
     name,
     invalid,
+    label,
+    hint,
+    error,
   }: {
     id?: string;
     value: string;
@@ -37,25 +40,40 @@ vi.mock("~/components/ui/custom-select", () => ({
     ariaDescribedBy?: string;
     name?: string;
     invalid?: boolean;
-  }) => (
-    <select
-      id={id}
-      name={name}
-      aria-labelledby={ariaLabelledBy}
-      aria-describedby={ariaDescribedBy}
-      aria-invalid={invalid || undefined}
-      value={value}
-      disabled={disabled}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      <option value="">–</option>
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  ),
+    label?: string;
+    hint?: string;
+    error?: string | null;
+  }) => {
+    // Same ids and order as the kit: label, hint, then the error message.
+    const describedBy =
+      [ariaDescribedBy, hint && `${id}-hint`, error && `${id}-error`]
+        .filter(Boolean)
+        .join(" ") || undefined;
+    return (
+      <div>
+        {label ? <label htmlFor={id}>{label}</label> : null}
+        <select
+          id={id}
+          name={name}
+          aria-labelledby={ariaLabelledBy}
+          aria-describedby={describedBy}
+          aria-invalid={invalid || Boolean(error) || undefined}
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          <option value="">–</option>
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        {hint ? <p id={`${id}-hint`}>{hint}</p> : null}
+        {error ? <p id={`${id}-error`}>{error}</p> : null}
+      </div>
+    );
+  },
 }));
 
 const teacher: Teacher = {

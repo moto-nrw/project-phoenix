@@ -220,6 +220,24 @@ export function HolidayFormEditor({
           <SectionCard
             title="Fragen"
             description="Diese Fragen stehen in der Ferienanmeldung zusätzlich zu den festen Angaben."
+            footer={
+              <EditActions
+                onCancel={() => {
+                  errorPath.clear();
+                  void cleanup();
+                  setLegalBlocks([...(form.legalBlocks ?? [])]);
+                  setAddress(form.addressRequirement);
+                  // New row identities also discard row-local input drafts.
+                  setFields(form.fields.map((field) => ({ ...field })));
+                }}
+                onSave={() => void save()}
+                saving={saving}
+                cancelDisabled={uploads > 0}
+                disabled={!dirty || uploads > 0}
+                cancelLabel="Änderungen verwerfen"
+                saveLabel="Als neue Version speichern"
+              />
+            }
             action={
               <Button
                 type="button"
@@ -357,23 +375,6 @@ export function HolidayFormEditor({
                 }}
                 onUploadStart={lifecycle.begin}
                 onUploadEnd={lifecycle.end}
-              />
-              <EditActions
-                onCancel={() => {
-                  errorPath.clear();
-                  void cleanup();
-                  setLegalBlocks([...(form.legalBlocks ?? [])]);
-                  setAddress(form.addressRequirement);
-                  // New row identities also discard row-local input drafts.
-                  setFields(form.fields.map((field) => ({ ...field })));
-                }}
-                onSave={() => void save()}
-                saving={saving}
-                cancelDisabled={uploads > 0}
-                disabled={!dirty || uploads > 0}
-                cancelLabel="Änderungen verwerfen"
-                saveLabel="Als neue Version speichern"
-                className="border-t border-gray-100 pt-4"
               />
             </div>
           </SectionCard>
