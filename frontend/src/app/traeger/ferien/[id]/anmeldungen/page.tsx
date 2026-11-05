@@ -615,13 +615,16 @@ export default function TraegerHolidayRegistrationsPage() {
                 ? "1 Anmeldung ausgewählt. Wählen Sie mindestens eine weitere Anmeldung derselben Familie."
                 : `${selected.size} Anmeldungen ausgewählt. Als Geschwister zählen ihre Kinder beim Ferienbeitrag zusammen.`}
             </p>
-            <div className="flex flex-wrap gap-2">
+            {/* On a phone both actions take the full width, the main one on
+                top, so they do not wrap into rows of different widths. */}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
               <Button
                 type="button"
                 variant="outline"
                 size="md"
                 disabled={merging}
                 onClick={() => setSelected(new Set())}
+                className="w-full sm:w-auto"
               >
                 Auswahl aufheben
               </Button>
@@ -634,6 +637,7 @@ export default function TraegerHolidayRegistrationsPage() {
                   disabled={loading}
                   loadingText="Führt zusammen …"
                   onClick={() => void mergeSiblings()}
+                  className="w-full sm:w-auto"
                 >
                   Als Geschwister zusammenführen
                 </Button>

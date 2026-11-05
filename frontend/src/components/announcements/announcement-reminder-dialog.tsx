@@ -184,7 +184,9 @@ export function AnnouncementReminderDialog({
         suspended={confirmRemove}
         error={formErrors.error}
         footer={
-          <div className="flex flex-wrap justify-end gap-2">
+          // On a phone Abbrechen and Speichern share one full-width row and
+          // „Erinnerung entfernen“ sits full width below them (#5758).
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             {hasReminder && (
               <Button
                 type="button"
@@ -192,30 +194,34 @@ export function AnnouncementReminderDialog({
                 size="md"
                 onClick={() => setConfirmRemove(true)}
                 disabled={pending !== null}
-                className="mr-auto"
+                className="w-full sm:mr-auto sm:w-auto"
               >
                 {pending === "remove"
                   ? "Wird entfernt…"
                   : "Erinnerung entfernen"}
               </Button>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={onClose}
-              disabled={pending !== null}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              size="md"
-              onClick={() => void submit(false)}
-              disabled={pending !== null}
-            >
-              {pending === "save" ? "Wird gespeichert…" : "Speichern"}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={onClose}
+                disabled={pending !== null}
+                className="flex-1 sm:flex-none"
+              >
+                Abbrechen
+              </Button>
+              <Button
+                type="button"
+                size="md"
+                onClick={() => void submit(false)}
+                disabled={pending !== null}
+                className="flex-1 sm:flex-none"
+              >
+                {pending === "save" ? "Wird gespeichert…" : "Speichern"}
+              </Button>
+            </div>
           </div>
         }
       >
