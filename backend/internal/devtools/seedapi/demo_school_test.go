@@ -24,6 +24,9 @@ func TestEmailLocalPart(t *testing.T) {
 	assert.Equal(t, "julia.klein", emailLocalPart("Julia", "Klein"))
 	assert.Equal(t, "anna.mueller", emailLocalPart("Anna", "Müller"))
 	assert.Equal(t, "maria.von.berg", emailLocalPart("Maria", "von Berg"))
+	assert.Equal(t, "ayse.celik", emailLocalPart("Ayşe", "Çelik"))
+	assert.Equal(t, "miguel.rodriguez", emailLocalPart("Miguel", "Rodríguez"))
+	assert.Equal(t, "lukasz.wisniewski", emailLocalPart("Łukasz", "Wiśniewski"))
 }
 
 func TestAccountScope(t *testing.T) {

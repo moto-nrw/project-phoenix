@@ -3,10 +3,10 @@ package application
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 func (s *Service) CreatePerson(ctx context.Context, input peopledirectory.CreatePerson) (peopledirectory.Person, error) {
@@ -148,11 +148,11 @@ func (s *Service) ListPersonsByAccount(ctx context.Context, accountIDs []int64) 
 }
 
 func (s *Service) SearchPersons(ctx context.Context, filter peopledirectory.PersonFilter) (result []peopledirectory.Person, err error) {
-	filter.FirstNamePrefix = strings.TrimSpace(filter.FirstNamePrefix)
-	filter.LastNamePrefix = strings.TrimSpace(filter.LastNamePrefix)
-	filter.FirstNameEquals = strings.TrimSpace(filter.FirstNameEquals)
-	filter.LastNameEquals = strings.TrimSpace(filter.LastNameEquals)
-	filter.FullNameContains = strings.TrimSpace(filter.FullNameContains)
+	filter.FirstNamePrefix = textnorm.Name(filter.FirstNamePrefix)
+	filter.LastNamePrefix = textnorm.Name(filter.LastNamePrefix)
+	filter.FirstNameEquals = textnorm.Name(filter.FirstNameEquals)
+	filter.LastNameEquals = textnorm.Name(filter.LastNameEquals)
+	filter.FullNameContains = textnorm.Name(filter.FullNameContains)
 	filter.TagID = peopledirectory.NormalizeTagID(filter.TagID)
 	filter.AccountIDs = peopledirectory.PositiveIDs(filter.AccountIDs)
 	if filter.Page < 0 || filter.PageSize < 0 {

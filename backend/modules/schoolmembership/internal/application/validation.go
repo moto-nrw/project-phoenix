@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // The owner edge: every input is validated and normalised here, before the
@@ -110,8 +112,8 @@ func normalizePersonnelNumber(value *string) *string {
 }
 
 func validateClassListEntryFields(fields *schoolmembership.ClassListEntryFields) error {
-	fields.FirstName = strings.TrimSpace(fields.FirstName)
-	fields.LastName = strings.TrimSpace(fields.LastName)
+	fields.FirstName = textnorm.Name(fields.FirstName)
+	fields.LastName = textnorm.Name(fields.LastName)
 	fields.SchoolClass = strings.TrimSpace(fields.SchoolClass)
 	switch {
 	case fields.FirstName == "":

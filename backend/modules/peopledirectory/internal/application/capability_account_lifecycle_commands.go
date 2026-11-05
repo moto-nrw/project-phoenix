@@ -2,9 +2,10 @@ package application
 
 import (
 	"context"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 func (s *Service) CreateSchoolIdentityPerson(ctx context.Context, person peopledirectory.SchoolIdentityPerson) (int64, error) {
@@ -43,7 +44,7 @@ func (s *Service) createAsGiven(ctx context.Context, person peopledirectory.Crea
 	if person.FirstName == "" || person.LastName == "" {
 		return peopledirectory.Person{}, invalid("first name and last name are required")
 	}
-	person.FirstName, person.LastName = strings.TrimSpace(person.FirstName), strings.TrimSpace(person.LastName)
+	person.FirstName, person.LastName = textnorm.Name(person.FirstName), textnorm.Name(person.LastName)
 
 	value, err := s.Create(ctx, peopledirectory.CreatePerson{
 		FirstName: person.FirstName, LastName: person.LastName, Birthday: person.Birthday,
@@ -63,7 +64,7 @@ func (s *Service) SetPersonDetails(ctx context.Context, personID int64, details 
 	if details.FirstName == "" || details.LastName == "" {
 		return invalid("first name and last name are required")
 	}
-	details.FirstName, details.LastName = strings.TrimSpace(details.FirstName), strings.TrimSpace(details.LastName)
+	details.FirstName, details.LastName = textnorm.Name(details.FirstName), textnorm.Name(details.LastName)
 	return (PersonWrites{persons: s}).SetPersonDetails(ctx, personID, details)
 }
 

@@ -218,10 +218,10 @@ func (s *Store) Search(ctx context.Context, filter peopledirectory.PersonFilter)
 		query = query.Where(`public.f_unaccent("person".last_name) ILIKE public.f_unaccent(?)`, escapeLike(filter.LastNamePrefix)+"%")
 	}
 	if filter.FirstNameEquals != "" {
-		query = query.Where(`LOWER(BTRIM("person".first_name)) = LOWER(BTRIM(?))`, filter.FirstNameEquals)
+		query = query.Where(`LOWER(NORMALIZE(BTRIM("person".first_name), NFC)) = LOWER(NORMALIZE(BTRIM(?), NFC))`, filter.FirstNameEquals)
 	}
 	if filter.LastNameEquals != "" {
-		query = query.Where(`LOWER(BTRIM("person".last_name)) = LOWER(BTRIM(?))`, filter.LastNameEquals)
+		query = query.Where(`LOWER(NORMALIZE(BTRIM("person".last_name), NFC)) = LOWER(NORMALIZE(BTRIM(?), NFC))`, filter.LastNameEquals)
 	}
 	if filter.FullNameContains != "" {
 		query = query.Where(`public.f_unaccent("person".first_name || ' ' || "person".last_name) ILIKE public.f_unaccent(?)`, "%"+escapeLike(filter.FullNameContains)+"%")

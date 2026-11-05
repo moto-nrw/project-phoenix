@@ -6,6 +6,8 @@ import (
 	"net/mail"
 	"regexp"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 var (
@@ -106,8 +108,8 @@ const (
 // applies: trimmed names, a non-empty e-mail trimmed, lower-cased and parsed,
 // and a known contact method when one is given.
 func NormalizeGuardianContact(contact GuardianContact) (GuardianContact, error) {
-	contact.FirstName = strings.TrimSpace(contact.FirstName)
-	contact.LastName = strings.TrimSpace(contact.LastName)
+	contact.FirstName = textnorm.Name(contact.FirstName)
+	contact.LastName = textnorm.Name(contact.LastName)
 	if contact.Email != nil && *contact.Email != "" {
 		email := strings.ToLower(strings.TrimSpace(*contact.Email))
 		if _, err := mail.ParseAddress(email); err != nil {
