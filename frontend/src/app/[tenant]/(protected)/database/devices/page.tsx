@@ -40,6 +40,7 @@ import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { ModuleRouteGuard } from "~/components/tenant/module-route-guard";
 import { devicesConcept } from "~/lib/concepts/devices";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "DatabaseDevicesPage" });
 
@@ -165,12 +166,12 @@ function DevicesPageContent() {
   const filteredDevices = useMemo(() => {
     let arr = [...allDevices];
     if (searchTerm) {
-      const q = searchTerm.toLowerCase();
+      const q = foldForSearch(searchTerm);
       arr = arr.filter(
         (d) =>
-          (d.name?.toLowerCase().includes(q) ?? false) ||
-          d.device_id.toLowerCase().includes(q) ||
-          d.device_type.toLowerCase().includes(q),
+          foldForSearch(d.name).includes(q) ||
+          foldForSearch(d.device_id).includes(q) ||
+          foldForSearch(d.device_type).includes(q),
       );
     }
     arr.sort((a, b) =>

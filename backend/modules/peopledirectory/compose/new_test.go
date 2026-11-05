@@ -446,3 +446,29 @@ func TestDirectoryReadRequiresTenantAndEnforcesRLS(t *testing.T) {
 	_, err := module.ListPersonsByID(tenant.ContextWithoutTenant(ctx), []int64{own.ID, foreign.ID})
 	require.ErrorIs(t, err, tenant.ErrTenantRequired)
 }
+
+// A search typed without accents finds the accented name (#4949): prefix
+// searches on first and last name and the full-name search alike.
+func TestModuleSearchIgnoresAccents(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	created, err := module.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "Zoë", LastName: "Özdemir-Gómez"})
+	require.NoError(t, err)
+
+	for name, filter := range map[string]peopledirectory.PersonFilter{
+		"first name prefix":  {FirstNamePrefix: "zoe"},
+		"last name prefix":   {LastNamePrefix: "ozdem"},
+		"full name contains": {FullNameContains: "zoe ozdemir-gomez"},
+	} {
+		listed, err := module.SearchPersons(ctx, filter)
+		require.NoError(t, err, name)
+		ids := make([]int64, 0, len(listed))
+		for _, person := range listed {
+			ids = append(ids, person.ID)
+		}
+		assert.Equal(t, []int64{created.ID}, ids, name)
+	}
+}

@@ -31,6 +31,7 @@ import {
   presentChildCandidates,
   type PresentChildScope,
 } from "~/lib/timetable-roster-helpers";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "PresentChildrenPicker" });
 
@@ -256,11 +257,9 @@ export function PresentChildrenPicker({
         : [],
     [load, inBlockStudentIds, now, scope],
   );
-  const term = search.trim().toLocaleLowerCase("de");
+  const term = foldForSearch(search.trim());
   const visible = term
-    ? candidates.filter((child) =>
-        child.name.toLocaleLowerCase("de").includes(term),
-      )
+    ? candidates.filter((child) => foldForSearch(child.name).includes(term))
     : candidates;
   // Nur Kinder, die in der aktuell sichtbaren Auswahl noch zur Wahl stehen,
   // zählen. Ein Kind, das inzwischen im Block ist oder die aktuelle

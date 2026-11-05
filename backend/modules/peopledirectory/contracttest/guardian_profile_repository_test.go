@@ -452,6 +452,16 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 		assert.False(t, sawOther, "search must exclude guardians that don't match the token")
 	})
 
+	t.Run("ignores accents on both sides (#4949)", func(t *testing.T) {
+		suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+		match := seedNamedGuardian(t, db, ctx, repo, "Zoë"+suffix, "Özdemir"+suffix)
+
+		results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, "zoe"+suffix+" ozdemir"+suffix, 50)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, match.ID, results[0].ID)
+	})
+
 	t.Run("whitespace-only query returns an empty result without error", func(t *testing.T) {
 		results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, "   ", 50)
 		require.NoError(t, err)

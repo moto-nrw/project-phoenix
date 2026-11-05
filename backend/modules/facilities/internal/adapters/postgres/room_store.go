@@ -277,7 +277,7 @@ func applyRoomListFilter(query *bun.SelectQuery, filter facilities.RoomFilter) (
 		query = query.Where(`LOWER("room".name) = LOWER(?)`, *filter.Name)
 	}
 	if filter.NameContains != nil {
-		query = query.Where(`"room".name ILIKE ?`, "%"+*filter.NameContains+"%")
+		query = query.Where(`public.f_unaccent("room".name) ILIKE public.f_unaccent(?)`, "%"+*filter.NameContains+"%")
 	}
 	if filter.Building != nil {
 		query = query.Where(`LOWER("room".building) = LOWER(?)`, *filter.Building)
@@ -305,7 +305,7 @@ func applyRoomListFilter(query *bun.SelectQuery, filter facilities.RoomFilter) (
 			return query, true
 		}
 		pattern := "%" + *filter.Search + "%"
-		query = query.Where(`("room".name ILIKE ? OR "room".building ILIKE ? OR "room".category ILIKE ?)`, pattern, pattern, pattern)
+		query = query.Where(`(public.f_unaccent("room".name) ILIKE public.f_unaccent(?) OR "room".building ILIKE ? OR "room".category ILIKE ?)`, pattern, pattern, pattern)
 	}
 	if filter.ExcludeSystem {
 		// Toilet rooms are never staff-visible: they are kiosk infrastructure

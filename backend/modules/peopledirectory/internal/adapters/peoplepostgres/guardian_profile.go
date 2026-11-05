@@ -430,7 +430,8 @@ const maxSearchTokens = 10
 // a full-name query like "Andrea Bauer" work even though "Andrea" lives in
 // first_name and "Bauer" in last_name — a single full-string LIKE would match
 // neither column and return nothing. Token order is irrelevant, so "Bauer
-// Andrea" matches the same person.
+// Andrea" matches the same person. Names match without accents, so "ozdem"
+// finds "Özdemir" (#4949).
 //
 // LIKE metacharacters in each token are escaped (see escapeLikePattern) so they
 // match literally — the picker's enumeration guard relies on a real minimum
@@ -465,7 +466,7 @@ func (r *guardianProfileRepository) SearchByText(ctx context.Context, searchText
 	for _, tok := range tokens {
 		pattern := "%" + escapeLikePattern(tok) + "%"
 		query = query.Where(
-			`(LOWER("guardian_profile".first_name) LIKE ? ESCAPE '\' OR LOWER("guardian_profile".last_name) LIKE ? ESCAPE '\' OR LOWER("guardian_profile".email) LIKE ? ESCAPE '\')`,
+			`(public.f_unaccent("guardian_profile".first_name) ILIKE public.f_unaccent(?) ESCAPE '\' OR public.f_unaccent("guardian_profile".last_name) ILIKE public.f_unaccent(?) ESCAPE '\' OR LOWER("guardian_profile".email) LIKE ? ESCAPE '\')`,
 			pattern, pattern, pattern,
 		)
 	}

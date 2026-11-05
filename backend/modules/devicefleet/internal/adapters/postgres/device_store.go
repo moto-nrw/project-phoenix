@@ -412,7 +412,7 @@ func applyDeviceFilter(query *bun.SelectQuery, filter devicefleet.DeviceFilter) 
 		query = query.Where(`"device".device_id ILIKE ?`, "%"+*filter.DeviceIDContains+"%")
 	}
 	if filter.NameContains != nil {
-		query = query.Where(`"device".name ILIKE ?`, "%"+*filter.NameContains+"%")
+		query = query.Where(`public.f_unaccent("device".name) ILIKE public.f_unaccent(?)`, "%"+*filter.NameContains+"%")
 	}
 	if filter.Status != nil {
 		query = query.Where(`"device".status = ?`, string(*filter.Status))

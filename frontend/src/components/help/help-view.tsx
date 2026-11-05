@@ -43,6 +43,7 @@ import { HELP_ICONS } from "./help-icons";
 import { useHelpSidebarScrollRestoration } from "./help-sidebar-scroll";
 import { useHelpTableOfContents } from "./help-table-of-contents";
 import { HelpWordmark } from "./help-wordmark";
+import { foldForSearch } from "~/lib/search-fold";
 
 // Reihenfolge der Oberthemen je Rolle. Jede Rolle hat eine eigene
 // Seitenleiste (#2229, Informationsarchitektur Abschnitt 3).
@@ -193,14 +194,6 @@ function appHrefFrom(value: string | null): string {
   }
 }
 
-function normalizeSearchText(value: string): string {
-  return value
-    .toLocaleLowerCase("de-DE")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replaceAll("ß", "ss");
-}
-
 function topicMatchesSearch(topic: HelpTopic, query: string): boolean {
   const searchText = [
     topic.title,
@@ -216,7 +209,7 @@ function topicMatchesSearch(topic: HelpTopic, query: string): boolean {
     .filter((value): value is string => value != null)
     .join(" ");
 
-  return normalizeSearchText(searchText).includes(normalizeSearchText(query));
+  return foldForSearch(searchText).includes(foldForSearch(query));
 }
 
 function InlineCode({ text }: Readonly<{ text: string }>) {

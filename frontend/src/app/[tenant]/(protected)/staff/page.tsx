@@ -60,6 +60,7 @@ import { staffOverviewService } from "~/lib/staff-overview-api";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
 import { StaffCardsSkeleton } from "./page-skeleton";
 import { staffConcept } from "~/lib/concepts/staff";
+import { foldForSearch } from "~/lib/search-fold";
 
 /**
  * Die Personenkarte: eine Kachel, wenn sie weiterführt, sonst eine reine
@@ -99,9 +100,9 @@ function DocumentDirectory({
 }) {
   const router = useTenantRouter();
   const [search, setSearch] = useState("");
-  const normalizedSearch = search.trim().toLocaleLowerCase("de-DE");
+  const normalizedSearch = foldForSearch(search.trim());
   const filteredEntries = entries.filter((entry) =>
-    entry.name.toLocaleLowerCase("de-DE").includes(normalizedSearch),
+    foldForSearch(entry.name).includes(normalizedSearch),
   );
 
   const card = (
@@ -324,9 +325,9 @@ function StaffPageContent() {
     mutateFormer,
   );
   const filteredFormer = (formerData ?? []).filter((member) =>
-    `${member.firstName} ${member.lastName}`
-      .toLocaleLowerCase("de-DE")
-      .includes(searchTerm.trim().toLocaleLowerCase("de-DE")),
+    foldForSearch(`${member.firstName} ${member.lastName}`).includes(
+      foldForSearch(searchTerm.trim()),
+    ),
   );
 
   const {
@@ -466,8 +467,8 @@ function StaffPageContent() {
   const accountRows = useMemo(() => {
     const rows = accounts?.rows ?? [];
     if (!searchTerm) return rows;
-    const needle = searchTerm.toLowerCase();
-    return rows.filter((row) => row.name.toLowerCase().includes(needle));
+    const needle = foldForSearch(searchTerm);
+    return rows.filter((row) => foldForSearch(row.name).includes(needle));
   }, [accounts, searchTerm]);
   const auditStaffOptions = useMemo(
     () =>
@@ -536,11 +537,11 @@ function StaffPageContent() {
   const filteredStaff = staff.filter((staffMember) => {
     // Search filter
     if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
+      const searchLower = foldForSearch(searchTerm);
       const matchesSearch =
-        staffMember.firstName.toLowerCase().includes(searchLower) ||
-        staffMember.lastName.toLowerCase().includes(searchLower) ||
-        staffMember.name.toLowerCase().includes(searchLower);
+        foldForSearch(staffMember.firstName).includes(searchLower) ||
+        foldForSearch(staffMember.lastName).includes(searchLower) ||
+        foldForSearch(staffMember.name).includes(searchLower);
 
       if (!matchesSearch) return false;
     }

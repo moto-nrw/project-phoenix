@@ -63,6 +63,7 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { parentAnnouncementKeys } from "~/lib/swr/portal-keys";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "AnnouncementDetail" });
 
@@ -120,13 +121,13 @@ export function RecipientList({
   };
   for (const rcpt of recipients) counts[rcpt.status]++;
 
-  const term = nameFilter.trim().toLowerCase();
+  const term = foldForSearch(nameFilter.trim());
   const filtered = recipients.filter((rcpt) => {
     if (showStatus && statusFilter !== "all" && rcpt.status !== statusFilter)
       return false;
     if (
       term &&
-      !`${rcpt.first_name} ${rcpt.last_name}`.toLowerCase().includes(term)
+      !foldForSearch(`${rcpt.first_name} ${rcpt.last_name}`).includes(term)
     )
       return false;
     return true;
