@@ -52,14 +52,25 @@ holds the checked list prices.
 
 ## CI workflows and runners
 
+Before changing a workflow, runner, job split, shard, cache or checkout, use
+the `ci-cost` skill: it measures the baseline and holds the proven patterns.
+
 - A new job, matrix shard or larger runner states its measured minutes and
   cost per run in the PR, and the critical-path job it runs beside.
+- Setup (services, checkout, history, toolchain, install) is the main cost of
+  a short job. Put new work into a job that already paid that setup before
+  adding a job.
 - Split work across jobs only when one runner leaves cores idle (serial
   tests) or the job sets the pull request's wall-clock time. Every shard pays
   the setup again; the PR shows vCPU-minutes before and after.
+- Size a runner by the cores its work keeps busy.
+- Change detection fails open: unknown paths run everything, and
+  protected-branch pushes and the nightly run stay full.
 - Every job sets `timeout-minutes` at about three times its measured maximum.
 - A new job gets path filters through `detect-changes` in `main.yml` and runs
   only on non-draft pull requests.
+- Report CI timings from at least two warm runs; the first run after a cache
+  key change is cold.
 
 ## Pushes
 
