@@ -109,16 +109,18 @@ func (s *arrivalScheduleService) projectedWeek(
 ) (map[int64]careplan.ArrivalWeek, error) {
 	out := make(map[int64]careplan.ArrivalWeek, len(studentIDs))
 	if s.baselines == nil {
+		if len(studentIDs) == 0 {
+			return out, nil
+		}
+		rows, err := s.loadSchedules(ctx, studentIDs)
+		if err != nil {
+			return nil, err
+		}
 		for _, studentID := range studentIDs {
-			rows, err := s.loadSchedules(ctx, studentID)
-			if err != nil {
-				return nil, err
-			}
-			week := make(careplan.ArrivalWeek, len(rows))
-			for _, row := range rows {
-				week[row.Weekday] = row
-			}
-			out[studentID] = week
+			out[studentID] = make(careplan.ArrivalWeek)
+		}
+		for _, row := range rows {
+			out[row.StudentID][row.Weekday] = row
 		}
 		return out, nil
 	}
