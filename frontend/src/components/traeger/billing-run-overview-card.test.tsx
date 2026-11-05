@@ -150,12 +150,12 @@ function renderCard(run: BillingRunDetail = RUN) {
   );
 }
 
-/** The desktop table row of a family; the phone list repeats it. */
-function row(name: string): HTMLElement {
+/** The desktop table row of a family, or its repeated phone list item. */
+function row(name: string, tag = "tr"): HTMLElement {
   const cell = screen
     .getAllByText(name)
-    .find((element) => element.closest("tr"));
-  return cell!.closest("tr")!;
+    .find((element) => element.closest(tag));
+  return cell!.closest<HTMLElement>(tag)!;
 }
 
 /** The content of a blob behind an object URL, always typed as a PDF. */
@@ -172,6 +172,100 @@ async function shownLetter(title: string): Promise<string | undefined> {
 }
 
 describe("BillingRunOverviewCard letter preview (#5692)", () => {
+  it.each(["tr", "li"])(
+    "keeps clicks on the %s row menu separate from the letter preview",
+    async (tag) => {
+      renderCard();
+      const documentRow = row("Muster, Eva", tag);
+      const menu = within(documentRow).getByRole("button", {
+        name: "Aktionen für die Rechnung an Eva Muster",
+      });
+
+      fireEvent.click(menu);
+      expect(
+        await screen.findByRole("menuitem", {
+          name: "Aufschlüsselung ansehen",
+        }),
+      ).toBeInTheDocument();
+      // Anker: das Menü der geladenen Rechnungszeile ist offen.
+      expect(menu).toHaveAttribute("aria-expanded", "true");
+      expect(api.downloadBillingLetter).not.toHaveBeenCalled();
+
+      fireEvent.click(
+        screen.getByRole("menuitem", { name: "Aufschlüsselung ansehen" }),
+      );
+      expect(
+        await screen.findByRole("dialog", { name: "Rechnung an Eva Muster" }),
+      ).toBeInTheDocument();
+      expect(api.downloadBillingLetter).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["tr", "li"])(
+    "does not open a letter when a portaled cancellation action in a %s row is clicked",
+    async (tag) => {
+      const onCancel = vi.fn();
+      render(
+        <ToastProvider>
+          <BillingRunOverviewCard run={RUN} onCancel={onCancel} />
+        </ToastProvider>,
+      );
+      const documentRow = row("Muster, Eva", tag);
+      const menu = within(documentRow).getByRole("button", {
+        name: "Aktionen für die Rechnung an Eva Muster",
+      });
+      fireEvent.click(menu);
+      const cancel = await screen.findByRole("menuitem", {
+        name: "Rechnung stornieren",
+      });
+      expect(cancel).toBeInTheDocument();
+      fireEvent.click(cancel);
+      expect(onCancel).toHaveBeenCalledWith(RUN.documents[0]);
+      // Anker: die Rechnungszeile und ihre Storno-Aktion sind geladen.
+      expect(documentRow).toBeInTheDocument();
+      expect(api.downloadBillingLetter).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["credit", "cancellation"] as const)(
+    "returns focus to the %s document rather than another invoice for the same recipient",
+    async (kind) => {
+      const original = RUN.documents[0]!;
+      const correction: BillingDocument = {
+        ...original,
+        id: "53",
+        kind,
+        number: "FE-0003",
+        referenceNumber: original.number,
+        totalCents: -original.totalCents,
+      };
+      api.downloadBillingLetter.mockResolvedValue(letter(correction.number));
+      renderCard({ ...RUN, documents: [original, correction] });
+      const documentRow = row("FE-0003");
+      const menu = within(documentRow).getByRole("button", {
+        name: "Aktionen für die Rechnung an Eva Muster",
+      });
+      // happy-dom has no layout; only the desktop trigger is visible here.
+      vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
+        function (this: HTMLElement) {
+          return Object.assign(this.closest("tr") ? [new DOMRect()] : [], {
+            item: () => null,
+          });
+        },
+      );
+      fireEvent.click(documentRow);
+      expect(
+        await screen.findByTitle(
+          `${kind === "credit" ? "Gutschrift" : "Storno"} FE-0003`,
+        ),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Schreiben schließen" }),
+      );
+      await waitFor(() => expect(menu).toHaveFocus());
+    },
+  );
+
   it("shows the letter of each chosen invoice under its own number", async () => {
     renderCard();
 

@@ -171,14 +171,14 @@ export function BillingRunOverviewCard({
   // Back from the letter, the reader continues at the menu of its row, which
   // shows again with the list on the next frame.
   const closePreview = () => {
-    const label = previewed ? rowMenuLabel(previewed) : null;
+    const documentId = previewed?.id;
     const area = previewRef.current?.parentElement;
     setPreviewId(null);
-    if (!label || !area) return;
+    if (!documentId || !area) return;
     requestAnimationFrame(() => {
       const triggers = [
         ...area.querySelectorAll<HTMLElement>(
-          `[aria-label="${CSS.escape(label)}"]`,
+          `[data-billing-document-id="${CSS.escape(documentId)}"] button[aria-haspopup="menu"]`,
         ),
       ];
       const trigger =
@@ -307,39 +307,46 @@ export function BillingRunOverviewCard({
       stacked: "meta",
       stackedLabel: false,
       render: (document) => (
-        <OverflowMenu
-          ariaLabel={rowMenuLabel(document)}
-          triggerSize="sm"
-          items={[
-            {
-              label: "Aufschlüsselung ansehen",
-              onClick: () => setShownKey(rowKey(document)),
-            },
-            ...(canPreview && document.id
-              ? [
-                  {
-                    label: "Schreiben ansehen",
-                    onClick: () => openPreview(document),
-                  },
-                ]
-              : []),
-            ...(onCorrect
-              ? document.children.map((child) => ({
-                  label: `Betrag für ${child.firstName} korrigieren`,
-                  onClick: () => onCorrect(document, child),
-                }))
-              : []),
-            ...correctionItems(document),
-            ...(onDownloadLetter
-              ? [
-                  {
-                    label: "Schreiben herunterladen",
-                    onClick: () => onDownloadLetter(document),
-                  },
-                ]
-              : []),
-          ]}
-        />
+        // React also bubbles clicks from the portaled menu through this wrapper.
+        // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- keine eigene Aktion; hält Menüklicks von der Zeilenaktion getrennt
+        <div
+          data-billing-document-id={document.id || undefined}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <OverflowMenu
+            ariaLabel={rowMenuLabel(document)}
+            triggerSize="sm"
+            items={[
+              {
+                label: "Aufschlüsselung ansehen",
+                onClick: () => setShownKey(rowKey(document)),
+              },
+              ...(canPreview && document.id
+                ? [
+                    {
+                      label: "Schreiben ansehen",
+                      onClick: () => openPreview(document),
+                    },
+                  ]
+                : []),
+              ...(onCorrect
+                ? document.children.map((child) => ({
+                    label: `Betrag für ${child.firstName} korrigieren`,
+                    onClick: () => onCorrect(document, child),
+                  }))
+                : []),
+              ...correctionItems(document),
+              ...(onDownloadLetter
+                ? [
+                    {
+                      label: "Schreiben herunterladen",
+                      onClick: () => onDownloadLetter(document),
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        </div>
       ),
     },
   ];
@@ -365,6 +372,7 @@ export function BillingRunOverviewCard({
   return (
     <SectionCard
       title="Rechnungen"
+      overflow="visible"
       description={invoicesDescription(released, canPreview)}
       actions={
         released && run.documents.length > 0 ? (
