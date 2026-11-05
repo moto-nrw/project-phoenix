@@ -294,9 +294,7 @@ func (v Value) inline() string {
 func fillBody(body string, values map[string]Value) []Block {
 	blocks := []Block{}
 	for _, paragraph := range paragraphs(body) {
-		if block, ok := fillParagraph(paragraph, values); ok {
-			blocks = append(blocks, block)
-		}
+		blocks = append(blocks, fillParagraph(paragraph, values)...)
 	}
 	return blocks
 }
@@ -321,29 +319,39 @@ func paragraphs(body string) [][]string {
 	return result
 }
 
-// fillParagraph fills one paragraph; ok is false when it is left out
-// because every placeholder in it is empty.
-func fillParagraph(paragraph []string, values map[string]Value) (Block, bool) {
+// fillParagraph keeps standalone tables in order with the surrounding text.
+// The whole paragraph is left out when every placeholder in it is empty.
+func fillParagraph(paragraph []string, values map[string]Value) []Block {
+	var blocks []Block
 	var block Block
 	var count placeholderCount
 	if heading, ok := strings.CutPrefix(paragraph[0], "# "); ok {
 		block.Heading = strings.TrimSpace(count.fill(heading, values))
 		paragraph = paragraph[1:]
 	}
-	if n := len(paragraph); n > 0 {
-		if rows, ok := tableLine(paragraph[n-1], values); ok {
+	appendBlock := func(textLines []string, rows []Row) {
+		text, bold := boldText(strings.TrimSpace(strings.Join(textLines, "\n")))
+		block.Text = strings.TrimSpace(count.fill(text, values))
+		block.Bold = bold && block.Text != ""
+		block.Rows = rows
+		if block.Heading != "" || block.Text != "" || len(block.Rows) > 0 {
+			blocks = append(blocks, block)
+		}
+		block = Block{}
+	}
+	start := 0
+	for i, line := range paragraph {
+		if rows, ok := tableLine(line, values); ok {
 			count.add(len(rows) > 0)
-			block.Rows = rows
-			paragraph = paragraph[:n-1]
+			appendBlock(paragraph[start:i], rows)
+			start = i + 1
 		}
 	}
-	text, bold := boldText(strings.TrimSpace(strings.Join(paragraph, "\n")))
-	block.Text = strings.TrimSpace(count.fill(text, values))
-	block.Bold = bold && block.Text != ""
-	if count.allEmpty() || (block.Heading == "" && block.Text == "" && len(block.Rows) == 0) {
-		return Block{}, false
+	appendBlock(paragraph[start:], nil)
+	if count.allEmpty() {
+		return nil
 	}
-	return block, true
+	return blocks
 }
 
 // placeholderCount counts the placeholders of a paragraph and those that

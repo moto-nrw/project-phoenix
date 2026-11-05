@@ -1,3 +1,4 @@
+import { DataTable } from "~/components/ui/data-table";
 import type { DocumentTemplatePreview } from "~/lib/traeger-document-templates";
 import { cn } from "~/lib/utils";
 
@@ -31,21 +32,27 @@ export function DocumentTemplatePreviewBody({
             </p>
           ) : null}
           {block.rows.length > 0 ? (
-            <table className="w-full text-left">
-              <tbody>
-                {block.rows.map((row) => (
-                  <tr
-                    key={`${row.label}-${row.value}`}
-                    className={cn(row.bold && "font-semibold text-gray-900")}
-                  >
-                    <td className="py-0.5 pr-4">{row.label}</td>
-                    <td className="py-0.5 text-right whitespace-nowrap tabular-nums">
-                      {row.value}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <DataTable
+              columns={[
+                {
+                  key: "label",
+                  header: "Bezeichnung",
+                  render: (row) => row.label,
+                },
+                {
+                  key: "value",
+                  header: "Wert",
+                  render: (row) => row.value,
+                  align: "right",
+                  className: "whitespace-nowrap tabular-nums",
+                },
+              ]}
+              rows={block.rows.map((row, rowIndex) => ({ ...row, rowIndex }))}
+              getRowKey={(row) => row.rowIndex}
+              rowClassName={(row) =>
+                row.bold ? "font-semibold text-gray-900" : ""
+              }
+            />
           ) : null}
         </div>
       ))}

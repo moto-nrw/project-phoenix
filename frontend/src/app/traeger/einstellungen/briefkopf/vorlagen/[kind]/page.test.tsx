@@ -1,6 +1,7 @@
 import { SWRConfig } from "~/lib/swr/testing";
 vi.unmock("swr");
 import {
+  act,
   fireEvent,
   render as rtlRender,
   screen,
@@ -143,7 +144,12 @@ describe("TraegerVorlagePage", () => {
     expect(
       within(preview).getByText("Rechnung FE-2026-0001: Herbstferien 2026"),
     ).toBeInTheDocument();
-    expect(within(preview).getByText("92,50 €")).toBeInTheDocument();
+    expect(
+      within(preview).getByRole("columnheader", { name: "Bezeichnung" }),
+    ).toBeInTheDocument();
+    const total = within(preview).getByRole("cell", { name: "92,50 €" });
+    expect(total).toHaveClass("text-right", "tabular-nums");
+    expect(total.closest("tr")).toHaveClass("font-semibold");
     expect(screen.getByLabelText(/Betreff/)).toHaveValue(STANDARD.subject);
     expect(screen.getByText("{{familienname}}")).toBeInTheDocument();
     expect(screen.getByText("Standardvorlage")).toBeInTheDocument();
@@ -210,6 +216,100 @@ describe("TraegerVorlagePage", () => {
     expect(
       await screen.findByText("Gilt für neue Schreiben"),
     ).toBeInTheDocument();
+  });
+
+  it("locks all draft changes until saving and reloading finish", async () => {
+    const saved: DocumentTemplateDetail["current"] = {
+      kind: "rechnung",
+      version: 1,
+      standard: false,
+      createdAt: "2026-09-09T10:00:00Z",
+      ...STANDARD,
+      subject: "Gespeichert",
+    };
+    templatesApi.fetchDocumentTemplate.mockResolvedValue(detail([saved]));
+    renderPage();
+    const subject = await screen.findByLabelText(/Betreff/);
+    fireEvent.change(subject, { target: { value: "Neue Rechnung" } });
+    let finishSave!: (value: typeof saved) => void;
+    templatesApi.saveDocumentTemplate.mockReturnValue(
+      new Promise<typeof saved>((resolve) => {
+        finishSave = resolve;
+      }),
+    );
+    let finishReload!: (value: DocumentTemplateDetail) => void;
+    templatesApi.fetchDocumentTemplate.mockReturnValue(
+      new Promise<DocumentTemplateDetail>((resolve) => {
+        finishReload = resolve;
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    const expectLocked = () => {
+      for (const label of [/Betreff/, /Anrede/, /Brieftext/, /Grußformel/]) {
+        expect(screen.getByLabelText(label)).toBeDisabled();
+      }
+      expect(
+        screen.getByRole("button", { name: "Standardtext laden" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Text von Version 1 übernehmen" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Vorschau zeigen" }),
+      ).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
+    };
+    expectLocked();
+    await act(async () => {
+      finishSave({ ...saved, subject: "Neue Rechnung" });
+    });
+    expectLocked();
+    expect(subject).toHaveValue("Neue Rechnung");
+    await act(async () => {
+      finishReload(detail([{ ...saved, subject: "Neue Rechnung" }]));
+    });
+    expect(subject).toBeEnabled();
+    expect(subject).toHaveValue("Neue Rechnung");
+  });
+
+  it("ignores a preview that finishes after saving and reloading", async () => {
+    renderPage();
+    const subject = await screen.findByLabelText(/Betreff/);
+    fireEvent.change(subject, { target: { value: "Alte Vorschau" } });
+    let finishPreview!: (value: DocumentTemplatePreview) => void;
+    templatesApi.previewDocumentTemplate.mockReturnValueOnce(
+      new Promise<DocumentTemplatePreview>((resolve) => {
+        finishPreview = resolve;
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Vorschau zeigen" }));
+    fireEvent.change(subject, { target: { value: "Neue Rechnung" } });
+    const saved: DocumentTemplateDetail["current"] = {
+      kind: "rechnung",
+      version: 1,
+      standard: false,
+      createdAt: "2026-09-09T10:00:00Z",
+      ...STANDARD,
+      subject: "Neue Rechnung",
+    };
+    templatesApi.saveDocumentTemplate.mockResolvedValue(saved);
+    templatesApi.fetchDocumentTemplate.mockResolvedValue(detail([saved]));
+    const savedPreview = { ...PREVIEW, subject: "Neue Rechnung" };
+    templatesApi.previewDocumentTemplate.mockResolvedValue(savedPreview);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Gilt für neue Schreiben");
+    await act(async () => {
+      finishPreview({ ...PREVIEW, subject: "Alte Vorschau" });
+    });
+    const preview = screen.getByRole("figure", { name: "Vorschau des Briefs" });
+    expect(within(preview).getByText("Neue Rechnung")).toBeInTheDocument();
+    expect(screen.getByText("Gilt für neue Schreiben")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vorschau zeigen" }),
+    ).toBeDisabled();
+    fireEvent.change(subject, { target: { value: "Weiter bearbeiten" } });
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(subject).toHaveValue("Neue Rechnung");
   });
 
   it("names the unknown placeholders the backend refuses", async () => {

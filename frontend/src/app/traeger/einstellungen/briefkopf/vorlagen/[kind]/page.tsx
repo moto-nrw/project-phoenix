@@ -97,7 +97,7 @@ export default function TraegerVorlagePage() {
       </TenantPage>
     );
   }
-  return <TemplateEditorPage kind={kind} />;
+  return <TemplateEditorPage key={kind} kind={kind} />;
 }
 
 function TemplateEditorPage({
@@ -110,6 +110,8 @@ function TemplateEditorPage({
   const [previewed, setPreviewed] = useState<DocumentTemplateText | null>(null);
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  // A save or reload makes every older draft preview obsolete.
+  const previewRequest = useRef(0);
   const { data: schema } = useTraegerSettingsSchema();
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
@@ -118,6 +120,8 @@ function TemplateEditorPage({
   const { success } = useToast();
 
   const load = useCallback(async () => {
+    previewRequest.current++;
+    setPreviewing(false);
     try {
       const [detail, masterData] = await Promise.all([
         fetchDocumentTemplate(kind),
@@ -145,26 +149,31 @@ function TemplateEditorPage({
   }, [load]);
 
   const showPreview = async () => {
-    if (!draft || !data) return;
+    if (!draft || !data || saving || previewing) return;
+    const request = ++previewRequest.current;
     formErrors.clear();
     setPreviewing(true);
     const shown = draft;
     try {
       const preview = await previewDocumentTemplate(kind, shown);
-      setData({ ...data, preview });
+      if (request !== previewRequest.current) return;
+      setData((before) => (before ? { ...before, preview } : before));
       setPreviewed(shown);
     } catch (err) {
+      if (request !== previewRequest.current) return;
       logger.warn("traeger_document_template_preview_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void formErrors.show(err, { object: "die Vorschau" });
     } finally {
-      setPreviewing(false);
+      if (request === previewRequest.current) setPreviewing(false);
     }
   };
 
   const save = async () => {
-    if (!draft) return;
+    if (!draft || saving) return;
+    previewRequest.current++;
+    setPreviewing(false);
     formErrors.clear();
     setSaving(true);
     try {
@@ -246,6 +255,7 @@ function TemplateEditorPage({
                   type="button"
                   variant="outline"
                   size="md"
+                  disabled={saving}
                   onClick={() => {
                     setDraft(textOf(standard));
                     formErrors.clear();
@@ -275,7 +285,7 @@ function TemplateEditorPage({
                 onChange={(e) => set("subject", e.target.value)}
                 error={formErrors.fieldError("subject")}
                 maxLength={200}
-                disabled={!canEdit}
+                disabled={!canEdit || saving}
               />
               <Input
                 id="template-salutation"
@@ -285,7 +295,7 @@ function TemplateEditorPage({
                 onChange={(e) => set("salutation", e.target.value)}
                 error={formErrors.fieldError("salutation")}
                 maxLength={200}
-                disabled={!canEdit}
+                disabled={!canEdit || saving}
               />
               <Textarea
                 id="template-body"
@@ -297,7 +307,7 @@ function TemplateEditorPage({
                 onChange={(e) => set("body", e.target.value)}
                 error={formErrors.fieldError("body")}
                 maxLength={10000}
-                disabled={!canEdit}
+                disabled={!canEdit || saving}
                 className="font-mono"
               />
               <Textarea
@@ -309,14 +319,14 @@ function TemplateEditorPage({
                 onChange={(e) => set("closing", e.target.value)}
                 error={formErrors.fieldError("closing")}
                 maxLength={500}
-                disabled={!canEdit}
+                disabled={!canEdit || saving}
               />
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   size="md"
-                  disabled={previewing || !previewStale}
+                  disabled={saving || previewing || !previewStale}
                   onClick={() => void showPreview()}
                 >
                   {previewing ? "Vorschau lädt…" : "Vorschau zeigen"}
@@ -374,6 +384,7 @@ function TemplateEditorPage({
           <DocumentTemplateVersionsCard
             versions={data.detail.versions}
             canEdit={canEdit}
+            disabled={saving}
             onLoad={(version) => {
               setDraft(textOf(version));
               formErrors.clear();

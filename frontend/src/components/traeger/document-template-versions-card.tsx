@@ -13,10 +13,12 @@ import type { DocumentTemplateVersion } from "~/lib/traeger-document-templates";
 export function DocumentTemplateVersionsCard({
   versions,
   canEdit,
+  disabled = false,
   onLoad,
 }: Readonly<{
   versions: readonly DocumentTemplateVersion[];
   canEdit: boolean;
+  disabled?: boolean;
   onLoad: (version: DocumentTemplateVersion) => void;
 }>) {
   return (
@@ -55,6 +57,7 @@ export function DocumentTemplateVersionsCard({
                     variant="surface"
                     size="compact"
                     aria-label={`Text von Version ${version.version} übernehmen`}
+                    disabled={disabled}
                     onClick={() => onLoad(version)}
                   >
                     Text übernehmen

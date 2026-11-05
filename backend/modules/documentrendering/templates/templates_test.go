@@ -126,3 +126,28 @@ func TestSampleFillsTheStandardTemplateWithoutLeftoverPlaceholders(t *testing.T)
 		}
 	}
 }
+
+func TestFillPreservesStandaloneTablesAnywhereInAParagraph(t *testing.T) {
+	t.Parallel()
+	rows := []templates.Row{{Label: "Gesamt", Value: "50,00 €", Bold: true}}
+	for _, tt := range []struct {
+		name string
+		body string
+		want []templates.Block
+	}{
+		{"first", "{{positionen}}\nBitte überweisen Sie den Betrag.", []templates.Block{{Rows: rows}, {Text: "Bitte überweisen Sie den Betrag."}}},
+		{"middle", "# Rechnung\nFür Lina:\n{{positionen}}\n**Bitte zahlen Sie.**", []templates.Block{{Heading: "Rechnung", Text: "Für Lina:", Rows: rows}, {Text: "Bitte zahlen Sie.", Bold: true}}},
+		{"multiple", "{{positionen}}\nDazwischen\n{{positionen}}\nDanach", []templates.Block{{Rows: rows}, {Text: "Dazwischen", Rows: rows}, {Text: "Danach"}}},
+		{"empty", "# Rechnung\n{{positionen}}\nHinweis: {{familienname}}", []templates.Block{}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			values := map[string]templates.Value{"positionen": {Rows: rows}}
+			if tt.name == "empty" {
+				values = nil
+			}
+			template := templates.Template{Subject: "Rechnung", Body: tt.body}
+			require.NoError(t, templates.Check(templates.KindInvoice, template))
+			assert.Equal(t, tt.want, templates.Fill(template, values).Blocks)
+		})
+	}
+}
