@@ -63,10 +63,11 @@ package_workers=$("$repo_root/scripts/go-package-workers.sh")
 # Test failures and panic stacks use Go's runtime line tables, not DWARF.
 # Go already strips ordinary disposable test binaries. Also omit DWARF when
 # a profile retains the binary; an explicit caller -ldflags still wins.
-# Apply the lower GC target to test processes, not the go test build driver.
-# Preserve an explicit caller GOGC.
-CONCURRENCY=(-p "$package_workers" -parallel 8 -tags=testhooks -ldflags=-w
-  -exec "env GOGC=${GOGC-50}")
+# Inherit the GC target in both the test driver and its test processes.
+# An -exec wrapper disables Go's successful-test result cache. Preserve an
+# explicit caller GOGC without changing Go's normal result-cache decisions.
+export GOGC=${GOGC-50}
+CONCURRENCY=(-p "$package_workers" -parallel 8 -tags=testhooks -ldflags=-w)
 
 # Reuse native test links even with -count=1. Keep Go's own compile/vet and
 # result-cache decisions, plus caller-provided -toolexec and forced rebuilds.

@@ -56,8 +56,9 @@ Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
   including child tools, while keeping concurrent packages and `-parallel 8`.
   This bounds parallel-GC overhead; `-cpu` still controls the test runtime.
   Other pinned commands and the native app loop keep their existing budgets.
-  Its lower GC target applies to test processes and their children, not the
-  build driver; set `GOGC` explicitly to override it. Its
+  Its lower GC target is inherited by the build driver, test processes and
+  their children; set `GOGC` explicitly to override it. No `-exec` wrapper
+  interferes with Go's successful-test result cache. Its
   `-ldflags=-w` drops DWARF, not Go's runtime line tables. Go also strips
   ordinary disposable test binaries by default. For a debugger, retain one
   with `go test -c -tags=testhooks -ldflags= ./package`; normal failures retain

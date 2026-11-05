@@ -148,3 +148,60 @@ vet_exit=0
 [[ $vet_exit != 0 ]]
 grep -q 'fmt.Printf format %d' "$fixture/output"
 printf 'link cache: source/test/embed/flags/tags/toolchain invalidation, fresh execution, coverage/race, diagnostics and vet passed (%s links, %s test executions)\n' "$(links)" "$(executions)"
+
+# Exercise the full-suite wrapper with a real Go test and stub only its DB
+# lifecycle. Unchanged runs must retain cmd/go's result cache as well as links.
+result_fixture="$fixture/results"
+mkdir -p "$result_fixture"/{backend,scripts,bin,tmp}
+git -C "$result_fixture" init -q
+for helper in go-test-workspace.sh test-run-id.sh go-test-link-cache.sh go-test-link-key.go; do
+  cp "$repo_root/scripts/$helper" "$result_fixture/scripts/$helper"
+done
+printf '#!/bin/sh\necho 1\n' >"$result_fixture/scripts/go-package-workers.sh"
+chmod +x "$result_fixture/scripts/go-package-workers.sh"
+printf 'module resultcacheprobe\n\ngo %s\n' "$version" >"$result_fixture/backend/go.mod"
+cat >"$result_fixture/backend/probe_test.go" <<'EOF'
+package resultcacheprobe
+import("testing"; "os"; "runtime/debug"; "strconv")
+func TestGCTarget(t *testing.T) {
+ want, err := strconv.Atoi(os.Getenv("GOGC"))
+ if err != nil { t.Fatal(err) }
+ if got := debug.SetGCPercent(-1); got != want { t.Fatalf("GOGC = %d, want %d", got, want) }
+ t.Logf("GC target: %d", want)
+}
+EOF
+cat >"$result_fixture/bin/go" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ ${1:-} == run ]]; then
+ case ${2:-} in
+  ./internal/testdb/cmd/bootstrap) echo fixture; exit 0 ;;
+  ./internal/testdb/cmd/sweep) exit 0 ;;
+ esac
+fi
+if [[ ${1:-} == tool && ${2:-} == gotestsum ]]; then exit 1; fi
+exec "$RESULT_CACHE_GO" "$@"
+EOF
+chmod +x "$result_fixture/bin/go"
+export RESULT_CACHE_GO="$go_bin"
+result_run() {
+  (cd "$result_fixture" && PATH="$result_fixture/bin:$PATH" TMPDIR="$result_fixture/tmp" \
+    bash "$repo_root/scripts/test-backend.sh" -v "$@" .) >"$result_fixture/output" 2>&1 || {
+      cat "$result_fixture/output" >&2; return 1;
+    }
+}
+unset GOGC
+result_run
+grep -q 'GC target: 50' "$result_fixture/output"
+result_run
+grep -q '(cached)' "$result_fixture/output"
+GOGC=73 result_run
+grep -q 'GC target: 73' "$result_fixture/output"
+GOGC=73 result_run
+grep -q '(cached)' "$result_fixture/output"
+result_run -count=1
+if grep -q '(cached)' "$result_fixture/output"; then
+  echo '-count=1 must execute the test again' >&2
+  exit 1
+fi
+echo 'full-suite wrapper: default/explicit GOGC, cached reruns and -count=1 passed'
