@@ -53,7 +53,6 @@ func staffRecipientStatus(recipients []*appointmentcap.AppointmentRecipient, sta
 }
 
 func (s *service) guardianRecipientStatusForStudents(ctx context.Context, recipients []*appointmentcap.AppointmentRecipient, guardianProfileIDs []int64, studentIDs []int64) (*string, *int64, error) {
-	allowedStudents := int64Set(studentIDs)
 	guardianRecipients := recipientsOfGuardians(recipients, int64Set(guardianProfileIDs))
 	recipientIDs := make([]int64, 0, len(recipients))
 	for _, recipient := range guardianRecipients {
@@ -63,20 +62,30 @@ func (s *service) guardianRecipientStatusForStudents(ctx context.Context, recipi
 	if err != nil {
 		return nil, nil, err
 	}
+	status, recipientID := guardianRecipientStatusWithLinks(guardianRecipients, visibleGuardianRecipientIDs(studentIDs, links))
+	return status, recipientID, nil
+}
+
+func visibleGuardianRecipientIDs(studentIDs []int64, links []*appointmentcap.AppointmentRecipientStudent) map[int64]struct{} {
+	allowedStudents := int64Set(studentIDs)
 	visibleRecipients := map[int64]struct{}{}
 	for _, link := range links {
 		if _, ok := allowedStudents[link.StudentID]; ok {
 			visibleRecipients[link.RecipientID] = struct{}{}
 		}
 	}
+	return visibleRecipients
+}
+
+func guardianRecipientStatusWithLinks(guardianRecipients []*appointmentcap.AppointmentRecipient, visibleRecipients map[int64]struct{}) (*string, *int64) {
 	for _, recipient := range guardianRecipients {
 		if _, ok := visibleRecipients[recipient.ID]; ok {
 			status := recipient.Status
 			id := recipient.ID
-			return &status, &id, nil
+			return &status, &id
 		}
 	}
-	return nil, nil, nil
+	return nil, nil
 }
 
 // recipientsOfGuardians keeps, in order, the guardian recipients whose profile

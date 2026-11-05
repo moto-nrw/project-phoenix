@@ -1,0 +1,6 @@
+{
+  "scenario": "api.calendar.parent_list",
+  "max": 14,
+  "exact": true,
+  "description": "Real ParentCalendarRouter and ParentSessionChain, N3/N8 permitted children and appointments in one school; one bulk recipient-student read, full admin and tenant transaction statements, excluding the outer live-session verifier."
+}
