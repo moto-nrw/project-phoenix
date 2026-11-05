@@ -15,8 +15,11 @@ import {
   FileUp,
   Pencil,
   RotateCcw,
+  TextAlignStart,
   Trash2,
 } from "lucide-react";
+import { IconTile } from "~/components/ui/icon-tile";
+import { StatusBadge } from "~/components/ui/status-badge";
 import type { ResolvedSetting } from "~/lib/settings-api";
 import {
   useApiErrorDisplay,
@@ -1763,43 +1766,43 @@ function renderEnrollmentLegalTextEditor(
     isAGB,
     agbDisplayMode,
   );
+  const isPDF =
+    isAGB && agbDisplayMode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF;
+  const SourceIcon = isPDF ? FileText : TextAlignStart;
+  let sourceLabel = hasContent ? "Text hinterlegt" : "Noch kein Text";
+  if (isAGB) sourceLabel = isPDF ? "PDF-Datei" : "Text";
   return (
-    <div className="w-full sm:w-96">
-      <div
-        className={`rounded-xl border p-3 text-sm leading-6 ${
-          hasContent
-            ? "border-gray-100 bg-gray-50 text-gray-700"
-            : "border-moto-amber/30 bg-moto-amber-soft text-moto-amber-strong"
-        }`}
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <p className="font-medium text-gray-900">
-              {hasContent ? "Inhalt hinterlegt" : "Noch kein Inhalt hinterlegt"}
-            </p>
-            <p className="mt-0.5 text-xs text-gray-500">{status}</p>
+    <div className="moto-content-surface flex w-full flex-col gap-3 rounded-xl border p-3 sm:w-[28rem] sm:flex-row sm:items-center">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <IconTile
+          size="xs"
+          tone={hasContent ? "green" : "orange"}
+          icon={<SourceIcon aria-hidden="true" />}
+        />
+        <div className="min-w-0">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-gray-900">
             {isAGB && (
-              <p className="mt-1 inline-flex rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200">
-                Quelle:{" "}
-                {agbDisplayMode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF
-                  ? "PDF-Datei"
-                  : "Text"}
-              </p>
+              <span className="-mr-1 font-normal text-gray-500">Quelle: </span>
             )}
-          </div>
-          <Button
-            type="button"
-            variant="primary"
-            size="compact"
-            onClick={onEdit}
-            disabled={!writable}
-            className="shrink-0"
-          >
-            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>{isAGB ? "AGB überarbeiten" : "Rechtstext bearbeiten"}</span>
-          </Button>
+            {sourceLabel}
+            {!hasContent && (
+              <StatusBadge tone="orange" size="xs" label="Fehlt" />
+            )}
+          </p>
+          <p className="mt-0.5 text-xs text-gray-500">{status}</p>
         </div>
       </div>
+      <Button
+        type="button"
+        variant={hasContent ? "outline" : "primary"}
+        size="compact"
+        onClick={onEdit}
+        disabled={!writable}
+        className="shrink-0"
+      >
+        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+        <span>{isAGB ? "AGB überarbeiten" : "Rechtstext bearbeiten"}</span>
+      </Button>
     </div>
   );
 }
@@ -1810,19 +1813,15 @@ function legalContentStatusText(
   isAGB: boolean,
   agbDisplayMode: LegalAGBDisplayMode,
 ): string {
-  if (isAGB) {
-    if (agbDisplayMode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF) {
-      return hasDocument
-        ? "Im Anmeldeformular wird ein Link zur PDF angezeigt."
-        : "Lade eine PDF hoch, um diese Quelle zu verwenden.";
-    }
-    return text !== ""
-      ? "Im Anmeldeformular wird der eingegebene Text angezeigt."
-      : "Trage einen Text ein, um diese Quelle zu verwenden.";
+  if (isAGB && agbDisplayMode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF) {
+    return hasDocument
+      ? "Eltern öffnen die AGB als PDF-Datei."
+      : "Noch keine PDF-Datei hochgeladen.";
   }
-  return text !== ""
-    ? "Der Text wird im Anmeldeformular angezeigt."
-    : "Hinterlege den Text, bevor du den Block aktivierst.";
+  if (text === "") return "Noch kein Text eingetragen.";
+  return isAGB
+    ? "Eltern lesen die AGB direkt im Formular."
+    : "Eltern lesen den Text im Anmeldeformular.";
 }
 
 const LEGAL_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
