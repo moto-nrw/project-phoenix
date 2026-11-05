@@ -881,7 +881,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         }
         title="Person ins Träger-Büro einladen"
         hint={`Die Person bekommt eine E-Mail mit einem Link zum Träger-Portal von ${organization.name}. Dort legt sie ein Passwort fest oder meldet sich mit ihrem moto-Konto an. Ein Schulkonto braucht sie nicht.`}
-        successText="Die Einladung ist verschickt. Sie steht in der Liste, bis die Person sie annimmt."
+        successText="Die Einladung ist verschickt. Sie steht jetzt in der Liste."
       />
 
       {mfaResetMember ? (

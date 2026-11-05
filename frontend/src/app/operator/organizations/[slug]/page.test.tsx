@@ -1042,6 +1042,35 @@ describe("OperatorOrganizationDetailPage", () => {
       ).toBeInTheDocument();
     });
 
+    it("sends an invitation again only once while the first resend runs (#5749)", async () => {
+      currentSearchParams = new URLSearchParams("tab=traeger-buero");
+      setupSWR({ traegerInvitations: [expiredInvitation] });
+      let finish: (value: unknown) => void = () => undefined;
+      mockResendTraegerInvitation.mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      mockMutateTraegerInvitations.mockResolvedValue([]);
+
+      await renderPage();
+
+      for (let click = 0; click < 2; click++) {
+        await openRowMenu("Aktionen für die Einladung an alt@traeger.example");
+        fireEvent.click(
+          await screen.findByRole("menuitem", {
+            name: "Einladung erneut senden",
+          }),
+        );
+      }
+      finish({ ...expiredInvitation, id: "9", expired: false });
+
+      await waitFor(() =>
+        expect(mockMutateTraegerInvitations).toHaveBeenCalled(),
+      );
+      expect(mockResendTraegerInvitation).toHaveBeenCalledTimes(1);
+    });
+
     it("takes an invitation back only after the second confirmation (#5749)", async () => {
       currentSearchParams = new URLSearchParams("tab=traeger-buero");
       setupSWR({ traegerInvitations: [openInvitation] });
@@ -1150,7 +1179,7 @@ describe("OperatorOrganizationDetailPage", () => {
       await waitFor(() => expect(mockMutateTraegerMembers).toHaveBeenCalled());
       expect(
         await screen.findByText(
-          "Die Einladung ist verschickt. Sie steht in der Liste, bis die Person sie annimmt.",
+          "Die Einladung ist verschickt. Sie steht jetzt in der Liste.",
         ),
       ).toBeInTheDocument();
     });

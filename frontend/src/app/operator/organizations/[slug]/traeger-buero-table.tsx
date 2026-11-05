@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable } from "~/components/ui/data-table";
 import {
@@ -48,7 +48,13 @@ export function TraegerBueroTable({
   const { show: showError } = useApiErrorDisplay();
   const { success } = useToast();
 
+  // A second click while the first resend runs would hit the replaced
+  // invitation and show an error beside the success.
+  const resending = useRef<string | null>(null);
+
   const resend = async (invitation: TraegerInvitation) => {
+    if (resending.current !== null) return;
+    resending.current = invitation.id;
     try {
       await operatorProvisioningService.resendTraegerInvitation(
         organizationId,
@@ -63,6 +69,8 @@ export function TraegerBueroTable({
         error: err instanceof Error ? err.message : String(err),
       });
       void showError(err, { object: "die Einladung" });
+    } finally {
+      resending.current = null;
     }
   };
 
