@@ -30,6 +30,7 @@ import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { roomsConcept } from "~/lib/concepts/rooms";
+import { foldForSearch } from "~/lib/search-fold";
 
 type RoomsGroupingMode = "none" | "building" | "floor";
 
@@ -170,12 +171,12 @@ function RoomsPageContent() {
     const rooms = roomsData ?? [];
     let arr = [...rooms];
     if (searchTerm) {
-      const q = searchTerm.toLowerCase();
+      const q = foldForSearch(searchTerm);
       arr = arr.filter(
         (r) =>
-          r.name.toLowerCase().includes(q) ||
-          (r.building?.toLowerCase().includes(q) ?? false) ||
-          (r.category?.toLowerCase().includes(q) ?? false),
+          foldForSearch(r.name).includes(q) ||
+          foldForSearch(r.building).includes(q) ||
+          foldForSearch(r.category).includes(q),
       );
     }
     if (categoryFilter !== "all") {

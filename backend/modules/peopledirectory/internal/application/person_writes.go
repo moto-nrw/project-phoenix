@@ -2,10 +2,11 @@ package application
 
 import (
 	"context"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // PersonWrites serves the person writes of the profile rename
@@ -30,7 +31,7 @@ func (p PersonWrites) RenamePerson(ctx context.Context, personID int64, firstNam
 		if lastName != nil {
 			last = *lastName
 		}
-		writeStats, err := s.store.SetNames(txCtx, personID, strings.TrimSpace(first), strings.TrimSpace(last))
+		writeStats, err := s.store.SetNames(txCtx, personID, textnorm.Name(first), textnorm.Name(last))
 		stats.Add(writeStats)
 		return err
 	}))

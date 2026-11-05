@@ -7,6 +7,8 @@ import (
 	"io"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 const (
@@ -281,15 +283,7 @@ func scopedEmail(email, scope string) string {
 // Names carry real umlauts, but the canonical email pattern
 // (users.ValidateOptionalEmail) only accepts ASCII.
 func emailLocalPart(firstName, lastName string) string {
-	return strings.NewReplacer(
-		"ä", "ae",
-		"ö", "oe",
-		"ü", "ue",
-		"ß", "ss",
-		"ı", "i",
-		"ç", "c",
-		"ş", "s",
-	).Replace(strings.ReplaceAll(strings.ToLower(firstName+"."+lastName), " ", "."))
+	return strings.ToLower(textnorm.ASCII(strings.ReplaceAll(firstName+"."+lastName, " ", ".")))
 }
 
 func (s *Seeder) profileAdminCredentials() (string, string, error) {

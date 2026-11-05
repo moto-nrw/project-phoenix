@@ -101,3 +101,16 @@ func TestGetOverviewPaginatesLargeResultSets(t *testing.T) {
 	assert.Equal(t, 1, repo.listQuery.Page)
 	assert.Equal(t, 100, repo.listQuery.PageSize)
 }
+
+// The overview's name filter finds "Özdemir" for "ozdem" (#4949).
+func TestFilterOverviewStudentIDsIgnoresAccents(t *testing.T) {
+	t.Parallel()
+
+	students := map[int64]*StudentRecord{1: {ID: 1, PersonID: 11}, 2: {ID: 2, PersonID: 22}}
+	persons := map[int64]*PersonName{
+		11: {ID: 11, FirstName: "Zoë", LastName: "Özdemir"},
+		22: {ID: 22, FirstName: "Kim", LastName: "Becker"},
+	}
+
+	assert.Equal(t, []int64{1}, filterOverviewStudentIDs([]int64{1, 2}, students, persons, "zoe ozdem"))
+}

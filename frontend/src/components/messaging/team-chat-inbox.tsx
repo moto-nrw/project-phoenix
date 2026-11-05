@@ -33,6 +33,7 @@ import {
 import type { TeamChatPortal } from "~/lib/team-chat-portal";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "TeamChatInbox" });
 
@@ -154,9 +155,9 @@ export function TeamChatInbox({
   const filteredThreads = useMemo(() => {
     const list: StaffInboxThread[] = threads ?? [];
     if (!searchTerm) return list;
-    const term = searchTerm.toLowerCase();
+    const term = foldForSearch(searchTerm);
     return list.filter((thread) =>
-      threadTitle(thread).toLowerCase().includes(term),
+      foldForSearch(threadTitle(thread)).includes(term),
     );
   }, [threads, searchTerm]);
 

@@ -65,8 +65,8 @@ type UpdateClassListEntry struct {
 }
 
 // ClassListEntryFilter narrows a listing. Every field is optional; the name
-// and class matches are case-insensitive and ignore surrounding whitespace,
-// exactly like the duplicate guard the legacy repository offered.
+// and class matches are case-insensitive and ignore surrounding whitespace.
+// Name matches also ignore canonical Unicode form.
 type ClassListEntryFilter struct {
 	IDs         []int64
 	FirstName   string

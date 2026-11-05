@@ -15,6 +15,7 @@ import {
   staffRoleKindLabel,
 } from "~/lib/staff-messages-api";
 import { createLogger } from "~/lib/logger";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "NewTeamMessageModal" });
 
@@ -91,9 +92,9 @@ export function NewTeamMessageModal({
   }, [api, loadAttempt, showLoadError, clearLoadError]);
 
   const filtered = useMemo(() => {
-    const term = query.trim().toLowerCase();
+    const term = foldForSearch(query.trim());
     if (!term) return people;
-    return people.filter((person) => person.name.toLowerCase().includes(term));
+    return people.filter((person) => foldForSearch(person.name).includes(term));
   }, [people, query]);
 
   const handlePick = async (person: MessageableStaff) => {

@@ -24,6 +24,7 @@ import {
 } from "~/lib/guardian-payment-api";
 import { createLogger } from "~/lib/logger";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "BankverbindungenPage" });
 
@@ -96,14 +97,14 @@ function BankverbindungenContent() {
   );
 
   const visibleRows = useMemo(() => {
-    const needle = searchValue.trim().toLowerCase();
+    const needle = foldForSearch(searchValue.trim());
     return rows.filter((row) => {
       if (completeness === "missing" && row.ibanMasked !== "") return false;
       if (needle === "") return true;
       return (
-        row.studentName.toLowerCase().includes(needle) ||
-        row.accountHolder.toLowerCase().includes(needle) ||
-        row.schoolClass.toLowerCase().includes(needle)
+        foldForSearch(row.studentName).includes(needle) ||
+        foldForSearch(row.accountHolder).includes(needle) ||
+        foldForSearch(row.schoolClass).includes(needle)
       );
     });
   }, [rows, searchValue, completeness]);

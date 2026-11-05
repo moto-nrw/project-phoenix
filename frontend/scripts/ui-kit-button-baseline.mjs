@@ -90,7 +90,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/messaging/new-team-message-modal.tsx",
-    lines: [161],
+    lines: [162],
     reason: "Person in der Empfängerliste wählen: Auswahlzeile",
   },
   {
@@ -108,7 +108,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/help/help-view.tsx",
-    lines: [1076],
+    lines: [1069],
     reason: "Artikel-Navigation der Hilfe (aria-current), Navigationszeile",
   },
   {
@@ -164,7 +164,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/active-supervisions/spontaneous-activity-start.tsx",
-    lines: [377],
+    lines: [378],
     reason: "Startkachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {

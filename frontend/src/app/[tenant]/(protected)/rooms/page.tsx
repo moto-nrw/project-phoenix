@@ -48,6 +48,7 @@ import { RoomsGridSkeleton } from "./page-skeleton";
 import { childrenConcept } from "~/lib/concepts/children";
 import { roomsConcept } from "~/lib/concepts/rooms";
 import { staffConcept } from "~/lib/concepts/staff";
+import { foldForSearch } from "~/lib/search-fold";
 
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
@@ -301,12 +302,12 @@ function RoomsPageContent() {
 
     // Search filter
     if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
+      const searchLower = foldForSearch(searchTerm);
       filtered = filtered.filter((room) => {
         const checks = [
-          room.name?.toLowerCase().includes(searchLower),
-          room.groupName?.toLowerCase().includes(searchLower),
-          room.activityName?.toLowerCase().includes(searchLower),
+          foldForSearch(room.name).includes(searchLower),
+          foldForSearch(room.groupName).includes(searchLower),
+          foldForSearch(room.activityName).includes(searchLower),
         ];
         return checks.some(Boolean);
       });

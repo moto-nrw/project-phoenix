@@ -2,7 +2,8 @@ package peopledirectory
 
 import (
 	"errors"
-	"strings"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 func (p *DirectoryPersonSnapshot) Validate() error {
@@ -14,8 +15,8 @@ func (p *DirectoryPersonSnapshot) Validate() error {
 		return errors.New("last name is required")
 	}
 
-	p.FirstName = strings.TrimSpace(p.FirstName)
-	p.LastName = strings.TrimSpace(p.LastName)
+	p.FirstName = textnorm.Name(p.FirstName)
+	p.LastName = textnorm.Name(p.LastName)
 
 	return nil
 }

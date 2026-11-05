@@ -182,7 +182,7 @@ func applyChangeRequestReviewFilters(q *bun.SelectQuery, filters enrollment.Chan
 			WHERE rc.request_id = "change_request".request_id
 			  AND rc.tenant_id = "change_request".tenant_id
 			  AND ("change_request".request_child_id IS NULL OR rc.id = "change_request".request_child_id)
-			  AND (rc.first_name || ' ' || rc.last_name) ILIKE ? ESCAPE '\'
+			  AND public.f_unaccent(rc.first_name || ' ' || rc.last_name) ILIKE public.f_unaccent(?) ESCAPE '\'
 		)`, "%"+strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(filters.Search)+"%")
 	}
 	if filters.History {
