@@ -1908,6 +1908,15 @@ function colorPresets(setting: ResolvedSetting): ColorPreset[] {
   );
 }
 
+/**
+ * A field with a registry example is as tall as the example plus room to
+ * type (#5693): a three-line sender needs no ten-line box.
+ */
+function exampleRows(placeholder: string | undefined): number | undefined {
+  if (!placeholder) return undefined;
+  return Math.max(4, placeholder.split("\n").length + 2);
+}
+
 function renderField(
   setting: ResolvedSetting,
   localValue: unknown,
@@ -1996,8 +2005,11 @@ function renderField(
           onBlur={onBlur}
           disabled={disabled}
           placeholder={
-            setting.key === PAYMENT_TEXT_KEY ? BUILT_IN_PAYMENT_TEXT : undefined
+            setting.key === PAYMENT_TEXT_KEY
+              ? BUILT_IN_PAYMENT_TEXT
+              : setting.placeholder
           }
+          rows={exampleRows(setting.placeholder)}
           errorId={errorId}
         />
       );

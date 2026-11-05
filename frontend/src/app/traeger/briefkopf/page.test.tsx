@@ -7,6 +7,7 @@ import {
   render as rtlRender,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -188,8 +189,16 @@ describe("TraegerBriefkopfPage", () => {
     const preview = await screen.findByRole("figure", {
       name: "Vorschau des Briefkopfs",
     });
-    expect(preview).toHaveTextContent("Ganztag im Quartier e.V.");
-    expect(preview).toHaveTextContent("49143 Bissendorf");
+    // Like the PDF: one line per entered line, the first bold in the colour.
+    const senderLines = within(
+      within(preview).getByRole("group", { name: "Absender" }),
+    ).getAllByRole("paragraph");
+    expect(senderLines.map((line) => line.textContent)).toEqual([
+      "Ganztag im Quartier e.V.",
+      "Am Markt 4",
+      "49143 Bissendorf",
+    ]);
+    expect(senderLines[0]).toHaveStyle({ color: "#217A78" });
     expect(preview).toHaveTextContent("Petra Lindner · +49 5402 1234-0");
     expect(preview).toHaveTextContent("IBAN DE89 3704 0044 0532 0130 00");
     expect(preview).toHaveTextContent("Amtsgericht Osnabrück");

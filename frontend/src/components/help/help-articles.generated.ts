@@ -9901,10 +9901,11 @@ export const traegerBriefkopfTopic =
         {
           title: "Absender, Farbe und Fußzeile eintragen",
           steps: [
-            "Tragen Sie bei `Absender im Briefkopf` Name und Anschrift ein, jede Angabe in eine eigene Zeile.",
+            "Tragen Sie bei `Absender im Briefkopf` Name und Anschrift ein. Jede Zeile im Feld ist eine Zeile im Brief. Die erste Zeile steht fett.",
+            "Ist ein Feld leer, zeigt es ein graues Beispiel. Das Beispiel steht nie im Brief.",
             "Klicken Sie bei `Farbe für Briefe und Rechnungen` auf eine der Farben.",
             "Passt keine Farbe, wählen Sie `Eigene Farbe`. Klicken Sie dann auf den farbigen Kreis und wählen Sie Ihre Farbe. Steht im Logo-Entwurf ein Farbcode, tragen Sie ihn in das Feld daneben ein: eine Raute und sechs Zeichen.",
-            "Tragen Sie bei `Fußzeile` zum Beispiel Vorstand, Amtsgericht und Steuernummer ein.",
+            "Tragen Sie bei `Fußzeile` zum Beispiel Vorstand, Amtsgericht und Steuernummer ein, jede Angabe in eine eigene Zeile.",
             "moto speichert jedes Feld von selbst.",
           ],
         },
