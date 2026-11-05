@@ -40,7 +40,7 @@ func TestEnrollmentPublicChangesRouteGrowthQueryBudget(t *testing.T) {
 		}
 	}
 	run := func(n int) []string {
-		raw, q := growthGET(t, router, counter, "", "/requests/"+submitted.Request.StatusToken+"/change-requests")
+		raw, q := growthReadOnlyGET(t, f, router, counter, "", "/requests/"+submitted.Request.StatusToken+"/change-requests")
 		var rows []struct {
 			ID        string `json:"id"`
 			RequestID string `json:"request_id"`

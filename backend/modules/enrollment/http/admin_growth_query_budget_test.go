@@ -121,7 +121,7 @@ func TestEnrollmentAdminRouteGrowthQueryBudget(t *testing.T) {
 		}
 	}
 	runHistory := func(n int) []string {
-		raw, q := growthGET(t, router, counter, f.token, fmt.Sprintf("/admin/students/%d/requests/", student.ID))
+		raw, q := growthReadOnlyGET(t, f, router, counter, f.token, fmt.Sprintf("/admin/students/%d/requests/", student.ID))
 		var rows []enrollmentHTTP.AdminRequestSummary
 		require.NoError(t, json.Unmarshal(raw, &rows))
 		require.Len(t, rows, n)
