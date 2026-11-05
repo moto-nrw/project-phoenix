@@ -42,6 +42,7 @@ const BERLIN_TIME = new Intl.DateTimeFormat("de-DE", {
 
 function bookingsText(
   period: HolidayPeriod,
+  names: ReadonlyMap<string, string>,
   changes: readonly HolidayBookingChange[],
 ): string {
   if (changes.length === 0) return "keine Woche";
@@ -52,7 +53,7 @@ function bookingsText(
         (entry) => entry.id === change.timeModelId,
       );
       if (!week || !model) return "eine entfernte Woche";
-      return `${formatHolidayWeek(week.startsOn, week.endsOn)}: ${model.name}`;
+      return `${formatHolidayWeek(week.startsOn, week.endsOn)}, ${names.get(week.hostSchoolId) ?? "Schule nicht mehr vorhanden"}: ${model.name}`;
     })
     .join("; ");
 }
@@ -70,6 +71,7 @@ function debtorNumberText(change: {
 function eventDetail(
   event: HolidayRegistrationEvent,
   period: HolidayPeriod,
+  names: ReadonlyMap<string, string>,
   registration: HolidayRegistrationDetail,
 ): string | null {
   if (event.action === "edit") {
@@ -84,14 +86,16 @@ function eventDetail(
     (entry) => entry.id === event.childId,
   );
   const name = child ? `${child.firstName} ${child.lastName}: ` : "";
-  return `${name}vorher ${bookingsText(period, event.before)}, jetzt ${bookingsText(period, event.after)}`;
+  return `${name}vorher ${bookingsText(period, names, event.before)}, jetzt ${bookingsText(period, names, event.after)}`;
 }
 
 export function HolidayRegistrationHistory({
   period,
+  names,
   registration,
 }: Readonly<{
   period: HolidayPeriod;
+  names: ReadonlyMap<string, string>;
   registration: HolidayRegistrationDetail;
 }>) {
   return (
@@ -105,7 +109,7 @@ export function HolidayRegistrationHistory({
         // sie bricht um, statt am Kartenrand abgeschnitten zu werden.
         <ol className="space-y-2 text-sm wrap-anywhere text-gray-700">
           {registration.history.map((event, index) => {
-            const detail = eventDetail(event, period, registration);
+            const detail = eventDetail(event, period, names, registration);
             return (
               <li key={`${event.occurredAt}-${index}`}>
                 <span className="text-gray-500">

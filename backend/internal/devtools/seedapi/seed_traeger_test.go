@@ -181,6 +181,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/auth/login ",
 		"GET /traeger/schools/ Bearer traeger-token",
 		"POST /traeger/holiday-periods/ Bearer traeger-token",
+		"POST /traeger/holiday-periods/ Bearer traeger-token",
 		"POST /traeger/holiday-periods/5/publish Bearer traeger-token",
 		"POST /traeger/contribution-rules/ Bearer traeger-token",
 		"POST /traeger/contribution-rules/ Bearer traeger-token",

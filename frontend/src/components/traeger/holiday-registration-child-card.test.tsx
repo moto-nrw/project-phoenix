@@ -27,12 +27,13 @@ function renderCard(
   childIndex: number,
   onChanged = vi.fn(),
   healthHidden = false,
+  period = HOLIDAY_PERIOD,
 ) {
   const child = registration.children[childIndex]!;
   render(
     <ToastProvider>
       <HolidayRegistrationChildCard
-        period={HOLIDAY_PERIOD}
+        period={period}
         registration={registration}
         child={child}
         health={
@@ -133,6 +134,60 @@ describe("HolidayRegistrationChildCard", () => {
       await screen.findByRole("option", { name: "Nicht angemeldet" }),
     );
 
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+  });
+
+  it("moves a child to the parallel week of another school (#5689)", async () => {
+    mockRebook.mockResolvedValue(HOLIDAY_REGISTRATION);
+    const [first, second] = HOLIDAY_PERIOD.weeks;
+    const parallel = {
+      ...HOLIDAY_PERIOD,
+      weeks: [
+        first!,
+        { ...second!, startsOn: first!.startsOn, endsOn: first!.endsOn },
+      ],
+    };
+    renderCard(HOLIDAY_REGISTRATION, 1, vi.fn(), false, parallel);
+
+    fireEvent.click(screen.getByRole("button", { name: "Umbuchen" }));
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Zeitmodell 04.01. bis 08.01.2027",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("option", { name: "OGS Nord: bis 16 Uhr" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockRebook).toHaveBeenCalledWith("5", "7", "10", [
+        { weekId: "51", timeModelId: "62" },
+      ]),
+    );
+  });
+
+  it("refuses weeks that share only some days (#5689)", async () => {
+    const [first, second] = HOLIDAY_PERIOD.weeks;
+    const partly = {
+      ...HOLIDAY_PERIOD,
+      weeks: [first!, { ...second!, startsOn: first!.endsOn }],
+    };
+    renderCard(HOLIDAY_REGISTRATION, 1, vi.fn(), false, partly);
+
+    fireEvent.click(screen.getByRole("button", { name: "Umbuchen" }));
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Zeitmodell 04.01. bis 08.01.2027, OGS Nord",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("option", { name: "bis 16 Uhr" }));
+
+    expect(
+      screen.getByText(
+        "Zwei dieser Wochen überschneiden sich. Bitte wählen Sie nur eine davon.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
   });
 

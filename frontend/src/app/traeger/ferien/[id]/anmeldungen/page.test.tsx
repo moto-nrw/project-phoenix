@@ -107,7 +107,7 @@ describe("TraegerHolidayRegistrationsPage", () => {
       table.getByText("Feriengast (Grundschule Melle)"),
     ).toBeInTheDocument();
     expect(
-      table.getByText("04.01. bis 08.01.2027: bis 16 Uhr"),
+      table.getByText("04.01. bis 08.01.2027, OGS Nord: bis 16 Uhr"),
     ).toBeInTheDocument();
     expect(table.getByText("Mögliche Doppelanmeldung")).toBeInTheDocument();
     expect(

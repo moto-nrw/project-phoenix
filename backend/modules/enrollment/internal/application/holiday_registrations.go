@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/mail"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -558,30 +559,29 @@ func validateHolidayChildren(children []enrollment.HolidayChildInput, schools []
 }
 
 // validateHolidayBookings requires at least one week, each week of the
-// period at most once and a time model of that week.
+// period at most once and a time model of that week. A child takes part in
+// only one of the weeks that share a day (#5689).
 func validateHolidayBookings(bookings []enrollment.HolidayBookingInput, period enrollment.HolidayPeriod) error {
 	if len(bookings) == 0 {
 		return errors.New("at least one week is required")
 	}
-	weeks := map[int64]map[int64]bool{}
+	weeks := map[int64]enrollment.HolidayWeek{}
 	for _, week := range period.Weeks {
-		models := map[int64]bool{}
-		for _, model := range week.TimeModels {
-			models[model.ID] = true
-		}
-		weeks[week.ID] = models
+		weeks[week.ID] = week
 	}
 	errs := validation.Errors{}
 	seen := map[int64]bool{}
 	for i, booking := range bookings {
-		models, ok := weeks[booking.WeekID]
+		week, ok := weeks[booking.WeekID]
 		switch {
 		case !ok:
 			errs[fmt.Sprint(i)] = errors.New("the week is not a week of this period")
 		case seen[booking.WeekID]:
 			errs[fmt.Sprint(i)] = errors.New("the week is booked twice")
-		case !models[booking.TimeModelID]:
+		case !holidayWeekOffers(week, booking.TimeModelID):
 			errs[fmt.Sprint(i)] = errors.New("the time model is not a time model of this week")
+		case holidayBookingOverlaps(week, bookings[:i], weeks):
+			errs[fmt.Sprint(i)] = errors.New("the week shares a day with another booked week")
 		}
 		seen[booking.WeekID] = true
 	}
@@ -589,6 +589,19 @@ func validateHolidayBookings(bookings []enrollment.HolidayBookingInput, period e
 		return nil
 	}
 	return errs
+}
+
+func holidayWeekOffers(week enrollment.HolidayWeek, timeModelID int64) bool {
+	return slices.ContainsFunc(week.TimeModels, func(model enrollment.HolidayTimeModel) bool { return model.ID == timeModelID })
+}
+
+// holidayBookingOverlaps reports whether week shares a day with a week of the
+// earlier bookings. A booking of an unknown week is refused on its own.
+func holidayBookingOverlaps(week enrollment.HolidayWeek, earlier []enrollment.HolidayBookingInput, weeks map[int64]enrollment.HolidayWeek) bool {
+	return slices.ContainsFunc(earlier, func(booking enrollment.HolidayBookingInput) bool {
+		other, ok := weeks[booking.WeekID]
+		return ok && other.ID != week.ID && holidayDaysOverlap(week.StartsOn, week.EndsOn, other.StartsOn, other.EndsOn)
+	})
 }
 
 func validateHolidayContacts(contacts []enrollment.HolidayContactInput, maxContacts int, phoneRequired bool) error {
