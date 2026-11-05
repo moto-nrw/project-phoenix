@@ -7,15 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerSettingOperatorChangesVersion = "1.15.752"
+const traegerSettingOperatorChangesVersion = "1.15.753"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     traegerSettingOperatorChangesVersion,
 		Description: "Träger-Einstellungen: Änderungen eines Operators im Änderungsprotokoll (#5748)",
 		DependsOn: []string{
-			holidaySiblingCancelAuditVersion, // the last migration before this one
-			traegerSettingsVersion,           // the change log this extends
+			traegerDocumentTemplatesVersion, // the last migration before this one
+			traegerSettingsVersion,          // the change log this extends
 		},
 	})
 	Migrations.MustRegister(traegerSettingOperatorChangesUp, traegerSettingOperatorChangesDown)
