@@ -24,7 +24,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       {
         title: "Liste öffnen und filtern",
         steps: [
-          "Wählen Sie in der Navigation `Ferien`.",
+          "Wählen Sie in der Navigation `Ferienbetreuung`.",
           "Öffnen Sie den Ferienzeitraum.",
           "Wählen Sie den Reiter `Anmeldungen`.",
           "Filtern Sie nach Status, `Schule`, `Woche` oder `Zeitmodell`. Unter `Schule` finden Sie auch `Feriengäste`.",
@@ -126,7 +126,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Eine Änderung der Angaben ändert den Ferienbeitrag nicht. Ein schon erstelltes Schreiben an die Familie bleibt, wie es ist. Auch eine schon ausgestellte Rechnung behält die bisherige Anschrift.",
       "Kinder hinzufügen oder entfernen geht nicht. Auch Wochen, Leistungsbezug, Nachweise, Einwilligungen, die Erklärung der Eltern und Gesundheitsangaben ändern Sie hier nicht. Die Wochen ändern Sie mit `Umbuchen`, die Debitorennummer unter `Status`.",
       "Die ausrichtende OGS sieht einen geänderten Namen sofort in ihrer Teilnehmerliste. Bei einem Feriengast steht der neue Name spätestens nach einer Stunde auch in der Gruppe.",
-      "Bei Geschwistern ist das Kind mit dem höchsten Beitrag das 1. Kind. Ihr Träger kann unter `Einstellungen` auch das älteste Kind wählen. Bei gleichem Rang zählt die früher eingegangene Anmeldung zuerst.",
+      "Bei Geschwistern ist das Kind mit dem höchsten Beitrag das 1. Kind. Ihr Träger kann in den Einstellungen unter `Allgemein` auch das älteste Kind wählen. Bei gleichem Rang zählt die früher eingegangene Anmeldung zuerst.",
       "Zusammenführen und Trennen rechnen auch einen schon bestätigten Beitrag neu. Der alte Beitrag bleibt gespeichert. Ein offener Abrechnungslauf zeigt den neuen Betrag.",
       "Stornieren Sie eine Anmeldung der Geschwister, gehört sie nicht mehr dazu. moto rechnet den Beitrag der anderen Geschwister sofort neu. Sie müssen nichts trennen.",
       "Gibt es für ein Geschwister-Kind schon eine Rechnung, bleibt die Rechnung, wie sie ist. moto rechnet den Beitrag trotzdem neu. Unter `Ferienbeitrag` steht dann `Rechnung prüfen`. Stornieren Sie die Rechnung. Der nächste Abrechnungslauf stellt dann den neuen Betrag aus.",
@@ -135,8 +135,8 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
     ],
     differences: [
       "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",
-      "Beim Bestätigen fehlt `Kosten übernimmt ein Kostenträger`? Ihr Träger hat noch keinen aktiven Kostenträger. Die Abrechnung legt ihn unter `Ermäßigungen` an.",
-      "Beim Bestätigen gibt es kein Feld `Debitorennummer`? Ihr Träger fragt sie nicht ab. Das legen Sie unter `Einstellungen` im Bereich `Ferienbetreuung` fest.",
+      "Beim Bestätigen fehlt `Kosten übernimmt ein Kostenträger`? Ihr Träger hat noch keinen aktiven Kostenträger. Die Abrechnung legt ihn in den Einstellungen unter `Abrechnungsvorgaben` an.",
+      "Beim Bestätigen gibt es kein Feld `Debitorennummer`? Ihr Träger fragt sie nicht ab. Das legen Sie in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung` fest.",
     ],
     troubleshootingDetails: [
       "`Umbuchen` fehlt? Die Anmeldung ist eingefroren oder storniert. Eine eingefrorene Anmeldung öffnen Sie mit `Wieder öffnen`.",

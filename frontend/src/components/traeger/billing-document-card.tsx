@@ -21,6 +21,7 @@ import {
 } from "~/components/ui/slide-over";
 import { Button } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
+import { ContributionRulesLink } from "./contribution-rules-link";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import type { BillingChild, BillingDocument } from "~/lib/traeger-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
@@ -226,6 +227,13 @@ export function BillingDocumentBreakdown({
                   : `${BILLING_DOCUMENT_KIND_LABELS[document.kind]} gesamt`
               }
               total={formatEuro(document.totalCents)}
+            />
+            <ContributionRulesLink
+              // Der Abrechnungslauf setzt das Recht „Abrechnung“ voraus.
+              canManageBillingSettings
+              kinds={document.children.flatMap((child) =>
+                child.positions.map((position) => position.kind),
+              )}
             />
             {document.children.map((child) => (
               <CorrectionHistory key={child.childId} child={child} />

@@ -579,6 +579,55 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("links to billing settings only with the right Abrechnung (#5685)", async () => {
+    sessionPermissions.current = ["traeger_enrollment:manage"];
+    const page = render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    // Anker: Die angewandte Geschwisterregel ist geladen.
+    expect(
+      await screen.findByText("Geschwister: 2. Kind, 50 % weniger"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).not.toBeInTheDocument();
+
+    sessionPermissions.current = [
+      "traeger_enrollment:manage",
+      "traeger_overview:read",
+    ];
+    page.rerender(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    // Anker: Die angewandte Geschwisterregel ist weiter geladen.
+    expect(
+      await screen.findByText("Geschwister: 2. Kind, 50 % weniger"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).not.toBeInTheDocument();
+
+    sessionPermissions.current = [
+      "traeger_enrollment:manage",
+      "traeger_billing:manage",
+    ];
+    page.rerender(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).toHaveAttribute("href", "/traeger/einstellungen/abrechnung");
+  });
+
   it("shows the answers with the labels of the form version the parents answered (#5198)", async () => {
     mockRegistration.mockResolvedValue({
       ...HOLIDAY_REGISTRATION,

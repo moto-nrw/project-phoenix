@@ -46,7 +46,7 @@ func TestReservedRoomColors_MatchesFrontendLOCATION_COLORS(t *testing.T) {
 	if len(missingFromBackend) > 0 || len(missingFromFrontend) > 0 {
 		t.Fatalf(
 			"reservedRoomColors drift detected — keep "+
-				"backend/models/facilities/room_colors.go in sync with "+
+				"backend/modules/facilities/room_lifecycle.go in sync with "+
 				"frontend/src/lib/location-helper.ts LOCATION_COLORS.\n"+
 				"  Hex codes in frontend but not backend: %v\n"+
 				"  Hex codes in backend but not frontend: %v\n"+
@@ -142,11 +142,13 @@ func extractPaletteBaseHexes(t *testing.T, source string) map[string]string {
 }
 
 // exposedReservedHexes mirrors what reservedRoomColors holds, EXCLUDING
-// entries that are intentionally backend-only (e.g. the legacy bug-default
-// #4F46E5, reserved for migration-restore-correctness reasons rather than
-// because it's a frontend status badge). The drift test only cares about
-// cross-codebase agreement on the palette half — backend-only entries are
-// asserted separately below.
+// entries that are intentionally backend-only (e.g. the retired status colors
+// asserted below). The drift test only cares about cross-codebase agreement on
+// the palette half — backend-only entries are asserted separately below.
+//
+// #4F46E5 is in both halves: it was reserved first as the legacy bug-default
+// (TestReservedRoomColors_LegacyBugDefault) and is now also the IN_CLASS
+// status color (#5656).
 //
 // We probe via IsReservedRoomColor against a candidate set — that's the
 // public contract, so testing through it avoids reaching into unexported
@@ -169,15 +171,13 @@ func exposedReservedHexes(t *testing.T) map[string]struct{} {
 		"#365D83",
 		"#217A78",
 		"#EAB308",
-		// IN_CLASS („Geht zum Unterricht“) uses indigo, the hex the backend
-		// already reserves as the legacy bug-default (pinned separately below).
 		"#4F46E5",
 	}
 
 	out := make(map[string]struct{}, len(knownReserved))
 	for _, hex := range knownReserved {
 		require.True(t, IsReservedRoomColor(hex),
-			"backend room_colors.go knownReserved is out of sync with "+
+			"backend room_lifecycle.go knownReserved is out of sync with "+
 				"reservedRoomColors map: %s should be reserved but isn't",
 			hex)
 		out[strings.ToUpper(hex)] = struct{}{}
@@ -194,7 +194,7 @@ func TestReservedRoomColors_LegacyBugDefault(t *testing.T) {
 
 	require.True(t, IsReservedRoomColor("#4F46E5"),
 		"legacy bug-default #4F46E5 must remain reserved — see "+
-			"migration 1.15.45 / room_colors.go for the rationale")
+			"migration 1.15.45 / room_lifecycle.go for the rationale")
 }
 
 // TestReservedRoomColors_RetiredStatusColors pins the hexes that used to be
@@ -214,7 +214,7 @@ func TestReservedRoomColors_RetiredStatusColors(t *testing.T) {
 	} {
 		require.True(t, IsReservedRoomColor(hex),
 			"retired status color %s must remain reserved — see the "+
-				"reservedRoomColors comment in room_colors.go", hex)
+				"reservedRoomColors map in room_lifecycle.go", hex)
 	}
 }
 

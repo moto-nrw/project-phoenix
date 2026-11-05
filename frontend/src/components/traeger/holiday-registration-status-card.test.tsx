@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { _resetTraegerHostCache } from "~/lib/traeger-url";
 import type { HolidayRegistrationDetail } from "~/lib/traeger-holiday-registrations-api";
 import type { HolidayContribution } from "~/lib/traeger-contributions-api";
 import {
@@ -57,6 +58,7 @@ function renderCard(
   onChanged = vi.fn(),
   contribution: HolidayContribution = HOLIDAY_CONTRIBUTION,
   onReload = vi.fn(() => Promise.resolve()),
+  canManageBillingSettings = false,
 ) {
   const onExemptionChange = vi.fn();
   render(
@@ -65,6 +67,7 @@ function renderCard(
         periodId="5"
         registration={registration}
         contribution={contribution}
+        canManageBillingSettings={canManageBillingSettings}
         exemption={registration.benefitsDeclared}
         onExemptionChange={onExemptionChange}
         onChanged={onChanged}
@@ -217,18 +220,50 @@ describe("HolidayRegistrationStatusCard", () => {
   });
 
   it("names the missing rule when the parents state benefits", () => {
+    vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", window.location.host);
+    _resetTraegerHostCache();
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+      _resetTraegerHostCache();
+    });
+    renderCard(
+      { ...HOLIDAY_REGISTRATION, benefitsDeclared: true },
+      vi.fn(),
+      {
+        ...HOLIDAY_CONTRIBUTION,
+        exemptionAvailable: false,
+      },
+      undefined,
+      true,
+    );
+
+    expect(
+      screen.getByText(
+        /Die Eltern geben an, dass sie Leistungen beziehen\. Am ersten gebuchten Tag gilt keine Befreiungsregel\. Sie legen sie unter/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).toHaveAttribute("href", "/einstellungen/abrechnung");
+    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
+    expect(screen.queryByRole("radio")).toBeNull();
+  });
+
+  it("names the missing rule without a link when billing settings are unavailable", () => {
     renderCard({ ...HOLIDAY_REGISTRATION, benefitsDeclared: true }, vi.fn(), {
       ...HOLIDAY_CONTRIBUTION,
       exemptionAvailable: false,
     });
 
+    // Anker: Der Hinweis zur fehlenden Befreiungsregel ist sichtbar.
     expect(
       screen.getByText(
-        "Die Eltern geben an, dass sie Leistungen beziehen. Am ersten gebuchten Tag gilt keine Befreiungsregel. Sie legen sie unter „Ermäßigungen“ an.",
+        "Die Eltern geben an, dass sie Leistungen beziehen. Am ersten gebuchten Tag gilt keine Befreiungsregel. Die Rolle „Abrechnung“ legt sie an.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
-    expect(screen.queryByRole("radio")).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).not.toBeInTheDocument();
   });
 
   it("cancels only after the confirmation, through the contribution, and reads the page again", async () => {

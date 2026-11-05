@@ -7,8 +7,6 @@ const { api, mockPush } = vi.hoisted(() => ({
   api: {
     fetchBillingRuns: vi.fn(),
     fetchBillingPeriods: vi.fn(),
-    fetchHolidayNumberRange: vi.fn(),
-    saveHolidayNumberRange: vi.fn(),
     startBillingRun: vi.fn(),
   },
   mockPush: vi.fn(),
@@ -59,14 +57,9 @@ describe("TraegerAbrechnungPage", () => {
     mockPush.mockReset();
     api.fetchBillingRuns.mockResolvedValue([RELEASED]);
     api.fetchBillingPeriods.mockResolvedValue([PERIOD]);
-    api.fetchHolidayNumberRange.mockResolvedValue({
-      service: "holiday",
-      pattern: "FE-{JJJJ}-{NNNN}",
-      example: "FE-2026-0001",
-    });
   });
 
-  it("lists the runs with their invoices and the number range", async () => {
+  it("lists the runs with their invoices", async () => {
     renderPage();
 
     expect(
@@ -74,7 +67,6 @@ describe("TraegerAbrechnungPage", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("2 · 180,00 €")[0]).toBeInTheDocument();
     expect(screen.getAllByText("Freigegeben")[0]).toBeInTheDocument();
-    expect(screen.getByText("FE-2026-0001")).toBeInTheDocument();
   });
 
   it("starts a run for a period and opens it", async () => {
@@ -108,36 +100,5 @@ describe("TraegerAbrechnungPage", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Lauf starten/ })).toBeDisabled();
-  });
-
-  it("asks for a pattern before the first release and saves it", async () => {
-    api.fetchHolidayNumberRange.mockResolvedValue({
-      service: "holiday",
-      pattern: "",
-      example: "",
-    });
-    api.saveHolidayNumberRange.mockResolvedValue({
-      service: "holiday",
-      pattern: "R-{NNN}",
-      example: "R-001",
-    });
-    renderPage();
-
-    expect(
-      await screen.findByText(/Ohne Muster können Sie keinen Lauf freigeben/),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Muster festlegen" }));
-    fireEvent.change(
-      await screen.findByLabelText("Muster der Rechnungsnummer"),
-      { target: { value: "R-{NNN}" } },
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
-
-    await waitFor(() =>
-      expect(api.saveHolidayNumberRange).toHaveBeenCalledWith("R-{NNN}"),
-    );
-    await waitFor(() =>
-      expect(api.fetchHolidayNumberRange).toHaveBeenCalledTimes(2),
-    );
   });
 });

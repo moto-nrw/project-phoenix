@@ -10,7 +10,7 @@
 // ändert sie, bis die Rechnung ausgestellt ist; danach hält die Rechnung sie
 // fest.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -19,6 +19,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import NavigationLink from "~/components/ui/navigation-link";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Radio } from "~/components/ui/radio";
 import { SectionCard } from "~/components/ui/section-card";
@@ -28,6 +29,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { traegerPath } from "~/lib/traeger-url";
 import {
   cancelHolidayRegistration,
   changeHolidayDebtorNumber,
@@ -61,12 +63,28 @@ function statusText(registration: HolidayRegistrationDetail): string {
 function benefitsText(
   registration: HolidayRegistrationDetail,
   contribution: HolidayContribution | null,
-): string | null {
+  canManageBillingSettings: boolean,
+): ReactNode {
   if (!registration.benefitsDeclared) return null;
   if (contribution?.exemptionAvailable) {
     return "Die Eltern geben an, dass sie Leistungen beziehen. Bitte prüfen Sie den Nachweis.";
   }
-  return "Die Eltern geben an, dass sie Leistungen beziehen. Am ersten gebuchten Tag gilt keine Befreiungsregel. Sie legen sie unter „Ermäßigungen“ an.";
+  if (!canManageBillingSettings) {
+    return "Die Eltern geben an, dass sie Leistungen beziehen. Am ersten gebuchten Tag gilt keine Befreiungsregel. Die Rolle „Abrechnung“ legt sie an.";
+  }
+  return (
+    <>
+      Die Eltern geben an, dass sie Leistungen beziehen. Am ersten gebuchten Tag
+      gilt keine Befreiungsregel. Sie legen sie unter{" "}
+      <NavigationLink
+        href={traegerPath("/traeger/einstellungen/abrechnung")}
+        className="font-medium underline"
+      >
+        Abrechnungsvorgaben
+      </NavigationLink>{" "}
+      an.
+    </>
+  );
 }
 
 /** The hint under the debtor number, at the confirmation and at a change. */
@@ -334,6 +352,7 @@ export function HolidayRegistrationStatusCard({
   onChanged,
   onReload,
   onDebtorNumberChanged,
+  canManageBillingSettings = false,
 }: Readonly<{
   periodId: string;
   registration: HolidayRegistrationDetail;
@@ -360,6 +379,8 @@ export function HolidayRegistrationStatusCard({
   onReload: () => Promise<void>;
   /** After a change of the debtor number; the page reads it again. */
   onDebtorNumberChanged: () => Promise<unknown>;
+  /** Das Recht „Abrechnung“ öffnet die Beitragsregeln. */
+  canManageBillingSettings?: boolean;
 }>) {
   const [running, setRunning] = useState<
     HolidayRegistrationAction | "confirm" | "cancel" | null
@@ -543,8 +564,10 @@ export function HolidayRegistrationStatusCard({
           <p>Eltern bekommen beim Bestätigen noch keine Nachricht von moto.</p>
         ) : null}
         {registration.status === "received" &&
-        benefitsText(registration, contribution) ? (
-          <p>{benefitsText(registration, contribution)}</p>
+        benefitsText(registration, contribution, canManageBillingSettings) ? (
+          <p>
+            {benefitsText(registration, contribution, canManageBillingSettings)}
+          </p>
         ) : null}
         {registration.status === "received" ? (
           <form
