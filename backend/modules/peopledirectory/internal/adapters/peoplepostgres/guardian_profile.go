@@ -468,9 +468,11 @@ func (r *guardianProfileRepository) SearchByText(ctx context.Context, searchText
 		// Escape AFTER unaccent, which can turn fullwidth punctuation into LIKE
 		// metacharacters. Keep email matching on its original, unnormalized token.
 		namePattern := bun.SafeQuery(`'%' || replace(replace(replace(public.f_unaccent(?), '\', '\\'), '%', '\%'), '_', '\_') || '%'`, tok)
+		// A token unaccent removes entirely (accent or enclosing marks alone)
+		// matches nothing instead of widening to every guardian.
 		query = query.Where(
-			`(public.f_unaccent("guardian_profile".first_name) ILIKE ? ESCAPE '\' OR public.f_unaccent("guardian_profile".last_name) ILIKE ? ESCAPE '\' OR LOWER("guardian_profile".email) LIKE ? ESCAPE '\')`,
-			namePattern, namePattern, pattern,
+			`btrim(public.f_unaccent(?)) <> '' AND (public.f_unaccent("guardian_profile".first_name) ILIKE ? ESCAPE '\' OR public.f_unaccent("guardian_profile".last_name) ILIKE ? ESCAPE '\' OR LOWER("guardian_profile".email) LIKE ? ESCAPE '\')`,
+			tok, namePattern, namePattern, pattern,
 		)
 	}
 

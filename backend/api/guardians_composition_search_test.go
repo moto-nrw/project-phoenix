@@ -176,7 +176,7 @@ func TestGuardianComposition_SearchMinimumCountsFoldedCharacters(t *testing.T) {
 	token := fmt.Sprintf("Zzfold%d", testpkg.UniqueSuffix())
 	seededID, _ := ctx.createNamedGuardian(token, "Alpha", token+".fold")
 
-	for _, q := range []string{"\u0301\u0301\u0301", "a\u0301\u0301", "\u0301 \u0301 \u0301 \u0301"} {
+	for _, q := range []string{"\u0301\u0301\u0301", "a\u0301\u0301", "\u0301 \u0301 \u0301 \u0301", "\u20dd\u20dd\u20dd", "a\u20dd\u20dd"} {
 		response := ctx.searchDefault(t, "q="+url.QueryEscape(q))
 		assert.False(t, response.has(seededID), "query %q is shorter than three letters once accents are folded", q)
 	}

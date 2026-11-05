@@ -500,6 +500,19 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 		assert.Contains(t, ids, match.ID)
 	})
 
+	// A token that unaccent removes entirely matches nothing, so marks alone
+	// never widen a search to every guardian (#4949).
+	t.Run("a token unaccent removes matches nothing", func(t *testing.T) {
+		ctx := testpkg.OwnCtx(t)
+		seedNamedGuardian(t, db, ctx, repo, "Andrea", "Bauer")
+
+		for _, query := range []string{"\u20dd\u20dd\u20dd", "\u0301\u0301\u0301"} {
+			results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, query, 50)
+			require.NoError(t, err)
+			assert.Empty(t, results, "query %q must not match every guardian", query)
+		}
+	})
+
 	t.Run("normalized LIKE metacharacters match literally", func(t *testing.T) {
 		ctx := testpkg.OwnCtx(t)
 		match := seedNamedGuardian(t, db, ctx, repo, "Literal", "Bauer")
