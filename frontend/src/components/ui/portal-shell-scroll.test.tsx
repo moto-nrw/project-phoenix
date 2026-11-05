@@ -165,6 +165,28 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
     });
   });
 
+  it("merkt den sichtbaren Stand, wenn das Scroll-Ereignis noch aussteht", async () => {
+    const view = renderShellAt("/activities");
+    // Programmgesteuertes Scrollen kann die Position schon setzen, bevor das
+    // zugehörige Ereignis in der Warteschlange abgearbeitet wird.
+    setScrollY(40);
+    act(() => {
+      document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    commitRoute(view, "/rooms");
+    scrollTo.mockClear();
+
+    window.history.replaceState(null, "", "/activities");
+    setScrollY(0);
+    firePopState();
+    setRoute("/activities");
+    view.rerender(shell());
+
+    await waitFor(() => {
+      expect(scrollTo).toHaveBeenCalledWith({ top: 40, behavior: "instant" });
+    });
+  });
+
   it("scrollt beim Zurück nicht, wenn der Browser die Position schon erreicht hat", async () => {
     const view = renderShellAt("/access-log");
     userScrollsTo(300);
