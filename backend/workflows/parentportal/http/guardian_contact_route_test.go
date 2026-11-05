@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/common"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parent "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
@@ -122,6 +121,6 @@ func TestCreateGuardianContactRoute_RejectsOversizedBodyWithOwnCode(t *testing.T
 		Code string `json:"code"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &problem))
-	assert.Equal(t, common.CodeCarePickupSignatureTooLarge, problem.Code)
+	assert.Equal(t, "care.pickup_signature_too_large", problem.Code)
 	assert.Zero(t, service.calls)
 }
