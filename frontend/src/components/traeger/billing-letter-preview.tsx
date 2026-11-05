@@ -30,7 +30,7 @@ import { formatEuro } from "./contribution-format";
 const logger = createLogger({ component: "BillingLetterPreview" });
 
 /** „Rechnung FE-2026-0001“, „Storno FE-2026-0007“. */
-export function billingDocumentTitle(document: BillingDocument): string {
+function billingDocumentTitle(document: BillingDocument): string {
   return `${BILLING_DOCUMENT_KIND_LABELS[document.kind]} ${document.number}`;
 }
 
