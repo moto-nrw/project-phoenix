@@ -1,9 +1,13 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   HOLIDAY_CONTRIBUTION,
   HOLIDAY_REGISTRATION,
 } from "~/test/fixtures/holiday-registrations";
+vi.mock("~/lib/traeger-url", () => ({
+  traegerPath: (path: string) => path.replace("/traeger", ""),
+}));
+
 import { HolidayContributionCard } from "./holiday-contribution-card";
 
 describe("HolidayContributionCard", () => {
@@ -12,6 +16,7 @@ describe("HolidayContributionCard", () => {
       <HolidayContributionCard
         contribution={HOLIDAY_CONTRIBUTION}
         registration={HOLIDAY_REGISTRATION}
+        canManageBillingSettings
       />,
     );
 
@@ -34,6 +39,24 @@ describe("HolidayContributionCard", () => {
     expect(screen.getByText("90,00 €")).toBeInTheDocument();
   });
 
+  it("does not link to billing settings without access to the settings", () => {
+    render(
+      <HolidayContributionCard
+        contribution={HOLIDAY_CONTRIBUTION}
+        registration={HOLIDAY_REGISTRATION}
+        canManageBillingSettings={false}
+      />,
+    );
+
+    // Anker: Die angewandte Geschwisterregel ist geladen.
+    expect(
+      screen.getByText("Geschwister: 2. Kind, 50 % weniger"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("names the day a confirmed contribution was frozen", () => {
     render(
       <HolidayContributionCard
@@ -51,6 +74,37 @@ describe("HolidayContributionCard", () => {
         "Festgehalten am 08.09.2026. Spätere Preise und Regeln ändern ihn nicht.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("links an applied rule to the Abrechnungsvorgaben, but not a plain price (#5685)", () => {
+    const { unmount } = render(
+      <HolidayContributionCard
+        contribution={HOLIDAY_CONTRIBUTION}
+        registration={HOLIDAY_REGISTRATION}
+        canManageBillingSettings
+      />,
+    );
+    expect(
+      screen.getByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).toHaveAttribute("href", "/einstellungen/abrechnung");
+    unmount();
+
+    render(
+      <HolidayContributionCard
+        contribution={{
+          ...HOLIDAY_CONTRIBUTION,
+          children: HOLIDAY_CONTRIBUTION.children.map((child) => ({
+            ...child,
+            lines: child.lines.filter((line) => line.kind === "base"),
+          })),
+        }}
+        registration={HOLIDAY_REGISTRATION}
+        canManageBillingSettings
+      />,
+    );
+    expect(
+      screen.queryByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).toBeNull();
   });
 
   it("asks to check an invoice whose amount no longer fits the siblings", () => {

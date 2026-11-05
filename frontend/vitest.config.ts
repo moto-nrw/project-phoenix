@@ -6,7 +6,7 @@ import { nodeLogicTestFiles } from "./src/test/node-test-files.ts";
 import { phosphorPerIconImports } from "./src/test/phosphor-imports-plugin.ts";
 
 const schoolDateTestFiles = [
-  "src/app/traeger/access-log/page.test.tsx",
+  "src/app/traeger/einstellungen/zugriffsprotokoll/page.test.tsx",
   "src/app/operator/organizations/[slug]/traeger-erasure-order-section.test.tsx",
   "src/app/[tenant]/(protected)/students/[id]/feedback-history/page.test.tsx",
   "src/components/students/care-weekly-plan-editor.test.tsx",

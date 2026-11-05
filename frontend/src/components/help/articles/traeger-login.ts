@@ -51,7 +51,7 @@ export function traegerLoginTopic(): HelpTopic {
       "Melden Sie sich zum ersten Mal an? Dann richten Sie den Code zuerst ein. Wählen Sie `Code an meine E-Mail senden`. Geben Sie danach den Code ein. Wählen Sie `Weiter zum Dashboard`.",
       "Der Code ist im Träger-Portal immer Pflicht. moto merkt sich Ihr Gerät hier nicht.",
       "Am Computer stehen die Bereiche links in der Navigation. Auf dem Handy stehen sie unten. Was dort keinen Platz hat, finden Sie unter `Mehr`.",
-      "`Briefkopf`, `Einstellungen` und `Zugriffsprotokoll` stehen am Computer links unten unter `Einstellungen`. Ein Klick darauf klappt sie auf.",
+      "`Einstellungen` steht unten in der Navigation. Ein Klick darauf zeigt dort die Einstellungen. `Zurück zur App` führt zurück.",
     ],
     troubleshootingDetails: [
       "Keine E-Mail mit Code? Schauen Sie im Spam-Ordner nach. Wählen Sie sonst `Neuen Code anfordern`.",

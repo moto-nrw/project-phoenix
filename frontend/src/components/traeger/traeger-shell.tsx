@@ -1,8 +1,10 @@
 "use client";
 
+import { Suspense } from "react";
 import { Header } from "~/components/dashboard/header";
 import { PortalShell } from "~/components/ui/portal-shell";
 import { TraegerBottomNav } from "./shell/traeger-bottom-nav";
+import { TraegerReturnPathMemory } from "./shell/traeger-return-path";
 import { TraegerSidebar } from "./shell/traeger-sidebar";
 import { TraegerTestSystemNotice } from "./traeger-test-system-notice";
 
@@ -33,6 +35,9 @@ export function TraegerShell({
       sidebar={<TraegerSidebar />}
       bottomNav={<TraegerBottomNav />}
     >
+      <Suspense fallback={null}>
+        <TraegerReturnPathMemory />
+      </Suspense>
       {children}
     </PortalShell>
   );

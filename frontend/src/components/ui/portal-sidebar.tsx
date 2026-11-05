@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { NavLink, type NavLinkProps } from "~/components/ui/nav-link";
 import {
@@ -70,19 +70,25 @@ function useFitSidebarToWindow() {
  *
  * Unter 1024 px übernimmt die mobile Leiste des Portals; CSS blendet die
  * Spalte dort bereits beim ersten Paint aus, ohne Hydrationssprung.
+ *
+ * Ein Portal kann den Inhalt an derselben Stelle wechseln (Träger-Portal,
+ * #5685): Position und Breite bleiben, nur Einträge und `navLabel` ändern sich.
  */
 export function PortalSidebar({
   children,
+  navLabel = "Hauptnavigation",
   secondary,
   secondaryLabel = "Hilfe",
 }: {
-  /** Die Einträge der Hauptnavigation (`PortalSidebarLink`). */
+  /** Die Einträge (`PortalSidebarLink`, `PortalSidebarGroup`). */
   readonly children: ReactNode;
+  /** Der Name des oberen Blocks für Vorleseprogramme. */
+  readonly navLabel?: string;
   /**
    * Die Einträge unter der Trennlinie: die Hilfe, im Träger-Portal auch der
-   * Abschnitt „Einstellungen" (`SidebarAccordionSection`).
+   * Einstieg in die Einstellungen. Ohne Einträge fehlt der Block.
    */
-  readonly secondary: ReactNode;
+  readonly secondary?: ReactNode;
   /** Der Name des unteren Blocks für Vorleseprogramme. */
   readonly secondaryLabel?: string;
 }) {
@@ -97,20 +103,45 @@ export function PortalSidebar({
         className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col"
       >
         <nav
-          aria-label="Hauptnavigation"
+          aria-label={navLabel}
           className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3"
         >
           <ul>{children}</ul>
         </nav>
 
-        <nav
-          aria-label={secondaryLabel}
-          className="border-t border-gray-200 p-3 lg:p-4 xl:p-3"
-        >
-          <ul>{secondary}</ul>
-        </nav>
+        {secondary ? (
+          <nav
+            aria-label={secondaryLabel}
+            className="border-t border-gray-200 p-3 lg:p-4 xl:p-3"
+          >
+            <ul>{secondary}</ul>
+          </nav>
+        ) : null}
       </div>
     </aside>
+  );
+}
+
+/** Eine benannte Gruppe von Einträgen in der `PortalSidebar`. */
+export function PortalSidebarGroup({
+  label,
+  children,
+}: {
+  readonly label: string;
+  /** Die Einträge der Gruppe (`PortalSidebarLink`). */
+  readonly children: ReactNode;
+}) {
+  const labelId = useId();
+  return (
+    <li className="mt-4 first:mt-0">
+      <span
+        id={labelId}
+        className="mb-1 block px-3 text-xs font-semibold tracking-wider text-gray-500 uppercase"
+      >
+        {label}
+      </span>
+      <ul aria-labelledby={labelId}>{children}</ul>
+    </li>
   );
 }
 

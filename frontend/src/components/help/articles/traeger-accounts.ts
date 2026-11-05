@@ -1,7 +1,7 @@
 import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
-/** `/traeger/accounts` (#4650, #5474): Personen einladen, Rollen ändern, entfernen, Verlauf. */
+/** `/traeger/einstellungen/mitglieder` (#4650, #5474, #5685): Personen einladen, Rollen ändern, entfernen, Verlauf. */
 export function traegerAccountsTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.traegerAccounts,
@@ -9,7 +9,7 @@ export function traegerAccountsTopic(): HelpTopic {
     question:
       "Wie lade ich Personen ins Träger-Büro ein und gebe ihnen Rollen?",
     summary:
-      "Unter `Personen` laden Sie Kolleginnen und Kollegen ein. Die Rolle bestimmt, was eine Person darf.",
+      "Unter `Mitglieder und Rollen` laden Sie Kolleginnen und Kollegen ein. Die Rolle bestimmt, was eine Person darf.",
     group: "einstieg",
     audience: "traeger",
     icon: "UsersThree",
@@ -18,7 +18,8 @@ export function traegerAccountsTopic(): HelpTopic {
       {
         title: "Person einladen",
         steps: [
-          "Wählen Sie in der Navigation `Personen`.",
+          "Wählen Sie unten in der Navigation `Einstellungen`.",
+          "Wählen Sie `Mitglieder und Rollen`.",
           "Wählen Sie `Person einladen`.",
           "Tragen Sie die `E-Mail-Adresse` ein.",
           "Wählen Sie mindestens eine Rolle.",
@@ -28,7 +29,8 @@ export function traegerAccountsTopic(): HelpTopic {
       {
         title: "Rollen ändern",
         steps: [
-          "Wählen Sie in der Navigation `Personen`.",
+          "Wählen Sie unten in der Navigation `Einstellungen`.",
+          "Wählen Sie `Mitglieder und Rollen`.",
           "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
           "Wählen Sie `Rollen ändern`.",
           "Wählen Sie die Rollen und dann `Speichern`.",
@@ -37,7 +39,8 @@ export function traegerAccountsTopic(): HelpTopic {
       {
         title: "Person entfernen",
         steps: [
-          "Wählen Sie in der Navigation `Personen`.",
+          "Wählen Sie unten in der Navigation `Einstellungen`.",
+          "Wählen Sie `Mitglieder und Rollen`.",
           "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
           "Wählen Sie `Aus dem Träger-Büro entfernen`.",
           "Wählen Sie `Ja, entfernen` und dann `Entfernen`.",
@@ -46,7 +49,8 @@ export function traegerAccountsTopic(): HelpTopic {
       {
         title: "Verlauf ansehen",
         steps: [
-          "Wählen Sie in der Navigation `Personen`.",
+          "Wählen Sie unten in der Navigation `Einstellungen`.",
+          "Wählen Sie `Mitglieder und Rollen`.",
           "Scrollen Sie nach unten zu `Verlauf`.",
           "Ältere Änderungen sehen Sie mit `Ältere Einträge laden`.",
         ],
@@ -64,7 +68,7 @@ export function traegerAccountsTopic(): HelpTopic {
       "Ändern Sie die Rollen einer Person oder entfernen Sie sie, bekommt die Person eine E-Mail. Darin steht, wer es war und wann. Das gilt auch, wenn Sie Ihre eigenen Rollen ändern.",
     ],
     differences: [
-      "Sie sehen in der Navigation kein `Personen`? Dann haben Sie nicht die Rolle `Leitung`.",
+      "Sie sehen in den Einstellungen kein `Mitglieder und Rollen`? Dann haben Sie nicht die Rolle `Leitung`.",
       "Geänderte Rollen gelten nach wenigen Minuten. Eine entfernte Person kann sich nicht mehr anmelden. Eine offene Sitzung endet nach wenigen Minuten.",
     ],
     troubleshootingDetails: [

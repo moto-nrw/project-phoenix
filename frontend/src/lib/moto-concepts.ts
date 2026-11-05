@@ -85,6 +85,7 @@ import { settingsConcept } from "~/lib/concepts/settings";
 import { notificationsConcept } from "~/lib/concepts/notifications";
 import { languageConcept } from "~/lib/concepts/language";
 import { logoutConcept } from "~/lib/concepts/logout";
+import { backConcept } from "~/lib/concepts/back";
 import { moreConcept } from "~/lib/concepts/more";
 import type { MotoConceptDefinition } from "~/lib/concepts/define";
 
@@ -168,6 +169,7 @@ const registry = {
   notifications: notificationsConcept,
   language: languageConcept,
   logout: logoutConcept,
+  back: backConcept,
   more: moreConcept,
 } as const;
 

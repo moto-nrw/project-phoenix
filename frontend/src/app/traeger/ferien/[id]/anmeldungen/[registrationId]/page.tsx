@@ -89,6 +89,7 @@ const PDF_LABELS: AttachmentLabels = {
 };
 
 const logger = createLogger({ component: "TraegerHolidayRegistrationPage" });
+const TRAEGER_BILLING_RIGHT = "traeger_billing:manage";
 
 // The edit states load with the first „Ändern“, not with the page.
 const editors = () => import("~/components/traeger/holiday-registration-edit");
@@ -138,6 +139,10 @@ export default function TraegerHolidayRegistrationPage() {
   const registrationId = params?.registrationId ?? "";
   const { data: session } = useSession();
   const canSeeHealth = hasPermission(session, TRAEGER_HEALTH_RIGHT);
+  const canManageBillingSettings = hasPermission(
+    session,
+    TRAEGER_BILLING_RIGHT,
+  );
   const [health, setHealth] = useState<HolidayRegistrationHealthDetail | null>(
     null,
   );
@@ -393,11 +398,12 @@ export default function TraegerHolidayRegistrationPage() {
             onChanged={changed}
             onReload={load}
             onDebtorNumberChanged={load}
+            canManageBillingSettings={canManageBillingSettings}
           />
           {contribution?.siblings?.length ? (
             <SectionCard
               title="Geschwister"
-              description="Die Kinder dieser Anmeldungen zählen beim Ferienbeitrag zusammen. Welches Kind das 1. Kind ist, steht unter Einstellungen im Bereich Ferienbetreuung."
+              description="Die Kinder dieser Anmeldungen zählen beim Ferienbeitrag zusammen. Welches Kind das 1. Kind ist, steht in den Einstellungen unter Allgemein im Bereich Ferienbetreuung."
               action={
                 contribution.siblingsInvoiced ? undefined : (
                   <Button
@@ -466,6 +472,7 @@ export default function TraegerHolidayRegistrationPage() {
             <HolidayContributionCard
               contribution={contribution}
               registration={registration}
+              canManageBillingSettings={canManageBillingSettings}
             />
           ) : null}
           {editing === "guardians" && editorProps ? (

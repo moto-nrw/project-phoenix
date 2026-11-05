@@ -59,6 +59,7 @@ const PERSONAL_SESSION = {
   "staff-onboarding-opened:schule:7": "1",
   "parent-first-steps-opened:7": "1",
   "moto-pwa-usage-reported.tenant.7.1": "1",
+  "traeger-settings-return-path": "/ferien/5/anmeldungen?status=offen",
 };
 
 // Settings without data of a person; they stay on the device.
@@ -66,7 +67,6 @@ const KEPT_LOCAL = {
   "sidebar-collapsed": "true",
   "sidebar-open-groups": '["planning"]',
   "sidebar-accordion-expanded": "groups",
-  "traeger-sidebar-settings-open": "false",
   "collection-view:students:tenant-1:7": '{"view":"table"}',
   "moto.tenant.notification-setup.v1.schule.7": '{"done":true}',
   "parent-first-steps:v1:7": '{"completed":[],"dismissed":true}',
