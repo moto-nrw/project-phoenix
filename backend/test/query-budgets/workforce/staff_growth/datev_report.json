@@ -1,0 +1,6 @@
+{
+  "scenario": "workforce.staff_growth.datev_report",
+  "max": 25,
+  "exact": true,
+  "description": "Full protected resource request, paired positive N=3/N=8 staff and sessions. Includes tenant transaction, real settings and handler. Fixtures outside capture; no SQL floor claimed."
+}
