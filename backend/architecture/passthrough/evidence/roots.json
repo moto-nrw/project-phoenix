@@ -6918,13 +6918,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (d schedulerTenantDirectory) ListNonDeletedTenantIDs(ctx context.Context) ([]int64, error) {\n\tschools, err := d.schools.ListNonDeletedSchools(ctx)\n\treturn schoolIDs(schools), err\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/schedulerTenantDirectory.ListNonDeletedTenantIDs",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (d schedulerTenantDirectory) PublishSchoolNames(ctx context.Context) (int, error) {\n\tif d.schoolNames == nil {\n\t\treturn 0, errors.New(\"school names publisher is not composed\")\n\t}\n\tschools, err := d.schools.ListNonDeletedSchools(ctx)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn d.schoolNames(schools), nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/schedulerTenantDirectory.PublishSchoolNames",
