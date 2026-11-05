@@ -51,6 +51,49 @@ describe("PlanLegend", () => {
     expect(swatch).toHaveStyle({ backgroundColor: "#D1D5DB" });
   });
 
+  it("shows the value of an entry beside its label", () => {
+    render(
+      <PlanLegend
+        aria-label="Zähler"
+        size="md"
+        entries={[
+          {
+            key: "ok",
+            label: "Positiv",
+            value: 12,
+            color: "#83CD2D",
+            variant: "dot",
+          },
+          {
+            key: "none",
+            label: "Negativ",
+            value: 0,
+            color: "#FF3130",
+            variant: "dot",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("12")).toBeInTheDocument();
+    expect(screen.getByText("Positiv")).toBeInTheDocument();
+    expect(screen.getByText("0")).toBeInTheDocument();
+  });
+
+  it("draws a round swatch for the dot variant", () => {
+    const { container } = render(
+      <PlanLegend
+        entries={[
+          { key: "ok", label: "Positiv", color: "#83CD2D", variant: "dot" },
+        ]}
+      />,
+    );
+
+    const swatch = container.querySelector('[aria-hidden="true"]');
+    expect(swatch).toHaveClass("rounded-full");
+    expect(swatch).toHaveStyle({ backgroundColor: "#83CD2D" });
+  });
+
   it("renders state entries as an SVG glyph, not a gradient", () => {
     const { container } = render(
       <PlanLegend

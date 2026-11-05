@@ -70,6 +70,8 @@
     "ui-kit/no-hand-rolled-pill": "error",
     "ui-kit/no-pill-dot": "error",
     "ui-kit/no-hex-alpha-tint": "error",
+    "ui-kit/no-hand-rolled-dot": "error",
+    "ui-kit/no-status-dot-outside-plans": "error",
     "ui-kit/no-tabs-as-value-switcher": "error",
     "ui-kit/no-tiny-text": "error",
     "no-restricted-imports": [

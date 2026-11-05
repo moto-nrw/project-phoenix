@@ -4,6 +4,7 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
+import { dotRatchetBaseline } from "./ui-kit-dot-baseline.mjs";
 import { pillRatchetBaseline } from "./ui-kit-pill-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 
@@ -52,6 +53,12 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //
 //   ui-kit/green-fill-white-text    — opaque green surfaces carry white text,
 //                                     only on the dark bg-moto-green-fill steps
+//
+// Two more keep dots where they belong (#5598, ADR 0149):
+//
+//   ui-kit/no-hand-rolled-dot       — dots and colour bars by hand outside
+//                                     src/components/ui/; shrink-only baseline
+//   ui-kit/no-status-dot-outside-plans — StatusDot only in legends and plans
 //
 // Three more catch classes that never render or miss contrast (#5577):
 //
@@ -1136,49 +1143,49 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
 src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@202
-src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1336 text-[11px]@1336 text-[10px]@1340 text-[10px]@1349 text-[11px]@1349
+src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1337 text-[11px]@1337 text-[10px]@1341 text-[10px]@1350 text-[11px]@1350
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@233 text-[11px]@277
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@430
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
-src/components/calendar/personal-calendar.tsx|text-[11px]@905 text-[11px]@933 text-[11px]@1020 text-[11px]@1081 text-[11px]@1089 text-[11px]@1095 text-[11px]@1142 text-[11px]@1148 text-[10px]@1168 text-[11px]@1221 text-[11px]@1301 text-[11px]@1312 text-[11px]@1317
+src/components/calendar/personal-calendar.tsx|text-[11px]@907 text-[11px]@935 text-[11px]@1022 text-[11px]@1083 text-[11px]@1091 text-[11px]@1097 text-[11px]@1144 text-[11px]@1150 text-[10px]@1166 text-[11px]@1215 text-[11px]@1295 text-[11px]@1306 text-[11px]@1311
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@43 text-[10px]@99
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@970 text-[11px]@989
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@973 text-[11px]@992
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1471
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
 src/components/enrollment/phases-editor.tsx|text-[11px]@769 text-[11px]@774
 src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@377
-src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@742 text-[11px]@807
+src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@744 text-[11px]@809
 src/components/parent/parent-enroll-picker.tsx|text-[11px]@228 text-[11px]@232
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/planning/closing-day-marker.tsx|text-[10px]@54
 src/components/staff/absence-request-row.tsx|text-[11px]@107
-src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@484 text-[11px]@580 text-[11px]@589 text-[11px]@596 text-[10px]@730
+src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@485 text-[11px]@581 text-[11px]@590 text-[11px]@597 text-[10px]@731
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1393 text-[11px]@1482 text-[11px]@1492 text-[11px]@1520
 src/components/students/planned-status-days-modal.tsx|text-[10px]@936 text-[11px]@936
 src/components/students/school-checkin-fab.tsx|text-[10px]@199
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
 src/components/time-tracking/leave-requests-card.tsx|text-[10px]@543
-src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@373
+src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@374
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@481 text-[11px]@525
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@148 text-[10px]@301 text-[11px]@307
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
-src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
-src/components/timetable/instance-block.tsx|text-[10px]@299 text-[10px]@338 text-[10px]@345 text-[10px]@355
+src/components/timetable/gap-jump-list.tsx|text-[10px]@109 text-[11px]@132 text-[11px]@147
+src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
 src/components/timetable/instance-detail-modal.tsx|text-[10px]@325 text-[9px]@445 text-[9px]@1079 text-[11px]@1393 text-[11px]@1419 text-[11px]@1595 text-[10px]@1704 text-[11px]@1727
-src/components/timetable/month-planner-grid.tsx|text-[11px]@66 text-[11px]@142 text-[11px]@151 text-[11px]@172 text-[9px]@204 text-[10px]@238
-src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@201 text-[10px]@217 text-[11px]@226 text-[10px]@268 text-[10px]@292 text-[10px]@365 text-[10px]@379 text-[10px]@391 text-[11px]@399 text-[11px]@406
+src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 text-[11px]@152 text-[11px]@173 text-[9px]@204 text-[10px]@238
+src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@199 text-[10px]@215 text-[11px]@224 text-[10px]@266 text-[10px]@290 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@404 text-[11px]@471
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
 src/components/timetable/substitution-slide-over.tsx|text-[10px]@579 text-[9px]@584 text-[11px]@743 text-[11px]@747 text-[10px]@787 text-[10px]@791 text-[10px]@795 text-[10px]@799 text-[11px]@1241
-src/components/timetable/template-card.tsx|text-[11px]@129 text-[11px]@143 text-[10px]@207
+src/components/timetable/template-card.tsx|text-[11px]@130 text-[11px]@144 text-[10px]@208
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
-src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@400 text-[9px]@416 text-[10px]@479 text-[11px]@479 text-[11px]@484 text-[10px]@507 text-[10px]@542 text-[11px]@542
+src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@401 text-[9px]@417 text-[10px]@477 text-[11px]@477 text-[11px]@482 text-[10px]@505 text-[10px]@540 text-[11px]@540
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[11px]@122 text-[11px]@123 text-[10px]@295 text-[10px]@322
@@ -1900,6 +1907,7 @@ function makeRatchetRule({
   allowlist = buttonRatchetAllowlist,
   countEnv = "UI_KIT_BUTTON_RATCHET",
   kitFile = BUTTON_KIT_FILE,
+  exemptDir = null,
 }) {
   return {
     meta: {
@@ -1916,6 +1924,7 @@ function makeRatchetRule({
       if (
         EXEMPT_FILE_RE.test(key) ||
         key.endsWith(kitFile) ||
+        (exemptDir !== null && key.startsWith(exemptDir)) ||
         key.includes("src/test/")
       ) {
         return {};
@@ -2266,6 +2275,119 @@ const noPillDot = makePillRatchetRule({
     },
   }),
 });
+
+// --- Punkte und Farbbalken (#5598, ADR 0149 Entscheidung 5) --------------------
+
+const HAND_DOT_RE = /^(?:h|w|size)-(?:1|1\.5|2|2\.5|3)$/;
+const COLOR_BAR_HEIGHT_RE = /^h-(?:3|3\.5|9)$/;
+const COLOR_BAR_WIDTH_RE = /^w-(?:0\.5|1)$/;
+const DOT_NOT_A_FILL_RE = /^(?:animate-spin|border(?:-.*)?)$/;
+
+function hasDotShape(tokens) {
+  if (!tokens.includes("rounded-full")) return false;
+  const size = (prefix) =>
+    tokens.find((token) => token.startsWith(prefix) && HAND_DOT_RE.test(token));
+  if (size("size-")) return true;
+  const height = size("h-");
+  const width = size("w-");
+  if (height && width && height.slice(2) === width.slice(2)) return true;
+  return (
+    tokens.some((token) => COLOR_BAR_HEIGHT_RE.test(token)) &&
+    tokens.some((token) => COLOR_BAR_WIDTH_RE.test(token))
+  );
+}
+
+function classHasExpression(value) {
+  if (value?.type !== "JSXExpressionContainer") return false;
+  const { expression } = value;
+  return (
+    expression.type !== "Literal" &&
+    !(
+      expression.type === "TemplateLiteral" &&
+      expression.expressions.length === 0
+    )
+  );
+}
+
+const noHandRolledDot = makeRatchetRule({
+  ruleName: "no-hand-rolled-dot",
+  description:
+    "Build dots and colour bars from StatusDot, ColorBar or PlanLegend instead of a hand-styled element.",
+  message:
+    "Kein Punkt und kein Farbbalken von Hand: in Legenden und Plänen StatusDot, ColorBar oder PlanLegend; sonst nennt StatusBadge den Status mit Text (#5598, .claude/rules/frontend-ui-kit.md).",
+  baselines: dotRatchetBaseline,
+  allowlist: [],
+  countEnv: "UI_KIT_DOT_RATCHET",
+  kitFile: "src/components/ui/status-dot.tsx",
+  exemptDir: UI_KIT_DIR,
+  detect: ({ classText: textOf, found, constants }) => ({
+    JSXOpeningElement(node) {
+      const name = jsxName(node.name);
+      if (name !== "span" && name !== "div") return;
+      const className = jsxAttribute(node, "className");
+      if (!className?.value) return;
+      const text = textOf(className.value);
+      const tokens = pillTokens(text);
+      if (!hasDotShape(tokens)) return;
+      if (tokens.some((token) => DOT_NOT_A_FILL_RE.test(token))) return;
+      const filled =
+        tokens.some((token) => BG_COLOR_RE.test(token)) ||
+        styleBackgroundValues(node, constants).length > 0 ||
+        classHasExpression(className.value);
+      if (!filled) return;
+      // Ein Punkt in einer Pille zählt no-pill-dot.
+      const parent = node.parent?.parent;
+      if (
+        parent?.type === "JSXElement" &&
+        pillClassText(parent.openingElement, textOf) !== null
+      ) {
+        return;
+      }
+      found(node);
+    },
+  }),
+});
+
+// Pläne und Legenden, in denen heute schon Punkte stehen. Neue Fläche nur mit
+// Freigabe: StatusDot ist kein allgemeines Status-Mittel.
+const STATUS_DOT_SCOPE = [
+  UI_KIT_DIR,
+  "src/components/timetable/",
+  "src/components/calendar/",
+  "src/components/parent/calendar/",
+  "src/components/staff/dienstplan-",
+  "src/components/staff/uebersicht-tab",
+  "src/components/time-tracking/vacation-request-modal",
+  "src/components/home/home-block-content",
+];
+
+const noStatusDotOutsidePlans = {
+  meta: {
+    type: "problem",
+    docs: { description: "StatusDot only in legends and plans (ADR 0149)." },
+    messages: {
+      outside:
+        "StatusDot nur in Legenden und Plänen, wo heute schon Punkte stehen (ADR 0149, Entscheidung 5). Einen Status mit Text zeigt StatusBadge.",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (
+      EXEMPT_FILE_RE.test(key) ||
+      STATUS_DOT_SCOPE.some((scope) => key.startsWith(scope))
+    ) {
+      return {};
+    }
+    return {
+      ImportDeclaration(node) {
+        if (/(?:^|\/)ui\/status-dot$/.test(String(node.source.value))) {
+          context.report({ node, messageId: "outside" });
+        }
+      },
+    };
+  },
+};
 
 const noHexAlphaTint = makePillRatchetRule({
   ruleName: "no-hex-alpha-tint",
@@ -2692,6 +2814,7 @@ export default {
     "no-generic-brand-colors": noGenericBrandColors,
     "no-grey-button-fill": noGreyButtonFill,
     "no-hand-rolled-button": noHandRolledButton,
+    "no-hand-rolled-dot": noHandRolledDot,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
@@ -2705,6 +2828,7 @@ export default {
     "no-select-override": noSelectOverride,
     "no-rounded-3xl": noRounded3xl,
     "no-section-card-bleed": noSectionCardBleed,
+    "no-status-dot-outside-plans": noStatusDotOutsidePlans,
     "no-shadcn-tokens": noShadcnTokens,
     "no-tenant-kicker": noTenantKicker,
     "no-tabs-as-value-switcher": noTabsAsValueSwitcher,

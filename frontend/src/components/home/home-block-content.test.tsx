@@ -223,8 +223,31 @@ describe("HomeBlockContent — Listen", () => {
     );
 
     expect(
-      screen.getByRole("link", { name: "Schach: Aktivitäten öffnen" }),
+      screen.getByRole("link", { name: "Schach, Läuft: Aktivitäten öffnen" }),
     ).toHaveAttribute("href", "/test-tenant/activities");
+  });
+
+  it("liest den Status vor, den nur der Punkt zeigt", () => {
+    const currentActivities: DashboardAnalytics["currentActivities"] = [
+      {
+        id: "2",
+        name: "Basteln",
+        category: "Kreativ",
+        participants: 12,
+        maxCapacity: 12,
+        status: "full",
+      },
+    ];
+    render(
+      <HomeBlockContent
+        blockKey="section.current_activities"
+        data={data({ analytics: { ...analytics, currentActivities } })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Basteln, Voll: Aktivitäten öffnen" }),
+    ).toBeInTheDocument();
   });
 
   // #3634: überbucht ist ein eigener, lesbarer Zustand, nicht nur ein
@@ -341,7 +364,9 @@ describe("HomeBlockContent — Listen", () => {
     render(<HomeBlockContent blockKey="section.active_groups" data={data()} />);
 
     expect(
-      screen.getByRole("link", { name: "OGS Gruppe A: Betreuung öffnen" }),
+      screen.getByRole("link", {
+        name: "OGS Gruppe A, Aktiv: Betreuung öffnen",
+      }),
     ).toHaveAttribute("href", "/test-tenant/ogs-groups");
   });
 

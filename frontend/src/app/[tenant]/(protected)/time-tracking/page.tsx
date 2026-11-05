@@ -152,6 +152,7 @@ import { formatWeekLabel } from "~/lib/timetable-helpers";
 import { createLogger } from "~/lib/logger";
 import { errorStatus } from "~/lib/expected-failure";
 import { IconTile } from "~/components/ui/icon-tile";
+import { ProgressBar } from "~/components/ui/progress-bar";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
 
@@ -1353,12 +1354,14 @@ function InlineStat({
       </p>
       {secondary && <p className="mt-0.5 text-sm text-gray-500">{secondary}</p>}
       {progressPct !== undefined && (
-        <div className="mx-auto mt-1.5 h-1 max-w-[180px] overflow-hidden rounded-full bg-gray-100">
-          <div
-            className={`h-full rounded-full transition-all ${STATUS_BAR[tone]}`}
-            style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
-          />
-        </div>
+        <ProgressBar
+          value={progressPct}
+          max={100}
+          label={`${label}: ${Math.round(progressPct)} %`}
+          tone={STATUS_BAR_TONE[tone]}
+          size="xs"
+          className="mx-auto mt-1.5 max-w-[180px]"
+        />
       )}
     </div>
   );
@@ -1596,11 +1599,11 @@ const STATUS_TEXT: Record<StatusTone, string> = {
   gray: "text-gray-700",
 };
 
-const STATUS_BAR: Record<StatusTone, string> = {
-  green: "bg-moto-green",
-  amber: "bg-moto-orange",
-  gray: "bg-gray-400",
-};
+const STATUS_BAR_TONE = {
+  green: "green",
+  amber: "orange",
+  gray: "gray",
+} as const satisfies Record<StatusTone, string>;
 
 // OwnZeiterfassungSection — wrappt die StaffSessionTable mit RangeNav und
 // Card-Chrome, in derselben Struktur wie auf /staff/[id]. Drift zwischen

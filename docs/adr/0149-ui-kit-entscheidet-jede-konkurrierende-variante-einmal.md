@@ -108,7 +108,7 @@ Teil-PR, und jeder Teil-PR senkt die Baseline.
 
 - `frontend-ui-kit.md` nennt jede Entscheidung, deren Baustein existiert, als
   „Need X → use Y“. Bausteine, die erst später entstehen (`SectionLabel`,
-  `StatusDot`, `StatCard inline`, neue `StatusBadge`-Töne, gemeinsamer
+  `StatCard inline`, neue `StatusBadge`-Töne, gemeinsamer
   Kalenderstil, Kit-Navigation), stehen nur hier, bis ihr Issue sie liefert.
 - Optik prüfen Vorher/Nachher-Paare, keine Snapshot-Tests. Neue Kit-Props
   bekommen Testing-Library-Tests über Rolle, Text und `aria`; jede neue

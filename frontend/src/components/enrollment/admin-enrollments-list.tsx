@@ -49,6 +49,7 @@ import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { ProgressBar } from "~/components/ui/progress-bar";
 
 const logger = createLogger({ component: "AdminEnrollmentsList" });
 
@@ -802,12 +803,14 @@ function EnrollmentSetupGuide({
                     </span>
                     <span>{progressPercent}%</span>
                   </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
-                    <div
-                      className="h-full rounded-full bg-gray-900 transition-[width]"
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
+                  <ProgressBar
+                    value={completedSteps}
+                    max={steps.length}
+                    label={`${completedSteps} von ${steps.length} Schritten erledigt`}
+                    tone="dark"
+                    size="sm"
+                    className="mt-2"
+                  />
                 </div>
               </div>
 

@@ -7,11 +7,12 @@ import { describe, it, expect } from "vitest";
 import { StatusIndicator } from "./StatusIndicator";
 
 describe("StatusIndicator", () => {
-  it("renders with green color and pulse animation", () => {
+  it("renders with green color and without a pulse animation", () => {
     const { container } = render(<StatusIndicator color="green" />);
     const indicator = container.firstChild;
 
-    expect(indicator).toHaveClass("bg-moto-green", "animate-pulse");
+    expect(indicator).toHaveClass("bg-moto-green");
+    expect(indicator).not.toHaveClass("animate-pulse");
   });
 
   it("renders with yellow color", () => {

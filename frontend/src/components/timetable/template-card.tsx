@@ -32,6 +32,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { roomsConcept } from "~/lib/concepts/rooms";
 import { supervisionConcept } from "~/lib/concepts/supervision";
+import { StatusDot } from "~/components/ui/status-dot";
 
 interface TemplateCardProps {
   template: TimetableTemplate;
@@ -282,10 +283,7 @@ export function TemplateCard({
 
         {!template.roomId && template.type !== "duty" && (
           <p className="flex items-center gap-1.5 text-xs text-gray-600">
-            <span
-              className="bg-moto-amber h-1.5 w-1.5 shrink-0 rounded-full"
-              aria-hidden
-            />
+            <StatusDot className="bg-moto-amber" decorative />
             Raum fehlt – wird nicht eingeplant
           </p>
         )}
