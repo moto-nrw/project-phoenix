@@ -52,6 +52,8 @@ type TraegerMember struct {
 
 // TraegerInvitation is an open invitation into the Träger-Büro. Token is set
 // only on the invitation the creating call returns, for the mail link.
+// Expired is set by the operator's list only (#5749): the link can no longer
+// be redeemed.
 type TraegerInvitation struct {
 	ID             int64
 	OrganizationID int64
@@ -60,6 +62,7 @@ type TraegerInvitation struct {
 	Token          string
 	ExpiresAt      time.Time
 	CreatedAt      time.Time
+	Expired        bool
 }
 
 // TraegerBuero is the member list of a Träger-Büro: the active people and
@@ -185,6 +188,17 @@ type TraegerAccountManagement interface {
 // ErrNoTraegerMembership. While the Träger has no usable person with
 // Leitung, the invitation adds Leitung to the chosen roles: the first person
 // the moto team invites can manage the Träger-Büro (#5471).
+//
+// The moto team also sees, sends again and withdraws the invitations
+// (#5749), on the same transaction rules. The list holds every invitation
+// that is neither accepted nor withdrawn, the expired ones until the cleanup
+// deletes them. Sending again replaces the invitation by a new one with the
+// same address and roles, a new link and a new lifetime; the old link stops
+// working. An invitation that is not open or belongs to another Träger is
+// ErrInvitationNotFound.
 type TraegerOperatorInvitation interface {
 	InviteTraegerAccountForOperator(ctx context.Context, organizationID int64, email string, roles []string) (TraegerInvitation, error)
+	ListTraegerInvitationsForOperator(ctx context.Context, organizationID int64) ([]TraegerInvitation, error)
+	ResendTraegerInvitationForOperator(ctx context.Context, organizationID, invitationID int64) (TraegerInvitation, error)
+	RevokeTraegerInvitationForOperator(ctx context.Context, organizationID, invitationID int64) (TraegerInvitation, error)
 }

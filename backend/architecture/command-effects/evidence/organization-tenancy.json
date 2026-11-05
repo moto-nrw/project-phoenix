@@ -410,7 +410,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.InviteTraegerAccount",
-      "binding_digest": "ad3d7d1d13ba245a588356e1a65ddb91",
+      "binding_digest": "d9ccae1e9177230be065ff04e4bb5348",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.InviteTraegerAccount",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.InviteTraegerAccountForOperator",
@@ -777,6 +777,14 @@
       "target_owner": "identity-access"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.ListTraegerInvitations",
+      "binding_digest": "28b30bbd345912f3c8fa504133aabf45",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.ListTraegerInvitations",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListTraegerInvitationsForOperator",
+      "target_owner": "identity-access"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.RegisterSchoolAccount",
       "binding_digest": "5857ba0f62342d71fdf6d03359c8efaf",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.RegisterSchoolAccount",
@@ -801,6 +809,14 @@
       "target_owner": "identity-access"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.ResendTraegerInvitation",
+      "binding_digest": "b37dfd8ba0eb554602214c617649e2c9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.ResendTraegerInvitation",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResendTraegerInvitationForOperator",
+      "target_owner": "identity-access"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.ResetTraegerMFA",
       "binding_digest": "69824da0c42e956c3b0de9621cc77cae",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.ResetTraegerMFA",
@@ -822,6 +838,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.RevokeSchoolSessions",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RevokeTokensByTenantID",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.RevokeTraegerInvitation",
+      "binding_digest": "86642e71e833f951c5307a4320f23ba8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.RevokeTraegerInvitation",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RevokeTraegerInvitationForOperator",
       "target_owner": "identity-access"
     },
     {

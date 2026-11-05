@@ -1,5 +1,6 @@
 DELETE /operator/organizations/{id} -> basis
 DELETE /operator/organizations/{id}/erasure-order -> basis
+DELETE /operator/organizations/{id}/traeger-members/invitations/{invitationId} -> basis
 DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa -> basis
 DELETE /operator/organizations/{id}/traeger-settings/values/{key} -> basis
 GET /operator/organizations/ -> basis
@@ -10,6 +11,7 @@ GET /operator/organizations/{id}/erasure-order -> basis
 GET /operator/organizations/{id}/persons -> basis
 GET /operator/organizations/{id}/schools -> basis
 GET /operator/organizations/{id}/traeger-members -> basis
+GET /operator/organizations/{id}/traeger-members/invitations -> basis
 GET /operator/organizations/{id}/traeger-settings/schema -> basis
 POST /operator/organizations/ -> basis
 POST /operator/organizations/test-traeger -> basis
@@ -18,5 +20,6 @@ POST /operator/organizations/{id}/restore -> basis
 POST /operator/organizations/{id}/sample-children -> basis
 POST /operator/organizations/{id}/traeger-members -> basis
 POST /operator/organizations/{id}/traeger-members/invitations -> basis
+POST /operator/organizations/{id}/traeger-members/invitations/{invitationId}/resend -> basis
 PUT /operator/organizations/{id} -> basis
 PUT /operator/organizations/{id}/traeger-settings/values/{key} -> basis

@@ -565,7 +565,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.InviteTraegerAccount",
-      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access takes the Verwaltung lock of the Träger, refuses a member's address, spends the address's open Träger invitation, stores the new one and queues its mail through its own delivery port on the operator's administrative unit, which the operator invitation of Organisation \u0026 Tenancy owns together with the operator audit (ADR 0084, #5144). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself.",
+      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access takes the Verwaltung lock of the Träger, refuses a member's address, spends the address's open Träger invitation, stores the new one and queues its mail through its own delivery port on the operator's administrative unit, which the operator invitation of Organisation \u0026 Tenancy owns together with the operator audit (ADR 0084, #5144). The binding shares the refusal mapping of the open-invitation commands (#5749). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself.",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.InviteTraegerAccountForOperator",
       "target_owner": "identity-access"
@@ -1026,6 +1026,16 @@
       "target_owner": "identity-access"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.ListTraegerInvitations",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.ListTraegerInvitations",
+      "reason": "Read on the supplied interface: modules/identityaccess.Owner.ListTraegerInvitationsForOperator reads the unspent Träger invitations, the expired ones included, on the operator's administrative unit (#5749). It refuses without that ambient administrative transaction. No mutation or locking read at this terminal.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListTraegerInvitationsForOperator",
+      "target_owner": "identity-access"
+    },
+    {
       "adr": "0067",
       "approval_adr": "0083",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.RegisterSchoolAccount",
@@ -1063,6 +1073,17 @@
     },
     {
       "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.ResendTraegerInvitation",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.ResendTraegerInvitation",
+      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access takes the Verwaltung lock of the Träger, reads the open invitation, takes the address lock, spends exactly that invitation (a concurrent resend or acceptance wins), refuses a member's address, stores the replacement with the same roles and queues its mail through its own delivery port on the operator's administrative unit, which the resend of Organisation \u0026 Tenancy owns together with the operator audit (#5749). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResendTraegerInvitationForOperator",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.ResetTraegerMFA",
       "classification": "leaf",
       "effect": "mutation",
@@ -1094,6 +1115,17 @@
       "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.RevokeTokensByTenantID; modules/identityaccess.Owner (supplied contract method). ",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RevokeTokensByTenantID",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.RevokeTraegerInvitation",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.RevokeTraegerInvitation",
+      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access spends one open invitation of the Träger on the operator's administrative unit, which the withdrawal of Organisation \u0026 Tenancy owns together with the operator audit (#5749). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RevokeTraegerInvitationForOperator",
       "target_owner": "identity-access"
     },
     {

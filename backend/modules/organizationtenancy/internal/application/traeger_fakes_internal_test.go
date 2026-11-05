@@ -40,6 +40,18 @@ func (*fakeIdentity) InviteTraegerAccount(context.Context, int64, string, []stri
 	return organizationtenancy.TraegerInvitation{}, nil
 }
 
+func (*fakeIdentity) ListTraegerInvitations(context.Context, int64) ([]organizationtenancy.TraegerInvitation, error) {
+	return nil, nil
+}
+
+func (*fakeIdentity) ResendTraegerInvitation(context.Context, int64, int64) (organizationtenancy.TraegerInvitation, error) {
+	return organizationtenancy.TraegerInvitation{}, nil
+}
+
+func (*fakeIdentity) RevokeTraegerInvitation(context.Context, int64, int64) (organizationtenancy.TraegerInvitation, error) {
+	return organizationtenancy.TraegerInvitation{}, nil
+}
+
 func (*fakeIdentity) ListTraegerAccounts(context.Context, int64, []int64) ([]organizationtenancy.TraegerAccount, error) {
 	return nil, nil
 }

@@ -57,6 +57,8 @@ export const operatorProvisioningKeys = {
     `operator-org-persons-${encodeURIComponent(id ?? "")}`,
   orgTraegerMembers: (id: string | undefined) =>
     `operator-org-traeger-members-${encodeURIComponent(id ?? "")}`,
+  orgTraegerInvitations: (id: string | undefined) =>
+    `operator-org-traeger-invitations-${encodeURIComponent(id ?? "")}`,
   schoolPwaUsage: (id: string | undefined) =>
     `operator-school-pwa-usage-${encodeURIComponent(id ?? "")}`,
   orgErasureOrder: (id: string | undefined) =>
