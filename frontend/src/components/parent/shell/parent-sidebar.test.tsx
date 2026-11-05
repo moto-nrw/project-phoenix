@@ -15,8 +15,11 @@ import { ParentSidebar } from "./parent-sidebar";
 const pathnameMock = vi.fn(() => "/parents");
 const logoutMock = vi.fn();
 
+const searchMock = vi.fn(() => "");
+
 vi.mock("next/navigation", () => ({
   usePathname: () => pathnameMock(),
+  useSearchParams: () => new URLSearchParams(searchMock()),
 }));
 
 vi.mock("~/lib/parent-url", () => ({
@@ -119,13 +122,30 @@ describe("ParentSidebar", () => {
     }
   });
 
-  it("marks the pinned settings target as active", () => {
+  it("swaps the sidebar for the settings sections in settings (#5750)", () => {
     pathnameMock.mockReturnValue("/settings");
+    searchMock.mockReturnValue("tab=language");
     const { container } = renderSidebar();
 
+    expect(
+      screen.getByRole("link", { name: "Zurück zur App" }),
+    ).toHaveAttribute("href", "/parents");
     const active = container.querySelectorAll('[data-active="true"]');
     expect(active).toHaveLength(1);
-    expect(active[0]).toHaveAttribute("data-parent-nav-item", "settings");
+    expect(active[0]).toHaveAttribute(
+      "data-parent-nav-item",
+      "settings-language",
+    );
+    expect(active[0]).toHaveAttribute("href", "/parents/settings?tab=language");
+    expect(
+      screen.getByRole("link", { name: "Datenschutz" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("navigation", { name: "Kontonavigation" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Nachrichten" })).toBeNull();
+    pathnameMock.mockReturnValue("/parents");
+    searchMock.mockReturnValue("");
   });
 
   it("pins enrollment with settings and logout instead of the main navigation", () => {

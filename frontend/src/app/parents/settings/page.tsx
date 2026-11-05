@@ -9,10 +9,13 @@
  * bottom of the dashboard with no entry point of their own: a parent who never
  * scrolled that far never found them, and since "no row means off" that parent
  * silently received nothing at all.
+ *
+ * The sections sit in the sidebar (#5750); the address names the open one. The
+ * app card stays with the notifications: without the app, nothing arrives.
  */
 
-import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
@@ -20,6 +23,7 @@ import { ParentAnalyticsConsentSection } from "~/components/settings/parent-anal
 import { PushNotificationSection } from "~/components/settings/push-notification-section";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
+import { activeParentSettingsSection } from "~/components/parent/shell/parent-nav-items";
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import { SamsungChromeInstructions } from "~/components/tenant/pwa-install-hint";
 import { ButtonLink } from "~/components/ui/button";
@@ -28,8 +32,10 @@ import { isStandaloneApp } from "~/lib/push-api";
 import { isSamsungInternet } from "~/lib/pwa-install-prompt";
 import { devicesConcept } from "~/lib/concepts/devices";
 
-export default function ParentSettingsPage() {
+function ParentSettingsContent() {
   const t = useTranslations("parentSettings");
+  const tNav = useTranslations("parentNav");
+  const section = activeParentSettingsSection(useSearchParams().get("tab"));
   const pathname = usePathname();
   const [pageUrl, setPageUrl] = useState<URL | null>(null);
   const installHelpHref = buildHelpHref(
@@ -51,42 +57,53 @@ export default function ParentSettingsPage() {
 
   return (
     <ParentPage>
-      <ParentPageHeader
-        kicker={t("eyebrow")}
-        title={t("title")}
-        description={t("description")}
-      />
+      <ParentPageHeader kicker={t("eyebrow")} title={tNav(section.tKey)} />
 
-      <ParentSection
-        title={t("languageTitle")}
-        description={t("languageDescription")}
-        actions={
-          <div className="ms-auto shrink-0">
-            <LanguageSwitcher />
-          </div>
-        }
-      />
-
-      <div data-parent-tour-install-app>
+      {section.key === "language" ? (
         <ParentSection
-          title={t("appInstallTitle")}
-          description={t("appInstallGenericDescription")}
-          concept={devicesConcept}
-        >
-          {pageUrl ? (
-            <SamsungChromeInstructions pageUrl={pageUrl} />
-          ) : (
-            <ButtonLink href={installHelpHref} variant="surface" size="md">
-              {t("appInstallGuide")}
-            </ButtonLink>
-          )}
-        </ParentSection>
-      </div>
-      <div data-parent-tour="notification-topics">
-        <NotificationPreferencesSection portal="parent" />
-      </div>
-      <PushNotificationSection portal="parent" />
-      <ParentAnalyticsConsentSection />
+          title={t("languageTitle")}
+          description={t("languageDescription")}
+          actions={
+            <div className="ms-auto shrink-0">
+              <LanguageSwitcher />
+            </div>
+          }
+        />
+      ) : null}
+
+      {section.key === "notifications" ? (
+        <>
+          <div data-parent-tour-install-app>
+            <ParentSection
+              title={t("appInstallTitle")}
+              description={t("appInstallGenericDescription")}
+              concept={devicesConcept}
+            >
+              {pageUrl ? (
+                <SamsungChromeInstructions pageUrl={pageUrl} />
+              ) : (
+                <ButtonLink href={installHelpHref} variant="surface" size="md">
+                  {t("appInstallGuide")}
+                </ButtonLink>
+              )}
+            </ParentSection>
+          </div>
+          <div data-parent-tour="notification-topics">
+            <NotificationPreferencesSection portal="parent" />
+          </div>
+          <PushNotificationSection portal="parent" />
+        </>
+      ) : null}
+
+      {section.key === "privacy" ? <ParentAnalyticsConsentSection /> : null}
     </ParentPage>
+  );
+}
+
+export default function ParentSettingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ParentSettingsContent />
+    </Suspense>
   );
 }

@@ -2,21 +2,10 @@
 
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useState } from "react";
 import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-} from "~/components/ui/drawer";
-import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
-import {
-  PortalBottomNav,
-  PortalBottomNavLink,
-  PortalNavSheetLink,
-  portalBottomNavItemClassName,
-} from "~/components/ui/portal-bottom-nav";
+  PortalOverflowBottomNav,
+  type PortalOverflowNavItem,
+} from "~/components/ui/portal-overflow-bottom-nav";
 import { traegerPath } from "~/lib/traeger-url";
 import {
   isTraegerNavActive,
@@ -31,18 +20,6 @@ import {
   type TraegerNavItem,
 } from "./traeger-nav-items";
 import { useTraegerReturnHref } from "./traeger-return-path";
-import { moreConcept } from "~/lib/concepts/more";
-
-const PADDING = "px-4";
-const LABEL =
-  "hidden text-sm font-semibold whitespace-nowrap min-[480px]:inline";
-
-/**
- * So viele Felder hat die Leiste höchstens. Fünf Icons passen auch auf ein
- * 320 px breites Telefon; ab sechs Zielen stehen die ersten vier in der
- * Leiste und der Rest hinter „Mehr".
- */
-const MAX_SLOTS = 5;
 
 type BottomNavItem = Omit<TraegerNavItem, "right"> & {
   readonly help?: true;
@@ -62,16 +39,10 @@ const HELP_ITEM: BottomNavItem = {
  * Person öffnen. Sie folgt der Seitenleiste (#5685): erst die Hauptnavigation
  * mit Hilfe und Einstellungen, in den Einstellungen deren Einträge mit dem
  * Rückweg zur App vorne.
- *
- * Wie im Schul-Portal trägt nur das aktive Ziel seinen Namen. Passen die Ziele
- * nicht in eine Zeile, stehen die ersten vier in der Leiste und der Rest hinter
- * „Mehr", wie in der Eltern-App.
  */
 export function TraegerBottomNav() {
   const pathname = usePathname() ?? "";
   const { data: session } = useSession();
-  const [moreOpen, setMoreOpen] = useState(false);
-
   const returnHref = useTraegerReturnHref();
 
   const settingsItems = traegerSettingsNavItemsFor(session ?? null);
@@ -88,91 +59,22 @@ export function TraegerBottomNav() {
           ? [{ ...TRAEGER_SETTINGS_NAV, href: settingsEntry.href }]
           : []),
       ];
-  const crowded = items.length > MAX_SLOTS;
-  const barItems = crowded ? items.slice(0, MAX_SLOTS - 1) : items;
-  const moreItems = crowded ? items.slice(MAX_SLOTS - 1) : [];
-
-  const isActive = (item: BottomNavItem) =>
-    item.direct !== true && isTraegerNavActive(item.href, pathname);
-  const linkProps = (item: BottomNavItem) => ({
+  const navItems: readonly PortalOverflowNavItem[] = items.map((item) => ({
+    key: item.key,
     href: item.direct ? item.href : traegerPath(item.href),
     label: item.label,
     concept: item.concept,
-    active: isActive(item),
+    active: item.direct !== true && isTraegerNavActive(item.href, pathname),
     newTab: item.help === true,
-    "data-traeger-nav-item": item.key,
-  });
-
-  // „Mehr" leuchtet auch, wenn eine seiner Seiten offen ist; sonst stünde
-  // man auf „Zugriffsprotokoll" vor einer Leiste, in der nichts markiert ist.
-  const moreActive = moreOpen || moreItems.some(isActive);
+    // Die Hilfe ist kein Arbeitsbereich: eine Linie trennt sie ab, wie unten
+    // in der Seitenleiste.
+    separated: item.help === true,
+  }));
 
   return (
-    <>
-      <PortalBottomNav listClassName="gap-0">
-        {barItems.map((item) => (
-          <PortalBottomNavLink
-            key={item.key}
-            {...linkProps(item)}
-            paddingClassName={PADDING}
-            labelClassName={LABEL}
-          />
-        ))}
-        {crowded ? (
-          <li>
-            {/* Navigationszeile wie im Elternportal, kein Kit-Knopf (#5536):
-                Form und Zustand kommen aus der geteilten unteren Leiste. */}
-            <button
-              type="button"
-              onClick={() => setMoreOpen(true)}
-              data-traeger-nav-item="more"
-              data-active={moreActive ? "true" : "false"}
-              aria-haspopup="dialog"
-              aria-expanded={moreOpen}
-              aria-label="Mehr"
-              className={portalBottomNavItemClassName(moreActive, PADDING)}
-            >
-              <MotoNavIcon
-                concept={moreConcept}
-                active={moreActive}
-                className="h-5 w-5 shrink-0"
-              />
-              {moreActive ? <span className={LABEL}>Mehr</span> : null}
-            </button>
-          </li>
-        ) : null}
-      </PortalBottomNav>
-
-      {crowded ? (
-        <Drawer open={moreOpen} onOpenChange={setMoreOpen}>
-          <DrawerContent className="bg-white">
-            <DrawerHeader className="sr-only">
-              <DrawerTitle>Mehr</DrawerTitle>
-              <DrawerDescription>Weitere Bereiche</DrawerDescription>
-            </DrawerHeader>
-            {/* Auf einem quer gehaltenen Telefon ist die Schublade niedriger
-                als die Liste: die Liste scrollt in ihr, sonst lägen die
-                unteren Ziele außer Reichweite. */}
-            <ul className="min-h-0 space-y-2 overflow-y-auto px-4 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom))]">
-              {moreItems.map((item) => (
-                <li
-                  key={item.key}
-                  // Die Hilfe ist kein Arbeitsbereich: eine Linie trennt sie
-                  // ab, wie unten in der Seitenleiste.
-                  className={
-                    item.help ? "mt-5 border-t border-gray-200 pt-5" : undefined
-                  }
-                >
-                  <PortalNavSheetLink
-                    {...linkProps(item)}
-                    onClick={() => setMoreOpen(false)}
-                  />
-                </li>
-              ))}
-            </ul>
-          </DrawerContent>
-        </Drawer>
-      ) : null}
-    </>
+    <PortalOverflowBottomNav
+      items={navItems}
+      navItemAttribute="data-traeger-nav-item"
+    />
   );
 }

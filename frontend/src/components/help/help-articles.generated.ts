@@ -4269,7 +4269,7 @@ export const mealCatererTopic = function mealCatererTopic(): HelpTopic {
 } satisfies typeof authored_mealCatererTopic;
 
 /**
- * Anmeldemodell und Fristen fürs Mittagessen (#3873): Einstellungen, Reiter
+ * Anmeldemodell und Fristen fürs Mittagessen (#3873): Einstellungen, Bereich
  * `Mittagessen`. Die Fristen gelten für Eltern; die Schule ändert jederzeit.
  */
 export const mealOrderingTopic = function mealOrderingTopic(): HelpTopic {
@@ -4285,7 +4285,7 @@ export const mealOrderingTopic = function mealOrderingTopic(): HelpTopic {
     requirements: ["`Anmeldung zum Mittagessen` ist eingeschaltet."],
     steps: [
       "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
-      "Wählen Sie oben den Reiter `Mittagessen`.",
+      "Wählen Sie den Bereich `Mittagessen`.",
       "Wählen Sie bei `Wie Eltern anmelden` eine Möglichkeit.",
       "Legen Sie unter `Fristen` die `Anmeldefrist` fest: Tage vor dem Essenstag oder ein Wochentag der Vorwoche, dazu die Uhrzeit.",
       "Nutzen Sie eine eigene Abmeldefrist, legen Sie auch die `Abmeldefrist` fest.",
@@ -4444,7 +4444,7 @@ export const missingMenuTopic = function missingMenuTopic(
 } satisfies typeof authored_missingMenuTopic;
 
 /**
- * Gebuchte Module (#4894). Der Reiter `Module` unter Einstellungen zeigt sie
+ * Gebuchte Module (#4894). Der Bereich `Module` unter Einstellungen zeigt sie
  * lesend (#4892); Navigation, Startseite und Seiten folgen dem Modul-Register
  * (lib/module-register.ts). Das Schloss sieht nur, wer die Schule leitet.
  */
@@ -4460,7 +4460,7 @@ export const modulesTopic = function modulesTopic(): HelpTopic {
     icon: "PuzzlePiece",
     steps: [
       "Öffnen Sie unten in der Seitenleiste `Einstellungen`.",
-      "Wählen Sie den Reiter `Module`.",
+      "Wählen Sie den Bereich `Module`.",
       "Klappen Sie `Gebuchte Module` auf. Dort steht jedes Zusatzmodul mit einem Satz, was dazugehört.",
       "Ein eingeschalteter Schalter heißt: Ihre OGS hat das Modul gebucht.",
     ],
@@ -4750,7 +4750,7 @@ export const nfcSettingsTopic = function nfcSettingsTopic(
           "Bei der Auslieferung ist eine einfache PIN gesetzt. Ändern Sie sie vor dem ersten Betreuungstag.",
         steps: [
           "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
-          "Wählen Sie oben den Bereich `Geräte`.",
+          "Wählen Sie den Bereich `Geräte`.",
           "Tragen Sie unter `Geräte-PIN` eine vierstellige Zahl ein.",
           "Geben Sie die neue PIN an Ihr Team weiter.",
         ],
@@ -6562,7 +6562,7 @@ export const parentNotificationsTopic =
       icon: "BellRing",
       steps: [
         "Tippen Sie unten auf `Mehr` und dann auf `Einstellungen`.",
-        "Schalten Sie unter `Benachrichtigungen` die Themen ein. Oder wählen Sie `Alle aktivieren`.",
+        "Sie sind jetzt im Bereich `Benachrichtigungen`. Schalten Sie die Themen ein. Oder wählen Sie `Alle aktivieren`.",
         "Wählen Sie darunter bei `Benachrichtigungen auf diesem Gerät` den Knopf `Aktivieren`. Auf breiten Bildschirmen heißt er `Benachrichtigungen einschalten`.",
         "Ihr Gerät fragt einmal nach Erlaubnis. Wählen Sie `Erlauben`.",
       ],
@@ -6860,7 +6860,7 @@ export const parentVisibilityTopic =
       icon: "Eye",
       steps: [
         "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
-        "Bleiben Sie oben im Reiter `Betrieb`.",
+        "Bleiben Sie im Bereich `Betrieb`.",
         "Tragen Sie in `Einstellung suchen` `Elternportal` ein.",
         "Gehen Sie zur Gruppe `Elternportal`.",
         "Schalten Sie ein oder aus, was Eltern dürfen sollen.",
@@ -6872,7 +6872,7 @@ export const parentVisibilityTopic =
         "Wählen Sie bei `Krankmeldungen durch Eltern` die Möglichkeit `Erst bestätigen`, wenn Ihr Team jede Meldung freigeben soll.",
         "Bei `Wer gibt Änderungswünsche von Eltern frei?` wählen Sie, wer Anfragen zu Stammdaten, Abholung und Angeboten freigibt.",
         "`Berechtigtes Team` heißt: alle, die Kinderdaten bearbeiten dürfen. Das passt auch für ein gemeinsames Tablet.",
-        "Speiseplan und Anmeldung zum Mittagessen stehen im Reiter `Mittagessen`.",
+        "Speiseplan und Anmeldung zum Mittagessen stehen im Bereich `Mittagessen`.",
       ],
       differences: [
         "Ist ein Schalter aus, sehen Eltern den Bereich gar nicht. Er wird nicht ausgegraut.",
@@ -7273,7 +7273,7 @@ export const roomsTopic = function roomsTopic(
 } satisfies typeof authored_roomsTopic;
 
 /**
- * Die wichtigsten Einstellungen je Reiter (#3727). Bewusst eine Auswahl, keine
+ * Die wichtigsten Einstellungen je Bereich (#3727). Bewusst eine Auswahl, keine
  * vollständige Liste: Die vollständige Liste steht auf `/settings` selbst, mit
  * einem Satz unter jeder Einstellung. Bezeichnungen stammen aus der Registry
  * (`backend/modules/settings/internal/defaults/`) und aus `TAB_LABELS` in
@@ -7416,7 +7416,7 @@ export const settingsGuideTopic = function settingsGuideTopic(): HelpTopic {
 } satisfies typeof authored_settingsGuideTopic;
 
 /**
- * `/settings`. Die Reiter kommen aus dem Schema des Servers und sind je Schule
+ * `/settings`. Die Bereiche kommen aus dem Schema des Servers und sind je Schule
  * verschieden (settings/page.tsx:32) -- deshalb nennt der Artikel keine feste
  * Liste, sondern den Weg und die Regeln. Die wichtigsten Einstellungen stehen
  * in `settingsGuideTopic`.
@@ -7432,12 +7432,13 @@ export const settingsTopic = function settingsTopic(): HelpTopic {
     icon: "Settings",
     steps: [
       "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
-      "Wählen Sie oben den Bereich.",
+      "Die Seitenleiste zeigt jetzt die Bereiche. Wählen Sie einen Bereich. Am Handy stehen sie unten, ein Teil davon hinter `Mehr`.",
       "Ändern Sie die gewünschte Einstellung.",
+      "Mit `Zurück zur App` kommen Sie wieder zur Seite, auf der Sie vorher waren.",
     ],
     result: "Die Änderung gilt sofort für alle in Ihrer OGS.",
     notes: [
-      "Oben steht, wie viele Einstellungen von der Vorgabe abweichen.",
+      "Oben steht, wie viele Einstellungen dieses Bereichs von der Vorgabe abweichen.",
       "Jede Einstellung hat einen Satz darunter, der sagt, was sie bewirkt.",
       "Unter `Datenschutz` können Sie die `Nutzungsanalyse` ausschalten. Dann erhält moto keine Nutzungsstatistiken Ihrer Schule mehr.",
       "Damit enden auch Sitzungsaufzeichnungen. Die Fehlerdiagnose bleibt davon getrennt.",
@@ -9281,7 +9282,7 @@ export const teacherSettingsTopic = function teacherSettingsTopic(): HelpTopic {
     icon: "Settings",
     steps: [
       "Öffnen Sie `Einstellungen`.",
-      "Wählen Sie unter `Benachrichtigungen` die Arten aus.",
+      "Bleiben Sie im Bereich `Benachrichtigungen`. Wählen Sie die Arten aus.",
       "Erlauben Sie danach die Benachrichtigungen auf Ihrem Gerät.",
     ],
     result: "moto meldet sich, sobald etwas Neues für Sie ansteht.",

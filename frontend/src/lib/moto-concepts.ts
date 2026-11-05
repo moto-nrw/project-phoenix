@@ -69,6 +69,7 @@ import { infoDisplaysConcept } from "~/lib/concepts/infoDisplays";
 import { accountsConcept } from "~/lib/concepts/accounts";
 import { rolesConcept } from "~/lib/concepts/roles";
 import { permissionsConcept } from "~/lib/concepts/permissions";
+import { privacyConcept } from "~/lib/concepts/privacy";
 import { passkeysConcept } from "~/lib/concepts/passkeys";
 import { exportsConcept } from "~/lib/concepts/exports";
 import { gradeTransitionsConcept } from "~/lib/concepts/gradeTransitions";
@@ -154,6 +155,7 @@ const registry = {
   accounts: accountsConcept,
   roles: rolesConcept,
   permissions: permissionsConcept,
+  privacy: privacyConcept,
   passkeys: passkeysConcept,
   exports: exportsConcept,
   gradeTransitions: gradeTransitionsConcept,

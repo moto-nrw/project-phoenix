@@ -32,5 +32,7 @@
   "unreadCount": "{count} të palexuara",
   "openCount": "{count} të hapura",
   "noticeCount": "{count} njoftime",
-  "documents": "Dokumentet"
+  "documents": "Dokumentet",
+  "privacy": "Privatësia",
+  "backToApp": "Kthehu te aplikacioni"
 }

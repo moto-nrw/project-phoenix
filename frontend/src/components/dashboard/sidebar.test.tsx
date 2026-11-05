@@ -1419,6 +1419,22 @@ describe("Sidebar", () => {
   });
 
   describe("bottom pinned items", () => {
+    it("swaps the content for the settings sections on /settings (#5750)", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUsePathname.mockReturnValue("/settings");
+
+      render(<Sidebar />);
+
+      expect(
+        screen.getByRole("navigation", { name: "Einstellungen" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Zurück zur App" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Hilfe" })).toBeNull();
+    });
+
     it("renders settings at the bottom for admins", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));

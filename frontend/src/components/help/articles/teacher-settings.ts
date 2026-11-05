@@ -14,7 +14,7 @@ export function teacherSettingsTopic(): HelpTopic {
     icon: "Settings",
     steps: [
       "Öffnen Sie `Einstellungen`.",
-      "Wählen Sie unter `Benachrichtigungen` die Arten aus.",
+      "Bleiben Sie im Bereich `Benachrichtigungen`. Wählen Sie die Arten aus.",
       "Erlauben Sie danach die Benachrichtigungen auf Ihrem Gerät.",
     ],
     result: "moto meldet sich, sobald etwas Neues für Sie ansteht.",

@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ParentSettingsPage from "./page";
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -12,8 +12,10 @@ function renderWithToast(
   return render(ui, { wrapper: ToastProvider, ...options });
 }
 
+let mockSearch = "";
 vi.mock("next/navigation", () => ({
   usePathname: () => "/settings",
+  useSearchParams: () => new URLSearchParams(mockSearch),
 }));
 
 // The two cards fetch on mount; this page only has to place them, so the
@@ -43,32 +45,41 @@ vi.mock("~/components/parent/language-switcher", () => ({
 }));
 
 describe("ParentSettingsPage", () => {
-  it("carries both account settings", async () => {
+  beforeEach(() => {
+    mockSearch = "";
+  });
+
+  it("opens the notifications without ?tab= (#5750)", async () => {
     renderWithToast(<ParentSettingsPage />);
 
-    expect(
-      await screen.findByRole("heading", { name: "Einstellungen", level: 1 }),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByRole("heading", { name: "Sprache" }),
-    ).toBeInTheDocument();
-    const languageSwitcher = screen.getByTestId("language-switcher");
-    const languageHeader = screen
-      .getByRole("heading", { name: "Sprache" })
-      .closest("section")?.firstElementChild;
-
-    expect(languageHeader).toContainElement(languageSwitcher);
-    expect(languageSwitcher.parentElement).toHaveClass("ms-auto");
     // What the parent chooses to hear about, and on which device — the pair
     // that used to sit unreachable at the bottom of the dashboard (#1671).
     expect(
-      await screen.findByRole("heading", { name: "Benachrichtigungen" }),
+      await screen.findByRole("heading", {
+        name: "Benachrichtigungen",
+        level: 1,
+      }),
     ).toBeInTheDocument();
     expect(
       await screen.findByRole("heading", {
         name: "Benachrichtigungen auf diesem Gerät",
       }),
     ).toBeInTheDocument();
+    expect(screen.queryByTestId("language-switcher")).not.toBeInTheDocument();
+  });
+
+  it("carries the language in its own section (#5750)", async () => {
+    mockSearch = "tab=language";
+    renderWithToast(<ParentSettingsPage />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Sprache", level: 1 }),
+    ).toBeInTheDocument();
+    const languageSwitcher = screen.getByTestId("language-switcher");
+    expect(languageSwitcher.parentElement).toHaveClass("ms-auto");
+    expect(
+      document.querySelector("[data-parent-tour-install-app]"),
+    ).not.toBeInTheDocument();
   });
 
   it("offers app installation separately from notifications", async () => {

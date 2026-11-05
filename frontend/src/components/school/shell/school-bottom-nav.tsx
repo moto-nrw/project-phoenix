@@ -9,7 +9,8 @@ import {
 import type { SchoolStaffNoticesPending } from "~/lib/hooks/use-school-staff-notices-pending";
 import type { SchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
 import { schoolPath } from "~/lib/school-url";
-import { isSchoolNavActive } from "./school-nav-active";
+import { isSchoolNavActive, isSchoolSettingsPath } from "./school-nav-active";
+import { SchoolSettingsBottomNav } from "./school-settings-nav";
 import { schoolNavBadge } from "./school-nav-badge";
 import { SCHOOL_PRIMARY_NAV, SCHOOL_SECONDARY_NAV } from "./school-nav-items";
 
@@ -45,7 +46,11 @@ export function SchoolBottomNav({
   /** Offene Tagesinformationen (#2208); ohne Wert steht keine Zahl. */
   readonly notices?: SchoolStaffNoticesPending;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
+  // In den Einstellungen folgt die Leiste der Seitenleiste (#5750).
+  if (isSchoolSettingsPath(pathname)) {
+    return <SchoolSettingsBottomNav />;
+  }
   const items = SCHOOL_MOBILE_NAV.filter(
     (item) => item.optional !== "teamChat" || teamChat.available === true,
   );

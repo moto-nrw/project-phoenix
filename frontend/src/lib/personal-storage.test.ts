@@ -60,6 +60,9 @@ const PERSONAL_SESSION = {
   "parent-first-steps-opened:7": "1",
   "moto-pwa-usage-reported.tenant.7.1": "1",
   "traeger-settings-return-path": "/ferien/5/anmeldungen?status=offen",
+  "staff-settings-return-path": "/students/search?group=5",
+  "school-settings-return-path": "/klasse/3a",
+  "parent-settings-return-path": "/children/5",
 };
 
 // Settings without data of a person; they stay on the device.

@@ -1706,7 +1706,7 @@ describe("MobileBottomNav", () => {
     it("highlights More button when additional nav item route is active", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
-      mockUsePathname.mockReturnValue("/settings");
+      mockUsePathname.mockReturnValue("/database");
 
       render(<MobileBottomNav />);
 
@@ -1791,7 +1791,7 @@ describe("MobileBottomNav", () => {
       vi.useFakeTimers();
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
-      mockUsePathname.mockReturnValue("/settings");
+      mockUsePathname.mockReturnValue("/database");
 
       render(<MobileBottomNav />);
 

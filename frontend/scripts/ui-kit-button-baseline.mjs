@@ -72,7 +72,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/parent/shell/parent-bottom-nav.tsx",
-    lines: [177, 215, 262],
+    lines: [184, 222, 269],
     reason: "Navigationszeilen der unteren Leiste im Elternportal",
   },
   {
@@ -183,7 +183,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1327, 1528, 1563],
+    lines: [1343, 1544, 1579],
     reason: "Navigationszeilen der Seitenleiste und der unteren Leiste",
   },
   {
@@ -301,14 +301,14 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1563],
+    lines: [1579],
     reason:
       "Mehr-Eintrag der Handy-Navigation: grau markiert den aktiven Bereich",
   },
   {
     rule: "no-grey-button-fill",
     file: "src/components/parent/shell/parent-bottom-nav.tsx",
-    lines: [215],
+    lines: [222],
     reason:
       "Mehr-Eintrag der Eltern-Navigation: grau markiert den aktiven Bereich",
   },

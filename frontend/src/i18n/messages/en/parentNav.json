@@ -32,5 +32,7 @@
   "unreadCount": "{count} unread",
   "openCount": "{count} open",
   "noticeCount": "{count} notices",
-  "documents": "Documents"
+  "documents": "Documents",
+  "privacy": "Privacy",
+  "backToApp": "Back to the app"
 }
