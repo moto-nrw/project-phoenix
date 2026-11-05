@@ -540,9 +540,7 @@ func (w *Workflow) loadCounts(ctx context.Context, studentID int64) (countSnapsh
 		return countSnapshot{}, err
 	}
 	counts.AttendanceRecords = visits + attendance + carePlanCounts.StatusDays + carePlanCounts.ExcusedRequests
-	if counts.CareSchedules, err = w.deps.CarePlan.CountStudentScheduleRows(ctx, studentID); err != nil {
-		return countSnapshot{}, err
-	}
+	counts.CareSchedules = carePlanCounts.ScheduleRows
 	if counts.GuardianLinks, err = w.deps.Directory.CountStudentGuardianLinks(ctx, studentID); err != nil {
 		return countSnapshot{}, err
 	}
