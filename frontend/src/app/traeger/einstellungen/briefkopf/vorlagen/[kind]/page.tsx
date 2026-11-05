@@ -112,7 +112,11 @@ function TemplateEditorPage({
   const [previewing, setPreviewing] = useState(false);
   // A save or reload makes every older draft preview obsolete.
   const previewRequest = useRef(0);
-  const { data: schema } = useTraegerSettingsSchema();
+  const {
+    data: schema,
+    isLoading: schemaLoading,
+    loadError: schemaError,
+  } = useTraegerSettingsSchema();
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const formRef = useRef<HTMLFormElement>(null);
@@ -192,6 +196,7 @@ function TemplateEditorPage({
     }
   };
 
+  const error = pageLoad.error ?? schemaError;
   const current = data ? textOf(data.detail.current) : null;
   const changed =
     draft !== null && current !== null && !sameText(draft, current);
@@ -234,11 +239,11 @@ function TemplateEditorPage({
           />
         ) : null
       }
-      statsLoading={!data && !pageLoad.error}
-      error={pageLoad.error}
-      loading={!pageLoad.error && !data}
+      statsLoading={!data && !error}
+      error={error}
+      loading={!error && (!data || schemaLoading)}
     >
-      {data && draft ? (
+      {data && draft && schema ? (
         <>
           {!canEdit ? (
             <Alert

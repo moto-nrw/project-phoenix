@@ -11,6 +11,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import type { TraegerMasterData } from "~/lib/traeger-api";
 import type {
   DocumentTemplateDetail,
@@ -113,9 +114,29 @@ const MASTER_DATA: TraegerMasterData = {
   bankAccounts: [],
 };
 
+const BRANDING_SCHEMA = {
+  tabs: [
+    {
+      key: "branding",
+      categories: [
+        {
+          items: [
+            {
+              key: "branding.letterhead_text",
+              value: "Ganztag im Quartier e.V.",
+            },
+            { key: "branding.footer_text", value: "Amtsgericht Osnabrück" },
+            { key: "branding.primary_color", value: "#217A78" },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
 function renderPage() {
   return rtlRender(
-    <SWRConfig value={{ provider: () => new Map() }}>
+    <SWRConfig value={{ provider: () => new Map(), shouldRetryOnError: false }}>
       <ToastProvider>
         <TraegerVorlagePage />
       </ToastProvider>
@@ -158,6 +179,60 @@ describe("TraegerVorlagePage", () => {
       "rechnung",
       STANDARD,
     );
+  });
+
+  it("waits for branding before showing the template preview", async () => {
+    let finishBranding!: (value: typeof BRANDING_SCHEMA) => void;
+    api.fetchTraegerSettingsSchema.mockReturnValue(
+      new Promise<typeof BRANDING_SCHEMA>((resolve) => {
+        finishBranding = resolve;
+      }),
+    );
+    renderPage();
+    await waitFor(() =>
+      expect(templatesApi.previewDocumentTemplate).toHaveBeenCalled(),
+    );
+    // Anker: template data has loaded, but branding still keeps the page loading.
+    expect(
+      screen.getByRole("status", {
+        name: "Der Bereich „Rechnung“ wird geladen…",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("figure", { name: "Vorschau des Briefs" }),
+    ).not.toBeInTheDocument();
+    await act(async () => {
+      finishBranding(BRANDING_SCHEMA);
+    });
+    const preview = await screen.findByRole("figure", {
+      name: "Vorschau des Briefs",
+    });
+    expect(preview).toHaveTextContent("Ganztag im Quartier e.V.");
+    expect(preview).toHaveTextContent("Amtsgericht Osnabrück");
+  });
+
+  it("shows a branding load error and loads the letterhead on retry", async () => {
+    api.fetchTraegerSettingsSchema.mockRejectedValue(
+      new ApiError("unavailable", 503, { code: "general.unavailable" }),
+    );
+    renderPage();
+    // Anker: the schema failure is visible instead of an incomplete preview.
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Einstellungen"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("figure", { name: "Vorschau des Briefs" }),
+    ).not.toBeInTheDocument();
+    api.fetchTraegerSettingsSchema.mockResolvedValue(BRANDING_SCHEMA);
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    const preview = await screen.findByRole("figure", {
+      name: "Vorschau des Briefs",
+    });
+    expect(preview).toHaveTextContent("Ganztag im Quartier e.V.");
+    expect(preview).toHaveTextContent("Amtsgericht Osnabrück");
+    expect(api.fetchTraegerSettingsSchema).toHaveBeenCalledTimes(2);
   });
 
   it("previews and saves an edited template as a new version", async () => {
