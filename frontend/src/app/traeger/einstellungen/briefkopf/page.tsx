@@ -1,45 +1,36 @@
 "use client";
 
-// Briefkopf des Trägers (#4653, ADR 0112): Logo, Absender, Farbe, Fußzeile,
-// Ansprechpartner und Bankverbindungen. Alle Dokumente des Trägers nutzen
-// diese Angaben; die Vorschau zeigt Kopf und Fuß eines Briefs. Lesen darf,
-// wer „Übersicht lesen“ hat, ändern nur, wer „Einstellungen“ hat.
+// Briefkopf des Trägers (#4653, ADR 0112): Logo, Absender, Farbe und Fußzeile.
+// Alle Dokumente des Trägers nutzen diese Angaben; die Vorschau zeigt Kopf und
+// Fuß eines Briefs, auch mit Ansprechperson und Bankverbindung aus den anderen
+// Einstellungen (#5685). Darunter führt die Karte „Vorlagen“ zum Text der
+// Briefe (#4677). Lesen darf, wer „Übersicht lesen“ hat, ändern nur, wer
+// „Einstellungen“ hat.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { SettingsCategory } from "~/components/settings/settings-category";
-import { TraegerBankAccountsCard } from "~/components/traeger/traeger-bank-accounts-card";
-import { TraegerContactCard } from "~/components/traeger/traeger-contact-card";
 import { TraegerLetterheadPreview } from "~/components/traeger/traeger-letterhead-preview";
 import { TraegerLogoCard } from "~/components/traeger/traeger-logo-card";
 import { Alert } from "~/components/ui/alert";
+import { ButtonLink } from "~/components/ui/button";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { useApiLoadError } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
-import { createLogger } from "~/lib/logger";
 import type { ResolvedSetting, SchemaTab } from "~/lib/settings-api";
 import {
   clearTraegerSettingValue,
-  fetchTraegerMasterData,
   saveTraegerSettingValue,
-  type TraegerMasterData,
   traegerLogoSrc,
 } from "~/lib/traeger-api";
+import { traegerPath } from "~/lib/traeger-url";
+import { useTraegerMasterData } from "~/components/traeger/use-traeger-master-data";
 import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
 import { TRAEGER_BRANDING_TAB } from "~/lib/traeger-branding";
 
-const logger = createLogger({ component: "TraegerBriefkopfPage" });
-
 /** The Träger right that changes the letterhead (ADR 0084 section 4). */
 const SETTINGS_RIGHT = "traeger_settings:manage";
-
-const EMPTY: TraegerMasterData = {
-  contact: { name: "", phone: "", email: "" },
-  logo: null,
-  bankAccounts: [],
-};
 
 function brandingValue(tab: SchemaTab | null, key: string): string {
   const item: ResolvedSetting | undefined = tab?.categories
@@ -51,7 +42,8 @@ function brandingValue(tab: SchemaTab | null, key: string): string {
 export default function TraegerBriefkopfPage() {
   const { data: session } = useSession();
   const canEdit = hasPermission(session ?? null, SETTINGS_RIGHT);
-  const [masterData, setMasterData] = useState<TraegerMasterData>(EMPTY);
+  const master = useTraegerMasterData("der Briefkopf");
+  const { masterData, loaded, loading, refresh: refreshMaster } = master;
   const {
     data: schema,
     isLoading: schemaLoading,
@@ -61,64 +53,16 @@ export default function TraegerBriefkopfPage() {
   } = useTraegerSettingsSchema();
   const branding =
     schema?.tabs.find((tab) => tab.key === TRAEGER_BRANDING_TAB) ?? null;
-  const [loading, setLoading] = useState(true);
-  const [masterFailure, setMasterFailure] = useState<unknown>();
-  // The cards show only after one complete read: empty forms after a failed
-  // load would overwrite stored values on save.
-  const [loaded, setLoaded] = useState(false);
-  const pageLoad = useApiLoadError();
-  const { show: showLoadError, clear: clearLoadError } = pageLoad;
-
-  const read = useCallback(async () => {
-    const data = await fetchTraegerMasterData();
-    setMasterData(data);
-    setMasterFailure(undefined);
-    setLoaded(true);
-    clearLoadError();
-  }, [clearLoadError]);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      await read();
-    } catch (err) {
-      setMasterFailure(err);
-      logger.error("traeger_briefkopf_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await showLoadError(err, {
-        object: "der Briefkopf",
-        retry: () => void load(),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [read, showLoadError]);
 
   // After a change the page reads again; a failed refresh keeps the shown
   // values and says so.
   const refresh = useCallback(async () => {
-    try {
-      await Promise.all([
-        read(),
-        // The shared schema reader owns its error and retry, not master data.
-        refreshSchema().catch(() => undefined),
-      ]);
-    } catch (err) {
-      setMasterFailure(err);
-      logger.warn("traeger_briefkopf_refresh_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await showLoadError(err, {
-        object: "der Briefkopf",
-        retry: () => void load(),
-      });
-    }
-  }, [load, read, showLoadError, refreshSchema]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+    await Promise.all([
+      refreshMaster(),
+      // The shared schema reader owns its error and retry, not master data.
+      refreshSchema().catch(() => undefined),
+    ]);
+  }, [refreshMaster, refreshSchema]);
 
   // Save and reset throw the ApiError of a failed request; the field shows
   // it on the shared error path.
@@ -143,15 +87,15 @@ export default function TraegerBriefkopfPage() {
   // Ein fehlgeschlagenes Nachladen lässt die gezeigten Angaben stehen; die
   // Meldung steht dann über ihnen statt an ihrer Stelle.
   const error = metadataLoadError(
-    pageLoad.error ?? schemaError,
+    master.error ?? schemaError,
     loaded && schema !== undefined,
-    masterFailure,
+    master.failure,
     schemaFailure,
   );
 
   return (
     <TenantPage
-      title="Briefkopf"
+      title="Briefkopf und Vorlagen"
       info="Diese Angaben stehen auf allen Briefen und Rechnungen Ihres Trägers."
       error={error}
       loading={loading || schemaLoading}
@@ -198,16 +142,18 @@ export default function TraegerBriefkopfPage() {
             />
           ))}
 
-          <TraegerContactCard
-            contact={masterData.contact}
-            canEdit={canEdit}
-            onSaved={refresh}
-          />
-
-          <TraegerBankAccountsCard
-            accounts={masterData.bankAccounts}
-            canEdit={canEdit}
-            onChanged={refresh}
+          <SectionCard
+            title="Vorlagen"
+            description="Hier legen Sie den Text der Briefe fest, zum Beispiel Betreff, Anrede und Brieftext der Bestätigung."
+            action={
+              <ButtonLink
+                href={traegerPath("/traeger/einstellungen/briefkopf/vorlagen")}
+                variant="outline"
+                size="md"
+              >
+                Vorlagen öffnen
+              </ButtonLink>
+            }
           />
         </>
       ) : null}

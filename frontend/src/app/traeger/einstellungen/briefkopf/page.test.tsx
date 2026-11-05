@@ -37,6 +37,9 @@ const { api, session } = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/traeger-api", () => api);
+vi.mock("~/lib/traeger-url", () => ({
+  traegerPath: (path: string) => path.replace(/^\/traeger/, "") || "/",
+}));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {
@@ -215,9 +218,11 @@ describe("TraegerBriefkopfPage", () => {
     expect(preview).toHaveTextContent("Amtsgericht Osnabrück");
     expect(preview).not.toHaveTextContent("Ferienbetreuung");
     expect(screen.getByText("Kein Logo")).toBeInTheDocument();
+    // Ansprechperson und Bankverbindung ändert man auf ihren eigenen Seiten (#5685).
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Bankverbindung hinzufügen" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: "Bankverbindung hinzufügen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the letterhead read-only without the right Einstellungen", async () => {
@@ -229,86 +234,18 @@ describe("TraegerBriefkopfPage", () => {
         "Sie können die Angaben nur ansehen. Ändern kann, wer im Träger-Büro das Recht „Einstellungen“ hat.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Name")).toBeDisabled();
-    expect(screen.getAllByText("Ferienbetreuung").length).toBeGreaterThan(0);
-    expect(
-      screen.queryByRole("button", { name: "Bankverbindung hinzufügen" }),
-    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Logo hochladen" }),
     ).not.toBeInTheDocument();
   });
 
-  it("adds a bank account and reads the master data again", async () => {
-    api.createTraegerBankAccount.mockResolvedValue({
-      ...MASTER_DATA.bankAccounts[1],
-      id: "9",
-    });
+  it("leads to the templates, also for a reader (#4677, #5685)", async () => {
+    session.permissions = ["traeger_overview:read"];
     renderPage();
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Bankverbindung hinzufügen" }),
-    );
-    fireEvent.change(screen.getByLabelText(/Bezeichnung/), {
-      target: { value: "Mensa" },
-    });
-    fireEvent.change(screen.getByLabelText(/Kontoinhaber/), {
-      target: { value: "Ganztag im Quartier e.V." },
-    });
-    fireEvent.change(screen.getByLabelText(/^IBAN/), {
-      target: { value: "GB82 WEST 1234 5698 7654 32" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
-
-    await waitFor(() =>
-      expect(api.createTraegerBankAccount).toHaveBeenCalledWith({
-        label: "Mensa",
-        accountHolder: "Ganztag im Quartier e.V.",
-        iban: "GB82 WEST 1234 5698 7654 32",
-        bic: "",
-        bankName: "",
-        isDefault: false,
-      }),
-    );
-    await waitFor(() =>
-      expect(api.fetchTraegerMasterData).toHaveBeenCalledTimes(2),
-    );
-  });
-
-  it("shows a refused IBAN at its field", async () => {
-    api.createTraegerBankAccount.mockRejectedValue(
-      new ApiError("invalid", 400, {
-        code: "traeger.master_data_invalid",
-        errors: [{ field: "iban", reason: "is not a valid IBAN" }],
-      }),
-    );
-    renderPage();
-
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Bankverbindung hinzufügen" }),
-    );
-    fireEvent.change(screen.getByLabelText(/Bezeichnung/), {
-      target: { value: "Mensa" },
-    });
-    fireEvent.change(screen.getByLabelText(/Kontoinhaber/), {
-      target: { value: "Träger e.V." },
-    });
-    fireEvent.change(screen.getByLabelText(/^IBAN/), {
-      target: { value: "DE00 1234" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(
-      await screen.findByText(
-        catalogText("traeger.master_data_invalid", "die Bankverbindung"),
-      ),
-    ).toBeInTheDocument();
-    await waitFor(() =>
-      expect(screen.getByLabelText(/^IBAN/)).toHaveAttribute(
-        "aria-invalid",
-        "true",
-      ),
-    );
+      await screen.findByRole("link", { name: "Vorlagen öffnen" }),
+    ).toHaveAttribute("href", "/einstellungen/briefkopf/vorlagen");
   });
 
   it("refuses a logo that is no PNG or JPG before uploading it", async () => {
@@ -354,10 +291,14 @@ describe("TraegerBriefkopfPage", () => {
         catalogText("general.unavailable", "der Briefkopf"),
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Logo hochladen" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
-    expect(await screen.findByLabelText("Name")).toHaveValue("Petra Lindner");
+    expect(
+      await screen.findByRole("button", { name: "Logo hochladen" }),
+    ).toBeInTheDocument();
   });
 });
 

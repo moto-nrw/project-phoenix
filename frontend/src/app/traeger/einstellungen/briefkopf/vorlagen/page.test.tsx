@@ -18,7 +18,7 @@ vi.mock("~/lib/traeger-url", () => ({
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
-  usePathname: () => "/vorlagen",
+  usePathname: () => "/einstellungen/briefkopf/vorlagen",
 }));
 
 import TraegerVorlagenPage from "./page";
@@ -51,6 +51,8 @@ describe("TraegerVorlagenPage", () => {
     expect(screen.getAllByText("Standardvorlage").length).toBeGreaterThan(0);
     expect(screen.getAllByText("08.09.2026").length).toBeGreaterThan(0);
     fireEvent.click(confirmation!);
-    expect(push).toHaveBeenCalledWith("/vorlagen/bestaetigung");
+    expect(push).toHaveBeenCalledWith(
+      "/einstellungen/briefkopf/vorlagen/bestaetigung",
+    );
   });
 });

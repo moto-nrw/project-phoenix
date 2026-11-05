@@ -46,7 +46,7 @@ vi.mock("~/lib/traeger-url", () => ({
 vi.mock("next/navigation", () => ({
   useParams: () => params,
   useRouter: () => ({ push: vi.fn() }),
-  usePathname: () => `/vorlagen/${params.kind}`,
+  usePathname: () => `/einstellungen/briefkopf/vorlagen/${params.kind}`,
 }));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({

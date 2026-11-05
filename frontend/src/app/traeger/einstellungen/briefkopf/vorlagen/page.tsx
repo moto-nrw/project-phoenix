@@ -122,7 +122,11 @@ export default function TraegerVorlagenPage() {
           stackedOnMobile
           stackedLayout="row"
           onRowClick={(template) =>
-            router.push(traegerPath(`/traeger/vorlagen/${template.kind}`))
+            router.push(
+              traegerPath(
+                `/traeger/einstellungen/briefkopf/vorlagen/${template.kind}`,
+              ),
+            )
           }
           emptyState={
             <EmptyState

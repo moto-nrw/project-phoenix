@@ -147,13 +147,13 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
 > = [
   ["/schulen", "Schulen"],
   ["/uebersicht", "Dashboard"],
-  ["/ferien", "Ferien"],
-  ["/beitraege", "Ermäßigungen"],
+  ["/ferien", "Ferienbetreuung"],
   ["/abrechnung", "Abrechnung"],
-  ["/accounts", "Personen"],
-  ["/access-log", "Zugriffsprotokoll"],
-  ["/briefkopf", "Briefkopf"],
-  ["/einstellungen", "Einstellungen"],
+  ["/einstellungen/mitglieder", "Mitglieder und Rollen"],
+  ["/einstellungen/briefkopf", "Briefkopf und Vorlagen"],
+  ["/einstellungen/abrechnung", "Abrechnungsvorgaben"],
+  ["/einstellungen/zugriffsprotokoll", "Zugriffsprotokoll"],
+  ["/einstellungen", "Allgemein"],
 ];
 
 function traegerTitleForPath(pathname: string): string | null {

@@ -1,78 +1,66 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
-import { PORTAL_SUB_ITEM_CLASSES } from "~/components/dashboard/sidebar-geometry";
-import { NavLink } from "~/components/ui/nav-link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   PortalSidebar,
+  PortalSidebarGroup,
   PortalSidebarLink,
 } from "~/components/ui/portal-sidebar";
 import { traegerPath } from "~/lib/traeger-url";
-import { isTraegerNavActive } from "./traeger-nav-active";
 import {
+  isTraegerNavActive,
+  isTraegerSettingsPath,
+} from "./traeger-nav-active";
+import {
+  TRAEGER_BACK_NAV,
   TRAEGER_HELP_NAV,
   TRAEGER_SETTINGS_NAV,
-  traegerNavItemsFor,
+  traegerNavGroupsFor,
   traegerSettingsNavItemsFor,
 } from "./traeger-nav-items";
-
-const SETTINGS_OPEN_KEY = "traeger-sidebar-settings-open";
-
-function readStoredSettingsOpen(): boolean | null {
-  try {
-    const raw = globalThis.localStorage.getItem(SETTINGS_OPEN_KEY);
-    return raw === null ? null : raw === "true";
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredSettingsOpen(open: boolean) {
-  try {
-    globalThis.localStorage.setItem(SETTINGS_OPEN_KEY, String(open));
-  } catch {
-    // Ohne Speicher gilt der Zustand nur für diese Sitzung.
-  }
-}
+import { useTraegerReturnHref } from "./traeger-return-path";
 
 /**
  * Die dauerhafte Seitennavigation des Träger-Portals ab 1024 px (#5145):
- * die geteilte `PortalSidebar` des Schul-Portals mit den Zielen, die die
- * Rechte der Person öffnen. Unten stehen wie im Schul-Portal die Hilfe und
- * die einklappbaren Einstellungen (#5242). Abmelden sitzt im Profil-Menü der
- * geteilten Kopfzeile, die auf jeder Breite sichtbar ist.
+ * die geteilte `PortalSidebar` mit den Zielen, die die Rechte der Person
+ * öffnen. Dieselbe Leiste zeigt je nach Adresse die Hauptnavigation oder die
+ * Einstellungen mit dem Rückweg zur App (#5685). Abmelden sitzt im Profil-Menü
+ * der geteilten Kopfzeile, die auf jeder Breite sichtbar ist.
  */
 export function TraegerSidebar() {
   const pathname = usePathname() ?? "";
   const { data: session } = useSession();
   const settingsItems = traegerSettingsNavItemsFor(session ?? null);
-  const containsActive = settingsItems.some((item) =>
-    isTraegerNavActive(item.href, pathname),
-  );
-  const [settingsOpen, setSettingsOpenState] = useState(containsActive);
-  const toggleSettings = () => {
-    const next = !settingsOpen;
-    setSettingsOpenState(next);
-    writeStoredSettingsOpen(next);
-  };
-  // Der Browser merkt sich den Klappzustand (#5331). Der erste Render kennt
-  // den Speicher nicht (Server und Client liefern dasselbe Bild), deshalb
-  // wird der gespeicherte Stand erst nach dem Einhängen übernommen.
-  useEffect(() => {
-    const stored = readStoredSettingsOpen();
-    if (stored !== null) setSettingsOpenState(stored);
-  }, []);
-  // Open on entry into settings, but still allow manually collapsing them.
-  // Nur ein Klick wird gespeichert, nicht dieses Aufklappen im Render.
-  const [wasActive, setWasActive] = useState(containsActive);
-  if (containsActive !== wasActive) {
-    setWasActive(containsActive);
-    if (containsActive) setSettingsOpenState(true);
+  const returnHref = useTraegerReturnHref();
+
+  if (isTraegerSettingsPath(pathname)) {
+    return (
+      <PortalSidebar navLabel={TRAEGER_SETTINGS_NAV.label}>
+        <PortalSidebarLink
+          href={returnHref}
+          label={TRAEGER_BACK_NAV.label}
+          concept={TRAEGER_BACK_NAV.concept}
+          active={false}
+          data-traeger-nav-item={TRAEGER_BACK_NAV.key}
+        />
+        <PortalSidebarGroup label={TRAEGER_SETTINGS_NAV.label}>
+          {settingsItems.map((item) => (
+            <PortalSidebarLink
+              key={item.key}
+              href={traegerPath(item.href)}
+              label={item.label}
+              concept={item.concept}
+              active={isTraegerNavActive(item.href, pathname)}
+              data-traeger-nav-item={item.key}
+            />
+          ))}
+        </PortalSidebarGroup>
+      </PortalSidebar>
+    );
   }
 
+  const settingsEntry = settingsItems[0];
   return (
     <PortalSidebar
       secondaryLabel="Hilfe und Einstellungen"
@@ -86,52 +74,31 @@ export function TraegerSidebar() {
             newTab
             data-traeger-nav-item={TRAEGER_HELP_NAV.key}
           />
-          {settingsItems.length > 0 && (
-            <li>
-              <SidebarAccordionSection
-                variant="portal"
-                label={TRAEGER_SETTINGS_NAV.label}
-                concept={TRAEGER_SETTINGS_NAV.concept}
-                data-portal-nav-section={TRAEGER_SETTINGS_NAV.key}
-                isExpanded={settingsOpen}
-                onToggle={toggleSettings}
-                isActive={containsActive && !settingsOpen}
-                isIconActive={containsActive}
-                hasChildren
-              >
-                <ul className="space-y-0.5">
-                  {settingsItems.map((item) => {
-                    const active = isTraegerNavActive(item.href, pathname);
-                    return (
-                      <li key={item.key}>
-                        <NavLink
-                          href={traegerPath(item.href)}
-                          data-portal-nav-item={item.key}
-                          data-active={active ? "true" : "false"}
-                          aria-current={active ? "page" : undefined}
-                          className={`${PORTAL_SUB_ITEM_CLASSES} ${active ? "bg-gray-100 font-semibold text-gray-900" : "font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700"}`}
-                        >
-                          {item.label}
-                        </NavLink>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </SidebarAccordionSection>
-            </li>
-          )}
+          {settingsEntry ? (
+            <PortalSidebarLink
+              href={traegerPath(settingsEntry.href)}
+              label={TRAEGER_SETTINGS_NAV.label}
+              concept={TRAEGER_SETTINGS_NAV.concept}
+              active={false}
+              data-traeger-nav-item={TRAEGER_SETTINGS_NAV.key}
+            />
+          ) : null}
         </>
       }
     >
-      {traegerNavItemsFor(session ?? null).map((item) => (
-        <PortalSidebarLink
-          key={item.key}
-          href={traegerPath(item.href)}
-          label={item.label}
-          concept={item.concept}
-          active={isTraegerNavActive(item.href, pathname)}
-          data-traeger-nav-item={item.key}
-        />
+      {traegerNavGroupsFor(session ?? null).map((group) => (
+        <PortalSidebarGroup key={group.key} label={group.label}>
+          {group.items.map((item) => (
+            <PortalSidebarLink
+              key={item.key}
+              href={traegerPath(item.href)}
+              label={item.label}
+              concept={item.concept}
+              active={isTraegerNavActive(item.href, pathname)}
+              data-traeger-nav-item={item.key}
+            />
+          ))}
+        </PortalSidebarGroup>
       ))}
     </PortalSidebar>
   );

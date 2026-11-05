@@ -603,12 +603,10 @@ if (!TRAEGER_HOSTNAME) {
 // --- Träger subdomain handling ("moto träger", Träger-Büro portal, #4649) ---
 
 /** Paths the Träger subdomain serves (without /traeger prefix): the login,
- * the reset link (#5149), the holiday periods (#4659), the Träger-Büro persons, the invitation
- * link, which opens /invite (#4650), the access log (#4655), the
- * letterhead (#4653), the Träger settings (#4652), the contribution
- * rules (#4664), the billing runs (#4668), the view of one school
- * (#5686), the dashboard over all schools at /uebersicht (#4674) and the
- * document templates (#4677). The school list itself lives at the root ("/" →
+ * the reset link (#5149), the holiday periods (#4659), the invitation link,
+ * which opens /invite (#4650), the settings area (#4652, #5685), the billing
+ * runs (#4668), the view of one school (#5686) and the dashboard over all
+ * schools at /uebersicht (#4674). The school list itself lives at the root ("/" →
  * /traeger). The client guard sends a visitor without a session to the
  * login. */
 const TRAEGER_PUBLIC_PATHS = [
@@ -616,16 +614,27 @@ const TRAEGER_PUBLIC_PATHS = [
   "/reset-password",
   "/ferien",
   "/invite",
-  "/accounts",
-  "/access-log",
-  "/briefkopf",
   "/einstellungen",
-  "/beitraege",
   "/abrechnung",
   "/schulen",
   "/uebersicht",
-  "/vorlagen",
 ];
+
+/** Pages that moved into the settings area (#5685). Bookmarks, help links and
+ * links in e-mails keep working, also in the /traeger-prefixed spelling. */
+const TRAEGER_MOVED_PATHS: ReadonlyArray<readonly [from: string, to: string]> =
+  [
+    ["/accounts", "/einstellungen/mitglieder"],
+    ["/access-log", "/einstellungen/zugriffsprotokoll"],
+    ["/briefkopf", "/einstellungen/briefkopf"],
+    ["/beitraege", "/einstellungen/abrechnung"],
+  ];
+
+function traegerMovedTarget(pathname: string): string | null {
+  const page = pathname.replace(/^\/traeger(?=\/|$)/, "").replace(/\/$/, "");
+  const moved = TRAEGER_MOVED_PATHS.find(([from]) => page === from);
+  return moved ? moved[1] : null;
+}
 
 function isTraegerHost(hostname: string): boolean {
   return hostname === TRAEGER_HOSTNAME;
@@ -659,6 +668,13 @@ function handleTraegerSubdomain(request: NextRequest): NextResponse {
     const url = request.nextUrl.clone();
     url.pathname = "/traeger";
     return secureRewrite(request, url);
+  }
+
+  const movedTarget = traegerMovedTarget(pathname);
+  if (movedTarget) {
+    const url = new URL(request.url);
+    url.pathname = movedTarget;
+    return withSecurityHeaders(NextResponse.redirect(url, 308));
   }
 
   if (

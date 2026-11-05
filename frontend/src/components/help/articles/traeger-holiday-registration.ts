@@ -17,7 +17,7 @@ export function traegerHolidayRegistrationTopic(): HelpTopic {
       "Der Ferienzeitraum ist veröffentlicht.",
     ],
     steps: [
-      "Wählen Sie in der Navigation `Ferien`.",
+      "Wählen Sie in der Navigation `Ferienbetreuung`.",
       "Öffnen Sie den Ferienzeitraum.",
       "Unter `Link für Eltern` steht der Link. Wählen Sie daneben `Link kopieren`.",
       "Geben Sie den Link an die Eltern weiter, zum Beispiel in einem Elternbrief der Schulen.",

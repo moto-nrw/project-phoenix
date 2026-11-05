@@ -87,7 +87,7 @@ export default function TraegerVorlagePage() {
       <TenantPage
         title="Vorlage"
         back
-        backHref={traegerPath("/traeger/vorlagen")}
+        backHref={traegerPath("/traeger/einstellungen/briefkopf/vorlagen")}
         backLabel="Zurück zu den Vorlagen"
       >
         <Alert
@@ -204,7 +204,7 @@ function TemplateEditorPage({
     <TenantPage
       title={DOCUMENT_TEMPLATE_KIND_LABELS[kind]}
       back
-      backHref={traegerPath("/traeger/vorlagen")}
+      backHref={traegerPath("/traeger/einstellungen/briefkopf/vorlagen")}
       backLabel="Zurück zu den Vorlagen"
       info={DOCUMENT_TEMPLATE_KIND_USE[kind]}
       stats={

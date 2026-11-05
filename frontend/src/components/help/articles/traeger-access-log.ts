@@ -1,7 +1,7 @@
 import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
-/** `/traeger/access-log` (#4655): wer an den Schulen Daten gelesen oder geändert hat. */
+/** `/traeger/einstellungen/zugriffsprotokoll` (#4655): wer an den Schulen Daten gelesen oder geändert hat. */
 export function traegerAccessLogTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.traegerAccessLog,
@@ -21,7 +21,8 @@ export function traegerAccessLogTopic(): HelpTopic {
         title: "Protokoll ansehen",
         steps: [
           "Melden Sie sich im Träger-Portal an.",
-          "Klicken Sie links unten in der Navigation auf `Einstellungen`. Wählen Sie darunter `Zugriffsprotokoll`.",
+          "Wählen Sie unten in der Navigation `Einstellungen`.",
+          "Wählen Sie `Zugriffsprotokoll`.",
           "Wählen Sie den Zeitraum. Am Anfang sind es die letzten 30 Tage.",
           "Wählen Sie bei Bedarf eine Schule und eine Person.",
           "Wählen Sie `Gelesen` oder `Geändert`, wenn Sie nur eine Art sehen möchten.",
@@ -46,8 +47,8 @@ export function traegerAccessLogTopic(): HelpTopic {
       "Löscht moto eine Ferienanmeldung, löscht es auch ihre Einträge im Protokoll. Nach dem Ende der Ferien löscht moto alle Einträge zu diesen Ferien.",
     ],
     differences: [
-      "Auf dem Handy steht `Zugriffsprotokoll` in der Leiste unten oder unter `Mehr`.",
-      "Sie sehen unter `Einstellungen` kein `Zugriffsprotokoll`? Dann hat Ihre Rolle kein Recht dazu.",
+      "Auf dem Handy steht `Zugriffsprotokoll` in den Einstellungen unter `Mehr`.",
+      "Sie sehen in den Einstellungen kein `Zugriffsprotokoll`? Dann hat Ihre Rolle kein Recht dazu.",
       "Steht bei Person `Unbekannte Person`? Zu diesem Konto kennt moto an der Schule keinen Namen, zum Beispiel bei Eltern.",
     ],
     troubleshootingDetails: [

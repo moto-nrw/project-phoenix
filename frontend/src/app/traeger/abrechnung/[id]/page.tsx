@@ -27,7 +27,7 @@ import {
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { formatDateRange } from "~/components/traeger/holiday-period-format";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
@@ -80,7 +80,7 @@ function paymentTextWarning(run: BillingRunDetail): string {
   const where =
     run.missingDebtorNumbers > 0
       ? "Tragen Sie die Nummern vor dem Freigeben bei den Anmeldungen ein."
-      : "Tragen Sie die Nummern vor dem Freigeben bei den Anmeldungen ein. Das Feld dafür erscheint, wenn unter „Einstellungen“ im Bereich „Ferienbetreuung“ „Debitorennummer beim Bestätigen abfragen“ an ist.";
+      : "Tragen Sie die Nummern vor dem Freigeben bei den Anmeldungen ein. Das Feld dafür erscheint, wenn in den Einstellungen unter „Allgemein“ im Bereich „Ferienbetreuung“ „Debitorennummer beim Bestätigen abfragen“ an ist.";
   return `${invoicesWithoutDebtorNumber(run.paymentTextMissingDebtorNumbers)} Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext. ${where}`;
 }
 
@@ -308,7 +308,16 @@ export default function TraegerBillingRunPage() {
           {preview && !run.numberRangeSet ? (
             <Alert
               type="warning"
-              message="Bevor Sie freigeben: Legen Sie unter „Abrechnung“ das Muster der Rechnungsnummern fest."
+              message="Bevor Sie freigeben: Legen Sie das Muster der Rechnungsnummern fest."
+              action={
+                <ButtonLink
+                  href={traegerPath("/traeger/einstellungen/abrechnung")}
+                  variant="surface"
+                  size="compact"
+                >
+                  Abrechnungsvorgaben öffnen
+                </ButtonLink>
+              }
             />
           ) : null}
           {paymentTextGaps > 0 ? (

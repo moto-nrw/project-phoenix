@@ -1,7 +1,7 @@
 import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
-/** `/traeger/vorlagen` (#4677): Text der Briefe mit Platzhaltern. */
+/** `/traeger/einstellungen/briefkopf/vorlagen` (#4677): Text der Briefe mit Platzhaltern. */
 export function traegerDocumentTemplatesTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.traegerDocumentTemplates,
@@ -17,7 +17,8 @@ export function traegerDocumentTemplatesTopic(): HelpTopic {
       {
         title: "Vorlage ändern",
         steps: [
-          "Klicken Sie links unten in der Navigation auf `Einstellungen`. Wählen Sie darunter `Vorlagen`.",
+          "Wählen Sie unten in der Navigation `Einstellungen`.",
+          "Wählen Sie `Briefkopf und Vorlagen`. Wählen Sie dort bei `Vorlagen` den Knopf `Vorlagen öffnen`.",
           "Wählen Sie das Dokument, zum Beispiel `Bestätigung der Ferienanmeldung`.",
           "Ändern Sie bei `Text der Vorlage` die Felder `Betreff`, `Anrede`, `Brieftext` und `Grußformel`.",
           "Schreiben Sie Angaben der Familie als Platzhalter, zum Beispiel {{familienname}}. Die Liste `Platzhalter` zeigt alle, die dieses Dokument kennt.",
