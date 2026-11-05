@@ -331,6 +331,7 @@ for (const analytics of [false, true]) {
         await visible(
           page.getByRole("heading", {
             name: surface === "ogs" ? "Profil" : "Benachrichtigungen",
+            level: 1,
             exact: true,
           }),
         );
