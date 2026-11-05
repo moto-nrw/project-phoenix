@@ -2,12 +2,13 @@ package users
 
 import (
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // Person represents a physical person in the system
@@ -43,8 +44,8 @@ func (p *Person) Validate() error {
 	}
 
 	// Trim spaces from names
-	p.FirstName = strings.TrimSpace(p.FirstName)
-	p.LastName = strings.TrimSpace(p.LastName)
+	p.FirstName = textnorm.Name(p.FirstName)
+	p.LastName = textnorm.Name(p.LastName)
 
 	// Note: Removed the requirement for TagID or AccountID
 	// Students can be created without either identifier

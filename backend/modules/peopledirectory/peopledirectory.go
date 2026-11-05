@@ -10,6 +10,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 const MaxNameLength = 200
@@ -183,9 +185,10 @@ func NormalizeTagID(tagID string) string {
 	return strings.NewReplacer(":", "", "-", "", " ", "").Replace(tagID)
 }
 
-// NormalizePersonNames trims the names without changing their spelling.
+// NormalizePersonNames trims the names and composes them to NFC without
+// changing their spelling (#4949).
 func NormalizePersonNames(firstName, lastName string) (string, string) {
-	return strings.TrimSpace(firstName), strings.TrimSpace(lastName)
+	return textnorm.Name(firstName), textnorm.Name(lastName)
 }
 
 func normalizeTag(tagID *string) *string {

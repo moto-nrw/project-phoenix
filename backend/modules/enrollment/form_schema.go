@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // validFormFieldTypes is the set of accepted FormFieldType values.
@@ -543,8 +545,8 @@ func (w WeekdayBoolean) HasAny() bool {
 // the decision service maps it onto the enum via the same helper the
 // CSV importer uses.
 func (c *ContactEntry) Validate() error {
-	c.FirstName = strings.TrimSpace(c.FirstName)
-	c.LastName = strings.TrimSpace(c.LastName)
+	c.FirstName = textnorm.Name(c.FirstName)
+	c.LastName = textnorm.Name(c.LastName)
 	if c.FirstName == "" || c.LastName == "" {
 		return errors.New("contact first_name and last_name are required")
 	}

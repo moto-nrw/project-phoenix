@@ -9,6 +9,8 @@ import (
 	"time"
 
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // correctApprovedChildData fixes the enrollment record of an approved child
@@ -111,8 +113,8 @@ func (s *ChangeRequests) rejectOpenChangeRequestsForAdminCorrection(ctx context.
 }
 
 func validateAdminCorrectionInput(input enrollmentNative.CorrectApprovedChildDataInput) (string, string, string, error) {
-	firstName := strings.TrimSpace(input.FirstName)
-	lastName := strings.TrimSpace(input.LastName)
+	firstName := textnorm.Name(input.FirstName)
+	lastName := textnorm.Name(input.LastName)
 	reason := strings.TrimSpace(input.Reason)
 	if input.RequestID <= 0 || input.ChildID <= 0 || input.ActorAccountID <= 0 || firstName == "" || lastName == "" || input.DateOfBirth.IsZero() || reason == "" {
 		err := fmt.Errorf("%w: request, child, actor, child data, and reason are required", enrollmentNative.ErrChangeRequestInvalidData)

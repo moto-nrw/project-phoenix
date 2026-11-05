@@ -11,6 +11,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // ReplaceEditable rewrites the editable payload of a request while every
@@ -296,8 +298,8 @@ func validateRolloverEditIdentity(existing []*RequestChild, incoming []SubmitChi
 	}
 	for i, child := range existing {
 		next := incoming[i]
-		if strings.TrimSpace(next.FirstName) != strings.TrimSpace(child.FirstName) ||
-			strings.TrimSpace(next.LastName) != strings.TrimSpace(child.LastName) ||
+		if textnorm.Name(next.FirstName) != textnorm.Name(child.FirstName) ||
+			textnorm.Name(next.LastName) != textnorm.Name(child.LastName) ||
 			next.DateOfBirth != child.DateOfBirth {
 			return enrollmentNative.ErrEditNotAllowed
 		}
@@ -322,8 +324,8 @@ func (s *Intake) replaceRequestPayload(ctx context.Context, editReq *SubmitReque
 		return nil, err
 	}
 	req := plan.req
-	req.GuardianFirstName = strings.TrimSpace(editReq.GuardianFirstName)
-	req.GuardianLastName = strings.TrimSpace(editReq.GuardianLastName)
+	req.GuardianFirstName = textnorm.Name(editReq.GuardianFirstName)
+	req.GuardianLastName = textnorm.Name(editReq.GuardianLastName)
 	req.GuardianPhone = editReq.GuardianPhone
 	req.ConsentFlags = editReq.ConsentFlags
 	req.CustomData = editReq.CustomData

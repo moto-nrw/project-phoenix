@@ -13,6 +13,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // Guardian directory composition (#2663). The People Directory facade owns
@@ -415,8 +417,8 @@ func toNewStudentGuardians(inputs []peopledirectory.NewStudentGuardian) []people
 		in := inputs[i]
 		out = append(out, peoplePorts.NewStudentGuardian{
 			Profile: peoplePorts.GuardianCreateRequest{
-				FirstName:              strings.TrimSpace(in.FirstName),
-				LastName:               strings.TrimSpace(in.LastName),
+				FirstName:              textnorm.Name(in.FirstName),
+				LastName:               textnorm.Name(in.LastName),
 				Email:                  trimToNil(in.Email),
 				AddressStreet:          trimToNil(in.AddressStreet),
 				AddressCity:            trimToNil(in.AddressCity),

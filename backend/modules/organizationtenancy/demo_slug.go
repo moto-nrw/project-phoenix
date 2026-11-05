@@ -1,19 +1,21 @@
 package organizationtenancy
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+)
 
 // maxDemoSlugName keeps the slug, which every account email and username of
 // the school carries, well inside a DNS label.
 const maxDemoSlugName = 30
-
-var demoSlugReplacer = strings.NewReplacer("ä", "ae", "ö", "oe", "ü", "ue", "ß", "ss")
 
 // DemoSchoolSlug derives the slug of a demo school from the name a prospect
 // typed: lowercase ASCII letters, digits and single hyphens, then the suffix
 // that makes it unique. A name without a usable character yields "ogs".
 func DemoSchoolSlug(schoolName, suffix string) string {
 	var slug strings.Builder
-	for _, r := range demoSlugReplacer.Replace(strings.ToLower(schoolName)) {
+	for _, r := range strings.ToLower(textnorm.ASCII(schoolName)) {
 		if slug.Len() >= maxDemoSlugName {
 			break
 		}

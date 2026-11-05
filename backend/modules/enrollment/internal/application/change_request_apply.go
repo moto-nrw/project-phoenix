@@ -13,6 +13,8 @@ import (
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // approval is the state one change-request approval works on.
@@ -159,8 +161,8 @@ func (s *ChangeRequests) loadApprovalContext(ctx context.Context, run *approval)
 // co-guardians, carrying their stamped guardian profiles over.
 func (s *ChangeRequests) writeApprovedRequest(ctx context.Context, run *approval) error {
 	req, prepared := run.req, run.prepared.request
-	req.GuardianFirstName = strings.TrimSpace(prepared.GuardianFirstName)
-	req.GuardianLastName = strings.TrimSpace(prepared.GuardianLastName)
+	req.GuardianFirstName = textnorm.Name(prepared.GuardianFirstName)
+	req.GuardianLastName = textnorm.Name(prepared.GuardianLastName)
 	req.GuardianEmail = lowerTrim(prepared.GuardianEmail)
 	req.GuardianPhone = prepared.GuardianPhone
 	req.ConsentFlags = prepared.ConsentFlags
@@ -190,8 +192,8 @@ func (s *ChangeRequests) applyApprovedChild(ctx context.Context, run *approval, 
 	if err := s.reconcileMatchedStudent(ctx, run, existing, next, i); err != nil {
 		return err
 	}
-	existing.FirstName = strings.TrimSpace(next.FirstName)
-	existing.LastName = strings.TrimSpace(next.LastName)
+	existing.FirstName = textnorm.Name(next.FirstName)
+	existing.LastName = textnorm.Name(next.LastName)
 	existing.DateOfBirth = next.DateOfBirth
 	existing.TargetGradeLevel = next.TargetGradeLevel
 	existing.TargetSchoolClass = next.TargetSchoolClass

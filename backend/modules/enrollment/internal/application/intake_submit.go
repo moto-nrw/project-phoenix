@@ -11,6 +11,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // Submit stores a submission: in one transaction the request, its children,
@@ -335,7 +337,7 @@ func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest,
 	statusExpiresAt := plan.statusExpiresAt
 	request := &Request{
 		SchemaID: schemaID, PhaseID: plan.phase.ID, GuardianAccountID: req.GuardianAccountID,
-		GuardianFirstName: strings.TrimSpace(req.GuardianFirstName), GuardianLastName: strings.TrimSpace(req.GuardianLastName),
+		GuardianFirstName: textnorm.Name(req.GuardianFirstName), GuardianLastName: textnorm.Name(req.GuardianLastName),
 		GuardianEmail: lowerTrim(req.GuardianEmail), GuardianPhone: req.GuardianPhone,
 		ConsentFlags: req.ConsentFlags, CustomData: req.CustomData,
 		SubmissionSource: plan.submissionSource, SourceMetadata: plan.sourceMetadata,
@@ -416,7 +418,7 @@ func newSubmittedChild(requestID int64, index int, child SubmitChild, overrides 
 		status = override
 	}
 	return &RequestChild{
-		RequestID: requestID, FirstName: strings.TrimSpace(child.FirstName), LastName: strings.TrimSpace(child.LastName),
+		RequestID: requestID, FirstName: textnorm.Name(child.FirstName), LastName: textnorm.Name(child.LastName),
 		DateOfBirth: child.DateOfBirth, TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass,
 		CustomData: child.CustomData, Status: status, ActivationMode: enrollmentNative.ChildActivationScheduled, SortOrder: index,
 	}
