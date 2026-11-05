@@ -81,7 +81,8 @@ type UpdatePerson struct {
 
 // PersonFilter narrows a directory search. Every field is optional; the
 // prefix, contains and equals matches are case-insensitive, and the equals
-// matches also ignore surrounding whitespace on both sides.
+// matches also ignore surrounding whitespace and canonical Unicode form on
+// both sides.
 type PersonFilter struct {
 	FirstNamePrefix  string
 	LastNamePrefix   string

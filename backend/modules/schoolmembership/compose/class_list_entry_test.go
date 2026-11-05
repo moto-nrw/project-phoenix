@@ -21,6 +21,37 @@ func createEntry(t *testing.T, ctx context.Context, module schoolmembership.Owne
 	return entry
 }
 
+func TestModuleClassListLookupMatchesCanonicalUnicodeForms(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	legacy := createEntry(t, ctx, module, "Legacy", "Name", "1a")
+	// Preserve a pre-normalization record, including a historical namesake.
+	_, err := db.NewRaw(`UPDATE users.class_list_entries SET first_name = ?, last_name = ?
+		WHERE id = ?`, "Jose\u0301", "Mu\u0308ller", legacy.ID).Exec(ctx)
+	require.NoError(t, err)
+	current := createEntry(t, ctx, module, "José", "Müller", "1a")
+	createEntry(t, ctx, module, "Jose", "Muller", "1a")
+	createEntry(t, ctx, module, "Joséfina", "Müllermann", "1a")
+	createEntry(t, ctx, module, "José", "Müller", "2b")
+
+	for _, first := range []string{" JOSÉ ", " JOSE\u0301 "} {
+		for _, last := range []string{" MÜLLER ", " MU\u0308LLER "} {
+			found, err := module.ListClassListEntries(ctx, schoolmembership.ClassListEntryFilter{
+				FirstName: first, LastName: last, SchoolClass: " 1A ",
+			})
+			require.NoError(t, err)
+			ids := make([]int64, 0, len(found))
+			for _, entry := range found {
+				ids = append(ids, entry.ID)
+			}
+			assert.ElementsMatch(t, []int64{current.ID, legacy.ID}, ids)
+		}
+	}
+}
+
 func TestModuleRunsTheClassListEntryLifecycle(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
