@@ -19,7 +19,7 @@ func TestEveryStandardTemplateUsesOnlyItsOwnPlaceholders(t *testing.T) {
 		assert.NoError(t, templates.Check(kind, templates.Default(kind)), kind)
 		// The sample fills every placeholder of the kind, so the preview
 		// shows each one.
-		sample := templates.Sample(kind)
+		sample := templates.SampleValues(kind, templates.InvoiceLayout{})
 		for _, placeholder := range templates.Placeholders(kind) {
 			assert.Contains(t, sample, placeholder.Name, "%s: %s", kind, placeholder.Name)
 		}
@@ -118,7 +118,7 @@ func TestSampleFillsTheStandardTemplateWithoutLeftoverPlaceholders(t *testing.T)
 	t.Parallel()
 	leftover := regexp.MustCompile(`\{\{|\}\}`)
 	for _, kind := range templates.Kinds() {
-		filled := templates.Fill(templates.Default(kind), templates.Sample(kind))
+		filled := templates.Fill(templates.Default(kind), templates.SampleValues(kind, templates.InvoiceLayout{}))
 		assert.NotEmpty(t, filled.Subject, kind)
 		assert.NotEmpty(t, filled.Blocks, kind)
 		for _, block := range filled.Blocks {

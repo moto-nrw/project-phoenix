@@ -33,16 +33,10 @@ type SampleLetter struct {
 	Filled
 }
 
-// Sample is the made-up document the preview fills a template of kind with,
-// with the standard table of amounts.
-func Sample(kind Kind) map[string]Value {
-	return sampleValues(kind, InvoiceLayout{})
-}
-
 // FillSample fills a template of kind with the sample document in the
 // template's own table of amounts.
 func FillSample(kind Kind, template Template) SampleLetter {
-	values := sampleValues(kind, template.Invoice)
+	values := SampleValues(kind, template.Invoice)
 	return SampleLetter{
 		Recipient: append([]string{}, sampleRecipient...),
 		Facts:     sampleFacts(kind, values),
@@ -50,7 +44,9 @@ func FillSample(kind Kind, template Template) SampleLetter {
 	}
 }
 
-func sampleValues(kind Kind, layout InvoiceLayout) map[string]Value {
+// SampleValues are the made-up values the preview fills a template of kind
+// with, its table of amounts in layout.
+func SampleValues(kind Kind, layout InvoiceLayout) map[string]Value {
 	values := make(map[string]Value, len(catalog[kind].placeholders))
 	for name, value := range samples {
 		if knows(kind, name) {
