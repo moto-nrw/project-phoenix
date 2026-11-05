@@ -459,9 +459,6 @@ func (r *guardianProfileRepository) SearchByText(ctx context.Context, searchText
 	query := ambientDB11.NewSelect().
 		Model(&profiles).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
-	// Recheck the picker's three-character floor after database normalization:
-	// unaccent can remove entire tokens, leaving an otherwise unfiltered search.
-	query = query.Where(`char_length(btrim(public.f_unaccent(?))) >= 3`, strings.Join(tokens, " "))
 
 	// One AND-ed WHERE group per token; within a group the token may match any of
 	// the three columns. The explicit parentheses keep each token's OR set

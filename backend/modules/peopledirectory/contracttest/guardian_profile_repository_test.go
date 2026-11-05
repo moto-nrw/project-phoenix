@@ -473,9 +473,6 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 		query string
 	}{
 		{name: "fullwidth percent signs are not wildcards", query: "％％％"},
-		{name: "combining accents alone do not match", query: "\u0301\u0301\u0301"},
-		{name: "minimum length counts normalized characters", query: "a\u0301\u0301"},
-		{name: "removed tokens do not count toward minimum length", query: "\u0301 \u0301 \u0301 \u0301"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := testpkg.OwnCtx(t)
@@ -486,6 +483,22 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 			assert.Empty(t, results, "normalization must not bypass the picker search guards")
 		})
 	}
+
+	// The three-character floor belongs to the guardian picker, not to this
+	// shared search: the calendar's parent recipients search short names too
+	// (#4949).
+	t.Run("a two-character search still finds names", func(t *testing.T) {
+		ctx := testpkg.OwnCtx(t)
+		match := seedNamedGuardian(t, db, ctx, repo, "Lia", "Bauer")
+
+		results, err := testpkg.TenantQuery2(t, ctx, db, repo.SearchByText, "Li", 50)
+		require.NoError(t, err)
+		ids := make([]int64, 0, len(results))
+		for _, result := range results {
+			ids = append(ids, result.ID)
+		}
+		assert.Contains(t, ids, match.ID)
+	})
 
 	t.Run("normalized LIKE metacharacters match literally", func(t *testing.T) {
 		ctx := testpkg.OwnCtx(t)

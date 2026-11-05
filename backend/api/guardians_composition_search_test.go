@@ -167,3 +167,17 @@ func TestGuardianComposition_SearchClampsPageSize(t *testing.T) {
 	response := ctx.searchDefault(t, "q="+token+"&page_size=100000")
 	assert.Equal(t, 50, response.Pagination.PageSize, "a request for page_size=100000 must be clamped to the 50-result ceiling")
 }
+
+// The picker's three-character floor counts what remains after accents are
+// folded away, so accent marks alone cannot enumerate the pool (#4949).
+func TestGuardianComposition_SearchMinimumCountsFoldedCharacters(t *testing.T) {
+	t.Parallel()
+	ctx := setupGuardiansCompositionRoute(t)
+	token := fmt.Sprintf("Zzfold%d", testpkg.UniqueSuffix())
+	seededID, _ := ctx.createNamedGuardian(token, "Alpha", token+".fold")
+
+	for _, q := range []string{"\u0301\u0301\u0301", "a\u0301\u0301", "\u0301 \u0301 \u0301 \u0301"} {
+		response := ctx.searchDefault(t, "q="+url.QueryEscape(q))
+		assert.False(t, response.has(seededID), "query %q is shorter than three letters once accents are folded", q)
+	}
+}
