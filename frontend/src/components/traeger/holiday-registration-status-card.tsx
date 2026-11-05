@@ -63,13 +63,13 @@ function statusText(registration: HolidayRegistrationDetail): string {
 function benefitsText(
   registration: HolidayRegistrationDetail,
   contribution: HolidayContribution | null,
-  canOpenBillingSettings: boolean,
+  canManageBillingSettings: boolean,
 ): ReactNode {
   if (!registration.benefitsDeclared) return null;
   if (contribution?.exemptionAvailable) {
     return "Die Eltern geben an, dass sie Leistungen beziehen. Bitte prüfen Sie den Nachweis.";
   }
-  if (!canOpenBillingSettings) {
+  if (!canManageBillingSettings) {
     return "Die Eltern geben an, dass sie Leistungen beziehen. Am ersten gebuchten Tag gilt keine Befreiungsregel. Die Rolle „Abrechnung“ legt sie an.";
   }
   return (
@@ -352,7 +352,7 @@ export function HolidayRegistrationStatusCard({
   onChanged,
   onReload,
   onDebtorNumberChanged,
-  canOpenBillingSettings = false,
+  canManageBillingSettings = false,
 }: Readonly<{
   periodId: string;
   registration: HolidayRegistrationDetail;
@@ -379,8 +379,8 @@ export function HolidayRegistrationStatusCard({
   onReload: () => Promise<void>;
   /** After a change of the debtor number; the page reads it again. */
   onDebtorNumberChanged: () => Promise<unknown>;
-  /** Die Übersicht öffnet die Abrechnungsvorgaben. */
-  canOpenBillingSettings?: boolean;
+  /** Das Recht „Abrechnung“ öffnet die Beitragsregeln. */
+  canManageBillingSettings?: boolean;
 }>) {
   const [running, setRunning] = useState<
     HolidayRegistrationAction | "confirm" | "cancel" | null
@@ -564,9 +564,9 @@ export function HolidayRegistrationStatusCard({
           <p>Eltern bekommen beim Bestätigen noch keine Nachricht von moto.</p>
         ) : null}
         {registration.status === "received" &&
-        benefitsText(registration, contribution, canOpenBillingSettings) ? (
+        benefitsText(registration, contribution, canManageBillingSettings) ? (
           <p>
-            {benefitsText(registration, contribution, canOpenBillingSettings)}
+            {benefitsText(registration, contribution, canManageBillingSettings)}
           </p>
         ) : null}
         {registration.status === "received" ? (

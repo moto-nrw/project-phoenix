@@ -16,7 +16,7 @@ describe("HolidayContributionCard", () => {
       <HolidayContributionCard
         contribution={HOLIDAY_CONTRIBUTION}
         registration={HOLIDAY_REGISTRATION}
-        canOpenBillingSettings
+        canManageBillingSettings
       />,
     );
 
@@ -44,7 +44,7 @@ describe("HolidayContributionCard", () => {
       <HolidayContributionCard
         contribution={HOLIDAY_CONTRIBUTION}
         registration={HOLIDAY_REGISTRATION}
-        canOpenBillingSettings={false}
+        canManageBillingSettings={false}
       />,
     );
 
@@ -81,7 +81,7 @@ describe("HolidayContributionCard", () => {
       <HolidayContributionCard
         contribution={HOLIDAY_CONTRIBUTION}
         registration={HOLIDAY_REGISTRATION}
-        canOpenBillingSettings
+        canManageBillingSettings
       />,
     );
     expect(
@@ -99,7 +99,7 @@ describe("HolidayContributionCard", () => {
           })),
         }}
         registration={HOLIDAY_REGISTRATION}
-        canOpenBillingSettings
+        canManageBillingSettings
       />,
     );
     expect(

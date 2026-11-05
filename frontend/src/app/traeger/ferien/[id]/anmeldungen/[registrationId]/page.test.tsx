@@ -579,7 +579,7 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("links to billing settings only when the settings are accessible (#5685)", async () => {
+  it("links to billing settings only with the right Abrechnung (#5685)", async () => {
     sessionPermissions.current = ["traeger_enrollment:manage"];
     const page = render(
       <ToastProvider>
@@ -598,6 +598,24 @@ describe("TraegerHolidayRegistrationPage", () => {
     sessionPermissions.current = [
       "traeger_enrollment:manage",
       "traeger_overview:read",
+    ];
+    page.rerender(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    // Anker: Die angewandte Geschwisterregel ist weiter geladen.
+    expect(
+      await screen.findByText("Geschwister: 2. Kind, 50 % weniger"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).not.toBeInTheDocument();
+
+    sessionPermissions.current = [
+      "traeger_enrollment:manage",
+      "traeger_billing:manage",
     ];
     page.rerender(
       <ToastProvider>

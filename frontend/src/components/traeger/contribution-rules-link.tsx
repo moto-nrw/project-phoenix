@@ -9,13 +9,13 @@ const RULE_KINDS: readonly string[] = ["sibling", "benefits_exemption"];
  */
 export function ContributionRulesLink({
   kinds,
-  canOpenBillingSettings,
+  canManageBillingSettings,
 }: Readonly<{
   kinds: readonly string[];
-  canOpenBillingSettings: boolean;
+  canManageBillingSettings: boolean;
 }>) {
   if (
-    !canOpenBillingSettings ||
+    !canManageBillingSettings ||
     !kinds.some((kind) => RULE_KINDS.includes(kind))
   ) {
     return null;

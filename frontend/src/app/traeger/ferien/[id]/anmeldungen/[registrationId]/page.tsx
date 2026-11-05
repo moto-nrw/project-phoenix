@@ -89,7 +89,7 @@ const PDF_LABELS: AttachmentLabels = {
 };
 
 const logger = createLogger({ component: "TraegerHolidayRegistrationPage" });
-const TRAEGER_OVERVIEW_RIGHT = "traeger_overview:read";
+const TRAEGER_BILLING_RIGHT = "traeger_billing:manage";
 
 // The edit states load with the first „Ändern“, not with the page.
 const editors = () => import("~/components/traeger/holiday-registration-edit");
@@ -139,7 +139,10 @@ export default function TraegerHolidayRegistrationPage() {
   const registrationId = params?.registrationId ?? "";
   const { data: session } = useSession();
   const canSeeHealth = hasPermission(session, TRAEGER_HEALTH_RIGHT);
-  const canOpenBillingSettings = hasPermission(session, TRAEGER_OVERVIEW_RIGHT);
+  const canManageBillingSettings = hasPermission(
+    session,
+    TRAEGER_BILLING_RIGHT,
+  );
   const [health, setHealth] = useState<HolidayRegistrationHealthDetail | null>(
     null,
   );
@@ -395,7 +398,7 @@ export default function TraegerHolidayRegistrationPage() {
             onChanged={changed}
             onReload={load}
             onDebtorNumberChanged={load}
-            canOpenBillingSettings={canOpenBillingSettings}
+            canManageBillingSettings={canManageBillingSettings}
           />
           {contribution?.siblings?.length ? (
             <SectionCard
@@ -469,7 +472,7 @@ export default function TraegerHolidayRegistrationPage() {
             <HolidayContributionCard
               contribution={contribution}
               registration={registration}
-              canOpenBillingSettings={canOpenBillingSettings}
+              canManageBillingSettings={canManageBillingSettings}
             />
           ) : null}
           {editing === "guardians" && editorProps ? (

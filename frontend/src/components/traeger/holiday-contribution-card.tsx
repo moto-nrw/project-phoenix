@@ -31,12 +31,12 @@ function description(
 export function HolidayContributionCard({
   contribution,
   registration,
-  canOpenBillingSettings = false,
+  canManageBillingSettings = false,
 }: Readonly<{
   contribution: HolidayContribution;
   registration: HolidayRegistrationDetail;
-  /** Die Übersicht öffnet die Abrechnungsvorgaben. */
-  canOpenBillingSettings?: boolean;
+  /** Das Recht „Abrechnung“ öffnet die Beitragsregeln. */
+  canManageBillingSettings?: boolean;
 }>) {
   const childName = (childId: string, position: number) => {
     const child =
@@ -72,7 +72,7 @@ export function HolidayContributionCard({
         total={formatEuro(contribution.totalCents)}
       />
       <ContributionRulesLink
-        canOpenBillingSettings={canOpenBillingSettings}
+        canManageBillingSettings={canManageBillingSettings}
         kinds={contribution.children.flatMap((child) =>
           child.lines.map((line) => line.kind),
         )}

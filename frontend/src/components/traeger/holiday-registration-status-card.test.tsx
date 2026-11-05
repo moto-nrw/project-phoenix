@@ -58,7 +58,7 @@ function renderCard(
   onChanged = vi.fn(),
   contribution: HolidayContribution = HOLIDAY_CONTRIBUTION,
   onReload = vi.fn(() => Promise.resolve()),
-  canOpenBillingSettings = false,
+  canManageBillingSettings = false,
 ) {
   const onExemptionChange = vi.fn();
   render(
@@ -67,7 +67,7 @@ function renderCard(
         periodId="5"
         registration={registration}
         contribution={contribution}
-        canOpenBillingSettings={canOpenBillingSettings}
+        canManageBillingSettings={canManageBillingSettings}
         exemption={registration.benefitsDeclared}
         onExemptionChange={onExemptionChange}
         onChanged={onChanged}
