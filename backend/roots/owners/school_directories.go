@@ -52,11 +52,6 @@ func (d schedulerTenantDirectory) ListCleanupTenantIDs(ctx context.Context) ([]i
 	return schoolIDs(schools), err
 }
 
-func (d schedulerTenantDirectory) ListNonDeletedTenantIDs(ctx context.Context) ([]int64, error) {
-	schools, err := d.schools.ListNonDeletedSchools(ctx)
-	return schoolIDs(schools), err
-}
-
 func schoolIDs(schools []organizationModule.School) []int64 {
 	ids := make([]int64, 0, len(schools))
 	for _, school := range schools {

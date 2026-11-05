@@ -15,8 +15,6 @@ type TenantDirectory interface {
 	// ListCleanupTenantIDs includes inactive and soft-deleted schools until
 	// their school rows and remaining data are permanently erased.
 	ListCleanupTenantIDs(ctx context.Context) ([]int64, error)
-	// ListNonDeletedTenantIDs returns every non-deleted school, active or not.
-	ListNonDeletedTenantIDs(ctx context.Context) ([]int64, error)
 	// RecordDueBillingKeyDates captures the billing key-date counts of every
 	// school once the month's key date is due (#2791). It is idempotent,
 	// opens its own administrative transaction and returns the rows written.
