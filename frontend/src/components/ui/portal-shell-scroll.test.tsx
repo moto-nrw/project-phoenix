@@ -87,16 +87,16 @@ describe("PortalShell: Scrollposition beim Seitenwechsel", () => {
 
   beforeEach(async () => {
     // happy-dom meldet einen Sprungmarkenwechsel per `replaceState` (anders als
-    // der Browser) als verzögertes `hashchange`. Endet ein Test auf einer
-    // Sprungmarke, träfe das Ereignis sonst im nächsten Test ein und beendete
-    // dort ein laufendes Nachholen.
-    if (window.location.hash !== "") {
-      const hashCleared = new Promise((resolve) => {
-        window.addEventListener("hashchange", resolve, { once: true });
-      });
-      window.history.replaceState(null, "", "/");
-      await hashCleared;
-    }
+    // der Browser) als verzögertes `hashchange`. Aus einem vorigen Test träfe
+    // es sonst im nächsten ein und beendete dort ein laufendes Nachholen. Ein
+    // eigener Wechsel hängt sich an die offenen Ereignisse an; sein Eintreffen
+    // zeigt, dass alle abgearbeitet sind.
+    const hashChangesDone = new Promise((resolve) => {
+      window.addEventListener("hashchange", resolve, { once: true });
+    });
+    window.history.replaceState(null, "", "/#vor-dem-test");
+    window.history.replaceState(null, "", "/");
+    await hashChangesDone;
     scrollTo.mockClear();
     window.scrollTo = scrollTo;
     setScrollY(0);
