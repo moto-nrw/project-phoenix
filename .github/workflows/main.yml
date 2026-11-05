@@ -39,6 +39,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       # Protected-branch pushes and release pull requests (development -> main)
       # recheck both full suites. A docs-only release must not report green while
@@ -413,6 +414,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The register ratchets compare against the merge base with development,
@@ -519,6 +521,7 @@ jobs:
     # keep it below the backend test suites, which set the pull request's
     # wall-clock time; eight vCPUs (~110 s) cost about 50% more.
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
     permissions:
       contents: read
       issues: read
@@ -662,6 +665,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check environment key sync
@@ -714,6 +718,7 @@ jobs:
       && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     needs: [detect-changes, ci-scripts, lint, test, backend-architecture-ratchet, env-sync-check]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Reject skipped mandatory checks
         env:
