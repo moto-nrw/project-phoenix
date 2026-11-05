@@ -66,8 +66,8 @@ type TraegerDocumentTemplates interface {
 	// missing or too long part as validation errors by field.
 	AddVersion(ctx context.Context, organizationID, accountID int64, kind templates.Kind, template templates.Template) (TraegerDocumentTemplate, error)
 	// Preview checks the template like AddVersion and fills it with the sample
-	// values of its kind; it stores nothing.
-	Preview(ctx context.Context, organizationID int64, kind templates.Kind, template templates.Template) (templates.Filled, error)
+	// document of its kind, with address field and numbers; it stores nothing.
+	Preview(ctx context.Context, organizationID int64, kind templates.Kind, template templates.Template) (templates.SampleLetter, error)
 	// Current reads the template a document of the kind is written with
 	// now: the newest version or the standard template.
 	Current(ctx context.Context, organizationID int64, kind templates.Kind) (TraegerDocumentTemplate, error)

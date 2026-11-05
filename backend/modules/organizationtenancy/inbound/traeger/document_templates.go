@@ -25,6 +25,9 @@ type TemplateRequest struct {
 	Salutation string `json:"salutation"`
 	Body       string `json:"body"`
 	Closing    string `json:"closing"`
+	// Invoice is the layout of the table of amounts (#5691); missing is the
+	// standard table.
+	Invoice templates.InvoiceLayout `json:"invoice"`
 }
 
 // Bind accepts the body; the Owner validates it.

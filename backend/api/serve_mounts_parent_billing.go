@@ -233,6 +233,8 @@ func (b parentBillingLetterheads) Letterhead(ctx context.Context, reviewer paren
 	head.Template = parentbilling.LetterTemplate{
 		Version: template.Version, Subject: template.Subject, Salutation: template.Salutation,
 		Body: template.Body, Closing: template.Closing,
+		GroupByChild: template.Invoice.GroupByChild, HideWeeks: template.Invoice.HideWeeks,
+		HideTimeModels: template.Invoice.HideTimeModels,
 	}
 	for _, account := range profile.BankAccounts {
 		if account.IsDefault {

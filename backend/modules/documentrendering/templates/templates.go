@@ -51,6 +51,10 @@ type Template struct {
 	Salutation string `json:"salutation"`
 	Body       string `json:"body"`
 	Closing    string `json:"closing"`
+	// Invoice is how the table of amounts lists the positions (#5691). Only
+	// kinds that print {{positionen}} have one; the zero value is the
+	// standard table.
+	Invoice InvoiceLayout `json:"invoice"`
 }
 
 // Placeholder is a name a template of a kind may use. Table placeholders
@@ -147,17 +151,6 @@ func Default(kind Kind) Template {
 	return catalog[kind].standard
 }
 
-// Sample is the made-up document the preview fills a template of kind with.
-func Sample(kind Kind) map[string]Value {
-	values := make(map[string]Value, len(catalog[kind].placeholders))
-	for name, value := range samples {
-		if knows(kind, name) {
-			values[name] = value
-		}
-	}
-	return values
-}
-
 // Normalize trims every part and unifies line breaks.
 func Normalize(template Template) Template {
 	clean := func(text string) string {
@@ -168,6 +161,7 @@ func Normalize(template Template) Template {
 		Salutation: strings.Join(strings.Fields(clean(template.Salutation)), " "),
 		Body:       clean(template.Body),
 		Closing:    clean(template.Closing),
+		Invoice:    template.Invoice,
 	}
 }
 
@@ -178,7 +172,11 @@ func Check(kind Kind, template Template) error {
 	if !Known(kind) {
 		return ErrUnknownKind
 	}
-	if fields := partErrors(template); len(fields) > 0 {
+	fields := partErrors(template)
+	if template.Invoice != (InvoiceLayout{}) && !HasInvoice(kind) {
+		fields["invoice"] = "has no table of amounts"
+	}
+	if len(fields) > 0 {
 		return &InvalidError{Fields: fields}
 	}
 	if names := unknownPlaceholders(kind, template); len(names) > 0 {

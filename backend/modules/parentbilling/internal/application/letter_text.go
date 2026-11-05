@@ -103,13 +103,22 @@ func letterTemplate(template parentbilling.LetterTemplate) templates.Template {
 	if strings.TrimSpace(template.Body) == "" {
 		return templates.Default(templates.KindConfirmation)
 	}
-	return templates.Template{Subject: template.Subject, Salutation: template.Salutation, Body: template.Body, Closing: template.Closing}
+	return templates.Template{
+		Subject: template.Subject, Salutation: template.Salutation, Body: template.Body, Closing: template.Closing,
+		Invoice: invoiceLayout(template),
+	}
+}
+
+func invoiceLayout(template parentbilling.LetterTemplate) templates.InvoiceLayout {
+	return templates.InvoiceLayout{GroupByChild: template.GroupByChild, HideWeeks: template.HideWeeks, HideTimeModels: template.HideTimeModels}
 }
 
 // letterValues are the values of every placeholder of the confirmation
-// letter for one invoice.
+// letter for one invoice, with the table of amounts in the layout of the
+// Träger's template (#5691).
 func letterValues(content letterContent) map[string]templates.Value {
 	document, head := content.document, content.letterhead
+	layout := letterTemplate(head.Template).Invoice
 	text := func(value string) templates.Value { return templates.Value{Text: strings.TrimSpace(value)} }
 	values := map[string]templates.Value{
 		"familienname":    text(document.RecipientLastName),
@@ -120,7 +129,8 @@ func letterValues(content letterContent) map[string]templates.Value {
 		"rueckfragen":     text(questionText(head)),
 		"zeitraum":        text(content.run.PeriodName),
 		"rechnungsnummer": text(document.Number),
-		"positionen":      {Rows: rows(positionFacts(document))},
+		"debitorennummer": text(document.DebtorNumber),
+		"positionen":      {Rows: templates.InvoiceRows(layout, invoiceChildren(document), formatEuro(document.TotalCents))},
 		"summe":           text(formatEuro(document.TotalCents)),
 		"zahlungshinweis": text(paymentText(content)),
 		"hinweise":        text(content.input.Notes),
@@ -154,14 +164,6 @@ func emergencyRows(contacts []parentbilling.BillingEmergencyContact) []templates
 	result := make([]templates.Row, len(contacts))
 	for i, contact := range contacts {
 		result[i] = templates.Row{Label: contact.Name, Value: contact.Phone}
-	}
-	return result
-}
-
-func rows(facts []LetterFact) []templates.Row {
-	result := make([]templates.Row, len(facts))
-	for i, fact := range facts {
-		result[i] = templates.Row(fact)
 	}
 	return result
 }
@@ -213,19 +215,42 @@ func letterFacts(content letterContent) []LetterFact {
 	return facts
 }
 
-// positionFacts lists every position of the invoice by child and closes
-// with the total.
-func positionFacts(document parentbilling.BillingDocument) []LetterFact {
-	facts := []LetterFact{}
+// invoiceChildren are the positions of the invoice by child with the
+// child's subtotal; the template's layout prints them (#5691).
+func invoiceChildren(document parentbilling.BillingDocument) []templates.InvoiceChild {
+	children := make([]templates.InvoiceChild, 0, len(document.Children))
 	for _, child := range document.Children {
+		lines := make([]templates.InvoiceLine, 0, len(child.Positions))
+		var subtotal int64
 		for _, position := range child.Positions {
-			facts = append(facts, LetterFact{
-				Label: strings.TrimSpace(child.FirstName) + ": " + positionLabel(position),
-				Value: formatEuro(position.AmountCents),
-			})
+			line := invoiceLine(position)
+			line.Amount = formatEuro(position.AmountCents)
+			lines = append(lines, line)
+			subtotal += position.AmountCents
 		}
+		children = append(children, templates.InvoiceChild{Name: strings.TrimSpace(child.FirstName), Lines: lines, Subtotal: formatEuro(subtotal)})
 	}
-	return append(facts, LetterFact{Label: "Gesamtbetrag", Value: formatEuro(document.TotalCents), Bold: true})
+	return children
+}
+
+// invoiceLine names a position: a booking by its week and time model,
+// every other position by a text every layout prints.
+func invoiceLine(position parentbilling.BillingPosition) templates.InvoiceLine {
+	switch position.Kind {
+	case parentbilling.LineSibling:
+		return templates.InvoiceLine{Text: "Ermäßigung für Geschwister"}
+	case parentbilling.LineBenefitsExemption:
+		return templates.InvoiceLine{Text: "Befreiung bei Leistungsbezug"}
+	case parentbilling.LineCostTakeover:
+		return templates.InvoiceLine{Text: "Kosten übernimmt: " + strings.TrimSpace(position.CostBearerName)}
+	case parentbilling.LineCorrection:
+		return templates.InvoiceLine{Text: "Korrektur: " + strings.TrimSpace(position.Note)}
+	}
+	line := templates.InvoiceLine{TimeModel: strings.TrimSpace(position.TimeModelName)}
+	if position.WeekStartsOn != nil && position.WeekEndsOn != nil {
+		line.Week = fmt.Sprintf("Woche %s bis %s", position.WeekStartsOn.Format("02.01."), germanDate(*position.WeekEndsOn))
+	}
+	return line
 }
 
 func positionLabel(position parentbilling.BillingPosition) string {

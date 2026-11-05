@@ -21,6 +21,7 @@ var (
 	pPeriod        = Placeholder{Name: "zeitraum", Label: "Zeitraum, zum Beispiel die Ferien"}
 	pNumber        = Placeholder{Name: "rechnungsnummer", Label: "Rechnungsnummer"}
 	pNoticeNumber  = Placeholder{Name: "bescheidnummer", Label: "Nummer des Bescheids"}
+	pDebtorNumber  = Placeholder{Name: "debitorennummer", Label: "Debitorennummer der Familie"}
 	pPositions     = Placeholder{Name: "positionen", Label: "Tabelle der Beträge", Table: true}
 	pTotal         = Placeholder{Name: "summe", Label: "Summe"}
 	pDue           = Placeholder{Name: "zahlen_bis", Label: "Fälligkeit (zahlen bis)"}
@@ -47,6 +48,7 @@ var samples = map[string]Value{
 	pPeriod.Name:        {Text: "Herbstferien 2026"},
 	pNumber.Name:        {Text: "FE-2026-0001"},
 	pNoticeNumber.Name:  {Text: "GB-2026-0001"},
+	pDebtorNumber.Name:  {Text: sampleDebtorNumber},
 	pTotal.Name:         {Text: "92,50 €"},
 	pDue.Name:           {Text: "16.11.2026"},
 	pPaymentNote.Name:   {Text: "Bitte überweisen Sie 92,50 € bis zum 16.11.2026 auf das Konto unten. Geben Sie als Verwendungszweck die Rechnungsnummer FE-2026-0001 an."},
@@ -55,12 +57,6 @@ var samples = map[string]Value{
 	pPlace.Name:         {Text: "OGS Am Lindenhof"},
 	pContractStart.Name: {Text: "01.08.2026"},
 	pEndsOn.Name:        {Text: "31.07.2027"},
-	pPositions.Name: {Rows: []Row{
-		{Label: "Lina: Woche 19.10. bis 23.10.2026, Vormittag", Value: "50,00 €"},
-		{Label: "Ben: Woche 19.10. bis 23.10.2026, Nachmittag", Value: "65,00 €"},
-		{Label: "Ben: Ermäßigung für Geschwister", Value: "-22,50 €"},
-		{Label: "Gesamtbetrag", Value: "92,50 €", Bold: true},
-	}},
 	pEmergency.Name: {Rows: []Row{
 		{Label: "OGS Am Lindenhof", Value: "0170 0000001"},
 	}},
@@ -82,7 +78,7 @@ var catalog = map[Kind]kindCatalog{
 	// The standard confirmation letter is the letter of ADR 0121, field by
 	// field like the Bissendorf letter (GH-003).
 	KindConfirmation: {
-		placeholders: with(pRegistrant, pPeriod, pNumber, pPositions, pTotal, pDue, pPaymentNote, pNotes, pEmergency),
+		placeholders: with(pRegistrant, pPeriod, pNumber, pDebtorNumber, pPositions, pTotal, pDue, pPaymentNote, pNotes, pEmergency),
 		standard: Template{
 			Subject:    "Bestätigung und Rechnung: {{zeitraum}}",
 			Salutation: standardSalutation,
@@ -96,7 +92,7 @@ var catalog = map[Kind]kindCatalog{
 		},
 	},
 	KindInvoice: {
-		placeholders: with(pPeriod, pNumber, pPositions, pTotal, pDue, pPaymentNote),
+		placeholders: with(pPeriod, pNumber, pDebtorNumber, pPositions, pTotal, pDue, pPaymentNote),
 		standard: Template{
 			Subject:    "Rechnung {{rechnungsnummer}}: {{zeitraum}}",
 			Salutation: standardSalutation,

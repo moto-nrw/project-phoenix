@@ -124,17 +124,17 @@ func (t *TraegerDocumentTemplates) AddVersion(ctx context.Context, organizationI
 	return saved, nil
 }
 
-// Preview checks the template and fills it with the sample values of its
-// kind.
-func (t *TraegerDocumentTemplates) Preview(_ context.Context, organizationID int64, kind templates.Kind, template templates.Template) (templates.Filled, error) {
+// Preview checks the template and fills it with the sample document of its
+// kind, with the address field, the numbers and its table of amounts.
+func (t *TraegerDocumentTemplates) Preview(_ context.Context, organizationID int64, kind templates.Kind, template templates.Template) (templates.SampleLetter, error) {
 	if organizationID <= 0 {
-		return templates.Filled{}, errTraegerRequired
+		return templates.SampleLetter{}, errTraegerRequired
 	}
 	template, err := checkTemplate(kind, template)
 	if err != nil {
-		return templates.Filled{}, err
+		return templates.SampleLetter{}, err
 	}
-	return templates.Fill(template, templates.Sample(kind)), nil
+	return templates.FillSample(kind, template), nil
 }
 
 func (t *TraegerDocumentTemplates) versions(ctx context.Context, organizationID int64, kind templates.Kind) ([]organizationtenancy.TraegerDocumentTemplate, error) {
