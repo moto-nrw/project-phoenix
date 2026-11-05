@@ -47,7 +47,7 @@ func (s *Sender) SendPush(ctx context.Context, intent deliveryContract.ClaimedIn
 		Endpoint: intent.PushRecipient.Endpoint,
 		Keys:     provider.Keys{P256dh: intent.PushRecipient.P256DH, Auth: intent.PushRecipient.Auth},
 	}, &provider.Options{
-		Subscriber: s.config.Subscriber, VAPIDPublicKey: s.config.PublicKey,
+		Subscriber: deliveryContract.WebPushProviderSubscriber(s.config.Subscriber), VAPIDPublicKey: s.config.PublicKey,
 		VAPIDPrivateKey: s.config.PrivateKey, TTL: pushTTL(intent.PushPayload.Priority), Urgency: pushUrgency(intent.PushPayload.Priority), HTTPClient: s.client,
 	})
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -16,6 +17,14 @@ type WebPushConfig struct {
 
 func (c WebPushConfig) Configured() bool {
 	return c.Subscriber != "" && c.PublicKey != "" && c.PrivateKey != ""
+}
+
+// WebPushProviderSubscriber adapts the RFC 8292 contact URI to webpush-go,
+// which adds the mailto scheme itself unless the value starts with https.
+// Passed unchanged, a mailto contact becomes "mailto:mailto:…", a JWT that
+// Apple's push service rejects with 403.
+func WebPushProviderSubscriber(contact string) string {
+	return strings.TrimPrefix(contact, "mailto:")
 }
 
 type PushSender interface {
