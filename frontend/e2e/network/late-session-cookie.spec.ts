@@ -198,7 +198,7 @@ const lateSources = {
 } as const;
 
 const endActions = {
-  logout: async (page: Page, beforeSignout?: () => void) => {
+  logout: async (page: Page, beforeSignout?: () => Promise<boolean>) => {
     await page
       .getByRole("button", { name: /Profilmenü|Profil/ })
       .first()
@@ -206,17 +206,23 @@ const endActions = {
     await page.getByRole("button", { name: "Abmelden" }).first().click();
     // The cold page may still be compiling while its menu opens. Start the
     // response assertion immediately before the request, not before that UI.
-    beforeSignout?.();
+    const deletion = beforeSignout?.();
     await page
       .getByRole("dialog")
       .getByRole("button", { name: "Abmelden" })
       .click();
+    // Cookie deletion has its own deadline; time navigation only afterwards.
+    await deletion;
     await page.waitForURL((url) => url.pathname === "/");
   },
-  "Zur Schulanmeldung": async (page: Page, beforeSignout?: () => void) => {
+  "Zur Schulanmeldung": async (
+    page: Page,
+    beforeSignout?: () => Promise<boolean>,
+  ) => {
     await page.goto(`${target}/home`);
-    beforeSignout?.();
+    const deletion = beforeSignout?.();
     await page.getByRole("button", { name: "Zur Schulanmeldung" }).click();
+    await deletion;
     await page.waitForURL(`${target}/`);
   },
 } as const;
@@ -244,6 +250,7 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
       let deleted!: Promise<boolean>;
       await endSession(tab1, () => {
         deleted = waitForSessionCookieDeletion(tab1);
+        return deleted;
       });
       expect(await deleted).toBe(true);
       const afterEnd = await (await request.get(fixtureState)).json();
@@ -381,6 +388,7 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
     let deleted!: Promise<boolean>;
     await endSession(tab1, () => {
       deleted = waitForSessionCookieDeletion(tab1);
+      return deleted;
     });
     expect(await deleted).toBe(true);
     await tab1.close();
@@ -419,6 +427,7 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
               response.status() === 204,
           )
           .then(resolveRevoked, rejectRevoked);
+        return deleted;
       });
       ending.catch(rejectRevoked);
     });
@@ -477,6 +486,7 @@ test("Zur Schulanmeldung: a late renewal from the other school keeps the new ses
   let deleted!: Promise<boolean>;
   await endActions["Zur Schulanmeldung"](tab1, () => {
     deleted = waitForSessionCookieDeletion(tab1);
+    return deleted;
   });
   expect(await deleted).toBe(true);
   await login(tab1);
@@ -520,6 +530,7 @@ test("logout: a renewal answered before the revocation and delivered after it op
   let deleted!: Promise<boolean>;
   await endActions.logout(tab1, () => {
     deleted = waitForSessionCookieDeletion(tab1);
+    return deleted;
   });
   expect(await deleted).toBe(true);
   await tab1.close();
