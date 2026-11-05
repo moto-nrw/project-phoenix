@@ -3,8 +3,10 @@
 // Briefkopf des Trägers (#4653, ADR 0112): Logo, Absender, Farbe und Fußzeile.
 // Alle Dokumente des Trägers nutzen diese Angaben; die Vorschau zeigt Kopf und
 // Fuß eines Briefs, auch mit Ansprechperson und Bankverbindung aus den anderen
-// Einstellungen (#5685). Darunter führt die Karte „Vorlagen“ zum Text der
-// Briefe (#4677). Lesen darf, wer „Übersicht lesen“ hat, ändern nur, wer
+// Einstellungen (#5685). Darunter führt „Bestätigung und Rechnung“ direkt zum
+// ganzen Schreiben, das ein Ferien-Lauf verschickt, mit Text und
+// Rechnungstabelle (#5691), und „Weitere Vorlagen“ zu den übrigen
+// Dokumentarten (#4677). Lesen darf, wer „Übersicht lesen“ hat, ändern nur, wer
 // „Einstellungen“ hat.
 
 import { useCallback } from "react";
@@ -24,6 +26,8 @@ import {
   saveTraegerSettingValue,
   traegerLogoSrc,
 } from "~/lib/traeger-api";
+import { billingConcept } from "~/lib/concepts/billing";
+import { documentTemplatesConcept } from "~/lib/concepts/documentTemplates";
 import { traegerPath } from "~/lib/traeger-url";
 import { useTraegerMasterData } from "~/components/traeger/use-traeger-master-data";
 import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
@@ -143,8 +147,26 @@ export default function TraegerBriefkopfPage() {
           ))}
 
           <SectionCard
-            title="Vorlagen"
-            description="Hier legen Sie den Text der Briefe fest, zum Beispiel Betreff, Anrede und Brieftext der Bestätigung."
+            title="Bestätigung und Rechnung"
+            concept={billingConcept}
+            description="Das Schreiben, das Familien nach der Ferienanmeldung bekommen. Mit Rechnung und Vorschau."
+            action={
+              <ButtonLink
+                href={traegerPath(
+                  "/traeger/einstellungen/briefkopf/vorlagen/bestaetigung",
+                )}
+                variant="outline"
+                size="md"
+              >
+                Schreiben anpassen
+              </ButtonLink>
+            }
+          />
+
+          <SectionCard
+            title="Weitere Vorlagen"
+            concept={documentTemplatesConcept}
+            description="Die Texte der anderen Schreiben, zum Beispiel Rechnung, Bescheid und Zahlungserinnerung."
             action={
               <ButtonLink
                 href={traegerPath("/traeger/einstellungen/briefkopf/vorlagen")}

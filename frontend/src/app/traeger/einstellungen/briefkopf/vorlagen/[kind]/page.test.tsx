@@ -445,6 +445,121 @@ describe("TraegerVorlagePage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the whole letter with address field and numbers (#5691)", async () => {
+    templatesApi.previewDocumentTemplate.mockResolvedValue({
+      ...PREVIEW,
+      recipient: ["Familie Muster", "Erika Muster"],
+      facts: [
+        { label: "Rechnungsnummer", value: "FE-2026-0001", bold: false },
+        { label: "Debitorennummer", value: "10234", bold: false },
+      ],
+    });
+    renderPage();
+    const preview = await screen.findByRole("figure", {
+      name: "Vorschau des Briefs",
+    });
+    expect(
+      within(preview).getByRole("group", { name: "Anschrift" }),
+    ).toHaveTextContent("Familie MusterErika Muster");
+    const facts = within(preview).getByLabelText("Angaben zum Schreiben");
+    expect(facts).toHaveTextContent("Debitorennummer10234");
+    // The contact person moves into the facts, as in the PDF.
+    expect(facts).toHaveTextContent("AnsprechpersonPetra Lindner");
+  });
+
+  it("saves the layout of the invoice table with the text (#5691)", async () => {
+    renderPage();
+    const group = await screen.findByRole("checkbox", {
+      name: /Nach Kind ordnen/,
+    });
+    expect(group).not.toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: /Woche zeigen/ }),
+    ).toBeChecked();
+    fireEvent.click(group);
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /Zeitmodell zeigen/ }),
+    );
+    const invoice = {
+      groupByChild: true,
+      hideWeeks: false,
+      hideTimeModels: true,
+    };
+    fireEvent.click(screen.getByRole("button", { name: "Vorschau zeigen" }));
+    await waitFor(() =>
+      expect(templatesApi.previewDocumentTemplate).toHaveBeenLastCalledWith(
+        "rechnung",
+        { ...STANDARD, invoice },
+      ),
+    );
+    templatesApi.saveDocumentTemplate.mockResolvedValue({
+      kind: "rechnung",
+      version: 1,
+      standard: false,
+      createdAt: "2026-09-09T10:00:00Z",
+      ...STANDARD,
+      invoice,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(templatesApi.saveDocumentTemplate).toHaveBeenCalledWith(
+        "rechnung",
+        { ...STANDARD, invoice },
+      ),
+    );
+  });
+
+  it("has no invoice table for a kind without amounts", async () => {
+    params.kind = "kuendigung";
+    templatesApi.fetchDocumentTemplate.mockResolvedValue({
+      ...detail(),
+      placeholders: [
+        { name: "familienname", label: "Familienname", table: false },
+      ],
+    });
+    renderPage();
+    // Anker: the form has loaded.
+    expect(await screen.findByLabelText(/Betreff/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: /Nach Kind ordnen/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("inserts a placeholder at the caret of the body", async () => {
+    renderPage();
+    const body = await screen.findByLabelText<HTMLTextAreaElement>(/Brieftext/);
+    body.setSelectionRange(3, 3);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Platzhalter „Familienname“ einfügen",
+      }),
+    );
+    expect(body).toHaveValue(
+      `${STANDARD.body.slice(0, 3)}{{familienname}}${STANDARD.body.slice(3)}`,
+    );
+    // The caret stays behind the placeholder; a table placeholder gets a
+    // line of its own.
+    await waitFor(() => expect(body.selectionStart).toBe(3 + 16));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Platzhalter „Tabelle der Beträge (Tabelle)“ einfügen",
+      }),
+    );
+    expect(
+      body.value.startsWith("für{{familienname}}\n{{positionen}}\n "),
+    ).toBe(true);
+  });
+
+  it("offers no placeholder buttons to a reader", async () => {
+    session.permissions = ["traeger_overview:read"];
+    renderPage();
+    // Anker: the reference list still names the placeholder.
+    expect(await screen.findByText("{{familienname}}")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Platzhalter .* einfügen/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("explains an unknown kind of document", () => {
     params.kind = "brief";
     renderPage();

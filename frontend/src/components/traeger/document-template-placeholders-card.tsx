@@ -1,3 +1,4 @@
+import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
 import type { DocumentTemplatePlaceholder } from "~/lib/traeger-document-templates";
@@ -12,38 +13,76 @@ const RULES: readonly { readonly mark: string; readonly text: string }[] = [
     text: "allein in einer Zeile druckt eine Tabelle. Das gilt für jeden Platzhalter mit „(Tabelle)“.",
   },
   {
+    mark: "Reihenfolge:",
+    text: "Der Brief druckt Absätze und Tabellen in der Reihenfolge des Brieftexts. Verschieben Sie einen Absatz, steht er im Brief an der neuen Stelle.",
+  },
+  {
     mark: "Leere Platzhalter:",
     text: "Sind alle Platzhalter eines Absatzes leer, fehlt der Absatz im Brief.",
   },
 ];
 
+function labelOf(placeholder: DocumentTemplatePlaceholder): string {
+  return placeholder.table
+    ? `${placeholder.label} (Tabelle)`
+    : placeholder.label;
+}
+
 /**
- * Die Platzhalter einer Dokumentart (#4677). Nur zum Nachschlagen: andere
- * Namen lehnt moto beim Speichern ab.
+ * Die Platzhalter einer Dokumentart (#4677). Wer ändern darf, fügt einen
+ * Platzhalter mit einem Klick an der Schreibmarke des Brieftexts ein (#5691);
+ * sonst ist die Liste nur zum Nachschlagen. Andere Namen lehnt moto beim
+ * Speichern ab.
  */
 export function DocumentTemplatePlaceholdersCard({
   placeholders,
-}: Readonly<{ placeholders: readonly DocumentTemplatePlaceholder[] }>) {
+  onInsert,
+  disabled = false,
+}: Readonly<{
+  placeholders: readonly DocumentTemplatePlaceholder[];
+  /** Fügt den Platzhalter in den Brieftext ein; ohne nur zum Nachschlagen. */
+  onInsert?: (placeholder: DocumentTemplatePlaceholder) => void;
+  disabled?: boolean;
+}>) {
   return (
     <SectionCard
       title="Platzhalter"
-      description="Schreiben Sie einen Platzhalter mit zwei geschweiften Klammern in den Text. moto füllt ihn für jede Familie aus. Andere Platzhalter nimmt moto nicht an."
+      description={
+        onInsert
+          ? "Tippen Sie auf einen Platzhalter. moto setzt ihn im Brieftext dort ein, wo Sie gerade schreiben. Für jede Familie füllt moto ihn aus."
+          : "Schreiben Sie einen Platzhalter mit zwei geschweiften Klammern in den Text. moto füllt ihn für jede Familie aus. Andere Platzhalter nimmt moto nicht an."
+      }
     >
-      <DataGrid columns={2}>
-        {placeholders.map((placeholder) => (
-          <DataField
-            key={placeholder.name}
-            label={
-              placeholder.table
-                ? `${placeholder.label} (Tabelle)`
-                : placeholder.label
-            }
-            mono
-          >
-            {`{{${placeholder.name}}}`}
-          </DataField>
-        ))}
-      </DataGrid>
+      {onInsert ? (
+        <ul className="grid gap-2 sm:grid-cols-2">
+          {placeholders.map((placeholder) => (
+            <li key={placeholder.name}>
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                disabled={disabled}
+                aria-label={`Platzhalter „${labelOf(placeholder)}“ einfügen`}
+                onClick={() => onInsert(placeholder)}
+                className="w-full min-w-0 justify-between gap-3"
+              >
+                <code className="truncate">{`{{${placeholder.name}}}`}</code>
+                <span className="truncate text-gray-600">
+                  {labelOf(placeholder)}
+                </span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <DataGrid columns={2}>
+          {placeholders.map((placeholder) => (
+            <DataField key={placeholder.name} label={labelOf(placeholder)} mono>
+              {`{{${placeholder.name}}}`}
+            </DataField>
+          ))}
+        </DataGrid>
+      )}
       <h3 className="mt-6 text-sm font-semibold text-gray-900">
         So schreiben Sie den Brieftext
       </h3>

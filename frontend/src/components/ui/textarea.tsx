@@ -3,6 +3,8 @@
 import { FieldLabel, isInvalidAria, isRequiredField } from "./field-label";
 
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  /** For a caller that sets the caret, such as inserting a placeholder. */
+  readonly ref?: React.Ref<HTMLTextAreaElement>;
   readonly label?: string;
   readonly error?: string;
   /** A line under the field that stays visible, read out with the field. */
