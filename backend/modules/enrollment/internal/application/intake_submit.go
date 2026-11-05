@@ -144,7 +144,7 @@ func selectionModeFor(phase *enrollmentNative.Phase, capabilities enrollmentNati
 func duplicateChildKeys(children []SubmitChild) []enrollmentNative.DuplicateChildKey {
 	keys := make([]enrollmentNative.DuplicateChildKey, 0, len(children))
 	for _, c := range children {
-		keys = append(keys, enrollmentNative.DuplicateChildKey{FirstName: c.FirstName, LastName: c.LastName})
+		keys = append(keys, enrollmentNative.DuplicateChildKey{FirstName: textnorm.Name(c.FirstName), LastName: textnorm.Name(c.LastName)})
 	}
 	return keys
 }

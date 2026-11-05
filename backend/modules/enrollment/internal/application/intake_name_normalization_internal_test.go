@@ -24,3 +24,18 @@ func TestSubmittedNamesAreStoredComposed(t *testing.T) {
 		t.Fatalf("guardian names = %q, %q", guardian.FirstName, guardian.LastName)
 	}
 }
+
+// A decomposed second submission of the same child still meets the stored,
+// composed one in the duplicate check and in the identity of a replacement
+// (#4949).
+func TestDecomposedNamesMatchComposedOnesInDuplicateAndIdentityKeys(t *testing.T) {
+	t.Parallel()
+
+	keys := duplicateChildKeys([]SubmitChild{{FirstName: " José ", LastName: "Çelik"}})
+	if keys[0].FirstName != "José" || keys[0].LastName != "Çelik" {
+		t.Fatalf("duplicate key = %q, %q", keys[0].FirstName, keys[0].LastName)
+	}
+	if requestChildIdentityKey("José", "Çelik", "2019-03-04") != requestChildIdentityKey("José", "Çelik", "2019-03-04") {
+		t.Fatal("decomposed and composed names must share one identity key")
+	}
+}
