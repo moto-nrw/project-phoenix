@@ -46,3 +46,21 @@ func TestTimeExportStaffOrder_PreservesCaseInsensitiveNamesAndIDTieBreak(t *test
 	}
 	assert.Equal(t, []int64{8, 6, 4, 5, 9}, ids)
 }
+
+// Staff appear in German dictionary order in every time export (#4949).
+func TestTimeExportStaffOrder_UsesGermanDictionaryOrder(t *testing.T) {
+	t.Parallel()
+	staff := []TimeExportStaff{
+		{ID: 1, FirstName: "Eva", LastName: "Zimmermann"},
+		{ID: 2, FirstName: "Can", LastName: "Özdemir"},
+		{ID: 3, FirstName: "Ida", LastName: "adler"},
+		{ID: 4, FirstName: "Tom", LastName: "Becker"},
+		{ID: 5, FirstName: "Ana", LastName: "Ábel"},
+	}
+	slices.SortStableFunc(staff, compareExportStaff)
+	ids := make([]int64, len(staff))
+	for i, row := range staff {
+		ids[i] = row.ID
+	}
+	assert.Equal(t, []int64{5, 3, 4, 2, 1}, ids)
+}

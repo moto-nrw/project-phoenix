@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // Course participation (#2891), the third Statistik section.
@@ -149,7 +149,7 @@ func finishCourseRows(courses map[int64]*studentpresence.StatisticsCourseRow, gr
 }
 
 func sortCourseRows(rows []studentpresence.StatisticsCourseRow, childRows []studentpresence.StatisticsCourseStudentRow) {
-	sort.SliceStable(rows, func(i, j int) bool { return sortKey(rows[i].Name) < sortKey(rows[j].Name) })
+	sort.SliceStable(rows, func(i, j int) bool { return nameLess(rows[i].Name, rows[j].Name) })
 	sort.SliceStable(childRows, func(i, j int) bool {
 		if c := compareStudentName(childRows[i].LastName, childRows[i].FirstName, childRows[j].LastName, childRows[j].FirstName); c != 0 {
 			return c < 0
@@ -157,7 +157,7 @@ func sortCourseRows(rows []studentpresence.StatisticsCourseRow, childRows []stud
 		if childRows[i].StudentID != childRows[j].StudentID {
 			return childRows[i].StudentID < childRows[j].StudentID
 		}
-		return sortKey(childRows[i].CourseName) < sortKey(childRows[j].CourseName)
+		return nameLess(childRows[i].CourseName, childRows[j].CourseName)
 	})
 }
 
@@ -187,10 +187,7 @@ func (s *service) courseRetentionDays(ctx context.Context) (int, error) {
 }
 
 // compareStudentName orders two children the way every child table in the
-// report does: by last name, then first name, umlaut-folded.
+// report does: by last name, then first name, in German dictionary order.
 func compareStudentName(lastA, firstA, lastB, firstB string) int {
-	if c := strings.Compare(sortKey(lastA), sortKey(lastB)); c != 0 {
-		return c
-	}
-	return strings.Compare(sortKey(firstA), sortKey(firstB))
+	return collation.CompareGermanNames(lastA, firstA, lastB, firstB)
 }
