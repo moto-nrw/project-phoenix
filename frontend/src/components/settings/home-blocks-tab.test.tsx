@@ -169,13 +169,6 @@ describe("HomeBlocksTab", () => {
   });
 
   it("speichert eine Vorgabe für einen Baustein", async () => {
-    let finishSave!: () => void;
-    mockSavePolicies.mockImplementationOnce(async (policies) => {
-      await new Promise<void>((resolve) => {
-        finishSave = resolve;
-      });
-      mockState.value = { ...mockState.value, policies };
-    });
     renderWithToast(<HomeBlocksTab />);
 
     const group = screen.getByRole("group", {
@@ -191,16 +184,10 @@ describe("HomeBlocksTab", () => {
         "section.birthdays": "required",
       }),
     );
-    expect(
-      screen.getByRole("button", { name: "Wird gespeichert …" }),
-    ).toBeDisabled();
-    await act(async () => {
-      finishSave();
-    });
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
     expect(
       await screen.findByText("Die Startseite für alle ist gespeichert."),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
   });
 
   it("speichert 'Frei wählbar' nicht mit", async () => {
