@@ -233,6 +233,31 @@ func TestScheduleRunsFrom_UsesMaterializationValidity(t *testing.T) {
 	assert.False(t, scheduleRunsFrom(&activityContract.Group{SeriesLastDay: &lastDay}, pinned(current.ID), from, periods, rows), "series ended")
 }
 
+// #5365: without an active period from the date on, an open schedule and an
+// open hand row are not ended. The period the school creates later plans the
+// child again, so the schedule still runs; an explicit pin to an expired
+// period does not.
+func TestScheduleRunsFrom_OpenScheduleRunsWithoutAFuturePeriod(t *testing.T) {
+	t.Parallel()
+
+	from := calendar.NewDate(2027, 5, 31)
+	ended := &schedule.CalendarPeriod{StartDate: calendar.NewDate(2026, 8, 1), EndDate: from.AddDays(-1), IsActive: true, WeekCycleLength: 1}
+	ended.ID = 43
+	periods := []*schedule.CalendarPeriod{ended}
+	template := &activityContract.Group{}
+	open := &activityContract.Schedule{Weekday: friday}
+	openRow := []*activityContract.StudentEnrollment{{}}
+	pinnedRow := []*activityContract.StudentEnrollment{{CalendarPeriodID: &ended.ID}}
+
+	assert.True(t, scheduleRunsFrom(template, open, from, periods, openRow), "an open row waits for the next period")
+	assert.True(t, scheduleRunsFrom(template, open, from, nil, openRow), "no period at all")
+	assert.False(t, scheduleRunsFrom(template, open, from, periods, pinnedRow), "a row pinned to the ended period")
+	assert.False(t, scheduleRunsFrom(template, &activityContract.Schedule{Weekday: friday, CalendarPeriodID: &ended.ID}, from, periods, openRow), "a schedule pinned to the ended period")
+	assert.False(t, scheduleRunsFrom(&activityContract.Group{CalendarPeriodID: &ended.ID}, open, from, periods, openRow), "a template pinned to the ended period")
+	rowEnd := activityContract.Date(from.AddDays(4))
+	assert.False(t, scheduleRunsFrom(template, open, from, periods, []*activityContract.StudentEnrollment{{ValidUntil: &rowEnd}}), "a row that ends on the first Friday")
+}
+
 func TestClockMinutes_ReadsPickupAndTimeframeClocks(t *testing.T) {
 	t.Parallel()
 
