@@ -1,6 +1,7 @@
 package architecture
 
 import (
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -18,8 +19,13 @@ func targetOnlyFixture(t *testing.T, mutate func(map[string]any)) error {
 	return err
 }
 
-func addFixtureRule(rule map[string]any) func(map[string]any) {
+// addFixtureRule returns a mutation that appends rule with default fields.
+// Each call works on its own copy: package-level rules such as
+// closeAlphaBetaCycle are shared by parallel tests, and filling in defaults on
+// the shared map raced with another test encoding its document.
+func addFixtureRule(template map[string]any) func(map[string]any) {
 	return func(document map[string]any) {
+		rule := maps.Clone(template)
 		if _, ok := rule["description"]; !ok {
 			rule["description"] = "Fixture rule."
 		}
