@@ -53,7 +53,10 @@ replaces a thread after a file that leaves more than 200 MB of heap.
   keeps for the worker's lifetime goes into `WORKER_LIFETIME_KEYS` with its
   reason.
 - Every test ends on a fresh macrotask (`setup-common.ts`), so work the test
-  left pending runs before the next test. Act only on what the test awaited:
+  left pending runs before the next test. Timers are the exception: happy-dom
+  sends `hashchange` after `history.replaceState` from a `setTimeout`, and it
+  can reach the next test (`portal-shell-scroll.test.tsx` waits for it in
+  `beforeEach`). Act only on what the test awaited:
   after `await screen.findBy…(A)` or `await waitFor(() => expect(mock)…)`,
   query a different element B with `findBy…`, and wait for a button to be
   enabled before clicking it.
