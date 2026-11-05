@@ -185,7 +185,8 @@ func (t *TraegerSettings) resolve(key string, definition *config.Definition, sna
 		return nil, err
 	}
 	return &config.ResolvedSetting{
-		Key: key, Label: definition.Label, Description: definition.Description, Type: definition.Type,
+		Key: key, Label: definition.Label, Description: definition.Description, Placeholder: definition.Placeholder,
+		Type:    definition.Type,
 		Default: definition.Default, Value: value, IsDefault: source == config.SourceDefault,
 		Writable: slices.Contains(rights, t.deps.Rights[definition.TraegerWriteRight]), Visible: true,
 		SortOrder: definition.SortOrder, AccessPolicy: definition.AccessPolicy, Levels: definition.Levels,

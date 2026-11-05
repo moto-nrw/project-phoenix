@@ -63,12 +63,21 @@ export function TraegerLetterheadPreview({
             <span className="text-gray-400">Kein Logo</span>
           )}
         </div>
-        <address className="min-w-0 text-right wrap-anywhere not-italic">
+        {/* Like the PDF: each entered line is one line, the first one bold
+            in the Träger's colour. */}
+        <address
+          aria-label="Absender"
+          role="group"
+          className="min-w-0 text-right wrap-anywhere not-italic"
+        >
           {sender.length > 0 ? (
             sender.map((line, index) => (
               <p
                 key={`${index}-${line}`}
-                className={index === 0 ? "font-semibold" : undefined}
+                className={
+                  index === 0 ? "font-semibold text-gray-900" : undefined
+                }
+                style={index === 0 && accent ? { color: accent } : undefined}
               >
                 {line}
               </p>

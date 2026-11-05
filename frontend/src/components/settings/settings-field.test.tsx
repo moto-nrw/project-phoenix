@@ -685,6 +685,45 @@ describe("SettingsField", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the example of the registry in an empty textarea, also after a reset (#5693)", async () => {
+    const example = "Musterträger e. V.\nMusterstraße 1\n12345 Musterstadt";
+    const onReset = vi.fn().mockResolvedValue(null);
+    const props = { onSave: vi.fn().mockResolvedValue(null), onReset };
+    const filled = makeSetting({
+      key: "branding.letterhead_text",
+      label: "Absender im Briefkopf",
+      type: "textarea",
+      default: "",
+      value: "Förderverein OGS e. V.",
+      is_default: false,
+      placeholder: example,
+    });
+    const { getByRole, rerender } = renderWithProviders(
+      <SettingsField setting={filled} {...props} />,
+    );
+    const field = getByRole("textbox", { name: "Absender im Briefkopf" });
+    expect(field).toHaveValue("Förderverein OGS e. V.");
+    expect(field).toHaveAttribute("placeholder", example);
+    // As tall as the example plus two lines to type, not the ten of a long text.
+    expect(field).toHaveAttribute("rows", "5");
+
+    fireEvent.click(getByRole("button", { name: /zurücksetzen/i }));
+    await waitFor(() => expect(onReset).toHaveBeenCalledWith(filled.key));
+    rerender(
+      <ToastProvider>
+        <SettingsField
+          setting={{ ...filled, value: "", is_default: true }}
+          {...props}
+        />
+      </ToastProvider>,
+    );
+
+    // The example is only a placeholder: the field itself stays empty.
+    expect(field).toHaveValue("");
+    expect(field).toHaveAttribute("placeholder", example);
+    expect(props.onSave).not.toHaveBeenCalled();
+  });
+
   it("hides reset button for enrollment legal text fields", () => {
     const { container, getByText } = renderWithProviders(
       <SettingsField

@@ -9901,10 +9901,10 @@ export const traegerBriefkopfTopic =
         {
           title: "Absender, Farbe und Fußzeile eintragen",
           steps: [
-            "Tragen Sie bei `Absender im Briefkopf` Name und Anschrift ein, jede Angabe in eine eigene Zeile.",
+            "Tragen Sie bei `Absender im Briefkopf` Name und Anschrift ein. Jede Zeile im Feld ist eine Zeile im Brief. Die erste Zeile steht fett und in Ihrer Farbe.",
             "Klicken Sie bei `Farbe für Briefe und Rechnungen` auf eine der Farben.",
             "Passt keine Farbe, wählen Sie `Eigene Farbe`. Klicken Sie dann auf den farbigen Kreis und wählen Sie Ihre Farbe. Steht im Logo-Entwurf ein Farbcode, tragen Sie ihn in das Feld daneben ein: eine Raute und sechs Zeichen.",
-            "Tragen Sie bei `Fußzeile` zum Beispiel Vorstand, Amtsgericht und Steuernummer ein.",
+            "Tragen Sie bei `Fußzeile` zum Beispiel Vorstand, Amtsgericht und Steuernummer ein, jede Angabe in eine eigene Zeile.",
             "moto speichert jedes Feld von selbst.",
           ],
         },
@@ -9929,6 +9929,7 @@ export const traegerBriefkopfTopic =
       result:
         "Die `Vorschau` oben auf der Seite zeigt, wie Kopf und Fuß eines Briefs aussehen.",
       notes: [
+        "Ein leeres Feld für Absender oder Fußzeile zeigt ein graues Beispiel. Das Beispiel steht nie im Brief.",
         "Eine Bankverbindung ist der `Standard`. Sie steht auf allen Briefen und Rechnungen.",
         "Eine andere Bankverbindung machen Sie im Menü der Zeile mit `Als Standard festlegen` zum Standard.",
         "Löschen Sie den Standard, wird die älteste andere Bankverbindung der Standard.",

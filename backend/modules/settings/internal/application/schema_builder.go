@@ -116,7 +116,7 @@ func resolveSchemaField(key string, def *config.Definition, snapshot *config.Set
 	writable := def.Levels != config.LevelTraeger && (isOperator || (def.AccessPolicy != config.AccessOperatorManaged &&
 		(def.WritePermission == "" || hasPermission(def.WritePermission, userPermissions))))
 	return &config.ResolvedSetting{
-		Key: key, Label: def.Label, Description: def.Description, Type: def.Type, Default: def.Default,
+		Key: key, Label: def.Label, Description: def.Description, Placeholder: def.Placeholder, Type: def.Type, Default: def.Default,
 		Value: displayValue, IsDefault: isDefault, Writable: writable, Visible: true, SortOrder: def.SortOrder,
 		AccessPolicy: def.AccessPolicy, Levels: def.Levels, Source: source, TraegerChangedAt: traegerChangedAt,
 		Validation: def.Validation, DependsOn: def.DependsOn, Options: def.Options,
