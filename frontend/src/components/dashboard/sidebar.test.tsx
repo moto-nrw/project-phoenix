@@ -1419,10 +1419,10 @@ describe("Sidebar", () => {
   });
 
   describe("bottom pinned items", () => {
-    it("swaps the content for the settings sections on /settings (#5750)", () => {
+    it("swaps the content for the settings sections on a tenant settings path (#5750)", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
-      mockUsePathname.mockReturnValue("/settings");
+      mockUsePathname.mockReturnValue("/test-tenant/settings");
 
       render(<Sidebar />);
 
