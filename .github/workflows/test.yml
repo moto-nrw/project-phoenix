@@ -51,6 +51,7 @@ jobs:
     name: Select backend tests
     if: ${{ inputs.run-backend && inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
@@ -110,14 +111,13 @@ jobs:
     if: ${{ !cancelled() && inputs.run-backend && (needs.plan-backend.result == 'success' || needs.plan-backend.result == 'skipped') }}
     strategy:
       fail-fast: false
-      # Size the run from the actual affected graph, not just the event type.
-      # Small PRs keep one modest runner; broad PRs use the existing full-suite
-      # budgets, without mixing architecture/migrations into application work.
-      matrix: ${{ fromJSON(needs.plan-backend.outputs.matrix || '{"include":[{"shard":0},{"shard":1},{"shard":2},{"shard":3}]}') }}
+      # One job sized from the affected graph (scripts/backend-test-matrix.sh).
+      # Only the nightly race run keeps four shards.
+      matrix: ${{ fromJSON(needs.plan-backend.outputs.matrix || (inputs.backend-race && '{"include":[{"shard":0},{"shard":1},{"shard":2},{"shard":3}]}' || '{"include":[{"shard":0,"blobs":true}]}')) }}
     runs-on: ${{ matrix.runner || 'blacksmith-8vcpu-ubuntu-2404' }}
     # Instrumented builds and tests need more headroom than ordinary runs.
     # Keep the default Actions limit unchanged for non-race callers.
-    timeout-minutes: ${{ inputs.backend-race && 60 || 360 }}
+    timeout-minutes: ${{ inputs.backend-race && 60 || 20 }}
     env:
       # Keep sibling package clones in one run, as the local test wrappers do.
       # Generation GC must not collect them while this shard is still running.
@@ -153,7 +153,7 @@ jobs:
           # its history and comparison refs without downloading every branch
           # and tag. Only the architecture suite needs historical blobs.
           fetch-depth: 1
-          filter: ${{ matrix.shard != 1 && 'blob:none' || '' }}
+          filter: ${{ !(matrix.blobs || matrix.shard == 1) && 'blob:none' || '' }}
 
       - name: Fetch backend comparison history
         env:
@@ -316,6 +316,7 @@ jobs:
           FULL_SUITE: ${{ !inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '' }}
           SHARD_INDEX: ${{ matrix.shard }}
           BACKEND_RACE: ${{ inputs.backend-race }}
+          SPLIT_SUITES: ${{ inputs.backend-race }}
         run: |
           if [ "$FULL_SUITE" = true ]; then
             # Known full runs start immediately, without a planning runner.
@@ -390,6 +391,7 @@ jobs:
         # Vitest's built-in sharding, retaining four workers per DOM runner.
         project: ${{ fromJSON(inputs.frontend-guards-only && '["guards"]' || (!inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '') && '["node","dom-1","dom-2"]' || '["node","dom"]') }}
     runs-on: ${{ (matrix.project == 'node' || matrix.project == 'guards') && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -482,6 +484,7 @@ jobs:
     # Postgres reported an active query with no lock wait (run 38232330367).
     # Use a fresh hosted VM without changing smoke coverage or read timeouts.
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions:
       contents: read
 

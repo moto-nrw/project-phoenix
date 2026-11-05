@@ -54,6 +54,10 @@ holds the checked list prices.
 
 - A new job, matrix shard or larger runner states its measured minutes and
   cost per run in the PR, and the critical-path job it runs beside.
+- Split work across jobs only when one runner leaves cores idle (serial
+  tests) or the job sets the pull request's wall-clock time. Every shard pays
+  the setup again; the PR shows vCPU-minutes before and after.
+- Every job sets `timeout-minutes` at about three times its measured maximum.
 - A new job gets path filters through `detect-changes` in `main.yml` and runs
   only on non-draft pull requests.
 
