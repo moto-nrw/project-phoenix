@@ -127,6 +127,7 @@ describe("TraegerAbrechnungPage", () => {
         (await screen.findAllByText("1 · 50,00 €"))[0],
       ).toBeInTheDocument();
       expect(screen.queryAllByText("2 · 180,00 €")).toHaveLength(0);
+      expect(screen.getByText("Abrechnungslauf")).toBeInTheDocument();
 
       fireEvent.click(
         screen.getAllByRole("button", {

@@ -160,8 +160,6 @@ function BillingRunsPage() {
     });
   };
 
-  const released =
-    data?.runs.filter((run) => run.status === "released").length ?? 0;
   const noPeriod = data !== null && data.periods.length === 0;
   const options = data ? periodOptions(data) : [];
   const filterName = options.find(
@@ -170,6 +168,8 @@ function BillingRunsPage() {
   const shownRuns = periodFilter
     ? (data?.runs.filter((run) => run.holidayPeriodId === periodFilter) ?? [])
     : (data?.runs ?? []);
+  // Die Statuszeile zählt, was die Liste zeigt.
+  const released = shownRuns.filter((run) => run.status === "released").length;
   // Ein gefilterter Zeitraum, für den sich ein Lauf starten lässt.
   const startablePeriod = data?.periods.some(
     (period) => period.id === periodFilter,
@@ -203,13 +203,13 @@ function BillingRunsPage() {
       title="Abrechnung"
       info="Hier rechnen Sie die Ferienbetreuung im Voraus ab, nach den bestätigten Buchungen. Ein Lauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau und geben den Lauf dann frei."
       stats={
-        data && data.runs.length > 0 ? (
+        shownRuns.length > 0 ? (
           <TenantPageStats
             items={[
               {
-                value: data.runs.length,
+                value: shownRuns.length,
                 label:
-                  data.runs.length === 1
+                  shownRuns.length === 1
                     ? "Abrechnungslauf"
                     : "Abrechnungsläufe",
               },
