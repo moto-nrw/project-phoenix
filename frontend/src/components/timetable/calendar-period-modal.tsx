@@ -590,8 +590,10 @@ export function CalendarPeriodModal({
             </form>
           </div>
         </SlideOverBody>
-        <SlideOverFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="w-full sm:w-auto">
+        <SlideOverFooter className="items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* On a phone the actions share one full-width row and „Löschen“
+              sits full width below them, like the Regeltermin dialog. */}
+          <div className={isEdit ? "order-2 sm:order-1" : "hidden sm:block"}>
             {isEdit && (
               <Button
                 type="button"
@@ -601,17 +603,19 @@ export function CalendarPeriodModal({
                 isLoading={deleting}
                 loadingText="Lösche …"
                 disabled={submitting}
+                className="w-full sm:w-auto"
               >
                 Löschen
               </Button>
             )}
           </div>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+          <div className="order-1 flex gap-2 sm:order-2 sm:items-center sm:justify-end">
             {saveWarnings.length === 0 && (
               <Button
                 type="button"
                 variant="outline"
                 size="md"
+                className="flex-1 sm:flex-none"
                 onClick={onClose}
                 disabled={submitting || deleting}
               >
@@ -623,6 +627,7 @@ export function CalendarPeriodModal({
                 type="button"
                 variant="primary"
                 size="md"
+                className="flex-1 sm:flex-none"
                 onClick={onClose}
               >
                 Schließen
@@ -633,6 +638,7 @@ export function CalendarPeriodModal({
                 form="calendar-period-form"
                 variant="primary"
                 size="md"
+                className="flex-1 sm:flex-none"
                 isLoading={submitting}
                 loadingText="Speichere …"
                 disabled={!canSubmit || deleting}
