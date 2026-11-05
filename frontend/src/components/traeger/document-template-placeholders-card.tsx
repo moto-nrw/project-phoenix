@@ -54,9 +54,9 @@ export function DocumentTemplatePlaceholdersCard({
       }
     >
       {onInsert ? (
-        <ul className="grid gap-2 sm:grid-cols-2">
+        <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
           {placeholders.map((placeholder) => (
-            <li key={placeholder.name}>
+            <li key={placeholder.name} className="min-w-0">
               <Button
                 type="button"
                 variant="outline"
@@ -66,8 +66,8 @@ export function DocumentTemplatePlaceholdersCard({
                 onClick={() => onInsert(placeholder)}
                 className="w-full min-w-0 justify-between gap-3"
               >
-                <code className="truncate">{`{{${placeholder.name}}}`}</code>
-                <span className="truncate text-gray-600">
+                <code className="shrink-0">{`{{${placeholder.name}}}`}</code>
+                <span className="min-w-0 truncate text-gray-600">
                   {labelOf(placeholder)}
                 </span>
               </Button>

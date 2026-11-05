@@ -41,7 +41,7 @@ export function DocumentTemplateInvoiceFields({
         So zeigt die Tabelle {"{{positionen}}"} die gebuchten Wochen. Betrag,
         Ermäßigungen und Gesamtbetrag stehen immer darin.
       </p>
-      <div className="mt-3 grid gap-2 lg:grid-cols-3">
+      <div className="mt-3 grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
         <CheckboxCard
           checked={layout.groupByChild}
           onChange={(checked) => set("groupByChild", checked)}

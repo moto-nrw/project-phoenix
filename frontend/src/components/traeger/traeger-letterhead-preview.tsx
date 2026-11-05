@@ -125,7 +125,7 @@ export function TraegerLetterheadPreview({
       {letterFacts ? (
         // Wie im PDF: links das Anschriftfeld, rechts Nummern, Daten und die
         // Ansprechperson des Trägers.
-        <div className="mt-6 grid gap-6 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="mt-6 grid gap-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
           <address
             aria-label="Anschrift"
             role="group"
@@ -140,12 +140,14 @@ export function TraegerLetterheadPreview({
           <div
             role="group"
             aria-label="Angaben zum Schreiben"
-            className="space-y-0.5 text-sm sm:min-w-56"
+            className="min-w-0 space-y-0.5 text-sm"
           >
             {letterFacts.map((fact) => (
               <p key={fact.label} className="flex justify-between gap-4">
-                <span className="text-gray-500">{fact.label}</span>
-                <span className="text-right wrap-anywhere text-gray-900 tabular-nums">
+                <span className="shrink-0 whitespace-nowrap text-gray-500">
+                  {fact.label}
+                </span>
+                <span className="min-w-0 text-right wrap-break-word text-gray-900 tabular-nums">
                   {fact.value}
                 </span>
               </p>
