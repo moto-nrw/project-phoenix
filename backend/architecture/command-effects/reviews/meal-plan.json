@@ -171,6 +171,16 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.FindParticipationDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.FindParticipationDays",
+      "reason": "Read-only Meal Plan ID/date-set participation load in its existing tenant scope. Same tenant context resolver as FindDailyParticipation; three SELECTs over owned schedules, overrides and absence history, no write, lock or scope mutation.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.FindWeek",
       "classification": "query",
       "effect": "query",

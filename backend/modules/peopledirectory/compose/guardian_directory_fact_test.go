@@ -1,4 +1,4 @@
-package application
+package compose
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ func TestGuardianDirectory_CreatedStudentNeedsAmbientTransaction(t *testing.T) {
 			}
 			stop := errors.New("stop before link mutation")
 			service := guardianFactService{link: func(txCtx context.Context, req peoplePorts.StudentGuardianCreateRequest) (*peopledirectory.GuardianRelationshipSnapshot, error) {
-				require.True(t, (RepositoryRuntime{}).InTransaction(txCtx))
+				require.True(t, (application.RepositoryRuntime{}).InTransaction(txCtx))
 				require.Equal(t, created.ID, req.StudentID)
 				if ambient {
 					require.Same(t, created, req.CreatedStudent)
@@ -34,7 +35,7 @@ func TestGuardianDirectory_CreatedStudentNeedsAmbientTransaction(t *testing.T) {
 				}
 				return nil, stop
 			}}
-			directory := NewGuardianDirectory(service, guardianFactRuntime{}, nil)
+			directory := application.NewGuardianDirectory(service, guardianFactRuntime{}, nil)
 			_, err := directory.LinkGuardianToStudent(ctx, peopledirectory.LinkGuardian{
 				StudentID: created.ID, GuardianProfileID: 14, CreatedStudent: created,
 			})

@@ -1,10 +1,12 @@
-package compose
+package compose_test
 
 import (
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+	mealcompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +21,7 @@ func TestOrdersDateBatchKeepsDailyRosterAndPendingSchedules(t *testing.T) {
 	entrant := testpkg.CreateTestStudent(t, db, "New", "Child", "3b")
 	_, err := db.ExecContext(ctx, `UPDATE users.student_school_memberships SET enrolled_from = '2026-09-09' WHERE tenant_id = ? AND student_profile_id = ?`, testpkg.Tenant(t), entrant.ID)
 	require.NoError(t, err)
-	register := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
+	register := mealcompose.BuildOrderDateModuleForTest(t, db, true, nil, time.Date(2026, 9, 7, 8, 0, 0, 0, calendar.Berlin))
 	allDays := []mealplan.Weekday{mealplan.Monday, mealplan.Tuesday, mealplan.Wednesday, mealplan.Thursday, mealplan.Friday}
 	for _, studentID := range []int64{first.ID, entrant.ID} {
 		effective := mealplan.Date("2026-09-07")
@@ -31,10 +33,10 @@ func TestOrdersDateBatchKeepsDailyRosterAndPendingSchedules(t *testing.T) {
 	}
 	_, err = register.ReplaceScheduleBySchool(ctx, mealplan.SchoolSchedule{StudentID: first.ID, StaffAccountID: account.ID, Weekdays: []mealplan.Weekday{mealplan.Friday}, EffectiveFrom: "2026-09-10"})
 	require.NoError(t, err)
-	reader := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin))
+	reader := mealcompose.BuildOrderDateModuleForTest(t, db, true, nil, time.Date(2026, 9, 7, 10, 0, 0, 0, calendar.Berlin))
 	school, err := reader.Orders(ctx, "2026-09-07", "2026-09-11")
 	require.NoError(t, err)
-	caterer, err := reader.CatererOrders(ctx, time.Date(2026, 9, 1, 8, 0, 0, 0, testBerlin), "2026-09-07", "2026-09-11")
+	caterer, err := reader.CatererOrders(ctx, time.Date(2026, 9, 1, 8, 0, 0, 0, calendar.Berlin), "2026-09-07", "2026-09-11")
 	require.NoError(t, err)
 	for _, week := range []mealplan.OrderWeek{school, caterer} {
 		require.Len(t, week.Days, 5)

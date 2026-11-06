@@ -137,6 +137,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.FindParticipationDays",
+      "binding_digest": "2efc3016e4387f5fb4f2e5a51522644f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.FindParticipationDays",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.FindWeek",
       "binding_digest": "2efc3016e4387f5fb4f2e5a51522644f",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.FindWeek",

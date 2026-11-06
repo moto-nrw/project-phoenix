@@ -1,10 +1,11 @@
-package postgres
+package postgres_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
+	mealpostgres "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -25,19 +26,22 @@ func TestParticipationDaysKeepsEffectiveSchedulesCutoffsAndTenantScope(t *testin
 	unrequested := testpkg.CreateTestStudent(t, db, "Other", "Child", "2a")
 	account := testpkg.CreateTestAccount(t, db, "meal-dates")
 	monday := calendar.NewDate(2026, 9, 7)
-	rows := []participationScheduleRow{
-		{TenantID: school, StudentID: student.ID, EffectiveFrom: monday, Monday: true, Tuesday: true, ChangedBy: account.ID},
-		{TenantID: school, StudentID: student.ID, EffectiveFrom: monday.AddDays(3), Thursday: true, ChangedBy: account.ID},
-		{TenantID: otherSchool, StudentID: other.ID, EffectiveFrom: monday, Monday: true, ChangedBy: account.ID},
-		{TenantID: school, StudentID: unrequested.ID, EffectiveFrom: monday, Monday: true, ChangedBy: account.ID},
-	}
-	_, err := db.NewInsert().Model(&rows).ModelTableExpr(`schedule.meal_participation_schedules`).Exec(ctx)
+	_, err := db.ExecContext(ctx, `INSERT INTO schedule.meal_participation_schedules
+  (tenant_id, student_id, effective_from, monday, tuesday, wednesday, thursday, friday, changed_by_account_id)
+  VALUES (?, ?, ?, TRUE, TRUE, FALSE, FALSE, FALSE, ?),
+         (?, ?, ?, FALSE, FALSE, FALSE, TRUE, FALSE, ?),
+         (?, ?, ?, TRUE, FALSE, FALSE, FALSE, FALSE, ?),
+         (?, ?, ?, TRUE, FALSE, FALSE, FALSE, FALSE, ?)`,
+		school, student.ID, monday, account.ID,
+		school, student.ID, monday.AddDays(3), account.ID,
+		otherSchool, other.ID, monday, account.ID,
+		school, unrequested.ID, monday, account.ID)
 	require.NoError(t, err)
-	overrides := []participationOverrideRow{
-		{TenantID: school, StudentID: student.ID, Date: monday.AddDays(2), Participating: true, ChangedBy: account.ID},
-		{TenantID: school, StudentID: student.ID, Date: monday.AddDays(4), Participating: false, ChangedBy: account.ID},
-	}
-	_, err = db.NewInsert().Model(&overrides).ModelTableExpr(`schedule.meal_participation_overrides`).Exec(ctx)
+	_, err = db.ExecContext(ctx, `INSERT INTO schedule.meal_participation_overrides
+  (tenant_id, student_id, date, participating, changed_by_account_id)
+  VALUES (?, ?, ?, TRUE, ?), (?, ?, ?, FALSE, ?)`,
+		school, student.ID, monday.AddDays(2), account.ID,
+		school, student.ID, monday.AddDays(4), account.ID)
 	require.NoError(t, err)
 	tuesday := monday.AddDays(1)
 	reported := tuesday.BerlinMidnight().Add(8 * time.Hour)
@@ -48,7 +52,7 @@ func TestParticipationDaysKeepsEffectiveSchedulesCutoffsAndTenantScope(t *testin
 		school, student.ID, tuesday, reported, reported,
 		school, student.ID, tuesday, cleared, reported, cleared)
 	require.NoError(t, err)
-	store := New(func(context.Context) (bun.IDB, int64, error) { return db, school, nil })
+	store := mealpostgres.New(func(context.Context) (bun.IDB, int64, error) { return db, school, nil })
 	cutoffs := map[domain.Date]time.Time{}
 	for offset := range 5 {
 		date := monday.AddDays(offset)
