@@ -90,7 +90,12 @@ function renderIcon(icon: LucideIcon | ReactNode) {
   );
 }
 
-interface StatusPillCommonProps {
+/** `data-*` hooks land on the pill element itself. */
+export type StatusPillDataAttributes = {
+  readonly [key: `data-${string}`]: string | undefined;
+};
+
+interface StatusPillCommonProps extends StatusPillDataAttributes {
   readonly label: string;
   /** Layout classes for the rendered pill, for example `w-full` in a grid. */
   readonly className?: string;
@@ -142,6 +147,7 @@ export function StatusPillBase({
   outline = false,
   truncate = false,
   wrap = false,
+  ...dataAttributes
 }: StatusPillCommonProps & {
   readonly backgroundColor?: string;
   readonly textColor?: string;
@@ -153,11 +159,12 @@ export function StatusPillBase({
       aria-hidden={ariaHidden}
       title={title ?? (truncate ? label : undefined)}
       className={`inline-flex items-center rounded-full text-xs font-medium ${
-        wrap ? "whitespace-normal" : "whitespace-nowrap"
+        wrap ? "max-w-full min-w-0 whitespace-normal" : "whitespace-nowrap"
       } ${
         iconNode ? "gap-1" : ""
       } ${truncate ? "max-w-full min-w-0" : ""} ${sizeClass(size, compact)} ${outline ? OUTLINE_CLASS : ""} ${className ?? ""}`}
       style={outline ? undefined : { backgroundColor, color: textColor }}
+      {...dataAttributes}
     >
       {iconNode}
       {accessibleLabel ? (

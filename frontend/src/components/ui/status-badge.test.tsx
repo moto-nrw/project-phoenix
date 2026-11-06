@@ -13,11 +13,7 @@ describe("StatusBadge", () => {
 
   it("applies layout classes to the rendered pill", () => {
     render(
-      <StatusBadge
-        label="Schließtag"
-        tone="gray"
-        className="mt-1 w-full"
-      />,
+      <StatusBadge label="Schließtag" tone="gray" className="mt-1 w-full" />,
     );
     expect(screen.getByText("Schließtag")).toHaveClass("mt-1", "w-full");
   });
@@ -133,6 +129,7 @@ describe("StatusBadge", () => {
     render(<StatusBadge label="Teilweise gutgeschrieben" tone="blue" wrap />);
     const badge = screen.getByText("Teilweise gutgeschrieben");
     expect(badge).toHaveClass("whitespace-normal");
+    expect(badge).toHaveClass("max-w-full", "min-w-0");
     expect(badge).not.toHaveClass("whitespace-nowrap");
   });
 });

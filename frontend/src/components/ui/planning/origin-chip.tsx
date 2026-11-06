@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { StatusBadge } from "~/components/ui/status-badge";
+
 interface OriginChipProps {
   /** Short source label, e.g. "Soll aus Arbeitszeitmodell". */
   readonly label: string;
@@ -7,24 +9,23 @@ interface OriginChipProps {
   readonly title?: string;
   /** Optional 12px leading icon. */
   readonly icon?: ReactNode;
-  readonly className?: string;
 }
 
 /**
  * OriginChip names the data source of a figure ("Herkunfts-Chip"). It is
- * deliberately dosed: the planning redesign allows it at exactly three
- * spots — the Betreuungsplan header, the InstanceDetailModal, and the
- * Soll value of the time-tracking surfaces. Do not scatter it across arbitrary
- * figures.
+ * deliberately dosed: the planning redesign allows it at exactly two spots,
+ * the InstanceDetailModal and the Soll value of the time-tracking surfaces.
+ * The Betreuungsplan header names its source as plain text in the context
+ * line. Do not scatter it across arbitrary figures.
  */
-export function OriginChip({ label, title, icon, className }: OriginChipProps) {
+export function OriginChip({ label, title, icon }: OriginChipProps) {
   return (
-    <span
+    <StatusBadge
+      tone="outline"
+      compact
+      label={label}
       title={title}
-      className={`inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] text-gray-600 ${className ?? ""}`}
-    >
-      {icon}
-      {label}
-    </span>
+      icon={icon}
+    />
   );
 }

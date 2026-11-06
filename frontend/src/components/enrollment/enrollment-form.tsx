@@ -2437,9 +2437,12 @@ export function EnrollmentForm({
                                     )}
                                   </span>
                                   {offeringRuleHint(bucket.rule, tr) && (
-                                    <span className="bg-moto-blue/10 text-moto-blue-hover rounded-full px-2 py-0.5 text-xs font-medium">
-                                      {offeringRuleHint(bucket.rule, tr)}
-                                    </span>
+                                    <StatusBadge
+                                      tone="blue"
+                                      compact
+                                      wrap
+                                      label={offeringRuleHint(bucket.rule, tr)}
+                                    />
                                   )}
                                 </div>
                                 <div className="space-y-2">
@@ -3233,9 +3236,11 @@ function OfferingCard({
               {offering.name}
             </span>
             {required && (
-              <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
-                {tr("care.requiredBadge")}
-              </span>
+              <StatusBadge
+                tone="gray"
+                compact
+                label={tr("care.requiredBadge")}
+              />
             )}
           </div>
           {offering.description && (

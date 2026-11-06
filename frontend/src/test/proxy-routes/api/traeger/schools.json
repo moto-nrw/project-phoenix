@@ -11,6 +11,9 @@
   "api/traeger/schools/key-date-counts": [
     "GET traeger /traeger/schools/key-date-counts"
   ],
+  "api/traeger/schools/occupancy": [
+    "GET traeger /traeger/schools/occupancy"
+  ],
   "api/traeger/schools/today": [
     "GET traeger /traeger/schools/today"
   ]
