@@ -183,6 +183,7 @@ export function RequestEditModal({
 }>) {
   const t = useTranslations("parentRequestEdit");
   const tError = useTranslations("errorCatalog");
+  const tTimePicker = useTranslations("datePicker.timePicker");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const [draft, setDraft] = useState<Draft>(() => initialDraft(request));
@@ -336,6 +337,12 @@ export function RequestEditModal({
               label={t("pickupTime")}
               hint={t("timeFormatHint")}
               placeholder={t("timeExample")}
+              timePickerLabels={{
+                selectTime: tTimePicker("selectTime"),
+                hour: tTimePicker("hour"),
+                minute: tTimePicker("minute"),
+                minimum: (time) => tTimePicker("minimum", { time }),
+              }}
               required
             />
           </>

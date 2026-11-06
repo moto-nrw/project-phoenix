@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { AttachmentList } from "~/components/enrollment/attachment-list";
+import { DocumentAttachmentList } from "~/components/enrollment/attachment-list";
 import {
   EnrollmentConsent,
   EmailContactNotice,
@@ -66,7 +66,7 @@ export function HolidayRegistrationLegal({
                 tr={tr}
               />
             )}
-            <AttachmentList
+            <DocumentAttachmentList
               attachments={block.attachments}
               documentURL={(id) => holidayPublicDocumentPath(token, id)}
             />

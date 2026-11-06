@@ -20,6 +20,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { useModuleBooked } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { StatCard } from "~/components/ui/stat-card";
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ToggleChip } from "~/components/ui/toggle-chip";
@@ -152,7 +153,6 @@ import { formatWeekLabel } from "~/lib/timetable-helpers";
 import { createLogger } from "~/lib/logger";
 import { errorStatus } from "~/lib/expected-failure";
 import { IconTile } from "~/components/ui/icon-tile";
-import { ProgressBar } from "~/components/ui/progress-bar";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
 
@@ -1277,92 +1277,53 @@ function ClockInStatsStrip({
   const weekPct = week && week.soll > 0 ? (week.ist / week.soll) * 100 : 0;
   const monthPct = month && month.soll > 0 ? (month.ist / month.soll) * 100 : 0;
 
-  const accountTone: StatusTone =
+  const accountTone =
     accountBalanceMinutes === null
       ? "gray"
       : accountBalanceMinutes > 0
-        ? "amber"
+        ? "orange"
         : accountBalanceMinutes < -60
           ? "gray"
           : "green";
 
   return (
-    <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3 sm:gap-4">
-      <InlineStat
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+      <StatCard
         label="Diese Woche"
-        primary={week === null ? "–" : formatDuration(week.ist)}
-        secondary={
-          week === null ? undefined : `von ${formatDuration(week.soll)}`
+        value={week === null ? "–" : formatDuration(week.ist)}
+        hint={
+          week === null
+            ? undefined
+            : `von ${formatDuration(week.soll)} · ${Math.round(weekPct)} %`
         }
         progressPct={week === null ? undefined : weekPct}
         tone="green"
       />
-      <InlineStat
+      <StatCard
         label="Dieser Monat"
-        primary={month === null ? "–" : formatDuration(month.ist)}
-        secondary={
-          month === null ? undefined : `von ${formatDuration(month.soll)}`
+        value={month === null ? "–" : formatDuration(month.ist)}
+        hint={
+          month === null
+            ? undefined
+            : `von ${formatDuration(month.soll)} · ${Math.round(monthPct)} %`
         }
         progressPct={month === null ? undefined : monthPct}
         tone="green"
       />
-      <InlineStat
+      <StatCard
         label="Stundenkonto"
-        primary={
+        value={
           accountBalanceMinutes === null
             ? "–"
             : formatSignedDuration(accountBalanceMinutes)
         }
-        secondary={`seit ${metrics.accountStart.toLocaleDateString("de-DE", {
+        hint={`seit ${metrics.accountStart.toLocaleDateString("de-DE", {
           timeZone: "Europe/Berlin",
           day: "numeric",
           month: "short",
         })}`}
         tone={accountTone}
       />
-    </div>
-  );
-}
-
-function InlineStat({
-  label,
-  primary,
-  secondary,
-  progressPct,
-  tone,
-}: {
-  readonly label: string;
-  readonly primary: string;
-  readonly secondary?: string;
-  readonly progressPct?: number;
-  readonly tone: StatusTone;
-}) {
-  return (
-    <div className="text-center">
-      <div className="flex items-baseline justify-center gap-2">
-        <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-          {label}
-        </span>
-        {progressPct !== undefined && (
-          <span className="text-sm text-gray-400">
-            {Math.round(progressPct)}%
-          </span>
-        )}
-      </div>
-      <p className={`mt-1 text-base font-bold sm:text-lg ${STATUS_TEXT[tone]}`}>
-        {primary}
-      </p>
-      {secondary && <p className="mt-0.5 text-sm text-gray-500">{secondary}</p>}
-      {progressPct !== undefined && (
-        <ProgressBar
-          value={progressPct}
-          max={100}
-          label={`${label}: ${Math.round(progressPct)} %`}
-          tone={STATUS_BAR_TONE[tone]}
-          size="xs"
-          className="mx-auto mt-1.5 max-w-[180px]"
-        />
-      )}
     </div>
   );
 }
@@ -1581,29 +1542,6 @@ function BreakActivityLog({
     </>
   );
 }
-
-// ─── StaffStatusPanel ────────────────────────────────────────────────────────
-// Kompakte Status-Sidebar neben der Stempeluhr. Eine Card mit drei Zeilen
-// statt drei einzelner Karten: Diese Woche / Dieser Monat / Stundenkonto.
-
-type StatusTone = "green" | "amber" | "gray";
-
-// Standalone value text on a white card, so it follows the app's tone map:
-// the same one StaffSessionTable and KpiCard (staff-time-views) use, so the
-// identical Saldo reads the same on /staff/[id] and here. moto-amber-strong
-// (#92400E) is the ramp step that stays legible on white; the older
-// text-amber-600 (#D97706) missed WCAG AA for normal text.
-const STATUS_TEXT: Record<StatusTone, string> = {
-  green: "text-moto-green-strong",
-  amber: "text-moto-amber-strong",
-  gray: "text-gray-700",
-};
-
-const STATUS_BAR_TONE = {
-  green: "green",
-  amber: "orange",
-  gray: "gray",
-} as const satisfies Record<StatusTone, string>;
 
 // OwnZeiterfassungSection — wrappt die StaffSessionTable mit RangeNav und
 // Card-Chrome, in derselben Struktur wie auf /staff/[id]. Drift zwischen

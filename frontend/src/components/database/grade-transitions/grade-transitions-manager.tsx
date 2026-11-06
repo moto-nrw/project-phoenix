@@ -64,7 +64,11 @@ const STATUS_COLORS: Record<TransitionStatus, string> = {
   reverted: LOCATION_COLORS.SCHOOLYARD,
 };
 
-function StatusBadge({ status }: { readonly status: TransitionStatus }) {
+function TransitionStatusBadge({
+  status,
+}: {
+  readonly status: TransitionStatus;
+}) {
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
@@ -418,7 +422,7 @@ export function GradeTransitionsManager({
       {
         key: "status",
         header: "Status",
-        render: (t) => <StatusBadge status={t.status} />,
+        render: (t) => <TransitionStatusBadge status={t.status} />,
       },
       {
         key: "mappings",

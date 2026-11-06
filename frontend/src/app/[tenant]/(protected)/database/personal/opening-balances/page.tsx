@@ -11,6 +11,7 @@ import {
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 
+import { StatCard } from "~/components/ui/stat-card";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
@@ -221,25 +222,6 @@ function PreviewRowCard({ row }: { readonly row: DisplayRow }) {
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function StatTile({
-  label,
-  value,
-}: {
-  readonly label: string;
-  readonly value: number;
-}) {
-  return (
-    <div className="rounded-xl bg-gray-50 px-3 py-2.5">
-      <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-        {label}
-      </p>
-      <p className="mt-0.5 text-xl font-semibold text-gray-900 tabular-nums">
-        {value}
-      </p>
     </div>
   );
 }
@@ -698,10 +680,18 @@ function OpeningBalanceImportPageContent() {
       {showPreview && previewResult && (
         <SectionCard title="Vorschau prüfen" icon={ListChecks}>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            <StatTile label="Zeilen" value={previewResult.TotalRows} />
-            <StatTile label="Übernehmbar" value={importable} />
-            <StatTile label="Hinweise" value={previewResult.WarningCount} />
-            <StatTile label="Fehler" value={previewErrors} />
+            <StatCard
+              label="Zeilen"
+              value={previewResult.TotalRows}
+              tone="neutral"
+            />
+            <StatCard label="Übernehmbar" value={importable} tone="neutral" />
+            <StatCard
+              label="Hinweise"
+              value={previewResult.WarningCount}
+              tone="neutral"
+            />
+            <StatCard label="Fehler" value={previewErrors} tone="neutral" />
           </div>
           {previewErrors > 0 && importable > 0 && (
             <p className="mt-3 text-sm text-gray-600">
@@ -745,10 +735,26 @@ function OpeningBalanceImportPageContent() {
           }
         >
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            <StatTile label="Zeilen" value={importResult.TotalRows} />
-            <StatTile label="Übernommen" value={importResult.CreatedCount} />
-            <StatTile label="Hinweise" value={importResult.WarningCount ?? 0} />
-            <StatTile label="Fehler" value={importResult.ErrorCount} />
+            <StatCard
+              label="Zeilen"
+              value={importResult.TotalRows}
+              tone="neutral"
+            />
+            <StatCard
+              label="Übernommen"
+              value={importResult.CreatedCount}
+              tone="neutral"
+            />
+            <StatCard
+              label="Hinweise"
+              value={importResult.WarningCount ?? 0}
+              tone="neutral"
+            />
+            <StatCard
+              label="Fehler"
+              value={importResult.ErrorCount}
+              tone="neutral"
+            />
           </div>
           {previewRows.length > 0 && (
             <>

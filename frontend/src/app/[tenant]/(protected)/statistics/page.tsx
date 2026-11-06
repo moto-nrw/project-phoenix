@@ -771,7 +771,7 @@ export default function StatisticsPage() {
   // allein die halbe Kopfzeile füllten. Kind- und Raumtabelle sind
   // verschiedene Dokumente, deshalb bekommt jeder Bereich seinen eigenen
   // Menüeintrag.
-  const exportMenuItems = (
+  const exportActions = (
     section: StatisticsExportSection,
   ): OverflowMenuEntry[] => [
     { kind: "header", label: "Exportieren" },
@@ -919,14 +919,14 @@ export default function StatisticsPage() {
   ) {
     sectionActions = (
       <OverflowMenu
-        items={exportMenuItems("rooms")}
+        items={exportActions("rooms")}
         ariaLabel="Raumtabelle exportieren"
       />
     );
   } else if (view === "occupancy" && occupancy) {
     sectionActions = (
       <OverflowMenu
-        items={exportMenuItems("occupancy")}
+        items={exportActions("occupancy")}
         ariaLabel="Zahlen nach Uhrzeit exportieren"
       />
     );
@@ -941,7 +941,7 @@ export default function StatisticsPage() {
           ariaLabel="Kurs-Sicht wählen"
         />
         <OverflowMenu
-          items={exportMenuItems(
+          items={exportActions(
             courseView === "by-course" ? "courses" : "course-students",
           )}
           ariaLabel="Kurstabelle exportieren"
@@ -975,7 +975,7 @@ export default function StatisticsPage() {
       actions={
         view === "care-times" ? undefined : (
           <OverflowMenu
-            items={exportMenuItems("attendance")}
+            items={exportActions("attendance")}
             ariaLabel="Weitere Aktionen"
           />
         )

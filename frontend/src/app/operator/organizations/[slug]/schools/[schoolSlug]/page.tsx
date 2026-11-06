@@ -415,14 +415,9 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       standaloneUsers: number;
       eligibleUsers: number;
     }) =>
-      usage ? (
-        <span title={pwaTooltip}>
-          {formatCount(usage.standaloneUsers)} von{" "}
-          {formatCount(usage.eligibleUsers)}
-        </span>
-      ) : (
-        <span title={pwaTooltip}>–</span>
-      );
+      usage
+        ? `${formatCount(usage.standaloneUsers)} von ${formatCount(usage.eligibleUsers)}`
+        : "–";
     // Kinderkontingent next to the Kontingentzahl (#3568), so the moto team
     // sees at a glance when a school needs another bundle.
     const quotaLimit = childQuotaLimit({
@@ -441,16 +436,19 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       },
       {
         label: "Kontingentzahl",
-        value: overQuota ? (
-          <span className="text-moto-amber-strong">
-            {formatCount(school.childQuotaCount)}
-          </span>
-        ) : (
-          formatCount(school.childQuotaCount)
-        ),
+        value: formatCount(school.childQuotaCount),
+        tone: overQuota ? ("orange" as const) : ("neutral" as const),
       },
-      { label: "App-Nutzung Mitarbeitende", value: pwaValue(pwaUsage?.staff) },
-      { label: "App-Nutzung Eltern", value: pwaValue(pwaUsage?.parent) },
+      {
+        label: "App-Nutzung Mitarbeitende",
+        value: pwaValue(pwaUsage?.staff),
+        title: pwaTooltip,
+      },
+      {
+        label: "App-Nutzung Eltern",
+        value: pwaValue(pwaUsage?.parent),
+        title: pwaTooltip,
+      },
     ];
   }, [school, pwaUsage]);
 

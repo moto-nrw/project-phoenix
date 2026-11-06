@@ -4,5 +4,11 @@
   "previousMonth": "Muaji i mëparshëm",
   "nextMonth": "Muaji i ardhshëm",
   "month": "Muaji",
-  "year": "Viti"
+  "year": "Viti",
+  "timePicker": {
+    "selectTime": "Zgjidhni orën",
+    "hour": "Ora",
+    "minute": "Minuta",
+    "minimum": "Jo më herët se {time}"
+  }
 }

@@ -19,7 +19,10 @@ import type { SchoolSummary } from "~/lib/operator/provisioning-helpers";
 import { buildSchoolColumns } from "~/components/operator/school-table-columns";
 import { Button } from "~/components/ui/button";
 import { DataTable } from "~/components/ui/data-table";
-import { EmptyState, PlusIcon } from "../provisioning/provisioning-shared";
+import {
+  ProvisioningEmptyState,
+  PlusIcon,
+} from "../provisioning/provisioning-shared";
 import { CreateSchoolModal } from "../provisioning/create-school-modal";
 import {
   useSoftDeletable,
@@ -250,7 +253,7 @@ export default function OperatorSchoolsPage() {
           !summariesError &&
           schoolSummaries !== undefined &&
           activeSummaries.length === 0 ? (
-          <EmptyState
+          <ProvisioningEmptyState
             title="Keine Schulen"
             description="Erstellen Sie eine neue Schule unter einem Träger."
             buttonLabel="Neue Schule"

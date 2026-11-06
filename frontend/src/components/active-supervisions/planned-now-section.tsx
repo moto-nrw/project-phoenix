@@ -7,6 +7,7 @@ import {
 } from "~/lib/class-handover";
 import { useMemo, useState } from "react";
 import { ChevronDown, CircleAlert, Play } from "lucide-react";
+import { StatCard } from "~/components/ui/stat-card";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { StudentAbsenceRow } from "~/components/students/student-card";
 import {
@@ -286,16 +287,16 @@ export function PlannedNowSection({
                     </div>
 
                     <div
-                      className={`mt-4 grid gap-2 ${showTimetableCounts ? "grid-cols-3" : "grid-cols-1"}`}
+                      className={`mt-4 grid gap-2 ${showTimetableCounts ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-1"}`}
                     >
                       {showTimetableCounts && (
                         <>
-                          <SlotStat
+                          <StatCard
                             label="Erwartet"
                             value={instance.expectedStudentsCount}
                             tone="neutral"
                           />
-                          <SlotStat
+                          <StatCard
                             label="Anwesend"
                             value={
                               instance.currentStudentsCount ??
@@ -304,16 +305,16 @@ export function PlannedNowSection({
                             tone={
                               (instance.currentStudentsCount ??
                                 instance.presentStudentsCount) > 0
-                                ? "success"
+                                ? "green"
                                 : "neutral"
                             }
                           />
                         </>
                       )}
-                      <SlotStat
+                      <StatCard
                         label="Betreuende"
                         value={instance.assignedStaffIds.length}
-                        tone={instance.isAssigned ? "info" : "neutral"}
+                        tone={instance.isAssigned ? "blue" : "neutral"}
                       />
                     </div>
                   </div>
@@ -429,29 +430,6 @@ function ResponsibilityBadge({
       />
       {instance.isPrimary ? "Zuständig" : "Vertretung"}
     </span>
-  );
-}
-
-function SlotStat({
-  label,
-  value,
-  tone,
-}: Readonly<{
-  label: string;
-  value: number;
-  tone: "neutral" | "success" | "info";
-}>) {
-  const className =
-    tone === "success"
-      ? "bg-moto-green/10 text-moto-green-strong"
-      : tone === "info"
-        ? "bg-moto-blue/10 text-moto-blue-hover"
-        : "bg-gray-50 text-gray-900";
-  return (
-    <div className={`rounded-lg px-3 py-2 ${className}`}>
-      <span className="block text-sm font-semibold">{value}</span>
-      <span className="block text-sm font-medium text-gray-500">{label}</span>
-    </div>
   );
 }
 

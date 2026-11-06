@@ -1,6 +1,6 @@
 "use client";
 
-import { AttachmentList } from "~/components/enrollment/attachment-list";
+import { DocumentAttachmentList } from "~/components/enrollment/attachment-list";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -29,7 +29,7 @@ export function InfoBlock({ field }: { readonly field: FormField }) {
           {field.content}
         </p>
       )}
-      <AttachmentList attachments={field.attachments} />
+      <DocumentAttachmentList attachments={field.attachments} />
     </div>
   );
 }

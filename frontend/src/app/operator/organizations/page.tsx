@@ -7,6 +7,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { StatCard } from "~/components/ui/stat-card";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -17,7 +18,10 @@ import type { OrganizationSummary } from "~/lib/operator/provisioning-helpers";
 import { Button } from "~/components/ui/button";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
-import { EmptyState, PlusIcon } from "../provisioning/provisioning-shared";
+import {
+  ProvisioningEmptyState,
+  PlusIcon,
+} from "../provisioning/provisioning-shared";
 import { CreateOrganizationModal } from "../provisioning/create-organization-modal";
 import { CreateTestTraegerModal } from "../provisioning/create-test-traeger-modal";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -31,19 +35,6 @@ import {
   OrgSoftDeleteModal,
 } from "../provisioning/operator-entity-modals";
 import { organizationsConcept } from "~/lib/concepts/organizations";
-
-function KpiCard({ label, value }: Readonly<{ label: string; value: number }>) {
-  return (
-    <div className="moto-content-surface rounded-xl border px-5 py-4">
-      <div className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-        {label}
-      </div>
-      <div className="mt-1 text-3xl font-bold text-gray-900">
-        {formatCount(value)}
-      </div>
-    </div>
-  );
-}
 
 export default function OperatorOrganizationsPage() {
   const { status } = useSession();
@@ -258,10 +249,26 @@ export default function OperatorOrganizationsPage() {
       <LoadErrorAlert error={statsLoadError} className="mt-4" />
       {stats ? (
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <KpiCard label="Träger" value={stats.traegerCount} />
-          <KpiCard label="Schulen" value={stats.schulenCount} />
-          <KpiCard label="Konten" value={stats.kontenCount} />
-          <KpiCard label="Geräte" value={stats.geraeteCount} />
+          <StatCard
+            label="Träger"
+            value={formatCount(stats.traegerCount)}
+            tone="neutral"
+          />
+          <StatCard
+            label="Schulen"
+            value={formatCount(stats.schulenCount)}
+            tone="neutral"
+          />
+          <StatCard
+            label="Konten"
+            value={formatCount(stats.kontenCount)}
+            tone="neutral"
+          />
+          <StatCard
+            label="Geräte"
+            value={formatCount(stats.geraeteCount)}
+            tone="neutral"
+          />
         </div>
       ) : null}
 
@@ -293,7 +300,7 @@ export default function OperatorOrganizationsPage() {
           !orgsError &&
           organizations !== undefined &&
           activeOrganizations.length === 0 ? (
-          <EmptyState
+          <ProvisioningEmptyState
             title="Keine Träger"
             description="Erstellen Sie einen neuen Träger, um Schulen zu verwalten."
             buttonLabel="Neuer Träger"
