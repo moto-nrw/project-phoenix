@@ -37,7 +37,8 @@ import (
 // Träger (#4669, ADR 0121), its overview for the Kämmerei (#4672, ADR 0122)
 // and the list for the reimbursement by a cost bearer (#5627), and the mail
 // of the letters as mails of the Träger on Delivery's outbox and their
-// print in one file (#4670, ADR 0123).
+// print in one file (#4670, ADR 0123), and the invoices and amounts per
+// family at /traeger/billing-families behind the right "Abrechnung" (#4691).
 func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, settings, delivery, healthData, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
@@ -47,6 +48,9 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	runs := NewBillingRunHTTP(settings, delivery, healthData)
 	root.Mount("/traeger/billing-runs", runs.RunRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/number-ranges", runs.NumberRangeRouter(ProtectedTraegerRoutes))
+	families := parentBillingHTTP.NewBillingFamilyResource(parentBillingCompose.NewBillingFamilies(),
+		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+	root.Mount("/traeger/billing-families", families.Router(ProtectedTraegerRoutes))
 }
 
 // NewBillingRunHTTP binds the billing runs to the right "Abrechnung", to

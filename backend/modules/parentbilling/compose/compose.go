@@ -48,3 +48,9 @@ func NewBillingLetters(letterheads parentbilling.BillingLetterheads) parentbilli
 func NewParentDocuments() parentbilling.ParentDocuments {
 	return application.NewParentDocuments(postgres.NewStore())
 }
+
+// NewBillingFamilies builds the invoices and amounts per family (#4691) in
+// the Träger transaction of the portal route.
+func NewBillingFamilies() parentbilling.BillingFamilies {
+	return application.NewBillingFamilies(postgres.NewStore())
+}
