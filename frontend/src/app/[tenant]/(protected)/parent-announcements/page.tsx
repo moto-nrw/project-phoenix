@@ -558,9 +558,7 @@ function ParentAnnouncementsContent() {
             )}
             {row.priority === "important" &&
               row.system_kind !== "care_cancellation" && (
-                <span className="inline-flex shrink-0 items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-                  Wichtig
-                </span>
+                <StatusBadge label="Wichtig" tone="gray" compact />
               )}
           </div>
           <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">
