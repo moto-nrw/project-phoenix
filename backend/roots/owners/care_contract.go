@@ -122,7 +122,9 @@ type CareContractSettings interface {
 // CareContractRemindersJob binds the Worker's reminders of unsigned care
 // contracts (#4679): the active Träger of Organisation & Tenancy, the
 // Träger's setting of the reminder days, and the ports of the signature.
-func CareContractRemindersJob(organizations CareContractOrganizations, settings CareContractSettings,
+// The Worker's context carries no unit of work; the job attaches unit, as the
+// HTTP middleware does for a request.
+func CareContractRemindersJob(unit tenant.UnitOfWork, organizations CareContractOrganizations, settings CareContractSettings,
 	delivery deliveryRuntime.Capability, parentsURL string) schedulerPorts.CareContractReminders {
 	reminders := careContractCompose.NewReminders(careContractCompose.ReminderPorts{
 		Organizations: careContractTraeger{organizations: organizations},
@@ -130,7 +132,9 @@ func CareContractRemindersJob(organizations CareContractOrganizations, settings 
 		Sender:        CareContractSender{Settings: settings},
 		Post:          CareContractPost{Delivery: delivery}, Runtime: CareContractRuntime{}, Links: CareContractLinks(parentsURL),
 	})
-	return reminders.RemindDue
+	return func(ctx context.Context) error {
+		return reminders.RemindDue(tenant.WithUnitOfWork(ctx, unit))
+	}
 }
 
 // careContractTraeger lists the active, undeleted Träger.

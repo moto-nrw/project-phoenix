@@ -547,7 +547,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
 		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, schoolNames(tracker), plannedExits, dayLog, env.HealthData,
-		CareContractRemindersJob(organizations, settings.Traeger, delivery.Runtime.Module, env.Links.ParentsURL))
+		CareContractRemindersJob(db.UnitOfWork(), organizations, settings.Traeger, delivery.Runtime.Module, env.Links.ParentsURL))
 }
 
 func buildWorkerAnalyticsSettings(db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, organizations organizationtenancy.Capability, hub *realtime.Hub, bookings enrollmentPhaseRestrictions, tracker ProductEventTracker, bind func(ProductEventTracker, settingsValues.TenantReader, bool) ProductEventTracker) (SettingsOwner, ProductEventTracker, error) {

@@ -101,6 +101,8 @@ const DRAFT: CareContractDetail = {
   ],
   mailings: [],
   documentFrozen: false,
+  signature: null,
+  reminders: [],
 };
 
 function renderPage() {

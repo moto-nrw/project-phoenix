@@ -292,7 +292,7 @@ func TestCareContractRemindersFollowTheTraegersDays(t *testing.T) {
 		map[string]any{"method": "typed", "typed_name": "Erika Muster", "image_png": signatureImage(t), "withdrawal_notice_acknowledged": true})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	ctx := context.Background()
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	age := func(days int) {
 		t.Helper()
 		for _, statement := range []string{

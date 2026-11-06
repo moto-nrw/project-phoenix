@@ -588,7 +588,7 @@ func composeServeRoot(
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
 		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, analyticsSchoolNames(tracker), PlannedStaffExitsJob(db, hub, env.Logger), WeekProtocolDayLog, env.HealthData,
-		owners.CareContractRemindersJob(organizations, settings.Traeger, delivery.Runtime.Module, env.Links.ParentsURL))
+		owners.CareContractRemindersJob(db.UnitOfWork(), organizations, settings.Traeger, delivery.Runtime.Module, env.Links.ParentsURL))
 	if err != nil {
 		return nil, nil, err
 	}
