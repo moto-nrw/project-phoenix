@@ -14,13 +14,18 @@ import { ApiError } from "~/lib/api-error";
 import type { ResolvedSetting, SettingsSchema } from "~/lib/settings-api";
 import { catalogText } from "~/test/error-catalog-text";
 
-const { mockFetchSchema, mockFetchMasterData, mockSave, mockClear } =
+const { mockFetchSchema, mockFetchMasterData, mockSave, mockClear, route } =
   vi.hoisted(() => ({
     mockFetchSchema: vi.fn(),
     mockFetchMasterData: vi.fn(),
     mockSave: vi.fn(),
     mockClear: vi.fn(),
+    route: { search: "" },
   }));
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(route.search),
+}));
 
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
@@ -115,6 +120,48 @@ describe("TraegerSettingsPage", () => {
     mockFetchMasterData.mockReset();
     mockSave.mockReset().mockResolvedValue(undefined);
     mockClear.mockReset().mockResolvedValue(undefined);
+    route.search = "";
+  });
+
+  it("opens the area the address names, e.g. from the dashboard hints (#4675)", async () => {
+    route.search = "bereich=dashboard";
+    mockFetchSchema.mockResolvedValue({
+      tabs: [
+        ...schema([NEWS_FROM_TRAEGER]).tabs,
+        {
+          key: "dashboard",
+          label: "dashboard",
+          categories: [
+            {
+              key: "auffaelligkeiten",
+              label: "auffaelligkeiten",
+              items: [
+                item({
+                  key: "traeger_dashboard.alert_open_enrollments",
+                  label: "Offene Anmeldungen ab",
+                  type: "number",
+                  default: 1,
+                  value: 1,
+                  levels: "traeger",
+                }),
+              ],
+            },
+          ],
+        },
+      ],
+    } satisfies SettingsSchema);
+    renderPage();
+
+    expect(
+      await screen.findByRole("spinbutton", { name: "Offene Anmeldungen ab" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Dashboard" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      screen.queryByRole("switch", { name: "Neuigkeiten im Elternportal" }),
+    ).not.toBeInTheDocument();
   });
 
   it.each([503, 403])(
