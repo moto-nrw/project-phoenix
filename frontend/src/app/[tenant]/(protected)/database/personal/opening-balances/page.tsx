@@ -172,8 +172,8 @@ function isSpreadsheet(file: File): boolean {
     file.type === "text/csv" ||
     file.type ===
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-    file.name.endsWith(".csv") ||
-    file.name.endsWith(".xlsx")
+    file.name.toLowerCase().endsWith(".csv") ||
+    file.name.toLowerCase().endsWith(".xlsx")
   );
 }
 
@@ -245,7 +245,6 @@ function OpeningBalanceImportPageContent() {
   const [previewStale, setPreviewStale] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importInterrupted, setImportInterrupted] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   // Fehler der Datei und der Übernahme stehen im Kasten über den Schritten,
@@ -279,7 +278,6 @@ function OpeningBalanceImportPageContent() {
   const resetAll = useCallback(() => {
     setUploadedFile(null);
     resetPreview();
-    setIsDragging(false);
     clearImportErrors();
     setBatchNotice(null);
   }, [resetPreview, clearImportErrors]);
@@ -473,13 +471,10 @@ function OpeningBalanceImportPageContent() {
     latestImportRef.current = () => void handleImport();
   });
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-      const file = e.dataTransfer.files[0];
-      if (!file) return;
+  // Beim Ablegen greift der Filter des Dateidialogs nicht, deshalb die Prüfung
+  // hier für beide Wege.
+  const handleFileChosen = useCallback(
+    (file: File) => {
       if (!isSpreadsheet(file)) {
         importErrors.invalid(
           "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
@@ -638,25 +633,9 @@ function OpeningBalanceImportPageContent() {
       {/* Schritt 3: Datei */}
       <UploadSection
         title="Schritt 3: Datei hochladen"
-        isDragging={isDragging}
         isLoading={isLoading}
         uploadedFile={uploadedFile}
-        onDragEnter={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setIsDragging(true);
-        }}
-        onDragLeave={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setIsDragging(false);
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onDrop={handleDrop}
-        onFileSelect={handleFileSelect}
+        onFileSelect={handleFileChosen}
       />
 
       {previewStale && uploadedFile !== null && (

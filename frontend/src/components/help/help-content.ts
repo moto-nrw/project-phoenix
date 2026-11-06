@@ -238,6 +238,7 @@ const TRAEGER_TOPICS: readonly HelpTopic[] = [
   articles.traegerLoginTopic(),
   articles.traegerDashboardTopic(),
   articles.traegerKeyDateCountsTopic(),
+  articles.traegerOccupancyTopic(),
   articles.traegerSchoolViewTopic(),
   articles.traegerSchoolSwitchTopic(),
   articles.traegerTestSystemTopic(),

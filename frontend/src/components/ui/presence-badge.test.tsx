@@ -222,7 +222,8 @@ describe("PresenceBadge", () => {
     );
     // eslint-disable-next-line testing-library/no-node-access
     const pill = container.querySelector("[data-presence-state]");
-    expect(pill?.className).toMatch(/text-\[11px\]/);
+    expect(pill?.className).toMatch(/\bpx-1\.5\b/);
+    expect(pill?.className).toMatch(/\btext-xs\b/);
   });
 
   it("renders the large size with the lg class shape", () => {
@@ -231,7 +232,8 @@ describe("PresenceBadge", () => {
     );
     // eslint-disable-next-line testing-library/no-node-access
     const pill = container.querySelector("[data-presence-state]");
-    expect(pill?.className).toMatch(/text-sm/);
+    expect(pill?.className).toMatch(/\bpx-2\.5\b/);
+    expect(pill?.className).toMatch(/\btext-xs\b/);
   });
 
   it("prefers sick-since timestamp over location_since when both are set", () => {

@@ -121,7 +121,9 @@ function renderItem(
 }
 
 async function confirmApproval() {
-  fireEvent.click(screen.getByRole("button", { name: /^Freigeben$/ }));
+  const approve = screen.getByRole("button", { name: /^Freigeben$/ });
+  await waitFor(() => expect(approve).toBeEnabled());
+  fireEvent.click(approve);
   const confirm = await screen.findByRole("button", {
     name: "Änderung freigeben",
   });

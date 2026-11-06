@@ -55,6 +55,8 @@ import { useSoftDeletable } from "~/app/operator/provisioning/soft-delete-shared
 import { SchoolSoftDeleteModal } from "~/app/operator/provisioning/operator-entity-modals";
 import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
 import { schoolsConcept } from "~/lib/concepts/schools";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 const logger = createLogger({ component: "OperatorSchoolDetailPage" });
 
@@ -620,9 +622,11 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
               </span>
             </span>
             {school.hidden && (
-              <span className="bg-moto-amber/15 text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
-                Verborgen
-              </span>
+              <StatusColorBadge
+                label="Verborgen"
+                color={LOCATION_COLORS.WARNING}
+                compact
+              />
             )}
           </span>
         }

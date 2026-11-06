@@ -700,17 +700,20 @@ function ChildInformationCard({
             {child.first_name} {child.last_name}
           </h3>
           <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600">
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              Geburtsdatum: {formatPlainDate(child.date_of_birth)}
-            </span>
+            <StatusBadge
+              tone="gray"
+              label={`Geburtsdatum: ${formatPlainDate(child.date_of_birth)}`}
+            />
             {child.target_school_class ? (
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-                {schoolClassLabel(child.target_school_class)}
-              </span>
+              <StatusBadge
+                tone="gray"
+                label={schoolClassLabel(child.target_school_class)}
+              />
             ) : child.target_grade_level ? (
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-                {child.target_grade_level}. Klasse
-              </span>
+              <StatusBadge
+                tone="gray"
+                label={`${child.target_grade_level}. Klasse`}
+              />
             ) : null}
           </div>
         </div>
