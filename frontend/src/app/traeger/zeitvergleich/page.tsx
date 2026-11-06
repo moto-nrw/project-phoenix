@@ -16,7 +16,7 @@ import {
   useState,
 } from "react";
 import { useSession } from "next-auth/react";
-import { CircleCheck } from "lucide-react";
+import { CalendarOff, CircleCheck } from "lucide-react";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -40,6 +40,7 @@ import {
   fetchOverrunChildren,
   fetchOverrunSummary,
   formatExtraTime,
+  overrunCoverage,
   OVERRUN_NAMES_RIGHT,
   overrunDayCount,
   type OverrunChild,
@@ -137,6 +138,7 @@ function DaysCell({
 
 function schoolColumns(
   from: string,
+  to: string,
   maxMinutes: number,
 ): DataTableColumn<SchoolOverruns>[] {
   return [
@@ -154,7 +156,11 @@ function schoolColumns(
           >
             {school.schoolName}
           </NavigationLink>
-          {school.dataFrom > from ? (
+          {school.dataFrom > to ? (
+            <span className="block text-xs text-gray-500">
+              Keine Check-ins mehr gespeichert
+            </span>
+          ) : school.dataFrom > from ? (
             <span className="block text-xs text-gray-500">
               Check-ins erst ab {formatDate(school.dataFrom)} gespeichert
             </span>
@@ -262,6 +268,33 @@ const CHILD_COLUMNS: DataTableColumn<OverrunChild>[] = [
   },
 ];
 
+/** Leere Kinderliste: „alle Zeiten passen“ nur, wenn jeder Tag verglichen ist. */
+function ChildrenEmptyState({
+  evaluation,
+}: Readonly<{ evaluation: OverrunEvaluation | null }>) {
+  const coverage = evaluation ? overrunCoverage(evaluation) : "complete";
+  if (coverage === "none") {
+    return (
+      <EmptyState
+        icon={<CalendarOff className="h-12 w-12" aria-hidden="true" />}
+        title="Für diesen Monat sind keine Check-ins mehr gespeichert."
+        description="Die Schulen löschen Check-ins nach ihrer Frist. Wählen Sie einen späteren Monat."
+      />
+    );
+  }
+  return (
+    <EmptyState
+      icon={<CircleCheck className="h-12 w-12" aria-hidden="true" />}
+      title="Kein Kind war länger da als gebucht."
+      description={
+        coverage === "partial"
+          ? "Verglichen sind nur die Tage, für die noch Check-ins gespeichert sind."
+          : "In diesem Monat passen alle Zeiten zur Buchung."
+      }
+    />
+  );
+}
+
 function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
   const { total } = evaluation;
   const days = overrunDayCount(total);
@@ -272,9 +305,11 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
         value={total.children}
         tone={total.children > 0 ? "red" : "neutral"}
         hint={
-          total.children === 1
-            ? "Ein Kind war länger da als gebucht."
-            : `${total.children} Kinder waren länger da als gebucht.`
+          overrunCoverage(evaluation) === "none"
+            ? "Für diesen Monat sind keine Check-ins mehr gespeichert."
+            : total.children === 1
+              ? "Ein Kind war länger da als gebucht."
+              : `${total.children} Kinder waren länger da als gebucht.`
         }
         icon={<MotoConceptIcon concept={childrenConcept} />}
       />
@@ -356,8 +391,8 @@ export default function TraegerZeitvergleichPage() {
     ...(evaluation?.schools ?? []).map((s) => s.figures.extraMinutes),
   );
   const columns = useMemo(
-    () => schoolColumns(range.from, maxMinutes),
-    [range.from, maxMinutes],
+    () => schoolColumns(range.from, range.to, maxMinutes),
+    [range.from, range.to, maxMinutes],
   );
 
   return (
@@ -450,13 +485,7 @@ export default function TraegerZeitvergleichPage() {
           isLoading={!evaluation && !pageLoad.error}
           loadingRowCount={3}
           stackedOnMobile
-          emptyState={
-            <EmptyState
-              icon={<CircleCheck className="h-12 w-12" aria-hidden="true" />}
-              title="Kein Kind war länger da als gebucht."
-              description="In diesem Monat passen alle Zeiten zur Buchung."
-            />
-          }
+          emptyState={<ChildrenEmptyState evaluation={evaluation} />}
         />
       ) : (
         <SectionCard

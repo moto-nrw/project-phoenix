@@ -167,3 +167,23 @@ export function overrunDayCount(figures: {
 }): number {
   return figures.overrunDays + figures.unbookedDays;
 }
+
+/**
+ * Wie weit die Auswahl verglichen ist: Die Schulen löschen Check-ins nach
+ * ihrer Frist, dann beginnt ihr Vergleich erst später (`dataFrom`) oder gar
+ * nicht. Ohne vollständigen Vergleich darf die Seite nicht melden, dass alle
+ * Zeiten passen.
+ */
+export type OverrunCoverage = "complete" | "partial" | "none";
+
+export function overrunCoverage(
+  evaluation: OverrunEvaluation,
+): OverrunCoverage {
+  const { schools, from, to } = evaluation;
+  if (schools.length > 0 && schools.every((school) => school.dataFrom > to)) {
+    return "none";
+  }
+  return schools.some((school) => school.dataFrom > from)
+    ? "partial"
+    : "complete";
+}

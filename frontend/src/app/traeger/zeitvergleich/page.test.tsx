@@ -151,4 +151,56 @@ describe("Länger als gebucht", () => {
     const zero = within(table).getAllByText("0 Min.")[0];
     expect(zero?.getAttribute("style")).toBeNull();
   });
+
+  it("claims no all-clear when the checks-ins of the month are gone", async () => {
+    mockUseSession.mockReturnValue(
+      session(["traeger_reports:read", "traeger_contracts:manage"]),
+    );
+    api.fetchOverrunChildren.mockResolvedValue({
+      ...EVALUATION,
+      total: { children: 0, overrunDays: 0, unbookedDays: 0, extraMinutes: 0 },
+      schools: EVALUATION.schools.map((school) => ({
+        ...school,
+        dataFrom: "2026-09-20",
+        figures: {
+          children: 0,
+          overrunDays: 0,
+          unbookedDays: 0,
+          extraMinutes: 0,
+        },
+      })),
+      children: [],
+    });
+    renderPage();
+
+    expect(
+      (
+        await screen.findAllByText(
+          "Für diesen Monat sind keine Check-ins mehr gespeichert.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByText("In diesem Monat passen alle Zeiten zur Buchung."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("names a partial comparison instead of an all-clear", async () => {
+    mockUseSession.mockReturnValue(
+      session(["traeger_reports:read", "traeger_contracts:manage"]),
+    );
+    api.fetchOverrunChildren.mockResolvedValue({ ...EVALUATION, children: [] });
+    renderPage();
+
+    expect(
+      (
+        await screen.findAllByText(
+          "Verglichen sind nur die Tage, für die noch Check-ins gespeichert sind.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByText("In diesem Monat passen alle Zeiten zur Buchung."),
+    ).not.toBeInTheDocument();
+  });
 });
