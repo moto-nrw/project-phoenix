@@ -396,10 +396,14 @@ jobs:
       contents: read
 
     steps:
+      # The DOM shards run the full suite and read no history; the full-history
+      # checkout cost them 11–15 s and pushed about 40 % of them past one
+      # billed minute. Changed-only selection and the guard checks diff
+      # against the base and keep the full history.
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          fetch-depth: ${{ (matrix.project == 'dom-1' || matrix.project == 'dom-2') && 1 || 0 }}
           filter: blob:none
 
       - name: Enable corepack
