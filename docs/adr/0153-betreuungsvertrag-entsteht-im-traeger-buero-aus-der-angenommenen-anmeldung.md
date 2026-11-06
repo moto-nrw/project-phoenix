@@ -85,7 +85,10 @@ und hält fest, was er in den Registern ändert (ADR 0057 Punkt 5, ADR 0070).
    Kinder mit gebuchter Betreuung ohne Vertrag, mit ihren Modulen je
    Wochentag, und legt für sie Entwürfe an, einzeln oder gesammelt. Nur
    Angebote mit `counts_as_care` sind Module; AG und Mittagessen bleiben
-   draußen. Je Angebot zählt die laufende oder nächste Buchung. Die Intake-Fähigkeit liest jede Schule in ihrer
+   draußen. Je Angebot zählt die laufende oder nächste Buchung. Die Version
+   nimmt nur die Buchungen, die an einem Stichtag laufen (Beginn der
+   frühesten Buchung, frühestens heute); ein späterer Wechsel des Moduls
+   kommt mit einer neuen Version (#4681). Die Intake-Fähigkeit liest jede Schule in ihrer
    eigenen Tenant-Transaktion (Enrollment: Anmeldung und Eltern; Care Plan:
    Buchungen und Angebote) und schreibt danach in der Träger-Transaktion. Ein
    zweiter Entwurf für denselben Schlüssel wird übersprungen

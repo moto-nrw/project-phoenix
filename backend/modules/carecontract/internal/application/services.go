@@ -28,7 +28,7 @@ type booked struct {
 func bookedCare(read schoolRead, application carecontract.Application, today calendar.Date) booked {
 	result := booked{services: []carecontract.Service{}}
 	open := false
-	for _, booking := range currentBookings(application.Bookings, read.offerings, today) {
+	for _, booking := range concurrentBookings(currentBookings(application.Bookings, read.offerings, today), today) {
 		offering, ok := read.offerings[booking.CareOfferingID]
 		if !ok {
 			continue
@@ -116,18 +116,59 @@ func compareEnds(a, b string) int {
 // its bookings, else the activation of the child, else the start of the
 // service of the phase, else today.
 func (b booked) effectiveFrom(application carecontract.Application, today calendar.Date) calendar.Date {
-	var earliest *calendar.Date
+	// The bookings all run on one day (concurrentBookings); the version
+	// holds from the latest of their starts, when every module applies.
+	var latest *calendar.Date
 	for _, start := range b.starts {
-		if start != nil && !start.IsZero() && (earliest == nil || start.Before(*earliest)) {
-			earliest = start
+		if start != nil && !start.IsZero() && (latest == nil || start.After(*latest)) {
+			latest = start
 		}
 	}
-	for _, date := range []*calendar.Date{earliest, application.ActivateOn, application.ServiceStartDate} {
+	for _, date := range []*calendar.Date{latest, application.ActivateOn, application.ServiceStartDate} {
 		if date != nil && !date.IsZero() {
 			return *date
 		}
 	}
 	return today
+}
+
+// concurrentBookings keeps the bookings that run on one reference day: the
+// start of the earliest booking, or today when that has passed. A module
+// that starts only later, a switch from one module to another for instance,
+// is not part of this version; a later version adds it (#4681). Without this,
+// a contract would promise two modules over the whole period that the child
+// books one after the other.
+func concurrentBookings(bookings []carecontract.Booking, today calendar.Date) []carecontract.Booking {
+	reference := today
+	if earliest := earliestStart(bookings); earliest != nil && earliest.After(today) {
+		reference = *earliest
+	}
+	result := make([]carecontract.Booking, 0, len(bookings))
+	for _, booking := range bookings {
+		if booking.ValidFrom != nil && booking.ValidFrom.After(reference) {
+			continue
+		}
+		if booking.ValidUntil != nil && !booking.ValidUntil.After(reference) {
+			continue
+		}
+		result = append(result, booking)
+	}
+	return result
+}
+
+// earliestStart is the first start of the bookings; nil when one has none
+// (it runs already).
+func earliestStart(bookings []carecontract.Booking) *calendar.Date {
+	var earliest *calendar.Date
+	for _, booking := range bookings {
+		if booking.ValidFrom == nil {
+			return nil
+		}
+		if earliest == nil || booking.ValidFrom.Before(*earliest) {
+			earliest = booking.ValidFrom
+		}
+	}
+	return earliest
 }
 
 // currentBookings keeps per offering the booking that holds today or starts

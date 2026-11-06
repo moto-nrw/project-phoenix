@@ -24,10 +24,9 @@ func RenderContractMail(_ context.Context, payload []byte) (carecontract.Rendere
 	if len(mail.PDF) == 0 || strings.TrimSpace(mail.Filename) == "" {
 		return carecontract.RenderedContractMail{}, errors.New(carecontract.MailKindContract + " payload has no contract")
 	}
+	// The subject names no child: the mailers log it at Info level, where no
+	// child's name belongs. The body names the child.
 	subject := "Ihr Betreuungsvertrag"
-	if child := strings.TrimSpace(mail.ChildName); child != "" {
-		subject += " für " + child
-	}
 	return carecontract.RenderedContractMail{
 		SenderName: strings.TrimSpace(mail.TraegerName),
 		Subject:    subject,

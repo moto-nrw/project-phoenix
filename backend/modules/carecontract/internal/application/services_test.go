@@ -1,6 +1,8 @@
 package application
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -177,4 +179,49 @@ func TestSendOrderIsAscendingSoOverlappingBatchesCannotDeadlock(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, []int64{1, 2, 7}, uniqueIDs([]int64{7, 2, 0, 1, 2}))
 	assert.Equal(t, uniqueIDs([]int64{1, 2}), uniqueIDs([]int64{2, 1}))
+}
+
+// A switch from one module to another is not one contract over both: the
+// version holds what runs on its first day; the later module comes with a
+// later version (#4681).
+func TestBookedCareLeavesALaterModuleSwitchOutOfTheVersion(t *testing.T) {
+	t.Parallel()
+	read := schoolRead{offerings: map[int64]carecontract.Offering{
+		1: {ID: 1, Name: "Kurzbetreuung", EndTimes: map[string]string{"mon": "14:00"}},
+		2: {ID: 2, Name: "OGS Ganztag", EndTimes: map[string]string{"mon": "16:00"}},
+		3: {ID: 3, Name: "Frühbetreuung", EndTimes: map[string]string{"tue": "08:00"}},
+	}}
+	today := calendar.NewDate(2026, 11, 6)
+	august, october, november := calendar.NewDate(2027, 8, 1), calendar.NewDate(2027, 10, 1), calendar.NewDate(2027, 11, 1)
+	got := bookedCare(read, carecontract.Application{Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: &august, ValidUntil: &october},
+		{CareOfferingID: 2, Days: []string{"mon"}, ValidFrom: &november},
+		{CareOfferingID: 3, Days: []string{"tue"}, ValidFrom: &august},
+	}}, today)
+	assert.Equal(t, []carecontract.Service{
+		{Weekday: "mon", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
+		{Weekday: "tue", CareOfferingID: 3, ModuleName: "Frühbetreuung", EndsAt: "08:00"},
+	}, got.services, "the switch to Ganztag in November is no service of this version")
+	assert.Equal(t, august, got.effectiveFrom(carecontract.Application{}, today))
+}
+
+// Two batches over the same children insert them in one order.
+func TestCreateKeysAreSortedSoOverlappingBatchesCannotDeadlock(t *testing.T) {
+	t.Parallel()
+	keys := uniqueKeys([]carecontract.CandidateKey{{SchoolID: 2, RequestChildID: 1}, {SchoolID: 1, RequestChildID: 9},
+		{SchoolID: 1, RequestChildID: 3}, {SchoolID: 2, RequestChildID: 1}})
+	assert.Equal(t, []carecontract.CandidateKey{{SchoolID: 1, RequestChildID: 3}, {SchoolID: 1, RequestChildID: 9},
+		{SchoolID: 2, RequestChildID: 1}}, keys)
+}
+
+// The mailers log the subject at Info level: it names no child (GDPR log
+// rule); the body does.
+func TestContractMailSubjectNamesNoChild(t *testing.T) {
+	t.Parallel()
+	payload, err := json.Marshal(carecontract.ContractMail{ChildName: "Lina Muster", Filename: "betreuungsvertrag-1.pdf", PDF: []byte("%PDF")})
+	assert.NoError(t, err)
+	mail, err := RenderContractMail(context.Background(), payload)
+	assert.NoError(t, err)
+	assert.Equal(t, "Ihr Betreuungsvertrag", mail.Subject)
+	assert.Equal(t, "Lina Muster", mail.Content.ChildName, "the body names the child")
 }

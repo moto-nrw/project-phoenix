@@ -537,6 +537,11 @@ func uniqueKeys(keys []carecontract.CandidateKey) []carecontract.CandidateKey {
 			result = append(result, key)
 		}
 	}
+	// A fixed order: two overlapping batches insert the same keys one after
+	// the other instead of waiting on each other's uncommitted rows.
+	slices.SortFunc(result, func(a, b carecontract.CandidateKey) int {
+		return firstNonZero(compareIDs(a.SchoolID, b.SchoolID), compareIDs(a.RequestChildID, b.RequestChildID))
+	})
 	return result
 }
 
