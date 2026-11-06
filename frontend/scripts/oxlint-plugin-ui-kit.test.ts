@@ -67,7 +67,7 @@ describe.concurrent("ui-kit/no-hand-rolled-portal-nav", () => {
 
   it("finds the classes in a template string too", async () => {
     const { output } = await lintSource(
-      "const width = 'w-64';\nexport const aside = `${width} border-r border-gray-200/70 bg-white/95`;",
+      "const width = 'w-64 border-r';\nexport const aside = `${width} border-gray-200/70 bg-white/95`;",
       "src/components/dashboard/probe-nav.tsx",
     );
     expect(output).toContain(RULE);

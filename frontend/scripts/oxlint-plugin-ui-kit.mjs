@@ -2987,6 +2987,13 @@ const PORTAL_NAV_KIT_ROW_EXPORTS = new Set([
   "portalSidebarRowClasses",
 ]);
 
+function hasPortalNavShellSignature(text) {
+  const tokens = new Set(text.split(/\s+/));
+  return PORTAL_NAV_SHELL_SIGNATURES.some((signature) =>
+    signature.every((token) => tokens.has(token)),
+  );
+}
+
 const noHandRolledPortalNav = {
   meta: {
     type: "problem",
@@ -3009,20 +3016,24 @@ const noHandRolledPortalNav = {
     ) {
       return {};
     }
+    const sourceCode = context.sourceCode ?? context.getSourceCode();
     const check = (node, text) => {
       if (typeof text !== "string") return;
-      const tokens = new Set(text.split(/\s+/));
-      if (
-        PORTAL_NAV_SHELL_SIGNATURES.some((signature) =>
-          signature.every((token) => tokens.has(token)),
-        )
-      ) {
+      if (hasPortalNavShellSignature(text)) {
         context.report({ node, messageId: "shell" });
       }
     };
     return {
       Literal: (node) => check(node, node.value),
-      TemplateElement: (node) => check(node, node.value?.cooked),
+      TemplateLiteral(node) {
+        const combinations = classCombinations(
+          node,
+          new WeakSet(),
+          sourceCode,
+        );
+        const rendered = combinations?.find(hasPortalNavShellSignature);
+        if (rendered !== undefined) check(node, rendered);
+      },
       ImportSpecifier(node) {
         const name = node.imported?.name;
         if (PORTAL_NAV_KIT_ROW_EXPORTS.has(name)) {
