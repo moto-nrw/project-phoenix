@@ -1,9 +1,13 @@
 import { act, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { groupsConcept } from "~/lib/concepts/groups";
+import { logoutConcept } from "~/lib/concepts/logout";
 import { settingsConcept } from "~/lib/concepts/settings";
 import {
   PortalSidebar,
+  PortalSidebarButton,
+  PortalSidebarFrame,
   PortalSidebarGroup,
   PortalSidebarLink,
 } from "./portal-sidebar";
@@ -118,5 +122,72 @@ describe("PortalSidebar (#5680)", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getAllByRole("navigation")).toHaveLength(1);
+  });
+});
+
+describe("PortalSidebar, Bausteine für Eltern und Tenant (#5603)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("zählt einen festen Streifen über der Kopfzeile nicht als Hinweis", () => {
+    placeSidebarAt(121);
+    const { container } = render(
+      <PortalSidebar topOffset={121}>
+        <li>Start</li>
+      </PortalSidebar>,
+    );
+    expect(
+      container.querySelector<HTMLElement>("aside > div")!.style.height,
+    ).toBe("");
+  });
+
+  it("zeigt unter einem Hinweis über dem Streifen die Resthöhe des Fensters", () => {
+    placeSidebarAt(140);
+    const { container } = render(
+      <PortalSidebarFrame topOffset={121} collapsed={false}>
+        <p>Inhalt</p>
+      </PortalSidebarFrame>,
+    );
+    expect(screen.getByText("Inhalt")).toBeInTheDocument();
+    expect(
+      container.querySelector<HTMLElement>("aside > div")!.style.height,
+    ).toBe("calc(100vh - 140px)");
+  });
+
+  it("benennt beide Blöcke in der Sprache des Portals und lässt Aktionen auslösen", () => {
+    const onLogout = vi.fn();
+    render(
+      <PortalSidebar
+        navLabel="Main menu"
+        secondaryLabel="Account"
+        secondary={
+          <PortalSidebarButton
+            label="Log out"
+            concept={logoutConcept}
+            onClick={onLogout}
+          />
+        }
+      >
+        <PortalSidebarLink
+          href="/children"
+          label="My children"
+          concept={settingsConcept}
+          iconConcept={groupsConcept}
+          active
+        />
+      </PortalSidebar>,
+    );
+
+    expect(
+      within(screen.getByRole("navigation", { name: "Main menu" })).getByRole(
+        "link",
+        { name: "My children" },
+      ),
+    ).toHaveAttribute("aria-current", "page");
+    within(screen.getByRole("navigation", { name: "Account" }))
+      .getByRole("button", { name: "Log out" })
+      .click();
+    expect(onLogout).toHaveBeenCalledOnce();
   });
 });

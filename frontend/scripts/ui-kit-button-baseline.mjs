@@ -53,14 +53,8 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/portal-bottom-nav.tsx",
-    lines: [134],
-    reason: "Navigationszeile der unteren Leiste",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/parent/shell/parent-bottom-nav.tsx",
-    lines: [184, 222, 269],
-    reason: "Navigationszeilen der unteren Leiste im Elternportal",
+    lines: [398, 437],
+    reason: "Navigationszeilen im „Mehr“-Blatt der unteren Leiste",
   },
   {
     rule: "no-hand-rolled-button",
@@ -166,12 +160,6 @@ export const buttonRatchetAllowlist = [
     lines: [172],
     reason:
       "Klassenkarte: Kachel. Bleibt ButtonLink, weil TileCard den Seitenwechsel nicht an die Portalhülle meldet",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1343, 1544, 1579],
-    reason: "Navigationszeilen der Seitenleiste und der unteren Leiste",
   },
   {
     rule: "no-hand-rolled-button",
@@ -284,20 +272,6 @@ export const buttonRatchetAllowlist = [
     lines: [275],
     reason:
       "Auswahlzeile im Zeitraum-Menü: grau markiert den gewählten Zeitraum",
-  },
-  {
-    rule: "no-grey-button-fill",
-    file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1579],
-    reason:
-      "Mehr-Eintrag der Handy-Navigation: grau markiert den aktiven Bereich",
-  },
-  {
-    rule: "no-grey-button-fill",
-    file: "src/components/parent/shell/parent-bottom-nav.tsx",
-    lines: [222],
-    reason:
-      "Mehr-Eintrag der Eltern-Navigation: grau markiert den aktiven Bereich",
   },
   {
     rule: "no-hand-rolled-button",

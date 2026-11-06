@@ -46,6 +46,42 @@ describe.concurrent("ui-kit/no-hand-rolled-overlay", () => {
   });
 });
 
+describe.concurrent("ui-kit/no-hand-rolled-portal-nav", () => {
+  const RULE = "ui-kit(no-hand-rolled-portal-nav)";
+
+  it("rejects the bottom bar and the sidebar shell outside the kit", async () => {
+    const { output } = await lintSource(
+      `const bar = "rounded-full bg-white/95 shadow-[0_-2px_20px_rgba(0,0,0,0.08)]";
+      const aside = \`w-64 border-r border-gray-200/70 bg-white/95 \${bar}\`;
+      void aside;`,
+      "src/components/parent/shell/probe-nav.tsx",
+    );
+    expect(output.split(RULE).length - 1).toBe(2);
+  });
+
+  it("rejects the kit's sidebar row classes outside the kit", async () => {
+    const { output } = await lintSource(
+      `import { portalSidebarRowClasses } from "~/components/ui/sidebar-geometry";
+      void portalSidebarRowClasses;`,
+      "src/components/parent/shell/probe-nav.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it("allows the kit itself and unrelated sticky headers", async () => {
+    const shell = await lintSource(
+      `const aside = "border-r border-gray-200/70 bg-white/95"; void aside;`,
+      "src/components/ui/probe-nav.tsx",
+    );
+    expect(shell.output).not.toContain(RULE);
+    const other = await lintSource(
+      `const head = "sticky top-0 border-r bg-white/95"; void head;`,
+      "src/components/dashboard/probe-nav.tsx",
+    );
+    expect(other.output).not.toContain(RULE);
+  });
+});
+
 describe.concurrent("ui-kit/no-tiny-text", () => {
   it("rejects a legacy token reintroduced at a different source location", async () => {
     const result = await lintSource(

@@ -130,3 +130,17 @@ export const PORTAL_ICON_CLASSES =
 export function portalSidebarRowClasses(isActive: boolean): string {
   return `${PORTAL_ROW} ${isActive ? PORTAL_ROW_ACTIVE : PORTAL_ROW_IDLE}`;
 }
+
+/**
+ * Wo die Seitenleiste klebt: Ein fester Streifen (Demo, Mitarbeiter-Vorschau,
+ * h-12) schiebt die Kopfzeile um 48 px nach unten (#2893, #3467), die Abendzeile
+ * der Demo um weitere 32 px (#3921). Ohne das schöbe sich die Kopfzeile beim
+ * Scrollen über die obersten Einträge.
+ */
+export function portalSidebarTopOffset(
+  stripActive: boolean,
+  eveningRow = false,
+): 73 | 121 | 153 {
+  if (eveningRow) return 153;
+  return stripActive ? 121 : 73;
+}
