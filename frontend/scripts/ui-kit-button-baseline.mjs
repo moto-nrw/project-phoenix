@@ -119,7 +119,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/app/operator/provisioning/provisioning-shared.tsx",
-    lines: [216],
+    lines: [218],
     reason: "Schalter (role=switch)",
   },
   {

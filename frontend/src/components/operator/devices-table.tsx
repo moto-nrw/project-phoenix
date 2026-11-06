@@ -40,7 +40,8 @@ function DeviceStatusBadge({
     inactive: "gray",
     offline: "red",
   };
-  return <StatusBadge tone={tones[status] ?? "gray"} compact label={label} />;
+  const tone = Object.hasOwn(tones, status) ? tones[status]! : "gray";
+  return <StatusBadge tone={tone} compact label={label} />;
 }
 
 interface DevicesTableProps {

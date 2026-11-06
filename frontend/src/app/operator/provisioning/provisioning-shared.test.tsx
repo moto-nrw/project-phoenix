@@ -158,6 +158,15 @@ describe("DeliveryStatusBadge", () => {
     expect(screen.getByText("unknown_status")).toBeInTheDocument();
   });
 
+  it("should fall back for inherited status-map keys", () => {
+    render(<DeliveryStatusBadge status="constructor" />);
+
+    expect(screen.getByText("constructor")).toHaveStyle({
+      backgroundColor: "#F3F4F6",
+      color: "#4B5563",
+    });
+  });
+
   it("should apply gray styling for unknown status", () => {
     render(<DeliveryStatusBadge status="something_else" />);
 

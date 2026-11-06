@@ -74,7 +74,11 @@ function AccountStatusBadge({ status }: Readonly<{ status: string }>) {
   };
   return (
     <AccountBadgePill
-      badge={badges[status] ?? { label: status, tone: "gray" }}
+      badge={
+        Object.hasOwn(badges, status)
+          ? badges[status]!
+          : { label: status, tone: "gray" }
+      }
     />
   );
 }
