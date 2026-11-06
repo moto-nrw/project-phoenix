@@ -10,7 +10,8 @@ import (
 )
 
 // PreviewConfig builds a read-only batch view through the existing directory
-// ports. It is never installed on the shared config or used by write phases.
+// ports. It is never installed on the shared config. BatchWriteConfig also
+// uses this read model, but consumes names before preceding writes can stale it.
 // Failed bulk reads roll back before the original row-by-row path runs, so an
 // optimization cannot turn one lookup failure into errors on unrelated rows.
 func (c *StudentImportConfig) PreviewConfig(ctx context.Context, rows []importModels.StudentImportRow) ports.ImportConfig[importModels.StudentImportRow] {

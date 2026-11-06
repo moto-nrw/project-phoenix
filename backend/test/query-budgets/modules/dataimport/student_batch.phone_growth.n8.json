@@ -1,6 +1,6 @@
 {
   "scenario": "modules.dataimport.student_batch.phone_growth.n8",
-  "max": 244,
+  "max": 239,
   "exact": true,
-  "description": "Complete 8-row import with one guardian, phone and pickup schedule per child; small execution-growth point."
+  "description": "Complete 8-row import with one guardian, phone and pickup schedule per child; prepared write-name matching saves five statements. Measured by TestStudentImportPhoneGrowthQueryBudget."
 }
