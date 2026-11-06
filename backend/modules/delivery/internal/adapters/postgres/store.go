@@ -749,14 +749,19 @@ func toDomainRows(transport domain.Transport, rows []intentRow) []domain.Intent 
 		if row.OrganizationID != nil {
 			organizationID = *row.OrganizationID
 		}
+		deliveryState := ""
+		if row.DeliveryState != nil {
+			deliveryState = *row.DeliveryState
+		}
 		result = append(result, domain.Intent{
 			ID: row.ID, TenantID: row.TenantID, OrganizationID: organizationID, Transport: transport, Template: row.Kind,
-			Security: row.Security, UseFallback: row.FallbackRequested != nil, DeliveryToken: row.DeliveryToken,
+			DeliveryState: deliveryState,
+			Security:      row.Security, UseFallback: row.FallbackRequested != nil, DeliveryToken: row.DeliveryToken,
 			IdempotencyKey: row.IdempotencyKey, RelatedEntityType: row.RelatedEntityType,
 			RelatedEntityID: row.RelatedEntityID, Recipient: row.Recipient, Payload: row.Payload,
 			Status: row.Status, Attempts: row.Attempts, NextRetryAt: row.NextRetryAt,
 			LeaseToken: row.LeaseToken, LeaseExpiresAt: row.LeaseExpiresAt,
-			ProviderResult: row.ProviderResult, LastError: row.LastError, DeliveryState: row.DeliveryState, SentAt: row.SentAt,
+			ProviderResult: row.ProviderResult, LastError: row.LastError, SentAt: row.SentAt,
 			DeadLetterAt: row.DeadLetterAt, CancelledAt: row.CancelledAt,
 			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		})

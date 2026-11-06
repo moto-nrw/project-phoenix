@@ -39,6 +39,7 @@ func (rs *Resource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(c
 	protectedTraegerRoutes(r, func(r chi.Router, _ common.Middleware) {
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/", rs.listSchools)
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/today", rs.schoolsToday)
+		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/key-date-counts", rs.keyDateCounts)
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/{id}", rs.getSchool)
 	})
 	return r
@@ -144,5 +145,27 @@ func (rs *Resource) schoolsToday(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	default:
 		common.Respond(w, r, http.StatusOK, today, "School figures retrieved successfully")
+	}
+}
+
+// keyDateCounts answers GET /traeger/schools/key-date-counts: the captured
+// Stichtagszahlen of every school of the Träger of the session and the sum of
+// each month (#4673), the same rows as the operator billing report. They are
+// aggregated numbers, so the read is not written to the access log (ADR 0084
+// section 7).
+func (rs *Resource) keyDateCounts(w http.ResponseWriter, r *http.Request) {
+	principal, err := common.CurrentPrincipal(r.Context())
+	if err != nil || principal.OrganizationID() <= 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
+	counts, err := rs.overview.KeyDateCounts(r.Context(), principal.OrganizationID())
+	switch {
+	case errors.Is(err, traegerview.ErrTraegerUnavailable):
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+	case err != nil:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+	default:
+		common.Respond(w, r, http.StatusOK, counts, "Key-date counts retrieved successfully")
 	}
 }

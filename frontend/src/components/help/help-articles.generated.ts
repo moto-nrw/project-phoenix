@@ -324,6 +324,8 @@ import type { traegerBillingRunTopic as authored_traegerBillingRunTopic } from "
 
 import type { traegerBriefkopfTopic as authored_traegerBriefkopfTopic } from "./articles/traeger-briefkopf";
 
+import type { traegerCareContractsTopic as authored_traegerCareContractsTopic } from "./articles/traeger-care-contracts";
+
 import type { traegerDashboardTopic as authored_traegerDashboardTopic } from "./articles/traeger-dashboard";
 
 import type { traegerDocumentTemplatesTopic as authored_traegerDocumentTemplatesTopic } from "./articles/traeger-document-templates";
@@ -339,6 +341,8 @@ import type { traegerHolidayRegistrationReviewTopic as authored_traegerHolidayRe
 import type { traegerHolidayRegistrationTopic as authored_traegerHolidayRegistrationTopic } from "./articles/traeger-holiday-registration";
 
 import type { traegerInvitationTopic as authored_traegerInvitationTopic } from "./articles/traeger-invitation";
+
+import type { traegerKeyDateCountsTopic as authored_traegerKeyDateCountsTopic } from "./articles/traeger-key-date-counts";
 
 import type { traegerLoginTopic as authored_traegerLoginTopic } from "./articles/traeger-login";
 
@@ -5726,14 +5730,14 @@ export const parentDepartureTopic = function parentDepartureTopic(): HelpTopic {
   };
 } satisfies typeof authored_parentDepartureTopic;
 
-/** `/parents/meal-plan`: Wochenplan des Mittagessens, nur mit Freischaltung. */
+/** `/parents/documents` (#4671, #4678): Schreiben und Verträge des Trägers. */
 export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.parentDocuments,
     title: "Dokumente vom Träger finden",
     question: "Wo finde ich Schreiben vom Träger?",
     summary:
-      "Unter `Dokumente` liegen die Schreiben, die Ihnen der Träger geschickt hat.",
+      "Unter `Dokumente` liegen die Schreiben und Verträge, die Ihnen der Träger geschickt hat.",
     group: "nachrichten",
     audience: "parent",
     icon: "FileText",
@@ -5745,9 +5749,10 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
     result:
       "Sie bekommen das Schreiben als PDF. Sie können es speichern oder drucken.",
     notes: [
-      "Heute sind das die Bestätigungsschreiben der Ferienbetreuung. Das Schreiben ist auch Ihre Rechnung.",
+      "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
+      "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
-      "Sie möchten eine Nachricht auf dem Handy bekommen? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein.",
+      "Sie möchten eine Nachricht auf dem Handy bekommen, wenn ein Bestätigungsschreiben kommt? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein. Einen Betreuungsvertrag bekommen Sie per Mail.",
     ],
     troubleshootingDetails: [
       "Ein Schreiben fehlt? Hier liegt es nur, wenn es an die Mail-Adresse Ihres Kontos ging. Haben Sie bei der Anmeldung eine andere Adresse angegeben, bekommen Sie es nur per Mail.",
@@ -10089,6 +10094,89 @@ export const traegerBriefkopfTopic =
     };
   } satisfies typeof authored_traegerBriefkopfTopic;
 
+/**
+ * `/traeger/vertraege` (#4678): Vertragsbedingungen je Angebot festlegen,
+ * Entwürfe aus angenommenen Anmeldungen erstellen, prüfen und senden.
+ */
+export const traegerCareContractsTopic =
+  function traegerCareContractsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCareContracts,
+      title: "Betreuungsverträge erstellen und senden",
+      question: "Wie schicke ich den Eltern den Betreuungsvertrag?",
+      summary:
+        "Aus jeder angenommenen Anmeldung erstellt moto einen Vertragsentwurf mit den gebuchten Modulen je Wochentag. Sie prüfen ihn und senden ihn per Mail und in die Eltern-App.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Signature",
+      requirements: [
+        "Sie haben die Rolle `Verwaltung`. Sie gibt das Recht `Verträge verwalten`.",
+        "Die Schule hat die Anmeldung angenommen, und das Kind hat Betreuung gebucht.",
+      ],
+      instructionGroups: [
+        {
+          title: "Einmal: Vertragsbedingungen festlegen",
+          steps: [
+            "Wählen Sie in der Navigation `Verträge`.",
+            "Wählen Sie oben den Reiter `Vertragsbedingungen`.",
+            "Wählen Sie links ein Angebot. `Fehlt` heißt: Für dieses Angebot gibt es noch keine Bedingungen.",
+            "Wählen Sie die `Laufzeit`, die `Frist in Monaten` und wann die `Kündigung wirkt`.",
+            "Erlauben Sie bei Bedarf eine `Sonderkündigung`. Schreiben Sie dazu, wann sie möglich ist.",
+            "Müssen die Eltern eine Satzung anerkennen? Setzen Sie den Haken bei `Satzung`. Tragen Sie den Namen und, wenn vorhanden, den Link ein.",
+            "Tragen Sie den Namen des `Vertragspartners` ein, wenn er nicht im Briefkopf steht.",
+            "Wählen Sie `Bedingungen speichern`.",
+          ],
+        },
+        {
+          title: "Entwürfe erstellen",
+          steps: [
+            "Wählen Sie den Reiter `Verträge`.",
+            "Wählen Sie `Verträge erstellen`. Die Zahl dahinter nennt die Kinder ohne Vertrag.",
+            "Prüfen Sie die Liste. moto übernimmt Kind, Eltern, Beginn und je Wochentag die gebuchten Module mit ihrer Endzeit, zum Beispiel `Mo bis 14:00 · Di bis 16:30`.",
+            "Wählen Sie die Kinder aus. Ein Vertrag umfasst alle Module eines Kindes. Fehlen bei einem Modul die Bedingungen, oder weichen sie zwischen den Modulen ab, legen Sie sie zuerst fest.",
+            "Wählen Sie `Entwürfe erstellen`.",
+          ],
+        },
+        {
+          title: "Prüfen und senden",
+          steps: [
+            "Wählen Sie in der Liste ein Kind. Die Seite zeigt die `Vertragsangaben` und die `Vorschau` des PDF.",
+            "Prüfen Sie unter `Gebuchte Betreuung` jeden Wochentag: das Modul und bis wann das Kind betreut wird. Tage ohne Betreuung stehen als `Keine Betreuung` da.",
+            "Prüfen Sie Beginn und Beitrag.",
+            "Wählen Sie `Vertrag senden`.",
+            "Mehrere Entwürfe auf einmal: Setzen Sie in der Liste die Haken und wählen Sie oben `Entwürfe senden`.",
+          ],
+        },
+      ],
+      steps: [],
+      result:
+        "Die Eltern bekommen den Vertrag als PDF per Mail. Haben sie ein Konto in der Eltern-App, liegt er dort auch unter `Dokumente`. Der Status wird `Versendet`: Der Versand ist beauftragt. Ob die Mail gesendet wurde, sehen Sie unter `Versand`.",
+      notes: [
+        "Die Suche und die Filter gelten für alle Verträge. Mit `Weitere Verträge laden` zeigen Sie ältere Treffer an.",
+        "Beim ersten Senden hält moto das PDF fest. Ändern Sie danach Bedingungen oder Brieftext, bleibt der versendete Vertrag gleich.",
+        "Unter `Versand` sehen Sie, ob die Mail gesendet wurde. Mit `Versand aktualisieren` prüfen Sie den neuen Stand. Mit `Erneut senden` geht dasselbe PDF noch einmal an die Eltern.",
+        "Den Brieftext des Vertrags ändern Sie unter `Einstellungen` → `Briefkopf und Vorlagen` bei der Vorlage `Vertrag`.",
+        "Mit `PDF herunterladen` bekommen Sie den Vertrag zum Drucken, etwa für Familien ohne Mail.",
+      ],
+      differences: [
+        "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
+      ],
+      troubleshootingDetails: [
+        "Ein Kind fehlt in `Verträge erstellen`? Die Schule hat die Anmeldung noch nicht angenommen, oder das Kind hat schon einen Vertrag.",
+        "Ein Kind zeigt `Bedingungen der Module weichen ab`? Das Kind hat mehrere Module gebucht, und deren Vertragsbedingungen sind verschieden. Ein Vertrag hat eine Laufzeit und eine Frist. Gleichen Sie die Bedingungen der Module an.",
+        "Eine Endzeit fehlt? Das Modul hat für diesen Tag keine Gehzeit. Die Schule trägt sie beim Angebot ein.",
+        "Ein Entwurf ist falsch? Wählen Sie auf seiner Seite oben `Entwurf verwerfen`. Danach erstellen Sie ihn neu. Einen versendeten Vertrag können Sie nicht verwerfen.",
+        "Der Versand zeigt `Nicht angekommen`? Prüfen Sie die Adresse mit der Schule. Tragen Sie auf der Vertragsseite unter `Versand` die `Neue Versandadresse` ein. Wählen Sie `An diese Adresse senden`. Das PDF, die Vertragspartei und bisherige Versanddaten bleiben gleich. Spätere Wiederholungen nutzen die letzte Versandadresse.",
+        "Der Name des Vertragspartners fehlt? Ergänzen Sie den Briefkopf. Oder verwerfen Sie den Entwurf und erstellen ihn mit eingetragenem Vertragspartner neu.",
+      ],
+      related: [
+        HELP_TOPICS.traegerDocumentTemplates,
+        HELP_TOPICS.traegerBriefkopf,
+        HELP_TOPICS.traegerAccounts,
+      ],
+    };
+  } satisfies typeof authored_traegerCareContractsTopic;
+
 /** `/traeger/uebersicht` (#4674), in der Navigation „Dashboard": die Zahlen von jetzt für alle Schulen. */
 export const traegerDashboardTopic =
   function traegerDashboardTopic(): HelpTopic {
@@ -10177,7 +10265,7 @@ export const traegerDocumentTemplatesTopic =
         "Die `Vorschau` zeigt auch Anschrift, Rechnungsnummer und Debitorennummer. So sehen Sie Text, Nummern und Tabelle zusammen.",
         "Sind alle Platzhalter eines Absatzes leer, fehlt der Absatz im Brief. So entfallen zum Beispiel die Notfallnummern, wenn keine eingetragen sind.",
         "Mit `Standardtext laden` holen Sie den Text von moto zurück in den Editor.",
-        "Heute nutzt moto die Vorlage für das Bestätigungsschreiben der Ferien. Die anderen Dokumente folgen.",
+        "Heute nutzt moto die Vorlagen für das Bestätigungsschreiben der Ferien und für den Betreuungsvertrag. Die anderen Dokumente folgen.",
       ],
       differences: [
         "Sie können die Vorlage nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",
@@ -10712,6 +10800,43 @@ export const traegerInvitationTopic =
       related: [HELP_TOPICS.traegerLogin],
     };
   } satisfies typeof authored_traegerInvitationTopic;
+
+/** `/traeger/stichtagszahlen` (#4673): die festgehaltenen Zahlen, nach denen moto jede Schule berechnet. */
+export const traegerKeyDateCountsTopic =
+  function traegerKeyDateCountsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerKeyDateCounts,
+      title: "Stichtagszahlen der Schulen",
+      question: "Nach welchen Zahlen berechnet moto meine Schulen?",
+      summary:
+        "Die Stichtagszahlen zeigen je Monat die aktiven Kinder und Terminals jeder Schule am Stichtag.",
+      group: "einstieg",
+      audience: "traeger",
+      icon: "CalendarCheck",
+      steps: [
+        "Wählen Sie in der Navigation `Stichtagszahlen`.",
+        "Wählen Sie oben einen Monat. Zu Beginn sehen Sie den neuesten Monat.",
+        "Lesen Sie oben die Summe für alle Schulen.",
+        "Lesen Sie darunter die Zahlen jeder Schule.",
+        "Wählen Sie unter `Alle Monate` einen Monat, um seine Zahlen zu sehen.",
+      ],
+      result:
+        "Sie sehen für jede Schule, wie viele aktive Kinder und aktive Terminals moto am Stichtag gezählt hat.",
+      notes: [
+        "Suchen Sie oben nach einer Schule oder einem Ort.",
+        "moto hält die Zahlen am Stichtag einmal fest. Danach ändern sie sich nicht mehr.",
+        "Das moto-Team sieht in seinem Bericht dieselben Zahlen.",
+        "Neben jeder Zahl steht, wie sie sich zum Monat davor verändert hat.",
+        "Sie sehen nur Zahlen, keine Namen.",
+      ],
+      differences: [
+        "Bei unterschiedlichen Stichtagen stehen unter `Alle Monate` mehrere Daten. Das genaue Datum finden Sie bei jeder Schule unter `Stichtag`.",
+        "Steht bei einer Schule `Keine Zahlen zu diesem Stichtag`, gab es die Schule am Stichtag noch nicht in moto.",
+        "Steht bei einer Schule `Nachgeholt`, hat moto die Zahlen erst nach dem Stichtag festgehalten. Sie gelten trotzdem für den Stichtag.",
+      ],
+      related: [HELP_TOPICS.traegerDashboard, HELP_TOPICS.traegerSchoolView],
+    };
+  } satisfies typeof authored_traegerKeyDateCountsTopic;
 
 // Portal "moto schule" (#2207). Geruest nach der echten Navigation des
 // Schul-Portals (`SCHOOL_PRIMARY_NAV`): Klassenansicht, Meine Aufsichten,

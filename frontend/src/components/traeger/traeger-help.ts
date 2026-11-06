@@ -24,6 +24,9 @@ function onPage(page: string, path: string): boolean {
 export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   const page = pathname.replace(/^\/traeger(?=\/|$)/, "") || "/";
   if (onPage(page, "/uebersicht")) return HELP_TOPICS.traegerDashboard;
+  if (onPage(page, "/stichtagszahlen")) {
+    return HELP_TOPICS.traegerKeyDateCounts;
+  }
   if (onPage(page, "/schulen")) return HELP_TOPICS.traegerSchoolView;
   if (onPage(page, "/einstellungen/mitglieder")) {
     return HELP_TOPICS.traegerAccounts;
@@ -42,6 +45,7 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   }
   if (onPage(page, "/einstellungen")) return HELP_TOPICS.traegerSettings;
   if (onPage(page, "/abrechnung")) return HELP_TOPICS.traegerBillingRun;
+  if (onPage(page, "/vertraege")) return HELP_TOPICS.traegerCareContracts;
   if (HOLIDAY_FORM_PAGE.test(page)) return HELP_TOPICS.traegerHolidayForm;
   if (HOLIDAY_REGISTRATIONS_PAGE.test(page)) {
     return HELP_TOPICS.traegerHolidayRegistrationReview;

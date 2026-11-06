@@ -1,0 +1,262 @@
+{
+  "entries": [
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractLetterheads.Letterhead",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Letterheads.Letterhead",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: reads the branding texts of the Träger the contract letter prints (#4678, ADR 0153).",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractLetterheads.Letterhead",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Letterheads.Letterhead",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerDocumentTemplates.Current: reads the Träger's current template of the kind Vertrag (#4677, ADR 0152, ADR 0153).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentTemplates.Current",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractLetterheads.Letterhead",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Letterheads.Letterhead",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerMasterData.LogoImage: reads the stored logo the contract letter prints (ADR 0153).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.LogoImage",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractLetterheads.Letterhead",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Letterheads.Letterhead",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/organizationtenancy.TraegerMasterData.Profile: reads the master data of the Träger in its Träger transaction and records the read of the contact person (ADR 0112, ADR 0153).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.ContractMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Post.ContractMailStates",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/delivery/runtime.Capability.TraegerEmailStatuses: reads the state of the contract mails of the Träger in its Träger transaction (ADR 0123, ADR 0153).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.EnqueueContractMail",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Post.EnqueueContractMail",
+      "reason": "Platform protocol participation (durable): care-contract reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through api.careContractPost.EnqueueContractMail. The mail of a contract is enqueued in the caller's Träger transaction with the record of the send (ADR 0098, ADR 0123, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractRuntime.WithinSchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Runtime.WithinSchool",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target tenant.NewTenantID: validates the school ID before its tenant transaction opens (ADR 0153).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractRuntime.WithinSchool",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Runtime.WithinSchool",
+      "reason": "Platform protocol participation (scope): care-contract reaches tenant.WithinTenant (tenant-runtime) through api.careContractRuntime.WithinSchool. The intake opens the school's tenant transaction and the Träger transaction one after the other, never both at once (ADR 0105, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractRuntime.WithinTraeger",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Runtime.WithinTraeger",
+      "reason": "Platform protocol participation (scope): care-contract reaches tenant.WithinTraeger (tenant-runtime) through api.careContractRuntime.WithinTraeger. The intake opens the school's tenant transaction and the Träger transaction one after the other, never both at once (ADR 0105, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractAccessLog.RecordAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
+      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/compose.Command.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractAccessLog.RecordAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
+      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.AppendStore.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractAccessLog.RecordAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
+      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.Command.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractAccessLog.RecordAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
+      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractApplications.AcceptedApplications",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolApplications.AcceptedApplications",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.AcceptedContractApplications: reads the accepted application children of the school in its tenant transaction (#4678, ADR 0153).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.AcceptedContractApplications",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractApplications.NamePhases",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolApplications.NamePhases",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.ContractPhases: reads the names and inclusive service bounds of the enrollment phases of the school's offerings in its tenant transaction (#4678, ADR 0153).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.ContractPhases",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractBookings.Bookings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolBookings.Bookings",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.OfferingBookings.CareOfferingBookingHistory: reads the bookings of the application children in the school's tenant transaction (#4678, ADR 0153).",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/careplan.OfferingBookings.CareOfferingBookingHistory",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractBookings.Bookings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolBookings.Bookings",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.CareOfferingBooking.EffectiveSelectedDays: derives the booked weekdays from the manual and the automatic selection.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingBooking.EffectiveSelectedDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractBookings.Offerings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolBookings.Offerings",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.ContractOfferings.ContractOfferings: reads the offerings of the school in its tenant transaction (#4678, ADR 0153).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.ContractOfferings.ContractOfferings",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractSchools.TraegerSchools",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.TraegerSchools.TraegerSchools",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListSchoolsByOrganization: lists the schools of the Träger the intake reads (#4678, ADR 0153).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractSchools.TraegerSchools",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.TraegerSchools.TraegerSchools",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.ListSchoolsByOrganization: lists the schools of the Träger the intake reads (#4678, ADR 0153).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractSchools.TraegerSchools",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.TraegerSchools.TraegerSchools",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.IsDeleted: skips a deleted school.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.CombineLetters",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.CombineLetters",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/internal/application/listrenderer.RendererService.CombineLetters: the letter contract of Document Rendering; the Betreuungsvertrag does not combine letters and stores nothing through it.",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.CombineLetters",
+      "target_owner": "document-rendering"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.CombineLetters",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.CombineLetters",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/lists.LetterRenderer.CombineLetters: the letter contract of Document Rendering; the Betreuungsvertrag does not combine letters and stores nothing through it.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.CombineLetters",
+      "target_owner": "document-rendering"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.RenderLetter",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.RenderLetter",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/internal/application/listrenderer.RendererService.RenderLetter: lays out the contract letter as a PDF; it stores nothing and decides no access (#4678, ADR 0153).",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.RenderLetter",
+      "target_owner": "document-rendering"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.RenderLetter",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.RenderLetter",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/lists.LetterRenderer.RenderLetter: lays out the contract letter as a PDF; it stores nothing and decides no access (#4678, ADR 0153).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.RenderLetter",
+      "target_owner": "document-rendering"
+    }
+  ]
+}

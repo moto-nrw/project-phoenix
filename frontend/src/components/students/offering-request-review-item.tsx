@@ -684,7 +684,7 @@ export function OfferingRequestReviewItem({
             {withdrawalConfirmation && (
               <Alert
                 type="warning"
-                message={`Danach ist für ${row.student_name} kein Betreuungstag mehr gebucht. Die Abmeldung muss anschließend abgeschlossen werden.`}
+                message={`Ab dem ${formatDate(effectiveFrom)} ist für ${row.student_name} kein Betreuungstag mehr gebucht. Die Abmeldung muss anschließend abgeschlossen werden.`}
               />
             )}
             <div>

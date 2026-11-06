@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestEmailAddressMarksRoundTrip pins 1.15.760 (#5934) in both directions.
+// TestEmailAddressMarksRoundTrip pins 1.15.772 (#5934) in both directions.
 func TestEmailAddressMarksRoundTrip(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

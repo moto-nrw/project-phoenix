@@ -332,3 +332,6 @@
 @keyframes ns-translate-sign{0%,100%{transform:none}40%{transform:translate(14px,10px)}}
 .ns-play[data-nav-scene="TranslateIcon"] .ns-latin{animation:ns-translate-latin 460ms var(--ns-o) 90ms both}
 @keyframes ns-translate-latin{0%,100%{transform:none}40%{transform:translate(-14px,-10px)}}
+
+/* SignatureIcon: die Unterschrift wird über der Linie gezogen */
+.ns-play[data-nav-scene="SignatureIcon"] .ns-draw{animation:ns-draw 560ms cubic-bezier(.45,0,.3,1) both}

@@ -284,7 +284,8 @@ func intentStatuses(transport deliveryContract.Transport, rows []domain.Intent) 
 			ID: row.ID, IdempotencyKey: row.IdempotencyKey, Transport: transport, State: deliveryContract.State(row.Status), Attempts: row.Attempts,
 			LastError: row.LastError, ProviderResult: providerResult, NextAttemptAt: row.NextRetryAt,
 			SentAt: row.SentAt, DeadLetterAt: row.DeadLetterAt, CancelledAt: row.CancelledAt,
-			Outcome: intentOutcome(transport, row),
+			DeliveryState: row.DeliveryState,
+			Outcome:       intentOutcome(transport, row),
 		})
 	}
 	return statuses, nil
@@ -296,7 +297,7 @@ func intentOutcome(transport deliveryContract.Transport, row domain.Intent) deli
 	if transport != deliveryContract.TransportEmail {
 		return ""
 	}
-	return deliveryContract.EmailOutcomeOf(row.Status, row.DeliveryState, row.LastError, "")
+	return deliveryContract.EmailOutcomeOf(row.Status, &row.DeliveryState, row.LastError, "")
 }
 
 // intents reads the intents of one related entity and observes the store's answer.

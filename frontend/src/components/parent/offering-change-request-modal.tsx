@@ -661,6 +661,7 @@ export function OfferingChangeRequestModal({
         <p className="text-sm text-gray-600">
           {t("careOfferingsModal.withdrawalConfirmBody", {
             name: childName ?? "",
+            date: formatDate(effectiveFrom, false, locale),
           })}
         </p>
       </ConfirmationModal>

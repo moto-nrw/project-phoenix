@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	emailDeliveryFallbackVersion     = "1.15.759"
+	emailDeliveryFallbackVersion     = "1.15.771"
 	emailDeliveryFallbackDescription = "Notweg und Abgleich der Zustellung (#5933)"
 )
 
@@ -17,7 +17,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     emailDeliveryFallbackVersion,
 		Description: emailDeliveryFallbackDescription,
-		DependsOn:   []string{emailDeliveryEventsVersion},
+		DependsOn:   []string{emailDeliveryEventsVersion, careContractDraftsVersion},
 	})
 	Migrations.MustRegister(emailDeliveryFallbackUp, emailDeliveryFallbackDown)
 }

@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	emailAddressMarksVersion     = "1.15.760"
+	emailAddressMarksVersion     = "1.15.772"
 	emailAddressMarksDescription = "Markierte Adressen: Stopp der Schule und Prüfung bis zur Aufhebung (#5934)"
 )
 

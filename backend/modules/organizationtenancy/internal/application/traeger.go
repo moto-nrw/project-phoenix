@@ -65,6 +65,27 @@ func (s *Service) ListTraegerSchoolIDs(ctx context.Context, organizationID int64
 	return ids, err
 }
 
+// ListTraegerBillingKeyDateCounts returns the captured Stichtagszahlen of
+// the schools of an active, undeleted Träger (#4673). Any other Träger reaches
+// no row.
+func (s *Service) ListTraegerBillingKeyDateCounts(ctx context.Context, organizationID int64) ([]organizationtenancy.BillingKeyDateCount, error) {
+	result := []organizationtenancy.BillingKeyDateCount{}
+	err := s.runRead(ctx, "list_traeger_billing_key_date_counts", func(txCtx context.Context, stats *domain.OperationStats) error {
+		organization, found, findStats, err := s.store.FindByID(txCtx, organizationID, "")
+		stats.Add(findStats)
+		if err := liveTraeger(organization, found, err); err != nil {
+			return err
+		}
+		counts, queryStats, err := s.store.ListTraegerBillingKeyDateCounts(txCtx, organizationID)
+		stats.Add(queryStats)
+		for _, count := range counts {
+			result = append(result, organizationtenancy.BillingKeyDateCount(count))
+		}
+		return err
+	})
+	return result, err
+}
+
 // ListTraegerMemberships returns every membership of the Träger.
 func (s *Service) ListTraegerMemberships(ctx context.Context, organizationID int64) ([]organizationtenancy.TraegerMembership, error) {
 	memberships := []organizationtenancy.TraegerMembership{}

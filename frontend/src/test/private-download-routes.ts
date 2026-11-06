@@ -32,6 +32,7 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
     "GET",
   ],
   ["parent/me/documents/[organizationId]/[documentId]/pdf", "GET"],
+  ["parent/me/documents/[organizationId]/contracts/[contractId]/pdf", "GET"],
   [
     "parent/me/news/[announcementId]/attachments/[attachmentId]/download",
     "GET",
@@ -62,6 +63,7 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["traeger/billing-runs/[id]/export", "GET"],
   ["traeger/billing-runs/[id]/letters/preview", "POST"],
   ["traeger/billing-runs/[id]/letters/print", "GET"],
+  ["traeger/contracts/[id]/document", "GET"],
   ["traeger/holiday-periods/[id]/form/documents/[documentId]", "GET"],
   ["traeger/holiday-periods/[id]/registrations/export", "GET"],
   [
