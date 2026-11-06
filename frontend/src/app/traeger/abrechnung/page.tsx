@@ -5,12 +5,14 @@
 // der Prüfung gibt die Abrechnung ihn frei. Nur die Rolle mit dem Recht
 // „Abrechnung“ sieht die Seite. Der Filter „Ferienzeitraum“ steht in der
 // Adresse (`?ferienzeitraum=`), damit „Zur Abrechnung“ im Kopf eines
-// Ferienzeitraums hierher führen kann (#5688).
+// Ferienzeitraums hierher führen kann (#5688). Der Reiter „Familien“ führt
+// zu den Rechnungen und Beträgen je Familie (#4691).
 
 import { Plus, Receipt } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { BillingRunStartModal } from "~/components/traeger/billing-run-start-modal";
+import { billingTabs } from "~/components/traeger/billing-family-format";
 import {
   BILLING_RUN_STATUS_LABELS,
   BILLING_RUN_STATUS_TONES,
@@ -236,6 +238,7 @@ function BillingRunsPage() {
         ) : null
       }
       statsLoading={!data && !pageLoad.error}
+      tabs={billingTabs("laeufe")}
       filters={filters}
       activeFilters={activeFilters}
       onClearAllFilters={() => setPeriodFilter("")}
