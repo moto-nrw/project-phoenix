@@ -1562,7 +1562,6 @@ function PhaseForm(props: PhaseFormProps) {
             </label>
             <DateTimePicker
               id="enrollment_open_at"
-              controlSize="md"
               dateAriaLabel="Öffnung"
               timeAriaLabel="Öffnung Uhrzeit"
               className="mt-1"
@@ -1596,7 +1595,6 @@ function PhaseForm(props: PhaseFormProps) {
             </label>
             <DateTimePicker
               id="enrollment_close_at"
-              controlSize="md"
               dateAriaLabel="Schließung"
               timeAriaLabel="Schließung Uhrzeit"
               className="mt-1"

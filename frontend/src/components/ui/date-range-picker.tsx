@@ -2,6 +2,7 @@
 import { Z_LAYER } from "./overlay-styles";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { parseISODate } from "~/lib/date-helpers";
+import { cn } from "~/lib/utils";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -17,7 +18,9 @@ import {
   computeCalendarPanelPosition,
   type PanelGeometry,
 } from "~/components/ui/calendar-panel-position";
+import { selectTriggerClassName } from "~/components/ui/select-trigger-styles";
 import {
+  DAY_PICKER_CLASSNAMES,
   DayPickerSkeleton,
   LazyDayPicker,
   preloadDayPicker,
@@ -38,7 +41,27 @@ interface DateRangePickerProps {
   /** Extra classes on the trigger chip, e.g. `w-full sm:w-auto` for a
    * mobile filter row that should fill the line. */
   readonly triggerClassName?: string;
+  /** Between the arrows of a framed group: frame and radius come from the group,
+   * the trigger brings only content and height. */
+  readonly embedded?: boolean;
 }
+
+// Beside a second month the grid cannot follow the panel's width, so from `sm`
+// on each month has a fixed one; the single month on a phone fills the panel.
+// The cells touch: the range band runs through them without a gap.
+const RANGE_MONTHS_CLASS = "flex flex-col gap-4 sm:flex-row";
+const RANGE_MONTH_CLASS = "w-full sm:w-56";
+const RANGE_CLASSNAMES = {
+  ...DAY_PICKER_CLASSNAMES,
+  months: RANGE_MONTHS_CLASS,
+  month: RANGE_MONTH_CLASS,
+  day: "flex-1 min-w-0 h-9 p-0 text-center text-sm relative",
+};
+
+// The look of `DAY_PICKER_CLASSNAMES.selected`. Important because the day marks
+// a caller adds (`modifiersClassNames`) are too.
+const RANGE_PILL_CLASS =
+  "[&>button]:!bg-gray-900 [&>button]:!text-white [&>button:hover]:!bg-gray-800";
 
 /**
  * Compact date-range picker for chart card headers. Trigger is a small chip,
@@ -53,7 +76,8 @@ export function DateRangePicker({
   className = "",
   fromMin,
   toMax,
-  triggerClassName = "",
+  triggerClassName,
+  embedded = false,
 }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -87,16 +111,27 @@ export function DateRangePicker({
         // wait for it.
         onPointerEnter={preloadDayPicker}
         onFocus={preloadDayPicker}
-        // Gleiche Geometrie wie jedes andere Bedienelement im Seitenkopf:
-        // 36 px hoch, 12 px Radius, 14 px Schrift. Die frühere Pille (32 px,
-        // rounded-full, 12 px Schrift) stand neben 36-px-Knöpfen und las sich
-        // als anderes Bauteil.
-        className={`inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition-colors ${
-          isOpen ? "bg-gray-50" : "hover:bg-gray-50"
-        } ${triggerClassName}`}
+        // Derselbe Auslöser wie jedes Auswahlfeld (`CustomSelect`).
+        className={
+          embedded
+            ? cn(
+                "flex h-9 w-full items-center justify-center gap-2 px-3 text-sm transition-colors",
+                isOpen ? "bg-gray-50" : "hover:bg-gray-50",
+              )
+            : selectTriggerClassName({ className: triggerClassName })
+        }
       >
+        <span
+          className={cn(
+            "whitespace-nowrap tabular-nums",
+            value?.from ? "text-gray-900" : "text-gray-500",
+          )}
+        >
+          {formatRangeLabel(value)}
+        </span>
         <svg
-          className="h-4 w-4 text-gray-400"
+          className="h-4 w-4 shrink-0 text-gray-400"
+          aria-hidden="true"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -108,9 +143,6 @@ export function DateRangePicker({
             d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
           />
         </svg>
-        <span className="whitespace-nowrap tabular-nums">
-          {formatRangeLabel(value)}
-        </span>
       </button>
 
       {isOpen && (
@@ -235,7 +267,7 @@ function RangeCalendar({
     <div
       ref={panelRef}
       data-range-panel
-      className={`fixed ${Z_LAYER.popover} max-h-[calc(100vh-6rem)] w-max max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:max-h-none sm:overflow-visible`}
+      className={`fixed ${Z_LAYER.popover} moto-popover-surface max-h-[calc(100vh-6rem)] w-max max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border sm:max-h-none sm:overflow-visible`}
       style={
         isNarrowViewport || !geometry
           ? {
@@ -415,10 +447,8 @@ export function RangeCalendarInline({
             <DayPickerSkeleton
               month={month}
               numberOfMonths={isSingleMonth ? 1 : 2}
-              monthsClassName="flex flex-col gap-4 sm:flex-row"
-              monthClassName="w-56"
-              weekdaysClassName="h-4"
-              weekClassName="mt-1 h-8 rounded-lg"
+              monthsClassName={RANGE_MONTHS_CLASS}
+              monthClassName={RANGE_MONTH_CLASS}
             />
           }
         >
@@ -468,34 +498,17 @@ export function RangeCalendarInline({
             }}
             modifiersClassNames={{
               ...extraModifiersClassNames,
-              // Half-cell gradient on the cell (light-green band only on the
-              // inner half) + dark rounded pill on the button. This keeps the
-              // band continuous from start to end without "tails" outside.
-              rangeStart:
-                "!bg-[linear-gradient(to_right,transparent_50%,var(--color-moto-green-soft)_50%)] [&>button]:!bg-moto-green-fill [&>button]:!text-white [&>button]:!rounded-lg",
-              rangeEnd:
-                "!bg-[linear-gradient(to_right,var(--color-moto-green-soft)_50%,transparent_50%)] [&>button]:!bg-moto-green-fill [&>button]:!text-white [&>button]:!rounded-lg",
+              // Half-cell gradient on the cell (light band only on the inner
+              // half) + dark rounded pill on the button. This keeps the band
+              // continuous from start to end without "tails" outside.
+              rangeStart: `!bg-[linear-gradient(to_right,transparent_50%,var(--color-gray-100)_50%)] ${RANGE_PILL_CLASS}`,
+              rangeEnd: `!bg-[linear-gradient(to_right,var(--color-gray-100)_50%,transparent_50%)] ${RANGE_PILL_CLASS}`,
+              // Normal weight also for today; its blue stays readable here.
               rangeMiddle:
-                "!bg-moto-green/15 [&>button]:!text-moto-green-strong",
-              singlePick:
-                "[&>button]:!bg-moto-green-fill [&>button]:!text-white [&>button]:!rounded-lg",
+                "!bg-gray-100 [&>button]:font-normal [&>button:hover]:bg-gray-200",
+              singlePick: RANGE_PILL_CLASS,
             }}
-            classNames={{
-              root: "text-sm",
-              months: "flex flex-col gap-4 sm:flex-row",
-              month: "",
-              month_caption: "hidden",
-              month_grid: "border-collapse",
-              weekdays: "flex",
-              weekday: "text-gray-500 w-8 font-normal text-xs text-center",
-              week: "flex w-full mt-1",
-              day: "w-8 h-8 text-center text-sm p-0 relative",
-              day_button:
-                "w-8 h-8 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
-              today: "font-bold text-moto-blue-strong",
-              outside: "text-gray-300",
-              disabled: "text-gray-200 cursor-not-allowed",
-            }}
+            classNames={RANGE_CLASSNAMES}
           />
         </Suspense>
       </div>
