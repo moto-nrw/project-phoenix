@@ -1,4 +1,5 @@
 "use client";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
@@ -404,9 +405,11 @@ function StudentFeedbackHistoryPageContent() {
                                   {formatTime(feedback.timestamp)}
                                 </span>
                                 {feedback.is_mensa_feedback && (
-                                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                                    Mensa
-                                  </span>
+                                  <StatusBadge
+                                    label="Mensa"
+                                    tone="gray"
+                                    compact
+                                  />
                                 )}
                               </div>
                             ))}

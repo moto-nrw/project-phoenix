@@ -21,7 +21,10 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
-import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
 import {
   type CareExceptionSubmit,
   CarePlanEditorModal,
@@ -1401,10 +1404,12 @@ function CareDayCard({
               <span className="text-xs font-semibold text-gray-500">Heute</span>
             ) : null}
             {parentChanged ? (
-              <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
-                <MotoConceptIcon concept={parentsConcept} size={14} />
-                Von Eltern
-              </span>
+              <StatusBadge
+                label="Von Eltern"
+                tone="blue"
+                icon={<MotoConceptIcon concept={parentsConcept} size={14} />}
+                compact
+              />
             ) : null}
           </div>
           <div className="mt-1 flex items-center gap-1 text-sm text-gray-500">
@@ -1670,21 +1675,19 @@ function CareNotesSection({ notes }: { readonly notes: CareNoteItem[] }) {
 // Muss dieselbe Dreiteilung tragen wie AbsencePlaceholder in derselben Karte,
 // sonst zeigt ein Klassenfahrt-Tag eine lila Pille ueber einem cyanfarbenen
 // Icon und ist ausserdem nicht von "Entschuldigt" zu unterscheiden.
-const STATUS_PILL_CLASSES: Record<StudentStatusKind, string> = {
-  sick: "border-moto-red/30 bg-moto-red/10 text-moto-red-strong",
-  class_trip: "border-moto-cyan/30 bg-moto-cyan/10 text-moto-cyan-strong",
-  excused: "border-moto-purple/25 bg-moto-purple/10 text-moto-purple-strong",
+const STATUS_PILL_TONES: Record<StudentStatusKind, StatusBadgeTone> = {
+  sick: "red",
+  class_trip: "cyan",
+  excused: "purple",
 };
 
 function StatusPill({ status }: { readonly status: StudentStatusKind }) {
   return (
-    <span
-      className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
-        STATUS_PILL_CLASSES[status]
-      }`}
-    >
-      {getStatusLabel(status)}
-    </span>
+    <StatusBadge
+      label={getStatusLabel(status)}
+      tone={STATUS_PILL_TONES[status]}
+      compact
+    />
   );
 }
 

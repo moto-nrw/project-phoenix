@@ -1,4 +1,7 @@
 "use client";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import React, {
@@ -212,14 +215,19 @@ function DayCard({
         </div>
         <div className="flex items-center gap-2">
           {day.attendance && (
-            <span className="bg-moto-green/10 text-moto-green-strong rounded-full px-2 py-0.5 text-xs font-medium">
-              {formatDuration(day.attendance.durationMinutes)}
-            </span>
+            <StatusBadge
+              label={formatDuration(day.attendance.durationMinutes)}
+              tone="green"
+              compact
+            />
           )}
           {!day.attendance && (
-            <span className="bg-moto-amber-soft text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
-              {statusLabel || "Keine Daten"}
-            </span>
+            <StatusColorBadge
+              label={statusLabel || "Keine Daten"}
+              color={LOCATION_COLORS.WARNING}
+              compact
+              wrap
+            />
           )}
           <ChevronRight
             className={`h-4 w-4 text-gray-400 transition-transform ${expanded ? "rotate-90" : ""}`}
@@ -428,9 +436,12 @@ function HistoryTable({
                                 {formatDate(day.date)}
                               </span>
                               {statusLabel && (
-                                <span className="bg-moto-amber-soft text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
-                                  {statusLabel}
-                                </span>
+                                <StatusColorBadge
+                                  label={statusLabel}
+                                  color={LOCATION_COLORS.WARNING}
+                                  compact
+                                  wrap
+                                />
                               )}
                             </div>
                           </td>
@@ -479,9 +490,13 @@ function HistoryTable({
                           </td>
                           <td className="px-6 py-3">
                             {day.attendance ? (
-                              <span className="bg-moto-green/10 text-moto-green-strong rounded-full px-2.5 py-0.5 text-xs font-medium">
-                                {formatDuration(day.attendance.durationMinutes)}
-                              </span>
+                              <StatusBadge
+                                label={formatDuration(
+                                  day.attendance.durationMinutes,
+                                )}
+                                tone="green"
+                                compact
+                              />
                             ) : (
                               <span className="text-gray-400">–</span>
                             )}
