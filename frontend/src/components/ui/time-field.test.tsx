@@ -259,15 +259,56 @@ describe("time picker", () => {
     expect(surroundingOverlay).not.toHaveBeenCalled();
   });
 
-  it("keeps Tab inside the open picker", async () => {
+  it("moves Tab through the picker and then back into the form", async () => {
     const user = userEvent.setup();
-    render(<TimeFieldDemo initialValue="15:30" />);
+    render(
+      <>
+        <TimeFieldDemo initialValue="15:30" />
+        <button type="button">Weiter</button>
+      </>,
+    );
 
     await openPicker();
     await user.tab();
     expect(minuteOption("30")).toHaveFocus();
     await user.tab();
-    expect(hourOption("15")).toHaveFocus();
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Weiter" })).toHaveFocus();
+  });
+
+  it("uses supplied labels for the picker", async () => {
+    const user = userEvent.setup();
+    const labels = {
+      selectTime: "Select time",
+      hour: "Hour",
+      minute: "Minute",
+      minimum: (time: string) => `Earliest ${time}`,
+    };
+    render(
+      <TimeField
+        value="15:30"
+        minTime="14:30"
+        onChange={() => undefined}
+        label="Time"
+        hint="Time in the format 15:30"
+        placeholder="HH:MM"
+        timePickerLabels={labels}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: labels.selectTime }));
+
+    expect(
+      screen.getByRole("dialog", { name: labels.selectTime }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("listbox", { name: labels.hour }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("listbox", { name: labels.minute }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Earliest 14:30")).toBeInTheDocument();
   });
 
   it("locks the clock together with the field", () => {

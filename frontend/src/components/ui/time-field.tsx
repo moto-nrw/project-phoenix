@@ -7,7 +7,11 @@ import { FocusScope } from "@radix-ui/react-focus-scope";
 import { AnchoredPopover } from "./anchored-popover";
 import { Button } from "./button";
 import { RequiredMark } from "./field-label";
-import { TimePickerPanel } from "./time-picker-panel";
+import {
+  DEFAULT_TIME_PICKER_LABELS,
+  TimePickerPanel,
+  type TimePickerLabels,
+} from "./time-picker-panel";
 
 // Ein Modal kann das Popover in seiner Fokusfalle aufnehmen. Ein Vaul-Slide-over
 // transformiert seinen Inhalt dagegen; dessen Auswahl bleibt am Body und
@@ -91,6 +95,7 @@ export function TimeField({
   disabled = false,
   inline = false,
   minTime,
+  timePickerLabels = DEFAULT_TIME_PICKER_LABELS,
   onBlur,
   onKeyDown,
 }: Readonly<{
@@ -116,6 +121,8 @@ export function TimeField({
   inline?: boolean;
   /** Frühester Wert der Zeitauswahl als "HH:MM"; das Tippen bleibt frei. */
   minTime?: string;
+  /** Übersetzte Namen und Hinweise der Uhrzeitauswahl. */
+  timePickerLabels?: TimePickerLabels;
   /** Der Fokus hat das Feld samt Uhr und Zeitauswahl verlassen. */
   onBlur?: () => void;
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
@@ -224,7 +231,7 @@ export function TimeField({
         <AnchoredPopover
           open={open}
           onOpenChange={setPickerOpen}
-          ariaLabel="Uhrzeit auswählen"
+          ariaLabel={timePickerLabels.selectTime}
           initialFocusRef={initialOptionRef}
           preferredWidth={PICKER_WIDTH}
           align="end"
@@ -236,7 +243,7 @@ export function TimeField({
               variant="ghost"
               size="icon"
               disabled={disabled}
-              aria-label="Uhrzeit auswählen"
+              aria-label={timePickerLabels.selectTime}
               aria-haspopup="dialog"
               aria-expanded={isOpen}
               aria-controls={isOpen ? panelId : undefined}
@@ -258,6 +265,7 @@ export function TimeField({
               <TimePickerPanel
                 value={value}
                 minTime={minTime}
+                labels={timePickerLabels}
                 onChange={onChange}
                 close={close}
                 initialFocusRef={initialOptionRef}

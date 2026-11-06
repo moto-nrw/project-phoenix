@@ -4,5 +4,11 @@
   "previousMonth": "Previous month",
   "nextMonth": "Next month",
   "month": "Month",
-  "year": "Year"
+  "year": "Year",
+  "timePicker": {
+    "selectTime": "Select time",
+    "hour": "Hour",
+    "minute": "Minute",
+    "minimum": "Earliest {time}"
+  }
 }

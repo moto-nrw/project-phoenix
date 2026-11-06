@@ -21,6 +21,20 @@ const MINUTES = Array.from({ length: 12 }, (_, step) =>
 export const COMPLETE_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ENABLED_OPTION = '[role="option"]:not([aria-disabled="true"])';
 
+export type TimePickerLabels = Readonly<{
+  selectTime: string;
+  hour: string;
+  minute: string;
+  minimum: (time: string) => string;
+}>;
+
+export const DEFAULT_TIME_PICKER_LABELS: TimePickerLabels = {
+  selectTime: "Uhrzeit auswählen",
+  hour: "Stunde",
+  minute: "Minute",
+  minimum: (time) => `Frühestens ${time} Uhr`,
+};
+
 function optionsForMinuteColumn(hour: string | null, minTime?: string) {
   const minHour = minTime?.slice(0, 2);
   const minMinute = minTime?.slice(3);
@@ -142,6 +156,7 @@ function TimeColumn({
 export function TimePickerPanel({
   value,
   minTime,
+  labels = DEFAULT_TIME_PICKER_LABELS,
   onChange,
   close,
   initialFocusRef,
@@ -149,6 +164,7 @@ export function TimePickerPanel({
   value: string;
   /** Frühester wählbarer Wert als "HH:MM". */
   minTime?: string;
+  labels?: TimePickerLabels;
   onChange: (value: string) => void;
   close: () => void;
   initialFocusRef: RefObject<HTMLElement | null>;
@@ -214,6 +230,20 @@ export function TimePickerPanel({
       column === hourColumnRef.current
         ? minuteColumnRef.current
         : hourColumnRef.current;
+    if (event.key === "Tab") {
+      const movesToOtherColumn = event.shiftKey
+        ? column === minuteColumnRef.current
+        : column === hourColumnRef.current;
+      if (movesToOtherColumn) {
+        event.preventDefault();
+        event.stopPropagation();
+        focusColumn(otherColumn);
+      } else {
+        close();
+      }
+      return;
+    }
+
     const targets: Record<string, () => void> = {
       ArrowDown: () =>
         enabled[Math.min(index + 1, enabled.length - 1)]?.focus(),
@@ -222,8 +252,6 @@ export function TimePickerPanel({
       End: () => enabled.at(-1)?.focus(),
       ArrowLeft: () => focusColumn(otherColumn),
       ArrowRight: () => focusColumn(otherColumn),
-      // Die Auswahl hält den Fokus, auch außerhalb eines Dialogs.
-      Tab: () => focusColumn(otherColumn),
     };
     const move = targets[event.key];
     if (!move) return;
@@ -236,7 +264,7 @@ export function TimePickerPanel({
     <div className="p-2">
       <div className="flex gap-1">
         <TimeColumn
-          label="Stunde"
+          label={labels.hour}
           options={HOURS}
           selected={hour}
           isDisabled={(option) =>
@@ -255,7 +283,7 @@ export function TimePickerPanel({
           initialOptionRef={initialFocusRef}
         />
         <TimeColumn
-          label="Minute"
+          label={labels.minute}
           options={minuteOptions}
           selected={minute}
           isDisabled={(option) =>
@@ -278,7 +306,7 @@ export function TimePickerPanel({
       </div>
       {minTime && (
         <p className="px-1 pt-2 text-center text-xs text-gray-500">
-          Frühestens {minTime} Uhr
+          {labels.minimum(minTime)}
         </p>
       )}
     </div>

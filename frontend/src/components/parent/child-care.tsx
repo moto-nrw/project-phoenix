@@ -1058,6 +1058,7 @@ export function PickupTimeModal({
 }>) {
   const t = useTranslations("parentChildCare");
   const tModes = useTranslations("parentMasterData");
+  const tTimePicker = useTranslations("datePicker.timePicker");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const today = berlinTodayISO();
@@ -1719,6 +1720,12 @@ export function PickupTimeModal({
                   ? `${t("pickup.pickupOptionalHint")} ${t("timeFormatHint")}`
                   : t("timeFormatHint")
               }
+              timePickerLabels={{
+                selectTime: tTimePicker("selectTime"),
+                hour: tTimePicker("hour"),
+                minute: tTimePicker("minute"),
+                minimum: (time) => tTimePicker("minimum", { time }),
+              }}
               placeholder={t("timeExample")}
               // Mit einer Abholperson darf die Uhrzeit gleich bleiben (#4780).
               required={!modeField && !pickupPerson}
