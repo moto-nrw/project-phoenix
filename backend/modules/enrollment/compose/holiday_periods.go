@@ -52,6 +52,11 @@ func NewHolidayAccessTrail() enrollment.HolidayAccessTrail {
 	return postgres.NewHolidayRegistrationStore()
 }
 
+// NewOpenEnrollments counts the children waiting for a decision at each school, for the Träger dashboard (#4675).
+func NewOpenEnrollments() enrollment.OpenEnrollments {
+	return postgres.NewOpenEnrollmentStore()
+}
+
 // NewContractApplications reads the accepted application children of a school for the Träger's contracts (#4678, ADR 0153), in that school's tenant transaction.
 func NewContractApplications() enrollment.ContractApplications {
 	return postgres.NewContractApplicationStore()
