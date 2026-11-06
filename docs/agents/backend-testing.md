@@ -145,9 +145,9 @@ Production builds run without the tag. Keep hook files out of packages most
 of the backend imports (`tenant`, public module packages): each tagged file
 there gives every dependent package a second compiled form, so tagged tests and
 untagged dev builds stop sharing the Go build cache (#5985). Put such hooks in a
-leaf package (`tenant/tenanttest`, `modules/peopledirectory/parentfixture`);
-`TestBroadlyImportedPackagesCompileTheSameWithTestHooks` guards the listed
-packages. Architecture analysis includes the
+leaf package (`tenant/tenanttest`, `modules/peopledirectory/parentfixture`).
+`TestBroadlyImportedPackagesCompileTheSameWithTestHooks` guards the packages it
+lists; `sessiontoken` and `auditlog` still carry hooks (#5990). Architecture analysis includes the
 hook-enabled superset so no existing dependency or composition debt disappears
 merely because a hook leaves the default build.
 
