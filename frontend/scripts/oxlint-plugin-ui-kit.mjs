@@ -1147,10 +1147,8 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/ui/planning/coverage-indicator.tsx",
   "src/components/ui/location-badge.tsx",
   "src/components/ui/notification-badge.tsx",
-  "src/components/ui/planning/origin-chip.tsx",
   "src/components/ui/page-header/FilterButton.tsx",
   "src/components/ui/page-header/OverflowMenu.tsx",
-  "src/components/ui/parent-visible-badge.tsx",
   "src/components/ui/planning/plan-block.tsx",
   "src/components/ui/planning/plan-legend.tsx",
   "src/components/ui/presence-badge.tsx",
@@ -1200,15 +1198,13 @@ src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@401 text-[9px]@417 text-[10px]@477 text-[11px]@477 text-[11px]@482 text-[10px]@505 text-[10px]@540 text-[11px]@540
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
-src/components/ui/location-badge.tsx|text-[11px]@122 text-[11px]@123 text-[10px]@295 text-[10px]@322
+src/components/ui/location-badge.tsx|text-[10px]@282
 src/components/ui/notification-badge.tsx|text-[10px]@15
-src/components/ui/planning/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
 src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@463 text-[11px]@535
-src/components/ui/parent-visible-badge.tsx|text-[11px]@44
 src/components/ui/planning/plan-block.tsx|text-[11px]@154 text-[11px]@175
 src/components/ui/planning/plan-legend.tsx|text-[11px]@106
-src/components/ui/presence-badge.tsx|text-[11px]@83 text-[11px]@84 text-[10px]@239
+src/components/ui/presence-badge.tsx|text-[10px]@200
 `);
 
 const noTinyText = makeClassStringRule({
