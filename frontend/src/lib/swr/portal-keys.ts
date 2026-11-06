@@ -278,6 +278,7 @@ export const traegerKeys = {
   schoolsToday: () => "traeger-schools-today",
   schoolsAlerts: () => "traeger-schools-alerts",
   keyDateCounts: () => "traeger-key-date-counts",
+  occupancy: () => "traeger-occupancy",
   periodsFamily: "traeger-holiday-period-",
   periods: () => "traeger-holiday-period-list",
   period: (id: string) =>

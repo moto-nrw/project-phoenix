@@ -23,6 +23,7 @@ import { peopleConcept } from "~/lib/concepts/people";
 import { reportsConcept } from "~/lib/concepts/reports";
 import { schoolsConcept } from "~/lib/concepts/schools";
 import { settingsConcept } from "~/lib/concepts/settings";
+import { utilizationConcept } from "~/lib/concepts/utilization";
 
 /** Das Recht, das „Mitglieder und Rollen" öffnet (ADR 0084, #4650). */
 const ACCOUNTS_RIGHT = "traeger_accounts:manage";
@@ -33,7 +34,7 @@ const BILLING_RIGHT = "traeger_billing:manage";
 /** Das Recht, das das Zugriffsprotokoll öffnet (#4655). */
 const ACCESS_LOG_RIGHT = "traeger_access_log:read";
 /**
- * Das Recht, das das Dashboard (#4674), die Stichtagszahlen (#4673), die allgemeinen Einstellungen (ADR 0086,
+ * Das Recht, das das Dashboard (#4674), die Stichtagszahlen (#4673), die Belegung (#4676), die allgemeinen Einstellungen (ADR 0086,
  * #4652), Briefkopf und Vorlagen (#4653, #4677) und die Abrechnungsvorgaben öffnet. Auf den
  * Abrechnungsvorgaben stehen die Bankverbindungen für alle mit diesem Recht, wie
  * zuvor auf dem Briefkopf; die Regeln und Rechnungsnummern nur mit dem Recht
@@ -84,6 +85,14 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         href: "/traeger/stichtagszahlen",
         label: "Stichtagszahlen",
         concept: reportsConcept,
+        right: OVERVIEW_RIGHT,
+      },
+      {
+        // Die Kinder von heute je Schule, Gruppe und Betreuungsform (#4676).
+        key: "belegung",
+        href: "/traeger/belegung",
+        label: "Belegung",
+        concept: utilizationConcept,
         right: OVERVIEW_RIGHT,
       },
     ],

@@ -148,6 +148,7 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
   ["/schulen", "Schulen"],
   ["/uebersicht", "Dashboard"],
   ["/stichtagszahlen", "Stichtagszahlen"],
+  ["/belegung", "Belegung"],
   ["/ferien", "Ferienbetreuung"],
   ["/abrechnung", "Abrechnung"],
   ["/einstellungen/mitglieder", "Mitglieder und Rollen"],
