@@ -285,5 +285,6 @@ describe("TraegerVertraegePage", () => {
 
     expect((await screen.findAllByText("Aktiv"))[0]).toBeInTheDocument();
     expect(screen.getByText("seit 03.09.2026")).toBeInTheDocument();
+    expect(screen.getByText("aktiv")).toBeInTheDocument();
   });
 });

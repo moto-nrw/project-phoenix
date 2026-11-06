@@ -378,16 +378,13 @@ export default function TraegerVertraegePage() {
       stats={
         total > 0 || candidates.length > 0 ? (
           <TenantPageStats
-            items={[
-              {
-                value: total,
-                label: total === 1 ? "Vertrag" : "Verträge",
-              },
-              { value: drafts, label: drafts === 1 ? "Entwurf" : "Entwürfe" },
-              { value: sentCount, label: "versendet" },
-              { value: activeCount, label: "aktiv" },
-              { value: candidates.length, label: "ohne Vertrag" },
-            ]}
+            items={statusFigures(
+              total,
+              drafts,
+              sentCount,
+              activeCount,
+              candidates.length,
+            )}
           />
         ) : null
       }
@@ -534,4 +531,32 @@ function emptyText(
     description:
       "Sobald eine Schule eine Anmeldung annimmt, können Sie hier den Vertrag erstellen.",
   };
+}
+
+/**
+ * The figures of the status line: at most three fit (TenantPageStats). The
+ * states that hold contracts come first, active before sent before drafts;
+ * without any of them the total, then the children still without one.
+ */
+function statusFigures(
+  total: number,
+  drafts: number,
+  sent: number,
+  active: number,
+  candidates: number,
+): { value: number; label: string }[] {
+  const figures = [
+    { value: active, label: "aktiv" },
+    { value: sent, label: "versendet" },
+    { value: drafts, label: drafts === 1 ? "Entwurf" : "Entwürfe" },
+  ].filter((figure) => figure.value > 0);
+  if (figures.length < 2) {
+    figures.unshift({
+      value: total,
+      label: total === 1 ? "Vertrag" : "Verträge",
+    });
+  }
+  if (candidates > 0)
+    figures.push({ value: candidates, label: "ohne Vertrag" });
+  return figures.slice(0, 3);
 }
