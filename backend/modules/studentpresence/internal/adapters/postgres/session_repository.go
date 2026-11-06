@@ -94,29 +94,6 @@ func (r *SessionRepository) FindByID(ctx context.Context, id int64) (*ActiveGrou
 	return r.findOne(ctx, id, "find by id")
 }
 
-// FindVisitTransferGroups shares one snapshot only after force-start has
-// locked its source sessions and created the target in the same transaction.
-// Unlike FindByIDs, it does not load rooms or activity display relations.
-func (r *SessionRepository) FindVisitTransferGroups(ctx context.Context, from, to int64) (*ActiveGroupRow, *ActiveGroupRow, error) {
-	rows, err := r.records.ListLiveGroups(ctx, []int64{from, to})
-	if err != nil {
-		return nil, nil, r.errors.WrapRecordError("find by id", err)
-	}
-	var source, target *ActiveGroupRow
-	for _, row := range rows {
-		if row.ID == from {
-			source = activeGroup(row)
-		}
-		if row.ID == to {
-			target = activeGroup(row)
-		}
-	}
-	if source == nil || target == nil {
-		return nil, nil, r.errors.MissingRecordError("find by id")
-	}
-	return source, target, nil
-}
-
 func (r *SessionRepository) findOne(ctx context.Context, id int64, operation string) (*ActiveGroupRow, error) {
 	rows, err := r.records.ListLiveGroups(ctx, []int64{id})
 	if err != nil {

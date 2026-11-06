@@ -1,0 +1,6 @@
+{
+  "scenario": "api.auth.accounts.roles.bounded_positive",
+  "max": 5,
+  "exact": true,
+  "description": "GET /auth/accounts/{accountId}/roles/: positive one staff role and replacement preserving guardian role; real composed identity, persisted specific grant, tenant transaction/RLS and host request memos. Bounded domain contract, not N3/N8 growth or a minimum. Host liveness excluded."
+}
