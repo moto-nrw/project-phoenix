@@ -14,7 +14,7 @@ func init() {
 		Version:     careContractDraftsVersion,
 		Description: "Betreuungsvertrag: Vorlagen je Angebot, Verträge aus der Anmeldung, Versand (#4678)",
 		DependsOn: []string{
-			storedNamesNFCVersion, // the last migration before this one
+			emailDeliveryEventsVersion, // the last migration before this one
 		},
 	})
 	Migrations.MustRegister(careContractDraftsUp, careContractDraftsDown)
