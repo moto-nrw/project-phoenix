@@ -153,6 +153,10 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		return true
 	case path == "/traeger/schools/":
 		data = []map[string]any{{"id": 1}}
+	case r.Method == "GET" && (path == "/traeger/contract-templates/" || path == "/traeger/contracts/candidates"):
+		// The care contract step (#4678) reads the offerings and the
+		// accepted applications; this fake school has neither.
+		data = []any{}
 	case r.Method == "GET" && (path == "/api/time-tracking/holidays" || path == "/api/timetable/closing-days/" ||
 		path == "/api/timetable/periods/" || path == "/api/feedback/date-range"):
 		// The feedback history (#5029) reads the closed days and its own

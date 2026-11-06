@@ -232,7 +232,22 @@ type Status struct {
 	SentAt         *time.Time
 	DeadLetterAt   *time.Time
 	CancelledAt    *time.Time
+	// DeliveryState is what the mail provider reported after it accepted
+	// the mail (#5932): one of the DeliveryState values, empty while
+	// nothing was reported. A sent mail can still bounce.
+	DeliveryState string
 }
+
+// The provider outcomes of a sent mail (#5932). DeliveryFailed is a bounce
+// for good, DeliverySuppressed a mail the provider withheld for a known bad
+// address; neither reached the recipient.
+const (
+	DeliveryDelayed    = "delayed"
+	DeliveryDelivered  = "delivered"
+	DeliverySuppressed = "suppressed"
+	DeliveryFailed     = "failed"
+	DeliveryComplained = "complained"
+)
 
 type Observation struct {
 	Operation string

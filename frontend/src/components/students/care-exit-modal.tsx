@@ -27,12 +27,7 @@ import {
 } from "~/components/ui/slide-over";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { useApiFormError } from "~/contexts/ToastContext";
-import {
-  formatDate,
-  parseISODate,
-  toISODate,
-  berlinTodayISO,
-} from "~/lib/date-helpers";
+import { formatDate, berlinTodayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   CARE_EXIT_NOTE_MAX_LENGTH,
@@ -45,6 +40,7 @@ import {
   type CareExitPreview,
   type CareExitReason,
 } from "~/lib/care-exit-api";
+import { lastCareDayBefore } from "~/lib/care-withdrawal-notice";
 
 const logger = createLogger({ component: "CareExitModal" });
 
@@ -97,9 +93,7 @@ export function CareExitModal({
   // nicht wählbar (min = heute) — dann bleibt der heutige Tag der Startwert.
   const completionLastCareDay = useMemo(() => {
     if (!completionId || !firstBookinglessDay) return null;
-    const day = parseISODate(firstBookinglessDay);
-    day.setDate(day.getDate() - 1);
-    return toISODate(day);
+    return lastCareDayBefore(firstBookinglessDay);
   }, [completionId, firstBookinglessDay]);
   const initialLastCareDay =
     completionLastCareDay ??

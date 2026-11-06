@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestEmailDeliveryFallbackRoundTrip pins 1.15.759 (#5933) in both directions.
+// TestEmailDeliveryFallbackRoundTrip pins 1.15.771 (#5933) in both directions.
 func TestEmailDeliveryFallbackRoundTrip(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

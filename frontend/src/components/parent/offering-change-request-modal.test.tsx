@@ -225,7 +225,7 @@ describe("OfferingChangeRequestModal", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Danach ist für Lara kein Betreuungstag mehr gebucht. Möchten Sie diese Anfrage wirklich senden?",
+        "Ab dem 14.08.2026 ist für Lara kein Betreuungstag mehr gebucht. Möchten Sie diese Anfrage wirklich senden?",
       ),
     ).toBeInTheDocument();
 

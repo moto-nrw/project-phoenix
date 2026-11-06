@@ -33,14 +33,24 @@ type BillingDocumentResponse struct {
 	SentAt         time.Time     `json:"sent_at"`
 }
 
-// listBillingDocuments answers the documents in the inbox of the account.
+// listBillingDocuments answers the letters in the inbox of the account.
 func (rs *Resource) listBillingDocuments(w http.ResponseWriter, r *http.Request) {
+	rs.respondInbox(w, r, parentService.DocumentInboxLetters)
+}
+
+// listContractDocuments answers the sent care contracts in the inbox of the
+// account (ADR 0153).
+func (rs *Resource) listContractDocuments(w http.ResponseWriter, r *http.Request) {
+	rs.respondInbox(w, r, parentService.DocumentInboxContracts)
+}
+
+func (rs *Resource) respondInbox(w http.ResponseWriter, r *http.Request, inbox parentService.DocumentInbox) {
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
 		return
 	}
-	documents, err := rs.ParentService.ListBillingDocuments(r.Context(), int64(claims.ID))
+	documents, err := rs.ParentService.ListBillingDocuments(r.Context(), int64(claims.ID), inbox)
 	if err != nil {
 		renderBillingDocumentError(w, r, err)
 		return
@@ -79,6 +89,35 @@ func (rs *Resource) billingDocumentPDF(w http.ResponseWriter, r *http.Request) {
 		renderBillingDocumentError(w, r, err)
 		return
 	}
+	writeDocumentFile(w, file)
+}
+
+// contractDocumentPDF answers the PDF of one care contract in the inbox.
+func (rs *Resource) contractDocumentPDF(w http.ResponseWriter, r *http.Request) {
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
+		return
+	}
+	organizationID, err := common.ParseIDParam(r, "organizationId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	contractID, err := common.ParseIDParam(r, "contractId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	file, err := rs.ParentService.ContractDocumentFile(r.Context(), int64(claims.ID), organizationID, contractID)
+	if err != nil {
+		renderBillingDocumentError(w, r, err)
+		return
+	}
+	writeDocumentFile(w, file)
+}
+
+func writeDocumentFile(w http.ResponseWriter, file parentService.BillingDocumentFile) {
 	w.Header().Set("Content-Type", file.ContentType)
 	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Cache-Control", "no-store")

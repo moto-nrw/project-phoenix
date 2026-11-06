@@ -1,0 +1,10 @@
+{
+  "application_not_found": "Diese Anmeldung gibt es nicht mehr oder sie ist nicht angenommen. Bitte laden Sie die Seite neu.",
+  "contract_input_invalid": "Bitte wählen Sie mindestens einen und höchstens 200 Einträge aus.",
+  "contract_not_draft": "Der Vertrag ist schon versendet. Er lässt sich nicht mehr verwerfen.",
+  "contract_not_found": "Diesen Vertrag gibt es nicht. Bitte öffnen Sie ihn über „Verträge“.",
+  "letterhead_too_long": "Absender oder Fußzeile sind zu lang für den Vertrag. Bitte kürzen Sie sie unter „Briefkopf und Vorlagen“.",
+  "offering_not_found": "Dieses Angebot gibt es an der Schule nicht mehr. Bitte laden Sie die Seite neu.",
+  "school_outside_traeger": "Diese Schule gehört nicht zu Ihrem Träger.",
+  "template_invalid": "Bitte prüfen Sie die markierten Felder."
+}

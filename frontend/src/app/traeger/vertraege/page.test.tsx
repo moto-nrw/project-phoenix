@@ -1,0 +1,233 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import type {
+  CareContractSummary,
+  ContractCandidate,
+} from "~/lib/traeger-care-contracts-api";
+
+const { api, mockPush } = vi.hoisted(() => ({
+  api: {
+    fetchCareContracts: vi.fn(),
+    fetchContractCandidates: vi.fn(),
+    fetchTraegerSchools: vi.fn(),
+    createCareContracts: vi.fn(),
+    sendCareContracts: vi.fn(),
+  },
+  mockPush: vi.fn(),
+}));
+
+vi.mock("~/lib/traeger-care-contracts-api", () => api);
+vi.mock("~/lib/traeger-api", () => ({
+  fetchTraegerSchools: api.fetchTraegerSchools,
+}));
+vi.mock("~/lib/traeger-url", () => ({
+  traegerPath: (path: string) => path.replace(/^\/traeger/, "") || "/",
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
+  usePathname: () => "/vertraege",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+import TraegerVertraegePage from "./page";
+
+const DRAFT: CareContractSummary = {
+  id: "7",
+  status: "entwurf",
+  schoolId: "3",
+  schoolName: "OGS Am Lindenhof",
+  childFirstName: "Lina",
+  childLastName: "Muster",
+  moduleNames: ["Offene Ganztagsschule"],
+  partyName: "Erika Muster",
+  partyEmail: "erika@example.org",
+  effectiveFrom: "2027-08-01",
+  createdAt: "2026-09-01T08:00:00Z",
+  sentAt: null,
+};
+
+const SENT: CareContractSummary = {
+  ...DRAFT,
+  id: "8",
+  status: "versendet",
+  childFirstName: "Ben",
+  sentAt: "2026-09-02T08:00:00Z",
+};
+
+const CANDIDATE: ContractCandidate = {
+  schoolId: "3",
+  requestChildId: "41",
+  schoolName: "OGS Am Lindenhof",
+  childFirstName: "Mia",
+  childLastName: "Kern",
+  guardianName: "Paula Kern",
+  guardianEmail: "paula@example.org",
+  phaseName: "2027/28",
+  services: [
+    {
+      weekday: "mon",
+      careOfferingId: "5",
+      moduleName: "Kurzbetreuung",
+      endsAt: "14:00",
+      lastDay: null,
+    },
+    {
+      weekday: "tue",
+      careOfferingId: "6",
+      moduleName: "Ganztag",
+      endsAt: "16:30",
+      lastDay: null,
+    },
+  ],
+  effectiveFrom: "2027-08-01",
+  templateIssue: null,
+};
+
+function renderPage() {
+  render(
+    <ToastProvider>
+      <TraegerVertraegePage />
+    </ToastProvider>,
+  );
+}
+
+describe("TraegerVertraegePage", () => {
+  beforeEach(() => {
+    for (const fn of Object.values(api)) fn.mockReset();
+    mockPush.mockReset();
+    api.fetchCareContracts.mockResolvedValue({
+      contracts: [DRAFT, SENT],
+      counts: { entwurf: 1, versendet: 1 },
+      hasMore: false,
+    });
+    api.fetchTraegerSchools.mockResolvedValue([
+      { id: "3", name: "OGS Am Lindenhof" },
+    ]);
+    api.fetchContractCandidates.mockResolvedValue([
+      CANDIDATE,
+      {
+        ...CANDIDATE,
+        requestChildId: "42",
+        childFirstName: "Tom",
+        templateIssue: "template_missing",
+      },
+      {
+        ...CANDIDATE,
+        requestChildId: "43",
+        childFirstName: "Ida",
+        templateIssue: "templates_differ",
+      },
+    ]);
+  });
+
+  it("lists the contracts with status and names the children without one", async () => {
+    renderPage();
+
+    expect((await screen.findAllByText("Lina Muster"))[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Entwurf")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Versendet")[0]).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Verträge erstellen \(3\)/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("loads older contracts and sends filters to the server", async () => {
+    api.fetchCareContracts
+      .mockResolvedValueOnce({
+        contracts: [SENT],
+        counts: { entwurf: 1100, versendet: 1 },
+        hasMore: true,
+      })
+      .mockResolvedValueOnce({
+        contracts: [DRAFT],
+        counts: { entwurf: 1100, versendet: 1 },
+        hasMore: false,
+      });
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Weitere Verträge laden" }),
+    );
+    expect((await screen.findAllByText("Lina Muster"))[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Ben Muster")[0]).toBeInTheDocument();
+    expect(api.fetchCareContracts).toHaveBeenLastCalledWith({
+      status: undefined,
+      schoolId: "",
+      search: "",
+      offset: 1,
+    });
+    fireEvent.change(
+      screen.getAllByPlaceholderText("Kind, Eltern oder Angebot suchen")[0]!,
+      { target: { value: "Mia" } },
+    );
+    await waitFor(() =>
+      expect(api.fetchCareContracts).toHaveBeenLastCalledWith({
+        status: undefined,
+        schoolId: "",
+        search: "Mia",
+        offset: 0,
+      }),
+    );
+  });
+
+  it("creates one draft per child over its modules, only with equal conditions", async () => {
+    api.createCareContracts.mockResolvedValue({
+      created: [DRAFT],
+      skipped: [],
+    });
+    renderPage();
+    await screen.findAllByText("Lina Muster");
+
+    fireEvent.click(screen.getByRole("button", { name: /Verträge erstellen/ }));
+    expect(
+      await screen.findByText(
+        /Für 1 Kind fehlen die Vertragsbedingungen eines Moduls\. Bei 1 Kind haben die gebuchten Module verschiedene Bedingungen\./,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Tom Kern auswählen")).toBeDisabled();
+    expect(screen.getByLabelText("Ida Kern auswählen")).toBeDisabled();
+    expect(
+      screen.getByText("Bedingungen der Module weichen ab"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Mo bis 14:00 · Di bis 16:30")[0],
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "1 Entwurf erstellen" }),
+    );
+
+    await waitFor(() =>
+      expect(api.createCareContracts).toHaveBeenCalledWith([CANDIDATE]),
+    );
+    expect(
+      await screen.findByText(/1 Entwurf ist erstellt/),
+    ).toBeInTheDocument();
+  });
+
+  it("sends the selected drafts", async () => {
+    api.sendCareContracts.mockResolvedValue({ sent: ["7"], skipped: [] });
+    renderPage();
+    await screen.findAllByText("Lina Muster");
+
+    fireEvent.click(
+      screen.getAllByLabelText("Vertrag von Lina Muster auswählen")[0]!,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "1 Entwurf senden" }),
+    );
+
+    await waitFor(() =>
+      expect(api.sendCareContracts).toHaveBeenCalledWith(["7"]),
+    );
+    expect(
+      await screen.findByText(/1 Vertrag ist unterwegs/),
+    ).toBeInTheDocument();
+  });
+
+  it("opens a contract from its row", async () => {
+    renderPage();
+    fireEvent.click((await screen.findAllByText("Offene Ganztagsschule"))[0]!);
+
+    expect(mockPush).toHaveBeenCalledWith("/vertraege/7");
+  });
+});

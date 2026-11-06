@@ -39,6 +39,11 @@ var legacyTimeTimeDateColumns = map[string]string{}
 // field (raw-SQL-only access or superseded tables). Every newly discovered
 // unmapped column must be classified here with a reason.
 var unmappedDateColumns = map[string]string{
+	// The Betreuungsvertrag (ADR 0153) binds the last day of a booked module
+	// as "YYYY-MM-DD" text cast to DATE and reads it back with to_char inside
+	// a JSON aggregate; carecontract.Service.LastDay is *calendar.Date and no
+	// time.Time ever reaches the column.
+	"care_contract.contract_version_services.last_day": "Betreuungsvertrag binds and reads calendar.Date text, never time.Time",
 	// Expand #2715 creates empty storage with no Go reader or writer. Cutover
 	// must replace this classification with a calendar.Date owner row field.
 	// People Directory uses explicit joined projections, not a table-bound
