@@ -158,10 +158,12 @@ export function CareContractVersions({
     }
   };
 
-  // Newest first: the office looks for what changes next.
-  const ordered = [...versions].sort((a, b) => b.number - a.number);
-  const byNumber = new Map(
-    versions.map((version) => [version.number, version]),
+  // Latest effective date first: the office looks for what changes next. A
+  // change may go in front of a planned version, so the numbers need not
+  // follow the dates (#4681).
+  const ordered = [...versions].sort(
+    (a, b) =>
+      b.effectiveFrom.localeCompare(a.effectiveFrom) || b.number - a.number,
   );
 
   return (
@@ -176,12 +178,10 @@ export function CareContractVersions({
       description="Gibt die Schule eine Änderung der Betreuung frei, entsteht eine neue Version. Frühere Versionen bleiben hier lesbar."
     >
       <ResponsiveActionList>
-        {ordered.map((version) => {
+        {ordered.map((version, index) => {
           const phase = versionPhase(version, today);
-          const changed = changedWeekdays(
-            version,
-            byNumber.get(version.number - 1),
-          );
+          // Compared with the version that holds before it.
+          const changed = changedWeekdays(version, ordered[index + 1]);
           return (
             <li
               key={version.number}
