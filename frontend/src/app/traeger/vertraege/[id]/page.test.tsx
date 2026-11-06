@@ -10,6 +10,7 @@ const { api, mockPush } = vi.hoisted(() => ({
     sendCareContracts: vi.fn(),
     resendCareContract: vi.fn(),
     discardCareContract: vi.fn(),
+    downloadCareContractVersion: vi.fn(),
   },
   mockPush: vi.fn(),
 }));
@@ -102,6 +103,7 @@ const DRAFT: CareContractDetail = {
   ],
   mailings: [],
   documentFrozen: false,
+  versions: [],
 };
 
 function renderPage() {
@@ -401,5 +403,77 @@ describe("TraegerVertragPage", () => {
     expect(
       screen.queryByRole("button", { name: /Entwurf verwerfen/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the versions of an active contract and from when a change applies", async () => {
+    const first = DRAFT.version.services;
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      status: "aktiv",
+      sentAt: "2026-07-20T08:00:00Z",
+      concluded: { method: "mit_anmeldung", at: "2026-07-20T08:00:00Z" },
+      documentFrozen: true,
+      version: { ...DRAFT.version, effectiveFrom: "2026-08-01" },
+      versions: [
+        {
+          number: 1,
+          status: "abgeloest",
+          source: "abschluss",
+          effectiveFrom: "2026-08-01",
+          endsOn: "2027-02-28",
+          validUntil: "2027-02-28",
+          services: first,
+          createdAt: "2026-07-20T08:00:00Z",
+        },
+        {
+          number: 2,
+          status: "wirksam",
+          source: "buchungsaenderung",
+          effectiveFrom: "2027-03-01",
+          endsOn: null,
+          validUntil: null,
+          services: [
+            ...first.slice(0, 2),
+            {
+              weekday: "wed",
+              careOfferingId: "5",
+              moduleName: "Offene Ganztagsschule",
+              endsAt: "16:30",
+              lastDay: null,
+            },
+          ],
+          createdAt: "2026-09-01T08:00:00Z",
+        },
+      ],
+    } satisfies CareContractDetail);
+    api.downloadCareContractVersion.mockResolvedValue({
+      blob: new Blob(["%PDF"], { type: "application/pdf" }),
+      filename: "betreuungsvertrag-7-version-2.pdf",
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        "Ab 01.03.2027 gilt Version 2. Die Schule hat eine Änderung der Betreuung freigegeben. Was sich ändert, steht unten unter „Versionen“.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Gilt jetzt")).toBeInTheDocument();
+    expect(screen.getByText("Gilt ab 01.03.2027")).toBeInTheDocument();
+    expect(
+      screen.getByText("01.08.2026 bis 28.02.2027 · Vertragsabschluss"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "ab 01.03.2027 · Änderung der Betreuung · 2 Tage geändert",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Geändert")).toHaveLength(2);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "PDF von Version 2 herunterladen" }),
+    );
+    await waitFor(() =>
+      expect(api.downloadCareContractVersion).toHaveBeenCalledWith("7", 2),
+    );
   });
 });

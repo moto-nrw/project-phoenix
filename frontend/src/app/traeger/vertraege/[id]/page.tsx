@@ -23,6 +23,10 @@ import {
   formatTerm,
   serviceDays,
 } from "~/components/traeger/care-contract-format";
+import {
+  CareContractVersions,
+  plannedVersion,
+} from "~/components/traeger/care-contract-versions";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -48,6 +52,7 @@ import {
   formatDate,
 } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import {
   type CareContractDetail,
@@ -81,6 +86,7 @@ export default function TraegerVertragPage() {
   const recipientErrors = useApiFormError(recipientForm);
   const [recipientEmail, setRecipientEmail] = useState("");
   const { success, warning } = useToast();
+  const today = useBerlinToday();
 
   const load = useCallback(async () => {
     try {
@@ -215,6 +221,16 @@ export default function TraegerVertragPage() {
   const canSend = isDraft || contract?.status === "versendet";
   const lastMail = contract?.mailings[0];
   const party = contract?.parties[0];
+  const planned = contract
+    ? plannedVersion(contract.versions, today)
+    : undefined;
+  // An active or ended contract shows its versions, so the office sees where
+  // an approved change will appear; a draft has only its first version.
+  const showVersions =
+    contract !== null &&
+    (contract.versions.length > 1 ||
+      contract.status === "aktiv" ||
+      contract.status === "beendet");
 
   return (
     <TenantPage
@@ -318,6 +334,12 @@ export default function TraegerVertragPage() {
       {contract ? (
         <>
           <StatusNotice contract={contract} />
+          {planned ? (
+            <Alert
+              type="info"
+              message={`Ab ${formatDate(planned.effectiveFrom)} gilt Version ${planned.number}. Die Schule hat eine Änderung der Betreuung freigegeben. Was sich ändert, steht unten unter „Versionen“.`}
+            />
+          ) : null}
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="flex flex-col gap-6 lg:col-span-2">
               <SectionCard
@@ -375,7 +397,11 @@ export default function TraegerVertragPage() {
               </SectionCard>
               <SectionCard
                 title="Gebuchte Betreuung"
-                description="Je Wochentag das Modul und bis wann das Kind betreut wird."
+                description={
+                  contract.versions.length > 1
+                    ? `Je Wochentag das Modul und bis wann das Kind betreut wird. So gilt es in Version ${contract.version.number}.`
+                    : "Je Wochentag das Modul und bis wann das Kind betreut wird."
+                }
               >
                 <DataGrid>
                   {serviceDays(contract.version.services).map((day) => (
@@ -517,6 +543,12 @@ export default function TraegerVertragPage() {
               </SectionCard>
             </div>
           </div>
+          {showVersions ? (
+            <CareContractVersions
+              contractId={contract.id}
+              versions={contract.versions}
+            />
+          ) : null}
           <SectionCard
             title={contract.documentFrozen ? "PDF für die Eltern" : "Vorschau"}
             description={
