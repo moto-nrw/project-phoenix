@@ -60,7 +60,7 @@ func caregiverCapabilityViews(db transactionruntime.Database, caregivers peopleP
 // newAccountResource composes the tenant account routes. Their caregiver
 // capability is the one the operator routes provision with.
 func newAccountResource(db transactionruntime.Database, identity identityaccess.Owner, organizations organizationtenancy.Query, caregivers peoplePorts.CaregiverCapabilityService, settings settingsCompose.SettingsService) *authAPI.Resource {
-	authSchools := authSchoolDirectory{schools: organizations, memberships: identity}
+	authSchools := NewAuthSchoolDirectory(organizations, identity)
 	resource := authAPI.NewResource(identity, identity, authSchools, identity, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, settings)
 	resource.CaregiverCapabilityService = caregiverCapabilityViews(db, caregivers)
 	resource.RoleGrants = owners.RoleGrantPolicy{}

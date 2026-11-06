@@ -53,6 +53,12 @@ type accountSchoolMemberships interface {
 	ListActiveAccountSchoolIDs(ctx context.Context, accountID int64) ([]int64, error)
 }
 
+// NewAuthSchoolDirectory binds the account routes to the school catalog and
+// active account memberships used by the production account resource.
+func NewAuthSchoolDirectory(organizations organizationModule.Query, memberships accountSchoolMemberships) authAPI.SchoolDirectory {
+	return authSchoolDirectory{schools: organizations, memberships: memberships}
+}
+
 // authSchoolDirectory answers the auth routes.
 type authSchoolDirectory struct {
 	schools     organizationModule.Query
