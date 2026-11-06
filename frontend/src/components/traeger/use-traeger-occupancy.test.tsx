@@ -8,6 +8,7 @@ import { SWRConfig, useSWRConfig } from "~/lib/swr/testing";
 import { traegerKeys } from "~/lib/swr/portal-keys";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { useTraegerOccupancy } from "./use-traeger-occupancy";
+import { setTestClock } from "~/test/clock";
 
 // The occupancy hook goes through useConfirmedResource like the other Träger
 // figure hooks (#4676, use-traeger-refusal-wiring.test.tsx). This checks its
@@ -79,9 +80,40 @@ beforeEach(() => {
   } as Session;
 });
 
+it.each(["2026-01-15T23:58:30+01:00", "2026-07-15T23:58:30+02:00"])(
+  "refreshes the mounted view at Berlin midnight from %s without focus or reconnect",
+  async (instant) => {
+    vi.useFakeTimers();
+    setTestClock(instant);
+    fetchers.occupancy
+      .mockReset()
+      .mockResolvedValueOnce({ figures: "yesterday" })
+      .mockResolvedValue({ figures: "today" });
+    const view = renderHook(() => useTraegerOccupancy(), { wrapper });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(view.result.current.occupancy).toEqual({ figures: "yesterday" });
+    expect(fetchers.occupancy).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(fetchers.occupancy).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(fetchers.occupancy).toHaveBeenCalledTimes(2);
+    expect(view.result.current.occupancy).toEqual({ figures: "today" });
+    view.unmount();
+  },
+);
+
 describe.each(CASES)("$name after a refusal", ({ fetcher, key, read }) => {
   it("shows nothing after 403 then 503, and data again only after a 200", async () => {
-    fetcher.mockReset().mockResolvedValue({ figures: "confirmed" });
+    const confirmed = { figures: "confirmed" };
+    fetcher.mockReset().mockResolvedValue(confirmed);
     const view = renderHook(() => useWithWriter(read, key), { wrapper });
     await waitFor(() =>
       expect(view.result.current.data).toEqual({ figures: "confirmed" }),
@@ -93,9 +125,10 @@ describe.each(CASES)("$name after a refusal", ({ fetcher, key, read }) => {
     });
     await waitFor(() => expect(view.result.current.data).toBeNull());
 
-    // Another view of the key writes the refused answer back.
+    // Write the original, stamped answer back, not a new unstamped object
+    // that the generation lock could independently discard.
     await act(async () => {
-      await view.result.current.writeBack({ figures: "confirmed" });
+      await view.result.current.writeBack(confirmed);
     });
     fetcher.mockRejectedValue(new ApiError("unavailable", 503));
     await act(async () => {
