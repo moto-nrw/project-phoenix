@@ -92,6 +92,10 @@ function renderIcon(icon: LucideIcon | ReactNode) {
 
 interface StatusPillCommonProps {
   readonly label: string;
+  /** Layout classes for the rendered pill, for example `w-full` in a grid. */
+  readonly className?: string;
+  /** Hides a shortened visual label when a caller supplies its full text elsewhere. */
+  readonly ariaHidden?: boolean;
   /**
    * Native tooltip on the badge itself. Use when the short label needs the
    * full context on hover (e.g. "Feiertag" → the holiday's name). Set it here
@@ -126,6 +130,8 @@ interface StatusPillCommonProps {
  */
 export function StatusPillBase({
   label,
+  className,
+  ariaHidden,
   title,
   icon,
   accessibleLabel,
@@ -144,12 +150,13 @@ export function StatusPillBase({
   const iconNode = renderIcon(icon);
   return (
     <span
+      aria-hidden={ariaHidden}
       title={title ?? (truncate ? label : undefined)}
       className={`inline-flex items-center rounded-full text-xs font-medium ${
         wrap ? "whitespace-normal" : "whitespace-nowrap"
       } ${
         iconNode ? "gap-1" : ""
-      } ${truncate ? "max-w-full min-w-0" : ""} ${sizeClass(size, compact)} ${outline ? OUTLINE_CLASS : ""}`}
+      } ${truncate ? "max-w-full min-w-0" : ""} ${sizeClass(size, compact)} ${outline ? OUTLINE_CLASS : ""} ${className ?? ""}`}
       style={outline ? undefined : { backgroundColor, color: textColor }}
     >
       {iconNode}
