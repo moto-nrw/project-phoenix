@@ -53,7 +53,7 @@ export interface SharedTraegerDocument {
   readonly releases: readonly TraegerDocumentRelease[];
 }
 
-export interface TraegerDocumentGroup {
+interface TraegerDocumentGroup {
   readonly id: string;
   readonly name: string;
 }
