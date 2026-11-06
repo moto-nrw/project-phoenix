@@ -31,6 +31,7 @@ func (s *eventWorkerStore) EmailAddressSuppressed(context.Context, int64, string
 
 func eventMail(security bool) domain.Intent {
 	intent := claimedEmail(0)
+	intent.Template = "parent_announcement"
 	intent.Security = security
 	intent.DeliveryToken = "token-1"
 	intent.Recipient = json.RawMessage(`{"address":"guardian@example.com"}`)
@@ -58,6 +59,21 @@ func TestWorkerSendsSecurityMailToASuppressedAddress(t *testing.T) {
 	t.Parallel()
 	store := &eventWorkerStore{suppressed: true}
 	store.claimed, store.renewed, store.finalizeSent = []domain.Intent{eventMail(true)}, true, true
+	provider := &workerProvider{}
+
+	stats, err := NewWorker(store, provider, func(domain.Observation) {}).RunOnce(context.Background(), 1, 6)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, provider.calls)
+	assert.Equal(t, 1, stats.Sent)
+}
+
+func TestWorkerSendsStaffMailToASuppressedAddress(t *testing.T) {
+	t.Parallel()
+	staffMail := eventMail(false)
+	staffMail.Template = "payroll_dispatch"
+	store := &eventWorkerStore{suppressed: true}
+	store.claimed, store.renewed, store.finalizeSent = []domain.Intent{staffMail}, true, true
 	provider := &workerProvider{}
 
 	stats, err := NewWorker(store, provider, func(domain.Observation) {}).RunOnce(context.Background(), 1, 6)

@@ -230,3 +230,25 @@ type Observation struct {
 	Count     int
 	Err       error
 }
+
+// parentMailTemplates are the mails a school sends to parents, the only mail the
+// suppression list holds back so far (#5932). An unlisted template goes out.
+var parentMailTemplates = map[string]bool{
+	"guardian_invitation":                true,
+	"guardian_welcome":                   true,
+	"parent_announcement":                true,
+	"parent_message":                     true,
+	"enrollment_submitted":               true,
+	"enrollment_approved":                true,
+	"enrollment_waitlisted":              true,
+	"enrollment_rejected":                true,
+	"enrollment_rollover_opt_in":         true,
+	"enrollment_rollover_opt_out":        true,
+	"enrollment_change_request_question": true,
+	"enrollment_change_request_approved": true,
+	"enrollment_change_request_rejected": true,
+	"holiday_registration_received":      true,
+}
+
+// IsParentMail reports whether a mail template goes to parents.
+func IsParentMail(template string) bool { return parentMailTemplates[template] }
