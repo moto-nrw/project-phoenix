@@ -36,7 +36,6 @@ import { TransferDeviceModal } from "~/components/operator/transfer-device-modal
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import { buildSchoolColumns } from "~/components/operator/school-table-columns";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -679,6 +678,15 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         />
       }
       actions={orgHeaderActions}
+      tabs={{
+        value: activeTab,
+        onChange: handleTabValueChange,
+        items: TAB_ITEMS.map((tab) => ({
+          value: tab.id,
+          label: tab.label,
+        })),
+        label: "Bereiche des Trägers",
+      }}
       overlays={
         <>
           <ConfirmationModal
@@ -846,163 +854,152 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         />
       ) : null}
 
-      <div>
-        <Tabs value={activeTab} onValueChange={handleTabValueChange}>
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            {/* Seven tabs do not fit a phone: the row scrolls sideways. */}
-            <TabsList
-              variant="line"
-              className="max-w-full min-w-0 justify-start overflow-x-auto"
-            >
-              {TAB_ITEMS.map((tab) => (
-                <TabsTrigger key={tab.id} value={tab.id}>
-                  {tab.label}
-                </TabsTrigger>
+      {tabActions ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {tabActions}
+        </div>
+      ) : null}
+
+      {activeTab === "schulen" ? (
+        <>
+          <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
+          {schoolDelete.showTrash ? (
+            <div className="space-y-4">
+              {deletedSchools.map((school) => (
+                <DeletedEntityCard
+                  key={school.id}
+                  name={school.name}
+                  subtitle={school.subdomain}
+                  extraSubtitle={organization.name}
+                  deletedAt={school.deletedAt}
+                  onRestore={() => requestRestoreSchool(school)}
+                  restoreDisabled={organization.deletedAt != null}
+                  restoreDisabledReason={
+                    organization.deletedAt != null
+                      ? "Träger ist gelöscht. Bitte zuerst den Träger wiederherstellen."
+                      : undefined
+                  }
+                />
               ))}
-            </TabsList>
-            {tabActions ? (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {tabActions}
-              </div>
-            ) : null}
-          </div>
+            </div>
+          ) : !schoolsLoading &&
+            !schoolsError &&
+            organizationSchoolSummaries !== undefined &&
+            activeSchools.length === 0 ? (
+            <ProvisioningEmptyState
+              title="Keine Schulen"
+              description="Erstellen Sie eine neue Schule unter diesem Träger."
+              buttonLabel="Neue Schule"
+              onAction={() => setCreateSchoolOpen(true)}
+            />
+          ) : (organizationSchoolSummaries === undefined && !schoolsLoading) ||
+            schoolsError ? null : (
+            <DataTable
+              columns={schoolColumns}
+              rows={activeSchools}
+              getRowKey={(row) => row.id}
+              onRowClick={handleSchoolClick}
+              defaultSortKey="name"
+              isLoading={schoolsLoading}
+            />
+          )}
+        </>
+      ) : null}
 
-          <TabsContent value="schulen" className="mt-4">
-            <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
-            {schoolDelete.showTrash ? (
-              <div className="space-y-4">
-                {deletedSchools.map((school) => (
-                  <DeletedEntityCard
-                    key={school.id}
-                    name={school.name}
-                    subtitle={school.subdomain}
-                    extraSubtitle={organization.name}
-                    deletedAt={school.deletedAt}
-                    onRestore={() => requestRestoreSchool(school)}
-                    restoreDisabled={organization.deletedAt != null}
-                    restoreDisabledReason={
-                      organization.deletedAt != null
-                        ? "Träger ist gelöscht. Bitte zuerst den Träger wiederherstellen."
-                        : undefined
-                    }
-                  />
-                ))}
-              </div>
-            ) : !schoolsLoading &&
-              !schoolsError &&
-              organizationSchoolSummaries !== undefined &&
-              activeSchools.length === 0 ? (
-              <ProvisioningEmptyState
-                title="Keine Schulen"
-                description="Erstellen Sie eine neue Schule unter diesem Träger."
-                buttonLabel="Neue Schule"
-                onAction={() => setCreateSchoolOpen(true)}
-              />
-            ) : (organizationSchoolSummaries === undefined &&
-                !schoolsLoading) ||
-              schoolsError ? null : (
-              <DataTable
-                columns={schoolColumns}
-                rows={activeSchools}
-                getRowKey={(row) => row.id}
-                onRowClick={handleSchoolClick}
-                defaultSortKey="name"
-                isLoading={schoolsLoading}
-              />
-            )}
-          </TabsContent>
+      {activeTab === "konten" ? (
+        <>
+          <LoadErrorAlert error={accountsLoadError} className="mb-4" />
+          {(orgAccounts === undefined && !accountsLoading) ||
+          accountsError ? null : !accountsLoading &&
+            orgAccounts?.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+              Keine Konten für diesen Träger.
+            </div>
+          ) : (
+            <AccountsTable
+              accounts={orgAccounts ?? []}
+              showSchool
+              isLoading={accountsLoading}
+              onManageCaregiver={openCaregiverModal}
+            />
+          )}
+        </>
+      ) : null}
 
-          <TabsContent value="konten" className="mt-4">
-            <LoadErrorAlert error={accountsLoadError} className="mb-4" />
-            {(orgAccounts === undefined && !accountsLoading) ||
-            accountsError ? null : !accountsLoading &&
-              orgAccounts?.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                Keine Konten für diesen Träger.
-              </div>
-            ) : (
-              <AccountsTable
-                accounts={orgAccounts ?? []}
-                showSchool
-                isLoading={accountsLoading}
-                onManageCaregiver={openCaregiverModal}
-              />
-            )}
-          </TabsContent>
+      {activeTab === "geraete" ? (
+        <>
+          <LoadErrorAlert error={devicesLoadError} className="mb-4" />
+          {(orgDevices === undefined && !devicesLoading) ||
+          devicesError ? null : !devicesLoading && orgDevices?.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+              Keine Geräte für diesen Träger.
+            </div>
+          ) : (
+            <DevicesTable
+              devices={orgDevices ?? []}
+              showSchool
+              isLoading={devicesLoading}
+              onSetKey={setSetKeyDevice}
+              onTransfer={setTransferDevice}
+              onDelete={setDeleteDevice}
+            />
+          )}
+        </>
+      ) : null}
 
-          <TabsContent value="geraete" className="mt-4">
-            <LoadErrorAlert error={devicesLoadError} className="mb-4" />
-            {(orgDevices === undefined && !devicesLoading) ||
-            devicesError ? null : !devicesLoading &&
-              orgDevices?.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                Keine Geräte für diesen Träger.
-              </div>
-            ) : (
-              <DevicesTable
-                devices={orgDevices ?? []}
-                showSchool
-                isLoading={devicesLoading}
-                onSetKey={setSetKeyDevice}
-                onTransfer={setTransferDevice}
-                onDelete={setDeleteDevice}
-              />
-            )}
-          </TabsContent>
+      {activeTab === "personen" ? (
+        <>
+          <LoadErrorAlert error={personsLoadError} className="mb-4" />
+          {(orgPersons === undefined && !personsLoading) ||
+          personsError ? null : !personsLoading && orgPersons?.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+              Keine Personen für diesen Träger.
+            </div>
+          ) : (
+            <PersonsTable
+              persons={orgPersons ?? []}
+              showSchool
+              isLoading={personsLoading}
+            />
+          )}
+        </>
+      ) : null}
 
-          <TabsContent value="personen" className="mt-4">
-            <LoadErrorAlert error={personsLoadError} className="mb-4" />
-            {(orgPersons === undefined && !personsLoading) ||
-            personsError ? null : !personsLoading &&
-              orgPersons?.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                Keine Personen für diesen Träger.
-              </div>
-            ) : (
-              <PersonsTable
-                persons={orgPersons ?? []}
-                showSchool
-                isLoading={personsLoading}
-              />
-            )}
-          </TabsContent>
-          <TabsContent value="traeger-buero" className="mt-4">
-            <LoadErrorAlert error={traegerMembersLoadError} className="mb-4" />
-            {((traegerMembers === undefined ||
-              traegerInvitations === undefined) &&
-              !traegerBueroLoading) ||
-            traegerBueroError ? null : !traegerBueroLoading &&
-              traegerBueroEmpty ? (
-              <SimpleEmptyState
-                title="Noch niemand im Träger-Büro"
-                description="Noch niemand hat Zugang zum Träger-Portal dieses Trägers. Laden Sie die erste Person oben mit „Person einladen“ ein."
-              />
-            ) : (
-              <TraegerBueroTable
-                organizationId={organization.id}
-                members={traegerMembers ?? []}
-                invitations={traegerInvitations ?? []}
-                isLoading={traegerBueroLoading}
-                onResetMfa={setMfaResetMember}
-                onChanged={reloadTraegerBuero}
-              />
-            )}
-          </TabsContent>
-          <TabsContent value="einstellungen" className="mt-4">
-            {activeTab === "einstellungen" ? (
-              <TraegerSettingsSection organizationId={organization.id} />
-            ) : null}
-          </TabsContent>
-          <TabsContent value="loeschauftrag" className="mt-4">
-            {activeTab === "loeschauftrag" ? (
-              <TraegerErasureOrderSection
-                organizationId={organization.id}
-                organizationActive={organization.active}
-              />
-            ) : null}
-          </TabsContent>
-        </Tabs>
-      </div>
+      {activeTab === "traeger-buero" ? (
+        <>
+          <LoadErrorAlert error={traegerMembersLoadError} className="mb-4" />
+          {((traegerMembers === undefined ||
+            traegerInvitations === undefined) &&
+            !traegerBueroLoading) ||
+          traegerBueroError ? null : !traegerBueroLoading &&
+            traegerBueroEmpty ? (
+            <SimpleEmptyState
+              title="Noch niemand im Träger-Büro"
+              description="Noch niemand hat Zugang zum Träger-Portal dieses Trägers. Laden Sie die erste Person oben mit „Person einladen“ ein."
+            />
+          ) : (
+            <TraegerBueroTable
+              organizationId={organization.id}
+              members={traegerMembers ?? []}
+              invitations={traegerInvitations ?? []}
+              isLoading={traegerBueroLoading}
+              onResetMfa={setMfaResetMember}
+              onChanged={reloadTraegerBuero}
+            />
+          )}
+        </>
+      ) : null}
+
+      {activeTab === "einstellungen" ? (
+        <TraegerSettingsSection organizationId={organization.id} />
+      ) : null}
+
+      {activeTab === "loeschauftrag" ? (
+        <TraegerErasureOrderSection
+          organizationId={organization.id}
+          organizationActive={organization.active}
+        />
+      ) : null}
     </TenantPage>
   );
 }

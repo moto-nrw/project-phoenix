@@ -410,6 +410,17 @@ describe("OperatorOrganizationDetailPage", () => {
     expect(screen.getAllByText("Test Org").length).toBeGreaterThan(0);
   });
 
+  it("renders the page tabs in the TenantPage header", async () => {
+    setupSWR();
+
+    await renderPage();
+
+    const tabs = await screen.findByRole("tablist", {
+      name: "Bereiche des Trägers",
+    });
+    expect(tabs.closest("header")).not.toBeNull();
+  });
+
   it("renders empty state when no schools", async () => {
     setupSWR({ schools: [] });
 

@@ -335,6 +335,17 @@ describe("OperatorSchoolDetailPage", () => {
     expect(screen.getAllByText("Personen").length).toBeGreaterThan(0);
   });
 
+  it("renders the page tabs in the TenantPage header", async () => {
+    setupSWR();
+
+    await renderPage();
+
+    const tabs = await screen.findByRole("tablist", {
+      name: "Bereiche der Schule",
+    });
+    expect(tabs.closest("header")).not.toBeNull();
+  });
+
   it("shows 'Schule nicht gefunden' when slug does not match", async () => {
     setupSWR({ schools: [{ ...mockSchool, slug: "other-school" }] });
 

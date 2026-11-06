@@ -36,7 +36,6 @@ import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { Button, ButtonLink } from "~/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -640,6 +639,15 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         />
       }
       actions={schoolHeaderActions}
+      tabs={{
+        value: activeTab,
+        onChange: handleTabValueChange,
+        items: TAB_ITEMS.map((tab) => ({
+          value: tab.id,
+          label: tab.label,
+        })),
+        label: "Bereiche der Schule",
+      }}
       overlays={
         <>
           {mfaAccount && mfaSchoolContext ? (
@@ -798,79 +806,72 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       <LoadErrorAlert error={headLoadError} />
       <LoadErrorAlert error={pwaUsageLoadError} />
 
-      <div>
-        <Tabs value={activeTab} onValueChange={handleTabValueChange}>
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <TabsList variant="line">
-              {TAB_ITEMS.map((tab) => (
-                <TabsTrigger key={tab.id} value={tab.id}>
-                  {tab.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            {tabActions ? (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {tabActions}
-              </div>
-            ) : null}
-          </div>
+      {tabActions ? (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {tabActions}
+        </div>
+      ) : null}
 
-          <TabsContent value="konten" className="mt-4">
-            <LoadErrorAlert error={accountsLoadError} className="mb-4" />
-            {(schoolAccounts === undefined && !accountsLoading) ||
-            accountsError ? null : !accountsLoading &&
-              schoolAccounts?.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                Keine Konten für diese Schule.
-              </div>
-            ) : (
-              <AccountsTable
-                accounts={schoolAccounts ?? []}
-                isLoading={accountsLoading}
-                selectedSchool={selectedSchoolForTable}
-                onManageCaregiver={openCaregiverModal}
-                onManageMFA={openMFAModal}
-              />
-            )}
-          </TabsContent>
+      {activeTab === "konten" ? (
+        <>
+          <LoadErrorAlert error={accountsLoadError} className="mb-4" />
+          {(schoolAccounts === undefined && !accountsLoading) ||
+          accountsError ? null : !accountsLoading &&
+            schoolAccounts?.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+              Keine Konten für diese Schule.
+            </div>
+          ) : (
+            <AccountsTable
+              accounts={schoolAccounts ?? []}
+              isLoading={accountsLoading}
+              selectedSchool={selectedSchoolForTable}
+              onManageCaregiver={openCaregiverModal}
+              onManageMFA={openMFAModal}
+            />
+          )}
+        </>
+      ) : null}
 
-          <TabsContent value="geraete" className="mt-4">
-            <LoadErrorAlert error={devicesLoadError} className="mb-4" />
-            {(schoolDevices === undefined && !devicesLoading) ||
-            devicesError ? null : !devicesLoading &&
-              schoolDevices?.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                Keine Geräte für diese Schule.
-              </div>
-            ) : (
-              <DevicesTable
-                devices={schoolDevices ?? []}
-                isLoading={devicesLoading}
-                onSetKey={setSetKeyDevice}
-                onTransfer={setTransferDevice}
-                onDelete={setDeleteDevice}
-              />
-            )}
-          </TabsContent>
+      {activeTab === "geraete" ? (
+        <>
+          <LoadErrorAlert error={devicesLoadError} className="mb-4" />
+          {(schoolDevices === undefined && !devicesLoading) ||
+          devicesError ? null : !devicesLoading &&
+            schoolDevices?.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+              Keine Geräte für diese Schule.
+            </div>
+          ) : (
+            <DevicesTable
+              devices={schoolDevices ?? []}
+              isLoading={devicesLoading}
+              onSetKey={setSetKeyDevice}
+              onTransfer={setTransferDevice}
+              onDelete={setDeleteDevice}
+            />
+          )}
+        </>
+      ) : null}
 
-          <TabsContent value="personen" className="mt-4">
-            <LoadErrorAlert error={personsLoadError} className="mb-4" />
-            {(schoolPersons === undefined && !personsLoading) ||
-            personsError ? null : !personsLoading &&
-              schoolPersons?.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                Keine Personen für diese Schule.
-              </div>
-            ) : (
-              <PersonsTable
-                persons={schoolPersons ?? []}
-                isLoading={personsLoading}
-                onDelete={setDeletePersonTarget}
-              />
-            )}
-          </TabsContent>
-        </Tabs>
-      </div>
+      {activeTab === "personen" ? (
+        <>
+          <LoadErrorAlert error={personsLoadError} className="mb-4" />
+          {(schoolPersons === undefined && !personsLoading) ||
+          personsError ? null : !personsLoading &&
+            schoolPersons?.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+              Keine Personen für diese Schule.
+            </div>
+          ) : (
+            <PersonsTable
+              persons={schoolPersons ?? []}
+              isLoading={personsLoading}
+              onDelete={setDeletePersonTarget}
+            />
+          )}
+        </>
+      ) : null}
     </TenantPage>
   );
 }
