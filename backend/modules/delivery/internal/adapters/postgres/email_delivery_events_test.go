@@ -490,6 +490,43 @@ func TestRerouteQueuesASecurityMailForTheFallbackOnce(t *testing.T) {
 	assert.False(t, suppressed)
 }
 
+func TestFallbackRecipientRejectionUpdatesStateAndSuppressesTheAddress(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	other := testpkg.NewTenantScope(t, db).TenantID
+	mail := enqueueEventMail(t, db, store, ctx, school, "fallback-rejection", true)
+	token := eventMailToken(t, db, mail.ID)
+	sendEventMail(t, store, ctx, mail.ID, acceptedByProvider)
+	reroute := eventAt(token, "reroute", domain.EmailDeliverySuppressed, time.Now())
+	reroute.Reroute = true
+	_, err := store.RecordEmailDeliveryEvent(ctx, reroute)
+	require.NoError(t, err)
+
+	rejection := eventAt(token, "recipient-rejected", domain.EmailDeliveryFailed, time.Now())
+	rejection.Provider = "moto"
+	result, err := store.RecordEmailDeliveryEvent(ctx, rejection)
+	require.NoError(t, err)
+	assert.True(t, result.Recorded)
+	assert.Equal(t, domain.EmailDeliveryFailed, result.State)
+	_, state, requested := mailStatus(t, db, mail.ID)
+	require.NotNil(t, state)
+	assert.Equal(t, string(domain.EmailDeliveryFailed), *state)
+	assert.True(t, requested)
+	suppressed, err := store.EmailAddressSuppressed(ctx, school, eventAddress)
+	require.NoError(t, err)
+	assert.True(t, suppressed)
+	suppressed, err = store.EmailAddressSuppressed(ctx, other, eventAddress)
+	require.NoError(t, err)
+	assert.False(t, suppressed, "the rejection belongs only to the mail's school")
+
+	late, err := store.RecordEmailDeliveryEvent(ctx, eventAt(token, "late-delivery", domain.EmailDeliveryDelivered, time.Now()))
+	require.NoError(t, err)
+	assert.True(t, late.Recorded)
+	assert.Equal(t, domain.EmailDeliveryFailed, late.State, "the original provider cannot replace the fallback rejection")
+}
+
 func TestRerouteLeavesOtherMailAlone(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
