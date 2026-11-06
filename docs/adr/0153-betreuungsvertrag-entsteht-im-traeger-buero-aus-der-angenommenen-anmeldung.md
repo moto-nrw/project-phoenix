@@ -58,9 +58,13 @@ und hält fest, was er in den Registern ändert (ADR 0057 Punkt 5, ADR 0070).
      dieser Schnitt erreicht nur `entwurf` und `versendet`.
    - `contract_versions`: eingefrorene Kopie von Kind, Betreuungsort,
      Monatsbeitrag, Vertragsbedingungen und Wirkdatum. Status `beantragt` bis
-     ein späterer Schritt sie wirksam macht. Der Monatsbeitrag ist die Summe
-     der Angebotspreise der gebuchten Module beim Anlegen, leer, wenn einem
-     Modul der Preis fehlt (ADR 0088 §2).
+     ein späterer Schritt sie wirksam macht. Der Monatsbeitrag ist der
+     Angebotspreis beim Anlegen, wenn das Kind genau ein Modul bucht (ADR
+     0088 §2). Über mehrere Module bleibt er leer, und der Vertrag nennt
+     „laut Beitragsordnung für die gebuchten Module“: der Preis eines
+     Angebots gilt für den ganzen Monat, die Summe würde Familien mit
+     einzelnen Tagen je Modul zu viel berechnen. #4684 rechnet sie je
+     Wochentag und Modul.
    - `contract_version_services`: die gebuchten Leistungen der Version, eine
      Zeile je Wochentag und Modul mit Angebot, Name des Moduls und Endzeit an
      diesem Tag (`TIME`, aus der Gehzeit des Angebots). Ein Wochentag ohne

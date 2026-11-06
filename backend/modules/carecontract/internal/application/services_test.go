@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The contract prints every weekday from Monday to Friday: the modules of
@@ -48,4 +49,34 @@ func TestContractTermsNeedEqualConditionsOfEveryModule(t *testing.T) {
 	assert.Equal(t, carecontract.SkipTemplateMissing, issue)
 	_, issue = index.terms(8, []int64{1})
 	assert.Equal(t, carecontract.SkipTemplateMissing, issue, "conditions belong to the school's offering")
+}
+
+// A contract over one module keeps that module's monthly price. Over
+// several modules it has none: their whole-month prices would add up to too
+// much for a family that books each module on a few weekdays (#4684 prices
+// them per weekday and module).
+func TestBookedCarePricesOnlyAContractOfOneModule(t *testing.T) {
+	t.Parallel()
+	short, long := 9000, 16500
+	read := schoolRead{offerings: map[int64]carecontract.Offering{
+		1: {ID: 1, Name: "Kurzbetreuung", PriceCents: &short, EndTimes: map[string]string{"mon": "14:00", "fri": "14:00"}},
+		2: {ID: 2, Name: "OGS Ganztag", PriceCents: &long, EndTimes: map[string]string{"tue": "16:00"}},
+	}}
+	today := calendar.NewDate(2026, 11, 6)
+	one := bookedCare(read, carecontract.Application{Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon", "fri"}},
+	}}, today)
+	if assert.NotNil(t, one.price) {
+		assert.Equal(t, int64(9000), *one.price)
+	}
+	two := bookedCare(read, carecontract.Application{Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon", "fri"}},
+		{CareOfferingID: 2, Days: []string{"tue"}},
+	}}, today)
+	assert.Nil(t, two.price)
+	assert.Equal(t, []carecontract.Service{
+		{Weekday: "mon", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
+		{Weekday: "tue", CareOfferingID: 2, ModuleName: "OGS Ganztag", EndsAt: "16:00"},
+		{Weekday: "fri", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
+	}, two.services)
 }

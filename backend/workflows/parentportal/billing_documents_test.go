@@ -336,7 +336,7 @@ func TestDocumentInboxShowsTheFamilysSentContracts(t *testing.T) {
 	assert.Equal(t, sent, documents[0].ID)
 	assert.Equal(t, parentService.DocumentKindContract, documents[0].Kind)
 	assert.Equal(t, []string{"Felix"}, documents[0].ChildNames)
-	assert.Equal(t, "Frühbetreuung · Ganztag · OGS Am Lindenhof", documents[0].PeriodName, "the modules once each, then the place")
+	assert.Equal(t, "Frühbetreuung, Ganztag · OGS Am Lindenhof", documents[0].PeriodName, "the modules once each, then the place")
 
 	file, err := portal.ContractDocumentFile(ctx, chain.AccountID, organization, sent)
 	require.NoError(t, err)

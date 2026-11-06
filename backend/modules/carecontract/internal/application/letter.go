@@ -54,6 +54,10 @@ var weekdayNames = map[string]string{
 
 var weekdayOrder = []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
 
+// feeByRules names the fee of a contract over several modules until the
+// tariffs per weekday and module (#4684) price it.
+const feeByRules = "laut Beitragsordnung für die gebuchten Module"
+
 func contractLetter(record ContractRecord, head carecontract.Letterhead) Letter {
 	version := record.Version
 	filled := templates.Fill(letterTemplate(head.Template), letterValues(record, head))
@@ -132,8 +136,11 @@ func letterValues(record ContractRecord, head carecontract.Letterhead) map[strin
 		"vertragsbeginn": text(germanDate(version.EffectiveFrom)),
 		"summe":          {},
 	}
-	if version.PriceCents != nil {
+	switch {
+	case version.PriceCents != nil:
 		values["summe"] = text(formatEuro(*version.PriceCents))
+	case len(ModuleNames(version.Services)) > 1:
+		values["summe"] = text(feeByRules)
 	}
 	return values
 }
@@ -155,8 +162,11 @@ func termFacts(version carecontract.Version, head carecontract.Letterhead) []Let
 		LetterFact{Label: "Beginn", Value: germanDate(version.EffectiveFrom)},
 		LetterFact{Label: "Laufzeit", Value: TermText(terms, version.EndsOn)},
 	)
-	if version.PriceCents != nil {
+	switch {
+	case version.PriceCents != nil:
 		facts = append(facts, LetterFact{Label: "Beitrag im Monat", Value: formatEuro(*version.PriceCents), Bold: true})
+	case len(ModuleNames(version.Services)) > 1:
+		facts = append(facts, LetterFact{Label: "Beitrag im Monat", Value: feeByRules})
 	}
 	facts = append(facts,
 		LetterFact{Label: "Kündigung", Value: NoticeText(terms)},

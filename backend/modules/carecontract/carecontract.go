@@ -242,9 +242,10 @@ type Version struct {
 	SchoolName     string         `json:"school_name"`
 	PhaseName      string         `json:"phase_name"`
 	Services       []Service      `json:"services"`
-	// PriceCents is the monthly price when the version was made: the sum
-	// of the prices of its modules, nil when one has none (ADR 0088
-	// section 2). The tariffs of #4684 take over from it.
+	// PriceCents is the monthly price when the version was made: the price
+	// of its only module, nil when it has none or the contract has several
+	// modules (ADR 0088 section 2). The tariffs per weekday and module of
+	// #4684 price the rest.
 	PriceCents *int64        `json:"price_cents"`
 	Terms      TemplateInput `json:"terms"`
 	CreatedAt  time.Time     `json:"created_at"`

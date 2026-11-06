@@ -67,18 +67,18 @@ func bookedCare(read schoolRead, application carecontract.Application, today cal
 	return result
 }
 
-// addPrice adds the monthly price of one module; a module without a price
-// leaves the contract without one.
+// addPrice keeps the monthly price of the module. A contract over several
+// modules has no price yet: an offering's price is for the whole month on
+// its days, and adding them up would overcharge a family that books each
+// module on a few weekdays only. The tariffs per weekday and module of #4684
+// price such contracts.
 func (b *booked) addPrice(cents *int) {
-	if cents == nil {
+	if cents == nil || b.price != nil || len(b.offerings) > 1 {
 		b.unpriced = true
 		return
 	}
-	sum := int64(*cents)
-	if b.price != nil {
-		sum += *b.price
-	}
-	b.price = &sum
+	price := int64(*cents)
+	b.price = &price
 }
 
 // sortServices orders the services by weekday, then by end time, so early

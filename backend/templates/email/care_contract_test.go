@@ -27,7 +27,7 @@ func TestCareContractTemplate_Renders(t *testing.T) {
 	}))
 	body := out.String()
 	for _, want := range []string{"Guten Tag Erika Muster,", "Lina Muster", "Kurzbetreuung und Ganztag", "Ganztag im Quartier e.V.",
-		"Prüfen Sie Betreuungstage, Beginn und Beitrag.", "unter „Dokumente“"} {
+		"Prüfen Sie die gebuchte Betreuung je Wochentag, den Beginn und den Beitrag.", "unter „Dokumente“"} {
 		assert.Contains(t, body, template.HTMLEscapeString(want))
 	}
 }

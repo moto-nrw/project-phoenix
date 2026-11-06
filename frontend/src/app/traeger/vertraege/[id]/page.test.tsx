@@ -137,6 +137,18 @@ describe("TraegerVertragPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("names no summed fee for a contract over several modules", async () => {
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      version: { ...DRAFT.version, priceCents: null },
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText("Laut Beitragsordnung für die gebuchten Module"),
+    ).toBeInTheDocument();
+  });
+
   it("sends the draft", async () => {
     api.sendCareContracts.mockResolvedValue({ sent: ["7"], skipped: [] });
     renderPage();

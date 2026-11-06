@@ -302,9 +302,11 @@ export default function TraegerVertragPage() {
                     )}
                   </DataField>
                   <DataField label="Beitrag im Monat">
-                    {contract.version.priceCents === null
-                      ? "Kein Beitrag hinterlegt"
-                      : formatEuro(contract.version.priceCents)}
+                    {contract.version.priceCents !== null
+                      ? formatEuro(contract.version.priceCents)
+                      : contract.moduleNames.length > 1
+                        ? "Laut Beitragsordnung für die gebuchten Module"
+                        : "Kein Beitrag hinterlegt"}
                   </DataField>
                 </DataGrid>
               </SectionCard>
@@ -451,7 +453,7 @@ function StatusNotice({
     return (
       <Alert
         type="info"
-        message="Entwurf. Die Eltern sehen den Vertrag erst, wenn Sie ihn senden. Prüfen Sie Tage, Beginn und Beitrag."
+        message="Entwurf. Die Eltern sehen den Vertrag erst, wenn Sie ihn senden. Prüfen Sie die gebuchte Betreuung, den Beginn und den Beitrag."
       />
     );
   }
