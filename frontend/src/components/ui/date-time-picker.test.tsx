@@ -64,6 +64,35 @@ function Controlled({
   );
 }
 
+function ExternalValueController({
+  initial,
+  onChange,
+}: Readonly<{
+  initial: string;
+  onChange?: (value: string) => void;
+}>) {
+  const [value, setValue] = useState(initial);
+  return (
+    <>
+      <DateTimePicker
+        value={value}
+        onChange={(next) => {
+          setValue(next);
+          onChange?.(next);
+        }}
+        dateAriaLabel="Tag"
+        timeAriaLabel="Zeit"
+      />
+      <button type="button" onClick={() => setValue("")}>
+        Wert zurücksetzen
+      </button>
+      <button type="button" onClick={() => setValue("2026-09-02T10:00")}>
+        Anderen Wert laden
+      </button>
+    </>
+  );
+}
+
 describe("DateTimePicker", () => {
   it("emits nothing while the time is still being typed", () => {
     const onChange = vi.fn();
@@ -226,6 +255,42 @@ describe("DateTimePicker", () => {
 
     expect(onChange).toHaveBeenLastCalledWith("2026-09-02T09:30");
     expect(time).toHaveValue("09:30");
+  });
+
+  it("discards a pending time when the parent replaces the value", () => {
+    const onChange = vi.fn();
+    render(
+      <ExternalValueController
+        initial="2026-09-01T09:30"
+        onChange={onChange}
+      />,
+    );
+
+    const time = screen.getByLabelText("Zeit");
+    fireEvent.change(time, { target: { value: "15" } });
+    expect(time).toHaveValue("15");
+
+    fireEvent.click(screen.getByRole("button", { name: "Anderen Wert laden" }));
+
+    expect(screen.getByLabelText("Tag")).toHaveValue("2026-09-02");
+    expect(time).toHaveValue("10:00");
+
+    fireEvent.keyDown(time, { key: "Enter" });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("drops a held day when the parent resets the value", () => {
+    render(<ExternalValueController initial="2026-09-01T09:30" />);
+
+    const time = screen.getByLabelText("Zeit");
+    fireEvent.change(time, { target: { value: "" } });
+    expect(screen.getByLabelText("Tag")).toHaveValue("2026-09-01");
+
+    fireEvent.click(screen.getByRole("button", { name: "Anderen Wert laden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wert zurücksetzen" }));
+
+    expect(screen.getByLabelText("Tag")).toHaveValue("");
+    expect(time).toBeDisabled();
   });
 
   it("clears the held day when the day is deleted after its time", () => {

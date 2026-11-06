@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { TimeField } from "~/components/ui/time-field";
@@ -87,13 +87,31 @@ export function DateTimePicker({
   // must not lose the day (and the field they are typing in) on the way. The
   // day is held until the field is left.
   const [heldDay, setHeldDay] = useState("");
-  const day = valueDay || heldDay;
+  // Keep the day after our own empty change, but never let a pending draft
+  // survive a replacement, reset, or record change from the parent.
+  const emittedValue = useRef(value);
+  const hasExternalValue = value !== emittedValue.current;
+  const pendingTime = hasExternalValue ? null : typedTime;
+  const pendingDay = hasExternalValue ? "" : heldDay;
+  const day = valueDay || pendingDay;
+
+  useEffect(() => {
+    if (!hasExternalValue) return;
+    setTypedTime(null);
+    setHeldDay("");
+    emittedValue.current = value;
+  }, [hasExternalValue, value]);
+
+  const emitChange = (nextValue: string) => {
+    emittedValue.current = nextValue;
+    onChange(nextValue);
+  };
 
   // Text the value could not take yet: a complete time is raised to the
   // minimum, anything else falls back to the saved time.
   const settleTypedTime = () => {
-    if (typedTime && COMPLETE_TIME.test(typedTime)) {
-      onChange(`${day}T${clampTimeToMin(day, typedTime, minParts)}`);
+    if (pendingTime && COMPLETE_TIME.test(pendingTime)) {
+      emitChange(`${day}T${clampTimeToMin(day, pendingTime, minParts)}`);
     }
     setTypedTime(null);
   };
@@ -111,7 +129,7 @@ export function DateTimePicker({
           setTypedTime(null);
           setHeldDay("");
           if (!nextDay) {
-            onChange("");
+            emitChange("");
             return;
           }
           const nextTime = clampTimeToMin(
@@ -119,7 +137,7 @@ export function DateTimePicker({
             time || defaultTime,
             minParts,
           );
-          onChange(`${nextDay}T${nextTime}`);
+          emitChange(`${nextDay}T${nextTime}`);
         }}
         disabled={disabled}
         hideClearButton={hideClearButton}
@@ -137,7 +155,7 @@ export function DateTimePicker({
           label={timeAriaLabel}
           hint="Uhrzeit im Format 15:30"
           placeholder="Uhrzeit"
-          value={typedTime ?? time}
+          value={pendingTime ?? time}
           required={required}
           invalid={invalid}
           disabled={disabled || !day}
@@ -146,7 +164,7 @@ export function DateTimePicker({
               // An optional field has to stay emptiable.
               setTypedTime(null);
               setHeldDay(day);
-              onChange("");
+              emitChange("");
               return;
             }
             if (!COMPLETE_TIME.test(nextTime)) {
@@ -160,7 +178,7 @@ export function DateTimePicker({
               return;
             }
             setTypedTime(null);
-            onChange(`${day}T${nextTime}`);
+            emitChange(`${day}T${nextTime}`);
           }}
           // Enter submits the form without leaving the field.
           onKeyDown={(event) => {
