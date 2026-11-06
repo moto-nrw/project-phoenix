@@ -25,6 +25,14 @@
       "target_owner": "school-calendar"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.participantDirectory.FindCandidatesOnDates",
+      "binding_digest": "a34b0bd73f1804918903ab4648d9278d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Directory.FindCandidatesOnDates",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRostersOnDates",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.participantDirectory.FindDailyCandidates",
       "binding_digest": "cb1f50d4e62e8f58fe55d0ea49f7a360",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Directory.FindDailyCandidates",
@@ -34,10 +42,18 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.participantDirectory.FindStudentNames",
-      "binding_digest": "cb6942c3ff86afad97399a659faff932",
+      "binding_digest": "e96cf34f273ffaa374a92e6176185174",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Directory.FindStudentNames",
       "source_owner": "meal-plan",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentNamesByID",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.participantDirectory.FindStudentNames",
+      "binding_digest": "09c142a4c55079538c49b2bb38c93219",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Directory.FindStudentNames",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
       "target_owner": "people-directory"
     },
     {

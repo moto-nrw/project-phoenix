@@ -9,14 +9,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-type mealPlanPeople interface {
-	studentNames
-	ListStudentRosterOnDates(context.Context, []string, string) (map[string][]peopledirectory.StudentRosterEntry, error)
-}
-
-func mealPlanParticipantDaysFinder(people mealPlanPeople, now func() time.Time) mealplan.ParticipantDaysFinder {
+func mealPlanParticipantDaysFinder(people peopledirectory.Capability, now func() time.Time) mealplan.ParticipantDaysFinder {
 	return func(ctx context.Context, dates []string) (map[string][]mealplan.ParticipantCandidate, error) {
-		rows, err := people.ListStudentRosterOnDates(ctx, dates, calendar.DateFromTime(now()).String())
+		rows, err := peopledirectory.StudentRostersOnDates(ctx, people, dates, calendar.DateFromTime(now()).String())
 		if err != nil {
 			return nil, err
 		}

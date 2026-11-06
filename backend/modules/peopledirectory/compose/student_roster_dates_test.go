@@ -6,7 +6,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,11 +44,11 @@ func TestRosterDateSetKeepsPointMembershipAndTenantScope(t *testing.T) {
 	}
 	otherTenant := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenant)
-	otherCtx := tenant.WithTenantID(ctx, otherTenant)
+	otherCtx := testpkg.ContextForTenant(ctx, otherTenant)
 	foreign := testpkg.CreateTestStudentForTenant(t, db, otherTenant, "Foreign", "Roster", "2a")
 	dates := []string{"2026-09-07", "2026-09-08", "2026-09-09", "2026-09-11"}
 	for _, today := range []string{"2026-09-08", "2026-09-12"} {
-		batch, err := module.ListStudentRosterOnDates(ctx, dates, today)
+		batch, err := peopledirectory.StudentRostersOnDates(ctx, module, dates, today)
 		require.NoError(t, err)
 		for _, date := range dates {
 			point, err := module.ListStudentRosterOverlapping(ctx, date, date, today)
@@ -60,7 +59,7 @@ func TestRosterDateSetKeepsPointMembershipAndTenantScope(t *testing.T) {
 			}
 		}
 	}
-	batch, err := module.ListStudentRosterOnDates(otherCtx, dates, "2026-09-08")
+	batch, err := peopledirectory.StudentRostersOnDates(otherCtx, module, dates, "2026-09-08")
 	require.NoError(t, err)
 	for _, date := range dates {
 		require.Len(t, batch[date], 1)

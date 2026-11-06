@@ -1,7 +1,9 @@
 package enrollmenthttp_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -57,4 +59,18 @@ func TestEnrollmentHistorySchemaMetadataKeepsRowFailures(t *testing.T) {
 	require.Len(t, rows[2].SchemaFields, 1)
 	require.Equal(t, "note", rows[2].SchemaFields[0].Key)
 	require.Equal(t, "Note", rows[2].SchemaFields[0].Label)
+
+	f.resource.FormSchemaService = unavailableHistorySchemaBatch{f.resource.FormSchemaService}
+	retried, _ := growthReadOnlyGET(t, f, f.router(t), testpkg.CaptureQueries(t, env.db), f.token, fmt.Sprintf("/admin/students/%d/requests/", student.ID))
+	var afterBatchFailure []enrollmentHTTP.AdminRequestSummary
+	require.NoError(t, json.Unmarshal(retried, &afterBatchFailure))
+	require.Equal(t, rows, afterBatchFailure, "a failed metadata batch retains successful scalar schema displays")
+}
+
+type unavailableHistorySchemaBatch struct {
+	enrollment.FormSchemaAdministration
+}
+
+func (unavailableHistorySchemaBatch) StudentExtraFieldSchemas(context.Context, []int64) ([]enrollment.SchemaVersionResult, error) {
+	return nil, errors.New("schema batch unavailable")
 }

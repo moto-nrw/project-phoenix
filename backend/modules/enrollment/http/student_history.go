@@ -13,7 +13,7 @@ func (rs *Resource) toStudentHistorySummaries(ctx context.Context, summaries []*
 	var schemas map[int64]*enrollment.FormSchema
 	loaded := false
 	for _, summary := range summaries {
-		if !loaded && rs.FormSchemaService != nil && summary.Request.SchemaID != nil {
+		if !loaded && rs.FormSchemaService != nil && summary != nil && summary.Request != nil && summary.Request.SchemaID != nil {
 			// Keep the first schema read after any preceding rows' offering
 			// guards. A malformed version must not hide another version.
 			schemas = rs.studentHistorySchemas(ctx, summaries)
@@ -27,13 +27,13 @@ func (rs *Resource) toStudentHistorySummaries(ctx context.Context, summaries []*
 func (rs *Resource) studentHistorySchemas(ctx context.Context, summaries []*RequestSummary) map[int64]*enrollment.FormSchema {
 	ids := make([]int64, 0, len(summaries))
 	for _, summary := range summaries {
-		if summary.Request.SchemaID != nil {
+		if summary != nil && summary.Request != nil && summary.Request.SchemaID != nil {
 			ids = append(ids, *summary.Request.SchemaID)
 		}
 	}
 	results, err := rs.FormSchemaService.StudentExtraFieldSchemas(ctx, ids)
 	if err != nil {
-		return nil // Schema metadata is best effort, as on the detail route.
+		return nil // Retry the original per-row reads if the batch itself failed.
 	}
 	schemas := make(map[int64]*enrollment.FormSchema, len(results))
 	for _, result := range results {
@@ -45,6 +45,9 @@ func (rs *Resource) studentHistorySchemas(ctx context.Context, summaries []*Requ
 }
 
 func (rs *Resource) toStudentHistorySummary(ctx context.Context, summary *RequestSummary, schemas map[int64]*enrollment.FormSchema) AdminRequestSummary {
+	if schemas == nil || summary == nil || summary.Request == nil {
+		return rs.toAdminRequestDetailSummary(ctx, summary)
+	}
 	detail := toAdminRequestSummary(summary)
 	detail.CustomData = summary.Request.CustomData
 	detail.ConsentFlags = summary.Request.ConsentFlags
