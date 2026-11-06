@@ -8,12 +8,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type versionRow struct {
+	bun.BaseModel `bun:"table:care_contract.contract_versions"`
+
 	ID                     int64          `bun:"id"`
 	VersionNumber          int            `bun:"version_number"`
 	Status                 string         `bun:"status"`

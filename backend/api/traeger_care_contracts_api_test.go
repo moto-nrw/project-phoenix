@@ -109,6 +109,7 @@ type careContractFixture struct {
 func newCareContractFixture(t *testing.T, name string) careContractFixture {
 	t.Helper()
 	f := newReviewFixture(t, name)
+	f.db = testpkg.SetupTestDB(t)
 	testpkg.OwnTraegerCareContracts(t, f.db, f.office.organization)
 	school := f.office.schools[0]
 	ctx := context.Background()

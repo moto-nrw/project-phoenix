@@ -206,7 +206,11 @@ var moduleLegacyFileBudgets = map[string]int{
 // and modules/workforce/compose (+13) add exactly 45 LOC.
 // ADR 0152: the document template constructor of
 // modules/organizationtenancy/compose adds exactly 6 LOC.
-const moduleComposeBudgetTotal = 12851
+// ADR 0153: the new owner composition modules/carecontract/compose (44), the
+// contract offerings constructor of modules/careplan/compose (+9), the
+// contract applications constructor of modules/enrollment/compose (+5) and
+// the contract port of workflows/parentportal/compose (+1) add exactly 59 LOC.
+const moduleComposeBudgetTotal = 12910
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -221,7 +225,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/auditlog/compose": 189,
 	// Raised by ADR 0128: the manual plans port of the booking materialization (+1).
 	// ADR 0151: the school figure constructor (+13).
-	"modules/careplan/compose":             1658,
+	"modules/careplan/compose":             1667,
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,
@@ -243,7 +247,7 @@ var moduleComposeBudgets = map[string]int{
 	// constructor (+6); by ADR 0137: the holiday access trail constructor (+7).
 	// #4722 shortened its comments by 7 LOC for the field cipher of
 	// modules/securityruntime/compose.
-	"modules/enrollment/compose":                   591,
+	"modules/enrollment/compose":                   596,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -264,6 +268,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0121: the confirmation letter constructor (+8).
 	// Raised by ADR 0123: the mail constructor and the mail renderer (+9).
 	// Raised by ADR 0126: the document inbox constructor (+6).
+	"modules/carecontract/compose":                44,
 	"modules/parentbilling/compose":               50,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
@@ -308,7 +313,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0078; by ADR 0113: the prefill's data access port (+1);
 	// by ADR 0126: the document inbox ports and the push of a new document
 	// for the Delivery worker (+21).
-	"workflows/parentportal/compose":     329,
+	"workflows/parentportal/compose":     330,
 	"workflows/reminderdelivery/compose": 30,
 	"workflows/sessionend/compose":       59,
 	"workflows/shiftplansync/compose":    124,

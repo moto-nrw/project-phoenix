@@ -88,26 +88,33 @@ func (in *Intake) Candidates(ctx context.Context, reviewer carecontract.Reviewer
 	if err != nil {
 		return nil, fmt.Errorf("care contract: read contracts: %w", err)
 	}
-	today := in.today()
+	candidates := collectCandidates(reads, existing, templated, in.today())
+	sortCandidates(candidates)
+	return candidates, nil
+}
+
+// collectCandidates keeps every current booking without a contract.
+func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templated map[[2]int64]bool, today calendar.Date) []carecontract.Candidate {
 	candidates := []carecontract.Candidate{}
 	for _, read := range reads {
 		for _, application := range read.applications {
 			for _, booking := range currentBookings(application.Bookings, today) {
 				key := ContractKey{SchoolID: read.school.ID, RequestChildID: application.RequestChildID, CareOfferingID: booking.CareOfferingID}
-				offering, ok := read.offerings[booking.CareOfferingID]
-				if existing[key] || !ok {
-					continue
+				if offering, ok := read.offerings[booking.CareOfferingID]; ok && !existing[key] {
+					candidates = append(candidates, candidate(read.school, application, booking, offering,
+						templated[[2]int64{read.school.ID, offering.ID}], today))
 				}
-				candidates = append(candidates, candidate(read.school, application, booking, offering,
-					templated[[2]int64{read.school.ID, offering.ID}], today))
 			}
 		}
 	}
+	return candidates
+}
+
+func sortCandidates(candidates []carecontract.Candidate) {
 	slices.SortStableFunc(candidates, func(a, b carecontract.Candidate) int {
 		return firstNonZero(strings.Compare(a.SchoolName, b.SchoolName), strings.Compare(a.ChildLastName, b.ChildLastName),
 			strings.Compare(a.ChildFirstName, b.ChildFirstName), compareIDs(a.CareOfferingID, b.CareOfferingID))
 	})
-	return candidates, nil
 }
 
 func candidate(school carecontract.School, application carecontract.Application, booking carecontract.Booking,
@@ -265,16 +272,9 @@ func (in *Intake) Templates(ctx context.Context, reviewer carecontract.Reviewer)
 	if err != nil {
 		return nil, fmt.Errorf("care contract: schools: %w", err)
 	}
-	offerings := map[int64][]carecontract.Offering{}
-	for _, school := range schools {
-		err := in.runtime.WithinSchool(ctx, school.ID, func(txCtx context.Context) error {
-			found, err := in.offerings(txCtx, nil)
-			offerings[school.ID] = found
-			return err
-		})
-		if err != nil {
-			return nil, fmt.Errorf("care contract: read offerings: %w", err)
-		}
+	offerings, err := in.schoolOfferings(ctx, schools)
+	if err != nil {
+		return nil, err
 	}
 	var rows []TemplateRow
 	err = in.runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(txCtx context.Context) error {
@@ -299,7 +299,31 @@ func (in *Intake) Templates(ctx context.Context, reviewer carecontract.Reviewer)
 			result = append(result, item)
 		}
 	}
-	slices.SortStableFunc(result, func(a, b carecontract.OfferingTemplate) int {
+	sortTemplates(result)
+	return result, nil
+}
+
+// schoolOfferings reads the offerings of every school in its own tenant
+// transaction.
+func (in *Intake) schoolOfferings(ctx context.Context, schools []carecontract.School) (map[int64][]carecontract.Offering, error) {
+	offerings := map[int64][]carecontract.Offering{}
+	for _, school := range schools {
+		err := in.runtime.WithinSchool(ctx, school.ID, func(txCtx context.Context) error {
+			found, err := in.offerings(txCtx, nil)
+			offerings[school.ID] = found
+			return err
+		})
+		if err != nil {
+			return nil, fmt.Errorf("care contract: read offerings: %w", err)
+		}
+	}
+	return offerings, nil
+}
+
+// sortTemplates puts the active offerings first, then by school, the newest
+// phase and the name.
+func sortTemplates(templates []carecontract.OfferingTemplate) {
+	slices.SortStableFunc(templates, func(a, b carecontract.OfferingTemplate) int {
 		if a.Active != b.Active {
 			if a.Active {
 				return -1
@@ -309,7 +333,6 @@ func (in *Intake) Templates(ctx context.Context, reviewer carecontract.Reviewer)
 		return firstNonZero(strings.Compare(a.SchoolName, b.SchoolName), strings.Compare(b.PhaseName, a.PhaseName),
 			strings.Compare(a.OfferingName, b.OfferingName))
 	})
-	return result, nil
 }
 
 // SaveTemplate creates or replaces the template of one offering of a school

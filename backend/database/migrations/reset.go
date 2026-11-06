@@ -43,6 +43,35 @@ const droppablePublicTypesQuery = `
 	ORDER BY t.typname
 `
 
+// resetSchemas lists the schemas to drop and recreate. NOTE: keep in sync with all CREATE SCHEMA calls across migrations,
+// INCLUDING a schema a later migration drops again. A reset replays the
+// full history, so 1.9.1 recreates suggestions long before 1.15.315 drops
+// it. Leaving a stale copy in place makes the intervening
+// CREATE TABLE IF NOT EXISTS a no-op and the migration after it fails on a
+// missing column (#2326).
+var resetSchemas = []string{
+	"auth",
+	"users",
+	"education",
+	"schedule",
+	"activities",
+	"facilities",
+	"iot",
+	"feedback",
+	"active",
+	"config",
+	"meta",
+	"audit",          // created by migration 1.3.7
+	"suggestions",    // created by 1.9.1, dropped again by 1.15.315
+	"platform",       // created by migration 1.11.1
+	"enrollment",     // created by migration 1.15.59
+	"calendar",       // created by migration 1.15.173
+	"display",        // created by migration 1.15.175
+	"documents",      // created by migration 1.15.332
+	"parent_billing", // created by migration 1.15.645
+	"care_contract",  // created by migration 1.15.757
+}
+
 // resetDatabase drops all schemas and recreates them to start fresh.
 //
 // The reset only issues DDL. DROP does not fire row triggers, and the schema
@@ -58,37 +87,8 @@ func resetDatabase(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 	logger = migrationLogger(logger)
 	logger.InfoContext(ctx, "dropping and recreating all schemas")
 
-	// List of schemas to drop and recreate. NOTE: keep in sync with all CREATE SCHEMA calls across migrations,
-	// INCLUDING a schema a later migration drops again. A reset replays the
-	// full history, so 1.9.1 recreates suggestions long before 1.15.315 drops
-	// it. Leaving a stale copy in place makes the intervening
-	// CREATE TABLE IF NOT EXISTS a no-op and the migration after it fails on a
-	// missing column (#2326).
-	schemas := []string{
-		"auth",
-		"users",
-		"education",
-		"schedule",
-		"activities",
-		"facilities",
-		"iot",
-		"feedback",
-		"active",
-		"config",
-		"meta",
-		"audit",          // created by migration 1.3.7
-		"suggestions",    // created by 1.9.1, dropped again by 1.15.315
-		"platform",       // created by migration 1.11.1
-		"enrollment",     // created by migration 1.15.59
-		"calendar",       // created by migration 1.15.173
-		"display",        // created by migration 1.15.175
-		"documents",      // created by migration 1.15.332
-		"parent_billing", // created by migration 1.15.645
-		"care_contract",  // created by migration 1.15.757
-	}
-
 	// 1. Drop all schemas with CASCADE to remove all objects inside them
-	for _, schema := range schemas {
+	for _, schema := range resetSchemas {
 		logger.DebugContext(ctx, "dropping schema", "schema", schema)
 		_, err := db.ExecContext(ctx, "DROP SCHEMA IF EXISTS ? CASCADE", bun.Ident(schema))
 		if err != nil {
@@ -138,7 +138,7 @@ func resetDatabase(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 	}
 
 	// 4. Recreate the schemas (this will be skipped when migrations run)
-	for _, schema := range schemas {
+	for _, schema := range resetSchemas {
 		logger.DebugContext(ctx, "recreating schema", "schema", schema)
 		_, err := db.ExecContext(ctx, "CREATE SCHEMA IF NOT EXISTS ?", bun.Ident(schema))
 		if err != nil {
@@ -148,7 +148,7 @@ func resetDatabase(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 
 	// We already dropped the bun_migrations tables earlier
 
-	logger.InfoContext(ctx, "schemas dropped and recreated", "count", len(schemas))
+	logger.InfoContext(ctx, "schemas dropped and recreated", "count", len(resetSchemas))
 	return nil
 }
 

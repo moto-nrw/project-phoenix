@@ -184,6 +184,17 @@
       "source_role": "postgres",
       "target_owner": "care-contract",
       "target_role": "port"
+    },
+    {
+      "id": "care-contract.behaviour-test.tenant-runtime",
+      "description": "The Betreuungsvertrag's public contract suite runs its commands inside the Träger transaction of the tenant runtime (ADR 0105, ADR 0153).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-contract",
+      "source_role": "module-behavior-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
     }
   ]
 }

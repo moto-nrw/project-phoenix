@@ -8,7 +8,10 @@ import "maps"
 // opens it for a Träger-Portal route. ADR 0107 adds the Träger settings,
 // which open it themselves to notify the schools after their own commit, and
 // ADR 0121 their branding read for the letters, which #5621 shares with the
-// read of the debtor number switch. A further site needs its own decision.
+// read of the debtor number switch. ADR 0153 adds the intake of the
+// Betreuungsvertrag, which reads each school in its tenant transaction and
+// then writes in the Träger transaction. A further site needs its own
+// decision.
 var traegerTransactionSites = map[string]string{
 	"tenant/traeger.go:WithinTraeger:runtime.withinTraeger#1":                                                                           "ADR 0086 section 5 and ADR 0105: the tenant runtime's Träger transaction entry point refuses a school, administrative or foreign Träger unit and binds the Träger for the adapter; never selected by a missing school.",
 	"modules/transactionruntime/compose/tenant_runtime.go:NewTenantRuntime:unitOfWork.WithinTraeger#1":                                  "ADR 0086 section 5 and ADR 0105: Transaction Runtime binds the PostgreSQL Träger transaction into the serving unit of work; the demo runtime gets none.",
@@ -18,6 +21,10 @@ var traegerTransactionSites = map[string]string{
 	"modules/settings/internal/application/traeger_settings_service.go:*TraegerSettings.Schema:t.deps.Runtime.WithinTraeger#1":          "ADR 0086 section 5 and ADR 0107: the Träger settings read the session's Träger values in its Träger transaction; RLS on config.traeger_setting_values admits only that Träger's rows.",
 	"modules/settings/internal/application/traeger_settings_service.go:*TraegerSettings.traegerSnapshot:t.deps.Runtime.WithinTraeger#1": "ADR 0112, ADR 0121 and #5621 (renamed from *TraegerSettings.TraegerTexts): the confirmation letters read the effective branding and the Elternabrechnung whether the Träger asks for the debtor number, each the session's Träger value or the registry default, in the caller's Träger transaction; RLS on config.traeger_setting_values admits only that Träger's rows.",
 	"modules/settings/internal/application/traeger_settings_service.go:*TraegerSettings.change:t.deps.Runtime.WithinTraeger#1":          "ADR 0086 sections 5 and 7 and ADR 0107: a Träger value change and its change-log entry commit together in the command's own Träger transaction, so the schools hear of it only after that commit.",
+	"modules/carecontract/internal/application/intake.go:*Intake.Candidates:in.runtime.WithinTraeger#1":                                 "ADR 0153: the candidates read the keys of the Träger's contracts and its templates in the Träger transaction after each school's accepted applications were read in that school's tenant transaction; no transaction carries both and it writes nothing.",
+	"modules/carecontract/internal/application/intake.go:*Intake.CreateContracts:in.runtime.WithinTraeger#1":                            "ADR 0153: the drafts of the accepted applications, their versions, parties and trail entries commit together in the Träger transaction of the session's Träger, after each school was read in its own tenant transaction; a second draft for the same key is skipped.",
+	"modules/carecontract/internal/application/intake.go:*Intake.SaveTemplate:in.runtime.WithinTraeger#1":                               "ADR 0153: a contract template and its trail entry commit together in the Träger transaction of the session's Träger, after the offering was found in its school's tenant transaction.",
+	"modules/carecontract/internal/application/intake.go:*Intake.Templates:in.runtime.WithinTraeger#1":                                  "ADR 0153: the templates of the Träger are read in its Träger transaction after the offerings of each school were read in that school's tenant transaction; it writes nothing.",
 }
 
 // withoutReviewedTraegerTransactions removes exactly the reviewed Träger
