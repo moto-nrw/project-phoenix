@@ -29,6 +29,8 @@ func testStore(t *testing.T, db *bun.DB) (*workerCommandsForTest, context.Contex
 	}, postgresadapter.RequireAdminDatabase)
 	store := newWorkerCommandsForTest(raw, func(ctx context.Context, callback func(context.Context) error) error {
 		return tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error { return callback(txCtx) })
+	}, func(ctx context.Context, tenantID int64, callback func(context.Context) error) error {
+		return tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error { return callback(txCtx) })
 	})
 	return store, ctx
 }

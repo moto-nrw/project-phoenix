@@ -51,7 +51,7 @@
       "declaration": "TestFullProductionRouterGolden",
       "target": "api.WithRuntime",
       "lines": [
-        392
+        396
       ],
       "tables": []
     },
@@ -16391,6 +16391,7 @@
       "billing-key-dates",
       "booking-consistency-audit",
       "break-auto-end",
+      "email-delivery-reconciliation",
       "email-outbox",
       "file-store-cleanup",
       "holiday-guest-reconciliation",
@@ -16494,6 +16495,7 @@
     "billing-key-dates",
     "booking-consistency-audit",
     "break-auto-end",
+    "email-delivery-reconciliation",
     "email-outbox",
     "file-store-cleanup",
     "holiday-guest-reconciliation",

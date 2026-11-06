@@ -149,8 +149,9 @@ texts), `backend/api/iot_error_report_composition.go` (forwarding),
 | 502 | `error reporting service unavailable` | Sentry unreachable or answering 5xx; logged, never a Sentry event |
 | 503 | `error reporting is not configured` | The backend runs without Sentry (local development) |
 
-The 502 is the only 5xx that `ServerErrorReporting` does not report
-(`common.SkipServerErrorReport`); reporting it could only loop. PyrePortal's
+The 502 is one of two 5xx answers that `ServerErrorReporting` does not report
+(`common.SkipServerErrorReport`); reporting it could only loop. The other is the
+mail provider webhook's 503 without a secret, below. PyrePortal's
 SDK transport consumes these answers and shows no text, so they are not part
 of `iot_error_codes.golden`. Changing a status is still a two-repo change. `serve` refuses to start with `SENTRY_DSN` set
 and `SENTRY_PYREPORTAL_DSN` empty, and a malformed DSN stops the start.
@@ -363,6 +364,21 @@ server-side backend call forwards the client IP; a cached fetch keeps the IP
 out of its cache key (`resolveTenantCached` in
 `frontend/src/app/[tenant]/layout.tsx`). Each limiter rejection writes one
 `RATE_LIMIT_EXCEEDED` event; a 429 a handler writes itself writes none.
+
+## Mail provider webhook
+
+`POST /webhooks/email/delivery/{provider}` has no session: the HMAC over the raw
+body is the credential, and the school comes only from the mail an event matches.
+A provider retries 408, 429 and 5xx and drops other 4xx, so each answer decides
+that: 204 accepted, also for unknown events and mails; 400 unreadable name or
+known event; 401 signature or time window, all alike; 404 unknown provider; 413
+over 1 MiB; 500 store failure; 503 no secret.
+
+The 503 is a state of the deployment that anyone can ask about, so it stays out
+of Sentry (`common.SkipServerErrorReport`) and the ERROR log, including the access
+line, and writes one WARN. It still counts in
+`phoenix_backend_http_requests_total`. The webhook has a limiter of its own with
+`SetLogger`, so a rejection writes the `RATE_LIMIT_EXCEEDED` event above.
 
 ## Portal session isolation
 
