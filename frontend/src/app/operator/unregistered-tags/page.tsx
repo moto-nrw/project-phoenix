@@ -28,6 +28,9 @@ import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { rfidConcept } from "~/lib/concepts/rfid";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 const logger = createLogger({ component: "OperatorUnregisteredTagsPage" });
 
@@ -276,13 +279,13 @@ function UnregisteredTagsTable({
         header: "Status",
         render: (row) =>
           row.resolvedAt ? (
-            <span className="bg-moto-green/15 text-moto-green-strong inline-flex rounded-full px-2 py-0.5 text-xs font-medium">
-              Erledigt
-            </span>
+            <StatusBadge tone="green" compact label="Erledigt" />
           ) : (
-            <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex rounded-full px-2 py-0.5 text-xs font-medium">
-              Offen
-            </span>
+            <StatusColorBadge
+              label="Offen"
+              color={LOCATION_COLORS.WARNING}
+              compact
+            />
           ),
         sortValue: (row) => (row.resolvedAt ? 1 : 0),
       },

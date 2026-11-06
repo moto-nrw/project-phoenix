@@ -56,6 +56,7 @@ import { createLogger } from "~/lib/logger";
 import { useCurrentTimestamp } from "~/lib/hooks/use-current-timestamp";
 import { Alert } from "~/components/ui/alert";
 import { announcementsConcept } from "~/lib/concepts/announcements";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 const logger = createLogger({ component: "OperatorAnnouncementsPage" });
 
@@ -1191,9 +1192,7 @@ function AnnouncementCard({
           {announcement.title}
         </h3>
         {announcement.status === "draft" && (
-          <span className="bg-moto-amber-soft text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
-            Entwurf
-          </span>
+          <StatusBadge tone="outline" compact label="Entwurf" />
         )}
       </div>
 
