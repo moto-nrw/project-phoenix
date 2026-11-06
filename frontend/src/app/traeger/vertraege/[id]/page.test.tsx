@@ -242,6 +242,86 @@ describe("TraegerVertragPage", () => {
     ).toBeInTheDocument();
   });
 
+  it.each([
+    ["stopped", /Die Schule hat die Mails an diese Person gestoppt/],
+    ["address", /bei einer Ihrer Schulen gesperrt/],
+    ["provider", /moto-Support/],
+    ["provider_unknown", /später noch einmal/],
+    ["delayed", /nicht noch einmal/],
+  ] as const)(
+    "names the reason of a %s block and offers no second mail",
+    async (sendBlock, text) => {
+      api.fetchCareContract.mockResolvedValue({
+        ...DRAFT,
+        status: "versendet",
+        documentFrozen: true,
+        mailings: [
+          {
+            recipient: "erika@example.org",
+            sentAt: "2026-09-02T08:00:00Z",
+            state: sendBlock === "delayed" ? "sent" : "failed",
+            outcome: sendBlock === "delayed" ? "delayed" : "provider_blocked",
+            sendBlock,
+          },
+        ],
+      });
+      renderPage();
+
+      expect(await screen.findByText(text)).toBeInTheDocument();
+      expect(screen.queryByText(/Prüfen Sie die Adresse/)).toBeNull();
+      expect(
+        screen.getByRole("button", { name: "Erneut senden" }),
+      ).toBeDisabled();
+    },
+  );
+
+  it.each([
+    ["unsubscribed", "Abgemeldet", /abgemeldet/],
+    ["complained", "Nicht zustellbar", /unerwünscht/],
+  ] as const)(
+    "does not read a %s mail as sent",
+    async (outcome, label, text) => {
+      api.fetchCareContract.mockResolvedValue({
+        ...DRAFT,
+        status: "versendet",
+        documentFrozen: true,
+        mailings: [
+          {
+            recipient: "erika@example.org",
+            sentAt: "2026-09-02T08:00:00Z",
+            state: "failed",
+            outcome,
+          },
+        ],
+      });
+      renderPage();
+
+      expect(await screen.findByText(label)).toBeInTheDocument();
+      expect(screen.getByText(text)).toBeInTheDocument();
+      expect(screen.queryByText("Gesendet")).toBeNull();
+    },
+  );
+
+  it("offers a new mail once the block is gone", async () => {
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      status: "versendet",
+      documentFrozen: true,
+      mailings: [
+        {
+          recipient: "erika@example.org",
+          sentAt: "2026-09-02T08:00:00Z",
+          state: "failed",
+          outcome: "provider_blocked",
+        },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByText(/besteht nicht mehr/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Erneut senden" })).toBeEnabled();
+  });
+
   it("refreshes a queued delivery and enables retry when it fails", async () => {
     const pending: CareContractDetail = {
       ...DRAFT,

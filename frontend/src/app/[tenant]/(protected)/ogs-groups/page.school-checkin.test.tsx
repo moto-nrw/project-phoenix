@@ -238,12 +238,6 @@ vi.mock("~/components/ui/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results" />,
 }));
 
-vi.mock("~/lib/api", () => ({
-  studentService: {
-    getStudents: vi.fn(() => Promise.resolve({ students: [] })),
-  },
-}));
-
 // Partial mock via importOriginal — MotoConceptIcon (substitution badge)
 // pulls in MOTO_COLOR_PALETTE, which must stay real.
 vi.mock("~/lib/location-helper", async (importOriginal) => {

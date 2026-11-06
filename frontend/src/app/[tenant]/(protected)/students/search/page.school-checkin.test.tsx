@@ -260,10 +260,13 @@ vi.mock("~/lib/hooks/use-user-context", async (importOriginal) => ({
   }),
 }));
 
+vi.mock("~/lib/student-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/student-api")>()),
+  fetchStudents: vi.fn(() => Promise.resolve({ students: [] })),
+  fetchSchoolClasses: vi.fn(() => Promise.resolve([])),
+}));
+
 vi.mock("~/lib/api", () => ({
-  studentService: {
-    getStudents: vi.fn(() => Promise.resolve({ students: [] })),
-  },
   groupService: {
     getGroups: vi.fn(() => Promise.resolve([])),
   },

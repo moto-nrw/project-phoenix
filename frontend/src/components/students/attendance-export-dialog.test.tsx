@@ -9,6 +9,10 @@ const { openBlobForPrint } = vi.hoisted(() => ({
 }));
 
 vi.mock("vaul", () => import("~/test/mocks/vaul"));
+// The session gate is passed; the request itself reaches the stubbed fetch.
+vi.mock("~/lib/session-cache", () => ({
+  sessionFetch: (url: string, init?: RequestInit) => fetch(url, init),
+}));
 vi.mock("~/lib/file-download", () => ({
   downloadBlob: vi.fn(),
   filenameFromDisposition: () => null,

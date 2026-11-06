@@ -4,9 +4,7 @@
 // reports and names the PDF. The backend decides every permission
 // (student_accidents:read / :manage) and refuses changes to a signed report.
 
-import { ApiError, apiErrorFromResponse, transportFetch } from "./api-error";
-import { hasSessionAccess } from "./session-access";
-import { getCachedSession, sessionFetch } from "./session-cache";
+import { bffJson } from "./bff-fetch";
 import { signatureRequestBody, type SignatureValue } from "./signature";
 
 type AccidentReportStatus = "open" | "signed";
@@ -104,12 +102,18 @@ function requestBody(fields: AccidentReportFields) {
   };
 }
 
-async function reportId(response: Response, fallback: string): Promise<string> {
-  if (!response.ok) {
-    throw await apiErrorFromResponse(response, fallback);
-  }
-  const json = (await response.json()) as { data: { id: number } };
-  return json.data.id.toString();
+function reportsPath(studentId: string, reportIdValue?: string): string {
+  const base = `/api/students/${encodeURIComponent(studentId)}/accident-reports`;
+  return reportIdValue ? `${base}/${encodeURIComponent(reportIdValue)}` : base;
+}
+
+async function writeReport(
+  url: string,
+  method: "POST" | "PUT",
+  body: unknown,
+): Promise<string> {
+  const report = await bffJson<{ id: number }>(url, { method, body });
+  return report.id.toString();
 }
 
 /** The page of one accident report in the tenant portal. */
@@ -123,11 +127,7 @@ class StudentAccidentReportsService {
     studentId: string,
     fields: AccidentReportFields,
   ): Promise<string> {
-    const response = await sessionFetch(
-      `/api/students/${studentId}/accident-reports`,
-      { method: "POST", body: JSON.stringify(requestBody(fields)) },
-    );
-    return reportId(response, "Unfallanzeige konnte nicht gespeichert werden.");
+    return writeReport(reportsPath(studentId), "POST", requestBody(fields));
   }
 
   /** Changes an open report. */
@@ -136,11 +136,11 @@ class StudentAccidentReportsService {
     reportIdValue: string,
     fields: AccidentReportFields,
   ): Promise<void> {
-    const response = await sessionFetch(
-      `/api/students/${studentId}/accident-reports/${reportIdValue}`,
-      { method: "PUT", body: JSON.stringify(requestBody(fields)) },
+    await writeReport(
+      reportsPath(studentId, reportIdValue),
+      "PUT",
+      requestBody(fields),
     );
-    await reportId(response, "Unfallanzeige konnte nicht gespeichert werden.");
   }
 
   /** Records a new version of a signed report and returns its id. */
@@ -149,11 +149,11 @@ class StudentAccidentReportsService {
     reportIdValue: string,
     fields: AccidentReportFields,
   ): Promise<string> {
-    const response = await sessionFetch(
-      `/api/students/${studentId}/accident-reports/${reportIdValue}/corrections`,
-      { method: "POST", body: JSON.stringify(requestBody(fields)) },
+    return writeReport(
+      `${reportsPath(studentId, reportIdValue)}/corrections`,
+      "POST",
+      requestBody(fields),
     );
-    return reportId(response, "Korrektur konnte nicht gespeichert werden.");
   }
 
   async sign(
@@ -161,11 +161,11 @@ class StudentAccidentReportsService {
     reportIdValue: string,
     signature: SignatureValue,
   ): Promise<void> {
-    const response = await sessionFetch(
-      `/api/students/${studentId}/accident-reports/${reportIdValue}/signature`,
-      { method: "POST", body: JSON.stringify(signatureRequestBody(signature)) },
+    await writeReport(
+      `${reportsPath(studentId, reportIdValue)}/signature`,
+      "POST",
+      signatureRequestBody(signature),
     );
-    await reportId(response, "Unterschrift konnte nicht gespeichert werden.");
   }
 
   async uploadPaperCopy(
@@ -173,29 +173,20 @@ class StudentAccidentReportsService {
     reportIdValue: string,
     file: File,
   ): Promise<void> {
-    if (!hasSessionAccess(await getCachedSession())) {
-      // Ohne Sitzung führt der gemeinsame Fehlerweg zur Anmeldung.
-      throw new ApiError("Authentifizierung erforderlich", 401);
-    }
     const formData = new FormData();
     formData.append("file", file);
-    // Raw fetch on purpose: sessionFetch forces application/json and would
-    // clobber the multipart boundary.
-    const response = await transportFetch(
-      `/api/students/${studentId}/accident-reports/${reportIdValue}/paper-copy`,
-      { method: "POST", body: formData },
+    await bffJson<unknown>(
+      `${reportsPath(studentId, reportIdValue)}/paper-copy`,
+      {
+        method: "POST",
+        body: formData,
+      },
     );
-    if (!response.ok) {
-      throw await apiErrorFromResponse(
-        response,
-        "Papierexemplar konnte nicht hochgeladen werden.",
-      );
-    }
   }
 
   /** Same-origin proxy URL of the report as PDF. */
   pdfUrl(studentId: string, reportIdValue: string): string {
-    return `/api/students/${studentId}/accident-reports/${reportIdValue}/pdf`;
+    return `${reportsPath(studentId, reportIdValue)}/pdf`;
   }
 }
 

@@ -401,23 +401,25 @@ func (p *OperatorProvisioning) confirmEmailChangeInAdmin(txCtx context.Context, 
 	} else if !errors.Is(findErr, identityaccess.ErrOperatorNotFound) {
 		return identityaccess.OperatorEmailChangeResult{}, fmt.Errorf("check operator email uniqueness: %w", findErr)
 	}
-	operator, operatorErr := p.operators.findOperatorByID(txCtx, change.OperatorID)
-	if operatorErr != nil {
-		if errors.Is(operatorErr, identityaccess.ErrOperatorNotFound) {
-			return identityaccess.OperatorEmailChangeResult{}, identityaccess.ErrOperatorEmailChangeNotFound
+	// UpdateOperator edits the row it locked, so a deactivation that commits
+	// meanwhile is seen here, not reverted.
+	var result identityaccess.OperatorEmailChangeResult
+	_, operatorErr := p.operators.UpdateOperator(txCtx, change.OperatorID, func(operator *identityaccess.Operator) error {
+		if !operator.Active {
+			return identityaccess.ErrOperatorInactive
 		}
+		result = identityaccess.OperatorEmailChangeResult{
+			OperatorID: operator.ID, DisplayName: operator.DisplayName,
+			OldEmail: operator.Email, NewEmail: change.NewEmail,
+		}
+		operator.Email = change.NewEmail
+		return nil
+	})
+	if errors.Is(operatorErr, identityaccess.ErrOperatorNotFound) {
+		return identityaccess.OperatorEmailChangeResult{}, identityaccess.ErrOperatorEmailChangeNotFound
+	}
+	if operatorErr != nil {
 		return identityaccess.OperatorEmailChangeResult{}, operatorErr
-	}
-	if !operator.Active {
-		return identityaccess.OperatorEmailChangeResult{}, identityaccess.ErrOperatorInactive
-	}
-	result := identityaccess.OperatorEmailChangeResult{
-		OperatorID: operator.ID, DisplayName: operator.DisplayName,
-		OldEmail: operator.Email, NewEmail: change.NewEmail,
-	}
-	operator.Email = change.NewEmail
-	if _, updateErr := p.operators.UpdateOperator(txCtx, identityaccess.Operator(operator)); updateErr != nil {
-		return identityaccess.OperatorEmailChangeResult{}, updateErr
 	}
 	return result, p.changes.DispatchOperatorEmailChangeConfirmed(txCtx, result.OldEmail, result.DisplayName)
 }

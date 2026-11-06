@@ -1,32 +1,10 @@
-import { apiPost } from "~/lib/api-helpers.server";
-import { createPostHandler } from "~/lib/route-wrapper.server";
+import { proxyPost } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-interface MarkDoneBody {
-  expected_version: string;
-  reason?: string;
-}
-
-interface BackendEnvelope<T> {
-  data: T;
-}
-
-/**
- * Proxy POST /api/students/change-requests/{kind}/{id}/mark-done → backend
- * (#2267). Schließt eine Anfrage ab, die nur noch vergangene Tage betrifft:
- * nichts wird übernommen, die Zeile verlässt nur die Arbeitsliste. Ein 409
- * `students.request_not_past` heißt, dass die Anfrage noch kommende Tage betrifft und
- * regulär entschieden werden muss; `students.change_request_stale` heißt, dass sie
- * inzwischen geändert wurde.
- */
-export const POST = createPostHandler<unknown, MarkDoneBody>(
-  async (_request, body, token, params) => {
-    const kind = String(params.kind);
-    const id = String(params.id);
-    const response = await apiPost<BackendEnvelope<unknown>, MarkDoneBody>(
-      `/api/students/change-requests/${encodeURIComponent(kind)}/${encodeURIComponent(id)}/mark-done`,
-      token,
-      body,
-    );
-    return response.data;
-  },
+// Closes a request that only concerns past days (#2267): nothing is applied.
+// 409 students.request_not_past: it still concerns coming days;
+// students.change_request_stale: it changed in the meantime.
+export const POST = proxyPost(
+  (p) =>
+    `/api/students/change-requests/${requirePathSegmentParam(p, "kind")}/${requirePathSegmentParam(p)}/mark-done`,
 );

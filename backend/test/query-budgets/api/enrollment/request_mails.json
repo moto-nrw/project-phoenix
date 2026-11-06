@@ -1,0 +1,6 @@
+{
+  "scenario": "api.enrollment.request_mails",
+  "max": 6,
+  "exact": false,
+  "description": "api/enrollment/admin/requests/{id}/mails (#5934): the transaction setup, the request and one read of its mails. A further mail must not add a statement."
+}

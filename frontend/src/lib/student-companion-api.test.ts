@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "./api-error";
 import {
   ALL_COMPANION_WEEKDAYS,
@@ -8,41 +8,16 @@ import {
   formatCompanionWeekdays,
 } from "./student-companion-api";
 
-const { mockGetSession } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
+const { mockSessionFetch } = vi.hoisted(() => ({
+  mockSessionFetch:
+    vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(),
 }));
 
-vi.mock("next-auth/react", () => ({
-  getSession: mockGetSession,
-}));
-
-function mockFetchResponse(
-  data: unknown,
-  options: { ok?: boolean; status?: number; text?: string } = {},
-): Response {
-  const ok = options.ok ?? true;
-  const status = options.status ?? 200;
-  return {
-    ok,
-    status,
-    json: () => Promise.resolve(data),
-    text: () => Promise.resolve(options.text ?? ""),
-  } as unknown as Response;
-}
+vi.mock("./session-cache", () => ({ sessionFetch: mockSessionFetch }));
 
 describe("student-companion-api", () => {
-  const fetchSpy = vi.fn();
-
   beforeEach(() => {
-    vi.clearAllMocks();
-    globalThis.fetch = fetchSpy as unknown as typeof fetch;
-    mockGetSession.mockResolvedValue({
-      user: { token: "test-token" },
-    });
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
+    mockSessionFetch.mockReset();
   });
 
   describe("COMPANION_WEEKDAYS", () => {
@@ -71,47 +46,11 @@ describe("student-companion-api", () => {
     });
   });
 
-  describe("auth headers", () => {
-    // The route reads the session cookie; the browser holds no token (#5005).
-    it("sends no bearer token for a signed-in session", async () => {
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({ data: [] }));
-
-      await fetchStudentCompanions("42");
-
-      const headers = (fetchSpy.mock.calls[0]![1] as RequestInit)
-        .headers as Record<string, string>;
-      expect(headers.Authorization).toBeUndefined();
-      expect(headers["Content-Type"]).toBe("application/json");
-    });
-
-    it("omits Authorization when session has no token", async () => {
-      mockGetSession.mockResolvedValueOnce({ user: {} });
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({ data: [] }));
-
-      await fetchStudentCompanions("42");
-
-      const headers = (fetchSpy.mock.calls[0]![1] as RequestInit)
-        .headers as Record<string, string>;
-      expect(headers.Authorization).toBeUndefined();
-      expect(headers["Content-Type"]).toBe("application/json");
-    });
-
-    it("omits Authorization when session is null", async () => {
-      mockGetSession.mockResolvedValueOnce(null);
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({ data: [] }));
-
-      await fetchStudentCompanions("42");
-
-      const headers = (fetchSpy.mock.calls[0]![1] as RequestInit)
-        .headers as Record<string, string>;
-      expect(headers.Authorization).toBeUndefined();
-    });
-  });
-
   describe("fetchStudentCompanions", () => {
-    it("fetches and unwraps the companion list", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse({
+    it("fetches the companion list and maps ids to strings", async () => {
+      mockSessionFetch.mockResolvedValueOnce(
+        Response.json({
+          success: true,
           data: [
             {
               // The backend serializes the int64 id as a JSON number …
@@ -120,81 +59,76 @@ describe("student-companion-api", () => {
               last_name: "Klein",
               weekdays: ["mon", "tue"],
             },
+            { companion_student_id: 8 },
           ],
         }),
       );
 
       const result = await fetchStudentCompanions("42");
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/students/42/companions",
-        expect.objectContaining({
-          method: "GET",
-          credentials: "include",
-        }),
+        expect.objectContaining({ method: "GET" }),
       );
-      expect(result).toHaveLength(1);
       // … and the client maps it to a string like every other backend id.
-      expect(result[0]!.companion_student_id).toBe("7");
-      expect(result[0]!.weekdays).toEqual(["mon", "tue"]);
-    });
-
-    it("handles unwrapped (no .data wrapper) payloads", async () => {
-      const payload = [{ companion_student_id: 3, weekdays: ["fri"] as const }];
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
-
-      const result = await fetchStudentCompanions("42");
-
       expect(result).toEqual([
-        { companion_student_id: "3", weekdays: ["fri"] },
+        {
+          companion_student_id: "7",
+          first_name: "Lina",
+          last_name: "Klein",
+          weekdays: ["mon", "tue"],
+        },
+        {
+          companion_student_id: "8",
+          first_name: undefined,
+          last_name: undefined,
+          weekdays: [],
+        },
       ]);
     });
 
-    it("returns an empty array when the payload is null", async () => {
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({ data: null }));
+    it("returns an empty array for a null list or a 204", async () => {
+      mockSessionFetch
+        .mockResolvedValueOnce(Response.json({ success: true, data: null }))
+        .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
       await expect(fetchStudentCompanions("42")).resolves.toEqual([]);
-    });
-
-    it("returns an empty array on 204", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse(null, { ok: true, status: 204 }),
-      );
-
       await expect(fetchStudentCompanions("42")).resolves.toEqual([]);
     });
   });
 
   describe("error handling", () => {
-    it("keeps the backend diagnostic separate from the status fallback", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse(null, {
-          ok: false,
-          status: 400,
-          text: JSON.stringify({
-            status: "Invalid request",
+    it("keeps the backend diagnostic out of the message", async () => {
+      mockSessionFetch.mockResolvedValueOnce(
+        Response.json(
+          {
+            status: 400,
             detail: "Ein Kind kann nicht mit sich selbst laufen.",
-          }),
-        }),
+          },
+          { status: 400 },
+        ),
       );
 
-      await expect(fetchStudentCompanions("42")).rejects.toThrow(
-        "Anfrage fehlgeschlagen (400)",
+      const error = await fetchStudentCompanions("42").catch(
+        (err: unknown) => err,
       );
+      expect(error).toMatchObject({
+        status: 400,
+        detail: "Ein Kind kann nicht mit sich selbst laufen.",
+      });
+      expect((error as Error).message).not.toContain("selbst");
     });
 
     it("throws an ApiError with code and request ID for the shared error path", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse(null, {
-          ok: false,
-          status: 503,
-          text: JSON.stringify({
-            status: "error",
+      mockSessionFetch.mockResolvedValueOnce(
+        Response.json(
+          {
             detail: "unavailable",
             code: "general.unavailable",
             instance: "req-companions",
-          }),
-        }),
+          },
+          { status: 503 },
+        ),
       );
 
       const error = await fetchStudentCompanions("42").catch(
@@ -208,57 +142,15 @@ describe("student-companion-api", () => {
       });
     });
 
-    it("falls back to the status code when the envelope has no detail", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse(null, {
-          ok: false,
-          status: 404,
-          text: JSON.stringify({ status: 404, code: "general.input" }),
-        }),
-      );
-
-      await expect(fetchStudentCompanions("42")).rejects.toMatchObject({
-        message: "Anfrage fehlgeschlagen (404)",
-        status: 404,
-        code: "general.input",
-      });
-    });
-
     it("classifies a body that is not JSON by its status", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse(null, {
-          ok: false,
-          status: 500,
-          text: "server exploded",
-        }),
+      mockSessionFetch.mockResolvedValueOnce(
+        new Response("server exploded", { status: 500 }),
       );
 
       await expect(fetchStudentCompanions("42")).rejects.toMatchObject({
-        message: "Anfrage fehlgeschlagen (500)",
+        status: 500,
         code: "general.server",
       });
-    });
-
-    it("falls back to the status code when there is no body", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse(null, { ok: false, status: 403, text: "" }),
-      );
-
-      await expect(fetchStudentCompanions("42")).rejects.toThrow(
-        "Anfrage fehlgeschlagen (403)",
-      );
-    });
-
-    it("falls back to the status code when reading the body fails", async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: false,
-        status: 502,
-        text: () => Promise.reject(new Error("stream error")),
-      } as unknown as Response);
-
-      await expect(fetchStudentCompanions("42")).rejects.toThrow(
-        "Anfrage fehlgeschlagen (502)",
-      );
     });
   });
 

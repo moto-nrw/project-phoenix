@@ -4,7 +4,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 
 /** The two status filters a child without check-in falls into. */
-export type MissingCheckinStatus = "schule" | "abwesend";
+type MissingCheckinStatus = "schule" | "abwesend";
 
 export interface MissingCheckinStudent {
   readonly id: string;

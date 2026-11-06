@@ -238,6 +238,12 @@ func sendHoldBack(err error) error {
 		return errHoldBack{reason: carecontract.SkipPartnerMissing}
 	case errors.Is(err, carecontract.ErrRecipientMissing):
 		return errHoldBack{reason: carecontract.SkipRecipientMissing}
+	case errors.Is(err, carecontract.ErrMailDelayed):
+		return errHoldBack{reason: carecontract.SkipMailDelayed}
+	case errors.Is(err, carecontract.ErrMailBlocked):
+		return errHoldBack{reason: carecontract.SkipMailBlocked}
+	case errors.Is(err, carecontract.ErrMailBlockUnreadable):
+		return errHoldBack{reason: carecontract.SkipMailBlockUnreadable}
 	}
 	return err
 }

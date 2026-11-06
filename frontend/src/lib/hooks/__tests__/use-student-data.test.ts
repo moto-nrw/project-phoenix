@@ -3,7 +3,6 @@
  *
  * Tests:
  * - useStudentData hook
- * - mapStudentResponse helper
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -27,10 +26,8 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
-vi.mock("~/lib/api", () => ({
-  studentService: {
-    getStudent: vi.fn(() => Promise.resolve({ id: "1", first_name: "Max" })),
-  },
+vi.mock("~/lib/student-api", () => ({
+  fetchStudent: vi.fn(() => Promise.resolve({ id: "1", first_name: "Max" })),
 }));
 
 vi.mock("~/lib/usercontext-api", () => ({

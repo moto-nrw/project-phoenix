@@ -21,6 +21,7 @@ import { useApiLoadError, useToast } from "~/contexts/ToastContext";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Textarea } from "~/components/ui/textarea";
 import { ParentPageHeader } from "~/components/parent/parent-page";
+import { announceChangeRequestsChanged } from "~/lib/change-requests-refresh";
 
 const logger = createLogger({ component: "EnrollmentEditPage" });
 
@@ -106,7 +107,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
           changeReason,
           t("changeRequestSaveError"),
         );
-        window.dispatchEvent(new Event("change-requests-refresh"));
+        announceChangeRequestsChanged();
         return {
           request_id: changeRequest.request_id,
           status_url: statusHref,

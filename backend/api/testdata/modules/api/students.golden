@@ -33,6 +33,7 @@ GET /api/students/ended-care -> basis
 GET /api/students/offering-change-requests/course-waitlists -> basis
 GET /api/students/ogs-group-live -> basis
 GET /api/students/ogs-group-navigation -> basis
+GET /api/students/privacy-consent/defaults -> basis
 GET /api/students/school-classes -> basis
 GET /api/students/status-days -> basis
 GET /api/students/{id} -> basis

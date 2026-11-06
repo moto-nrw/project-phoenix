@@ -40,5 +40,8 @@
   "recipient_email_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "sibling_group_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "sibling_group_invoiced": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "sibling_group_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "sibling_group_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "letter_mail_delayed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "letter_mail_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "letter_mail_block_unreadable": "Nie można teraz sprawdzić, czy ten adres jest zablokowany. Spróbuj ponownie później."
 }

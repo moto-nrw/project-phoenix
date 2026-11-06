@@ -9,11 +9,7 @@
  * care-plan-helpers.ts and the view, not by this client.
  */
 
-import {
-  apiErrorFromBody,
-  apiErrorFromResponse,
-  transportFetch,
-} from "./api-error";
+import { bffJson } from "./bff-fetch";
 
 /** Arrival/pickup slot source — mirrors SlotSource* in the backend. */
 type CarePlanSlotSource = "schedule" | "exception" | "none";
@@ -69,7 +65,7 @@ export interface CarePlanDay {
 }
 
 /** A contiguous, inclusive range of care-plan days. */
-export interface CarePlanWeek {
+interface CarePlanWeek {
   studentId: string;
   from: string; // YYYY-MM-DD
   to: string; // YYYY-MM-DD
@@ -77,12 +73,6 @@ export interface CarePlanWeek {
 }
 
 // --- Backend wire shapes (snake_case) --------------------------------------
-
-interface ApiResponse<T> {
-  status: string;
-  data?: T;
-  message?: string;
-}
 
 interface BackendSlot {
   expected_time: string | null;
@@ -131,7 +121,7 @@ interface BackendWeek {
 function mapSlot(s: BackendSlot): CarePlanSlot {
   const slot: CarePlanSlot = {
     expectedTime: s.expected_time,
-    source: (s.source as CarePlanSlotSource) ?? "none",
+    source: (s.source as CarePlanSlotSource | undefined) ?? "none",
   };
   if (s.reason) slot.reason = s.reason;
   return slot;
@@ -182,32 +172,18 @@ function mapWeek(w: BackendWeek): CarePlanWeek {
   };
 }
 
-async function parseApiResult<T>(
-  response: Response,
-  fallback: string,
-): Promise<T> {
-  const result = (await response.json()) as ApiResponse<T>;
-  if (!result.data) {
-    throw apiErrorFromBody(fallback, response.status, result);
-  }
-  return result.data;
-}
-
 // --- Fetchers ---------------------------------------------------------------
-
-const LOAD_ERROR = "Betreuungsplan konnte nicht geladen werden";
 
 /** Fetch one child's plan for a single day. */
 export async function fetchStudentCarePlanDay(
   studentId: string,
   date: string,
 ): Promise<CarePlanDay> {
-  const response = await transportFetch(
-    `/api/timetable/student/${studentId}/day?date=${date}`,
+  return mapDay(
+    await bffJson<BackendDay>(
+      `/api/timetable/student/${encodeURIComponent(studentId)}/day?date=${date}`,
+    ),
   );
-  if (!response.ok) throw await apiErrorFromResponse(response, LOAD_ERROR);
-  const data = await parseApiResult<BackendDay>(response, LOAD_ERROR);
-  return mapDay(data);
 }
 
 /** Fetch one child's plan across an inclusive [from, to] range (max 14 days). */
@@ -216,10 +192,56 @@ export async function fetchStudentCarePlanWeek(
   from: string,
   to: string,
 ): Promise<CarePlanWeek> {
-  const response = await transportFetch(
-    `/api/timetable/student/${studentId}/week?from=${from}&to=${to}`,
+  return mapWeek(
+    await bffJson<BackendWeek>(
+      `/api/timetable/student/${encodeURIComponent(studentId)}/week?from=${from}&to=${to}`,
+    ),
   );
-  if (!response.ok) throw await apiErrorFromResponse(response, LOAD_ERROR);
-  const data = await parseApiResult<BackendWeek>(response, LOAD_ERROR);
-  return mapWeek(data);
+}
+
+/** One recorded correction of a child's attendance in a block. */
+export interface AttendanceCorrection {
+  readonly field_name: string;
+  readonly old_value?: string | null;
+  readonly new_value?: string | null;
+  readonly reason: string;
+  readonly actor_name?: string | null;
+  readonly corrected_at: string;
+}
+
+/** The fields a correction changes, with the reason it is made. */
+interface AttendanceCorrectionInput {
+  reason: string;
+  status?: string;
+  substatus?: string | null;
+  note?: string | null;
+}
+
+function correctionPath(instanceId: string, studentId: string): string {
+  return `/api/timetable/instances/${encodeURIComponent(instanceId)}/students/${encodeURIComponent(studentId)}`;
+}
+
+/** The correction trail of a child's attendance in one block. */
+export async function fetchAttendanceCorrections(
+  instanceId: string,
+  studentId: string,
+): Promise<AttendanceCorrection[]> {
+  const trail = await bffJson<{ corrections?: AttendanceCorrection[] }>(
+    `${correctionPath(instanceId, studentId)}/corrections`,
+  );
+  return trail.corrections ?? [];
+}
+
+export async function correctAttendance(
+  instanceId: string,
+  studentId: string,
+  correction: AttendanceCorrectionInput,
+): Promise<void> {
+  await bffJson<unknown>(
+    `${correctionPath(instanceId, studentId)}/correction`,
+    {
+      method: "POST",
+      body: correction,
+    },
+  );
 }

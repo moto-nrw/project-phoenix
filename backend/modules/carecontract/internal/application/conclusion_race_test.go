@@ -68,6 +68,11 @@ func (p *racePost) EnqueueContractMail(context.Context, carecontract.ContractMai
 	return p.next, nil
 }
 
+// ContractMailBlock holds no address back.
+func (p *racePost) ContractMailBlock(context.Context, int64, string, string) (string, error) {
+	return "", nil
+}
+
 func (p *racePost) ContractMailStates(context.Context, int64, int64) ([]carecontract.MailState, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

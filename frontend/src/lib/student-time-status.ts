@@ -108,7 +108,7 @@ interface StudentTimeStatusInput {
 }
 
 /** Why a student is not expected today. Drives the neutral "absent" rendering. */
-export interface StudentAbsence {
+interface StudentAbsence {
   reason: "sick" | "class_trip" | "excused";
   /** German UI label, e.g. "krank gemeldet" or "entschuldigt". */
   label: string;

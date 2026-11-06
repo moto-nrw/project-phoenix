@@ -236,7 +236,13 @@ func (s *Store) InsertGuardianInvitation(ctx context.Context, invitation domain.
 // UpdateGuardianInvitation writes every mutable column of the invitation. The
 // token is replaced only when the invitation carries a new raw one; an
 // invitation read from the store carries none and keeps its link.
-func (s *Store) UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation) error {
+//
+// Callers read the invitation without a lock, so the write is conditional on
+// the state they read: the row must still be unaccepted and still carry
+// expectedApprovalStatus. Otherwise an acceptance, approval or rejection
+// committed meanwhile would be overwritten; the write then matches no row
+// and reports ErrGuardianInvitationNotFound.
+func (s *Store) UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation, expectedApprovalStatus string) error {
 	row := guardianInvitationRowOf(invitation)
 	columns := []string{"guardian_profile_id", "expires_at", "accepted_at", "email_sent_at", "email_error",
 		"student_id", "requested_by_account_id", "approval_status", "approved_by", "approved_at",
@@ -249,7 +255,9 @@ func (s *Store) UpdateGuardianInvitation(ctx context.Context, invitation domain.
 		return guardianTenantFilter(scope, db.NewUpdate().Model(&row).
 			Column(columns...).
 			Set("updated_at = NOW()").
-			Where(`"guardian_invitation".id = ?`, invitation.ID))
+			Where(`"guardian_invitation".id = ?`, invitation.ID).
+			Where(`"guardian_invitation".accepted_at IS NULL`).
+			Where(`"guardian_invitation".approval_status = ?`, expectedApprovalStatus))
 	})
 	if err != nil {
 		return err

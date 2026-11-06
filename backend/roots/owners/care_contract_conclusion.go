@@ -11,4 +11,4 @@ import (
 // composes. The server root supplies it, where the Betreuungsvertrag's
 // ports are bound for its portal routes too.
 type CareContractConclusionBuilder func(organizations organizationtenancy.Capability, settings SettingsOwner,
-	delivery deliveryRuntime.Capability, accessLog DataAccessAppender) schedulerPorts.CareContractConclusion
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog DataAccessAppender) schedulerPorts.CareContractConclusion

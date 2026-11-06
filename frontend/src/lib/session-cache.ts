@@ -15,6 +15,7 @@ import {
   ApiError,
   apiErrorFromResponse,
   onSessionTenantMismatch,
+  transportFetch,
   unavailableApiError,
 } from "./api-error";
 import { clearRateLimitBackoff } from "./rate-limit-backoff";
@@ -59,17 +60,6 @@ function sessionEnded(
 ): boolean {
   const expires = session?.expires;
   return typeof expires === "string" && Date.parse(expires) <= now;
-}
-
-async function transportFetch(
-  url: string,
-  init: RequestInit,
-): Promise<Response> {
-  try {
-    return await fetch(url, init);
-  } catch (error) {
-    throw unavailableApiError(error);
-  }
 }
 
 async function getSessionOrUnavailable() {
@@ -256,12 +246,13 @@ export async function sessionFetch(
     throw authenticationRequiredError();
   }
 
+  // A multipart body sets its own Content-Type with the boundary.
   const mergedInit: RequestInit = {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
+    headers:
+      init?.body instanceof FormData
+        ? init.headers
+        : { "Content-Type": "application/json", ...init?.headers },
   };
 
   const response = await transportFetch(url, mergedInit);

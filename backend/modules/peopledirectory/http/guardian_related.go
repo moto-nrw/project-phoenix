@@ -28,6 +28,7 @@ type inviteToStudentResponse struct {
 	GuardianProfileID string `json:"guardian_profile_id"`
 	InvitationID      string `json:"invitation_id,omitempty"`
 	ExistingRole      string `json:"existing_role,omitempty"`
+	MailHeld          bool   `json:"mail_held,omitempty"`
 }
 
 type pendingApprovalResponse struct {
@@ -73,7 +74,7 @@ func (rs *GuardianResource) inviteGuardianToStudent(w http.ResponseWriter, r *ht
 		return
 	}
 	response := inviteToStudentResponse{
-		Outcome: result.Outcome, GuardianProfileID: strconv.FormatInt(result.GuardianProfileID, 10), ExistingRole: result.ExistingRole,
+		Outcome: result.Outcome, GuardianProfileID: strconv.FormatInt(result.GuardianProfileID, 10), ExistingRole: result.ExistingRole, MailHeld: result.MailHeld,
 	}
 	if result.InvitationID != nil {
 		response.InvitationID = strconv.FormatInt(*result.InvitationID, 10)

@@ -1,31 +1,10 @@
-import { apiPost } from "~/lib/api-helpers.server";
-import { createPostHandler } from "~/lib/route-wrapper.server";
+import { proxyPost } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-interface DecideBody {
-  approve: boolean;
-  reason?: string;
-}
-
-interface BackendEnvelope<T> {
-  data: T;
-}
-
-/**
- * Proxy POST /api/students/excused-absence-requests/{requestId}/decide →
- * backend. Approves (marks the child excused for the requested days) or rejects
- * (reason required) one parent "entschuldigt" absence request. A 409 with code
- * `students.change_request_not_pending` means the request was already decided/withdrawn;
- * `students.guardian_access_revoked` means the submitting guardian lost access to the
- * child before approval (staff should reject it instead).
- */
-export const POST = createPostHandler<unknown, DecideBody>(
-  async (_request, body, token, params) => {
-    const requestId = String(params.requestId);
-    const response = await apiPost<BackendEnvelope<unknown>, DecideBody>(
-      `/api/students/excused-absence-requests/${encodeURIComponent(requestId)}/decide`,
-      token,
-      body,
-    );
-    return response.data;
-  },
+// Approves or rejects one parent „entschuldigt“ request. 409
+// students.change_request_not_pending: already decided or withdrawn;
+// students.guardian_access_revoked: the guardian lost access to the child.
+export const POST = proxyPost(
+  (p) =>
+    `/api/students/excused-absence-requests/${requirePathSegmentParam(p, "requestId")}/decide`,
 );

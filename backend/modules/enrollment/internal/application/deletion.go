@@ -32,6 +32,7 @@ type DeletionRequests interface {
 // request.
 type EnrollmentDeletionDelivery interface {
 	CountRelatedEmails(context.Context, string, int64) (int, error)
+	RelatedEmailOutcomes(context.Context, string, int64) ([]enrollmentNative.RequestMailOutcome, error)
 	CancelRelatedEmails(context.Context, string, int64, string) (int64, error)
 }
 
@@ -301,6 +302,22 @@ func (s *Deletions) validateConfigured() error {
 		return errors.New("enrollment deletion service is not configured")
 	}
 	return nil
+}
+
+// RequestMailOutcomes reports what became of the mails to the family of an
+// application in the caller's tenant transaction. A missing application is an
+// error, so another school's request answers as not found.
+func (s *Deletions) RequestMailOutcomes(ctx context.Context, requestID int64) ([]enrollmentNative.RequestMailOutcome, error) {
+	if err := s.validateConfigured(); err != nil {
+		return nil, err
+	}
+	if _, err := s.deps.Requests.RequestByID(ctx, requestID, false); err != nil {
+		if s.deps.Runtime.NotFound(err) {
+			return nil, enrollmentNative.ErrEnrollmentDeletionNotFound
+		}
+		return nil, err
+	}
+	return s.deps.Delivery.RelatedEmailOutcomes(ctx, enrollmentRequestDeliveryType, requestID)
 }
 
 func (s *Deletions) addDeliveryCount(ctx context.Context, impact *enrollmentNative.DeletionImpact) error {

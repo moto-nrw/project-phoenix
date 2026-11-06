@@ -70,7 +70,10 @@ vi.mock("~/lib/parent-announcements-api", async (importOriginal) => {
 
 vi.mock("~/lib/api", () => ({
   groupService: { getGroups: vi.fn(() => Promise.resolve([])) },
-  studentService: { getSchoolClasses: vi.fn(() => Promise.resolve([])) },
+}));
+
+vi.mock("~/lib/student-api", () => ({
+  fetchSchoolClasses: vi.fn(() => Promise.resolve([])),
 }));
 
 vi.mock("~/lib/activity-api", () => ({
