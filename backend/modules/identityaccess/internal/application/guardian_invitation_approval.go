@@ -54,7 +54,7 @@ func (l *AccountLifecycle) approveInvitation(ctx context.Context, invitationID, 
 	invitation.ExpiresAt = now.Add(expiry)
 	invitation.EmailSentAt = nil
 	invitation.EmailError = nil
-	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {
+	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, domain.GuardianInvitationApprovalPending); err != nil {
 		return failed(opGuardianInviteApprove, err)
 	}
 	l.logger.Info("guardian invitation approved",
@@ -72,7 +72,7 @@ func (l *AccountLifecycle) approveInvitation(ctx context.Context, invitationID, 
 // mail cannot be queued (#4602).
 func (l *AccountLifecycle) approveForExistingAccount(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, approverAccountID int64, now time.Time) error {
 	invitation.AcceptedAt = &now
-	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {
+	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, domain.GuardianInvitationApprovalPending); err != nil {
 		return failed(opGuardianInviteApprove, err)
 	}
 	l.logger.Info("guardian invitation approved (existing account)",
@@ -94,7 +94,7 @@ func (l *AccountLifecycle) rejectInvitation(ctx context.Context, invitationID, a
 	invitation.ApprovalStatus = domain.GuardianInvitationApprovalRejected
 	invitation.ApprovedBy = &approverAccountID
 	invitation.ApprovedAt = &now
-	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {
+	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, domain.GuardianInvitationApprovalPending); err != nil {
 		return failed(opGuardianInviteReject, err)
 	}
 

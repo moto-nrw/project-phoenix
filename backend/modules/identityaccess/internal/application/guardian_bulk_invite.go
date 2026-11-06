@@ -410,7 +410,7 @@ func (l *AccountLifecycle) resendOpenInvitation(ctx context.Context, dryRun bool
 		invitation.ExpiresAt = time.Now().Add(expiry)
 		invitation.EmailSentAt = nil
 		invitation.EmailError = nil
-		if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {
+		if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, invitation.ApprovalStatus); err != nil {
 			return false, failed(opGuardianBulkInvite, err)
 		}
 		if _, err := l.enqueueInvitationEmail(ctx, invitation, profile, l.delivery.SchoolName(ctx, invitation.TenantID)); err != nil {

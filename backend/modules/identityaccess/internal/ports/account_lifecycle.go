@@ -147,7 +147,10 @@ type GuardianInvitationStore interface {
 	// school in context whose link can still be spent.
 	ListRedeemableGuardianInvitations(ctx context.Context, now time.Time) ([]domain.GuardianInvitation, error)
 	InsertGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation) (domain.GuardianInvitation, error)
-	UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation) error
+	// UpdateGuardianInvitation writes the invitation only while it is still
+	// unaccepted and carries expectedApprovalStatus, the status the caller
+	// read; otherwise it reports ErrGuardianInvitationNotFound.
+	UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation, expectedApprovalStatus string) error
 	// AcceptGuardianInvitation stamps the acceptance and reports whether the
 	// invitation was still unaccepted, so a token is spent exactly once.
 	AcceptGuardianInvitation(ctx context.Context, id int64, acceptedAt time.Time) (bool, error)
