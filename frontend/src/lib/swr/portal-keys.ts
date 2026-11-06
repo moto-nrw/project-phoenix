@@ -275,7 +275,7 @@ export const timeTrackingKeys = {
 export const traegerKeys = {
   schools: () => "traeger-schools",
   school: (id: string) => `traeger-school-${encodeURIComponent(id)}`,
-  schoolsToday: () => "traeger-schools-today",
+  schoolsAlerts: () => "traeger-schools-alerts",
   keyDateCounts: () => "traeger-key-date-counts",
   periodsFamily: "traeger-holiday-period-",
   periods: () => "traeger-holiday-period-list",

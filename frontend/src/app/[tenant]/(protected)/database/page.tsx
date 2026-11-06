@@ -390,14 +390,12 @@ function DatabaseContent() {
                       />
                     ) : badgeLoading ? (
                       // Platzhalter in der Höhe der fertigen Zahl (Text +
-                      // py-1.5), damit die Kachel beim Laden nicht springt.
-                      <Skeleton className="h-7 w-20 rounded-full">
+                      // py-1), damit die Kachel beim Laden nicht springt.
+                      <Skeleton className="h-6 w-20 rounded-full">
                         <span className="sr-only">{countText}</span>
                       </Skeleton>
                     ) : (
-                      <span className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600">
-                        {countText}
-                      </span>
+                      <StatusBadge label={countText} tone="gray" />
                     )}
                   </div>
 
