@@ -19,12 +19,16 @@ type EmailDeliveryEventStore interface {
 }
 
 // EmailReconciliationStore finds the mails the reconciliation asks the provider
-// about and frees corrected addresses. It crosses schools like the event store.
+// about, across schools like the event store, and frees corrected addresses in
+// the transaction of the school they name.
 type EmailReconciliationStore interface {
 	OpenProviderMails(context.Context, domain.ProviderMailQuery) ([]domain.ProviderMail, error)
 	MarkEmailDeliveryChecked(ctx context.Context, id int64, at time.Time) error
 	EmailSuppressionReason(ctx context.Context, tenantID int64, address string) (domain.EmailDeliveryState, bool, error)
 	DeleteEmailSuppression(ctx context.Context, tenantID int64, address string) error
+	// SchoolMailedAddress reports whether the school itself has a mail to exactly
+	// this address. It ties a team-wide provider block to the school.
+	SchoolMailedAddress(ctx context.Context, tenantID int64, address string) (bool, error)
 }
 
 // EmailProviderAPI is the mail provider's own record of its mails. Without a

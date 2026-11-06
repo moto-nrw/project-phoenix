@@ -32,12 +32,14 @@ const emailEventStateSQL = `UPDATE platform.email_outbox
 	WHERE id = ?`
 
 // The fallback's outcome is unknown, so the provider's state of the mail ends
-// here. A mail still in the worker's hands stays there: finalizing it puts it
-// back in the queue.
+// here. It gets attempts of its own: those spent on the provider say nothing about
+// it. A mail still in the worker's hands stays there: finalizing it puts it back
+// in the queue, and does the same with its attempts.
 const emailEventRerouteSQL = `UPDATE platform.email_outbox
 	SET fallback_requested_at = ?0, delivery_state = NULL, delivery_state_at = NULL,
 		status = CASE WHEN status = 'sent' THEN 'pending' ELSE status END,
 		next_retry_at = CASE WHEN status = 'sent' THEN ?0 ELSE next_retry_at END,
+		attempts = CASE WHEN status = 'sent' THEN 0 ELSE attempts END,
 		updated_at = ?0
 	WHERE id = ?1`
 
@@ -110,7 +112,11 @@ func applyEmailEvent(ctx context.Context, db bun.IDB, mail emailEventMailRow, ev
 		}
 		return nil
 	}
-	if event.Reroute && mail.Security && (result.State == "" || result.State == domain.EmailDeliveryDelayed) {
+	// What arrived or drew a complaint is not sent again. Every other state leaves
+	// the outcome for the recipient open: a bounce the reconciliation read without
+	// its reason can still turn out as a blocklist. fallback_requested_at, checked
+	// above, makes this happen once per mail.
+	if event.Reroute && mail.Security && result.State != domain.EmailDeliveryDelivered && result.State != domain.EmailDeliveryComplained {
 		if _, err := db.ExecContext(ctx, emailEventRerouteSQL, time.Now(), mail.ID); err != nil {
 			return err
 		}
@@ -174,7 +180,7 @@ func (s *Store) DeleteExpiredEmailSuppressions(ctx context.Context, tenantID int
 			WHERE known.tenant_id = ?0 AND known.address = suppression.address))`, tenantID, before))
 }
 
-const openProviderMailsSQL = `SELECT id, provider_message_id, delivery_state, sent_at
+const openProviderMailsSQL = `SELECT id, provider_message_id, delivery_state, sent_at, delivery_checked_at
 	FROM platform.email_outbox
 	WHERE status = 'sent' AND provider_message_id IS NOT NULL AND fallback_requested_at IS NULL
 		AND (delivery_state IS NULL OR delivery_state = 'delayed')
@@ -183,10 +189,11 @@ const openProviderMailsSQL = `SELECT id, provider_message_id, delivery_state, se
 	ORDER BY delivery_checked_at NULLS FIRST, id LIMIT ?`
 
 type providerMailRow struct {
-	ID                int64     `bun:"id"`
-	ProviderMessageID string    `bun:"provider_message_id"`
-	DeliveryState     *string   `bun:"delivery_state"`
-	SentAt            time.Time `bun:"sent_at"`
+	ID                int64      `bun:"id"`
+	ProviderMessageID string     `bun:"provider_message_id"`
+	DeliveryState     *string    `bun:"delivery_state"`
+	SentAt            time.Time  `bun:"sent_at"`
+	CheckedAt         *time.Time `bun:"delivery_checked_at"`
 }
 
 // OpenProviderMails implements ports.EmailReconciliationStore.
@@ -200,7 +207,7 @@ func (s *Store) OpenProviderMails(ctx context.Context, query domain.ProviderMail
 	}
 	mails := make([]domain.ProviderMail, 0, len(rows))
 	for _, row := range rows {
-		mail := domain.ProviderMail{ID: row.ID, ProviderMessageID: row.ProviderMessageID, SentAt: row.SentAt}
+		mail := domain.ProviderMail{ID: row.ID, ProviderMessageID: row.ProviderMessageID, SentAt: row.SentAt, CheckedAt: row.CheckedAt}
 		if row.DeliveryState != nil {
 			mail.State = domain.EmailDeliveryState(*row.DeliveryState)
 		}
@@ -223,11 +230,13 @@ func (s *Store) MarkEmailDeliveryChecked(ctx context.Context, id int64, at time.
 
 // EmailSuppressionReason implements ports.EmailReconciliationStore.
 func (s *Store) EmailSuppressionReason(ctx context.Context, tenantID int64, address string) (domain.EmailDeliveryState, bool, error) {
+	db, err := s.tenantDB(ctx, tenantID)
+	if err != nil {
+		return "", false, err
+	}
 	var reason string
-	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
-		return db.NewRaw(`SELECT reason FROM platform.email_suppressions WHERE tenant_id = ? AND address = ?`,
-			tenantID, normalizedAddress(address)).Scan(txCtx, &reason)
-	})
+	err = db.NewRaw(`SELECT reason FROM platform.email_suppressions WHERE tenant_id = ? AND address = ?`,
+		tenantID, normalizedAddress(address)).Scan(ctx, &reason)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil
 	}
@@ -237,31 +246,42 @@ func (s *Store) EmailSuppressionReason(ctx context.Context, tenantID int64, addr
 	return domain.EmailDeliveryState(reason), true, nil
 }
 
-// DeleteEmailSuppression implements ports.EmailReconciliationStore.
+// DeleteEmailSuppression implements ports.EmailReconciliationStore. The DELETE
+// decides by its own condition: it waits for a complaint committing at this moment
+// and then rereads the row. A complaint may also have replaced the bounce during
+// the provider call, so a row left behind is reported.
 func (s *Store) DeleteEmailSuppression(ctx context.Context, tenantID int64, address string) error {
-	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
-		// Recheck under the row lock after the provider call: a complaint may
-		// have replaced the bounce since the initial eligibility check.
-		var reason string
-		err := db.NewRaw(`SELECT reason FROM platform.email_suppressions WHERE tenant_id = ? AND address = ? FOR UPDATE`,
-			tenantID, normalizedAddress(address)).Scan(txCtx, &reason)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if domain.EmailDeliveryState(reason) == domain.EmailDeliveryComplained {
-			return domain.ErrSuppressionNeedsReview
-		}
-		_, err = db.ExecContext(txCtx, `DELETE FROM platform.email_suppressions WHERE tenant_id = ? AND address = ? AND reason = 'failed'`,
-			tenantID, normalizedAddress(address))
-		return err
-	})
+	db, err := s.tenantDB(ctx, tenantID)
 	if err != nil {
+		return err
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM platform.email_suppressions WHERE tenant_id = ? AND address = ? AND reason = 'failed'`,
+		tenantID, normalizedAddress(address)); err != nil {
 		return fmt.Errorf("delivery postgres: delete email suppression: %w", err)
 	}
+	reason, listed, err := s.EmailSuppressionReason(ctx, tenantID, address)
+	if err != nil {
+		return err
+	}
+	if listed && reason == domain.EmailDeliveryComplained {
+		return domain.ErrSuppressionNeedsReview
+	}
 	return nil
+}
+
+// SchoolMailedAddress implements ports.EmailReconciliationStore.
+func (s *Store) SchoolMailedAddress(ctx context.Context, tenantID int64, address string) (bool, error) {
+	db, err := s.tenantDB(ctx, tenantID)
+	if err != nil {
+		return false, err
+	}
+	var mailed bool
+	err = db.NewRaw(`SELECT EXISTS (SELECT 1 FROM platform.email_outbox
+		WHERE tenant_id = ? AND LOWER(recipient->>'address') = ?)`, tenantID, normalizedAddress(address)).Scan(ctx, &mailed)
+	if err != nil {
+		return false, fmt.Errorf("delivery postgres: read the school's mail to an address: %w", err)
+	}
+	return mailed, nil
 }
 
 func normalizedAddress(address string) string { return strings.ToLower(strings.TrimSpace(address)) }

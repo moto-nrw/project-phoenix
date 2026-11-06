@@ -60,7 +60,8 @@ func NewEmailReconciliation(store interface {
 
 // NewEmailEvents composes the webhook, the reconciliation and the lifting of a
 // block for this deployment's provider. The webhook exists in every deployment
-// and answers 503 without a secret; the rest does nothing on plain SMTP.
+// and answers 503 without a secret. On plain SMTP nothing is reconciled, and
+// lifting a block only clears the school's list.
 func NewEmailEvents(config mail.ProviderConfig, store *WorkerCommands, observe ports.Observer) (*EmailWebhooks, *EmailReconciliation) {
 	logger := config.Logger
 	if logger == nil {
@@ -101,7 +102,7 @@ func (r *EmailReconciliation) ReconcileEmailDelivery(ctx context.Context) error 
 		CheckedBefore: now.Add(-emailRecheckInterval), Limit: emailReconcileBatch,
 	})
 	if err != nil {
-		return errors.Join(append(run.failures, err)...)
+		run.failures = append(run.failures, fmt.Errorf("read the open mails: %w", err))
 	}
 	for _, mail := range mails {
 		if !r.reconcileMail(ctx, mail, now, run) {
@@ -122,14 +123,17 @@ func (r *EmailReconciliation) checkWebhook(ctx context.Context, run *reconcileRu
 	}
 }
 
-// reconcileMail reports whether the run goes on. The rate limit ends it for now;
-// the next run continues with the same mails, since they stay unmarked.
+// reconcileMail reports whether the run goes on. The rate limit ends it and is
+// the run's failure; the next run continues with the same mails, since they stay
+// unmarked.
 func (r *EmailReconciliation) reconcileMail(ctx context.Context, mail domain.ProviderMail, now time.Time, run *reconcileRun) bool {
 	events, err := r.api.MessageEvents(ctx, mail.ProviderMessageID)
+	unknown := errors.Is(err, domain.ErrProviderNotFound)
 	switch {
 	case errors.Is(err, domain.ErrProviderRateLimited):
+		run.failures = append(run.failures, fmt.Errorf("read the events of mail %d: %w", mail.ID, err))
 		return false
-	case errors.Is(err, domain.ErrProviderNotFound):
+	case unknown:
 		events = nil
 	case err != nil:
 		run.failures = append(run.failures, fmt.Errorf("read the events of mail %d: %w", mail.ID, err))
@@ -140,14 +144,25 @@ func (r *EmailReconciliation) reconcileMail(ctx context.Context, mail domain.Pro
 		run.failures = append(run.failures, fmt.Errorf("record the events of mail %d: %w", mail.ID, err))
 		return ctx.Err() == nil
 	}
-	if state == "" && now.Sub(mail.SentAt) > emailEventSilence {
-		run.silent++
-	}
 	if err := r.store.MarkEmailDeliveryChecked(ctx, mail.ID, now); err != nil {
 		run.failures = append(run.failures, fmt.Errorf("mark mail %d checked: %w", mail.ID, err))
+		return ctx.Err() == nil
 	}
 	run.checked++
+	if state == "" && turnedSilent(mail, now) {
+		r.reportSilence(mail, unknown, run)
+	}
 	return ctx.Err() == nil
+}
+
+// reportSilence separates a mail the provider does not know from a mail it knows
+// without an outcome: only the second speaks of missing events.
+func (r *EmailReconciliation) reportSilence(mail domain.ProviderMail, unknown bool, run *reconcileRun) {
+	if !unknown {
+		run.silent++
+		return
+	}
+	r.logger.Warn("the provider does not know an accepted mail", slog.Int64("mail_id", mail.ID))
 }
 
 // recordEvents returns the mail's state after the provider's events. A state the
@@ -166,6 +181,16 @@ func (r *EmailReconciliation) recordEvents(ctx context.Context, mail domain.Prov
 		}
 	}
 	return state, nil
+}
+
+// turnedSilent reports whether the mail passed the silence limit since it was
+// last asked about. An open mail is asked about for up to 28 days, and it counts
+// only the first time: the check that follows is already past the limit.
+func turnedSilent(mail domain.ProviderMail, now time.Time) bool {
+	if now.Sub(mail.SentAt) <= emailEventSilence {
+		return false
+	}
+	return mail.CheckedAt == nil || mail.CheckedAt.Sub(mail.SentAt) <= emailEventSilence
 }
 
 func (r *EmailReconciliation) alarms(run *reconcileRun) error {
@@ -189,10 +214,16 @@ func (r *EmailReconciliation) alarms(run *reconcileRun) error {
 
 // LiftEmailSuppression frees a corrected address: first at the provider, whose
 // hard bounce block applies to the whole team and never expires, then on the
-// school's list. A complaint's block is never lifted here; it needs a review by
-// the provider's support.
+// school's list. Any error means the address stays blocked.
+//
+// A block at the provider is only the school's to lift if the address is on its
+// list or the school has a mail to exactly this address. Plain SMTP has no
+// provider and fills the school's list through rejections, so there only the
+// list counts. A complaint's block needs a review by the provider's support, and
+// a manual or unsubscribe block is someone's decision: both stay, and nothing
+// else changes either.
 func (r *EmailReconciliation) LiftEmailSuppression(ctx context.Context, tenantID int64, address string) error {
-	address = strings.TrimSpace(address)
+	address = strings.ToLower(strings.TrimSpace(address))
 	reason, listed, err := r.store.EmailSuppressionReason(ctx, tenantID, address)
 	if err != nil {
 		return err
@@ -200,19 +231,38 @@ func (r *EmailReconciliation) LiftEmailSuppression(ctx context.Context, tenantID
 	if listed && reason == domain.EmailDeliveryComplained {
 		return deliveryContract.ErrEmailSuppressionNeedsReview
 	}
-	if r.api != nil {
-		if err := r.api.LiftSuppression(ctx, address); err != nil {
-			if errors.Is(err, domain.ErrSuppressionNeedsReview) {
-				return deliveryContract.ErrEmailSuppressionNeedsReview
-			}
-			return fmt.Errorf("lift the provider's block: %w", err)
+	if !listed {
+		mailed, err := r.schoolMailed(ctx, tenantID, address)
+		if err != nil {
+			return err
+		}
+		if !mailed {
+			return deliveryContract.ErrEmailSuppressionNotFound
 		}
 	}
-	if err := r.store.DeleteEmailSuppression(ctx, tenantID, address); err != nil {
-		if errors.Is(err, domain.ErrSuppressionNeedsReview) {
-			return deliveryContract.ErrEmailSuppressionNeedsReview
+	if r.api != nil {
+		if err := r.api.LiftSuppression(ctx, address); err != nil {
+			return liftFailure(err)
 		}
-		return err
+	}
+	return liftFailure(r.store.DeleteEmailSuppression(ctx, tenantID, address))
+}
+
+func (r *EmailReconciliation) schoolMailed(ctx context.Context, tenantID int64, address string) (bool, error) {
+	if r.api == nil {
+		return false, nil
+	}
+	return r.store.SchoolMailedAddress(ctx, tenantID, address)
+}
+
+func liftFailure(err error) error {
+	switch {
+	case errors.Is(err, domain.ErrSuppressionNeedsReview):
+		return deliveryContract.ErrEmailSuppressionNeedsReview
+	case errors.Is(err, domain.ErrSuppressionStaysAtProvider):
+		return deliveryContract.ErrEmailSuppressionStaysAtProvider
+	case err != nil:
+		return fmt.Errorf("lift the block: %w", err)
 	}
 	return nil
 }

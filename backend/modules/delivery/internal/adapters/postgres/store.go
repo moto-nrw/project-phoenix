@@ -83,11 +83,14 @@ const pushStartDeliverySQL = `UPDATE platform.push_outbox
 
 // A provider's acceptance can come after its event that it cannot deliver the
 // mail. Then the mail goes back in the queue for the fallback transport, which
-// reports no provider ID.
+// reports no provider ID and has attempts of its own.
 const emailFinalizeSentSQL = `UPDATE platform.email_outbox
 	SET status = CASE WHEN fallback_requested_at IS NOT NULL AND ?0::jsonb->>'provider_message_id' IS NOT NULL
 			AND NOT COALESCE((?0::jsonb->>'used_fallback')::boolean, false)
 			THEN 'pending' ELSE 'sent' END,
+		attempts = CASE WHEN fallback_requested_at IS NOT NULL AND ?0::jsonb->>'provider_message_id' IS NOT NULL
+			AND NOT COALESCE((?0::jsonb->>'used_fallback')::boolean, false)
+			THEN 0 ELSE attempts END,
 		provider_result = ?0,
 		message_id = ?0::jsonb->>'message_id',
 		provider_message_id = ?0::jsonb->>'provider_message_id',

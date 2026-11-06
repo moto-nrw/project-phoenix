@@ -13,8 +13,17 @@ type EmailWebhooks interface {
 }
 
 // EmailSuppressions frees an address after a correction, on the school's list
-// and at the provider. A complaint's block stays: the failure is
-// ErrEmailSuppressionNeedsReview of the contract.
+// and at the provider. nil means it is free as far as moto knows. Any error means
+// it stays blocked and the list is unchanged:
+//
+//   - ErrEmailSuppressionNotFound: not on the school's list and, with a provider,
+//     no mail of the school to exactly this address. Nothing was asked of the
+//     provider. A caller that only wants the address free can treat this as done.
+//   - ErrEmailSuppressionNeedsReview: a complaint's block, here or at the provider.
+//   - ErrEmailSuppressionStaysAtProvider: a manual or unsubscribe block.
+//   - anything else: a failure worth another try.
+//
+// Plain SMTP has no provider, so only the school's list counts there.
 type EmailSuppressions interface {
 	LiftEmailSuppression(ctx context.Context, tenantID int64, address string) error
 }

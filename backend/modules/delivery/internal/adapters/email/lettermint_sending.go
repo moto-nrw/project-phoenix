@@ -1,6 +1,7 @@
 package email
 
 import (
+	"log/slog"
 	"regexp"
 
 	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
@@ -48,13 +49,18 @@ func (m *SMTPMailer) setRouteHeaders(msg *mail.Msg, message mailcontract.Message
 }
 
 // providerMessageID reads the provider's ID of the accepted mail. Other servers
-// answer in their own format, which says nothing to moto.
-func (m *SMTPMailer) providerMessageID(msg *mail.Msg) string {
+// answer in their own format, which says nothing to moto. Without the ID the mail
+// drops out of the reconciliation, which must show. The answer stays out of the
+// log line: a server may echo the recipient in it.
+func (m *SMTPMailer) providerMessageID(msg *mail.Msg, template string) string {
 	if !m.lettermint.Enabled() {
 		return ""
 	}
 	match := lettermintAcceptedID.FindStringSubmatch(msg.ServerResponse())
 	if match == nil {
+		m.logger.Warn("email accepted without a provider id",
+			slog.String("message_id", msg.GetMessageID()),
+			slog.String("template", template))
 		return ""
 	}
 	return match[1]

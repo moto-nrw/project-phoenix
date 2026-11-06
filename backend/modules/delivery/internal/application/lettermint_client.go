@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -102,7 +103,8 @@ func lettermintRedactURL(err error) error {
 // MessageEvents reads what Lettermint knows about one mail, within its 28 days
 // of retention. These events have no ID and no server answer: the ID is derived
 // so the same event read twice is stored once, and a blocklist bounce cannot be
-// recognized here. Only the webhook can tell it.
+// recognized here. Only the webhook can tell it, so a bounce read here shows its
+// status and leaves the school's list alone.
 func (c *lettermintClient) MessageEvents(ctx context.Context, providerMessageID string) ([]domain.EmailDeliveryEvent, error) {
 	path := "/messages/" + url.PathEscape(providerMessageID) + "/events"
 	query := url.Values{"page[size]": {apiPageSize}, "sort": {"timestamp"}}
@@ -138,6 +140,7 @@ func lettermintAPIEvent(name, timestamp, providerMessageID string) (domain.Email
 		return domain.EmailDeliveryEvent{}, false
 	}
 	event := outcome.event("")
+	event.KeepsAddress = event.KeepsAddress || event.State == domain.EmailDeliveryFailed
 	event.ProviderEventID = "api:" + name + ":" + timestamp
 	event.ProviderMessageID = providerMessageID
 	event.OccurredAt = occurredAt
@@ -167,20 +170,33 @@ func (c *lettermintClient) WebhookEnabled(ctx context.Context) (bool, error) {
 }
 
 // LiftSuppression removes the hard bounce block of one exact address, which
-// applies team-wide and never expires. A complaint's block needs a review by
-// the provider's support, so nothing is removed if one exists. Blocks set by
-// hand or by an unsubscribe are someone's decision and stay.
+// applies team-wide and never expires. Nothing is removed if any other block of
+// the address exists, since it stays blocked either way: a complaint's block
+// needs a review by the provider's support, and one set by hand or through an
+// unsubscribe is someone's decision.
 func (c *lettermintClient) LiftSuppression(ctx context.Context, address string) error {
 	bounces, err := c.suppressionBounces(ctx, address)
 	if err != nil {
 		return err
 	}
 	for _, id := range bounces {
-		if err := c.call(ctx, http.MethodDelete, "/suppressions/"+url.PathEscape(id), nil); err != nil {
+		err := c.call(ctx, http.MethodDelete, "/suppressions/"+url.PathEscape(id), nil)
+		if err != nil && !errors.Is(err, domain.ErrProviderNotFound) {
 			return fmt.Errorf("lettermint api: remove suppression: %w", err)
 		}
 	}
 	return nil
+}
+
+// lettermintSuppressionPage is one page of the provider's list.
+type lettermintSuppressionPage struct {
+	Data []struct {
+		ID     string `json:"id"`
+		Type   string `json:"type"`
+		Value  string `json:"value"`
+		Reason string `json:"reason"`
+	} `json:"data"`
+	NextCursor *string `json:"next_cursor"`
 }
 
 // Read and validate the complete list before making any destructive request.
@@ -188,35 +204,47 @@ func (c *lettermintClient) LiftSuppression(ctx context.Context, address string) 
 func (c *lettermintClient) suppressionBounces(ctx context.Context, address string) ([]string, error) {
 	query := url.Values{"filter[value]": {address}, "page[size]": {apiPageSize}}
 	bounces := []string{}
+	var remains error
 	for range apiMaxPages {
-		var page struct {
-			Data []struct {
-				ID     string `json:"id"`
-				Type   string `json:"type"`
-				Value  string `json:"value"`
-				Reason string `json:"reason"`
-			} `json:"data"`
-			NextCursor *string `json:"next_cursor"`
-		}
+		var page lettermintSuppressionPage
 		if err := c.get(ctx, "/suppressions", query, &page); err != nil {
 			return nil, err
 		}
-		for _, entry := range page.Data {
-			// The filter matches parts of a value, so it can name other addresses.
-			if entry.Type != apiTypeEmail || !strings.EqualFold(entry.Value, address) {
-				continue
-			}
-			switch entry.Reason {
-			case apiReasonSpam:
-				return nil, domain.ErrSuppressionNeedsReview
-			case apiReasonBounce:
-				bounces = append(bounces, entry.ID)
-			}
+		found, pageRemains := page.exactBlocks(address)
+		bounces = append(bounces, found...)
+		// A complaint outranks a block that merely stays, on whichever page.
+		if pageRemains != nil && !errors.Is(remains, domain.ErrSuppressionNeedsReview) {
+			remains = pageRemains
 		}
 		if page.NextCursor == nil || *page.NextCursor == "" {
+			if remains != nil {
+				return nil, remains
+			}
 			return bounces, nil
 		}
 		query.Set("page[cursor]", *page.NextCursor)
 	}
 	return nil, fmt.Errorf("lettermint api: suppression pagination limit reached")
+}
+
+// exactBlocks returns the page's hard bounces of the address and why a block on
+// this page must remain, if one does. The filter matches parts of a value, so it
+// can name other addresses.
+func (p lettermintSuppressionPage) exactBlocks(address string) ([]string, error) {
+	bounces := []string{}
+	var remains error
+	for _, entry := range p.Data {
+		if entry.Type != apiTypeEmail || !strings.EqualFold(entry.Value, address) {
+			continue
+		}
+		switch entry.Reason {
+		case apiReasonSpam:
+			return nil, domain.ErrSuppressionNeedsReview
+		case apiReasonBounce:
+			bounces = append(bounces, entry.ID)
+		default:
+			remains = domain.ErrSuppressionStaysAtProvider
+		}
+	}
+	return bounces, remains
 }

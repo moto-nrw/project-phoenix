@@ -138,12 +138,12 @@ func TestLettermintLiftRemovesOnlyTheExactHardBounce(t *testing.T) {
 		{"id":"s1","type":"email","value":"Eltern@Example.com","reason":"hard_bounce","scope":"team"},
 		{"id":"s2","type":"email","value":"eltern@example.com.evil.org","reason":"hard_bounce","scope":"team"},
 		{"id":"s3","type":"domain","value":"eltern@example.com","reason":"hard_bounce","scope":"team"},
-		{"id":"s4","type":"email","value":"eltern@example.com","reason":"manual","scope":"project"}
+		{"id":"s4","type":"email","value":"nachbar@example.com","reason":"manual","scope":"project"}
 	]}`, &deleted)
 
 	require.NoError(t, client.LiftSuppression(context.Background(), "eltern@example.com"))
 
-	assert.Equal(t, []string{"s1"}, deleted, "partial matches and other reasons stay")
+	assert.Equal(t, []string{"s1"}, deleted, "partial matches and other addresses stay")
 }
 
 func TestLettermintLiftRefusesAComplaintAndRemovesNothing(t *testing.T) {
@@ -215,4 +215,89 @@ func TestLettermintLiftChecksLaterPagesBeforeDeleting(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A manual or unsubscribe block is someone's decision. The address stays blocked
+// either way, so the answer says so and the hard bounce stays with it.
+func TestLettermintLiftReportsABlockThatStaysAndRemovesNothing(t *testing.T) {
+	t.Parallel()
+	for _, reason := range []string{"manual", "unsubscribe", "something_new"} {
+		t.Run(reason, func(t *testing.T) {
+			t.Parallel()
+			var deleted []string
+			client := lettermintSuppressionServer(t, `{"data":[
+				{"id":"s1","type":"email","value":"eltern@example.com","reason":"hard_bounce","scope":"team"},
+				{"id":"s2","type":"email","value":"Eltern@Example.com","reason":"`+reason+`","scope":"project"}
+			]}`, &deleted)
+
+			err := client.LiftSuppression(context.Background(), "eltern@example.com")
+
+			require.ErrorIs(t, err, domain.ErrSuppressionStaysAtProvider)
+			assert.Empty(t, deleted)
+		})
+	}
+}
+
+func TestLettermintLiftFindsABlockThatStaysOnALaterPage(t *testing.T) {
+	t.Parallel()
+	deletes := 0
+	client := lettermintAPIClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodDelete:
+			deletes++
+		case r.URL.Query().Get("page[cursor]") == "":
+			_, _ = w.Write([]byte(`{"data":[{"id":"s1","type":"email","value":"eltern@example.com","reason":"hard_bounce"}],"next_cursor":"c2"}`))
+		default:
+			_, _ = w.Write([]byte(`{"data":[{"id":"s2","type":"email","value":"eltern@example.com","reason":"manual"}],"next_cursor":null}`))
+		}
+	})
+
+	require.ErrorIs(t, client.LiftSuppression(context.Background(), "eltern@example.com"), domain.ErrSuppressionStaysAtProvider)
+	assert.Zero(t, deletes)
+}
+
+func TestLettermintLiftNamesAComplaintOverABlockThatStays(t *testing.T) {
+	t.Parallel()
+	client := lettermintAPIClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page[cursor]") == "" {
+			_, _ = w.Write([]byte(`{"data":[{"id":"s1","type":"email","value":"eltern@example.com","reason":"manual"}],"next_cursor":"c2"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"data":[{"id":"s2","type":"email","value":"eltern@example.com","reason":"spam_complaint"}],"next_cursor":null}`))
+	})
+
+	require.ErrorIs(t, client.LiftSuppression(context.Background(), "eltern@example.com"), domain.ErrSuppressionNeedsReview)
+}
+
+func TestLettermintLiftAcceptsABlockThatIsAlreadyGone(t *testing.T) {
+	t.Parallel()
+	client := lettermintAPIClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = w.Write([]byte(`{"data":[{"id":"s1","type":"email","value":"eltern@example.com","reason":"hard_bounce"}]}`))
+	})
+
+	require.NoError(t, client.LiftSuppression(context.Background(), "eltern@example.com"))
+}
+
+// The Team API names no server answer, so a blocklist bounce looks like any other
+// here. It shows the status and leaves the school's list to the webhook.
+func TestLettermintAPIBounceKeepsTheAddress(t *testing.T) {
+	t.Parallel()
+	client := lettermintAPIClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":[
+			{"event":"hard_bounced","timestamp":"2026-11-06T12:00:00Z"},
+			{"event":"spam_complaint","timestamp":"2026-11-06T13:00:00Z"}]}`))
+	})
+
+	events, err := client.MessageEvents(context.Background(), "m-1")
+
+	require.NoError(t, err)
+	require.Len(t, events, 2)
+	assert.Equal(t, domain.EmailDeliveryFailed, events[0].State)
+	assert.True(t, events[0].KeepsAddress)
+	assert.False(t, events[0].Reroute)
+	assert.False(t, events[1].KeepsAddress, "a complaint names the address on its own")
 }

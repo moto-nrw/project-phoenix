@@ -1,6 +1,7 @@
 package application
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
@@ -17,6 +18,9 @@ var reconcileNow = time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
 
 type reconcileStore struct {
 	mails     []domain.ProviderMail
+	openErr   error
+	markErr   error
+	mailed    bool
 	query     domain.ProviderMailQuery
 	checked   []int64
 	recorded  []domain.EmailDeliveryEvent
@@ -29,12 +33,12 @@ type reconcileStore struct {
 
 func (s *reconcileStore) OpenProviderMails(_ context.Context, query domain.ProviderMailQuery) ([]domain.ProviderMail, error) {
 	s.query = query
-	return s.mails, nil
+	return s.mails, s.openErr
 }
 
 func (s *reconcileStore) MarkEmailDeliveryChecked(_ context.Context, id int64, _ time.Time) error {
 	s.checked = append(s.checked, id)
-	return nil
+	return s.markErr
 }
 
 func (s *reconcileStore) EmailSuppressionReason(context.Context, int64, string) (domain.EmailDeliveryState, bool, error) {
@@ -44,6 +48,10 @@ func (s *reconcileStore) EmailSuppressionReason(context.Context, int64, string) 
 func (s *reconcileStore) DeleteEmailSuppression(context.Context, int64, string) error {
 	s.deleted++
 	return s.deleteErr
+}
+
+func (s *reconcileStore) SchoolMailedAddress(context.Context, int64, string) (bool, error) {
+	return s.mailed, nil
 }
 
 func (s *reconcileStore) RecordEmailDeliveryEvent(_ context.Context, event domain.EmailDeliveryEvent) (domain.EmailDeliveryEventResult, error) {
@@ -170,8 +178,9 @@ func TestReconciliationStopsAtTheRateLimitWithoutMarkingTheRest(t *testing.T) {
 	}}
 	api := &stubProviderAPI{enabled: true, eventErrs: map[string]error{"m1": domain.ErrProviderRateLimited}}
 
-	require.NoError(t, reconciler(store, api).ReconcileEmailDelivery(context.Background()), "the next run continues")
+	err := reconciler(store, api).ReconcileEmailDelivery(context.Background())
 
+	assert.ErrorIs(t, err, domain.ErrProviderRateLimited, "a run cut short is reported; the next one continues")
 	assert.Equal(t, []string{"m1"}, api.asked)
 	assert.Empty(t, store.checked)
 }
@@ -262,4 +271,138 @@ func TestLiftSuppressionReportsAComplaintRecordedDuringTheProviderCall(t *testin
 	assert.ErrorIs(t, err, deliveryContract.ErrEmailSuppressionNeedsReview)
 	assert.Equal(t, []string{"eltern@example.com"}, api.lifted)
 	assert.Equal(t, 1, store.deleted)
+}
+
+func alarmingReconciler(store *reconcileStore, api *stubProviderAPI) (*EmailReconciliation, *bytes.Buffer) {
+	var logs bytes.Buffer
+	reconciliation := reconciler(store, api)
+	reconciliation.logger = slog.New(slog.NewTextHandler(&logs, nil))
+	return reconciliation, &logs
+}
+
+// The Grafana rule reads this log line, so every failed run has to write it.
+func TestReconciliationWritesTheAlarmLineWhenTheOpenMailsCannotBeRead(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("database is down")
+	store := &reconcileStore{openErr: failure}
+	reconciliation, logs := alarmingReconciler(store, &stubProviderAPI{enabled: false})
+
+	err := reconciliation.ReconcileEmailDelivery(context.Background())
+
+	assert.ErrorIs(t, err, failure)
+	assert.ErrorIs(t, err, ErrEmailWebhookDisabled, "what the run already knew goes out too")
+	assert.Contains(t, logs.String(), `msg="email delivery alarm"`)
+	assert.Contains(t, logs.String(), "database is down")
+	assert.Contains(t, logs.String(), "disabled at the provider")
+}
+
+func TestReconciliationWritesTheAlarmLineWhenTheRateLimitEndsTheRun(t *testing.T) {
+	t.Parallel()
+	store := &reconcileStore{mails: []domain.ProviderMail{{ID: 1, ProviderMessageID: "m1", SentAt: reconcileNow.Add(-time.Hour)}}}
+	api := &stubProviderAPI{enabled: false, eventErrs: map[string]error{"m1": domain.ErrProviderRateLimited}}
+	reconciliation, logs := alarmingReconciler(store, api)
+
+	err := reconciliation.ReconcileEmailDelivery(context.Background())
+
+	assert.ErrorIs(t, err, domain.ErrProviderRateLimited)
+	assert.ErrorIs(t, err, ErrEmailWebhookDisabled)
+	assert.Contains(t, logs.String(), `msg="email delivery alarm"`)
+}
+
+// A mail stays open for up to 28 days. Its silence is one finding, not one per hour.
+func TestReconciliationReportsASilentMailOnlyOnce(t *testing.T) {
+	t.Parallel()
+	sent := reconcileNow.Add(-emailEventSilence - 2*time.Hour)
+	beforeTheLimit := sent.Add(emailEventSilence - time.Hour)
+	afterTheLimit := sent.Add(emailEventSilence + time.Hour)
+	for name, test := range map[string]struct {
+		checked *time.Time
+		alarm   bool
+	}{
+		"never asked":                 {checked: nil, alarm: true},
+		"last asked before the limit": {checked: &beforeTheLimit, alarm: true},
+		"already reported":            {checked: &afterTheLimit, alarm: false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			store := &reconcileStore{mails: []domain.ProviderMail{{ID: 1, ProviderMessageID: "m1", SentAt: sent, CheckedAt: test.checked}}}
+
+			err := reconciler(store, &stubProviderAPI{enabled: true}).ReconcileEmailDelivery(context.Background())
+
+			if test.alarm {
+				assert.ErrorIs(t, err, ErrEmailEventsSilent)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, []int64{1}, store.checked, "the mail stays in the rotation")
+		})
+	}
+}
+
+func TestReconciliationDoesNotCountASilentMailItCouldNotMark(t *testing.T) {
+	t.Parallel()
+	store := &reconcileStore{markErr: errors.New("database is down"), mails: []domain.ProviderMail{
+		{ID: 1, ProviderMessageID: "m1", SentAt: reconcileNow.Add(-emailEventSilence - time.Hour)},
+	}}
+
+	err := reconciler(store, &stubProviderAPI{enabled: true}).ReconcileEmailDelivery(context.Background())
+
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrEmailEventsSilent, "the next run reports it, once")
+}
+
+// A mail the provider does not know says nothing about the event stream.
+func TestReconciliationNotesAnUnknownMailWithoutTheSilenceAlarm(t *testing.T) {
+	t.Parallel()
+	store := &reconcileStore{mails: []domain.ProviderMail{{ID: 1, ProviderMessageID: "gone", SentAt: reconcileNow.Add(-emailEventSilence - time.Hour)}}}
+	api := &stubProviderAPI{enabled: true, eventErrs: map[string]error{"gone": domain.ErrProviderNotFound}}
+	reconciliation, logs := alarmingReconciler(store, api)
+
+	require.NoError(t, reconciliation.ReconcileEmailDelivery(context.Background()))
+
+	assert.Contains(t, logs.String(), "the provider does not know an accepted mail")
+	assert.NotContains(t, logs.String(), "email delivery alarm")
+	assert.Equal(t, []int64{1}, store.checked)
+}
+
+// A team-wide block of a foreign address is not the school's to lift.
+func TestLiftSuppressionWithoutAnyLinkToTheSchoolTouchesNothing(t *testing.T) {
+	t.Parallel()
+	store := &reconcileStore{}
+	api := &stubProviderAPI{}
+
+	err := reconciler(store, api).LiftEmailSuppression(context.Background(), 7, "fremd@example.com")
+
+	require.ErrorIs(t, err, deliveryContract.ErrEmailSuppressionNotFound)
+	assert.Empty(t, api.lifted)
+	assert.Zero(t, store.deleted)
+}
+
+func TestLiftSuppressionFollowsTheSchoolsOwnMail(t *testing.T) {
+	t.Parallel()
+	store := &reconcileStore{mailed: true}
+	api := &stubProviderAPI{}
+
+	require.NoError(t, reconciler(store, api).LiftEmailSuppression(context.Background(), 7, " Eltern@Example.com "))
+
+	assert.Equal(t, []string{"eltern@example.com"}, api.lifted)
+}
+
+func TestLiftSuppressionReportsABlockThatStaysAndKeepsTheList(t *testing.T) {
+	t.Parallel()
+	store := &reconcileStore{listed: true, reason: domain.EmailDeliveryFailed}
+	api := &stubProviderAPI{liftErr: domain.ErrSuppressionStaysAtProvider}
+
+	err := reconciler(store, api).LiftEmailSuppression(context.Background(), 7, "eltern@example.com")
+
+	require.ErrorIs(t, err, deliveryContract.ErrEmailSuppressionStaysAtProvider)
+	assert.Zero(t, store.deleted, "an error means nothing changed")
+}
+
+func TestLiftSuppressionWithoutProviderReportsAnAddressThatIsNotListed(t *testing.T) {
+	t.Parallel()
+	store := &reconcileStore{mailed: true}
+	reconciliation := NewEmailReconciliation(store, nil, false, slog.New(slog.DiscardHandler), func(domain.Observation) {})
+
+	require.ErrorIs(t, reconciliation.LiftEmailSuppression(context.Background(), 7, "eltern@example.com"), deliveryContract.ErrEmailSuppressionNotFound)
 }

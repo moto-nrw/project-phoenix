@@ -105,3 +105,23 @@ func TestLettermintWebhookWithoutSecretIsNotConfigured(t *testing.T) {
 	assert.True(t, newLettermintWebhook(lettermintTestSecret).Configured())
 	assert.Error(t, newLettermintWebhook("").Verify(lettermintHeaders("t=1,v1=a", "1"), []byte(`{}`), lettermintSignedAt), "no secret never passes")
 }
+
+func TestLettermintVerifyAcceptsAnyMatchingValueOfSeveral(t *testing.T) {
+	t.Parallel()
+	body := `{"event":"message.delivered"}`
+	webhook := newLettermintWebhook(lettermintTestSecret)
+	signature, stamp := lettermintSign(lettermintTestSecret, lettermintSignedAt, body)
+	current := signature[len("t="+stamp+","):]
+	other, _ := lettermintSign(lettermintOldSecret, lettermintSignedAt, body)
+	stale := other[len("t="+stamp+","):]
+
+	for name, value := range map[string]string{
+		"first":                   "t=" + stamp + "," + current + "," + stale,
+		"last":                    "t=" + stamp + "," + stale + "," + current,
+		"after an unusable value": "t=" + stamp + ",v1=zz," + current,
+	} {
+		assert.NoError(t, webhook.Verify(lettermintHeaders(value, stamp), []byte(body), lettermintSignedAt), name)
+	}
+	assert.Error(t, webhook.Verify(lettermintHeaders("t="+stamp+","+stale+","+stale, stamp), []byte(body), lettermintSignedAt), "no value matches")
+	assert.Error(t, webhook.Verify(lettermintHeaders("t="+stamp+",v1=zz", stamp), []byte(body), lettermintSignedAt), "no usable value")
+}

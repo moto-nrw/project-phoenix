@@ -181,7 +181,7 @@ func (m *SMTPMailer) SendWithReceipt(ctx context.Context, email mailcontract.Mes
 		slog.String("message_id", messageID),
 		slog.String("template", email.Template))
 
-	return mailcontract.Receipt{MessageID: strings.Trim(messageID, "<>"), ProviderMessageID: m.providerMessageID(msg)}, nil
+	return mailcontract.Receipt{MessageID: strings.Trim(messageID, "<>"), ProviderMessageID: m.providerMessageID(msg, email.Template)}, nil
 }
 
 func (m *SMTPMailer) sendMessageContext(ctx context.Context, msg *mail.Msg) error {

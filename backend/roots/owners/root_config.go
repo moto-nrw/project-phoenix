@@ -15,6 +15,9 @@ import (
 // values, so the root's configuration holds no owner's type.
 type EmailProviderSettings struct {
 	Provider         string
+	SMTPHost         string
+	SMTPUser         string
+	SMTPPassword     string
 	SecurityFrom     string
 	NoticeFrom       string
 	WebhookSecrets   string

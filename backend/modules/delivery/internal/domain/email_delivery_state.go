@@ -16,6 +16,9 @@ var (
 	// ErrSuppressionNeedsReview reports a complaint's block: only the provider's
 	// support can lift it after a review.
 	ErrSuppressionNeedsReview = errors.New("delivery: suppression after a complaint needs a review")
+	// ErrSuppressionStaysAtProvider reports a block someone set on purpose, by
+	// hand or through an unsubscribe. Nothing was removed.
+	ErrSuppressionStaysAtProvider = errors.New("delivery: the provider keeps a manual or unsubscribe block")
 )
 
 // EmailDeliveryState says what happened to a mail after the mail server
@@ -109,6 +112,8 @@ type ProviderMail struct {
 	ProviderMessageID string
 	State             EmailDeliveryState
 	SentAt            time.Time
+	// CheckedAt is when the reconciliation last asked about the mail, if ever.
+	CheckedAt *time.Time
 }
 
 // SuppressionRetention is how long the suppression list keeps an address after

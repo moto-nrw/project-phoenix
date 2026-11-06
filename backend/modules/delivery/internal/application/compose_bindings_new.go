@@ -27,7 +27,8 @@ type Runtime struct {
 	// EmailWebhooks takes in what mail providers report.
 	EmailWebhooks *EmailWebhooks
 	// EmailReconciliation compares open mails with the provider's record and
-	// lifts a block. It does nothing on plain SMTP.
+	// lifts a block. On plain SMTP it compares nothing and lifts only the school's
+	// list.
 	EmailReconciliation *EmailReconciliation
 }
 

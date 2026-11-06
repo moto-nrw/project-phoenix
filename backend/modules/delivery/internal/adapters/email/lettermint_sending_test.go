@@ -1,6 +1,7 @@
 package email
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wneessen/go-mail"
 )
 
 const acceptedWithID = "250 2.0.0 Ok: queued id=0194a7b2-3c4d-7e8f-9a0b-1c2d3e4f5a6b"
@@ -224,4 +226,52 @@ func TestDemoKeepsTheReceiptOfADemoMail(t *testing.T) {
 	receipt, err := restricted.SendWithReceipt(context.Background(), kept)
 	require.NoError(t, err)
 	assert.Empty(t, receipt.MessageID, "a mail the demo keeps has no identity")
+}
+
+// A mail without the provider's ID drops out of the reconciliation, so this must
+// not pass in silence.
+func TestAcceptedMailWithoutProviderIDIsLoggedWithoutTheAddress(t *testing.T) {
+	t.Parallel()
+	client, _ := fakeSMTP(t, smtpAnswers{dataClose: "250 2.0.0 Ok: queued as guardian@example.com"})
+	mailer := identityMailer(t, client)
+	mailer.lettermint = lettermintTestSending
+	var logs bytes.Buffer
+	mailer.logger = slog.New(slog.NewTextHandler(&logs, nil))
+	message := identityMessage()
+
+	receipt, err := mailer.SendWithReceipt(context.Background(), message)
+
+	require.NoError(t, err)
+	assert.Empty(t, receipt.ProviderMessageID)
+	assert.Contains(t, logs.String(), "level=WARN")
+	assert.Contains(t, logs.String(), "email accepted without a provider id")
+	assert.Contains(t, logs.String(), "template="+message.Template)
+	assert.NotContains(t, logs.String(), message.To.Address)
+	assert.NotContains(t, logs.String(), "guardian@example.com")
+}
+
+func TestPlainSMTPDoesNotExpectAProviderID(t *testing.T) {
+	t.Parallel()
+	client, _ := fakeSMTP(t, smtpAnswers{dataClose: "250 2.0.0 Ok"})
+	mailer := identityMailer(t, client)
+	var logs bytes.Buffer
+	mailer.logger = slog.New(slog.NewTextHandler(&logs, nil))
+
+	_, err := mailer.SendWithReceipt(context.Background(), identityMessage())
+
+	require.NoError(t, err)
+	assert.NotContains(t, logs.String(), "provider id")
+}
+
+// The values EMAIL_PROVIDER=lettermint requires leave only the encrypted ways.
+func TestCredentialedTransportsRefusePlainText(t *testing.T) {
+	t.Parallel()
+	for _, port := range []int{587, 2525} {
+		client, err := mail.NewClient("smtp.example", smtpClientOptions(mailcontract.MailerConfig{Port: port, User: "lettermint", Password: "test-only"})...)
+		require.NoError(t, err)
+		assert.Equal(t, "TLSMandatory", client.TLSPolicy(), "port %d", port)
+	}
+	client, err := mail.NewClient("smtp.example", smtpClientOptions(mailcontract.MailerConfig{Port: 465, User: "lettermint", Password: "test-only"})...)
+	require.NoError(t, err)
+	assert.Equal(t, "TLSMandatory", client.TLSPolicy())
 }

@@ -15,9 +15,14 @@ const (
 // keeps plain SMTP, which needs none of the other values: the switch to
 // Lettermint is one human step per environment (#5935), and until then a
 // deployment must start exactly as before. Once Provider names Lettermint every
-// value is required, and a missing one fails the start.
+// value is required, and a missing one fails the start: without a host the mail
+// would vanish in the logging transport, and without credentials it would leave
+// without TLS. With them the transport insists on TLS.
 type ProviderConfig struct {
 	Provider         string
+	SMTPHost         string
+	SMTPUser         string
+	SMTPPassword     string
 	SecurityFrom     string
 	NoticeFrom       string
 	WebhookSecrets   string
@@ -49,6 +54,9 @@ func (c ProviderConfig) Validate() error {
 	}
 	missing := []string{}
 	for _, value := range []struct{ key, value string }{
+		{"EMAIL_SMTP_HOST", c.SMTPHost},
+		{"EMAIL_SMTP_USER", c.SMTPUser},
+		{"EMAIL_SMTP_PASSWORD", c.SMTPPassword},
 		{"EMAIL_FROM_SECURITY_ADDRESS", c.SecurityFrom},
 		{"EMAIL_FROM_NOTICES_ADDRESS", c.NoticeFrom},
 		{"EMAIL_WEBHOOK_SECRETS", strings.Trim(c.WebhookSecrets, ", ")},

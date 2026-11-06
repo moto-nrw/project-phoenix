@@ -690,3 +690,208 @@ func TestLiftSuppressionPreservesAComplaintRecordedAfterTheEligibilityCheck(t *t
 	assert.True(t, listed)
 	assert.Equal(t, domain.EmailDeliveryComplained, reason)
 }
+
+// A mail that arrived or drew a complaint is not sent a second time, whatever
+// reaches moto later.
+func TestLateFailureDoesNotRerouteADeliveredOrComplainedMail(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	for _, first := range []domain.EmailDeliveryState{domain.EmailDeliveryDelivered, domain.EmailDeliveryComplained} {
+		for _, late := range []domain.EmailDeliveryState{domain.EmailDeliveryDelayed, domain.EmailDeliverySuppressed, domain.EmailDeliveryFailed} {
+			key := string(first) + "-" + string(late)
+			mail := enqueueEventMail(t, db, store, ctx, school, key, true)
+			sendEventMail(t, store, ctx, mail.ID, acceptedByProvider)
+			token := eventMailToken(t, db, mail.ID)
+			_, err := store.RecordEmailDeliveryEvent(ctx, eventAt(token, "first", first, time.Now()))
+			require.NoError(t, err, key)
+			event := eventAt(token, "late", late, time.Now())
+			event.Reroute, event.KeepsAddress = true, true
+
+			result, err := store.RecordEmailDeliveryEvent(ctx, event)
+
+			require.NoError(t, err, key)
+			assert.False(t, result.Rerouted, key)
+			status, state, requested := mailStatus(t, db, mail.ID)
+			assert.Equal(t, "sent", status, key)
+			assert.NotNil(t, state, key)
+			assert.False(t, requested, key)
+		}
+	}
+}
+
+// The reconciliation shows a bounce without knowing why. The webhook's retry
+// that names a blocklist can still send the mail over the fallback.
+func TestBlocklistRetryAfterAnAPIBounceReroutesAndLeavesTheList(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	mail := enqueueEventMail(t, db, store, ctx, school, "api-then-blocklist", true)
+	sendEventMail(t, store, ctx, mail.ID, acceptedByProvider)
+	token := eventMailToken(t, db, mail.ID)
+	api := eventAt(token, "api:hard_bounced", domain.EmailDeliveryFailed, time.Now())
+	api.KeepsAddress = true
+	result, err := store.RecordEmailDeliveryEvent(ctx, api)
+	require.NoError(t, err)
+	require.Equal(t, domain.EmailDeliveryFailed, result.State)
+	listed, err := store.EmailAddressSuppressed(ctx, school, eventAddress)
+	require.NoError(t, err)
+	require.False(t, listed, "the API names no answer, so it does not accuse the address")
+
+	retry := eventAt(token, "webhook-1", domain.EmailDeliveryFailed, time.Now())
+	retry.KeepsAddress, retry.Reroute = true, true
+	result, err = store.RecordEmailDeliveryEvent(ctx, retry)
+
+	require.NoError(t, err)
+	assert.True(t, result.Rerouted)
+	listed, err = store.EmailAddressSuppressed(ctx, school, eventAddress)
+	require.NoError(t, err)
+	assert.False(t, listed)
+}
+
+func TestWebhookBounceAfterAnAPIBounceListsTheAddress(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	mail := enqueueEventMail(t, db, store, ctx, school, "api-then-bounce", false)
+	token := eventMailToken(t, db, mail.ID)
+	api := eventAt(token, "api:hard_bounced", domain.EmailDeliveryFailed, time.Now())
+	api.KeepsAddress = true
+	_, err := store.RecordEmailDeliveryEvent(ctx, api)
+	require.NoError(t, err)
+
+	_, err = store.RecordEmailDeliveryEvent(ctx, eventAt(token, "webhook-1", domain.EmailDeliveryFailed, time.Now()))
+
+	require.NoError(t, err)
+	listed, err := store.EmailAddressSuppressed(ctx, school, eventAddress)
+	require.NoError(t, err)
+	assert.True(t, listed, "the server's answer accuses the address")
+}
+
+func mailAttempts(t *testing.T, db *bun.DB, id int64) int {
+	t.Helper()
+	var attempts int
+	require.NoError(t, db.NewRaw(`SELECT attempts FROM platform.email_outbox WHERE id = ?`, id).Scan(context.Background(), &attempts))
+	return attempts
+}
+
+// Attempts spent on the provider must not eat the ones of the fallback, and the
+// fallback is still bounded: it runs out and goes no further.
+func TestTheFallbackGetsItsOwnAttempts(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	mail := enqueueEventMail(t, db, store, ctx, testpkg.Tenant(t), "fallback-attempts", true)
+	sendEventMail(t, store, ctx, mail.ID, acceptedByProvider)
+	_, err := db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET attempts = 2 WHERE id = ?`, mail.ID)
+	require.NoError(t, err)
+	token := eventMailToken(t, db, mail.ID)
+	event := eventAt(token, "suppressed", domain.EmailDeliverySuppressed, time.Now())
+	event.Reroute = true
+
+	result, err := store.RecordEmailDeliveryEvent(ctx, event)
+
+	require.NoError(t, err)
+	require.True(t, result.Rerouted)
+	assert.Zero(t, mailAttempts(t, db, mail.ID))
+
+	const maxAttempts = 3
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		fence := startEventMail(t, store, ctx, mail.ID)
+		finalize, err := store.FinalizeFailure(ctx, domain.TransportEmail, mail.ID, fence, attempt, "mailbox down", time.Now().Add(-time.Second), maxAttempts)
+		require.NoError(t, err)
+		require.True(t, finalize.Finalized)
+	}
+	status, _, _ := mailStatus(t, db, mail.ID)
+	assert.Equal(t, "dead_letter", status)
+}
+
+func TestRerouteDuringTheSendAlsoResetsTheAttempts(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	mail := enqueueEventMail(t, db, store, ctx, testpkg.Tenant(t), "fallback-attempts-send", true)
+	_, err := db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET attempts = 2 WHERE id = ?`, mail.ID)
+	require.NoError(t, err)
+	fence := startEventMail(t, store, ctx, mail.ID)
+	event := eventAt(eventMailToken(t, db, mail.ID), "suppressed", domain.EmailDeliverySuppressed, time.Now())
+	event.Reroute = true
+	_, err = store.RecordEmailDeliveryEvent(ctx, event)
+	require.NoError(t, err)
+	assert.Equal(t, 2, mailAttempts(t, db, mail.ID), "the worker's own attempt is still running")
+
+	finalized, err := store.FinalizeSent(ctx, domain.TransportEmail, mail.ID, fence, json.RawMessage(acceptedByProvider), time.Now())
+
+	require.NoError(t, err)
+	require.True(t, finalized)
+	status, _, _ := mailStatus(t, db, mail.ID)
+	assert.Equal(t, "pending", status)
+	assert.Zero(t, mailAttempts(t, db, mail.ID))
+}
+
+func TestOpenProviderMailsNameTheirLastCheck(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	mail := enqueueEventMail(t, db, store, ctx, testpkg.Tenant(t), "checked", false)
+	sendEventMail(t, store, ctx, mail.ID, acceptedByProvider)
+	now := time.Now()
+	query := domain.ProviderMailQuery{SentAfter: now.Add(-time.Hour), SentBefore: now.Add(time.Hour), CheckedBefore: now.Add(time.Hour), Limit: 10}
+	mails, err := store.OpenProviderMails(ctx, query)
+	require.NoError(t, err)
+	require.Len(t, mails, 1)
+	assert.Nil(t, mails[0].CheckedAt)
+
+	checkedAt := now.Add(-time.Minute).Truncate(time.Second)
+	require.NoError(t, store.MarkEmailDeliveryChecked(ctx, mail.ID, checkedAt))
+
+	mails, err = store.OpenProviderMails(ctx, query)
+	require.NoError(t, err)
+	require.Len(t, mails, 1)
+	require.NotNil(t, mails[0].CheckedAt)
+	assert.True(t, mails[0].CheckedAt.Equal(checkedAt))
+}
+
+func TestSchoolMailedAddressIsExactAndOfThatSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school, other := testpkg.Tenant(t), testpkg.NewTenantScope(t, db).TenantID
+	enqueueEventMail(t, db, store, ctx, school, "mailed", false)
+
+	for name, test := range map[string]struct {
+		school  int64
+		address string
+		want    bool
+	}{
+		"same address":   {school, "guardian@example.com", true},
+		"any case":       {school, " GUARDIAN@example.com ", true},
+		"part of it":     {school, "guardian@example.co", false},
+		"another school": {other, "guardian@example.com", false},
+	} {
+		mailed, err := store.SchoolMailedAddress(ctx, test.school, test.address)
+		require.NoError(t, err, name)
+		assert.Equal(t, test.want, mailed, name)
+	}
+}
+
+// Only the bounce goes, under the school's own row-level security.
+func TestDeleteEmailSuppressionLeavesAReasonItMustNotDelete(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	_, err := db.ExecContext(context.Background(), `INSERT INTO platform.email_suppressions (tenant_id, address, reason) VALUES (?, 'bounce@example.com', 'failed'), (?, 'complaint@example.com', 'complained')`, school, school)
+	require.NoError(t, err)
+
+	require.NoError(t, store.DeleteEmailSuppression(ctx, school, "nobody@example.com"), "nothing to do")
+	require.NoError(t, store.DeleteEmailSuppression(ctx, school, "bounce@example.com"))
+	require.ErrorIs(t, store.DeleteEmailSuppression(ctx, school, "complaint@example.com"), domain.ErrSuppressionNeedsReview)
+
+	listed, err := store.EmailAddressSuppressed(ctx, school, "complaint@example.com")
+	require.NoError(t, err)
+	assert.True(t, listed)
+}
