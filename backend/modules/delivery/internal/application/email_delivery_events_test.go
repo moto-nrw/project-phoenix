@@ -51,6 +51,7 @@ func TestWorkerHoldsBackAMailToASuppressedAddress(t *testing.T) {
 	require.Len(t, store.events, 1)
 	assert.Equal(t, domain.EmailDeliverySuppressed, store.events[0].State)
 	assert.Equal(t, "token-1", store.events[0].Token)
+	assert.Equal(t, "lease-token", store.cancelledToken, "the mail ends before the dispatch fence")
 }
 
 func TestWorkerSendsSecurityMailToASuppressedAddress(t *testing.T) {

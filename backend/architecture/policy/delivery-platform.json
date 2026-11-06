@@ -244,6 +244,10 @@
       "write_owner": "delivery-platform"
     },
     {
+      "name": "platform.delivery_known_email_addresses",
+      "write_owner": "delivery-platform"
+    },
+    {
       "name": "platform.push_outbox",
       "write_owner": "delivery-platform"
     },

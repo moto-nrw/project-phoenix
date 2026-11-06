@@ -91,6 +91,11 @@ func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, l
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		// Before the dispatch fence: a mail behind the fence with an unknown
+		// outcome is never retried, and this one has not been sent.
+		if w.heldBackBySuppression(ctx, rows[index], stats) {
+			continue
+		}
 		w.process(ctx, rows[index], maxAttempts, stats)
 	}
 	return nil
@@ -112,9 +117,6 @@ func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts 
 	if !active {
 		stats.LeaseLost++
 		w.observe(domain.Observation{Operation: "stale_lease_fence", Transport: string(intent.Transport), Template: intent.Template, Count: 1})
-		return
-	}
-	if w.heldBackBySuppression(ctx, intent, dispatchToken, stats) {
 		return
 	}
 	providerCtx, cancel := context.WithTimeout(ctx, providerTimeout)
@@ -160,14 +162,14 @@ func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts 
 // heldBackBySuppression ends a mail to a suppressed address before it is sent.
 // A failed read keeps the mail for a later attempt: the list decides, so it
 // must be known.
-func (w *Worker) heldBackBySuppression(ctx context.Context, intent domain.Intent, token string, stats *deliveryContract.WorkerStats) bool {
+func (w *Worker) heldBackBySuppression(ctx context.Context, intent domain.Intent, stats *deliveryContract.WorkerStats) bool {
 	suppressed, err := w.addressSuppressed(ctx, intent)
 	if err != nil {
-		w.finalizeDeferred(ctx, intent, token, err, stats)
+		w.finalizeDeferred(ctx, intent, leaseToken(intent), err, stats)
 		return true
 	}
 	if suppressed {
-		w.finalizeCancelled(ctx, intent, token, errAddressSuppressed, stats)
+		w.finalizeCancelled(ctx, intent, leaseToken(intent), errAddressSuppressed, stats)
 		w.recordSuppressedSend(ctx, intent)
 	}
 	return suppressed

@@ -25,22 +25,28 @@ func setDeliveryIdentity(msg *mail.Msg, message mailcontract.Message) {
 	msg.SetGenHeader(headerDeliveryToken, message.DeliveryToken)
 }
 
-// classifySendError marks the refusals a retry cannot change. Only a 5xx answer
-// of the server to this mail counts:
-//   - A network error or 4xx stays retryable.
-//   - A 5xx to MAIL FROM says our sender is wrong, not this mail. It stays
-//     retryable, so a configuration fix still delivers the queue.
-//   - Dial and login errors are no SendError and stay retryable for the same
-//     reason.
+// classifySendError marks the refusals a retry cannot change. A 5xx alone does
+// not say that: servers also answer with it to a blocked sender, an exhausted
+// quota or missing authentication, and calling those final would put a whole
+// queue's addresses on the suppression list. Only the enhanced status of the
+// answer names the cause:
+//   - 5.1.x at RCPT TO or DATA: this address does not exist.
+//   - 5.6.x at DATA: this mail's content cannot be delivered.
+//
+// Everything else stays retryable, up to the mail's attempts: network errors,
+// 4xx, other 5xx and answers of servers without enhanced status codes. Dial and
+// login errors are no SendError and stay retryable for the same reason.
 func classifySendError(err error) error {
 	var sendErr *mail.SendError
 	if !errors.As(err, &sendErr) || sendErr.ErrorCode() < 500 || sendErr.ErrorCode() > 599 {
 		return err
 	}
-	switch sendErr.Reason {
-	case mail.ErrSMTPRcptTo:
+	enhanced := sendErr.EnhancedStatusCode()
+	atData := sendErr.Reason == mail.ErrSMTPData || sendErr.Reason == mail.ErrSMTPDataClose
+	switch {
+	case strings.HasPrefix(enhanced, "5.1.") && (sendErr.Reason == mail.ErrSMTPRcptTo || atData):
 		return fmt.Errorf("%w: %w: %w", mailcontract.ErrPermanentRejection, mailcontract.ErrRecipientRejected, err)
-	case mail.ErrSMTPData, mail.ErrSMTPDataClose:
+	case strings.HasPrefix(enhanced, "5.6.") && atData:
 		return fmt.Errorf("%w: %w", mailcontract.ErrPermanentRejection, err)
 	default:
 		return err

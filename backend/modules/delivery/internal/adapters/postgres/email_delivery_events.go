@@ -13,13 +13,14 @@ import (
 )
 
 // The mail is locked while its event is recorded: two events of one mail must
-// not both read the old state.
+// not both read the old state. Identities that name two mails are a contradiction:
+// the school of the event would be a guess, so such an event matches nothing.
 const emailEventMailSQL = `SELECT id, tenant_id, recipient->>'address' AS address, delivery_state, security, fallback_requested_at
 	FROM platform.email_outbox
 	WHERE delivery_token = NULLIF(?, '')
 		OR message_id = NULLIF(?, '')
 		OR provider_message_id = NULLIF(?, '')
-	ORDER BY id LIMIT 1 FOR UPDATE`
+	ORDER BY id LIMIT 2 FOR UPDATE`
 
 const emailEventInsertSQL = `INSERT INTO platform.email_delivery_events
 		(tenant_id, outbox_id, provider, provider_event_id, state, occurred_at, diagnostic)
@@ -60,15 +61,20 @@ type emailEventMailRow struct {
 func (s *Store) RecordEmailDeliveryEvent(ctx context.Context, event domain.EmailDeliveryEvent) (domain.EmailDeliveryEventResult, error) {
 	var result domain.EmailDeliveryEventResult
 	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
-		var mail emailEventMailRow
-		err := db.NewRaw(emailEventMailSQL, event.Token, event.MessageID, event.ProviderMessageID).Scan(txCtx, &mail)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
+		var mails []emailEventMailRow
+		err := db.NewRaw(emailEventMailSQL, event.Token, event.MessageID, event.ProviderMessageID).Scan(txCtx, &mails)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
+		if len(mails) != 1 {
+			return nil
+		}
+		mail := mails[0]
 		result.Matched = true
+		if mail.Address != nil && *mail.Address != "" {
+			// The server may echo the mailbox in a form the general filter misses.
+			event.Diagnostic = strings.ReplaceAll(event.Diagnostic, *mail.Address, "[address]")
+		}
 		result.State = emailEventCurrentState(mail)
 		inserted, err := db.ExecContext(txCtx, emailEventInsertSQL, mail.TenantID, mail.ID, event.Provider, event.ProviderEventID,
 			string(event.State), event.OccurredAt, event.Diagnostic)
@@ -152,8 +158,13 @@ func (s *Store) DeleteExpiredEmailSuppressions(ctx context.Context, tenantID int
 	if err != nil {
 		return 0, err
 	}
-	return affected("delete expired email suppressions")(db.ExecContext(ctx, `DELETE FROM platform.email_suppressions
-		WHERE tenant_id = ? AND updated_at < ?`, tenantID, before))
+	// An address nobody at the school holds any more goes with the first run:
+	// this covers every path that deletes an account or a guardian, without each
+	// of them knowing the list. A new bounce would put it back.
+	return affected("delete expired email suppressions")(db.ExecContext(ctx, `DELETE FROM platform.email_suppressions AS suppression
+		WHERE suppression.tenant_id = ?0 AND (suppression.updated_at < ?1 OR NOT EXISTS (
+			SELECT 1 FROM platform.delivery_known_email_addresses AS known
+			WHERE known.tenant_id = ?0 AND known.address = suppression.address))`, tenantID, before))
 }
 
 const openProviderMailsSQL = `SELECT id, provider_message_id, delivery_state, sent_at
