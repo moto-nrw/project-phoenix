@@ -47,7 +47,7 @@ func concludeEveryTraeger(ctx context.Context, organizations organizationtenancy
 		run, err := conclusion.ConcludeAccepted(ctx, organization.ID)
 		concluded += len(run.Concluded)
 		if err != nil {
-			failures = append(failures, fmt.Errorf("Träger %d: %w", organization.ID, err))
+			failures = append(failures, fmt.Errorf("care contract conclusion of Träger %d: %w", organization.ID, err))
 			continue
 		}
 		if len(run.Skipped) > 0 {

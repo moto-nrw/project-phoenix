@@ -5,9 +5,16 @@
  */
 
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
-import { formatDate } from "~/lib/date-helpers";
+import {
+  formatBerlinDate,
+  formatBerlinTime,
+  formatDate,
+} from "~/lib/date-helpers";
 import type {
   CareContractStatus,
+  ConclusionMethod,
+  ConclusionMode,
+  ContractConclusion,
   ContractMailState,
   ContractNoticeTo,
   ContractService,
@@ -210,3 +217,29 @@ export function childName(contract: {
 }): string {
   return `${contract.childFirstName} ${contract.childLastName}`.trim();
 }
+
+/** How a contract was concluded, as the office reads it. */
+export const CONCLUSION_METHOD_LABELS: Record<ConclusionMethod, string> = {
+  mit_anmeldung: "bei der Annahme der Anmeldung",
+  einfach_elektronisch: "mit der Unterschrift der Eltern",
+  papier: "mit dem unterschriebenen Vertrag auf Papier",
+};
+
+/**
+ * The conclusion in one line: „Am 06.11.2026 um 16:12 Uhr, bei der Annahme
+ * der Anmeldung“.
+ */
+export function formatConclusion(conclusion: ContractConclusion): string {
+  return `Am ${formatBerlinDate(conclusion.at)} um ${formatBerlinTime(conclusion.at)} Uhr, ${CONCLUSION_METHOD_LABELS[conclusion.method]}`;
+}
+
+/** How the contracts of a school come about (#4680). */
+export const CONCLUSION_MODE_LABELS: Record<ConclusionMode, string> = {
+  bei_annahme: "Gilt bei der Annahme",
+  nachtraeglich: "Sie verschicken ihn",
+};
+
+export const CONCLUSION_MODE_TONES: Record<ConclusionMode, StatusBadgeTone> = {
+  bei_annahme: "green",
+  nachtraeglich: "gray",
+};

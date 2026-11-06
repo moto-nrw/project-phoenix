@@ -13,7 +13,10 @@ import { traegerRequest } from "./traeger-api";
 const CONTRACTS_PATH = "/api/traeger/contracts";
 const TEMPLATES_PATH = "/api/traeger/contract-templates";
 
-/** Every state of ADR 0088; this version reaches draft and sent. */
+/**
+ * Every state of ADR 0088. The office reaches draft and sent; the conclusion
+ * at the acceptance (#4680) or the signature (#4679) reaches active.
+ */
 export type CareContractStatus =
   "entwurf" | "versendet" | "unterschrieben" | "aktiv" | "beendet";
 
@@ -91,6 +94,31 @@ export interface ContractCandidate extends CandidateKey {
   readonly templateIssue: TemplateIssue | null;
 }
 
+/**
+ * How a contract was concluded (ADR 0088 section 3): at the acceptance of
+ * the application, or with the parents' signature.
+ */
+export type ConclusionMethod =
+  "mit_anmeldung" | "einfach_elektronisch" | "papier";
+
+export interface ContractConclusion {
+  readonly method: ConclusionMethod;
+  /** The instant of the conclusion. */
+  readonly at: string;
+}
+
+/**
+ * How the contracts of a school come about (#4680): sent later by the
+ * office (Weg a) or concluded at the acceptance (Weg b).
+ */
+export type ConclusionMode = "nachtraeglich" | "bei_annahme";
+
+export interface SchoolConclusionMode {
+  readonly schoolId: string;
+  readonly schoolName: string;
+  readonly mode: ConclusionMode;
+}
+
 export interface CareContractSummary {
   readonly id: string;
   readonly status: CareContractStatus;
@@ -104,6 +132,8 @@ export interface CareContractSummary {
   readonly effectiveFrom: string;
   readonly createdAt: string;
   readonly sentAt: string | null;
+  /** Null until the contract is concluded. */
+  readonly concluded: ContractConclusion | null;
 }
 
 export interface CareContractList {
@@ -231,6 +261,7 @@ interface BackendSummary {
   effective_from: string;
   created_at: string;
   sent_at: string | null;
+  concluded?: { method: ConclusionMethod; at: string } | null;
 }
 
 interface BackendDetail extends BackendSummary {
@@ -348,6 +379,9 @@ function summaryFromBackend(row: BackendSummary): CareContractSummary {
     effectiveFrom: row.effective_from,
     createdAt: row.created_at,
     sentAt: row.sent_at,
+    concluded: row.concluded
+      ? { method: row.concluded.method, at: row.concluded.at }
+      : null,
   };
 }
 
@@ -416,6 +450,18 @@ export async function fetchCareContracts(
     counts: body?.counts ?? {},
     hasMore: body?.has_more ?? false,
   };
+}
+
+/** How the contracts of every school of the Träger come about (#4680). */
+export async function fetchConclusionModes(): Promise<SchoolConclusionMode[]> {
+  const rows = await traegerRequest<
+    { school_id: number; school_name: string; mode: ConclusionMode }[] | null
+  >(`${CONTRACTS_PATH}/conclusion-modes`);
+  return (rows ?? []).map((row) => ({
+    schoolId: String(row.school_id),
+    schoolName: row.school_name,
+    mode: row.mode,
+  }));
 }
 
 export async function fetchContractCandidates(): Promise<ContractCandidate[]> {

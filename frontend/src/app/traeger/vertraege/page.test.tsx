@@ -10,6 +10,7 @@ const { api, mockPush } = vi.hoisted(() => ({
   api: {
     fetchCareContracts: vi.fn(),
     fetchContractCandidates: vi.fn(),
+    fetchConclusionModes: vi.fn(),
     fetchTraegerSchools: vi.fn(),
     createCareContracts: vi.fn(),
     sendCareContracts: vi.fn(),
@@ -18,6 +19,17 @@ const { api, mockPush } = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/traeger-care-contracts-api", () => api);
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: {
+        id: "A",
+        permissions: ["traeger_contracts:manage", "traeger_overview:read"],
+      },
+    },
+    status: "authenticated",
+  }),
+}));
 vi.mock("~/lib/traeger-api", () => ({
   fetchTraegerSchools: api.fetchTraegerSchools,
 }));
@@ -45,6 +57,7 @@ const DRAFT: CareContractSummary = {
   effectiveFrom: "2027-08-01",
   createdAt: "2026-09-01T08:00:00Z",
   sentAt: null,
+  concluded: null,
 };
 
 const SENT: CareContractSummary = {
@@ -103,6 +116,9 @@ describe("TraegerVertraegePage", () => {
     });
     api.fetchTraegerSchools.mockResolvedValue([
       { id: "3", name: "OGS Am Lindenhof" },
+    ]);
+    api.fetchConclusionModes.mockResolvedValue([
+      { schoolId: "3", schoolName: "OGS Am Lindenhof", mode: "nachtraeglich" },
     ]);
     api.fetchContractCandidates.mockResolvedValue([
       CANDIDATE,
@@ -229,5 +245,45 @@ describe("TraegerVertraegePage", () => {
     fireEvent.click((await screen.findAllByText("Offene Ganztagsschule"))[0]!);
 
     expect(mockPush).toHaveBeenCalledWith("/vertraege/7");
+  });
+
+  it("shows how the contracts of each school come about", async () => {
+    api.fetchConclusionModes.mockResolvedValue([
+      { schoolId: "3", schoolName: "OGS Am Lindenhof", mode: "bei_annahme" },
+      { schoolId: "4", schoolName: "OGS Nord", mode: "nachtraeglich" },
+    ]);
+    renderPage();
+
+    const list = await screen.findByRole("list", {
+      name: "Abschluss je Schule",
+    });
+    expect(list).toHaveTextContent("OGS Am LindenhofGilt bei der Annahme");
+    expect(list).toHaveTextContent("OGS NordSie verschicken ihn");
+    expect(
+      screen.getByText(/entsteht der Vertrag von selbst, sobald die Schule/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "In den Einstellungen ändern" }),
+    ).toHaveAttribute("href", "/einstellungen");
+  });
+
+  it("names an active contract with the day it was concluded", async () => {
+    api.fetchCareContracts.mockResolvedValue({
+      contracts: [
+        {
+          ...SENT,
+          id: "9",
+          status: "aktiv",
+          childFirstName: "Ole",
+          concluded: { method: "mit_anmeldung", at: "2026-09-03T08:00:00Z" },
+        },
+      ],
+      counts: { aktiv: 1 },
+      hasMore: false,
+    });
+    renderPage();
+
+    expect((await screen.findAllByText("Aktiv"))[0]).toBeInTheDocument();
+    expect(screen.getByText("seit 03.09.2026")).toBeInTheDocument();
   });
 });

@@ -46,6 +46,7 @@ const DRAFT: CareContractDetail = {
   effectiveFrom: "2027-08-01",
   createdAt: "2026-09-01T08:00:00Z",
   sentAt: null,
+  concluded: null,
   version: {
     number: 1,
     effectiveFrom: "2027-08-01",
@@ -357,6 +358,48 @@ describe("TraegerVertragPage", () => {
     expect(screen.getByText("PDF für die Eltern")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Vertrag senden/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says that a contract concluded at the acceptance holds and cannot be sent again", async () => {
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      status: "aktiv",
+      sentAt: "2026-09-03T08:00:00Z",
+      concluded: { method: "mit_anmeldung", at: "2026-09-03T08:00:00Z" },
+      mailings: [
+        {
+          recipient: "erika@example.org",
+          sentAt: "2026-09-03T08:00:00Z",
+          state: "sent",
+        },
+      ],
+      documentFrozen: true,
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        /Der Vertrag gilt seit der Annahme der Anmeldung am 03\.09\.2026/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Am 03.09.2026 um 10:00 Uhr, bei der Annahme der Anmeldung",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("So steht es im abgeschlossenen Vertrag."),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Aktiv")[0]).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /PDF herunterladen/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Erneut senden|Vertrag senden/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Entwurf verwerfen/ }),
     ).not.toBeInTheDocument();
   });
 });

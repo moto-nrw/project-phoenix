@@ -5672,6 +5672,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
     notes: [
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
+      "Steht im Vertrag `Vertragsschluss`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
       "Sie möchten eine Nachricht auf dem Handy bekommen, wenn ein Bestätigungsschreiben kommt? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein. Einen Betreuungsvertrag bekommen Sie per Mail.",
     ],
@@ -10013,8 +10014,9 @@ export const traegerBriefkopfTopic =
   } satisfies typeof authored_traegerBriefkopfTopic;
 
 /**
- * `/traeger/vertraege` (#4678): Vertragsbedingungen je Angebot festlegen,
- * Entwürfe aus angenommenen Anmeldungen erstellen, prüfen und senden.
+ * `/traeger/vertraege` (#4678, #4680): festlegen, wann der Vertrag gilt,
+ * Vertragsbedingungen je Angebot festlegen, Entwürfe aus angenommenen
+ * Anmeldungen erstellen, prüfen und senden.
  */
 export const traegerCareContractsTopic =
   function traegerCareContractsTopic(): HelpTopic {
@@ -10023,7 +10025,7 @@ export const traegerCareContractsTopic =
       title: "Betreuungsverträge erstellen und senden",
       question: "Wie schicke ich den Eltern den Betreuungsvertrag?",
       summary:
-        "Aus jeder angenommenen Anmeldung erstellt moto einen Vertragsentwurf mit den gebuchten Modulen je Wochentag. Sie prüfen ihn und senden ihn per Mail und in die Eltern-App.",
+        "Aus jeder angenommenen Anmeldung entsteht ein Vertrag mit den gebuchten Modulen je Wochentag. Entweder gilt er gleich bei der Annahme, oder Sie prüfen den Entwurf und senden ihn per Mail und in die Eltern-App.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "Signature",
@@ -10032,6 +10034,15 @@ export const traegerCareContractsTopic =
         "Die Schule hat die Anmeldung angenommen, und das Kind hat Betreuung gebucht.",
       ],
       instructionGroups: [
+        {
+          title: "Einmal: Festlegen, wann der Vertrag gilt",
+          steps: [
+            "Wählen Sie in der Navigation `Einstellungen` → `Allgemein`.",
+            "Wählen Sie den Reiter `Anmeldung`.",
+            "Wählen Sie bei `Wann gilt der Betreuungsvertrag?` eine Möglichkeit. `Bei der Annahme`: Nimmt die Schule eine Anmeldung an, gilt der Vertrag sofort. `Später verschicken`: Sie erstellen den Vertrag und schicken ihn den Eltern.",
+            "Eine Schule kann in ihren eigenen Einstellungen etwas anderes wählen. Was für welche Schule gilt, sehen Sie unter `Verträge` in der Karte `Wann gilt der Vertrag?`.",
+          ],
+        },
         {
           title: "Einmal: Vertragsbedingungen festlegen",
           steps: [
@@ -10046,7 +10057,16 @@ export const traegerCareContractsTopic =
           ],
         },
         {
-          title: "Entwürfe erstellen",
+          title: "Bei der Annahme: nichts zu tun",
+          steps: [
+            "Die Schule nimmt die Anmeldung an.",
+            "Nach wenigen Minuten steht der Vertrag in der Liste. Sein Status ist `Aktiv`.",
+            "Die Eltern bekommen das PDF per Mail und in der Eltern-App. Sie müssen nichts unterschreiben.",
+            "Auf der Vertragsseite steht unter `Abgeschlossen`, wann der Vertrag gilt.",
+          ],
+        },
+        {
+          title: "Später verschicken: Entwürfe erstellen",
           steps: [
             "Wählen Sie den Reiter `Verträge`.",
             "Wählen Sie `Verträge erstellen`. Die Zahl dahinter nennt die Kinder ohne Vertrag.",
@@ -10068,7 +10088,7 @@ export const traegerCareContractsTopic =
       ],
       steps: [],
       result:
-        "Die Eltern bekommen den Vertrag als PDF per Mail. Haben sie ein Konto in der Eltern-App, liegt er dort auch unter `Dokumente`. Der Status wird `Versendet`: Der Versand ist beauftragt. Ob die Mail gesendet wurde, sehen Sie unter `Versand`.",
+        "Die Eltern bekommen den Vertrag als PDF per Mail. Haben sie ein Konto in der Eltern-App, liegt er dort auch unter `Dokumente`. Gilt der Vertrag bei der Annahme, ist sein Status `Aktiv`. Sonst wird er `Versendet`: Der Versand ist beauftragt. Ob die Mail gesendet wurde, sehen Sie unter `Versand`.",
       notes: [
         "Die Suche und die Filter gelten für alle Verträge. Mit `Weitere Verträge laden` zeigen Sie ältere Treffer an.",
         "Beim ersten Senden hält moto das PDF fest. Ändern Sie danach Bedingungen oder Brieftext, bleibt der versendete Vertrag gleich.",
@@ -10080,6 +10100,7 @@ export const traegerCareContractsTopic =
         "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
       ],
       troubleshootingDetails: [
+        "Die Schule hat angenommen, aber nach einigen Minuten steht kein aktiver Vertrag da? Dann fehlt etwas. Das Kind steht in `Verträge erstellen` mit dem Grund, zum Beispiel `Vertragsbedingungen fehlen`. Fehlt die E-Mail-Adresse der Eltern, ergänzt die Schule sie in der Anmeldung. moto versucht es danach von selbst noch einmal.",
         "Ein Kind fehlt in `Verträge erstellen`? Die Schule hat die Anmeldung noch nicht angenommen, oder das Kind hat schon einen Vertrag.",
         "Ein Kind zeigt `Bedingungen der Module weichen ab`? Das Kind hat mehrere Module gebucht, und deren Vertragsbedingungen sind verschieden. Ein Vertrag hat eine Laufzeit und eine Frist. Gleichen Sie die Bedingungen der Module an.",
         "Eine Endzeit fehlt? Das Modul hat für diesen Tag keine Gehzeit. Die Schule trägt sie beim Angebot ein.",
