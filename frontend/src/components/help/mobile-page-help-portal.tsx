@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { MobilePageHelpLink } from "~/components/help/mobile-page-help-link";
-import { MobilePageHelpTargetContext } from "./mobile-page-help-target";
+import { MobilePageHelpTargetContext } from "~/components/ui/mobile-page-help-target";
 
 interface MobilePageHelpPortalProps {
   readonly children: ReactNode;

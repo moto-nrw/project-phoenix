@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 )
@@ -15,4 +16,33 @@ type EmailDeliveryEventStore interface {
 	// match or one already stored changes nothing.
 	RecordEmailDeliveryEvent(context.Context, domain.EmailDeliveryEvent) (domain.EmailDeliveryEventResult, error)
 	EmailAddressSuppressed(ctx context.Context, tenantID int64, address string) (bool, error)
+}
+
+// EmailReconciliationStore finds the mails the reconciliation asks the provider
+// about, across schools like the event store, and frees corrected addresses in
+// the transaction of the school they name.
+type EmailReconciliationStore interface {
+	OpenProviderMails(context.Context, domain.ProviderMailQuery) ([]domain.ProviderMail, error)
+	MarkEmailDeliveryChecked(ctx context.Context, id int64, at time.Time) error
+	EmailSuppressionReason(ctx context.Context, tenantID int64, address string) (domain.EmailDeliveryState, bool, error)
+	DeleteEmailSuppression(ctx context.Context, tenantID int64, address string) error
+	// SchoolMailedAddress reports whether the school itself has a mail to exactly
+	// this address. It ties a team-wide provider block to the school.
+	SchoolMailedAddress(ctx context.Context, tenantID int64, address string) (bool, error)
+}
+
+// EmailProviderAPI is the mail provider's own record of its mails. Without a
+// provider that keeps one, the reconciliation does not run.
+type EmailProviderAPI interface {
+	MessageEvents(ctx context.Context, providerMessageID string) ([]domain.EmailDeliveryEvent, error)
+	WebhookEnabled(context.Context) (bool, error)
+	LiftSuppression(ctx context.Context, address string) error
+}
+
+// EmailWebhookProvider verifies and reads one provider's webhook deliveries.
+type EmailWebhookProvider interface {
+	Name() string
+	Configured() bool
+	Verify(header func(string) string, body []byte, now time.Time) error
+	Parse(body []byte) (domain.ReportedEmailEvent, error)
 }

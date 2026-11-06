@@ -180,6 +180,12 @@ type OutboxWorkerRunner interface {
 	Backlog(ctx context.Context) (int, error)
 }
 
+// EmailDeliveryReconciler compares open mails with the mail provider's own
+// record. Its error is the run's alarm; on plain SMTP it does nothing.
+type EmailDeliveryReconciler interface {
+	ReconcileEmailDelivery(ctx context.Context) error
+}
+
 // OutboxWakeupSource is optionally implemented by an OutboxWorkerRunner
 // whose store reports committed e-mail enqueues. The scheduler then runs
 // the outbox at once; the poll interval stays the fallback.

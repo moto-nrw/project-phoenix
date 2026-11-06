@@ -5,6 +5,10 @@ import (
 	"log/slog"
 	"net/http"
 
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+
+	emailWebhooksHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/webhooks"
+
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
@@ -13,6 +17,13 @@ import (
 // mountPublicRoutes registers unauthenticated root-level routes: the
 // landing/health probes, the public image/legal-document servers, and the
 // bearer-protected metrics endpoint.
+// mountPublic mounts everything that needs no session.
+func mountPublic(root chi.Router, metricsToken string, db transactionruntime.Database, emailWebhooks emailWebhooksHTTP.Ingest) error {
+	mountPublicRoutes(root, metricsToken, db.Pool().PingContext)
+	mountEmailWebhooks(root, emailWebhooks)
+	return nil
+}
+
 func mountPublicRoutes(root chi.Router, metricsToken string, ping func(context.Context) error) {
 	root.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("MOTO API - Phoenix Project"))

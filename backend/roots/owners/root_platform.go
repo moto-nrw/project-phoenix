@@ -62,10 +62,16 @@ func BuildAuditOwner(db transactionruntime.Database, env RootEnvironment) (Audit
 // transport and the web push configuration. An invalid VAPID configuration fails startup.
 func BuildMailTransport(env RootEnvironment) (email.Mailer, email.Dispatcher, email.Email, deliveryCompose.VAPIDConfig, error) {
 	cfg, logger := env.Config, env.Logger
+	provider := email.ProviderConfig(cfg.EmailProvider)
+	if err := provider.Validate(); err != nil {
+		return nil, nil, email.Email{}, deliveryCompose.VAPIDConfig{}, fmt.Errorf("invalid email provider configuration: %w", err)
+	}
+	lettermint, securityFallback := provider.MailSettings()
 	mailer, err := deliveryCompose.NewMailTransport(email.MailerConfig{
 		Host: cfg.EmailSMTPHost, Port: cfg.EmailSMTPPort, User: cfg.EmailSMTPUser, Password: cfg.EmailSMTPPassword,
 		DefaultFrom: email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress), TemplateDir: "./templates",
 		Logger: logger.With("service", "email"), AppEnv: cfg.AppEnv,
+		Lettermint: lettermint, SecurityFallback: securityFallback,
 	})
 	if err != nil {
 		return nil, nil, email.Email{}, deliveryCompose.VAPIDConfig{}, fmt.Errorf("initialize email transport: %w", err)
@@ -286,6 +292,7 @@ func BuildDeliveryRuntime(db transactionruntime.Database, env RootEnvironment, g
 	observe := env.Observe.DurableDelivery
 	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
 		DB: db.Pool(), People: GuardianDisplayResolver{Query: guardians},
+		EmailProvider: withProviderLogger(env),
 		Observe: func(observation deliveryContract.Observation) {
 			observe(string(observation.Transport), observation.Template, observation.Operation, observation.Duration, observation.Count, observation.Err)
 		},
@@ -294,6 +301,12 @@ func BuildDeliveryRuntime(db transactionruntime.Database, env RootEnvironment, g
 		return DeliveryRuntime{}, fmt.Errorf("initialize delivery module: %w", err)
 	}
 	return DeliveryRuntime{Runtime: runtime, Outbox: deliveryCompose.NewEmailOutbox(deliveryCompose.NewDurableEmails(runtime.Module))}, nil
+}
+
+func withProviderLogger(env RootEnvironment) email.ProviderConfig {
+	provider := email.ProviderConfig(env.Config.EmailProvider)
+	provider.Logger = env.Logger
+	return provider
 }
 
 // Enqueuer serves the root's mail outbox contract over Delivery's enqueue

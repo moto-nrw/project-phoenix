@@ -6,7 +6,7 @@ import { NavLink, type NavLinkProps } from "~/components/ui/nav-link";
 import {
   PORTAL_ICON_CLASSES,
   portalSidebarRowClasses,
-} from "~/components/dashboard/sidebar-geometry";
+} from "~/components/ui/sidebar-geometry";
 import type { MotoConcept } from "~/lib/moto-concepts";
 
 /** Ab dieser Fensterposition klebt die Leiste; die Klasse `top-[73px]` passt dazu. */

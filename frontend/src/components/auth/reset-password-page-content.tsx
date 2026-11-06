@@ -17,7 +17,6 @@ import { Loading } from "~/components/ui/loading";
 import { useApiFormError } from "~/contexts/ToastContext";
 import Link from "next/link";
 import { CheckIcon, SpinnerIcon } from "~/components/ui/icons";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { confirmPasswordReset } from "~/lib/auth-api";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
@@ -120,8 +119,6 @@ interface PasswordFieldProps {
   readonly label: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
-  readonly visible: boolean;
-  readonly onToggleVisible: () => void;
   readonly disabled: boolean;
   readonly showPasswordLabel: string;
   readonly hidePasswordLabel: string;
@@ -134,8 +131,6 @@ function PasswordField({
   label,
   value,
   onChange,
-  visible,
-  onToggleVisible,
   disabled,
   showPasswordLabel,
   hidePasswordLabel,
@@ -145,28 +140,22 @@ function PasswordField({
       <FieldLabel htmlFor={id} required invalid={error !== undefined}>
         {label}
       </FieldLabel>
-      <div className="relative">
-        <Input
-          id={id}
-          name={name}
-          type={visible ? "text" : "password"}
-          controlSize="compact"
-          autoComplete="new-password"
-          required
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          aria-invalid={error !== undefined}
-          aria-describedby={error ? `${id}-error` : undefined}
-          className="pr-10"
-          disabled={disabled}
-        />
-        <PasswordToggleButton
-          showPassword={visible}
-          onToggle={onToggleVisible}
-          showLabel={showPasswordLabel}
-          hideLabel={hidePasswordLabel}
-        />
-      </div>
+      <Input
+        id={id}
+        name={name}
+        type="password"
+        revealable
+        showPasswordLabel={showPasswordLabel}
+        hidePasswordLabel={hidePasswordLabel}
+        controlSize="compact"
+        autoComplete="new-password"
+        required
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-invalid={error !== undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
+        disabled={disabled}
+      />
       <AuthFieldError id={`${id}-error`} message={error} />
     </div>
   );
@@ -182,8 +171,6 @@ export function ResetPasswordPageContent({
 }: ResetPasswordPageContentProps = {}) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   // Fehler über den gemeinsamen Weg (#2517): Katalogtext je Code, Feldfehler
   // am Feld. Vor der Anmeldung heißt 401 "abgelehnt", nicht "abgelaufen".
   const formRef = useRef<HTMLFormElement>(null);
@@ -361,8 +348,6 @@ export function ResetPasswordPageContent({
             label={copy.passwordLabel}
             value={password}
             onChange={setPassword}
-            visible={showPassword}
-            onToggleVisible={() => setShowPassword(!showPassword)}
             disabled={isLoading || !token}
             showPasswordLabel={copy.showPassword}
             hidePasswordLabel={copy.hidePassword}
@@ -374,8 +359,6 @@ export function ResetPasswordPageContent({
             label={copy.confirmPasswordLabel}
             value={confirmPassword}
             onChange={setConfirmPassword}
-            visible={showConfirmPassword}
-            onToggleVisible={() => setShowConfirmPassword(!showConfirmPassword)}
             disabled={isLoading || !token}
             showPasswordLabel={copy.showPassword}
             hidePasswordLabel={copy.hidePassword}

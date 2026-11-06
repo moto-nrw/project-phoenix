@@ -36,7 +36,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
 import { ActiveFilterChips } from "~/components/ui/page-header/ActiveFilterChips";
@@ -81,7 +81,7 @@ import {
   type SlotListTarget,
 } from "~/lib/slot-lists-api";
 import { IconTile } from "~/components/ui/icon-tile";
-import { PlanLegend } from "~/components/ui/plan-legend";
+import { PlanLegend } from "~/components/ui/planning/plan-legend";
 
 const logger = createLogger({ component: "SlotListsPage" });
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CalendarBlankIcon } from "@phosphor-icons/react";
-import { useModal } from "~/components/dashboard/modal-context";
+import { useModal } from "~/components/ui/modal-context";
 import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import { parseISODate } from "~/lib/date-helpers";

@@ -25,6 +25,8 @@ type ContextMailer interface {
 type Receipt struct {
 	MessageID         string
 	ProviderMessageID string
+	// UsedFallback records acceptance by the security fallback transport.
+	UsedFallback bool
 }
 
 // ReceiptMailer is implemented by transports that report the identity of an
@@ -63,6 +65,13 @@ type Message struct {
 	// local part of the Message-ID and the X-Moto-Outbox-Id header, so a later
 	// delivery event finds this mail. It never travels in a stored snapshot.
 	DeliveryToken string `json:"-"`
+	// Security marks a sign-in code, password reset or staff invitation. It
+	// selects the provider route and may use the fallback transport. The outbox
+	// sets it from the claimed mail; it never travels in a stored snapshot.
+	Security bool `json:"-"`
+	// UseFallback sends a security mail straight over the fallback transport,
+	// after the provider reported it could not deliver the mail.
+	UseFallback bool `json:"-"`
 }
 
 // Attachment is one file of a mail.
@@ -165,6 +174,31 @@ type MailerConfig struct {
 	TemplateDir string
 	Logger      *slog.Logger
 	AppEnv      string
+	// Lettermint turns on the provider's route headers and senders. The zero
+	// value sends plain SMTP, as every provider before Lettermint.
+	Lettermint LettermintSending
+	// SecurityFallback is the second way out for security mail. Nil means none.
+	SecurityFallback *FallbackTransport
+}
+
+// LettermintSending names the sender of each Lettermint route. Both are set
+// or the transport is not a Lettermint transport.
+type LettermintSending struct {
+	SecurityFrom string
+	NoticeFrom   string
+}
+
+// Enabled reports whether mail goes out over Lettermint's routes.
+func (s LettermintSending) Enabled() bool { return s.SecurityFrom != "" && s.NoticeFrom != "" }
+
+// FallbackTransport is the mailbox security mail leaves through when the
+// provider fails. From is the mailbox itself: its server accepts no other.
+type FallbackTransport struct {
+	Host     string
+	Port     int
+	User     string
+	Password string
+	From     string
 }
 
 // ReplyToIdentity is the reply address for a tenant-bound email.

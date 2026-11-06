@@ -5,7 +5,7 @@ import {
   UnreadBadge,
   type UnreadBadgeTone,
 } from "~/components/messaging/unread-badge";
-import { SIDEBAR_SUB_ITEM_CLASSES } from "~/components/dashboard/sidebar-geometry";
+import { SIDEBAR_SUB_ITEM_CLASSES } from "~/components/ui/sidebar-geometry";
 import { ModuleLockMark } from "~/components/ui/module-lock-mark";
 
 interface SidebarSubItemProps {

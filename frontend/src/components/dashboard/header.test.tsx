@@ -42,7 +42,7 @@ vi.mock("~/components/tenant/tenant-switcher", () => ({
   BrandTenantSwitcher: () => <div data-testid="tenant-switcher">Tenant</div>,
 }));
 
-vi.mock("~/components/ui/logout-modal", () => ({
+vi.mock("~/components/auth/logout-modal", () => ({
   LogoutModal: ({ isOpen }: { isOpen: boolean }) =>
     isOpen ? <div data-testid="logout-modal">Logout Modal</div> : null,
 }));

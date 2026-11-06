@@ -1,5 +1,6 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Providers } from "./providers";
 
 const mockSchedulePostHogInitialization = vi.hoisted(() => vi.fn());
@@ -9,10 +10,14 @@ vi.mock("~/lib/posthog-client", () => ({
 }));
 
 // Mock all provider components
-vi.mock("@/components/dashboard/modal-context", () => ({
+vi.mock("@/components/ui/modal-context", () => ({
   ModalProvider: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="modal-provider">{children}</div>
   ),
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: null, status: "unauthenticated" }),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -54,6 +59,25 @@ describe("Providers", () => {
     // Verify children are rendered
     expect(getByText("Child Content")).toBeInTheDocument();
     expect(mockSchedulePostHogInitialization).toHaveBeenCalledOnce();
+  });
+
+  it("fills the kit's not-booked place for every portal (#5586)", () => {
+    const { getByText, queryByText } = render(
+      <Providers>
+        <FormErrorAlert
+          message={{
+            message: "Katalogtext",
+            notBookedModule: "zeiterfassung",
+            attempt: 1,
+          }}
+        />
+      </Providers>,
+    );
+
+    expect(
+      getByText(/Diese Seite gehört zum Modul Zeiterfassung\./),
+    ).toBeInTheDocument();
+    expect(queryByText("Katalogtext")).not.toBeInTheDocument();
   });
 
   it("wraps children in all context providers", () => {

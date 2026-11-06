@@ -13,14 +13,15 @@ import (
 // row adapters. Assertions below still exercise the real PostgreSQL records.
 type workerCommandsForTest struct {
 	*postgresadapter.Store
-	withinAdmin func(context.Context, func(context.Context) error) error
+	withinAdmin  func(context.Context, func(context.Context) error) error
+	withinTenant func(context.Context, int64, func(context.Context) error) error
 }
 
-func newWorkerCommandsForTest(records *postgresadapter.Store, withinAdmin func(context.Context, func(context.Context) error) error) *workerCommandsForTest {
-	if records == nil || withinAdmin == nil {
-		panic("delivery: worker records and unit of work are required")
+func newWorkerCommandsForTest(records *postgresadapter.Store, withinAdmin func(context.Context, func(context.Context) error) error, withinTenant func(context.Context, int64, func(context.Context) error) error) *workerCommandsForTest {
+	if records == nil || withinAdmin == nil || withinTenant == nil {
+		panic("delivery: worker records and units of work are required")
 	}
-	return &workerCommandsForTest{Store: records, withinAdmin: withinAdmin}
+	return &workerCommandsForTest{Store: records, withinAdmin: withinAdmin, withinTenant: withinTenant}
 }
 
 func (c *workerCommandsForTest) Claim(ctx context.Context, transport domain.Transport, limit int, now, leaseExpiresAt time.Time) (result0 []domain.Intent, err error) {
@@ -90,6 +91,42 @@ func (c *workerCommandsForTest) RecordEmailDeliveryEvent(ctx context.Context, ev
 func (c *workerCommandsForTest) EmailAddressSuppressed(ctx context.Context, tenantID int64, address string) (result0 bool, err error) {
 	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
 		result0, err = c.Store.EmailAddressSuppressed(txCtx, tenantID, address)
+		return err
+	})
+	return
+}
+
+func (c *workerCommandsForTest) OpenProviderMails(ctx context.Context, query domain.ProviderMailQuery) (result0 []domain.ProviderMail, err error) {
+	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
+		result0, err = c.Store.OpenProviderMails(txCtx, query)
+		return err
+	})
+	return
+}
+
+func (c *workerCommandsForTest) MarkEmailDeliveryChecked(ctx context.Context, id int64, at time.Time) error {
+	return c.withinAdmin(ctx, func(txCtx context.Context) error {
+		return c.Store.MarkEmailDeliveryChecked(txCtx, id, at)
+	})
+}
+
+func (c *workerCommandsForTest) EmailSuppressionReason(ctx context.Context, tenantID int64, address string) (result0 domain.EmailDeliveryState, result1 bool, err error) {
+	err = c.withinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		result0, result1, err = c.Store.EmailSuppressionReason(txCtx, tenantID, address)
+		return err
+	})
+	return
+}
+
+func (c *workerCommandsForTest) DeleteEmailSuppression(ctx context.Context, tenantID int64, address string) error {
+	return c.withinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		return c.Store.DeleteEmailSuppression(txCtx, tenantID, address)
+	})
+}
+
+func (c *workerCommandsForTest) SchoolMailedAddress(ctx context.Context, tenantID int64, address string) (result0 bool, err error) {
+	err = c.withinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		result0, err = c.Store.SchoolMailedAddress(txCtx, tenantID, address)
 		return err
 	})
 	return

@@ -1,0 +1,41 @@
+package delivery
+
+import (
+	"context"
+	"errors"
+)
+
+// EmailWebhooks takes in one signed delivery of a mail provider. The failures
+// are the ErrEmailWebhook* values of the contract. It is a capability of its own
+// because the webhook needs nothing of Capability.
+type EmailWebhooks interface {
+	IngestEmailWebhook(ctx context.Context, provider string, header func(string) string, body []byte) error
+}
+
+// EmailSuppressions frees an address after a correction, on the school's list
+// and at the provider. nil means it is free as far as moto knows. Any error means
+// it stays blocked and the list is unchanged:
+//
+//   - ErrEmailSuppressionNotFound: not on the school's list and, with a provider,
+//     no mail of the school to exactly this address. Nothing was asked of the
+//     provider. A caller that only wants the address free can treat this as done.
+//   - ErrEmailSuppressionNeedsReview: a complaint's block, here or at the provider.
+//   - ErrEmailSuppressionStaysAtProvider: a manual or unsubscribe block.
+//   - anything else: a failure worth another try.
+//
+// Plain SMTP has no provider, so only the school's list counts there.
+type EmailSuppressions interface {
+	LiftEmailSuppression(ctx context.Context, tenantID int64, address string) error
+}
+
+// ReconcileEmailDelivery compares open mails with the provider's record. Its
+// error is the run's alarm. A worker without a provider's record does nothing.
+func (w *Worker) ReconcileEmailDelivery(ctx context.Context) error {
+	engine, ok := w.engine.(interface {
+		ReconcileEmailDelivery(context.Context) error
+	})
+	if !ok {
+		return errors.New("delivery worker: email reconciliation is not configured")
+	}
+	return engine.ReconcileEmailDelivery(ctx)
+}

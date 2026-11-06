@@ -72,6 +72,7 @@ func (p *MailPushProvider) SendEmail(ctx context.Context, intent deliveryContrac
 	}
 	row := &Intent{
 		ID: intent.ID, TenantID: intent.TenantID, Kind: intent.Template, DeliveryToken: intent.DeliveryToken,
+		Security: intent.Security, UseFallback: intent.UseFallback,
 		RelatedEntityType: relatedType, RelatedEntityID: relatedID,
 		Payload: payload, PayloadJSON: intent.EmailPayload, Attempts: intent.Attempts,
 	}
@@ -99,6 +100,7 @@ func (p *MailPushProvider) SendEmail(ctx context.Context, intent deliveryContrac
 	return deliveryContract.ProviderResult{
 		StatusCode: deliveryContract.ProviderAcceptedStatusCode,
 		MessageID:  receipt.MessageID, ProviderMessageID: receipt.ProviderMessageID,
+		UsedFallback: receipt.UsedFallback,
 	}, nil
 }
 

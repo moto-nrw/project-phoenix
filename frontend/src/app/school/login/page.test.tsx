@@ -27,7 +27,7 @@ vi.mock("~/lib/school-url", () => ({
   schoolPath: (path: string) => path,
 }));
 
-vi.mock("~/components/ui/password-reset-modal", () => ({
+vi.mock("~/components/auth/password-reset-modal", () => ({
   PasswordResetModal: () => null,
 }));
 

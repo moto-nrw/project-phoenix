@@ -39,6 +39,8 @@ func (p Transport) Send(ctx context.Context, intent *Intent, renderer Renderer, 
 	}
 	if message != nil {
 		message.DeliveryToken = intent.DeliveryToken
+		message.Security = intent.Security
+		message.UseFallback = intent.UseFallback
 	}
 	receipt, sendErr := sendRenderedEmail(ctx, p.Mailer, recipient, message)
 	if reporter, ok := renderer.(interface {

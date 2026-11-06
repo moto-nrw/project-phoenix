@@ -55,6 +55,9 @@ type Intent struct {
 	// Security marks sign-in codes, password resets and staff invitations: they
 	// are claimed first and the suppression list never holds them back.
 	Security bool
+	// UseFallback sends a security mail over the fallback transport: the
+	// provider reported that it could not deliver it (#5933).
+	UseFallback bool
 	// DeliveryToken names this mail in its Message-ID and X-Moto-Outbox-Id
 	// header. Recipients see it, so it reveals nothing.
 	DeliveryToken     string

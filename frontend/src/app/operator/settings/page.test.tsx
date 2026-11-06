@@ -50,7 +50,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 const passwordModalProps = vi.hoisted(() => ({
   current: null as Record<string, unknown> | null,
 }));
-vi.mock("~/components/ui/password-change-modal", () => ({
+vi.mock("~/components/auth/password-change-modal", () => ({
   PasswordChangeModal: (props: Record<string, unknown>) => {
     passwordModalProps.current = props;
     return null;

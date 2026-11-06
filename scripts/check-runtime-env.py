@@ -19,6 +19,16 @@ OPTIONAL_VALUES = {
     "SENTRY_DSN", "SENTRY_PYREPORTAL_DSN", "POSTHOG_API_KEY", "POSTHOG_HOST",
     "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBSCRIBER",
 }
+# The mail provider group (#5933) waits for its SOPS keys: #5935 adds them per
+# environment. `${KEY-}` lets the stack deploy without them, and the backend
+# requires the whole group once EMAIL_PROVIDER names a provider. #5935 moves these
+# keys to the fail-fast forms and empties this set.
+PENDING_SOPS_VALUES = {
+    "EMAIL_PROVIDER", "EMAIL_FROM_SECURITY_ADDRESS", "EMAIL_FROM_NOTICES_ADDRESS",
+    "EMAIL_WEBHOOK_SECRETS", "LETTERMINT_TEAM_API_TOKEN", "LETTERMINT_WEBHOOK_ID",
+    "EMAIL_FALLBACK_SMTP_HOST", "EMAIL_FALLBACK_SMTP_PORT", "EMAIL_FALLBACK_SMTP_USER",
+    "EMAIL_FALLBACK_SMTP_PASSWORD", "EMAIL_FALLBACK_FROM_ADDRESS",
+}
 
 
 def compose_config(path, interpolate, env_file=ROOT / ".env.example"):
@@ -61,7 +71,8 @@ def check(path, target, expected):
             if key in ("DB_DSN", "DEMO_DB_DSN", "API_URL", "PORT", "HOSTNAME") and name != "migrate":
                 continue
             operator = "?" if key in OPTIONAL_VALUES else ":?"
-            if value != "${" + key + operator + key + " is required}":
+            expected_binding = "${" + key + "-}" if key in PENDING_SOPS_VALUES else "${" + key + operator + key + " is required}"
+            if value != expected_binding:
                 raise ValueError(name + ": missing fail-fast binding for " + key)
         print(target + " " + name + ": " + ", ".join(sorted(actual)))
     dsn = urlsplit(resolved["services"]["server"]["environment"]["DB_DSN"])
@@ -91,6 +102,10 @@ def check_missing_config(path, directory):
         else:
             raise ValueError("Missing configuration was accepted: " + key)
     print("Missing required configuration: rejected with key names")
+    fixture = Path(directory) / "pending.env"
+    fixture.write_text("\n".join(line for line in lines if line.split("=")[0] not in PENDING_SOPS_VALUES) + "\n")
+    compose_config(path, True, fixture)
+    print("Mail provider keys missing from SOPS: stack still deploys")
 
 
 def main():

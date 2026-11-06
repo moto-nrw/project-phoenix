@@ -41,14 +41,18 @@ import (
 	"runtime"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/stretchr/testify/require"
 
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/uptrace/bun"
 )
 
 var updateGoldens = flag.Bool("update-goldens", false, "rewrite the route-table, IoT auth-matrix and IoT error-string golden files")
@@ -418,6 +422,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 			})
 			t.Run("route table", func(t *testing.T) { checkRouteTableGolden(t, api) })
 			t.Run("core action classification", func(t *testing.T) { checkCoreActionClassification(t, api) })
+			t.Run("email webhook outside the sessions", func(t *testing.T) { checkEmailWebhookIsNotBehindASession(t, api, db) })
 			t.Run("IoT auth matrix", func(t *testing.T) { checkIoTAuthMatrixGolden(t, api) })
 			t.Run("error envelope on every route", func(t *testing.T) { checkErrorEnvelopeOnEveryRoute(t, api) })
 			t.Run("IoT error code declarations", checkIoTErrorCodesGolden)
@@ -450,4 +455,57 @@ func TestFullProductionRouterGolden(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, called)
 	t.Run("invalid runtime dependencies", checkRuntimeRejectsMissingDependencies)
+}
+
+// checkEmailWebhookIsNotBehindASession sends what a provider sends, without any
+// session, through the complete router against the database. A signed delivery
+// answering 204 is what proves the route stays outside the authenticated groups:
+// a 401 alone could also come from one of them.
+func checkEmailWebhookIsNotBehindASession(t *testing.T, apiInstance *goldenRuntime, db *bun.DB) {
+	t.Parallel()
+	ctx := context.Background()
+	school := testpkg.Tenant(t)
+	var mail struct {
+		ID    int64  `bun:"id"`
+		Token string `bun:"delivery_token"`
+	}
+	require.NoError(t, db.NewRaw(`INSERT INTO platform.email_outbox (tenant_id, kind, status, recipient, payload)
+		VALUES (?, 'welcome', 'sent', '{"address":"Guardian-Router@example.com"}', '{}')
+		RETURNING id, delivery_token`, school).Scan(ctx, &mail))
+	post := func(path, secret, body string, at time.Time) int {
+		delivery := strconv.FormatInt(at.Unix(), 10)
+		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		request.Header.Set("X-Lettermint-Signature", deliveryCompose.LettermintSignatureForTest(secret, delivery, body))
+		request.Header.Set("X-Lettermint-Delivery", delivery)
+		recorder := httptest.NewRecorder()
+		apiInstance.handler.ServeHTTP(recorder, request)
+		return recorder.Code
+	}
+	events := func() int {
+		var count int
+		require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.email_delivery_events WHERE outbox_id = ?`, mail.ID).Scan(ctx, &count))
+		return count
+	}
+	const lettermint = "/webhooks/email/delivery/lettermint"
+	body := `{"id":"router-event-1","event":"message.hard_bounced","timestamp":"2026-11-06T12:00:30Z","data":{` +
+		`"message_id":"provider-` + mail.Token + `","headers":[{"name":"X-Moto-Outbox-Id","value":"` + mail.Token + `"}],` +
+		`"response":{"status_code":550,"enhanced_status_code":"5.1.1","content":"user unknown"}}}`
+
+	require.Equal(t, http.StatusNotFound, post("/webhooks/email/delivery/other", emailWebhookTestSecret, body, time.Now()))
+	require.Equal(t, http.StatusUnauthorized, post(lettermint, "whsec_wrong", body, time.Now()))
+	require.Equal(t, http.StatusUnauthorized, post(lettermint, emailWebhookTestSecret, body, time.Now().Add(-time.Hour)), "too old")
+	require.Zero(t, events(), "a refused delivery writes nothing")
+
+	require.Equal(t, http.StatusNoContent, post(lettermint, emailWebhookTestSecret, body, time.Now()))
+	require.Equal(t, http.StatusNoContent, post(lettermint, emailWebhookTestSecret, body, time.Now()), "a retry is stored once")
+	require.Equal(t, 1, events())
+	var state, reason string
+	require.NoError(t, db.NewRaw(`SELECT delivery_state FROM platform.email_outbox WHERE id = ?`, mail.ID).Scan(ctx, &state))
+	require.Equal(t, "failed", state)
+	require.NoError(t, db.NewRaw(`SELECT reason FROM platform.email_suppressions WHERE tenant_id = ? AND address = 'guardian-router@example.com'`, school).
+		Scan(ctx, &reason), "the school comes from the mail")
+	require.Equal(t, "failed", reason)
+
+	require.Equal(t, http.StatusNoContent, post(lettermint, emailWebhookTestSecret, `{"id":7,"event":"message.something_new","data":"text"}`, time.Now()))
+	require.Equal(t, http.StatusBadRequest, post(lettermint, emailWebhookTestSecret, `not json`, time.Now()))
 }

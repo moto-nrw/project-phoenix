@@ -4,11 +4,17 @@ package application
 
 import (
 	"context"
+	"encoding/hex"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
 )
+
+// LettermintSignatureForTest signs a webhook body, for a delivery through the router.
+func LettermintSignatureForTest(secret, stamp, body string) string {
+	return "t=" + stamp + ",v1=" + hex.EncodeToString(lettermintMAC(secret, stamp, []byte(body)))
+}
 
 type exactEmailClaim interface {
 	ClaimEmail(context.Context, int64, int64, time.Time, time.Time) (domain.Intent, bool, error)

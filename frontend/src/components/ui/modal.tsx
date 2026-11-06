@@ -3,7 +3,7 @@
 import React, { useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
-import { useModal } from "../dashboard/modal-context";
+import { useModal } from "./modal-context";
 import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
 import { useLatest } from "~/lib/hooks/use-latest";
 import {
