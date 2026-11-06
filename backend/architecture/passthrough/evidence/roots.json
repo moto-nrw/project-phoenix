@@ -6302,6 +6302,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (d parentSharedDocuments) ListSharedDocuments(ctx context.Context, organizationID int64, reader parentportal.SharedDocumentReader) ([]parentportal.SharedDocument, error) {\n\tfound, err := d.documents.ParentDocuments(ctx, organizationID, organizationtenancy.TraegerDocumentParent(reader))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tdocuments := make([]parentportal.SharedDocument, len(found))\n\tfor i, document := range found {\n\t\tdocuments[i] = parentportal.SharedDocument{ID: document.ID, OrganizationID: organizationID, Title: document.Title, FileName: document.FileName, ContentType: document.ContentType, SizeBytes: document.SizeBytes, ReleasedAt: document.ReleasedAt}\n\t}\n\treturn documents, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentSharedDocuments.ListSharedDocuments",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d parentSharedDocuments) SharedDocumentFile(ctx context.Context, organizationID, documentID int64, reader parentportal.SharedDocumentReader) (parentportal.BillingDocumentFile, error) {\n\tfile, err := d.documents.OpenParentDocument(ctx, organizationID, documentID, organizationtenancy.TraegerDocumentParent(reader))\n\tif errors.Is(err, organizationtenancy.ErrTraegerDocumentNotFound) {\n\t\treturn parentportal.BillingDocumentFile{}, fmt.Errorf(\"%w: %w\", parentportal.ErrSharedDocumentNotFound, err)\n\t}\n\tif err != nil {\n\t\treturn parentportal.BillingDocumentFile{}, err\n\t}\n\treturn parentportal.BillingDocumentFile{Filename: file.FileName, ContentType: file.ContentType, Data: file.Data}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentSharedDocuments.SharedDocumentFile",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (p parentSurveys) SubmitSurvey(ctx context.Context, tenantID, announcementID, accountID int64, answers []parentportal.SurveyAnswer) error {\n\tin := make([]communication.SurveyAnswerInput, 0, len(answers))\n\tfor _, a := range answers {\n\t\tin = append(in, communication.SurveyAnswerInput{QuestionID: a.QuestionID, OptionIDs: a.OptionIDs, ScaleValue: a.ScaleValue, Text: a.Text})\n\t}\n\treturn parentSurveyError(p.source.SubmitPortalSurvey(ctx, tenantID, announcementID, accountID, in))\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentSurveys.SubmitSurvey",
