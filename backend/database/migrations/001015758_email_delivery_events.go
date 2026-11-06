@@ -43,6 +43,10 @@ func init() {
 //
 // platform.email_suppressions lists a school's addresses that bounced for good
 // or complained. The address is compared in lower case.
+//
+// platform.delivery_known_email_addresses is Delivery's projection for the
+// nightly retention: an address no guardian or account of the school holds any
+// more leaves the list, so deleting a person also ends the entry.
 const emailDeliveryEventsUpSQL = `
 		ALTER TABLE platform.email_outbox
 			ADD COLUMN delivery_token TEXT NOT NULL DEFAULT uuid_generate_v4()::text,
@@ -91,6 +95,19 @@ const emailDeliveryEventsUpSQL = `
 		COMMENT ON TABLE platform.email_suppressions IS
 			'Adressen einer Schule mit endgültigem Fehler oder Beschwerde (#5932), ein Jahr nach dem letzten Ereignis gelöscht.';
 
+		CREATE VIEW platform.delivery_known_email_addresses
+		WITH (security_invoker = true, security_barrier = true) AS
+		SELECT guardian.tenant_id, LOWER(guardian.email) AS address
+		FROM users.guardian_profiles AS guardian
+		WHERE guardian.email IS NOT NULL
+		UNION
+		SELECT account_tenant.tenant_id, LOWER(account.email) AS address
+		FROM auth.account_tenants AS account_tenant
+		INNER JOIN auth.accounts AS account ON account.id = account_tenant.account_id
+		WHERE account.email IS NOT NULL;
+		REVOKE ALL ON platform.delivery_known_email_addresses FROM PUBLIC, phoenix_tenant;
+		GRANT SELECT ON platform.delivery_known_email_addresses TO phoenix_tenant;
+
 		REVOKE ALL ON platform.email_delivery_events FROM PUBLIC, phoenix_tenant;
 		GRANT SELECT, DELETE ON platform.email_delivery_events TO phoenix_tenant;
 		REVOKE ALL ON platform.email_suppressions FROM PUBLIC, phoenix_tenant;
@@ -98,6 +115,7 @@ const emailDeliveryEventsUpSQL = `
 `
 
 const emailDeliveryEventsDownSQL = `
+		DROP VIEW IF EXISTS platform.delivery_known_email_addresses;
 		DROP TABLE IF EXISTS platform.email_suppressions;
 		DROP TABLE IF EXISTS platform.email_delivery_events;
 		DROP INDEX IF EXISTS platform.idx_email_outbox_provider_message_id;

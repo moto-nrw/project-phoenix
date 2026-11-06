@@ -54,7 +54,7 @@ type RetentionStore interface {
 	// ended before the instant, including those of cleared key-only mails.
 	DeleteExpiredEmailDeliveryEvents(ctx context.Context, tenantID int64, before time.Time) (int, error)
 	// DeleteExpiredEmailSuppressions removes addresses whose last event is
-	// older than the instant.
+	// older than the instant and addresses nobody at the school holds any more.
 	DeleteExpiredEmailSuppressions(ctx context.Context, tenantID int64, before time.Time) (int, error)
 	// DeleteExpiredEmailDeliveryLogs removes the delivery logs of the
 	// expired mails and the logs without a mail written before the instant.

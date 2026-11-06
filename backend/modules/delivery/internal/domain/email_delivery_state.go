@@ -69,7 +69,7 @@ type EmailDeliveryEventResult struct {
 // its last event. A new bounce or complaint starts the period again.
 const SuppressionRetention = 365 * 24 * time.Hour
 
-var diagnosticAddress = regexp.MustCompile(`[A-Za-z0-9.!#$%&'*+/=?^_{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*`)
+var diagnosticAddress = regexp.MustCompile(`(?:"[^"]*"|[^\s<>,;:()\[\]"]+)@[^\s<>,;:()\[\]"]+`)
 
 // RedactDiagnostic removes addresses from a server's answer before it is
 // stored: servers echo the rejected mailbox in their reply.

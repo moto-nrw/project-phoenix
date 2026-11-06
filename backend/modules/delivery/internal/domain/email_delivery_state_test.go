@@ -33,4 +33,7 @@ func TestRedactDiagnostic(t *testing.T) {
 
 	assert.Equal(t, "550 5.1.1 <[address]>: User unknown", RedactDiagnostic("550 5.1.1 <jane.doe@example.com>: User unknown"))
 	assert.Equal(t, "452 4.2.2 mailbox full", RedactDiagnostic("452 4.2.2 mailbox full"))
+	assert.Equal(t, "unknown [address] here", RedactDiagnostic("unknown müller@example.com here"))
+	assert.Equal(t, "unknown [address] here", RedactDiagnostic("unknown max@müller-familie.de here"))
+	assert.Equal(t, "unknown <[address]>", RedactDiagnostic(`unknown <"max mustermann"@example.com>`))
 }

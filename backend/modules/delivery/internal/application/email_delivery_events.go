@@ -22,8 +22,11 @@ const (
 )
 
 // errAddressSuppressed is the reason of a mail held back by the suppression
-// list. It carries no address, because it ends up in last_error.
-var errAddressSuppressed = errors.New("address is on the suppression list")
+// list. It carries no address, because it ends up in last_error, and it is
+// German, because the letter status list shows that text to the school.
+//
+//nolint:staticcheck // user-visible sentence, not a wrapped message
+var errAddressSuppressed = errors.New("Diese Adresse ist gesperrt, weil eine frühere Mail nicht zugestellt werden konnte.")
 
 var eventStates = []domain.EmailDeliveryState{
 	domain.EmailDeliveryDelayed, domain.EmailDeliveryDelivered, domain.EmailDeliverySuppressed,

@@ -222,8 +222,11 @@ func TestRetentionRemovesExpiredEventsAndSuppressions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	store, ctx := testStore(t, db)
 	school := testpkg.Tenant(t)
+	guardian := testpkg.CreateTestGuardianProfileNamed(t, db, "Erika", "Muster", "erika")
+	_, err := db.ExecContext(context.Background(), `UPDATE users.guardian_profiles SET email = ? WHERE id = ?`, eventAddress, guardian.ID)
+	require.NoError(t, err)
 	mail := enqueueEventMail(t, db, store, ctx, school, "retention", false)
-	_, err := store.RecordEmailDeliveryEvent(ctx, eventAt(eventMailToken(t, db, mail.ID), "hard", domain.EmailDeliveryFailed, time.Now()))
+	_, err = store.RecordEmailDeliveryEvent(ctx, eventAt(eventMailToken(t, db, mail.ID), "hard", domain.EmailDeliveryFailed, time.Now()))
 	require.NoError(t, err)
 	_, err = db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW() - INTERVAL '31 days' WHERE id = ?`, mail.ID)
 	require.NoError(t, err)
@@ -241,6 +244,113 @@ func TestRetentionRemovesExpiredEventsAndSuppressions(t *testing.T) {
 		return err
 	}))
 	assert.Equal(t, 1, events)
-	assert.Zero(t, keptSuppressions, "a fresh entry stays for the period")
+	assert.Zero(t, keptSuppressions, "a fresh entry of a known address stays for the period")
 	assert.Equal(t, 1, suppressions)
+}
+
+// Deleting a person must end the entry, whichever path deleted them (#5932).
+func TestRetentionRemovesASuppressionNobodyAtTheSchoolHolds(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	mail := enqueueEventMail(t, db, store, ctx, school, "gone", false)
+	_, err := store.RecordEmailDeliveryEvent(ctx, eventAt(eventMailToken(t, db, mail.ID), "hard", domain.EmailDeliveryFailed, time.Now()))
+	require.NoError(t, err)
+
+	var removed int
+	require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		removed, err = store.DeleteExpiredEmailSuppressions(txCtx, school, time.Now().Add(-domain.SuppressionRetention))
+		return err
+	}))
+	assert.Equal(t, 1, removed)
+}
+
+// A provider that names two mails leaves the school open: nothing is recorded.
+func TestEmailEventWithContradictingIdentitiesMatchesNothing(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school, other := testpkg.Tenant(t), testpkg.NewTenantScope(t, db).TenantID
+	first := enqueueEventMail(t, db, store, ctx, school, "first", false)
+	second := enqueueEventMail(t, db, store, ctx, other, "second", false)
+	_, err := db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET provider_message_id = 'provider-first' WHERE id = ?`, first.ID)
+	require.NoError(t, err)
+
+	event := eventAt(eventMailToken(t, db, second.ID), "hard", domain.EmailDeliveryFailed, time.Now())
+	event.ProviderMessageID = "provider-first"
+	result, err := store.RecordEmailDeliveryEvent(ctx, event)
+
+	require.NoError(t, err)
+	assert.False(t, result.Matched)
+	for _, schoolID := range []int64{school, other} {
+		suppressed, err := store.EmailAddressSuppressed(ctx, schoolID, eventAddress)
+		require.NoError(t, err)
+		assert.False(t, suppressed)
+	}
+}
+
+// The rest of a guardian welcome keeps only its key: no state, no way to match a
+// late event.
+func TestRetentionClearsTheDeliveryDataOfAKeyOnlyMail(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	key := "guardian_welcome:7"
+	var welcome domain.Enqueued
+	require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		welcome, err = store.Enqueue(txCtx, domain.Intent{
+			TenantID: school, Transport: domain.TransportEmail, Template: "guardian_welcome", IdempotencyKey: &key,
+			Recipient: json.RawMessage(`{"address":"guardian@example.com"}`), Payload: json.RawMessage(`{}`),
+			Status: "pending", NextRetryAt: time.Now(),
+		})
+		return err
+	}))
+	token := eventMailToken(t, db, welcome.ID)
+	_, err := store.RecordEmailDeliveryEvent(ctx, eventAt(token, "complaint", domain.EmailDeliveryComplained, time.Now()))
+	require.NoError(t, err)
+	_, err = db.ExecContext(context.Background(), `UPDATE platform.email_outbox
+		SET status = 'sent', sent_at = NOW() - INTERVAL '31 days', message_id = 'x@mail.example', provider_message_id = 'p' WHERE id = ?`, welcome.ID)
+	require.NoError(t, err)
+
+	require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
+		_, err := store.ClearExpiredKeyOnlyEmailIntents(txCtx, school, time.Now().Add(-domain.RetentionWindow), domain.KeyOnlyTemplates)
+		return err
+	}))
+
+	var kept int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.email_outbox WHERE id = ?
+		AND message_id IS NULL AND provider_message_id IS NULL AND delivery_state IS NULL AND delivery_state_at IS NULL`, welcome.ID).Scan(context.Background(), &kept))
+	assert.Equal(t, 1, kept)
+	late, err := store.RecordEmailDeliveryEvent(ctx, eventAt(token, "late", domain.EmailDeliveryFailed, time.Now()))
+	require.NoError(t, err)
+	assert.False(t, late.Matched)
+}
+
+func TestClaimKeepsSystemMailAmongSecurityMailByAge(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	systemKey := fmt.Sprintf("demo-link-%d", testpkg.Tenant(t))
+	var system domain.Enqueued
+	require.NoError(t, tenant.WithAdminTx(ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		system, err = store.Enqueue(txCtx, domain.Intent{
+			Transport: domain.TransportEmail, Template: "demo-access", IdempotencyKey: &systemKey,
+			Recipient: json.RawMessage(`{"address":"visitor@example.com"}`), Payload: json.RawMessage(`{}`),
+			Status: "pending", NextRetryAt: time.Now().Add(-time.Hour),
+		})
+		return err
+	}))
+	enqueueEventMail(t, db, store, ctx, testpkg.Tenant(t), "invitation", true)
+
+	now := time.Now()
+	first, err := store.Claim(ctx, domain.TransportEmail, 1, now, now.Add(time.Minute))
+
+	require.NoError(t, err)
+	require.Len(t, first, 1)
+	assert.Equal(t, system.ID, first[0].ID, "the older demo link stays ahead of a newer invitation")
 }

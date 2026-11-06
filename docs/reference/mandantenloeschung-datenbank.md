@@ -176,9 +176,6 @@ samt neuem FK-Fingerabdruck.
 Migration `1.15.758` ergänzt ebenso `platform.email_delivery_events` und
 `platform.email_suppressions` (Zustellereignisse und Sperrliste, #5932) samt
 neuem FK-Fingerabdruck.
-Migration `1.15.758` ergänzt ebenso `platform.email_delivery_events` und
-`platform.email_suppressions` (Zustellereignisse und Sperrliste, #5932) samt
-neuem FK-Fingerabdruck.
 Der schulübergreifende Caterer-Betrieb und seine Konten bleiben erhalten.
 `platform.billing_key_date_counts.school_id` ist die explizite Ausnahme nach
 [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md#ergänzung-aufbewahrung-der-abrechnungszählungen-3837-b-runde-2).

@@ -21,6 +21,8 @@ import (
 // smtpAnswers is what the fake server replies; an empty answer accepts.
 type smtpAnswers struct {
 	mailFrom, rcptTo, dataClose string
+	// plainServer does not advertise enhanced status codes.
+	plainServer bool
 }
 
 // fakeSMTP runs one scripted exchange per connection and keeps the DATA text.
@@ -44,6 +46,8 @@ func fakeSMTP(t *testing.T, answers smtpAnswers) (*gomail.Client, func() string)
 				return
 			}
 			switch {
+			case strings.HasPrefix(line, "EHLO") && !answers.plainServer:
+				_, _ = conn.Write([]byte("250-smtp.test\r\n250 ENHANCEDSTATUSCODES\r\n"))
 			case strings.HasPrefix(line, "MAIL FROM"):
 				reply(conn, answers.mailFrom, "250 ok")
 			case strings.HasPrefix(line, "RCPT TO"):
@@ -129,11 +133,18 @@ func TestSMTPMailerClassifiesRefusals(t *testing.T) {
 		answers             smtpAnswers
 		permanent, rejected bool
 	}{
-		"unknown mailbox":  {answers: smtpAnswers{rcptTo: "550 5.1.1 <guardian@example.com> unknown"}, permanent: true, rejected: true},
-		"full mailbox":     {answers: smtpAnswers{rcptTo: "452 4.2.2 mailbox full"}},
-		"content refused":  {answers: smtpAnswers{dataClose: "554 5.7.1 rejected"}, permanent: true},
-		"busy after data":  {answers: smtpAnswers{dataClose: "451 4.3.0 try later"}},
-		"sender misconfig": {answers: smtpAnswers{mailFrom: "550 5.7.1 sender not allowed"}},
+		"unknown mailbox":    {answers: smtpAnswers{rcptTo: "550 5.1.1 <guardian@example.com> unknown"}, permanent: true, rejected: true},
+		"unknown at data":    {answers: smtpAnswers{dataClose: "550 5.1.1 <guardian@example.com> unknown"}, permanent: true, rejected: true},
+		"undeliverable mail": {answers: smtpAnswers{dataClose: "554 5.6.0 cannot convert"}, permanent: true},
+		"full mailbox":       {answers: smtpAnswers{rcptTo: "452 4.2.2 mailbox full"}},
+		"busy after data":    {answers: smtpAnswers{dataClose: "451 4.3.0 try later"}},
+		"sender misconfig":   {answers: smtpAnswers{mailFrom: "550 5.7.1 sender not allowed"}},
+		"sender at rcpt":     {answers: smtpAnswers{rcptTo: "554 5.7.1 sender address rejected"}},
+		"relay denied":       {answers: smtpAnswers{rcptTo: "550 5.7.1 relaying denied"}},
+		"auth required":      {answers: smtpAnswers{rcptTo: "530 5.7.0 authentication required"}},
+		"quota exhausted":    {answers: smtpAnswers{rcptTo: "550 5.4.5 daily quota exceeded"}},
+		"blocked at data":    {answers: smtpAnswers{dataClose: "554 5.7.1 domain not verified"}},
+		"no enhanced status": {answers: smtpAnswers{rcptTo: "550 unknown", plainServer: true}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
