@@ -36,14 +36,24 @@ export const ERROR_CATALOG = {
         "Der Vertrag ist schon versendet. Er lässt sich nicht mehr verwerfen.",
       "care_contract.contract_not_found":
         "Diesen Vertrag gibt es nicht. Bitte öffnen Sie ihn über „Verträge“.",
+      "care_contract.contract_not_signable":
+        "Dieser Vertrag ist schon unterschrieben oder wartet nicht auf eine Unterschrift. Bitte laden Sie die Seite neu.",
       "care_contract.letterhead_too_long":
         "Absender oder Fußzeile sind zu lang für den Vertrag. Bitte kürzen Sie sie unter „Briefkopf und Vorlagen“.",
       "care_contract.offering_not_found":
         "Dieses Angebot gibt es an der Schule nicht mehr. Bitte laden Sie die Seite neu.",
+      "care_contract.paper_document_invalid":
+        "Bitte laden Sie den unterschriebenen Vertrag als PDF hoch. Die Datei darf höchstens 10 MB groß sein.",
       "care_contract.school_outside_traeger":
         "Diese Schule gehört nicht zu Ihrem Träger.",
+      "care_contract.signature_invalid":
+        "Die Unterschrift fehlt oder ist leer. Bitte unterschreiben Sie noch einmal.",
+      "care_contract.signing_link_invalid":
+        "Dieser Link gilt nicht mehr. Er war schon benutzt oder ist abgelaufen. Den Vertrag finden Sie in der Eltern-App unter „Dokumente“. Oder fragen Sie beim Träger nach einem neuen Link.",
       "care_contract.template_invalid":
         "Bitte prüfen Sie die markierten Felder.",
+      "care_contract.withdrawal_notice_required":
+        "Bitte bestätigen Sie, dass Sie die Widerrufsbelehrung gelesen haben.",
       "care.announcement_stale":
         "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
       "care.care_exception_conflict":
@@ -1630,13 +1640,23 @@ export const ERROR_CATALOG = {
         "The contract has already been sent. It can no longer be discarded.",
       "care_contract.contract_not_found":
         "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.contract_not_signable":
+        "This contract is already signed or is not waiting for a signature. Please reload the page.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.offering_not_found":
         "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.paper_document_invalid":
+        "Please upload the signed contract as a PDF. The file may be at most 10 MB.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.signature_invalid":
+        "The signature is missing or empty. Please sign again.",
+      "care_contract.signing_link_invalid":
+        "This link is no longer valid. It was already used or has expired. You can find the contract in the parent app under “Documents”, or ask the provider for a new link.",
       "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_notice_required":
+        "Please confirm that you have read the cancellation policy.",
       "care.announcement_stale":
         "{object} has been changed in the meantime. Please reload the page.",
       "care.care_exception_conflict":
@@ -2158,13 +2178,23 @@ export const ERROR_CATALOG = {
         "The contract has already been sent. It can no longer be discarded.",
       "care_contract.contract_not_found":
         "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.contract_not_signable":
+        "Этот договор уже подписан или не ожидает подписи. Пожалуйста, обновите страницу.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.offering_not_found":
         "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.paper_document_invalid":
+        "Пожалуйста, загрузите подписанный договор в формате PDF. Размер файла не более 10 МБ.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.signature_invalid":
+        "Подпись отсутствует или пуста. Пожалуйста, подпишите ещё раз.",
+      "care_contract.signing_link_invalid":
+        "Эта ссылка больше не действует. Она уже была использована или срок её действия истёк. Договор находится в приложении для родителей в разделе «Документы». Или попросите у организации новую ссылку.",
       "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_notice_required":
+        "Пожалуйста, подтвердите, что вы прочитали информацию о праве на отказ от договора.",
       "care.announcement_stale":
         "Данные изменились: {object}. Обновите страницу.",
       "care.care_exception_conflict":
@@ -2589,13 +2619,23 @@ export const ERROR_CATALOG = {
         "The contract has already been sent. It can no longer be discarded.",
       "care_contract.contract_not_found":
         "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.contract_not_signable":
+        "Kjo kontratë është nënshkruar tashmë ose nuk pret nënshkrim. Ju lutemi rifreskoni faqen.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.offering_not_found":
         "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.paper_document_invalid":
+        "Ju lutemi ngarkoni kontratën e nënshkruar si PDF. Skedari mund të jetë maksimumi 10 MB.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.signature_invalid":
+        "Nënshkrimi mungon ose është bosh. Ju lutemi nënshkruani përsëri.",
+      "care_contract.signing_link_invalid":
+        "Ky link nuk është më i vlefshëm. Është përdorur tashmë ose ka skaduar. Kontratën e gjeni në aplikacionin për prindër te „Dokumente“. Ose kërkoni një link të ri nga ofruesi.",
       "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_notice_required":
+        "Ju lutemi konfirmoni që e keni lexuar udhëzimin për të drejtën e tërheqjes.",
       "care.announcement_stale":
         "Ndërkohë është ndryshuar: {object}. Ju lutemi ringarkoni faqen.",
       "care.care_exception_conflict":
@@ -3035,13 +3075,23 @@ export const ERROR_CATALOG = {
         "The contract has already been sent. It can no longer be discarded.",
       "care_contract.contract_not_found":
         "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.contract_not_signable":
+        "Ta umowa jest już podpisana lub nie czeka na podpis. Odśwież stronę.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.offering_not_found":
         "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.paper_document_invalid":
+        "Prześlij podpisaną umowę jako plik PDF. Plik może mieć maksymalnie 10 MB.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.signature_invalid":
+        "Brak podpisu lub podpis jest pusty. Podpisz jeszcze raz.",
+      "care_contract.signing_link_invalid":
+        "Ten link jest już nieważny. Został użyty lub wygasł. Umowę znajdziesz w aplikacji dla rodziców w zakładce „Dokumenty”. Możesz też poprosić organizatora o nowy link.",
       "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_notice_required":
+        "Potwierdź, że przeczytałeś pouczenie o prawie odstąpienia od umowy.",
       "care.announcement_stale":
         "W międzyczasie zmieniono: {object}. Odśwież stronę.",
       "care.care_exception_conflict":
@@ -3468,13 +3518,23 @@ export const ERROR_CATALOG = {
         "The contract has already been sent. It can no longer be discarded.",
       "care_contract.contract_not_found":
         "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.contract_not_signable":
+        "Bu sözleşme zaten imzalandı veya imza beklemiyor. Lütfen sayfayı yenileyin.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.offering_not_found":
         "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.paper_document_invalid":
+        "Lütfen imzalı sözleşmeyi PDF olarak yükleyin. Dosya en fazla 10 MB olabilir.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.signature_invalid":
+        "İmza eksik veya boş. Lütfen tekrar imzalayın.",
+      "care_contract.signing_link_invalid":
+        "Bu bağlantı artık geçerli değil. Daha önce kullanıldı veya süresi doldu. Sözleşmeyi veli uygulamasında „Belgeler“ altında bulabilirsiniz. Ya da kurumdan yeni bir bağlantı isteyin.",
       "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_notice_required":
+        "Lütfen cayma hakkı bilgilendirmesini okuduğunuzu onaylayın.",
       "care.announcement_stale":
         "{object} bu arada değiştirildi. Lütfen sayfayı yenileyin.",
       "care.care_exception_conflict":
@@ -3907,13 +3967,23 @@ export const ERROR_CATALOG = {
         "The contract has already been sent. It can no longer be discarded.",
       "care_contract.contract_not_found":
         "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.contract_not_signable":
+        "Цей договір уже підписано або він не очікує підпису. Будь ласка, оновіть сторінку.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.offering_not_found":
         "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.paper_document_invalid":
+        "Будь ласка, завантажте підписаний договір у форматі PDF. Розмір файлу не більше 10 МБ.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.signature_invalid":
+        "Підпис відсутній або порожній. Будь ласка, підпишіть ще раз.",
+      "care_contract.signing_link_invalid":
+        "Це посилання більше не дійсне. Його вже використано або термін дії минув. Договір є в застосунку для батьків у розділі «Документи». Або попросіть в організації нове посилання.",
       "care_contract.template_invalid": "Please check the marked fields.",
+      "care_contract.withdrawal_notice_required":
+        "Будь ласка, підтвердьте, що ви прочитали інформацію про право відмови від договору.",
       "care.announcement_stale": "Дані змінилися: {object}. Оновіть сторінку.",
       "care.care_exception_conflict":
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",

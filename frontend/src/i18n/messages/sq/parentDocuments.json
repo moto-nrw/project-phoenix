@@ -19,5 +19,10 @@
   "bookedCare": "Kujdesi i rezervuar",
   "startsOn": "Fillimi",
   "lettersErrorObject": "shkresat",
-  "contractsErrorObject": "kontratat e kujdesit"
+  "contractsErrorObject": "kontratat e kujdesit",
+  "awaitingSignature": "Pret nënshkrimin tuaj",
+  "signed": "Nënshkruar",
+  "signNow": "Lexo dhe nënshkruaj",
+  "signedAt": "Nënshkruar më",
+  "status": "Statusi"
 }

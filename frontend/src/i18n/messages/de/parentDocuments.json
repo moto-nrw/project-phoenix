@@ -19,5 +19,10 @@
   "bookedCare": "Gebuchte Betreuung",
   "startsOn": "Beginn",
   "lettersErrorObject": "die Briefe",
-  "contractsErrorObject": "die Betreuungsverträge"
+  "contractsErrorObject": "die Betreuungsverträge",
+  "awaitingSignature": "Wartet auf Ihre Unterschrift",
+  "signed": "Unterschrieben",
+  "signNow": "Lesen und unterschreiben",
+  "signedAt": "Unterschrieben am",
+  "status": "Stand"
 }

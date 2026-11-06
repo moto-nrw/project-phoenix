@@ -19,5 +19,10 @@
   "bookedCare": "Rezerve edilen bakım",
   "startsOn": "Başlangıç",
   "lettersErrorObject": "yazılar",
-  "contractsErrorObject": "bakım sözleşmeleri"
+  "contractsErrorObject": "bakım sözleşmeleri",
+  "awaitingSignature": "İmzanızı bekliyor",
+  "signed": "İmzalandı",
+  "signNow": "Oku ve imzala",
+  "signedAt": "İmzalanma tarihi",
+  "status": "Durum"
 }

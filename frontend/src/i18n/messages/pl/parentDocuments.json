@@ -19,5 +19,10 @@
   "bookedCare": "Zarezerwowana opieka",
   "startsOn": "Początek",
   "lettersErrorObject": "pisma",
-  "contractsErrorObject": "umowy opieki"
+  "contractsErrorObject": "umowy opieki",
+  "awaitingSignature": "Czeka na Twój podpis",
+  "signed": "Podpisano",
+  "signNow": "Przeczytaj i podpisz",
+  "signedAt": "Podpisano dnia",
+  "status": "Status"
 }

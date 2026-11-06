@@ -2468,6 +2468,9 @@ export interface ParentDocument {
   readonly total_cents: number;
   readonly child_names: readonly string[];
   readonly sent_at: string;
+  /** The state of a care contract (#4679); absent for a letter. */
+  readonly contract_status?: string;
+  readonly signed_at?: string | null;
 }
 
 /**

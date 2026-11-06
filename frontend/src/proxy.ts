@@ -398,6 +398,8 @@ const PARENTS_PUBLIC_PATHS = [
   "/anmeldung",
   // Public holiday registration of a Träger (#4661), gated by its link.
   "/ferienanmeldung",
+  // One-time link to sign a care contract of a Träger (#4679).
+  "/vertrag-unterschreiben",
   "/accept-guardian-invite",
   // Entry page of the public demo in the role parent (#3468).
   "/demo",

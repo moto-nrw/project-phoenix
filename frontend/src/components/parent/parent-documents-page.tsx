@@ -14,7 +14,8 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { ParentSection } from "~/components/parent/shell/parent-section";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -28,6 +29,7 @@ import {
   type ParentDocument,
 } from "~/lib/parent-api";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
+import { parentPath } from "~/lib/parent-url";
 import { documentsConcept } from "~/lib/concepts/documents";
 
 /** The title of each kind of letter in the inbox (#4690). */
@@ -107,6 +109,9 @@ function ParentDocumentCard({
   const locale = useLocale();
   const { show } = useApiErrorDisplay();
   const [downloading, setDownloading] = useState(false);
+  const awaitingSignature =
+    document.kind === "care_contract" &&
+    document.contract_status === "versendet";
   const amount = new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "EUR",
@@ -136,19 +141,47 @@ function ParentDocumentCard({
       })}
       description={t("sender", { traeger: document.traeger_name })}
       actions={
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          onClick={() => void download()}
-          disabled={downloading}
-        >
-          {downloading ? t("downloading") : t("download")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={awaitingSignature ? "outline" : "primary"}
+            size="md"
+            onClick={() => void download()}
+            disabled={downloading}
+          >
+            {downloading ? t("downloading") : t("download")}
+          </Button>
+          {awaitingSignature ? (
+            // Ein versendeter Vertrag wartet auf die Unterschrift (#4679).
+            <ButtonLink
+              href={parentPath(
+                `/documents/vertrag/${encodeURIComponent(document.organization_id)}/${encodeURIComponent(document.id)}`,
+              )}
+              variant="success"
+              size="md"
+            >
+              {t("signNow")}
+            </ButtonLink>
+          ) : null}
+        </div>
       }
     >
       {document.kind === "care_contract" ? (
         <DataGrid>
+          {document.contract_status ? (
+            <DataField label={t("status")}>
+              {awaitingSignature ? (
+                <StatusBadge label={t("awaitingSignature")} tone="orange" />
+              ) : document.signed_at ? (
+                <StatusBadge
+                  label={`${t("signed")} · ${formatDate(document.signed_at, false, locale)}`}
+                  tone="green"
+                />
+              ) : (
+                <StatusBadge label={t("signed")} tone="green" />
+              )}
+            </DataField>
+          ) : null}
           <DataField label={t("children")}>
             {document.child_names.join(", ")}
           </DataField>

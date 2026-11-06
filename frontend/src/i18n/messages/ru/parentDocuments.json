@@ -19,5 +19,10 @@
   "bookedCare": "Забронированный присмотр",
   "startsOn": "Начало",
   "lettersErrorObject": "письма",
-  "contractsErrorObject": "договоры об уходе за ребёнком"
+  "contractsErrorObject": "договоры об уходе за ребёнком",
+  "awaitingSignature": "Ожидает вашей подписи",
+  "signed": "Подписано",
+  "signNow": "Прочитать и подписать",
+  "signedAt": "Подписано",
+  "status": "Статус"
 }

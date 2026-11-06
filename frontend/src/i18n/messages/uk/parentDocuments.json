@@ -19,5 +19,10 @@
   "bookedCare": "Заброньований догляд",
   "startsOn": "Початок",
   "lettersErrorObject": "листи",
-  "contractsErrorObject": "договори про догляд за дитиною"
+  "contractsErrorObject": "договори про догляд за дитиною",
+  "awaitingSignature": "Очікує на ваш підпис",
+  "signed": "Підписано",
+  "signNow": "Прочитати й підписати",
+  "signedAt": "Підписано",
+  "status": "Статус"
 }

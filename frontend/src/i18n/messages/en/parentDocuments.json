@@ -19,5 +19,10 @@
   "bookedCare": "Booked care",
   "startsOn": "Starts on",
   "lettersErrorObject": "the letters",
-  "contractsErrorObject": "the care contracts"
+  "contractsErrorObject": "the care contracts",
+  "awaitingSignature": "Waiting for your signature",
+  "signed": "Signed",
+  "signNow": "Read and sign",
+  "signedAt": "Signed on",
+  "status": "Status"
 }
