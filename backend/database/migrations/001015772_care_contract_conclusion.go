@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const careContractConclusionVersion = "1.15.760"
+const careContractConclusionVersion = "1.15.772"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -32,7 +32,9 @@ func init() {
 //     ADR 0088: beantragt to wirksam or abgelehnt, wirksam to abgeloest. Every
 //     other column of a version stays frozen (column grant), and a trigger
 //     refuses any other status step.
-//   - The trail knows the action conclude.
+//   - The trail knows the action conclude. The list of actions is the one
+//     of the signature (#4679, 1.15.771) with conclude, sign and remind, so
+//     both migrations leave the same check whichever runs last.
 const careContractConclusionUpSQL = `
 ALTER TABLE care_contract.contracts
 	ADD COLUMN concluded_at TIMESTAMPTZ,
@@ -67,15 +69,15 @@ GRANT UPDATE (status) ON care_contract.contract_versions TO phoenix_tenant;
 
 ALTER TABLE care_contract.contract_events DROP CONSTRAINT chk_contract_events_action;
 ALTER TABLE care_contract.contract_events ADD CONSTRAINT chk_contract_events_action
-	CHECK (action IN ('read', 'create', 'send', 'discard', 'template', 'conclude'));
+	CHECK (action IN ('read', 'create', 'send', 'discard', 'template', 'conclude', 'sign', 'remind'));
 `
 
 const careContractConclusionDownSQL = `
 DELETE FROM care_contract.contract_events WHERE action = 'conclude';
 ALTER TABLE care_contract.contract_events DROP CONSTRAINT chk_contract_events_action;
 ALTER TABLE care_contract.contract_events ADD CONSTRAINT chk_contract_events_action
-	CHECK (action IN ('read', 'create', 'send', 'discard', 'template'));
-REVOKE UPDATE (status) ON care_contract.contract_versions FROM phoenix_tenant;
+	CHECK (action IN ('read', 'create', 'send', 'discard', 'template', 'sign', 'remind'));
+-- The grant on the status of a version stays: the signature (#4679) shares it.
 DROP TRIGGER IF EXISTS guard_care_contract_version_status ON care_contract.contract_versions;
 DROP FUNCTION IF EXISTS care_contract.guard_version_status();
 UPDATE care_contract.contract_versions SET status = 'beantragt' WHERE status <> 'beantragt';

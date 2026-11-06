@@ -77,6 +77,11 @@ func (s schoolDouble) RecordAccess(_ context.Context, access carecontract.School
 	return nil
 }
 
+// ConclusionMode keeps the school on Weg a: the Träger-Büro sends (#4680).
+func (s schoolDouble) ConclusionMode(context.Context, int64) (string, error) {
+	return carecontract.ModeSendLater, nil
+}
+
 type runtimeDouble struct{}
 
 func (runtimeDouble) WithinSchool(_ context.Context, _ int64, fn func(context.Context) error) error {
@@ -125,7 +130,7 @@ func TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtThe
 	accesses := 0
 	school := schoolDouble{school: carecontract.School{ID: testpkg.UniqueTestTenantID(t), Name: "OGS Am Lindenhof"},
 		child: testpkg.UniqueTestTenantID(t), offering: testpkg.UniqueTestTenantID(t), accesses: &accesses}
-	intake := compose.NewIntake(compose.IntakePorts{Schools: school, Applications: school, Bookings: school, Access: school, Runtime: runtimeDouble{}})
+	intake := compose.NewIntake(compose.IntakePorts{Schools: school, Applications: school, Bookings: school, Access: school, Runtime: runtimeDouble{}, Modes: school})
 
 	shortLast := calendar.NewDate(2028, 1, 31)
 	candidates, err := intake.Candidates(ctx, reviewer, 0)
