@@ -1165,7 +1165,7 @@ src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[1
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@43 text-[10px]@99
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
-src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
+src/components/files/files-page.tsx|text-[11px]@180 text-[11px]@292
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@462
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@744 text-[11px]@809

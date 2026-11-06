@@ -2477,16 +2477,40 @@ export interface ParentDocument {
  */
 export interface ParentDocumentInbox {
   readonly documents: ParentDocument[];
-  readonly failedSource: "letters" | "contracts" | null;
+  /** Documents a Träger released for the parents (#4692). */
+  readonly shared: ParentSharedDocument[];
+  /** `several` when more than one source failed: no single one is named. */
+  readonly failedSource: "letters" | "contracts" | "shared" | "several" | null;
   readonly error: unknown;
 }
 
+/**
+ * A document a Träger released for the parents of the account's children
+ * (#4692): a house rule, a letter, a list. It is the same for every family
+ * the release covers, so it names no child and no amount.
+ */
+export interface ParentSharedDocument {
+  readonly id: string;
+  readonly organization_id: string;
+  readonly traeger_name: string;
+  readonly title: string;
+  readonly file_name: string;
+  readonly content_type: string;
+  readonly size_bytes: number;
+  readonly released_at: string;
+}
+
 export async function listMyDocuments(): Promise<ParentDocumentInbox> {
-  const [letters, contracts] = await Promise.allSettled([
+  const [letters, contracts, shared] = await Promise.allSettled([
     getJson<ParentDocument[]>("/api/parent/me/documents"),
     getJson<ParentDocument[]>("/api/parent/me/documents/contracts"),
+    getJson<ParentSharedDocument[]>("/api/parent/me/documents/shared"),
   ]);
-  if (letters.status === "rejected" && contracts.status === "rejected") {
+  if (
+    letters.status === "rejected" &&
+    contracts.status === "rejected" &&
+    shared.status === "rejected"
+  ) {
     throw letters.reason;
   }
   const documents = [
@@ -2497,21 +2521,37 @@ export async function listMyDocuments(): Promise<ParentDocumentInbox> {
       Date.parse(b.sent_at) - Date.parse(a.sent_at) ||
       Number(b.id) - Number(a.id),
   );
+  const failed = [
+    ["letters", letters],
+    ["contracts", contracts],
+    ["shared", shared],
+  ] as const;
+  const failures = failed.filter(([, result]) => result.status === "rejected");
+  const firstFailure = failures[0];
   return {
     documents,
+    shared: shared.status === "fulfilled" ? shared.value : [],
     failedSource:
-      letters.status === "rejected"
-        ? "letters"
-        : contracts.status === "rejected"
-          ? "contracts"
-          : null,
+      failures.length > 1 ? "several" : firstFailure ? firstFailure[0] : null,
     error:
-      letters.status === "rejected"
-        ? letters.reason
-        : contracts.status === "rejected"
-          ? contracts.reason
-          : null,
+      firstFailure && firstFailure[1].status === "rejected"
+        ? firstFailure[1].reason
+        : null,
   };
+}
+
+/**
+ * Downloads one document a Träger released for the parents, under the file
+ * name the backend chose. The backend records the opening.
+ */
+export async function downloadMySharedDocument(
+  document: Pick<ParentSharedDocument, "id" | "organization_id" | "file_name">,
+): Promise<void> {
+  const url = `/api/parent/me/documents/${encodeURIComponent(document.organization_id)}/shared/${encodeURIComponent(document.id)}/file`;
+  const response = await transportFetch(url, { method: "GET" });
+  if (!response.ok) await throwResponseError(url, response);
+  const blob = await response.blob();
+  downloadBlob(blob, filenameFromDisposition(response) ?? document.file_name);
 }
 
 /**

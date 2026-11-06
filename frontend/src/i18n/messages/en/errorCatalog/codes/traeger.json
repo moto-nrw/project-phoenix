@@ -3,6 +3,11 @@
   "already_member": "This person already belongs to the Träger office.",
   "bank_account_label_taken": "Another bank account already has this label. Please choose a different label.",
   "bank_account_not_found": "This bank account no longer exists. Please reload the page.",
+  "document_already_released": "The document is already shared with these people.",
+  "document_audience_invalid": "This school or group does not belong to your provider. Please choose again.",
+  "document_invalid": "Please enter a title of at most 120 characters.",
+  "document_not_found": "This document no longer exists. Please reload the page.",
+  "document_release_not_found": "This release has already been withdrawn. Please reload the page.",
   "document_template_invalid": "The template is incomplete. Please check the marked fields.",
   "document_template_kind_not_found": "This kind of document does not exist. Please choose a template from the list.",
   "document_template_unchanged": "The template has not changed. No new version was saved.",
@@ -15,5 +20,6 @@
   "member_not_found": "This person no longer belongs to the Träger office. Please reload the page.",
   "no_membership": "Your account has no access to the Träger portal. Please contact the moto team.",
   "school_not_found": "This school does not belong to your Träger. Please reload the page.",
-  "second_factor_required": "To open a school you need a second sign-in factor. Please sign in to the Träger portal again."
+  "second_factor_required": "To open a school you need a second sign-in factor. Please sign in to the Träger portal again.",
+  "shared_document_not_found": "The provider no longer shares this document. Please reload the page."
 }
