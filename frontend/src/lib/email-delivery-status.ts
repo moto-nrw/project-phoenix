@@ -1,5 +1,3 @@
-import type { StatusBadgeTone } from "~/components/ui/status-badge";
-
 /**
  * What became of a mail, as Delivery names it (#5934). "accepted" only means a
  * mail server took it; "delivered" needs a report of the mail provider. The two
@@ -22,7 +20,7 @@ export type EmailAddressMark = "failed" | "complained" | "school_stop";
 
 export interface MailStatusCopy {
   readonly label: string;
-  readonly tone: StatusBadgeTone;
+  readonly tone: "blue" | "green" | "orange" | "red" | "gray";
   /** One line that says what happened and who acts next. */
   readonly explanation?: string;
 }
