@@ -14,7 +14,7 @@ const FIGURES_REFRESH_MS = 60_000;
  * The figures of now for every school of the Träger and their sum (#4674):
  * numbers only, no person data.
  */
-export function useTraegerSchoolsToday() {
+export function useTraegerSchoolsToday(hasSnapshot = false) {
   const { data: session } = useSession();
   const response = useSWRAuth(
     session?.user.scope === "org" ? traegerKeys.schoolsToday() : null,
@@ -30,7 +30,8 @@ export function useTraegerSchoolsToday() {
     today: response.data ?? null,
     error: metadataLoadError(
       error,
-      response.data !== undefined,
+      // Confirmed hints also carry the complete school figures.
+      response.data !== undefined || hasSnapshot,
       response.error,
     ),
   };

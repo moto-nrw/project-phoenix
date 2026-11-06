@@ -277,12 +277,56 @@ describe("TraegerDashboardPage", () => {
     openSpy.mockRestore();
   });
 
-  it("shows a refusal instead of figures", async () => {
+  it.each([403, 404])(
+    "shows a refusal instead of figures for HTTP %i even when hints load",
+    async (status) => {
+      mockFetchToday.mockRejectedValue(new ApiError("refused", status));
+      await act(async () => {
+        renderPage();
+      });
+
+      // Anker: Die Zugriffssperre ist nach beiden Antworten sichtbar.
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(
+        screen.queryByText("Kinder gesamt", { selector: "p" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("keeps the alert snapshot visible when today's initial request fails", async () => {
     mockFetchToday.mockRejectedValue(
-      new ApiError("forbidden", 403, { code: "general.forbidden" }),
+      new ApiError("boom", 500, { code: "general.internal" }),
     );
     renderPage();
 
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(await screen.findByText("200")).toBeInTheDocument();
+    expect(screen.getByText("80")).toBeInTheDocument();
+    expect(screen.getByText("6 von 17")).toBeInTheDocument();
+    expect(screen.getByText("Stand 12:00 Uhr")).toBeInTheDocument();
+    const card = screen.getByTestId("traeger-school-alerts");
+    expect(
+      within(card).getByRole("link", { name: "Zur Schule: OGS Lindenweg" }),
+    ).toBeInTheDocument();
+    const table = screen.getByRole("table");
+    expect(
+      within(table).getByRole("link", { name: "OGS Am Bach" }),
+    ).toBeInTheDocument();
+    expect(within(table).getAllByText(", erreicht Ihre Grenze")).toHaveLength(
+      2,
+    );
+    expect(
+      screen.getByRole("button", { name: "Wiederholen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the load error blocking when neither request has a snapshot", async () => {
+    const failure = new ApiError("boom", 500, { code: "general.internal" });
+    mockFetchToday.mockRejectedValue(failure);
+    mockFetchAlerts.mockRejectedValue(failure);
+    renderPage();
+
+    // Anker: Ohne bestätigte Zahlen erscheint der Ladefehler.
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(
       screen.queryByText("Kinder gesamt", { selector: "p" }),
