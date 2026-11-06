@@ -259,6 +259,10 @@ export const parentAnnouncementKeys = {
 } as const;
 
 export const displayKeys = { list: () => "info-displays" } as const;
+/** Dokumente, die der Träger für die Schule freigegeben hat (#4692). */
+export const schoolTraegerDocumentKeys = {
+  list: () => "traeger-documents-school",
+} as const;
 export const timeTrackingKeys = {
   current: () => "time-tracking-current",
   // Eigene Schichten auf „Mein Dienstplan“ (#3821). Beide teilen das Präfix
@@ -283,6 +287,9 @@ export const traegerKeys = {
     `traeger-holiday-period-detail-${encodeURIComponent(id)}`,
   settings: () => "traeger-settings-schema",
   billingRuns: () => "traeger-billing-run-list",
+  // Geteilte Dokumente (#4692): Titel, Dateiname und Freigaben, keine Inhalte.
+  documents: () => "traeger-document-list",
+  documentAudiences: () => "traeger-document-audiences",
   periodPreview(data: unknown, id: string): ListPreview | undefined {
     const row = previewRow(data, id);
     const name = previewText(row?.name);

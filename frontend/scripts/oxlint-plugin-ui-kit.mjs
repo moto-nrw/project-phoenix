@@ -1168,7 +1168,7 @@ src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978 text-[11px]
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1471
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
 src/components/enrollment/phases-editor.tsx|text-[11px]@769 text-[11px]@774
-src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
+src/components/files/files-page.tsx|text-[11px]@180 text-[11px]@292
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@378
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@744 text-[11px]@809

@@ -28,6 +28,7 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
     return HELP_TOPICS.traegerKeyDateCounts;
   }
   if (onPage(page, "/schulen")) return HELP_TOPICS.traegerSchoolView;
+  if (onPage(page, "/dokumente")) return HELP_TOPICS.traegerSharedDocuments;
   if (onPage(page, "/einstellungen/mitglieder")) {
     return HELP_TOPICS.traegerAccounts;
   }

@@ -226,6 +226,8 @@ import type { roomsCatalogTopic as authored_roomsCatalogTopic } from "./articles
 
 import type { roomsTopic as authored_roomsTopic } from "./articles/rooms";
 
+import type { schoolTraegerDocumentsTopic as authored_schoolTraegerDocumentsTopic } from "./articles/school-traeger-documents";
+
 import type { settingsGuideTopic as authored_settingsGuideTopic } from "./articles/settings-guide";
 
 import type { settingsTopic as authored_settingsTopic } from "./articles/settings";
@@ -349,6 +351,8 @@ import type { traegerSchoolSwitchTopic as authored_traegerSchoolSwitchTopic } fr
 import type { traegerSchoolViewTopic as authored_traegerSchoolViewTopic } from "./articles/traeger-school-view";
 
 import type { traegerSettingsTopic as authored_traegerSettingsTopic } from "./articles/traeger-settings";
+
+import type { traegerSharedDocumentsTopic as authored_traegerSharedDocumentsTopic } from "./articles/traeger-shared-documents";
 
 import type { traegerTestSystemTopic as authored_traegerTestSystemTopic } from "./articles/traeger-test-system";
 
@@ -7278,6 +7282,44 @@ export const roomsTopic = function roomsTopic(
 } satisfies typeof authored_roomsTopic;
 
 /**
+ * `/dateien`, Karte `Vom Träger` (#4692): Dokumente, die der Träger für die
+ * Schule oder die Eltern an ihr freigegeben hat.
+ */
+export const schoolTraegerDocumentsTopic =
+  function schoolTraegerDocumentsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.schoolTraegerDocuments,
+      title: "Dokumente vom Träger finden",
+      question: "Wo finde ich Dokumente, die der Träger freigegeben hat?",
+      summary:
+        "Ihr Träger kann Dokumente für Ihre Schule freigeben. Sie finden sie unter `Dateien`.",
+      group: "elternarbeit",
+      audience: "lead",
+      icon: "Download",
+      requirements: ["Sie dürfen die Dateien Ihrer Schule verwalten."],
+      steps: [
+        "Klappen Sie in der Seitenleiste `Verwaltung` auf und öffnen Sie `Dateien`.",
+        "Oben steht die Karte `Vom Träger`.",
+        "Unter jedem Titel steht, für wen der Träger das Dokument freigegeben hat.",
+        "Wählen Sie `Herunterladen`.",
+      ],
+      result:
+        "Sie haben das Dokument auf Ihrem Gerät. Ändern kann es nur der Träger.",
+      notes: [
+        "Hier stehen auch Dokumente, die der Träger für die Eltern Ihrer Schule oder einer Gruppe freigegeben hat. So wissen Sie, was die Eltern bekommen haben.",
+        "Soll das Team ein Dokument sehen? Laden Sie es in einen Ordner unter `Dateien` hoch.",
+      ],
+      differences: [
+        "Die Karte `Vom Träger` fehlt? Dann hat der Träger zurzeit nichts für Ihre Schule freigegeben. Oder Ihnen fehlt das Recht, die Dateien zu verwalten.",
+      ],
+      troubleshootingDetails: [
+        "Ein Dokument ist verschwunden? Der Träger hat die Freigabe zurückgenommen. Fragen Sie beim Träger nach.",
+      ],
+      related: [HELP_TOPICS.sharedFiles],
+    };
+  } satisfies typeof authored_schoolTraegerDocumentsTopic;
+
+/**
  * Die wichtigsten Einstellungen je Bereich (#3727). Bewusst eine Auswahl, keine
  * vollständige Liste: Die vollständige Liste steht auf `/settings` selbst, mit
  * einem Satz unter jeder Einstellung. Bezeichnungen stammen aus der Registry
@@ -10949,6 +10991,79 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
     related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.errorMessages],
   };
 } satisfies typeof authored_traegerSettingsTopic;
+
+/**
+ * `/traeger/dokumente` (#4692): vorhandene Dokumente hochladen und für
+ * Eltern oder Schulen freigeben; eine Freigabe zurücknehmen.
+ */
+export const traegerSharedDocumentsTopic =
+  function traegerSharedDocumentsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerSharedDocuments,
+      title: "Dokumente für Eltern und Schulen freigeben",
+      question: "Wie teile ich ein Dokument mit Eltern oder Schulen?",
+      summary:
+        "Sie laden eine Datei hoch, die Sie schon haben, zum Beispiel eine Hausordnung oder eine Liste. Dann geben Sie sie für Eltern oder für Schulen frei.",
+      group: "elternarbeit",
+      audience: "traeger",
+      icon: "EnvelopeOpen",
+      requirements: [
+        "Sie haben die Rolle `Verwaltung`.",
+        "Die Datei ist ein PDF, ein Word-, Excel- oder PowerPoint-Dokument oder ein Bild. Sie ist höchstens 10 MB groß.",
+      ],
+      instructionGroups: [
+        {
+          title: "Dokument hochladen",
+          steps: [
+            "Wählen Sie in der Navigation `Dokumente`.",
+            "Wählen Sie oben `Dokument hochladen`.",
+            "Ziehen Sie die Datei in das Feld. Oder wählen Sie `Datei hierher ziehen oder auswählen`.",
+            "Prüfen Sie den `Titel`. Eltern und Schulen sehen diesen Titel.",
+            "Wählen Sie `Hochladen`. moto öffnet danach die Seite des Dokuments.",
+          ],
+        },
+        {
+          title: "Dokument freigeben",
+          steps: [
+            "Öffnen Sie das Dokument in der Liste `Dokumente`.",
+            "Wählen Sie oben `Freigeben`.",
+            "Wählen Sie bei `Für wen?` entweder `Eltern` oder `Schulen`.",
+            "Wählen Sie bei `An welchen Schulen?`: `Alle Schulen`, `Eine Schule` oder bei Eltern auch `Eine Gruppe`.",
+            "Wählen Sie dann die `Schule` und gegebenenfalls die `Gruppe`.",
+            "Prüfen Sie den Kasten `Sichtbar für`. Wählen Sie `Freigeben`.",
+          ],
+        },
+        {
+          title: "Freigabe zurücknehmen",
+          steps: [
+            "Öffnen Sie das Dokument.",
+            "Wählen Sie bei der Freigabe `Zurücknehmen`.",
+            "Bestätigen Sie mit `Ja, zurücknehmen` und dann `Zurücknehmen`.",
+          ],
+        },
+      ],
+      steps: [],
+      result:
+        "Eltern finden das Dokument in der Eltern-App unter `Dokumente`. Die OGS-Leitung findet es in moto unter `Dateien` bei `Vom Träger`. Nach dem Zurücknehmen sehen sie es sofort nicht mehr.",
+      notes: [
+        "Ein Dokument kann mehrere Freigaben haben. Zum Beispiel für die Eltern einer Gruppe und für alle Schulen.",
+        "Eine Freigabe für Eltern sieht auch die OGS-Leitung der Schule. So weiß sie, was die Eltern bekommen haben.",
+        "Bei `Geöffnet` sehen Sie, wie oft Eltern und Schulen das Dokument geöffnet haben.",
+      ],
+      differences: [
+        "Sie sehen `Dokument hochladen` und `Freigeben` nicht? Ihnen fehlt die Rolle `Verwaltung`. Sie können die Dokumente nur ansehen.",
+      ],
+      troubleshootingDetails: [
+        "moto nimmt die Datei nicht an? Prüfen Sie Art und Größe. Eine umbenannte Datei erkennt moto am Inhalt.",
+        "Bei `Eine Gruppe` steht keine Gruppe? Die Schule hat in moto noch keine Gruppen angelegt.",
+        "Die Meldung sagt, das Dokument ist schon freigegeben? Für diese Menschen gibt es schon eine Freigabe.",
+      ],
+      related: [
+        HELP_TOPICS.traegerDocumentTemplates,
+        HELP_TOPICS.errorMessages,
+      ],
+    };
+  } satisfies typeof authored_traegerSharedDocumentsTopic;
 
 /** Hinweis `Testsystem` im Träger-Portal (#4658): erfundene Beispielkinder. */
 export const traegerTestSystemTopic =

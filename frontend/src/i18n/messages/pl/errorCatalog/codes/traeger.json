@@ -3,6 +3,11 @@
   "already_member": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "bank_account_label_taken": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "bank_account_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "document_already_released": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "document_audience_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "document_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "document_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "document_release_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "document_template_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "document_template_kind_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "document_template_unchanged": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -15,5 +20,6 @@
   "member_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "no_membership": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
   "school_not_found": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
-  "second_factor_required": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
+  "second_factor_required": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+  "shared_document_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
 }

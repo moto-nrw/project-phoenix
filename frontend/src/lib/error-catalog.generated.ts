@@ -1433,6 +1433,16 @@ export const ERROR_CATALOG = {
         "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
       "traeger.bank_account_not_found":
         "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.document_already_released":
+        "Das Dokument ist für diese Menschen schon freigegeben.",
+      "traeger.document_audience_invalid":
+        "Diese Schule oder Gruppe gehört nicht zu Ihrem Träger. Bitte wählen Sie neu.",
+      "traeger.document_invalid":
+        "Bitte geben Sie einen Titel ein, höchstens 120 Zeichen.",
+      "traeger.document_not_found":
+        "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.document_release_not_found":
+        "Diese Freigabe ist schon zurückgenommen. Bitte laden Sie die Seite neu.",
       "traeger.document_template_invalid":
         "Die Vorlage ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
       "traeger.document_template_kind_not_found":
@@ -1459,6 +1469,8 @@ export const ERROR_CATALOG = {
         "Diese Schule gehört nicht zu Ihrem Träger. Bitte laden Sie die Seite neu.",
       "traeger.second_factor_required":
         "Zum Öffnen einer Schule brauchen Sie einen zweiten Anmeldenachweis. Bitte melden Sie sich im Träger-Portal neu an.",
+      "traeger.shared_document_not_found":
+        "Der Träger hat dieses Dokument nicht mehr freigegeben. Bitte laden Sie die Seite neu.",
       "workforce.absence_allowance_exceeded":
         "Für diese Art sind nicht mehr genug Tage übrig. Der Anspruch muss zuerst erhöht werden.",
       "workforce.absence_already_decided":
@@ -2104,6 +2116,16 @@ export const ERROR_CATALOG = {
         "Another bank account already has this label. Please choose a different label.",
       "traeger.bank_account_not_found":
         "This bank account no longer exists. Please reload the page.",
+      "traeger.document_already_released":
+        "The document is already shared with these people.",
+      "traeger.document_audience_invalid":
+        "This school or group does not belong to your provider. Please choose again.",
+      "traeger.document_invalid":
+        "Please enter a title of at most 120 characters.",
+      "traeger.document_not_found":
+        "This document no longer exists. Please reload the page.",
+      "traeger.document_release_not_found":
+        "This release has already been withdrawn. Please reload the page.",
       "traeger.document_template_invalid":
         "The template is incomplete. Please check the marked fields.",
       "traeger.document_template_kind_not_found":
@@ -2129,6 +2151,8 @@ export const ERROR_CATALOG = {
         "This school does not belong to your Träger. Please reload the page.",
       "traeger.second_factor_required":
         "To open a school you need a second sign-in factor. Please sign in to the Träger portal again.",
+      "traeger.shared_document_not_found":
+        "The provider no longer shares this document. Please reload the page.",
       "workforce.payroll_wage_type_name_taken":
         "{object} could not be saved. Please check your entries.",
     },

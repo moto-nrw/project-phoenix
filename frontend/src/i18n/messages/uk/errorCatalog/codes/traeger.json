@@ -3,6 +3,11 @@
   "already_member": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "bank_account_label_taken": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "bank_account_not_found": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "document_already_released": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "document_audience_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "document_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "document_not_found": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "document_release_not_found": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "document_template_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "document_template_kind_not_found": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "document_template_unchanged": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -15,5 +20,6 @@
   "member_not_found": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "no_membership": "У вас немає доступу до: {object}. Зверніться до школи.",
   "school_not_found": "У вас немає доступу до: {object}. Зверніться до школи.",
-  "second_factor_required": "У вас немає доступу до: {object}. Зверніться до школи."
+  "second_factor_required": "У вас немає доступу до: {object}. Зверніться до школи.",
+  "shared_document_not_found": "Не вдалося зберегти: {object}. Перевірте введені дані."
 }

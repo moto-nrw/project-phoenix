@@ -44,6 +44,10 @@ import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
 import { cn } from "~/lib/utils";
 import { FolderModal } from "./folder-modal";
+import {
+  TraegerDocumentsCard,
+  useSchoolTraegerDocuments,
+} from "./traeger-documents-card";
 
 const logger = createLogger({ component: "FilesPage" });
 
@@ -135,6 +139,11 @@ export function FilesPage() {
   });
 
   const canManage = overview?.canManage ?? false;
+  // Dokumente des Trägers (#4692) sieht, wer die Dateien der Schule verwaltet.
+  const traegerDocuments = useSchoolTraegerDocuments(
+    hasPermission(session, "files:manage"),
+  );
+  const hasTraegerDocuments = traegerDocuments.documents.length > 0;
   const canUpload = overview?.canUpload ?? false;
   const canChangeUploadPermission =
     hasPermission(session, "config:read") &&
@@ -201,7 +210,7 @@ export function FilesPage() {
       loading={isLoading || (!!error && !loadError)}
       error={loadError}
       empty={
-        !isLoading && !error && folders.length === 0
+        !isLoading && !error && folders.length === 0 && !hasTraegerDocuments
           ? {
               icon: <FolderOpen className="h-12 w-12" aria-hidden="true" />,
               title: "Noch keine Ordner",
@@ -257,75 +266,80 @@ export function FilesPage() {
       }
     >
       <div className="flex min-h-[28rem] flex-col gap-4">
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-          {/* Folder list: a panel on desktop, a select on small screens */}
-          <div className="moto-content-surface rounded-2xl border p-3 lg:hidden">
-            <label
-              htmlFor="dateien-ordner"
-              className="mb-1.5 block text-xs font-medium text-gray-600"
-            >
-              Ordner
-            </label>
-            <CustomSelect
-              id="dateien-ordner"
-              value={selected?.id ?? ""}
-              options={folders.map((folder) => ({
-                value: folder.id,
-                label: `${folder.name} (${folder.fileCount})`,
-              }))}
-              onChange={(value) => setSelectedId(value)}
-              controlSize="compact"
-            />
-          </div>
-          <aside className="moto-content-surface hidden flex-col rounded-2xl border p-3 lg:flex">
-            <p className="px-3 pt-1 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-              Ordner
-            </p>
-            <div className="min-h-0 flex-1 overflow-y-auto">{folderNav}</div>
-            {canManage && overview && overview.maxBytes > 0 && (
-              <dl className="mt-3 space-y-3 border-t border-gray-100 px-3 pt-3">
-                <DataField label="Speicherplatz">
-                  <span className="tabular-nums">
-                    {formatBytes(overview.usedBytes)} von{" "}
-                    {formatBytes(overview.maxBytes)} belegt
-                  </span>
-                </DataField>
-                <DataField label="Dateien hochladen">
-                  {overview.staffUploadEnabled
-                    ? "Leitung und Team"
-                    : "Nur Leitung"}
-                  {canChangeUploadPermission && (
-                    <span className="mt-1 block">
-                      <Link
-                        href="/settings?tab=operations&highlight=files.staff_upload_enabled"
-                        className="inline-flex min-h-6 items-center text-xs font-medium text-gray-500 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-gray-800 hover:decoration-gray-500 focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-1 focus-visible:outline-none"
-                      >
-                        Berechtigung ändern
-                      </Link>
-                    </span>
-                  )}
-                </DataField>
-              </dl>
-            )}
-          </aside>
-
-          {selected && (
-            <SectionCard className="flex min-h-0 flex-col">
-              <FolderFilesPanel
-                key={selected.id}
-                folder={selected}
-                canManage={canManage}
-                canUpload={canUpload}
-                onEdit={() => setFolderModal({ open: true, folder: selected })}
-                onDelete={() => {
-                  deleteFolderErrors.clear();
-                  setDeleteFolderTarget(selected);
-                }}
-                onFilesChanged={() => void mutateFolders()}
+        <TraegerDocumentsCard {...traegerDocuments} />
+        {folders.length > 0 && (
+          <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+            {/* Folder list: a panel on desktop, a select on small screens */}
+            <div className="moto-content-surface rounded-2xl border p-3 lg:hidden">
+              <label
+                htmlFor="dateien-ordner"
+                className="mb-1.5 block text-xs font-medium text-gray-600"
+              >
+                Ordner
+              </label>
+              <CustomSelect
+                id="dateien-ordner"
+                value={selected?.id ?? ""}
+                options={folders.map((folder) => ({
+                  value: folder.id,
+                  label: `${folder.name} (${folder.fileCount})`,
+                }))}
+                onChange={(value) => setSelectedId(value)}
+                controlSize="compact"
               />
-            </SectionCard>
-          )}
-        </div>
+            </div>
+            <aside className="moto-content-surface hidden flex-col rounded-2xl border p-3 lg:flex">
+              <p className="px-3 pt-1 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+                Ordner
+              </p>
+              <div className="min-h-0 flex-1 overflow-y-auto">{folderNav}</div>
+              {canManage && overview && overview.maxBytes > 0 && (
+                <dl className="mt-3 space-y-3 border-t border-gray-100 px-3 pt-3">
+                  <DataField label="Speicherplatz">
+                    <span className="tabular-nums">
+                      {formatBytes(overview.usedBytes)} von{" "}
+                      {formatBytes(overview.maxBytes)} belegt
+                    </span>
+                  </DataField>
+                  <DataField label="Dateien hochladen">
+                    {overview.staffUploadEnabled
+                      ? "Leitung und Team"
+                      : "Nur Leitung"}
+                    {canChangeUploadPermission && (
+                      <span className="mt-1 block">
+                        <Link
+                          href="/settings?tab=operations&highlight=files.staff_upload_enabled"
+                          className="inline-flex min-h-6 items-center text-xs font-medium text-gray-500 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-gray-800 hover:decoration-gray-500 focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-1 focus-visible:outline-none"
+                        >
+                          Berechtigung ändern
+                        </Link>
+                      </span>
+                    )}
+                  </DataField>
+                </dl>
+              )}
+            </aside>
+
+            {selected && (
+              <SectionCard className="flex min-h-0 flex-col">
+                <FolderFilesPanel
+                  key={selected.id}
+                  folder={selected}
+                  canManage={canManage}
+                  canUpload={canUpload}
+                  onEdit={() =>
+                    setFolderModal({ open: true, folder: selected })
+                  }
+                  onDelete={() => {
+                    deleteFolderErrors.clear();
+                    setDeleteFolderTarget(selected);
+                  }}
+                  onFilesChanged={() => void mutateFolders()}
+                />
+              </SectionCard>
+            )}
+          </div>
+        )}
       </div>
     </TenantPage>
   );

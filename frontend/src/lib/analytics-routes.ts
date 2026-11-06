@@ -197,6 +197,8 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/abrechnung/:id",
   "/abrechnung/familien",
   "/abrechnung/familien/:id",
+  "/dokumente",
+  "/dokumente/:id",
   "/einstellungen",
   "/einstellungen/abrechnung",
   "/einstellungen/briefkopf",
