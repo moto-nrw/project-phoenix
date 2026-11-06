@@ -225,6 +225,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/auditlog/compose": 189,
 	// Raised by ADR 0128: the manual plans port of the booking materialization (+1).
 	// ADR 0151: the school figure constructor (+13).
+	// ADR 0153: the contract offerings constructor (+9).
 	"modules/careplan/compose":             1667,
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
@@ -247,6 +248,7 @@ var moduleComposeBudgets = map[string]int{
 	// constructor (+6); by ADR 0137: the holiday access trail constructor (+7).
 	// #4722 shortened its comments by 7 LOC for the field cipher of
 	// modules/securityruntime/compose.
+	// ADR 0153: the contract applications constructor (+5).
 	"modules/enrollment/compose":                   596,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
@@ -268,6 +270,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0121: the confirmation letter constructor (+8).
 	// Raised by ADR 0123: the mail constructor and the mail renderer (+9).
 	// Raised by ADR 0126: the document inbox constructor (+6).
+	// Added by ADR 0153: construction of the care contract owner.
 	"modules/carecontract/compose":                44,
 	"modules/parentbilling/compose":               50,
 	"modules/parentrequestfeedprojection/compose": 11,
@@ -312,7 +315,7 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/openroommove/compose":    46,
 	// Raised by ADR 0078; by ADR 0113: the prefill's data access port (+1);
 	// by ADR 0126: the document inbox ports and the push of a new document
-	// for the Delivery worker (+21).
+	// for the Delivery worker (+21); by ADR 0153: the contract port (+1).
 	"workflows/parentportal/compose":     330,
 	"workflows/reminderdelivery/compose": 30,
 	"workflows/sessionend/compose":       59,

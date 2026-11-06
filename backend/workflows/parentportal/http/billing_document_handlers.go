@@ -33,14 +33,24 @@ type BillingDocumentResponse struct {
 	SentAt         time.Time     `json:"sent_at"`
 }
 
-// listBillingDocuments answers the documents in the inbox of the account.
+// listBillingDocuments answers the letters in the inbox of the account.
 func (rs *Resource) listBillingDocuments(w http.ResponseWriter, r *http.Request) {
+	rs.respondInbox(w, r, parentService.DocumentInboxLetters)
+}
+
+// listContractDocuments answers the sent care contracts in the inbox of the
+// account (ADR 0153).
+func (rs *Resource) listContractDocuments(w http.ResponseWriter, r *http.Request) {
+	rs.respondInbox(w, r, parentService.DocumentInboxContracts)
+}
+
+func (rs *Resource) respondInbox(w http.ResponseWriter, r *http.Request, inbox parentService.DocumentInbox) {
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
 		return
 	}
-	documents, err := rs.ParentService.ListBillingDocuments(r.Context(), int64(claims.ID))
+	documents, err := rs.ParentService.ListBillingDocuments(r.Context(), int64(claims.ID), inbox)
 	if err != nil {
 		renderBillingDocumentError(w, r, err)
 		return

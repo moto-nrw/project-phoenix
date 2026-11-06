@@ -122,10 +122,34 @@ type BillingDocumentNotifier interface {
 	NotifyBillingDocument(ctx context.Context, push BillingDocumentPush) error
 }
 
-// ListBillingDocuments lists the documents in the inbox of the account, the
-// newest first. An account whose relationships grant the inbox at no school
-// gets ErrGuardianPermissionDenied.
-func (s *Service) ListBillingDocuments(ctx context.Context, accountID int64) ([]BillingDocument, error) {
+// DocumentInbox names one list of the inbox. The letters of the
+// Elternabrechnung and the care contracts (ADR 0153) are read separately,
+// so each keeps its own statement budget and one failing owner does not
+// hide the other's documents.
+type DocumentInbox string
+
+const (
+	DocumentInboxLetters   DocumentInbox = "letters"
+	DocumentInboxContracts DocumentInbox = "contracts"
+)
+
+// ListBillingDocuments lists one list of the inbox of the account, the
+// newest first. An account whose relationships grant the inbox at no
+// school gets ErrGuardianPermissionDenied.
+func (s *Service) ListBillingDocuments(ctx context.Context, accountID int64, inbox DocumentInbox) ([]BillingDocument, error) {
+	switch inbox {
+	case DocumentInboxLetters:
+		return s.listInbox(ctx, accountID, s.BillingDocuments.ListBillingDocuments)
+	case DocumentInboxContracts:
+		return s.listInbox(ctx, accountID, s.ContractDocuments.ListContractDocuments)
+	default:
+		return nil, fmt.Errorf("parent: unknown document inbox %q", inbox)
+	}
+}
+
+type inboxRead func(txCtx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error)
+
+func (s *Service) listInbox(ctx context.Context, accountID int64, read inboxRead) ([]BillingDocument, error) {
 	traeger, reader, err := s.billingDocumentAccess(ctx, accountID)
 	if err != nil {
 		return nil, err
@@ -133,12 +157,8 @@ func (s *Service) ListBillingDocuments(ctx context.Context, accountID int64) ([]
 	documents := []BillingDocument{}
 	for _, organization := range traeger {
 		err := s.TraegerRuntime.WithinTraeger(ctx, organization.ID, func(txCtx context.Context) error {
-			found, listErr := s.BillingDocuments.ListBillingDocuments(txCtx, organization.ID, reader)
-			if listErr != nil {
-				return listErr
-			}
-			contracts, listErr := s.ContractDocuments.ListContractDocuments(txCtx, organization.ID, reader)
-			for _, document := range append(found, contracts...) {
+			found, listErr := read(txCtx, organization.ID, reader)
+			for _, document := range found {
 				document.OrganizationID, document.TraegerName = organization.ID, organization.Name
 				documents = append(documents, document)
 			}

@@ -2471,11 +2471,20 @@ export interface ParentDocument {
 }
 
 /**
- * The documents the Träger of the account's schools sent to the family,
- * newest first. 403 when no relationship of the account grants them.
+ * The documents the Träger of the account's schools sent to the family:
+ * the letters and the care contracts (#4678), newest first. 403 when no
+ * relationship of the account grants them.
  */
 export async function listMyDocuments(): Promise<ParentDocument[]> {
-  return getJson<ParentDocument[]>("/api/parent/me/documents");
+  const [letters, contracts] = await Promise.all([
+    getJson<ParentDocument[]>("/api/parent/me/documents"),
+    getJson<ParentDocument[]>("/api/parent/me/documents/contracts"),
+  ]);
+  return [...letters, ...contracts].sort(
+    (a, b) =>
+      Date.parse(b.sent_at) - Date.parse(a.sent_at) ||
+      Number(b.id) - Number(a.id),
+  );
 }
 
 /**

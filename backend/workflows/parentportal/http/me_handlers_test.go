@@ -142,7 +142,7 @@ func (f *fakeParentService) GetEnrollmentSubmitStatus(context.Context, int64, in
 	}
 	return &parentService.GuardianSubmitStatus{}, nil
 }
-func (f *fakeParentService) ListBillingDocuments(_ context.Context, accountID int64) ([]parentService.BillingDocument, error) {
+func (f *fakeParentService) ListBillingDocuments(_ context.Context, accountID int64, _ parentService.DocumentInbox) ([]parentService.BillingDocument, error) {
 	f.gotDocumentsAccount = accountID
 	return f.documents, f.documentsErr
 }

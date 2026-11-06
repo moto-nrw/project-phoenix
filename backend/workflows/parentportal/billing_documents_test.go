@@ -153,7 +153,7 @@ func TestDocumentInboxShowsOnlyTheFamilysSentLetters(t *testing.T) {
 	foreign := newInboxTraeger(t, db, foreignOrganization)
 	foreignLetter := foreign.document(chain.Email, "Felix", true)
 
-	documents, err := portal.ListBillingDocuments(ctx, chain.AccountID)
+	documents, err := portal.ListBillingDocuments(ctx, chain.AccountID, parentService.DocumentInboxLetters)
 	require.NoError(t, err)
 	require.Len(t, documents, 1, "only the sent letter of the own family at the own Träger")
 	document := documents[0]
@@ -193,7 +193,7 @@ func TestDocumentInboxShowsOnlyTheFamilysSentLetters(t *testing.T) {
 		pickup.GuardianProfileID)
 	require.NoError(t, err)
 	own.document(pickup.Email, "Lena", true)
-	_, err = portal.ListBillingDocuments(ctx, pickup.AccountID)
+	_, err = portal.ListBillingDocuments(ctx, pickup.AccountID, parentService.DocumentInboxLetters)
 	assert.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
 	_, err = portal.BillingDocumentLetter(ctx, pickup.AccountID, organization, letter)
 	assert.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
@@ -248,10 +248,32 @@ func TestDocumentInboxQueryBudget(t *testing.T) {
 	}
 
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	documents, err := portal.ListBillingDocuments(counter.Context(ctx), chain.AccountID)
+	documents, err := portal.ListBillingDocuments(counter.Context(ctx), chain.AccountID, parentService.DocumentInboxLetters)
 	require.NoError(t, err)
 	assert.Len(t, documents, 3)
 	querybudgets.AssertQueryBudget(t, "workflows.parentportal.billing_documents.list", counter.Queries())
+}
+
+// The contract inbox reads flat in the number of contracts: the account's
+// children, their Träger, the account, then per Träger its binding, the
+// contracts and one trail entry for the whole list (Rule 15, ADR 0153).
+func TestContractInboxQueryBudget(t *testing.T) {
+	t.Parallel()
+	portal, _, _, db := documentInbox(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	var organization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, chain.TenantID).Scan(ctx, &organization))
+	testpkg.OwnTraegerCareContracts(t, db, organization)
+	for _, child := range []string{"Felix", "Mia", "Lena"} {
+		inboxContract(t, db, organization, chain.TenantID, child, chain.Email)
+	}
+
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	documents, err := portal.ListBillingDocuments(counter.Context(ctx), chain.AccountID, parentService.DocumentInboxContracts)
+	require.NoError(t, err)
+	assert.Len(t, documents, 3)
+	querybudgets.AssertQueryBudget(t, "workflows.parentportal.contract_documents.list", counter.Queries())
 }
 
 // inboxContract stores a care contract of the Träger for child as the
@@ -300,7 +322,10 @@ func TestDocumentInboxShowsTheFamilysSentContracts(t *testing.T) {
 	otherFamily := inboxContract(t, db, organization, chain.TenantID, "Tom", "andere.familie@example.org")
 	draft := inboxContract(t, db, organization, chain.TenantID, "Mia", "")
 
-	documents, err := portal.ListBillingDocuments(ctx, chain.AccountID)
+	letters, err := portal.ListBillingDocuments(ctx, chain.AccountID, parentService.DocumentInboxLetters)
+	require.NoError(t, err)
+	assert.Empty(t, letters, "the letters stay a list of their own")
+	documents, err := portal.ListBillingDocuments(ctx, chain.AccountID, parentService.DocumentInboxContracts)
 	require.NoError(t, err)
 	require.Len(t, documents, 1, "only the contract sent to the own address")
 	assert.Equal(t, sent, documents[0].ID)

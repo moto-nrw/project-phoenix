@@ -93,7 +93,10 @@ und hält fest, was er in den Registern ändert (ADR 0057 Punkt 5, ADR 0070).
    dessen Adresse er ging (ADR 0088 §7, ADR 0126). Der Workflow
    `parent-portal` prüft wie bisher die Beziehung
    (`parent_portal.enrollments.view`) und liest über den neuen Port
-   `ContractDocuments` in der Träger-Transaktion.
+   `ContractDocuments` in der Träger-Transaktion. Die Verträge kommen über
+   eine eigene Route (`GET /parent/me/documents/contracts`) mit eigenem
+   Abfrage-Budget; die Liste der Briefe bleibt unverändert, und ein Fehler
+   beim Vertrag verdeckt keine Briefe im Backend.
 8. **Zugriff und Protokoll.** Alle Routen verlangen das Träger-Recht
    „Verträge verwalten“ (`traeger_contracts:manage`). Jede Liste, jedes Detail,
    jede Vorschau, jeder Versand und jedes Verwerfen steht mit Konto in
