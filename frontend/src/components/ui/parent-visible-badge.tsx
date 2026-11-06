@@ -2,6 +2,7 @@
 
 import { Eye } from "lucide-react";
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Tooltip } from "~/components/ui/tooltip";
 import { cn } from "~/lib/utils";
 import { PARENT_VISIBLE_DEFAULT_HINT } from "~/lib/parent-visible-fields";
@@ -38,19 +39,19 @@ export function ParentVisibleBadge({
       className={cn("align-middle", className)}
       bubbleClassName={bubbleClassName}
     >
-      <span
-        className={cn(
-          "inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 font-medium text-[#355A9A]",
-          compact ? "p-1" : "px-2 py-0.5 text-[11px]",
-        )}
-      >
-        <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        {compact ? (
+      {compact ? (
+        <span className="bg-moto-blue-soft text-moto-blue-strong inline-flex items-center rounded-full p-1">
+          <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span className="sr-only">Für Eltern sichtbar</span>
-        ) : (
-          "Für Eltern sichtbar"
-        )}
-      </span>
+        </span>
+      ) : (
+        <StatusBadge
+          tone="blue"
+          compact
+          icon={Eye}
+          label="Für Eltern sichtbar"
+        />
+      )}
     </Tooltip>
   );
 }
