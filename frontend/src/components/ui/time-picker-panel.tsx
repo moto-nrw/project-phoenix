@@ -28,13 +28,6 @@ export type TimePickerLabels = Readonly<{
   minimum: (time: string) => string;
 }>;
 
-export const DEFAULT_TIME_PICKER_LABELS: TimePickerLabels = {
-  selectTime: "Uhrzeit auswählen",
-  hour: "Stunde",
-  minute: "Minute",
-  minimum: (time) => `Frühestens ${time} Uhr`,
-};
-
 function optionsForMinuteColumn(hour: string | null, minTime?: string) {
   const minHour = minTime?.slice(0, 2);
   const minMinute = minTime?.slice(3);
@@ -156,7 +149,7 @@ function TimeColumn({
 export function TimePickerPanel({
   value,
   minTime,
-  labels = DEFAULT_TIME_PICKER_LABELS,
+  labels,
   onChange,
   close,
   initialFocusRef,
@@ -164,7 +157,7 @@ export function TimePickerPanel({
   value: string;
   /** Frühester wählbarer Wert als "HH:MM". */
   minTime?: string;
-  labels?: TimePickerLabels;
+  labels: TimePickerLabels;
   onChange: (value: string) => void;
   close: () => void;
   initialFocusRef: RefObject<HTMLElement | null>;

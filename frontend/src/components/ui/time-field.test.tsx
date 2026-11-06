@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as nextIntl from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -129,6 +130,38 @@ function minuteOption(name: string) {
 }
 
 describe("time picker", () => {
+  it("uses active-locale labels when none are supplied", async () => {
+    const user = userEvent.setup();
+    const translator = ((key: string, values?: Record<string, string>) => {
+      const labels: Record<string, string> = {
+        selectTime: "Select time",
+        hour: "Hour",
+        minute: "Minute",
+        minimum: "Earliest {time}",
+      };
+      return (labels[key] ?? key).replace("{time}", values?.time ?? "");
+    }) as ReturnType<typeof nextIntl.useTranslations>;
+    const useTranslations = vi
+      .spyOn(nextIntl, "useTranslations")
+      .mockReturnValue(translator);
+
+    try {
+      render(<TimeFieldDemo initialValue="15:30" />);
+
+      await user.click(screen.getByRole("button", { name: "Select time" }));
+
+      expect(
+        screen.getByRole("dialog", { name: "Select time" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("listbox", { name: "Hour" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("listbox", { name: "Minute" }),
+      ).toBeInTheDocument();
+    } finally {
+      useTranslations.mockRestore();
+    }
+  });
+
   it("sets the field from a picked hour and minute", async () => {
     const user = userEvent.setup();
     render(<TimeFieldDemo initialValue="" />);

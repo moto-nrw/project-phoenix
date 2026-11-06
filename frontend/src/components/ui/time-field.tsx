@@ -1,17 +1,14 @@
 "use client";
 
 import { Clock } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { FocusScope } from "@radix-ui/react-focus-scope";
+import { useTranslations } from "next-intl";
 
 import { AnchoredPopover } from "./anchored-popover";
 import { Button } from "./button";
 import { RequiredMark } from "./field-label";
-import {
-  DEFAULT_TIME_PICKER_LABELS,
-  TimePickerPanel,
-  type TimePickerLabels,
-} from "./time-picker-panel";
+import { TimePickerPanel, type TimePickerLabels } from "./time-picker-panel";
 
 // Ein Modal kann das Popover in seiner Fokusfalle aufnehmen. Ein Vaul-Slide-over
 // transformiert seinen Inhalt dagegen; dessen Auswahl bleibt am Body und
@@ -95,7 +92,7 @@ export function TimeField({
   disabled = false,
   inline = false,
   minTime,
-  timePickerLabels = DEFAULT_TIME_PICKER_LABELS,
+  timePickerLabels,
   onBlur,
   onKeyDown,
 }: Readonly<{
@@ -127,6 +124,17 @@ export function TimeField({
   onBlur?: () => void;
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
 }>) {
+  const tTimePicker = useTranslations("datePicker.timePicker");
+  const localizedTimePickerLabels = useMemo<TimePickerLabels>(
+    () => ({
+      selectTime: tTimePicker("selectTime"),
+      hour: tTimePicker("hour"),
+      minute: tTimePicker("minute"),
+      minimum: (time) => tTimePicker("minimum", { time }),
+    }),
+    [tTimePicker],
+  );
+  const pickerLabels = timePickerLabels ?? localizedTimePickerLabels;
   const inputId = useId();
   const hintId = useId();
   const completedOneDigitHour = useRef<string | null>(null);
@@ -231,7 +239,7 @@ export function TimeField({
         <AnchoredPopover
           open={open}
           onOpenChange={setPickerOpen}
-          ariaLabel={timePickerLabels.selectTime}
+          ariaLabel={pickerLabels.selectTime}
           initialFocusRef={initialOptionRef}
           preferredWidth={PICKER_WIDTH}
           align="end"
@@ -243,7 +251,7 @@ export function TimeField({
               variant="ghost"
               size="icon"
               disabled={disabled}
-              aria-label={timePickerLabels.selectTime}
+              aria-label={pickerLabels.selectTime}
               aria-haspopup="dialog"
               aria-expanded={isOpen}
               aria-controls={isOpen ? panelId : undefined}
@@ -265,7 +273,7 @@ export function TimeField({
               <TimePickerPanel
                 value={value}
                 minTime={minTime}
-                labels={timePickerLabels}
+                labels={pickerLabels}
                 onChange={onChange}
                 close={close}
                 initialFocusRef={initialOptionRef}
