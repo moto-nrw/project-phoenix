@@ -1,0 +1,6 @@
+{
+  "scenario": "api.files.folders.communication18.n3",
+  "max": 10,
+  "exact": true,
+  "description": "Literal protected /api/files folders route, positive N3 fixtures and full ordered DTO assertions. Complete real owner transaction graph. Measured fixture contract, not global minimum."
+}
