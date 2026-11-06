@@ -75,6 +75,10 @@ export function TimeField({
   describedBy,
   inputRef,
   name,
+  disabled = false,
+  inline = false,
+  onBlur,
+  onKeyDown,
 }: Readonly<{
   value: string;
   onChange: (value: string) => void;
@@ -89,16 +93,27 @@ export function TimeField({
   inputRef?: React.Ref<HTMLInputElement>;
   /** Form name; a form's error path focuses the first failed field by it. */
   name?: string;
+  disabled?: boolean;
+  /**
+   * Beside another control in one row, where the surrounding field already
+   * carries the visible label: label and hint go to screen readers only, text
+   * and frame match the neighbouring `DatePicker`.
+   */
+  inline?: boolean;
+  onBlur?: () => void;
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
 }>) {
   const hintId = useId();
   const completedOneDigitHour = useRef<string | null>(null);
 
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-gray-700">
-        {label}
-        {required && <RequiredMark />}
-      </span>
+      {!inline && (
+        <span className="mb-1 block text-sm font-medium text-gray-700">
+          {label}
+          {required && <RequiredMark />}
+        </span>
+      )}
       <input
         ref={inputRef}
         name={name}
@@ -109,6 +124,8 @@ export function TimeField({
         placeholder={placeholder}
         maxLength={6}
         required={required}
+        disabled={disabled}
+        aria-label={inline ? label : undefined}
         aria-required={required}
         aria-invalid={invalid}
         aria-describedby={[describedBy, hintId].filter(Boolean).join(" ")}
@@ -125,16 +142,25 @@ export function TimeField({
             : null;
           onChange(nextValue);
         }}
+        onKeyDown={onKeyDown}
         onBlur={() => {
           completedOneDigitHour.current = null;
+          onBlur?.();
         }}
-        className={`h-10 w-full rounded-lg border px-3 text-base text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+        className={`h-10 w-full rounded-lg border px-3 text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 ${
+          inline ? "bg-white text-sm" : "text-base"
+        } ${
           invalid
-            ? "border-parent-red focus-visible:border-parent-red"
-            : "border-gray-300 focus-visible:border-gray-400"
+            ? inline
+              ? "border-moto-red focus-visible:border-moto-red"
+              : "border-parent-red focus-visible:border-parent-red"
+            : `focus-visible:border-gray-400 ${inline ? "border-gray-200" : "border-gray-300"}`
         }`}
       />
-      <span id={hintId} className="mt-1 block text-xs text-gray-500">
+      <span
+        id={hintId}
+        className={inline ? "sr-only" : "mt-1 block text-xs text-gray-500"}
+      >
         {hint}
       </span>
     </label>

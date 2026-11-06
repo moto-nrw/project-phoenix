@@ -2565,8 +2565,16 @@ const SELECT_COMPONENT_MODULES = new Map([
   ["@/components/ui/multi-select", "MultiSelect"],
   ["~/components/ui/listbox-dropdown", "ListboxDropdown"],
   ["@/components/ui/listbox-dropdown", "ListboxDropdown"],
+  ["~/components/ui/date-range-picker", "DateRangePicker"],
+  ["@/components/ui/date-range-picker", "DateRangePicker"],
 ]);
-const SELECT_COMPONENTS = new Set(["CustomSelect", "MultiSelect", "ListboxDropdown"]);
+const SELECT_COMPONENTS = new Set([
+  "CustomSelect",
+  "MultiSelect",
+  "ListboxDropdown",
+  // Sein Auslöser ist der der Auswahlfelder (#5585).
+  "DateRangePicker",
+]);
 const SELECT_CLASS_PROPS = [
   "className",
   "triggerClassName",

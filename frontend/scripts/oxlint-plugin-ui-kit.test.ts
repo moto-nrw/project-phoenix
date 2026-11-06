@@ -1051,6 +1051,29 @@ describe.concurrent("ui-kit/no-select-override", () => {
     expect(output.match(/ui-kit\(no-select-override\)/g)).toHaveLength(3);
   });
 
+  it("reports look classes on the DateRangePicker trigger", async () => {
+    const result = await lintSource(`
+      import { DateRangePicker } from "~/components/ui/date-range-picker";
+      export function Probe() {
+        return <DateRangePicker value={undefined} onChange={() => {}} triggerClassName="h-9 rounded-none border-0" />;
+      }
+    `);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-select-override)");
+  });
+
+  it("allows layout classes on the DateRangePicker trigger", async () => {
+    const result = await lintSource(`
+      import { DateRangePicker } from "~/components/ui/date-range-picker";
+      export function Probe() {
+        return <DateRangePicker value={undefined} onChange={() => {}} className="w-full sm:w-auto" triggerClassName="w-full sm:w-auto" />;
+      }
+    `);
+
+    expect(result.output).not.toContain("no-select-override");
+  });
+
   it("rejects unstyledTrigger outside the kit", async () => {
     const result = await lintSource(`
       import { ListboxDropdown } from "~/components/ui/listbox-dropdown";

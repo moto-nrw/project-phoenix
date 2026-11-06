@@ -1,18 +1,18 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { TimeField } from "~/components/ui/time-field";
 
 // Wire shape of `<input type="datetime-local">`: "YYYY-MM-DDTHH:mm" in local
 // time, "" when unset. Keeping it means the callers' existing conversion
 // helpers (toLocalInputValue / fromLocalInputValue) work unchanged.
 const DATE_LENGTH = 10;
 
-// Mirrors the date half's trigger heights so the two never look stepped.
-const TIME_SIZE_CLASS: Record<"sm" | "md" | "lg", string> = {
-  sm: "px-3 py-2 text-sm",
-  md: "h-10 px-3 py-2 text-sm",
-  lg: "px-4 py-3 text-base",
-};
+// `TimeField` hands up every keystroke ("1", "15", "15:3"); only a real clock
+// time may reach the value, because the callers convert it to an instant.
+const COMPLETE_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 function splitLocal(value: string): { day: string; time: string } {
   if (!value) return { day: "", time: "" };
@@ -28,11 +28,6 @@ function splitLocal(value: string): { day: string; time: string } {
  * by `defaultTime`. Both halves clamp through here so neither can emit a value
  * that undercuts `min`. Later days are unconstrained and may start at 00:00.
  * "HH:mm" compares correctly as a string.
- *
- * Exported for its own tests: jsdom blanks a time input whose value is below
- * its `min` attribute, so the typed-below-minimum case cannot be driven through
- * the rendered field the way a real browser would (browsers keep the value and
- * only mark it `:invalid`).
  */
 export function clampTimeToMin(
   day: string,
@@ -45,11 +40,7 @@ export function clampTimeToMin(
 
 /**
  * Kit replacement for `<input type="datetime-local">`: the kit calendar for the
- * day plus a time field for the clock.
- *
- * The time half is still a native `<input type="time">`, although the kit has
- * `TimeField` (`./time-field`); moving it onto `TimeField` is a separate,
- * visible change.
+ * day plus the kit `TimeField` for the clock.
  */
 export function DateTimePicker({
   value,
@@ -68,7 +59,6 @@ export function DateTimePicker({
   calendarLayout = "popover",
   hideClearButton = false,
   required = false,
-  controlSize = "sm",
 }: {
   /** "YYYY-MM-DDTHH:mm" in local time, or "" when unset. */
   readonly value: string;
@@ -88,11 +78,43 @@ export function DateTimePicker({
   readonly hideClearButton?: boolean;
   /** Prevents clearing an already selected date from the calendar. */
   readonly required?: boolean;
-  /** Height of both halves. Match the kit Input next to it. */
-  readonly controlSize?: "sm" | "md" | "lg";
 }) {
-  const { day, time } = splitLocal(value);
+  const { day: valueDay, time } = splitLocal(value);
   const minParts = splitLocal(min ?? "");
+  // What the time half shows while its text is not a time the value may take.
+  const [typedTime, setTypedTime] = useState<string | null>(null);
+  // Erasing the time clears the value, but whoever erases it to type a new one
+  // must not lose the day (and the field they are typing in) on the way. The
+  // day is held until the field is left.
+  const [heldDay, setHeldDay] = useState("");
+  // Keep the day after our own empty change, but never let a pending draft
+  // survive a replacement, reset, or record change from the parent.
+  const emittedValue = useRef(value);
+  const hasExternalValue = value !== emittedValue.current;
+  const pendingTime = hasExternalValue ? null : typedTime;
+  const pendingDay = hasExternalValue ? "" : heldDay;
+  const day = valueDay || pendingDay;
+
+  useEffect(() => {
+    if (!hasExternalValue) return;
+    setTypedTime(null);
+    setHeldDay("");
+    emittedValue.current = value;
+  }, [hasExternalValue, value]);
+
+  const emitChange = (nextValue: string) => {
+    emittedValue.current = nextValue;
+    onChange(nextValue);
+  };
+
+  // Text the value could not take yet: a complete time is raised to the
+  // minimum, anything else falls back to the saved time.
+  const settleTypedTime = () => {
+    if (pendingTime && COMPLETE_TIME.test(pendingTime)) {
+      emitChange(`${day}T${clampTimeToMin(day, pendingTime, minParts)}`);
+    }
+    setTypedTime(null);
+  };
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
@@ -101,8 +123,13 @@ export function DateTimePicker({
         value={day}
         min={minParts.day || undefined}
         onChange={(nextDay) => {
+          // A calendar change commits the saved time. Incomplete or invalid
+          // text is only a temporary edit and must not look selected for the
+          // new day.
+          setTypedTime(null);
+          setHeldDay("");
           if (!nextDay) {
-            onChange("");
+            emitChange("");
             return;
           }
           const nextTime = clampTimeToMin(
@@ -110,41 +137,59 @@ export function DateTimePicker({
             time || defaultTime,
             minParts,
           );
-          onChange(`${nextDay}T${nextTime}`);
+          emitChange(`${nextDay}T${nextTime}`);
         }}
         disabled={disabled}
         hideClearButton={hideClearButton}
         required={required}
-        controlSize={controlSize}
+        controlSize="md"
         calendarLayout={calendarLayout}
         ariaLabel={dateAriaLabel}
         invalid={invalid}
         className="min-w-0 flex-1"
         placeholder="Datum wählen"
       />
-      <input
-        type="time"
-        aria-label={timeAriaLabel}
-        value={time}
-        // A lower bound only constrains the clock on the boundary day itself;
-        // any later day may start at 00:00. The attribute only marks the field
-        // invalid — a typed-in lower time still reaches onChange, so the
-        // handler below clamps rather than trusting it.
-        min={day && day === minParts.day ? minParts.time : undefined}
-        disabled={disabled || !day}
-        onChange={(event) => {
-          const nextTime = event.target.value;
-          if (!day) return;
-          // Clearing the time clears the whole value; an optional field has to
-          // stay emptiable.
-          if (!nextTime) {
-            onChange("");
-            return;
-          }
-          onChange(`${day}T${clampTimeToMin(day, nextTime, minParts)}`);
-        }}
-        className={`w-[7.5rem] shrink-0 rounded-lg border border-gray-200 bg-white text-gray-900 ${TIME_SIZE_CLASS[controlSize]} transition-colors hover:bg-gray-50 focus:border-gray-300 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400`}
-      />
+      <div className="w-24 shrink-0">
+        <TimeField
+          inline
+          label={timeAriaLabel}
+          hint="Uhrzeit im Format 15:30"
+          placeholder="Uhrzeit"
+          value={pendingTime ?? time}
+          required={required}
+          invalid={invalid}
+          disabled={disabled || !day}
+          onChange={(nextTime) => {
+            if (!nextTime) {
+              // An optional field has to stay emptiable.
+              setTypedTime(null);
+              setHeldDay(day);
+              emitChange("");
+              return;
+            }
+            if (!COMPLETE_TIME.test(nextTime)) {
+              setTypedTime(nextTime);
+              return;
+            }
+            // "153" reads as 01:53 on its way to 15:30, so a time below the
+            // minimum is only raised once the field is left.
+            if (clampTimeToMin(day, nextTime, minParts) !== nextTime) {
+              setTypedTime(nextTime);
+              return;
+            }
+            setTypedTime(null);
+            emitChange(`${day}T${nextTime}`);
+          }}
+          // Enter submits the form without leaving the field.
+          onKeyDown={(event) => {
+            if (event.key === "Enter") settleTypedTime();
+          }}
+          onBlur={() => {
+            settleTypedTime();
+            setHeldDay("");
+          }}
+        />
+      </div>
     </div>
   );
 }

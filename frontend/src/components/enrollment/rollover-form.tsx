@@ -425,7 +425,6 @@ export function RolloverForm({
             </label>
             <DateTimePicker
               id="rollover-deadline"
-              controlSize="md"
               dateAriaLabel="Frist für die Eltern-Antwort"
               timeAriaLabel="Frist Uhrzeit"
               className="mt-1"

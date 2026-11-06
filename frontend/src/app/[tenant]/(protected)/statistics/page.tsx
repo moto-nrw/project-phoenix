@@ -998,9 +998,8 @@ export default function StatisticsPage() {
               presets={presets}
               toMax={today}
               className="min-w-0"
-              // Zwischen den Pfeilen: Rahmen und Rundung kommen von der
-              // Gruppe, der Chip bringt nur Inhalt und Höhe mit.
-              triggerClassName="h-9 w-full justify-center rounded-none border-0 px-3"
+              // Zwischen den Pfeilen.
+              embedded
             />
           }
           onPrevious={shiftWindow ? () => shiftWindow(-1) : undefined}
