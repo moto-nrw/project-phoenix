@@ -5,7 +5,7 @@
 // Ein Entwurf lässt sich senden oder verwerfen; ein versendeter Vertrag
 // behält sein PDF und lässt sich erneut senden.
 
-import { Download, RotateCw, Send } from "lucide-react";
+import { Download, RotateCw, Send, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -198,6 +198,17 @@ export default function TraegerVertragPage() {
       actions={
         contract ? (
           <>
+            {isDraft ? (
+              <Button
+                type="button"
+                variant="ghost_danger"
+                size="md"
+                onClick={() => setConfirmDiscard(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                Entwurf verwerfen
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -229,17 +240,6 @@ export default function TraegerVertragPage() {
             ) : null}
           </>
         ) : null
-      }
-      overflowMenu={
-        isDraft
-          ? [
-              {
-                label: "Entwurf verwerfen",
-                destructive: true,
-                onClick: () => setConfirmDiscard(true),
-              },
-            ]
-          : undefined
       }
       error={pageLoad.error}
       loading={!pageLoad.error && !contract}
@@ -318,7 +318,8 @@ export default function TraegerVertragPage() {
                     {formatNotice(contract.version.terms)}
                   </DataField>
                   <DataField label="Vertragspartner">
-                    {contract.version.terms.contractPartner || "Ihr Träger"}
+                    {contract.version.terms.contractPartner ||
+                      "Der Träger selbst"}
                   </DataField>
                   <DataField label="Sonderkündigung" fullWidth>
                     {contract.version.terms.specialTermination
@@ -401,24 +402,21 @@ export default function TraegerVertragPage() {
                 ? "Dieses PDF haben die Eltern bekommen. Es ändert sich nicht mehr."
                 : "So sieht der Vertrag mit Ihrem Briefkopf aus."
             }
-            padding="none"
           >
             {pdfUrl ? (
               <object
                 data={pdfUrl}
                 type="application/pdf"
                 aria-label={`Vertrag von ${childName(contract)}`}
-                className="h-[75vh] min-h-[480px] w-full rounded-b-2xl"
+                className="h-[75vh] min-h-[480px] w-full rounded-xl border border-gray-200"
               >
-                <p className="px-5 pb-5 text-sm text-gray-600">
+                <p className="p-4 text-sm text-gray-600">
                   Ihr Browser zeigt das PDF hier nicht an. Laden Sie es oben mit
                   „PDF herunterladen“.
                 </p>
               </object>
             ) : (
-              <p className="px-5 pb-5 text-sm text-gray-500">
-                Die Vorschau lädt …
-              </p>
+              <p className="text-sm text-gray-500">Die Vorschau lädt …</p>
             )}
           </SectionCard>
         </>

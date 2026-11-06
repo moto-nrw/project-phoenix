@@ -57,7 +57,7 @@ func contractLetter(record ContractRecord, head carecontract.Letterhead) Letter 
 	version := record.Version
 	filled := templates.Fill(letterTemplate(head.Template), letterValues(record, head))
 	blocks := letterBlocks(filled.Blocks)
-	blocks = append(blocks, LetterBlock{Heading: "Vertragsangaben", Facts: termFacts(version, head)})
+	blocks = append(blocks, LetterBlock{Heading: "Vertragsangaben", Text: "Das gilt für diesen Vertrag:", Facts: termFacts(version, head)})
 	if version.Terms.SpecialTermination {
 		blocks = append(blocks, LetterBlock{Heading: "Sonderkündigung", Text: strings.TrimSpace(version.Terms.SpecialTerminationNote)})
 	}

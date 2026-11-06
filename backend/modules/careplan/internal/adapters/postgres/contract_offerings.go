@@ -39,7 +39,7 @@ func (ContractOfferingStore) ContractOfferings(ctx context.Context, ids []int64)
 	}
 	var rows []contractOfferingRow
 	if err := tx.NewRaw(`SELECT id, phase_id, name, price_cents, is_active FROM enrollment.care_offerings
-		WHERE tenant_id = ? AND (cardinality(?::bigint[]) = 0 OR id = ANY(?::bigint[]))
+		WHERE tenant_id = ? AND counts_as_care AND (cardinality(?::bigint[]) = 0 OR id = ANY(?::bigint[]))
 		ORDER BY sort_order, name, id`, tenantID, pgdialect.Array(ids), pgdialect.Array(ids)).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care plan postgres: contract offerings: %w", err)
 	}

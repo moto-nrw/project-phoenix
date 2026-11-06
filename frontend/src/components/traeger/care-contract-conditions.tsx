@@ -257,6 +257,7 @@ function ConditionsForm({
           />
           {draft.termKind === "fixed_months" ? (
             <Input
+              controlSize="compact"
               name="term_months"
               label="Anzahl der Monate"
               type="number"
@@ -280,6 +281,7 @@ function ConditionsForm({
             Kündigung
           </legend>
           <Input
+            controlSize="compact"
             name="notice_months"
             label="Frist in Monaten"
             type="number"
@@ -353,6 +355,7 @@ function ConditionsForm({
           {draft.statuteRequired ? (
             <div className="grid gap-3 sm:grid-cols-2">
               <Input
+                controlSize="compact"
                 name="statute_title"
                 label="Name der Satzung"
                 required
@@ -363,6 +366,7 @@ function ConditionsForm({
                 onChange={(event) => set("statuteTitle", event.target.value)}
               />
               <Input
+                controlSize="compact"
                 name="statute_url"
                 label="Link zur Satzung (freiwillig)"
                 type="url"
@@ -377,12 +381,13 @@ function ConditionsForm({
         </fieldset>
 
         <Input
+          controlSize="compact"
           name="contract_partner"
           label="Vertragspartner (freiwillig)"
           maxLength={300}
           value={draft.contractPartner}
           error={formErrors.fieldError("contract_partner")}
-          placeholder="Leer lassen: Ihr Träger"
+          placeholder="Leer lassen: der Träger selbst"
           onChange={(event) => set("contractPartner", event.target.value)}
         />
       </form>

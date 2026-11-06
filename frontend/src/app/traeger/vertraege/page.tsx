@@ -77,6 +77,10 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
         </NavigationLink>
         <span className="block text-sm text-gray-500">
           {contract.offeringName}
+          <span className="sm:hidden">
+            {" "}
+            · ab {formatDate(contract.effectiveFrom)}
+          </span>
         </span>
       </span>
     ),
@@ -89,7 +93,7 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
     header: "Betreuungsort",
     render: (contract) => contract.schoolName,
     sortValue: (contract) => contract.schoolName,
-    stacked: "meta",
+    stacked: "hidden",
   },
   {
     key: "party",
@@ -102,14 +106,14 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
         </span>
       </span>
     ),
-    stacked: "field",
+    stacked: "hidden",
   },
   {
     key: "start",
     header: "Beginn",
     render: (contract) => formatDate(contract.effectiveFrom),
     sortValue: (contract) => contract.effectiveFrom,
-    stacked: "meta",
+    stacked: "hidden",
   },
   {
     key: "status",
@@ -129,6 +133,13 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
     ),
     sortValue: (contract) => CONTRACT_STATUS_ORDER.indexOf(contract.status),
     stacked: "meta",
+    // On a phone the status alone, without the date under it.
+    stackedRender: (contract) => (
+      <StatusBadge
+        label={CONTRACT_STATUS_LABELS[contract.status]}
+        tone={CONTRACT_STATUS_TONES[contract.status]}
+      />
+    ),
   },
 ];
 

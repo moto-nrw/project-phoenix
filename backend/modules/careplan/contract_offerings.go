@@ -12,8 +12,9 @@ type ContractOffering struct {
 	IsActive   bool
 }
 
-// ContractOfferings reads the offerings of the school whose tenant
-// transaction the caller holds. A non-empty ids keeps only those.
+// ContractOfferings reads the offerings of the school that count as care,
+// in the tenant transaction the caller holds: a Betreuungsvertrag covers
+// care, not an AG or the lunch. A non-empty ids keeps only those.
 type ContractOfferings interface {
 	ContractOfferings(ctx context.Context, ids []int64) ([]ContractOffering, error)
 }

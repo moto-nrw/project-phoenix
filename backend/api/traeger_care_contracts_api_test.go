@@ -128,6 +128,15 @@ func newCareContractFixture(t *testing.T, name string) careContractFixture {
 	_, err := f.db.ExecContext(ctx, `UPDATE enrollment.care_offerings SET price_cents = 9500 WHERE id = ?`, offering.ID)
 	require.NoError(t, err)
 	child := careContractApplication(t, f.db, school, phaseID, offering.ID, "Lina", "erika.muster@example.org")
+	// An AG the child books too counts as no care: a Betreuungsvertrag does
+	// not cover it.
+	ag := &testpkg.CareOffering{PhaseID: phaseID, Name: "Fußball-AG", DaysOfWeekMode: "fixed",
+		AvailableDays: []string{"thu"}, AutoAddGradeLevels: []int{}, IsActive: true}
+	ag.TenantID = school
+	testpkg.InsertTestCareOffering(t, f.db, testpkg.TenantContext(school), ag)
+	_, err = f.db.ExecContext(ctx, `INSERT INTO enrollment.care_offering_bookings (tenant_id, request_child_id, care_offering_id,
+			manual_selected_days, valid_from) VALUES (?, ?, ?, '["thu"]'::jsonb, DATE '2027-08-01')`, school, child, ag.ID)
+	require.NoError(t, err)
 	return careContractFixture{reviewFixture: f, school: school, phase: phaseID, offering: offering.ID, child: child}
 }
 
