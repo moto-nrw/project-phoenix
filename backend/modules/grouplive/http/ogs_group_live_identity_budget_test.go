@@ -3,6 +3,7 @@ package grouplivehttp_test
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -67,31 +68,48 @@ func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 	testpkg.CreateTestGroupSubstitution(t, tc.db, subGroup.ID, nil, teacher.StaffID,
 		today.AddDays(-1), today.AddDays(3))
 
-	for i := range 3 {
-		student := testpkg.CreateTestStudent(t, tc.db, "IdentityBudget", fmt.Sprintf("Kind%d", i), "IB1")
-		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+	var studentIDs []string
+	addStudents := func(n int) {
+		for range n {
+			student := testpkg.CreateTestStudent(t, tc.db, "IdentityBudget", fmt.Sprintf("Kind%d", len(studentIDs)), "IB1")
+			testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+			studentIDs = append(studentIDs, strconv.FormatInt(student.ID, 10))
+		}
 	}
 
 	counter := testpkg.CaptureQueries(t, tc.db)
+	measure := func() map[string]int {
+		counter.Reset()
+		req := testutil.NewRequest("GET", fmt.Sprintf("/ogs-group-live?group_id=%d", group.ID), nil)
+		rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), ogsLivePerms)
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+		data := decodeOGSLive(t, rr.Body.Bytes()).Data
+		require.Len(t, data.Students, len(studentIDs))
+		actualIDs := make([]string, 0, len(data.Students))
+		for _, student := range data.Students {
+			id, ok := student["id"].(string)
+			require.True(t, ok, "student IDs remain JSON strings")
+			actualIDs = append(actualIDs, id)
+		}
+		require.ElementsMatch(t, studentIDs, actualIDs, "the budget covers all real group members")
+		stage := func(name string) []string {
+			queries := counter.Matching(func(q string) bool {
+				return strings.HasPrefix(strings.TrimSpace(q), "select") && identityStageMatchers[name](q)
+			})
+			t.Logf("N%d identity stage %q: %d queries", len(studentIDs), name, len(queries))
+			return queries
+		}
 
-	req := testutil.NewRequest("GET", fmt.Sprintf("/ogs-group-live?group_id=%d", group.ID), nil)
-	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), ogsLivePerms)
-	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
-
-	stage := func(name string) []string {
-		queries := counter.Matching(func(q string) bool {
-			return strings.HasPrefix(strings.TrimSpace(q), "select") && identityStageMatchers[name](q)
-		})
-		t.Logf("identity stage %q: %d queries", name, len(queries))
-		return queries
+		person, staff, teacher, substitutions := stage("person"), stage("staff"), stage("teacher"), stage("substitutions")
+		querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.person", person)
+		querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.staff", staff)
+		querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.teacher", teacher)
+		querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.substitutions", substitutions)
+		return map[string]int{"person": len(person), "staff": len(staff), "teacher": len(teacher), "substitutions": len(substitutions)}
 	}
 
-	// Each stage must be resolved exactly once per request. Two distinct
-	// substitution projections exist (GetMyGroups relations,
-	// GetSubstitutedGroupIDs id-set); each memoizes its own result, so 2 is
-	// the per-request floor.
-	querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.person", stage("person"))
-	querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.staff", stage("staff"))
-	querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.teacher", stage("teacher"))
-	querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.substitutions", stage("substitutions"))
+	addStudents(3)
+	small := measure()
+	addStudents(5)
+	require.Equal(t, small, measure(), "identity buckets must not grow with N3/N8 children")
 }
