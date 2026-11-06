@@ -104,4 +104,19 @@ describe("StatusBadge", () => {
       screen.getByTestId("list-icon"),
     );
   });
+
+  it("shortens a long label and keeps it whole in the tooltip", () => {
+    const label = "Kostenübernahme: Fachdienst Jugend des Landkreises";
+    render(<StatusBadge label={label} tone="blue" truncate />);
+    const text = screen.getByText(label);
+    expect(text).toHaveClass("truncate");
+    expect(text.parentElement).toHaveAttribute("title", label);
+  });
+
+  it("lets a long label break instead of overflowing", () => {
+    render(<StatusBadge label="Teilweise gutgeschrieben" tone="blue" wrap />);
+    const badge = screen.getByText("Teilweise gutgeschrieben");
+    expect(badge).toHaveClass("whitespace-normal");
+    expect(badge).not.toHaveClass("whitespace-nowrap");
+  });
 });
