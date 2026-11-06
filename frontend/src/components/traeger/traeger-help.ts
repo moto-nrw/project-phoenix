@@ -42,6 +42,7 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   }
   if (onPage(page, "/einstellungen")) return HELP_TOPICS.traegerSettings;
   if (onPage(page, "/abrechnung")) return HELP_TOPICS.traegerBillingRun;
+  if (onPage(page, "/vertraege")) return HELP_TOPICS.traegerCareContracts;
   if (HOLIDAY_FORM_PAGE.test(page)) return HELP_TOPICS.traegerHolidayForm;
   if (HOLIDAY_REGISTRATIONS_PAGE.test(page)) {
     return HELP_TOPICS.traegerHolidayRegistrationReview;

@@ -1,0 +1,479 @@
+/**
+ * Client of the care contracts in the Träger portal (#4678, ADR 0153): the
+ * contract template of every offering, the drafts from the accepted
+ * applications, the PDF, the send by mail and into the parents app, and the
+ * discard of a draft. Backend int64 IDs leave here as strings; money stays
+ * whole cent; calendar dates stay "YYYY-MM-DD".
+ */
+
+import { apiErrorFromBody, transportFetch } from "./api-error";
+import { filenameFromDisposition } from "./file-download";
+import { traegerRequest } from "./traeger-api";
+
+const CONTRACTS_PATH = "/api/traeger/contracts";
+const TEMPLATES_PATH = "/api/traeger/contract-templates";
+
+/** Every state of ADR 0088; this version reaches draft and sent. */
+export type CareContractStatus =
+  "entwurf" | "versendet" | "unterschrieben" | "aktiv" | "beendet";
+
+export type ContractTermKind = "open_ended" | "school_year" | "fixed_months";
+export type ContractNoticeTo = "month_end" | "half_year" | "school_year_end";
+export type Weekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+export interface ContractTerms {
+  readonly termKind: ContractTermKind;
+  readonly termMonths: number | null;
+  readonly noticeMonths: number;
+  readonly noticeTo: ContractNoticeTo;
+  readonly specialTermination: boolean;
+  readonly specialTerminationNote: string;
+  readonly statuteRequired: boolean;
+  readonly statuteTitle: string;
+  readonly statuteUrl: string;
+  /** Empty: the Träger itself. */
+  readonly contractPartner: string;
+}
+
+export interface ContractTemplate extends ContractTerms {
+  readonly id: string;
+  readonly updatedAt: string;
+}
+
+/** One offering of a school with its template, or none yet. */
+export interface OfferingTemplate {
+  readonly schoolId: string;
+  readonly schoolName: string;
+  readonly offeringId: string;
+  readonly offeringName: string;
+  readonly phaseName: string;
+  readonly priceCents: number | null;
+  readonly active: boolean;
+  readonly template: ContractTemplate | null;
+}
+
+export interface CandidateKey {
+  readonly schoolId: string;
+  readonly requestChildId: string;
+  readonly careOfferingId: string;
+}
+
+/** An accepted application child with a booked offering and no contract. */
+export interface ContractCandidate extends CandidateKey {
+  readonly schoolName: string;
+  readonly childFirstName: string;
+  readonly childLastName: string;
+  readonly guardianName: string;
+  readonly guardianEmail: string;
+  readonly offeringName: string;
+  readonly phaseName: string;
+  readonly bookedDays: readonly Weekday[];
+  readonly effectiveFrom: string;
+  readonly hasTemplate: boolean;
+}
+
+export interface CareContractSummary {
+  readonly id: string;
+  readonly status: CareContractStatus;
+  readonly schoolId: string;
+  readonly schoolName: string;
+  readonly childFirstName: string;
+  readonly childLastName: string;
+  readonly offeringName: string;
+  readonly partyName: string;
+  readonly partyEmail: string;
+  readonly effectiveFrom: string;
+  readonly createdAt: string;
+  readonly sentAt: string | null;
+}
+
+export interface CareContractList {
+  readonly contracts: readonly CareContractSummary[];
+  readonly counts: Readonly<Partial<Record<CareContractStatus, number>>>;
+}
+
+export type ContractMailState = "queued" | "sent" | "failed" | "unknown";
+
+export interface CareContractDetail extends CareContractSummary {
+  readonly version: {
+    readonly number: number;
+    readonly effectiveFrom: string;
+    readonly endsOn: string | null;
+    readonly childBirthDate: string | null;
+    readonly schoolName: string;
+    readonly offeringName: string;
+    readonly phaseName: string;
+    readonly bookedDays: readonly Weekday[];
+    readonly priceCents: number | null;
+    readonly terms: ContractTerms;
+    readonly createdAt: string;
+  };
+  readonly parties: readonly {
+    readonly firstName: string;
+    readonly lastName: string;
+    readonly email: string;
+    readonly hasAccount: boolean;
+  }[];
+  readonly mailings: readonly {
+    readonly recipient: string;
+    readonly sentAt: string;
+    readonly state: ContractMailState;
+  }[];
+  readonly documentFrozen: boolean;
+}
+
+export type CreateSkipReason =
+  "template_missing" | "contract_exists" | "application_not_found";
+
+export interface CreateResult {
+  readonly created: readonly CareContractSummary[];
+  readonly skipped: readonly (CandidateKey & {
+    readonly reason: CreateSkipReason;
+  })[];
+}
+
+export type SendSkipReason =
+  "recipient_missing" | "mail_pending" | "not_sendable";
+
+export interface SendResult {
+  readonly sent: readonly string[];
+  readonly skipped: readonly {
+    readonly id: string;
+    readonly reason: SendSkipReason;
+  }[];
+}
+
+export interface ContractFile {
+  readonly blob: Blob;
+  readonly filename: string;
+}
+
+interface BackendTerms {
+  term_kind: ContractTermKind;
+  term_months: number | null;
+  notice_months: number;
+  notice_to: ContractNoticeTo;
+  special_termination: boolean;
+  special_termination_note: string;
+  statute_required: boolean;
+  statute_title: string;
+  statute_url: string;
+  contract_partner: string;
+}
+
+interface BackendTemplate extends BackendTerms {
+  id: number;
+  updated_at: string;
+}
+
+interface BackendOfferingTemplate {
+  school_id: number;
+  school_name: string;
+  offering_id: number;
+  offering_name: string;
+  phase_name: string;
+  price_cents: number | null;
+  active: boolean;
+  template: BackendTemplate | null;
+}
+
+interface BackendCandidate {
+  school_id: number;
+  request_child_id: number;
+  care_offering_id: number;
+  school_name: string;
+  child_first_name: string;
+  child_last_name: string;
+  guardian_name: string;
+  guardian_email: string;
+  offering_name: string;
+  phase_name: string;
+  booked_days: Weekday[] | null;
+  effective_from: string;
+  has_template: boolean;
+}
+
+interface BackendSummary {
+  id: number;
+  status: CareContractStatus;
+  school_id: number;
+  school_name: string;
+  child_first_name: string;
+  child_last_name: string;
+  offering_name: string;
+  party_name: string;
+  party_email: string;
+  effective_from: string;
+  created_at: string;
+  sent_at: string | null;
+}
+
+interface BackendDetail extends BackendSummary {
+  version: {
+    number: number;
+    effective_from: string;
+    ends_on: string | null;
+    child_birth_date: string | null;
+    school_name: string;
+    offering_name: string;
+    phase_name: string;
+    booked_days: Weekday[] | null;
+    price_cents: number | null;
+    terms: BackendTerms;
+    created_at: string;
+  };
+  parties:
+    | {
+        first_name: string;
+        last_name: string;
+        email: string;
+        has_account: boolean;
+      }[]
+    | null;
+  mailings:
+    { recipient: string; sent_at: string; state: ContractMailState }[] | null;
+  document_frozen: boolean;
+}
+
+function termsFromBackend(terms: BackendTerms): ContractTerms {
+  return {
+    termKind: terms.term_kind,
+    termMonths: terms.term_months,
+    noticeMonths: terms.notice_months,
+    noticeTo: terms.notice_to,
+    specialTermination: terms.special_termination,
+    specialTerminationNote: terms.special_termination_note,
+    statuteRequired: terms.statute_required,
+    statuteTitle: terms.statute_title,
+    statuteUrl: terms.statute_url,
+    contractPartner: terms.contract_partner,
+  };
+}
+
+function termsToBackend(terms: ContractTerms): BackendTerms {
+  return {
+    term_kind: terms.termKind,
+    term_months: terms.termKind === "fixed_months" ? terms.termMonths : null,
+    notice_months: terms.noticeMonths,
+    notice_to: terms.noticeTo,
+    special_termination: terms.specialTermination,
+    special_termination_note: terms.specialTerminationNote,
+    statute_required: terms.statuteRequired,
+    statute_title: terms.statuteTitle,
+    statute_url: terms.statuteUrl,
+    contract_partner: terms.contractPartner,
+  };
+}
+
+function offeringFromBackend(row: BackendOfferingTemplate): OfferingTemplate {
+  return {
+    schoolId: String(row.school_id),
+    schoolName: row.school_name,
+    offeringId: String(row.offering_id),
+    offeringName: row.offering_name,
+    phaseName: row.phase_name,
+    priceCents: row.price_cents,
+    active: row.active,
+    template: row.template
+      ? {
+          ...termsFromBackend(row.template),
+          id: String(row.template.id),
+          updatedAt: row.template.updated_at,
+        }
+      : null,
+  };
+}
+
+function candidateFromBackend(row: BackendCandidate): ContractCandidate {
+  return {
+    schoolId: String(row.school_id),
+    requestChildId: String(row.request_child_id),
+    careOfferingId: String(row.care_offering_id),
+    schoolName: row.school_name,
+    childFirstName: row.child_first_name,
+    childLastName: row.child_last_name,
+    guardianName: row.guardian_name,
+    guardianEmail: row.guardian_email,
+    offeringName: row.offering_name,
+    phaseName: row.phase_name,
+    bookedDays: row.booked_days ?? [],
+    effectiveFrom: row.effective_from,
+    hasTemplate: row.has_template,
+  };
+}
+
+function summaryFromBackend(row: BackendSummary): CareContractSummary {
+  return {
+    id: String(row.id),
+    status: row.status,
+    schoolId: String(row.school_id),
+    schoolName: row.school_name,
+    childFirstName: row.child_first_name,
+    childLastName: row.child_last_name,
+    offeringName: row.offering_name,
+    partyName: row.party_name,
+    partyEmail: row.party_email,
+    effectiveFrom: row.effective_from,
+    createdAt: row.created_at,
+    sentAt: row.sent_at,
+  };
+}
+
+function detailFromBackend(row: BackendDetail): CareContractDetail {
+  return {
+    ...summaryFromBackend(row),
+    version: {
+      number: row.version.number,
+      effectiveFrom: row.version.effective_from,
+      endsOn: row.version.ends_on,
+      childBirthDate: row.version.child_birth_date,
+      schoolName: row.version.school_name,
+      offeringName: row.version.offering_name,
+      phaseName: row.version.phase_name,
+      bookedDays: row.version.booked_days ?? [],
+      priceCents: row.version.price_cents,
+      terms: termsFromBackend(row.version.terms),
+      createdAt: row.version.created_at,
+    },
+    parties: (row.parties ?? []).map((party) => ({
+      firstName: party.first_name,
+      lastName: party.last_name,
+      email: party.email,
+      hasAccount: party.has_account,
+    })),
+    mailings: (row.mailings ?? []).map((mailing) => ({
+      recipient: mailing.recipient,
+      sentAt: mailing.sent_at,
+      state: mailing.state,
+    })),
+    documentFrozen: row.document_frozen,
+  };
+}
+
+function keyToBackend(key: CandidateKey) {
+  return {
+    school_id: Number(key.schoolId),
+    request_child_id: Number(key.requestChildId),
+    care_offering_id: Number(key.careOfferingId),
+  };
+}
+
+function contractPath(id: string): string {
+  return `${CONTRACTS_PATH}/${encodeURIComponent(id)}`;
+}
+
+export async function fetchCareContracts(): Promise<CareContractList> {
+  const body = await traegerRequest<{
+    contracts: BackendSummary[] | null;
+    counts: Partial<Record<CareContractStatus, number>> | null;
+  }>(CONTRACTS_PATH);
+  return {
+    contracts: (body?.contracts ?? []).map(summaryFromBackend),
+    counts: body?.counts ?? {},
+  };
+}
+
+export async function fetchContractCandidates(): Promise<ContractCandidate[]> {
+  const rows = await traegerRequest<BackendCandidate[] | null>(
+    `${CONTRACTS_PATH}/candidates`,
+  );
+  return (rows ?? []).map(candidateFromBackend);
+}
+
+export async function createCareContracts(
+  keys: readonly CandidateKey[],
+): Promise<CreateResult> {
+  const body = await traegerRequest<{
+    created: BackendSummary[] | null;
+    skipped: (BackendCandidate & { reason: CreateSkipReason })[] | null;
+  }>(CONTRACTS_PATH, {
+    method: "POST",
+    body: { contracts: keys.map(keyToBackend) },
+  });
+  return {
+    created: (body?.created ?? []).map(summaryFromBackend),
+    skipped: (body?.skipped ?? []).map((skip) => ({
+      schoolId: String(skip.school_id),
+      requestChildId: String(skip.request_child_id),
+      careOfferingId: String(skip.care_offering_id),
+      reason: skip.reason,
+    })),
+  };
+}
+
+export async function sendCareContracts(
+  ids: readonly string[],
+): Promise<SendResult> {
+  const body = await traegerRequest<{
+    sent: number[] | null;
+    skipped: { id: number; reason: SendSkipReason }[] | null;
+  }>(`${CONTRACTS_PATH}/send`, {
+    method: "POST",
+    body: { contract_ids: ids.map(Number) },
+  });
+  return {
+    sent: (body?.sent ?? []).map(String),
+    skipped: (body?.skipped ?? []).map((skip) => ({
+      id: String(skip.id),
+      reason: skip.reason,
+    })),
+  };
+}
+
+export async function fetchCareContract(
+  id: string,
+): Promise<CareContractDetail> {
+  return detailFromBackend(
+    await traegerRequest<BackendDetail>(contractPath(id)),
+  );
+}
+
+export async function discardCareContract(id: string): Promise<void> {
+  await traegerRequest<unknown>(contractPath(id), { method: "DELETE" });
+}
+
+/** The PDF: a preview of a draft, the stored document once sent. */
+export async function downloadCareContract(id: string): Promise<ContractFile> {
+  const response = await transportFetch(`${contractPath(id)}/document`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    let body: unknown = null;
+    try {
+      body = text ? (JSON.parse(text) as unknown) : null;
+    } catch {
+      body = null;
+    }
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      body,
+    );
+  }
+  return {
+    blob: await response.blob(),
+    filename: filenameFromDisposition(response) ?? "betreuungsvertrag.pdf",
+  };
+}
+
+export async function fetchContractTemplates(): Promise<OfferingTemplate[]> {
+  const rows = await traegerRequest<BackendOfferingTemplate[] | null>(
+    TEMPLATES_PATH,
+  );
+  return (rows ?? []).map(offeringFromBackend);
+}
+
+export async function saveContractTemplate(
+  schoolId: string,
+  offeringId: string,
+  terms: ContractTerms,
+): Promise<OfferingTemplate> {
+  return offeringFromBackend(
+    await traegerRequest<BackendOfferingTemplate>(
+      `${TEMPLATES_PATH}/${encodeURIComponent(schoolId)}/${encodeURIComponent(offeringId)}`,
+      { method: "PUT", body: termsToBackend(terms) },
+    ),
+  );
+}

@@ -2451,9 +2451,15 @@ export interface ParentDocument {
   readonly id: string;
   readonly organization_id: string;
   readonly traeger_name: string;
-  /** The confirmation letter, or the letter of its Storno or Gutschrift (#4690). */
+  /**
+   * The confirmation letter, the letter of its Storno or Gutschrift (#4690),
+   * or a care contract (#4678).
+   */
   readonly kind:
-    "confirmation_letter" | "cancellation_letter" | "credit_letter";
+    | "confirmation_letter"
+    | "cancellation_letter"
+    | "credit_letter"
+    | "care_contract";
   readonly number: string;
   readonly period_name: string;
   readonly service_from: string;
@@ -2478,9 +2484,14 @@ export async function listMyDocuments(): Promise<ParentDocument[]> {
  * the page as a message; a 401 still leads to the login.
  */
 export async function downloadMyDocument(
-  document: Pick<ParentDocument, "id" | "organization_id" | "number">,
+  document: Pick<ParentDocument, "id" | "organization_id" | "number" | "kind">,
 ): Promise<void> {
-  const url = `/api/parent/me/documents/${encodeURIComponent(document.organization_id)}/${encodeURIComponent(document.id)}/pdf`;
+  const organization = encodeURIComponent(document.organization_id);
+  const id = encodeURIComponent(document.id);
+  const url =
+    document.kind === "care_contract"
+      ? `/api/parent/me/documents/${organization}/contracts/${id}/pdf`
+      : `/api/parent/me/documents/${organization}/${id}/pdf`;
   const response = await transportFetch(url, { method: "GET" });
   if (!response.ok) await throwResponseError(url, response);
   const blob = await response.blob();

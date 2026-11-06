@@ -1,6 +1,6 @@
 {
   "title": "Dokumenty",
-  "description": "Tutaj znajdą Państwo pisma, które przesłał Państwu organizator. Na przykład potwierdzenie opieki w ferie.",
+  "description": "Tutaj znajdą Państwo pisma i umowy, które przesłał Państwu organizator. Na przykład potwierdzenie opieki w ferie.",
   "emptyTitle": "Brak dokumentów",
   "emptyDescription": "Gdy organizator wyśle Państwu pismo, znajdą je Państwo tutaj. Otrzymają je Państwo również e-mailem.",
   "confirmationLetter": "Potwierdzenie: {period}",
@@ -14,5 +14,8 @@
   "download": "Pobierz PDF",
   "downloading": "Pobieranie …",
   "errorObject": "dokumenty",
-  "downloadErrorObject": "dokument"
+  "downloadErrorObject": "dokument",
+  "careContract": "Umowa o opiekę",
+  "offering": "Oferta",
+  "startsOn": "Początek"
 }

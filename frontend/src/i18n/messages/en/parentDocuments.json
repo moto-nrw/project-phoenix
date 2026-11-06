@@ -1,6 +1,6 @@
 {
   "title": "Documents",
-  "description": "Here you find letters the provider sent you. For example the confirmation of holiday care.",
+  "description": "Here you find letters and contracts the provider sent you. For example the confirmation of holiday care.",
   "emptyTitle": "No documents yet",
   "emptyDescription": "When the provider sends you a letter, you find it here. You also get it by email.",
   "confirmationLetter": "Confirmation letter {period}",
@@ -14,5 +14,8 @@
   "download": "Download PDF",
   "downloading": "Downloading …",
   "errorObject": "the documents",
-  "downloadErrorObject": "the document"
+  "downloadErrorObject": "the document",
+  "careContract": "Care contract",
+  "offering": "Offering",
+  "startsOn": "Starts on"
 }

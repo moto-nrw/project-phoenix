@@ -230,6 +230,7 @@ export const HELP_TOPICS = {
   traegerSettings: "traeger-einstellungen",
   traegerBriefkopf: "briefkopf-des-traegers",
   traegerDocumentTemplates: "vorlagen-des-traegers",
+  traegerCareContracts: "betreuungsvertraege-senden",
   traegerSchoolSwitch: "in-eine-schule-wechseln",
   traegerSchoolView: "zahlen-und-stammdaten-einer-schule-ansehen",
   traegerDashboard: "alle-schulen-auf-einen-blick",

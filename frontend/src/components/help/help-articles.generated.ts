@@ -322,6 +322,8 @@ import type { traegerBillingRunTopic as authored_traegerBillingRunTopic } from "
 
 import type { traegerBriefkopfTopic as authored_traegerBriefkopfTopic } from "./articles/traeger-briefkopf";
 
+import type { traegerCareContractsTopic as authored_traegerCareContractsTopic } from "./articles/traeger-care-contracts";
+
 import type { traegerDashboardTopic as authored_traegerDashboardTopic } from "./articles/traeger-dashboard";
 
 import type { traegerDocumentTemplatesTopic as authored_traegerDocumentTemplatesTopic } from "./articles/traeger-document-templates";
@@ -5647,14 +5649,14 @@ export const parentDepartureTopic = function parentDepartureTopic(): HelpTopic {
   };
 } satisfies typeof authored_parentDepartureTopic;
 
-/** `/parents/meal-plan`: Wochenplan des Mittagessens, nur mit Freischaltung. */
+/** `/parents/documents` (#4671, #4678): Schreiben und Verträge des Trägers. */
 export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.parentDocuments,
     title: "Dokumente vom Träger finden",
     question: "Wo finde ich Schreiben vom Träger?",
     summary:
-      "Unter `Dokumente` liegen die Schreiben, die Ihnen der Träger geschickt hat.",
+      "Unter `Dokumente` liegen die Schreiben und Verträge, die Ihnen der Träger geschickt hat.",
     group: "nachrichten",
     audience: "parent",
     icon: "FileText",
@@ -5666,7 +5668,8 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
     result:
       "Sie bekommen das Schreiben als PDF. Sie können es speichern oder drucken.",
     notes: [
-      "Heute sind das die Bestätigungsschreiben der Ferienbetreuung. Das Schreiben ist auch Ihre Rechnung.",
+      "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
+      "Beim Betreuungsvertrag stehen Angebot und Beginn auf der Karte. Prüfen Sie im PDF die Tage und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
       "Sie möchten eine Nachricht auf dem Handy bekommen? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein.",
     ],
@@ -9992,6 +9995,83 @@ export const traegerBriefkopfTopic =
     };
   } satisfies typeof authored_traegerBriefkopfTopic;
 
+/**
+ * `/traeger/vertraege` (#4678): Vertragsbedingungen je Angebot festlegen,
+ * Entwürfe aus angenommenen Anmeldungen erstellen, prüfen und senden.
+ */
+export const traegerCareContractsTopic =
+  function traegerCareContractsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCareContracts,
+      title: "Betreuungsverträge erstellen und senden",
+      question: "Wie schicke ich den Eltern den Betreuungsvertrag?",
+      summary:
+        "Aus jeder angenommenen Anmeldung erstellt moto einen Vertragsentwurf. Sie prüfen ihn und senden ihn per Mail und in die Eltern-App.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Signature",
+      requirements: [
+        "Sie haben die Rolle `Verwaltung`. Sie gibt das Recht `Verträge verwalten`.",
+        "Die Schule hat die Anmeldung angenommen, und das Kind hat ein Angebot gebucht.",
+      ],
+      instructionGroups: [
+        {
+          title: "Einmal: Vertragsbedingungen festlegen",
+          steps: [
+            "Wählen Sie in der Navigation `Verträge`.",
+            "Wählen Sie oben den Reiter `Vertragsbedingungen`.",
+            "Wählen Sie links ein Angebot. `Fehlt` heißt: Für dieses Angebot gibt es noch keine Bedingungen.",
+            "Wählen Sie die `Laufzeit`, die `Frist in Monaten` und wann die `Kündigung wirkt`.",
+            "Erlauben Sie bei Bedarf eine `Sonderkündigung`. Schreiben Sie dazu, wann sie möglich ist.",
+            "Müssen die Eltern eine Satzung anerkennen? Setzen Sie den Haken bei `Satzung`. Tragen Sie den Namen und, wenn vorhanden, den Link ein.",
+            "Wählen Sie `Bedingungen speichern`.",
+          ],
+        },
+        {
+          title: "Entwürfe erstellen",
+          steps: [
+            "Wählen Sie den Reiter `Verträge`.",
+            "Wählen Sie `Verträge erstellen`. Die Zahl dahinter nennt die Kinder ohne Vertrag.",
+            "Prüfen Sie die Liste. moto übernimmt Kind, Eltern, Tage und Beginn aus der Anmeldung.",
+            "Wählen Sie die Kinder aus. Fehlen bei einem Angebot die Bedingungen, legen Sie sie zuerst fest.",
+            "Wählen Sie `Entwürfe erstellen`.",
+          ],
+        },
+        {
+          title: "Prüfen und senden",
+          steps: [
+            "Wählen Sie in der Liste ein Kind. Die Seite zeigt die `Vertragsangaben` und die `Vorschau` des PDF.",
+            "Prüfen Sie Tage, Beginn und Beitrag.",
+            "Wählen Sie `Vertrag senden`.",
+            "Mehrere Entwürfe auf einmal: Setzen Sie in der Liste die Haken und wählen Sie oben `Entwürfe senden`.",
+          ],
+        },
+      ],
+      steps: [],
+      result:
+        "Die Eltern bekommen den Vertrag als PDF per Mail. Haben sie ein Konto in der Eltern-App, liegt er dort auch unter `Dokumente`. Der Status wird `Versendet`.",
+      notes: [
+        "Beim ersten Senden hält moto das PDF fest. Ändern Sie danach Bedingungen oder Brieftext, bleibt der versendete Vertrag gleich.",
+        "Unter `Versand` sehen Sie, ob die Mail angekommen ist. Mit `Erneut senden` geht dasselbe PDF noch einmal an die Eltern.",
+        "Den Brieftext des Vertrags ändern Sie unter `Einstellungen` → `Briefkopf und Vorlagen` bei der Vorlage `Vertrag`.",
+        "Mit `PDF herunterladen` bekommen Sie den Vertrag zum Drucken, etwa für Familien ohne Mail.",
+      ],
+      differences: [
+        "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
+      ],
+      troubleshootingDetails: [
+        "Ein Kind fehlt in `Verträge erstellen`? Die Schule hat die Anmeldung noch nicht angenommen, oder das Kind hat schon einen Vertrag für dieses Angebot.",
+        "Ein Entwurf ist falsch? Wählen Sie oben rechts das Menü und dann `Entwurf verwerfen`. Danach erstellen Sie ihn neu. Einen versendeten Vertrag können Sie nicht verwerfen.",
+        "Der Versand zeigt `Nicht angekommen`? Die Mail-Adresse stimmt vielleicht nicht. Klären Sie sie mit der Schule und senden Sie erneut.",
+      ],
+      related: [
+        HELP_TOPICS.traegerDocumentTemplates,
+        HELP_TOPICS.traegerBriefkopf,
+        HELP_TOPICS.traegerAccounts,
+      ],
+    };
+  } satisfies typeof authored_traegerCareContractsTopic;
+
 /** `/traeger/uebersicht` (#4674), in der Navigation „Dashboard": die Zahlen von jetzt für alle Schulen. */
 export const traegerDashboardTopic =
   function traegerDashboardTopic(): HelpTopic {
@@ -10080,7 +10160,7 @@ export const traegerDocumentTemplatesTopic =
         "Die `Vorschau` zeigt auch Anschrift, Rechnungsnummer und Debitorennummer. So sehen Sie Text, Nummern und Tabelle zusammen.",
         "Sind alle Platzhalter eines Absatzes leer, fehlt der Absatz im Brief. So entfallen zum Beispiel die Notfallnummern, wenn keine eingetragen sind.",
         "Mit `Standardtext laden` holen Sie den Text von moto zurück in den Editor.",
-        "Heute nutzt moto die Vorlage für das Bestätigungsschreiben der Ferien. Die anderen Dokumente folgen.",
+        "Heute nutzt moto die Vorlagen für das Bestätigungsschreiben der Ferien und für den Betreuungsvertrag. Die anderen Dokumente folgen.",
       ],
       differences: [
         "Sie können die Vorlage nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",

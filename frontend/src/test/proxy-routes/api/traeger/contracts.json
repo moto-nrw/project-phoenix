@@ -1,0 +1,22 @@
+{
+  "api/traeger/contract-templates": [
+    "GET traeger /traeger/contract-templates"
+  ],
+  "api/traeger/contract-templates/[schoolId]/[offeringId]": [
+    "PUT traeger /traeger/contract-templates/schoolId%2F1/offeringId%2F1"
+  ],
+  "api/traeger/contracts": [
+    "GET traeger /traeger/contracts",
+    "POST traeger /traeger/contracts"
+  ],
+  "api/traeger/contracts/[id]": [
+    "DELETE traeger /traeger/contracts/id%2F1",
+    "GET traeger /traeger/contracts/id%2F1"
+  ],
+  "api/traeger/contracts/candidates": [
+    "GET traeger /traeger/contracts/candidates"
+  ],
+  "api/traeger/contracts/send": [
+    "POST traeger /traeger/contracts/send"
+  ]
+}

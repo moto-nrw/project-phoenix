@@ -3,7 +3,8 @@
 /**
  * Dokumente (#4671): the documents the Träger of the family's OGS sent to
  * this account: the confirmation letters of holiday registrations and the
- * letters of their Storno and Gutschrift (#4690).
+ * letters of their Storno and Gutschrift (#4690), and the care contracts
+ * (#4678).
  * Each one downloads as the stored PDF. The list only reads; the Träger
  * decides what is sent.
  */
@@ -26,6 +27,7 @@ import {
   listMyDocuments,
   type ParentDocument,
 } from "~/lib/parent-api";
+import { careContractsConcept } from "~/lib/concepts/careContracts";
 import { documentsConcept } from "~/lib/concepts/documents";
 
 /** The title of each kind of letter in the inbox (#4690). */
@@ -33,6 +35,7 @@ const DOCUMENT_TITLES = {
   confirmation_letter: "confirmationLetter",
   cancellation_letter: "cancellationLetter",
   credit_letter: "creditLetter",
+  care_contract: "careContract",
 } as const satisfies Record<ParentDocument["kind"], string>;
 
 export function ParentDocumentsPage() {
@@ -109,7 +112,11 @@ function ParentDocumentCard({
   return (
     <ParentSection
       level={2}
-      concept={documentsConcept}
+      concept={
+        document.kind === "care_contract"
+          ? careContractsConcept
+          : documentsConcept
+      }
       title={t(DOCUMENT_TITLES[document.kind], {
         period: document.period_name,
       })}
@@ -126,16 +133,31 @@ function ParentDocumentCard({
         </Button>
       }
     >
-      <DataGrid>
-        <DataField label={t("children")}>
-          {document.child_names.join(", ")}
-        </DataField>
-        <DataField label={t("amount")}>{amount}</DataField>
-        <DataField label={t("number")}>{document.number}</DataField>
-        <DataField label={t("sentAt")}>
-          {formatDate(document.sent_at, false, locale)}
-        </DataField>
-      </DataGrid>
+      {document.kind === "care_contract" ? (
+        <DataGrid>
+          <DataField label={t("children")}>
+            {document.child_names.join(", ")}
+          </DataField>
+          <DataField label={t("offering")}>{document.period_name}</DataField>
+          <DataField label={t("startsOn")}>
+            {formatDate(document.service_from, false, locale)}
+          </DataField>
+          <DataField label={t("sentAt")}>
+            {formatDate(document.sent_at, false, locale)}
+          </DataField>
+        </DataGrid>
+      ) : (
+        <DataGrid>
+          <DataField label={t("children")}>
+            {document.child_names.join(", ")}
+          </DataField>
+          <DataField label={t("amount")}>{amount}</DataField>
+          <DataField label={t("number")}>{document.number}</DataField>
+          <DataField label={t("sentAt")}>
+            {formatDate(document.sent_at, false, locale)}
+          </DataField>
+        </DataGrid>
+      )}
     </ParentSection>
   );
 }
