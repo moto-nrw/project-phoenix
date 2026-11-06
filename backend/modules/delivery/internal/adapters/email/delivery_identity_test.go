@@ -159,3 +159,42 @@ func TestSMTPMailerClassifiesRefusals(t *testing.T) {
 		})
 	}
 }
+
+func TestSMTPMailerClassifiesAddressStatuses(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		status   string
+		rejected bool
+	}{
+		{status: "5.1.0"},                  // Unspecified address error.
+		{status: "5.1.1", rejected: true},  // Bad destination mailbox.
+		{status: "5.1.2", rejected: true},  // Bad destination system.
+		{status: "5.1.3", rejected: true},  // Bad destination syntax.
+		{status: "5.1.4", rejected: true},  // Ambiguous destination mailbox.
+		{status: "5.1.5"},                  // Valid destination address.
+		{status: "5.1.6", rejected: true},  // Moved without forwarding.
+		{status: "5.1.7"},                  // Bad sender syntax.
+		{status: "5.1.8"},                  // Bad sender system.
+		{status: "5.1.9"},                  // Relayed to a non-compliant mailer.
+		{status: "5.1.10", rejected: true}, // Recipient domain has null MX.
+		{status: "5.1.99"},                 // Unknown status must stay retryable.
+	} {
+		for _, stage := range []string{"rcpt", "data", "sender"} {
+			t.Run(tc.status+"/"+stage, func(t *testing.T) {
+				t.Parallel()
+				answer := "550 " + tc.status + " address rejected"
+				answers := map[string]smtpAnswers{
+					"rcpt": {rcptTo: answer}, "data": {dataClose: answer}, "sender": {mailFrom: answer},
+				}
+				client, _ := fakeSMTP(t, answers[stage])
+
+				err := identityMailer(t, client).SendContext(context.Background(), identityMessage())
+
+				require.Error(t, err)
+				rejected := tc.rejected && stage != "sender"
+				assert.Equal(t, rejected, errors.Is(err, mailcontract.ErrPermanentRejection), "permanent")
+				assert.Equal(t, rejected, errors.Is(err, mailcontract.ErrRecipientRejected), "recipient")
+			})
+		}
+	}
+}
