@@ -8,7 +8,7 @@
   "timePicker": {
     "selectTime": "Select time",
     "hour": "Hour",
-    "minute": "Minute",
+    "minute": "Minutes",
     "minimum": "Earliest {time}"
   }
 }
