@@ -139,12 +139,14 @@ func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, gu
 	if len(phones) == 0 {
 		return nil
 	}
-	existing, err := c.Guardians.ListGuardianPhones(ctx, guardianID)
-	if err != nil {
-		return copyErrorf("Telefonnummern laden: %w", err)
-	}
-	if len(existing) != 0 || !c.Transactions.HasTransaction(ctx) {
+	var existing []ports.GuardianPhone
+	if !c.hasNewGuardianPhoneFact(ctx, guardianID, created) {
 		created = nil
+		var err error
+		existing, err = c.Guardians.ListGuardianPhones(ctx, guardianID)
+		if err != nil {
+			return copyErrorf("Telefonnummern laden: %w", err)
+		}
 	}
 	existingNumbers := make(map[string]struct{}, len(existing))
 	for _, phone := range existing {
@@ -174,6 +176,15 @@ func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, gu
 		existingNumbers[phoneData.PhoneNumber] = struct{}{}
 	}
 	return nil
+}
+
+// Only the immediate create result, before any phone writes in the same
+// transaction, proves the list is empty. Reused profiles always read afresh.
+func (c *StudentImportConfig) hasNewGuardianPhoneFact(ctx context.Context, guardianID int64, created *ports.Guardian) bool {
+	return created != nil && !created.ReusedExisting && created.ID > 0 &&
+		created.ID == guardianID && created.TenantID > 0 &&
+		created.TenantID == c.Transactions.TenantID(ctx) &&
+		len(created.PhoneNumbers) == 0 && c.Transactions.HasTransaction(ctx)
 }
 
 // mergeGuardianRelationships links guardians the child does not have yet and

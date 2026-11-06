@@ -35,6 +35,7 @@ func TestStudentImportPhoneGrowthQueryBudget(t *testing.T) {
 				querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.phone_growth.n8", counter.Queries())
 			}
 			require.EqualValues(t, 5*n+1, counter.WriteRows())
+			require.Empty(t, counter.Selects("users.guardian_phone_numbers"), "new guardians need no phone-list or count read before their first number")
 		})
 	}
 }
