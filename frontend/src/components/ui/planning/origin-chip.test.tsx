@@ -11,9 +11,9 @@ describe("OriginChip", () => {
     const chip = screen.getByText("Soll aus Arbeitszeitmodell");
     expect(chip).toBeInTheDocument();
     // Neutral grays only.
-    expect(chip.className).toContain("text-gray-600");
-    expect(chip.className).toContain("border-gray-200");
-    expect(chip.className).toContain("bg-gray-50");
+    expect(chip.className).toContain("text-gray-700");
+    expect(chip.className).toContain("border-gray-300");
+    expect(chip.className).toContain("bg-white");
     expect(chip.className).toContain("rounded-full");
   });
 

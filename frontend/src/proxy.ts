@@ -621,6 +621,7 @@ const TRAEGER_PUBLIC_PATHS = [
   "/schulen",
   "/uebersicht",
   "/stichtagszahlen",
+  "/belegung",
 ];
 
 /** Pages that moved into the settings area (#5685). Bookmarks, help links and

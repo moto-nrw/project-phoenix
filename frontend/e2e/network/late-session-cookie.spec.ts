@@ -27,6 +27,20 @@ const fixtureState = `http://127.0.0.1:${ports.api}/__fixture/switch-state`;
 // runner that alone can take more than 30 s. A hanging logout still fails here.
 const sessionCookieDeletionTimeout = 60_000;
 
+// Compile the revocation route before timing a real logout. Its five-second
+// application deadline must measure a request to a ready handler, not the
+// first Turbopack compilation. Without a session this cannot revoke a family.
+test.beforeAll(async ({ request }) => {
+  const response = await request.post(
+    `http://127.0.0.1:${ports.frontend}/api/auth/logout`,
+    {
+      headers: { host: new URL(source).host },
+      timeout: sessionCookieDeletionTimeout,
+    },
+  );
+  expect(response.status()).toBe(401);
+});
+
 async function isolate(context: BrowserContext) {
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
@@ -57,6 +71,20 @@ async function login(page: Page) {
     .fill(randomBytes(24).toString("hex"));
   await page.getByRole("button", { name: "Anmelden", exact: true }).click();
   await page.waitForURL(`${source}/home`);
+
+  // Compile both parts of the logout flow before the late-response scenario
+  // starts. The CSRF read and non-mutating OPTIONS preflight leave the
+  // still-live session intact.
+  const [csrfStatus, logoutStatus] = await page.evaluate(async () =>
+    Promise.all([
+      fetch("/api/auth/csrf").then((response) => response.status),
+      fetch("/api/auth/logout", { method: "OPTIONS" }).then(
+        (response) => response.status,
+      ),
+    ]),
+  );
+  expect(csrfStatus).toBe(200);
+  expect(logoutStatus).toBe(204);
 }
 
 /** Only cookie metadata and its presence; never its value in evidence. */

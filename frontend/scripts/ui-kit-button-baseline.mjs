@@ -53,14 +53,8 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/portal-bottom-nav.tsx",
-    lines: [134],
-    reason: "Navigationszeile der unteren Leiste",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/parent/shell/parent-bottom-nav.tsx",
-    lines: [184, 222, 269],
-    reason: "Navigationszeilen der unteren Leiste im Elternportal",
+    lines: [393, 432],
+    reason: "Navigationszeilen im „Mehr“-Blatt der unteren Leiste",
   },
   {
     rule: "no-hand-rolled-button",
@@ -101,7 +95,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/auth/auth-shell.tsx",
-    lines: [361],
+    lines: [362],
     reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
   },
   {
@@ -113,19 +107,19 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3112],
+    lines: [3121],
     reason: "Schalter (role=switch)",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/app/operator/provisioning/provisioning-shared.tsx",
-    lines: [209],
+    lines: [218],
     reason: "Schalter (role=switch)",
   },
   {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [856, 889, 989, 1158],
+    lines: [852, 885, 985, 1154],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
@@ -145,7 +139,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1065],
+    lines: [1070],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
@@ -154,12 +148,6 @@ export const buttonRatchetAllowlist = [
     lines: [172],
     reason:
       "Klassenkarte: Kachel. Bleibt ButtonLink, weil TileCard den Seitenwechsel nicht an die Portalhülle meldet",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1343, 1544, 1579],
-    reason: "Navigationszeilen der Seitenleiste und der unteren Leiste",
   },
   {
     rule: "no-hand-rolled-button",
@@ -256,29 +244,15 @@ export const buttonRatchetAllowlist = [
       "Auswahlzeile im Zeitraum-Menü: grau markiert den gewählten Zeitraum",
   },
   {
-    rule: "no-grey-button-fill",
-    file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1579],
-    reason:
-      "Mehr-Eintrag der Handy-Navigation: grau markiert den aktiven Bereich",
-  },
-  {
-    rule: "no-grey-button-fill",
-    file: "src/components/parent/shell/parent-bottom-nav.tsx",
-    lines: [222],
-    reason:
-      "Mehr-Eintrag der Eltern-Navigation: grau markiert den aktiven Bereich",
-  },
-  {
     rule: "no-hand-rolled-button",
     file: "src/app/operator/announcements/page.tsx",
-    lines: [696],
+    lines: [697],
     reason: "Auslöser des Dringlichkeits-Felds, sieht aus wie ein Select",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/app/operator/announcements/page.tsx",
-    lines: [806, 948, 1037],
+    lines: [807, 949, 1038],
     reason: "Auswahlzeilen mit Häkchen (Rollen, Träger, Schulen), kein Knopf",
   },
 ];

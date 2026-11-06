@@ -11,7 +11,6 @@ import {
 import { useSession } from "next-auth/react";
 import { hasSessionAccess } from "~/lib/session-access";
 import { redirect } from "next/navigation";
-import Image from "next/image";
 import { Camera, Pencil } from "lucide-react";
 import {
   useApiErrorDisplay,
@@ -23,6 +22,7 @@ import { updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
 import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
+import { Avatar } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { Input } from "~/components/ui/input";
@@ -38,7 +38,6 @@ import { MessageCountSection } from "~/components/settings/message-count-section
 import { BirthdayVisibilitySection } from "~/components/settings/birthday-visibility-section";
 import { PushNotificationSection } from "~/components/settings/push-notification-section";
 import { OwnQualificationsSection } from "~/components/settings/own-qualifications-section";
-import { getInitials } from "~/lib/format-utils";
 
 const logger = createLogger({ component: "ProfilePage" });
 
@@ -70,6 +69,7 @@ function ProfileContent() {
   // Speicherfehler stehen oben im Bearbeiten-Bereich der Karte, nicht als
   // Toast: Bauart 2 Regel 5. Katalogtext und Wiederholen (#2517).
   const formRef = useRef<HTMLDivElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const formErrors = useApiFormError(formRef);
   // Das Profilbild wird ohne Formular gewechselt: ein Fehler kommt als Toast.
   const { show: showAvatarError } = useApiErrorDisplay();
@@ -180,51 +180,36 @@ function ProfileContent() {
     <TenantPage
       title="Profil"
       stats={[fullName, formData.email].filter(Boolean).join(" · ")}
-      leading={
-        // Das Profilbild sitzt im Kopf der Seite, wie der Avatar auf jeder
-        // Detailseite. Vorher stand es freischwebend über der ersten Karte.
-        <div className="group relative">
-          <div className="bg-moto-green-soft text-moto-green-strong relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-full">
-            {profile?.avatar ? (
-              <Image
-                src={profile.avatar}
-                alt="Profilbild"
-                fill
-                className="object-cover"
-                sizes="56px"
-                priority
-                unoptimized
-              />
-            ) : (
-              <span className="text-lg font-bold">{getInitials(fullName)}</span>
-            )}
-          </div>
-          <label
-            htmlFor="avatar-upload"
-            aria-label="Profilbild ändern"
-            className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
-          >
-            <Camera className="h-5 w-5 text-white" />
-          </label>
+      // Das Profilbild sitzt im Kopf der Seite, wie der Avatar auf jeder
+      // Detailseite. Ändern ist eine Aktion im Kopf: das frühere Hover-Overlay
+      // gab es auf Touch-Geräten gar nicht (#5599).
+      leading={<Avatar imageUrl={profile?.avatar} name={fullName} size="lg" />}
+      actions={
+        <>
           <input
+            ref={avatarInputRef}
             id="avatar-upload"
             type="file"
             accept="image/*"
+            aria-label="Profilbild auswählen"
+            hidden
             onChange={(e) => {
               const file = e.target.files?.[0];
+              e.target.value = "";
               if (file) void handleAvatarChange(file);
             }}
-            className="hidden"
           />
-          <button
+          <Button
             type="button"
-            aria-label="Profilbild ändern"
-            onClick={() => document.getElementById("avatar-upload")?.click()}
-            className="absolute -right-1 -bottom-1 flex h-6 w-6 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:text-gray-900"
+            variant="outline"
+            size="md"
+            className="gap-2"
+            onClick={() => avatarInputRef.current?.click()}
           >
-            <Camera className="h-3 w-3" />
-          </button>
-        </div>
+            <Camera className="h-4 w-4" aria-hidden="true" />
+            Profilbild ändern
+          </Button>
+        </>
       }
     >
       <SectionCard

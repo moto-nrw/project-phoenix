@@ -57,6 +57,12 @@ func NewOpenEnrollments() enrollment.OpenEnrollments {
 	return postgres.NewOpenEnrollmentStore()
 }
 
+// NewBookedChildren ties the approved children of the online enrollment to
+// their student, for the Träger's occupancy (#4676, ADR 0154).
+func NewBookedChildren() enrollment.BookedChildren {
+	return postgres.NewBookedChildStore()
+}
+
 // NewContractApplications reads the accepted application children of a school for the Träger's contracts (#4678, ADR 0153), in that school's tenant transaction.
 func NewContractApplications() enrollment.ContractApplications {
 	return postgres.NewContractApplicationStore()

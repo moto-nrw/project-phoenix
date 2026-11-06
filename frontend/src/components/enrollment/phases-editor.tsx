@@ -22,6 +22,7 @@ import {
   Power,
   Trash2,
 } from "lucide-react";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { TranslationsSection } from "~/components/enrollment/translations-section";
@@ -766,14 +767,19 @@ export function PhasesEditor() {
             <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
               <span>{KIND_LABELS[phase.kind]}</span>
               {phase.audience && phase.audience !== "open" ? (
-                <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium">
-                  {AUDIENCE_BADGE_LABELS[phase.audience]}
-                </span>
+                <StatusBadge
+                  tone="blue"
+                  size="xs"
+                  label={AUDIENCE_BADGE_LABELS[phase.audience]}
+                />
               ) : null}
               {(phase.eligible_grade_levels ?? []).length > 0 ? (
-                <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium">
-                  {`Nur Klassenstufe ${(phase.eligible_grade_levels ?? []).join(", ")}`}
-                </span>
+                <StatusBadge
+                  tone="blue"
+                  size="xs"
+                  wrap
+                  label={`Nur Klassenstufe ${(phase.eligible_grade_levels ?? []).join(", ")}`}
+                />
               ) : null}
             </p>
           </div>

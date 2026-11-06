@@ -127,7 +127,7 @@ export function getDeviceStatusDisplayName(status: string): string {
     offline: "Offline",
   };
 
-  return statusMap[status] ?? status;
+  return Object.hasOwn(statusMap, status) ? statusMap[status]! : status;
 }
 
 /**

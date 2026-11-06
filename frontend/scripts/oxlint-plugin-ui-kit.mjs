@@ -6,7 +6,6 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
-import { pillRatchetBaseline } from "./ui-kit-pill-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
@@ -59,6 +58,8 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //
 //   ui-kit/no-hand-rolled-dot       — dots and colour bars by hand outside
 //                                     src/components/ui/; hard-zero
+//   ui-kit/no-hand-rolled-portal-nav — sidebar and bottom bar of a portal only
+//                                     from the kit; hard-zero (#5603)
 //   ui-kit/no-status-dot-outside-plans — StatusDot only in legends and plans
 //
 // Three more catch classes that never render or miss contrast (#5577):
@@ -70,6 +71,14 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     Tailwind never generates them
 //   ui-kit/no-white-on-warm-fill    — no white text on orange (SCHOOLYARD) or
 //                                     amber (WARNING) fills
+//
+// Two more keep uploads and copyable values on the kit (#5599), hard-zero:
+//
+//   ui-kit/no-hand-rolled-dropzone  — no onDrop outside ui/dropzone.tsx; use
+//                                     Dropzone
+//   ui-kit/no-hand-rolled-copy-field — no framed <code> value and no
+//                                     navigator.clipboard outside the kit and
+//                                     useClipboardCopy; use CopyField
 //
 // One more keeps form fields on the kit (#5217):
 //
@@ -95,7 +104,7 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     also inside src/components/ui/; use
 //                                     IconTile or ConceptIconTile
 //
-// Three more are the shrink-only pill ratchet (#5584):
+// Three more keep one pill (#5584, hard-zero):
 //
 //   ui-kit/no-hand-rolled-pill      — tinted `span` pills outside StatusBadge
 //   ui-kit/no-pill-dot              — a dot inside a pill (#2476)
@@ -1101,25 +1110,19 @@ const TINY_TEXT_RE = /\btext-\[(?:9|10|11)px\]/g;
 const TINY_TEXT_BASELINE_FILES = new Set([
   "src/app/[tenant]/(protected)/calendar/page.tsx",
   "src/app/[tenant]/(protected)/meal-plan/page.tsx",
-  "src/app/[tenant]/(protected)/time-tracking/page.tsx",
   "src/app/[tenant]/(protected)/time-tracking/week-chart.tsx",
   "src/app/help/nfc/erste-schritte/page.tsx",
   "src/app/operator/provisioning/soft-delete-shared.tsx",
   "src/components/auth/role-permission-management-modal.tsx",
-  "src/components/calendar/personal-calendar.tsx",
   "src/components/dashboard/header/reminders-bell.tsx",
   "src/components/dashboard/sidebar.tsx",
   "src/components/enrollment/admin-enrollments-list.tsx",
-  "src/components/enrollment/enrollment-form-editor.tsx",
   "src/components/enrollment/enrollment-form.tsx",
-  "src/components/enrollment/phases-editor.tsx",
   "src/components/files/files-page.tsx",
   "src/components/guardians/guardian-contact-actions.tsx",
   "src/components/guardians/guardian-list.tsx",
   "src/components/parent/calendar/parent-calendar-page.tsx",
-  "src/components/parent/parent-enroll-picker.tsx",
   "src/components/parent/parent-meal-plan-page.tsx",
-  "src/components/planning/closing-day-marker.tsx",
   "src/components/staff/absence-request-row.tsx",
   "src/components/staff/dienstplan-resource-grid.tsx",
   "src/components/staff/staff-session-table.tsx",
@@ -1141,40 +1144,31 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/timetable/substitution-slide-over.tsx",
   "src/components/timetable/template-card.tsx",
   "src/components/timetable/vertretung-day-list.tsx",
-  "src/components/timetable/vertretung-week-list.tsx",
   "src/components/timetable/weekly-calendar-grid.tsx",
   "src/components/ui/avatar.tsx",
   "src/components/ui/planning/coverage-indicator.tsx",
   "src/components/ui/location-badge.tsx",
   "src/components/ui/notification-badge.tsx",
-  "src/components/ui/planning/origin-chip.tsx",
   "src/components/ui/page-header/FilterButton.tsx",
   "src/components/ui/page-header/OverflowMenu.tsx",
-  "src/components/ui/parent-visible-badge.tsx",
   "src/components/ui/planning/plan-block.tsx",
   "src/components/ui/planning/plan-legend.tsx",
   "src/components/ui/presence-badge.tsx",
 ]);
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
-src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1337 text-[11px]@1337 text-[10px]@1341 text-[10px]@1350 text-[11px]@1350
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@219 text-[11px]@263
-src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
+src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@231
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
-src/components/calendar/personal-calendar.tsx|text-[11px]@907 text-[11px]@935 text-[11px]@1022 text-[11px]@1083 text-[11px]@1091 text-[11px]@1097 text-[11px]@1144 text-[11px]@1150 text-[10px]@1166 text-[11px]@1215 text-[11px]@1295 text-[11px]@1306 text-[11px]@1311
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@43 text-[10px]@99
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978 text-[11px]@997
-src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1471
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
-src/components/enrollment/phases-editor.tsx|text-[11px]@769 text-[11px]@774
 src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@378
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@744 text-[11px]@809
-src/components/parent/parent-enroll-picker.tsx|text-[11px]@228 text-[11px]@232
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
-src/components/planning/closing-day-marker.tsx|text-[10px]@54
 src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@584 text-[11px]@593 text-[11px]@600
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
@@ -1183,32 +1177,29 @@ src/components/students/planned-status-days-modal.tsx|text-[10px]@936 text-[11px
 src/components/students/school-checkin-fab.tsx|text-[10px]@199
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@374
-src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@481 text-[11px]@525
-src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@148 text-[10px]@301 text-[11px]@307
+src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@529
+src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@149 text-[11px]@310
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
-src/components/timetable/gap-jump-list.tsx|text-[10px]@109 text-[11px]@132 text-[11px]@147
+src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[10px]@325 text-[9px]@442 text-[9px]@1076 text-[11px]@1390 text-[11px]@1416 text-[11px]@1592 text-[10px]@1701 text-[11px]@1724
+src/components/timetable/instance-detail-modal.tsx|text-[11px]@1359 text-[11px]@1385 text-[11px]@1561 text-[10px]@1670 text-[11px]@1693
 src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 text-[11px]@152 text-[11px]@173 text-[9px]@204 text-[10px]@238
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@199 text-[10px]@215 text-[11px]@224 text-[10px]@266 text-[10px]@290 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@404 text-[11px]@471
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
-src/components/timetable/substitution-slide-over.tsx|text-[10px]@579 text-[9px]@584 text-[11px]@743 text-[11px]@747 text-[10px]@787 text-[10px]@791 text-[10px]@795 text-[10px]@799 text-[11px]@1241
-src/components/timetable/template-card.tsx|text-[11px]@130 text-[11px]@144 text-[10px]@208
+src/components/timetable/substitution-slide-over.tsx|text-[11px]@747 text-[11px]@751
+src/components/timetable/template-card.tsx|text-[11px]@131 text-[10px]@201
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
-src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@456 text-[11px]@456 text-[11px]@461 text-[10px]@484 text-[10px]@519 text-[11px]@519
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
-src/components/ui/location-badge.tsx|text-[11px]@122 text-[11px]@123 text-[10px]@295 text-[10px]@322
+src/components/ui/location-badge.tsx|text-[10px]@282
 src/components/ui/notification-badge.tsx|text-[10px]@15
-src/components/ui/planning/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
 src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@463 text-[11px]@535
-src/components/ui/parent-visible-badge.tsx|text-[11px]@44
 src/components/ui/planning/plan-block.tsx|text-[11px]@154 text-[11px]@175
 src/components/ui/planning/plan-legend.tsx|text-[11px]@106
-src/components/ui/presence-badge.tsx|text-[11px]@83 text-[11px]@84 text-[10px]@239
+src/components/ui/presence-badge.tsx|text-[10px]@200
 `);
 
 const noTinyText = makeClassStringRule({
@@ -2268,7 +2259,7 @@ const noGreyButtonFill = makeRatchetRule({
   }),
 });
 
-// --- Pillen-Ratchet (#5584) --------------------------------------------------
+// --- Pillen (#5584) -----------------------------------------------------------
 
 const PILL_KIT_FILE = "src/components/ui/status-badge.tsx";
 const PILL_RADIUS_RE = /^rounded-(?:full|md)$/;
@@ -2352,17 +2343,17 @@ function pillClassText(node, textOf) {
   return isPillShape(text) ? text : null;
 }
 
-function makePillRatchetRule(options) {
+// Hard-zero: der Bestand ist abgebaut, jede neue Stelle schlägt fehl.
+function makePillRule(options) {
   return makeRatchetRule({
     ...options,
-    baselines: pillRatchetBaseline,
+    baselines: {},
     allowlist: [],
-    countEnv: "UI_KIT_PILL_RATCHET",
     kitFile: PILL_KIT_FILE,
   });
 }
 
-const noHandRolledPill = makePillRatchetRule({
+const noHandRolledPill = makePillRule({
   ruleName: "no-hand-rolled-pill",
   description:
     "Build status pills from StatusBadge, StatusColorBadge or DataTableStatusBadge instead of a hand-styled span.",
@@ -2380,7 +2371,7 @@ const noHandRolledPill = makePillRatchetRule({
   }),
 });
 
-const noPillDot = makePillRatchetRule({
+const noPillDot = makePillRule({
   ruleName: "no-pill-dot",
   description: "Disallow a decorative dot inside a status pill (#2476).",
   message:
@@ -2512,7 +2503,7 @@ const noStatusDotOutsidePlans = {
   },
 };
 
-const noHexAlphaTint = makePillRatchetRule({
+const noHexAlphaTint = makePillRule({
   ruleName: "no-hex-alpha-tint",
   description:
     "Disallow `${color}1A`-style hex alpha tints in a pill's style; the kit tone carries the tint.",
@@ -2969,6 +2960,99 @@ function readKitExportNames() {
   return names;
 }
 
+// Die Klassen, an denen sich ein Nachbau der Portal-Navigation verrät (#5603).
+// Jede steht nur in portal-bottom-nav.tsx oder portal-sidebar.tsx.
+const PORTAL_NAV_SHELL_SIGNATURES = [
+  ["shadow-[0_-2px_20px_rgba(0,0,0,0.08)]"],
+  ["absolute", "top-0", "h-full", "rounded-full", "bg-gray-100"],
+  ["flex", "min-h-[44px]", "justify-center", "gap-2.5", "rounded-full"],
+  ["border-r", "border-gray-200/70", "bg-white/95"],
+  ["top-[73px]", "h-[calc(100vh-73px)]"],
+  ["top-[121px]", "h-[calc(100vh-121px)]"],
+  ["top-[153px]", "h-[calc(100vh-153px)]"],
+];
+const PORTAL_NAV_KIT_ROW_EXPORTS = new Set([
+  "PORTAL_ICON_CLASSES",
+  "portalSidebarRowClasses",
+]);
+
+function hasPortalNavShellSignature(text) {
+  const tokens = new Set(text.split(/\s+/));
+  return PORTAL_NAV_SHELL_SIGNATURES.some((signature) =>
+    signature.every((token) => tokens.has(token)),
+  );
+}
+
+const noHandRolledPortalNav = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Sidebar and bottom bar of a portal exist once, in the UI kit (#5603).",
+    },
+    messages: {
+      shell:
+        "Keine eigene Portal-Navigation: PortalSidebar, PortalSidebarFrame oder PortalBottomNav aus dem Kit nehmen (#5603, .claude/rules/frontend-ui-kit.md).",
+      row: "`{{name}}` gehört in die Kit-Zeilen: PortalSidebarLink oder PortalSidebarButton nehmen (#5603, .claude/rules/frontend-ui-kit.md).",
+    },
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (
+      !key.startsWith("src/") ||
+      EXEMPT_FILE_RE.test(key) ||
+      key.startsWith(UI_KIT_DIR)
+    ) {
+      return {};
+    }
+    const sourceCode = context.sourceCode ?? context.getSourceCode();
+    const check = (node, text) => {
+      if (typeof text !== "string") return;
+      if (hasPortalNavShellSignature(text)) {
+        context.report({ node, messageId: "shell" });
+      }
+    };
+    return {
+      Literal: (node) => check(node, node.value),
+      TemplateLiteral(node) {
+        const chunks = [];
+        collectStaticStrings(node, chunks);
+        const combinations = classCombinations(
+          node,
+          new WeakSet(),
+          sourceCode,
+        ) ?? [chunks.join(" ")];
+        const rendered = combinations?.find(hasPortalNavShellSignature);
+        if (rendered !== undefined) check(node, rendered);
+      },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some(hasPortalNavShellSignature)) return;
+        const combinations = classCombinations(
+          node.value,
+          new WeakSet(),
+          sourceCode,
+        ) ?? [chunks.join(" ")];
+        const rendered = combinations.find(hasPortalNavShellSignature);
+        if (rendered !== undefined) check(node, rendered);
+      },
+      ImportSpecifier(node) {
+        const name = node.imported?.name;
+        if (PORTAL_NAV_KIT_ROW_EXPORTS.has(name)) {
+          context.report({ node, messageId: "row", data: { name } });
+        }
+      },
+    };
+  },
+};
+
 let kitExportNames;
 
 const noShadowKitName = {
@@ -3180,6 +3264,87 @@ const noHandRolledWeekdayToggle = kitInputRule({
   }),
 });
 
+// ui-kit/no-hand-rolled-dropzone und ui-kit/no-hand-rolled-copy-field (#5599).
+// Eine Ablagefläche besteht aus Zieh-Zustand, Dateiauswahl und Tastaturweg; die
+// sechs Eigenbauten unterschieden sich genau darin. Ein Kopierfeld hat zwei
+// Erkennungszeichen: der gerahmte <code>-Wert und der direkte Griff zur
+// Zwischenablage, an dem Rückmeldung und Fehlerweg hängen.
+const DROPZONE_FILE = "src/components/ui/dropzone.tsx";
+const CLIPBOARD_ALLOWED_RE =
+  /^src\/(?:components\/ui\/copy-field\.tsx|lib\/use-clipboard-copy\.ts)$/;
+
+const noHandRolledDropzone = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "Disallow hand-built drop areas; use the kit Dropzone.",
+    },
+    messages: {
+      handRolled:
+        "Eine Ablagefläche kommt aus dem Kit: Dropzone aus ~/components/ui/dropzone (#5599).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || key === DROPZONE_FILE) return {};
+    return {
+      JSXAttribute(node) {
+        if (node.name?.name === "onDrop") {
+          context.report({ node, messageId: "handRolled" });
+        }
+      },
+    };
+  },
+};
+
+const noHandRolledCopyField = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow hand-built copy fields and direct clipboard writes; use CopyField or useClipboardCopy.",
+    },
+    messages: {
+      framedCode:
+        "Ein gerahmter Wert zum Kopieren kommt aus dem Kit: CopyField aus ~/components/ui/copy-field (#5599).",
+      rawClipboard:
+        "Kein direkter Griff zur Zwischenablage: CopyField oder useClipboardCopy, dort hängen Rückmeldung und Fehlerweg (#5599).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || CLIPBOARD_ALLOWED_RE.test(key)) return {};
+    return {
+      JSXOpeningElement(node) {
+        if (node.name?.name !== "code") return;
+        const className = node.attributes.find(
+          (attribute) => attribute.name?.name === "className",
+        )?.value?.value;
+        if (
+          typeof className === "string" &&
+          /(?:^|\s)border(?:\s|$)/.test(className) &&
+          /(?:^|\s)rounded(?:-\w+)?(?:\s|$)/.test(className)
+        ) {
+          context.report({ node, messageId: "framedCode" });
+        }
+      },
+      MemberExpression(node) {
+        const owner = node.object?.property ?? node.object;
+        if (
+          owner?.name === "navigator" &&
+          node.property?.name === "clipboard"
+        ) {
+          context.report({ node, messageId: "rawClipboard" });
+        }
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
@@ -3190,12 +3355,15 @@ export default {
     "no-generic-brand-colors": noGenericBrandColors,
     "no-grey-button-fill": noGreyButtonFill,
     "no-hand-rolled-button": noHandRolledButton,
+    "no-hand-rolled-copy-field": noHandRolledCopyField,
     "no-hand-rolled-dot": noHandRolledDot,
+    "no-hand-rolled-dropzone": noHandRolledDropzone,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
     "no-hand-rolled-number-stepper": noHandRolledNumberStepper,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
     "no-hand-rolled-pill": noHandRolledPill,
+    "no-hand-rolled-portal-nav": noHandRolledPortalNav,
     "no-hand-rolled-removable-chip": noHandRolledRemovableChip,
     "no-hand-rolled-surface": noHandRolledSurface,
     "no-hand-rolled-weekday-toggle": noHandRolledWeekdayToggle,

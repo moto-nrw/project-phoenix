@@ -253,6 +253,9 @@
 [data-nav-scene="PresentationChartIcon"] .ns-bar{transform-origin:0 152px} .ns-play[data-nav-scene="PresentationChartIcon"] .ns-bar{animation:ns-bar 360ms var(--ns-o) calc(var(--ns-i,0)*90ms) both}
 @keyframes ns-bar{0%{transform:scaleY(0)}65%{transform:scaleY(1.2)}100%{transform:none}}
 
+/* ChartBarIcon: die Balken füllen sich nacheinander */
+[data-nav-scene="ChartBarIcon"] .ns-bar{transform-origin:0 208px} .ns-play[data-nav-scene="ChartBarIcon"] .ns-bar{animation:ns-bar 360ms var(--ns-o) calc(var(--ns-i,0)*90ms) both}
+
 /* QuestionIcon: das Fragezeichen wundert sich */
 [data-nav-scene="QuestionIcon"] .ns-wonder{transform-origin:128px 144px} .ns-play[data-nav-scene="QuestionIcon"] .ns-wonder{animation:ns-wonder 520ms var(--ns-o) both}
 @keyframes ns-wonder{0%,100%{transform:none}25%{transform:rotate(-18deg)}55%{transform:rotate(14deg)}80%{transform:rotate(-5deg)}}

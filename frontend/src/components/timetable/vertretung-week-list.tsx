@@ -27,6 +27,7 @@ import {
 } from "~/components/ui/planning/coverage-indicator";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   classifyInstances,
   VertretungRowList,
@@ -154,9 +155,7 @@ export function VertretungWeekList({
                     {formatDayHeader(day)}
                   </span>
                   {iso === todayISO && (
-                    <span className="rounded-full bg-gray-900 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                      Heute
-                    </span>
+                    <StatusBadge label="Heute" tone="gray" size="xs" />
                   )}
                 </span>
                 <CoverageIndicator
