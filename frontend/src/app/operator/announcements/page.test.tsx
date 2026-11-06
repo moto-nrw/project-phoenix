@@ -250,23 +250,37 @@ describe("OperatorAnnouncementsPage", () => {
 
     render(<OperatorAnnouncementsPage />);
 
-    expect(screen.getByText("Keine Ankündigungen")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Keine Ankündigungen. Erstellen Sie eine neue Ankündigung, um Nutzer zu informieren.",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Neue Ankündigung" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Filter zurücksetzen" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("keeps one create action in the header when filters find nothing", () => {
+  it("offers resetting the status filter when it finds nothing", () => {
     render(<OperatorAnnouncementsPage />);
 
     fireEvent.change(screen.getByTestId("filter-status"), {
       target: { value: "published" },
     });
 
-    expect(screen.getByText("Keine Ankündigungen")).toBeInTheDocument();
+    expect(
+      screen.getByText("Keine Ankündigungen mit dem Status „Veröffentlicht“"),
+    ).toBeInTheDocument();
     expect(
       screen.getAllByRole("button", { name: "Neue Ankündigung" }),
     ).toHaveLength(1);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Filter zurücksetzen" }),
+    );
+
+    expect(screen.getByText("Test Announcement")).toBeInTheDocument();
   });
 
   it("renders announcements list", () => {

@@ -104,7 +104,9 @@ export default function OperatorAnnouncementsPage() {
   const { show: showDeleteError, clear: clearDeleteError } = deleteErrors;
   const publishErrors = useApiFormError();
   const { show: showPublishError, clear: clearPublishError } = publishErrors;
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | keyof typeof ANNOUNCEMENT_STATUS_LABELS
+  >("all");
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Announcement | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
@@ -462,7 +464,10 @@ export default function OperatorAnnouncementsPage() {
       label: "Status",
       type: "dropdown",
       value: statusFilter,
-      onChange: (value) => setStatusFilter(value as string),
+      onChange: (value) =>
+        setStatusFilter(
+          value as "all" | keyof typeof ANNOUNCEMENT_STATUS_LABELS,
+        ),
       options: [
         { value: "all", label: "Alle" },
         ...Object.entries(ANNOUNCEMENT_STATUS_LABELS).map(([value, label]) => ({
@@ -472,6 +477,36 @@ export default function OperatorAnnouncementsPage() {
       ],
     },
   ];
+
+  const emptyState =
+    !isLoading &&
+    !announcementsError &&
+    !organizationsError &&
+    !schoolsError &&
+    announcements !== undefined &&
+    filteredAnnouncements.length === 0
+      ? statusFilter === "all"
+        ? {
+            title: "Keine Ankündigungen",
+            description:
+              "Erstellen Sie eine neue Ankündigung, um Nutzer zu informieren.",
+          }
+        : {
+            title: `Keine Ankündigungen mit dem Status „${ANNOUNCEMENT_STATUS_LABELS[statusFilter]}“`,
+            description:
+              "Wählen Sie einen anderen Status oder setzen Sie den Filter zurück.",
+            action: (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => setStatusFilter("all")}
+              >
+                Filter zurücksetzen
+              </Button>
+            ),
+          }
+      : null;
 
   return (
     <TenantPage
@@ -502,6 +537,7 @@ export default function OperatorAnnouncementsPage() {
       }
       loading={isLoading && !announcementsError}
       loadingLabel="Ankündigungen werden geladen"
+      empty={emptyState}
       overlays={
         <>
           {/* Create/Edit Form Modal */}
@@ -1076,33 +1112,6 @@ export default function OperatorAnnouncementsPage() {
         <LoadErrorAlert error={organizationsLoadError} />
         <LoadErrorAlert error={schoolsLoadError} />
       </div>
-
-      {!isLoading &&
-        !announcementsError &&
-        announcements !== undefined &&
-        filteredAnnouncements.length === 0 && (
-          <div className="flex flex-col items-center gap-3 py-12 text-center">
-            <svg
-              className="h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"
-              />
-            </svg>
-            <p className="text-lg font-medium text-gray-900">
-              Keine Ankündigungen
-            </p>
-            <p className="text-sm text-gray-500">
-              Erstellen Sie eine neue Ankündigung, um Nutzer zu informieren.
-            </p>
-          </div>
-        )}
 
       {!isLoading && filteredAnnouncements.length > 0 && (
         <LayoutGroup>
