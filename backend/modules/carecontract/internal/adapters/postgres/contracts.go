@@ -40,6 +40,15 @@ type versionRow struct {
 	CreatedAt              time.Time      `bun:"created_at"`
 }
 
+const versionColumns = `id, version_number, status, effective_from, ends_on, child_first_name, child_last_name,
+	child_birth_date, school_name, offering_name, phase_name, booked_days, price_cents, term_kind, term_months,
+	notice_months, notice_to, special_termination, special_termination_note, statute_required, statute_title,
+	statute_url, contract_partner, created_at`
+
+// currentVersionSQL reads the newest version of a contract.
+const currentVersionSQL = `SELECT ` + versionColumns + ` FROM care_contract.contract_versions
+	WHERE organization_id = ? AND contract_id = ? ORDER BY version_number DESC LIMIT 1`
+
 func (r versionRow) version() carecontract.Version {
 	days := r.BookedDays
 	if days == nil {
@@ -86,8 +95,7 @@ func (Store) Contract(ctx context.Context, organizationID, contractID int64, for
 		return ports.ContractRecord{}, fmt.Errorf("care contract postgres: read contract: %w", err)
 	}
 	var version versionRow
-	if err := db.NewRaw(`SELECT * FROM care_contract.contract_versions WHERE organization_id = ? AND contract_id = ?
-		ORDER BY version_number DESC LIMIT 1`, organizationID, contractID).Scan(ctx, &version); err != nil {
+	if err := db.NewRaw(currentVersionSQL, organizationID, contractID).Scan(ctx, &version); err != nil {
 		return ports.ContractRecord{}, fmt.Errorf("care contract postgres: read version: %w", err)
 	}
 	var parties []struct {

@@ -734,6 +734,16 @@ Wirkdatum: gebuchte Leistungen, Zeiten und der Preis, der beim Anlegen der
 Version galt. Jede Änderung erzeugt eine neue Version; spätere Tarifänderungen ändern
 keine bestehende Version.
 
+## Vertragsvorlage
+
+Eine **Vertragsvorlage** legt fest, was ein Betreuungsvertrag für ein Angebot
+einer Schule enthält: Laufzeit, Kündigungsfrist, Sonderkündigung,
+Satzungsbestätigung und Vertragspartner. Ein Vertrag kopiert diese Angaben in
+seine Version; eine spätere Änderung der Vorlage ändert keinen Vertrag. Den
+Brieftext legt die Vorlage der Dokumentart „Vertrag“ fest (ADR 0152).
+_Vermeiden_: Vertragsmuster, Briefvorlage (das ist der Text, nicht die
+Bedingungen).
+
 ## Betreuungsort
 
 Der **Betreuungsort** eines Betreuungsvertrags ist die OGS, in der das Kind
@@ -1070,13 +1080,13 @@ Ein **Fachmodul** ist der Teil des Backends, der einen fachlichen Begriff von
 moto mit seinen Regeln und Daten besitzt. Ein **Plattformmodul** stellt eine
 gemeinsame Laufzeit bereit, etwa Mandanten, Transaktionen, Sicherheit oder
 Zustellung, und besitzt nicht die fachliche Bedeutung dessen, was es
-transportiert. moto hat 19 Fachmodule und 10 Plattformmodule:
+transportiert. moto hat 20 Fachmodule und 10 Plattformmodule:
 
 - Fachmodule: Identity & Access, People Directory, School Membership,
   Organisation & Tenancy, School Structure, School Calendar, Facilities,
   Enrollment, Care Plan, Timetable & Activities, Student Presence, Workforce,
   Appointments, Communication, Device Fleet, Meal Plan, Feedback, File Storage,
-  Elternabrechnung (ADR 0088).
+  Elternabrechnung und Betreuungsvertrag (ADR 0088).
 - Plattformmodule: Tenant Runtime, Transaction Runtime, Security Runtime,
   Settings Platform, Delivery Platform, Observability, Audit Platform,
   Scheduler Runtime, Document Rendering, Export Transfer.

@@ -241,6 +241,23 @@ func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64
 	})
 }
 
+// OwnTraegerCareContracts removes the care contracts of the Träger, their
+// templates and trail and the Träger's mails (#4678) when the test ends. The
+// rows carry no tenant, so the tenant cleanup does not reach them.
+func OwnTraegerCareContracts(tb testing.TB, db *bun.DB, organizationID int64) {
+	tb.Helper()
+	// The contract letter reads the master data, which logs the read.
+	OwnTraegerMasterData(tb, db, organizationID)
+	tb.Cleanup(func() {
+		for _, table := range []string{
+			"care_contract.contracts", "care_contract.contract_templates", "care_contract.contract_events", "platform.email_outbox",
+		} {
+			_, err := db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)
+			require.NoError(tb, err, "Failed to clean up test care contract rows")
+		}
+	})
+}
+
 // OwnTraegerMasterData removes the master data a test creates for the Träger
 // (#4653) when the test ends: profile, bank accounts and their log. The rows
 // carry no tenant, so they need their own exact-key teardown like the
