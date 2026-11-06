@@ -89,6 +89,7 @@ var tableRetentions = map[string]tableRetention{
 	"care_contract.contract_mailings":                       parent("care_contract.contract_documents"),
 	"care_contract.contract_parties":                        parent("care_contract.contracts"),
 	"care_contract.contract_templates":                      notPersonal("contract terms of one offering of a Träger (#4678): term, notice, special termination, statute and contracting party, no person"),
+	"care_contract.contract_version_services":               parent("care_contract.contract_versions"),
 	"care_contract.contract_versions":                       parent("care_contract.contracts"),
 	"care_contract.contracts":                               own("a care contract stays when the application and the child it came from go (ADR 0088 section 9, ADR 0153); a draft goes when the Träger-Büro discards it; every contract goes with platform.organizations when the Träger is erased after its export (#4657); the period of a single contract follows with #4720"),
 	"platform.organization_accounts":                        parent("auth.accounts"),

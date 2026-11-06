@@ -76,35 +76,46 @@ func (in *Intake) Candidates(ctx context.Context, reviewer carecontract.Reviewer
 		return nil, err
 	}
 	var existing map[ContractKey]bool
-	var templated map[[2]int64]bool
+	var templates templateIndex
 	err = in.runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(txCtx context.Context) error {
 		var err error
 		if existing, err = in.store.ContractKeys(txCtx, reviewer.OrganizationID, schoolIDs(schools)); err != nil {
 			return err
 		}
-		templated, err = in.templatedOfferings(txCtx, reviewer.OrganizationID)
+		templates, err = in.templateIndex(txCtx, reviewer.OrganizationID)
 		return err
 	})
 	if err != nil {
 		return nil, fmt.Errorf("care contract: read contracts: %w", err)
 	}
-	candidates := collectCandidates(reads, existing, templated, in.today())
+	candidates := collectCandidates(reads, existing, templates, in.today())
 	sortCandidates(candidates)
 	return candidates, nil
 }
 
-// collectCandidates keeps every current booking without a contract.
-func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templated map[[2]int64]bool, today calendar.Date) []carecontract.Candidate {
+// collectCandidates keeps every accepted application child with booked care
+// and no contract.
+func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templates templateIndex, today calendar.Date) []carecontract.Candidate {
 	candidates := []carecontract.Candidate{}
 	for _, read := range reads {
 		for _, application := range read.applications {
-			for _, booking := range currentBookings(application.Bookings, today) {
-				key := ContractKey{SchoolID: read.school.ID, RequestChildID: application.RequestChildID, CareOfferingID: booking.CareOfferingID}
-				if offering, ok := read.offerings[booking.CareOfferingID]; ok && !existing[key] {
-					candidates = append(candidates, candidate(read.school, application, booking, offering,
-						templated[[2]int64{read.school.ID, offering.ID}], today))
-				}
+			key := ContractKey{SchoolID: read.school.ID, RequestChildID: application.RequestChildID}
+			booked := bookedCare(read, application, today)
+			if existing[key] || len(booked.services) == 0 {
+				continue
 			}
+			_, issue := templates.terms(read.school.ID, booked.offerings)
+			candidates = append(candidates, carecontract.Candidate{
+				CandidateKey:   carecontract.CandidateKey{SchoolID: read.school.ID, RequestChildID: application.RequestChildID},
+				SchoolName:     read.school.Name,
+				ChildFirstName: application.ChildFirstName, ChildLastName: application.ChildLastName,
+				GuardianName:  fullName(application.GuardianFirstName, application.GuardianLastName),
+				GuardianEmail: application.GuardianEmail,
+				PhaseName:     firstText(booked.phaseName, application.PhaseName),
+				Services:      booked.services,
+				EffectiveFrom: booked.effectiveFrom(application, today),
+				TemplateIssue: issue,
+			})
 		}
 	}
 	return candidates
@@ -113,23 +124,8 @@ func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templa
 func sortCandidates(candidates []carecontract.Candidate) {
 	slices.SortStableFunc(candidates, func(a, b carecontract.Candidate) int {
 		return firstNonZero(strings.Compare(a.SchoolName, b.SchoolName), strings.Compare(a.ChildLastName, b.ChildLastName),
-			strings.Compare(a.ChildFirstName, b.ChildFirstName), compareIDs(a.CareOfferingID, b.CareOfferingID))
+			strings.Compare(a.ChildFirstName, b.ChildFirstName), compareIDs(a.RequestChildID, b.RequestChildID))
 	})
-}
-
-func candidate(school carecontract.School, application carecontract.Application, booking carecontract.Booking,
-	offering carecontract.Offering, hasTemplate bool, today calendar.Date) carecontract.Candidate {
-	return carecontract.Candidate{
-		CandidateKey:   carecontract.CandidateKey{SchoolID: school.ID, RequestChildID: application.RequestChildID, CareOfferingID: offering.ID},
-		SchoolName:     school.Name,
-		ChildFirstName: application.ChildFirstName, ChildLastName: application.ChildLastName,
-		GuardianName:  fullName(application.GuardianFirstName, application.GuardianLastName),
-		GuardianEmail: application.GuardianEmail,
-		OfferingName:  offering.Name, PhaseName: offering.PhaseName,
-		BookedDays:    orderedDays(booking.Days),
-		EffectiveFrom: effectiveFrom(application, booking, today),
-		HasTemplate:   hasTemplate,
-	}
 }
 
 // CreateContracts creates a draft for every key with a template and no
@@ -173,13 +169,9 @@ func (in *Intake) CreateContracts(ctx context.Context, reviewer carecontract.Rev
 
 func (in *Intake) create(ctx context.Context, reviewer carecontract.Reviewer, keys []carecontract.CandidateKey, reads []schoolRead) (carecontract.CreateResult, error) {
 	result := carecontract.CreateResult{Created: []carecontract.ContractSummary{}, Skipped: []carecontract.CreateSkip{}}
-	rows, err := in.store.Templates(ctx, reviewer.OrganizationID)
+	templates, err := in.templateIndex(ctx, reviewer.OrganizationID)
 	if err != nil {
 		return result, err
-	}
-	templates := map[[2]int64]carecontract.Template{}
-	for _, row := range rows {
-		templates[[2]int64{row.SchoolID, row.OfferingID}] = row.Template
 	}
 	existing, err := in.store.ContractKeys(ctx, reviewer.OrganizationID, readSchoolIDs(reads))
 	if err != nil {
@@ -203,7 +195,7 @@ func (in *Intake) create(ctx context.Context, reviewer carecontract.Reviewer, ke
 		schoolID := key.SchoolID
 		if err := in.store.InsertEvents(ctx, reviewer.OrganizationID, []Event{{
 			ContractID: &id, SchoolID: &schoolID, AccountID: reviewer.AccountID, Action: ActionCreate,
-			Details: map[string]any{"request_child_id": key.RequestChildID, "care_offering_id": key.CareOfferingID},
+			Details: map[string]any{"request_child_id": key.RequestChildID, "care_offering_ids": draftOfferings(draft)},
 		}}); err != nil {
 			return result, err
 		}
@@ -216,10 +208,11 @@ func (in *Intake) create(ctx context.Context, reviewer carecontract.Reviewer, ke
 	return result, nil
 }
 
-// draft builds the draft of one key, or names why there is none.
-func (in *Intake) draft(key carecontract.CandidateKey, reads []schoolRead, templates map[[2]int64]carecontract.Template,
+// draft builds the draft of one key over every module the child books, or
+// names why there is none.
+func (in *Intake) draft(key carecontract.CandidateKey, reads []schoolRead, templates templateIndex,
 	existing map[ContractKey]bool, today calendar.Date) (NewContract, string) {
-	contractKey := ContractKey{SchoolID: key.SchoolID, RequestChildID: key.RequestChildID, CareOfferingID: key.CareOfferingID}
+	contractKey := ContractKey{SchoolID: key.SchoolID, RequestChildID: key.RequestChildID}
 	if existing[contractKey] {
 		return NewContract{}, carecontract.SkipContractExists
 	}
@@ -228,31 +221,24 @@ func (in *Intake) draft(key carecontract.CandidateKey, reads []schoolRead, templ
 		return NewContract{}, carecontract.SkipNotFound
 	}
 	index := slices.IndexFunc(read.applications, func(a carecontract.Application) bool { return a.RequestChildID == key.RequestChildID })
-	offering, offered := read.offerings[key.CareOfferingID]
-	if index < 0 || !offered {
+	if index < 0 {
 		return NewContract{}, carecontract.SkipNotFound
 	}
 	application := read.applications[index]
-	bookings := currentBookings(application.Bookings, today)
-	at := slices.IndexFunc(bookings, func(b carecontract.Booking) bool { return b.CareOfferingID == key.CareOfferingID })
-	if at < 0 {
+	booked := bookedCare(read, application, today)
+	if len(booked.services) == 0 {
 		return NewContract{}, carecontract.SkipNotFound
 	}
-	template, ok := templates[[2]int64{key.SchoolID, key.CareOfferingID}]
-	if !ok {
-		return NewContract{}, carecontract.SkipTemplateMissing
+	terms, issue := templates.terms(key.SchoolID, booked.offerings)
+	if issue != "" {
+		return NewContract{}, issue
 	}
-	booking := bookings[at]
-	from := effectiveFrom(application, booking, today)
+	from := booked.effectiveFrom(application, today)
 	version := carecontract.Version{
-		Number: 1, Status: carecontract.VersionRequested, EffectiveFrom: from, EndsOn: endsOn(template.TemplateInput, from, booking),
+		Number: 1, Status: carecontract.VersionRequested, EffectiveFrom: from, EndsOn: endsOn(terms, from, booked.until),
 		ChildFirstName: application.ChildFirstName, ChildLastName: application.ChildLastName, ChildBirthDate: application.ChildBirthDate,
-		SchoolName: read.school.Name, OfferingName: offering.Name, PhaseName: firstText(offering.PhaseName, application.PhaseName),
-		BookedDays: orderedDays(booking.Days), Terms: template.TemplateInput,
-	}
-	if offering.PriceCents != nil {
-		price := int64(*offering.PriceCents)
-		version.PriceCents = &price
+		SchoolName: read.school.Name, PhaseName: firstText(booked.phaseName, application.PhaseName),
+		Services: booked.services, PriceCents: booked.price, Terms: terms,
 	}
 	return NewContract{
 		Key: contractKey, StudentID: application.StudentID, Version: version,
@@ -261,6 +247,16 @@ func (in *Intake) draft(key carecontract.CandidateKey, reads []schoolRead, templ
 			Email: strings.TrimSpace(application.GuardianEmail), AccountID: application.GuardianAccountID,
 		},
 	}, ""
+}
+
+func draftOfferings(draft NewContract) []int64 {
+	ids := []int64{}
+	for _, service := range draft.Version.Services {
+		if !slices.Contains(ids, service.CareOfferingID) {
+			ids = append(ids, service.CareOfferingID)
+		}
+	}
+	return ids
 }
 
 // Templates lists every offering of the Träger's schools with its template.
@@ -466,16 +462,16 @@ func (in *Intake) offerings(ctx context.Context, ids []int64) ([]carecontract.Of
 	return in.applications.NamePhases(ctx, offerings)
 }
 
-func (in *Intake) templatedOfferings(ctx context.Context, organizationID int64) (map[[2]int64]bool, error) {
+func (in *Intake) templateIndex(ctx context.Context, organizationID int64) (templateIndex, error) {
 	rows, err := in.store.Templates(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[[2]int64]bool, len(rows))
+	index := make(templateIndex, len(rows))
 	for _, row := range rows {
-		result[[2]int64{row.SchoolID, row.OfferingID}] = true
+		index[[2]int64{row.SchoolID, row.OfferingID}] = row.Template.TemplateInput
 	}
-	return result, nil
+	return index, nil
 }
 
 func offeringTemplate(school carecontract.School, offering carecontract.Offering, template *carecontract.Template) carecontract.OfferingTemplate {
@@ -485,86 +481,9 @@ func offeringTemplate(school carecontract.School, offering carecontract.Offering
 	}
 }
 
-// currentBookings keeps per offering the booking that holds today or starts
-// later, the earliest of them; ended bookings drop out.
-func currentBookings(bookings []carecontract.Booking, today calendar.Date) []carecontract.Booking {
-	chosen := map[int64]carecontract.Booking{}
-	order := []int64{}
-	for _, booking := range bookings {
-		if booking.ValidUntil != nil && !booking.ValidUntil.After(today) {
-			continue
-		}
-		previous, seen := chosen[booking.CareOfferingID]
-		if !seen {
-			order = append(order, booking.CareOfferingID)
-		}
-		if !seen || startsBefore(booking.ValidFrom, previous.ValidFrom) {
-			chosen[booking.CareOfferingID] = booking
-		}
-	}
-	result := make([]carecontract.Booking, 0, len(order))
-	for _, id := range order {
-		result = append(result, chosen[id])
-	}
-	return result
-}
-
-func startsBefore(a, b *calendar.Date) bool {
-	switch {
-	case a == nil:
-		return b != nil
-	case b == nil:
-		return false
-	}
-	return a.Before(*b)
-}
-
-// effectiveFrom is the date the contract takes effect: the start of the
-// booking, else the activation of the child, else the start of the service
-// of the phase, else today.
-func effectiveFrom(application carecontract.Application, booking carecontract.Booking, today calendar.Date) calendar.Date {
-	for _, date := range []*calendar.Date{booking.ValidFrom, application.ActivateOn, application.ServiceStartDate} {
-		if date != nil && !date.IsZero() {
-			return *date
-		}
-	}
-	return today
-}
-
-// endsOn is the last day of a contract with a fixed term: the day before
-// the term's months have passed, or the booking's end when it comes first.
-// An open or school-year term ends with the booking, if at all.
-func endsOn(terms carecontract.TemplateInput, from calendar.Date, booking carecontract.Booking) *calendar.Date {
-	var end *calendar.Date
-	if booking.ValidUntil != nil {
-		last := booking.ValidUntil.AddDays(-1)
-		end = &last
-	}
-	if terms.TermKind == carecontract.TermFixedMonths && terms.TermMonths != nil {
-		last := addMonths(from, *terms.TermMonths).AddDays(-1)
-		if end == nil || last.Before(*end) {
-			end = &last
-		}
-	}
-	if end != nil && end.Before(from) {
-		return nil
-	}
-	return end
-}
-
 func addMonths(date calendar.Date, months int) calendar.Date {
 	instant := date.BerlinMidnight()
 	return calendar.DateFromTime(instant.AddDate(0, months, 0))
-}
-
-func orderedDays(days []string) []string {
-	result := []string{}
-	for _, day := range weekdayOrder {
-		if slices.Contains(days, day) {
-			result = append(result, day)
-		}
-	}
-	return result
 }
 
 func bookedOfferingIDs(applications []carecontract.Application) []int64 {
@@ -607,7 +526,7 @@ func findRead(reads []schoolRead, schoolID int64) (schoolRead, bool) {
 func uniqueKeys(keys []carecontract.CandidateKey) []carecontract.CandidateKey {
 	result := make([]carecontract.CandidateKey, 0, len(keys))
 	for _, key := range keys {
-		if key.SchoolID > 0 && key.RequestChildID > 0 && key.CareOfferingID > 0 && !slices.Contains(result, key) {
+		if key.SchoolID > 0 && key.RequestChildID > 0 && !slices.Contains(result, key) {
 			result = append(result, key)
 		}
 	}

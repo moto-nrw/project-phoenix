@@ -35,7 +35,7 @@ const DRAFT: CareContractSummary = {
   schoolName: "OGS Am Lindenhof",
   childFirstName: "Lina",
   childLastName: "Muster",
-  offeringName: "Offene Ganztagsschule",
+  moduleNames: ["Offene Ganztagsschule"],
   partyName: "Erika Muster",
   partyEmail: "erika@example.org",
   effectiveFrom: "2027-08-01",
@@ -54,17 +54,28 @@ const SENT: CareContractSummary = {
 const CANDIDATE: ContractCandidate = {
   schoolId: "3",
   requestChildId: "41",
-  careOfferingId: "5",
   schoolName: "OGS Am Lindenhof",
   childFirstName: "Mia",
   childLastName: "Kern",
   guardianName: "Paula Kern",
   guardianEmail: "paula@example.org",
-  offeringName: "Offene Ganztagsschule",
   phaseName: "2027/28",
-  bookedDays: ["mon", "wed"],
+  services: [
+    {
+      weekday: "mon",
+      careOfferingId: "5",
+      moduleName: "Kurzbetreuung",
+      endsAt: "14:00",
+    },
+    {
+      weekday: "tue",
+      careOfferingId: "6",
+      moduleName: "Ganztag",
+      endsAt: "16:30",
+    },
+  ],
   effectiveFrom: "2027-08-01",
-  hasTemplate: true,
+  templateIssue: null,
 };
 
 function renderPage() {
@@ -89,8 +100,13 @@ describe("TraegerVertraegePage", () => {
         ...CANDIDATE,
         requestChildId: "42",
         childFirstName: "Tom",
-        careOfferingId: "6",
-        hasTemplate: false,
+        templateIssue: "template_missing",
+      },
+      {
+        ...CANDIDATE,
+        requestChildId: "43",
+        childFirstName: "Ida",
+        templateIssue: "templates_differ",
       },
     ]);
   });
@@ -102,11 +118,11 @@ describe("TraegerVertraegePage", () => {
     expect(screen.getAllByText("Entwurf")[0]).toBeInTheDocument();
     expect(screen.getAllByText("Versendet")[0]).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Verträge erstellen \(2\)/ }),
+      screen.getByRole("button", { name: /Verträge erstellen \(3\)/ }),
     ).toBeInTheDocument();
   });
 
-  it("creates drafts only for offerings with conditions", async () => {
+  it("creates one draft per child over its modules, only with equal conditions", async () => {
     api.createCareContracts.mockResolvedValue({
       created: [DRAFT],
       skipped: [],
@@ -116,9 +132,18 @@ describe("TraegerVertraegePage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Verträge erstellen/ }));
     expect(
-      await screen.findByText(/Für 1 Kind fehlen die Vertragsbedingungen/),
+      await screen.findByText(
+        /Für 1 Kind fehlen die Vertragsbedingungen eines Moduls\. Bei 1 Kind haben die gebuchten Module verschiedene Bedingungen\./,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Tom Kern auswählen")).toBeDisabled();
+    expect(screen.getByLabelText("Ida Kern auswählen")).toBeDisabled();
+    expect(
+      screen.getByText("Bedingungen der Module weichen ab"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Mo bis 14:00 · Di bis 16:30")[0],
+    ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "1 Entwurf erstellen" }),
     );

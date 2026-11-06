@@ -52,24 +52,38 @@ export interface OfferingTemplate {
   readonly template: ContractTemplate | null;
 }
 
+/** One contract per accepted application child at its school. */
 export interface CandidateKey {
   readonly schoolId: string;
   readonly requestChildId: string;
-  readonly careOfferingId: string;
 }
 
-/** An accepted application child with a booked offering and no contract. */
+/**
+ * One booked service: on a weekday the module (a care offering) and its end
+ * time "HH:MM", empty when the module has none. A weekday without a service
+ * has no care; a weekday may carry several modules.
+ */
+export interface ContractService {
+  readonly weekday: Weekday;
+  readonly careOfferingId: string;
+  readonly moduleName: string;
+  readonly endsAt: string;
+}
+
+/** Why no draft can be made for a candidate yet. */
+export type TemplateIssue = "template_missing" | "templates_differ";
+
+/** An accepted application child with booked care and no contract. */
 export interface ContractCandidate extends CandidateKey {
   readonly schoolName: string;
   readonly childFirstName: string;
   readonly childLastName: string;
   readonly guardianName: string;
   readonly guardianEmail: string;
-  readonly offeringName: string;
   readonly phaseName: string;
-  readonly bookedDays: readonly Weekday[];
+  readonly services: readonly ContractService[];
   readonly effectiveFrom: string;
-  readonly hasTemplate: boolean;
+  readonly templateIssue: TemplateIssue | null;
 }
 
 export interface CareContractSummary {
@@ -79,7 +93,7 @@ export interface CareContractSummary {
   readonly schoolName: string;
   readonly childFirstName: string;
   readonly childLastName: string;
-  readonly offeringName: string;
+  readonly moduleNames: readonly string[];
   readonly partyName: string;
   readonly partyEmail: string;
   readonly effectiveFrom: string;
@@ -101,9 +115,8 @@ export interface CareContractDetail extends CareContractSummary {
     readonly endsOn: string | null;
     readonly childBirthDate: string | null;
     readonly schoolName: string;
-    readonly offeringName: string;
     readonly phaseName: string;
-    readonly bookedDays: readonly Weekday[];
+    readonly services: readonly ContractService[];
     readonly priceCents: number | null;
     readonly terms: ContractTerms;
     readonly createdAt: string;
@@ -123,7 +136,7 @@ export interface CareContractDetail extends CareContractSummary {
 }
 
 type CreateSkipReason =
-  "template_missing" | "contract_exists" | "application_not_found";
+  TemplateIssue | "contract_exists" | "application_not_found";
 
 export interface CreateResult {
   readonly created: readonly CareContractSummary[];
@@ -177,20 +190,25 @@ interface BackendOfferingTemplate {
   template: BackendTemplate | null;
 }
 
+interface BackendService {
+  weekday: Weekday;
+  care_offering_id: number;
+  module_name: string;
+  ends_at: string;
+}
+
 interface BackendCandidate {
   school_id: number;
   request_child_id: number;
-  care_offering_id: number;
   school_name: string;
   child_first_name: string;
   child_last_name: string;
   guardian_name: string;
   guardian_email: string;
-  offering_name: string;
   phase_name: string;
-  booked_days: Weekday[] | null;
+  services: BackendService[] | null;
   effective_from: string;
-  has_template: boolean;
+  template_issue: TemplateIssue | "";
 }
 
 interface BackendSummary {
@@ -200,7 +218,7 @@ interface BackendSummary {
   school_name: string;
   child_first_name: string;
   child_last_name: string;
-  offering_name: string;
+  module_names: string[] | null;
   party_name: string;
   party_email: string;
   effective_from: string;
@@ -215,9 +233,8 @@ interface BackendDetail extends BackendSummary {
     ends_on: string | null;
     child_birth_date: string | null;
     school_name: string;
-    offering_name: string;
     phase_name: string;
-    booked_days: Weekday[] | null;
+    services: BackendService[] | null;
     price_cents: number | null;
     terms: BackendTerms;
     created_at: string;
@@ -284,21 +301,28 @@ function offeringFromBackend(row: BackendOfferingTemplate): OfferingTemplate {
   };
 }
 
+function servicesFromBackend(rows: BackendService[] | null): ContractService[] {
+  return (rows ?? []).map((row) => ({
+    weekday: row.weekday,
+    careOfferingId: String(row.care_offering_id),
+    moduleName: row.module_name,
+    endsAt: row.ends_at,
+  }));
+}
+
 function candidateFromBackend(row: BackendCandidate): ContractCandidate {
   return {
     schoolId: String(row.school_id),
     requestChildId: String(row.request_child_id),
-    careOfferingId: String(row.care_offering_id),
     schoolName: row.school_name,
     childFirstName: row.child_first_name,
     childLastName: row.child_last_name,
     guardianName: row.guardian_name,
     guardianEmail: row.guardian_email,
-    offeringName: row.offering_name,
     phaseName: row.phase_name,
-    bookedDays: row.booked_days ?? [],
+    services: servicesFromBackend(row.services),
     effectiveFrom: row.effective_from,
-    hasTemplate: row.has_template,
+    templateIssue: row.template_issue === "" ? null : row.template_issue,
   };
 }
 
@@ -310,7 +334,7 @@ function summaryFromBackend(row: BackendSummary): CareContractSummary {
     schoolName: row.school_name,
     childFirstName: row.child_first_name,
     childLastName: row.child_last_name,
-    offeringName: row.offering_name,
+    moduleNames: row.module_names ?? [],
     partyName: row.party_name,
     partyEmail: row.party_email,
     effectiveFrom: row.effective_from,
@@ -328,9 +352,8 @@ function detailFromBackend(row: BackendDetail): CareContractDetail {
       endsOn: row.version.ends_on,
       childBirthDate: row.version.child_birth_date,
       schoolName: row.version.school_name,
-      offeringName: row.version.offering_name,
       phaseName: row.version.phase_name,
-      bookedDays: row.version.booked_days ?? [],
+      services: servicesFromBackend(row.version.services),
       priceCents: row.version.price_cents,
       terms: termsFromBackend(row.version.terms),
       createdAt: row.version.created_at,
@@ -354,7 +377,6 @@ function keyToBackend(key: CandidateKey) {
   return {
     school_id: Number(key.schoolId),
     request_child_id: Number(key.requestChildId),
-    care_offering_id: Number(key.careOfferingId),
   };
 }
 
@@ -395,7 +417,6 @@ export async function createCareContracts(
     skipped: (body?.skipped ?? []).map((skip) => ({
       schoolId: String(skip.school_id),
       requestChildId: String(skip.request_child_id),
-      careOfferingId: String(skip.care_offering_id),
       reason: skip.reason,
     })),
   };

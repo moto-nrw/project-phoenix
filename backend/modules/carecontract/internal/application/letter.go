@@ -2,6 +2,7 @@ package application
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -57,7 +58,10 @@ func contractLetter(record ContractRecord, head carecontract.Letterhead) Letter 
 	version := record.Version
 	filled := templates.Fill(letterTemplate(head.Template), letterValues(record, head))
 	blocks := letterBlocks(filled.Blocks)
-	blocks = append(blocks, LetterBlock{Heading: "Vertragsangaben", Text: "Das gilt für diesen Vertrag:", Facts: termFacts(version, head)})
+	blocks = append(blocks,
+		LetterBlock{Heading: "Vertragsangaben", Text: "Das gilt für diesen Vertrag:", Facts: termFacts(version, head)},
+		LetterBlock{Heading: "Gebuchte Betreuung", Text: "An diesen Tagen ist Ihr Kind in der Betreuung:", Facts: ServiceFacts(version.Services)},
+	)
 	if version.Terms.SpecialTermination {
 		blocks = append(blocks, LetterBlock{Heading: "Sonderkündigung", Text: strings.TrimSpace(version.Terms.SpecialTerminationNote)})
 	}
@@ -123,7 +127,7 @@ func letterValues(record ContractRecord, head carecontract.Letterhead) map[strin
 		"traeger":        text(firstLine(textLines(head.SenderText))),
 		"ansprechperson": text(head.ContactName),
 		"rueckfragen":    text(questionText(head)),
-		"angebot":        text(version.OfferingName),
+		"angebot":        text(joinGerman(ModuleNames(version.Services))),
 		"betreuungsort":  text(version.SchoolName),
 		"vertragsbeginn": text(germanDate(version.EffectiveFrom)),
 		"summe":          {},
@@ -148,8 +152,6 @@ func termFacts(version carecontract.Version, head carecontract.Letterhead) []Let
 	}
 	facts = append(facts,
 		LetterFact{Label: "Betreuungsort", Value: version.SchoolName},
-		LetterFact{Label: "Angebot", Value: version.OfferingName},
-		LetterFact{Label: "Betreuungstage", Value: DayList(version.BookedDays)},
 		LetterFact{Label: "Beginn", Value: germanDate(version.EffectiveFrom)},
 		LetterFact{Label: "Laufzeit", Value: TermText(terms, version.EndsOn)},
 	)
@@ -169,17 +171,48 @@ func termFacts(version carecontract.Version, head carecontract.Letterhead) []Let
 	return kept
 }
 
-// DayList names the booked weekdays in German, in weekday order.
-func DayList(days []string) string {
-	names := []string{}
-	for _, day := range weekdayOrder {
-		for _, booked := range days {
-			if booked == day {
-				names = append(names, weekdayNames[day])
+// ServiceFacts is one row per weekday Monday to Friday, and Saturday or
+// Sunday when booked: the modules of the day with their end times, or
+// "keine Betreuung".
+func ServiceFacts(services []carecontract.Service) []LetterFact {
+	facts := []LetterFact{}
+	for i, day := range weekdayOrder {
+		parts := []string{}
+		for _, service := range services {
+			if service.Weekday == day {
+				parts = append(parts, ServiceText(service))
 			}
 		}
+		if len(parts) == 0 && i >= 5 {
+			continue
+		}
+		value := "keine Betreuung"
+		if len(parts) > 0 {
+			value = joinGerman(parts)
+		}
+		facts = append(facts, LetterFact{Label: weekdayNames[day], Value: value})
 	}
-	return joinGerman(names)
+	return facts
+}
+
+// ServiceText names one module of a day with its end time.
+func ServiceText(service carecontract.Service) string {
+	if service.EndsAt == "" {
+		return service.ModuleName
+	}
+	return service.ModuleName + " bis " + service.EndsAt + " Uhr"
+}
+
+// ModuleNames lists the modules of the services once each, in the order of
+// their first day.
+func ModuleNames(services []carecontract.Service) []string {
+	names := []string{}
+	for _, service := range services {
+		if !slices.Contains(names, service.ModuleName) {
+			names = append(names, service.ModuleName)
+		}
+	}
+	return names
 }
 
 // TermText names the term of a contract.

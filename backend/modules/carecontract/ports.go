@@ -47,7 +47,9 @@ type Application struct {
 	Bookings          []Booking
 }
 
-// Offering is a care offering of one school.
+// Offering is a care offering of one school. A contract books it as a
+// module: on each weekday the child ends at the offering's end time of that
+// day ("HH:MM", the Gehzeit), if the offering has one.
 type Offering struct {
 	ID         int64
 	PhaseID    int64
@@ -55,6 +57,7 @@ type Offering struct {
 	PhaseName  string
 	PriceCents *int
 	Active     bool
+	EndTimes   map[string]string
 }
 
 // SchoolAccess is one read of personal data of a school by the Träger-Büro,

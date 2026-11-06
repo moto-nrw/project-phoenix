@@ -26,13 +26,18 @@ func init() {
 //   - contract_templates: the contract template of a Träger for one care
 //     offering of one of its schools, with term, notice period, special
 //     termination, statute confirmation and the contracting party.
-//   - contracts: one contract per child of an accepted application and
-//     offering (the key of ADR 0088 section 6), at one place of care, with
-//     its status. The status names every state of ADR 0088 section 2; this
+//   - contracts: one contract per child of an accepted application (the
+//     key of ADR 0088 section 6), at one place of care, with its status. It
+//     covers every care offering (module) the child books at that school.
+//     The status names every state of ADR 0088 section 2; this
 //     migration's code only reaches entwurf and versendet. Only a draft may
 //     be discarded by the request role.
-//   - contract_versions: the frozen copy of child, booked days, price, terms
-//     and effective date. The request role adds versions, never changes them.
+//   - contract_versions: the frozen copy of child, monthly price, terms and
+//     effective date. The request role adds versions, never changes them.
+//   - contract_version_services: the booked services of a version, one row
+//     per weekday and module with the module's end time on that day. A
+//     weekday without a row is a day without care. The tariffs of #4684
+//     price each weekday and module from these rows.
 //   - contract_parties: the parents who are party to the contract, with an
 //     optional parents' account.
 //   - contract_documents: the PDF of a version, rendered once at the first
@@ -89,21 +94,20 @@ CREATE TABLE care_contract.contracts (
 	organization_id BIGINT NOT NULL REFERENCES platform.organizations(id) ON DELETE CASCADE,
 	school_id BIGINT NOT NULL,
 	request_child_id BIGINT NOT NULL,
-	care_offering_id BIGINT NOT NULL,
 	student_id BIGINT,
 	status VARCHAR(16) NOT NULL DEFAULT 'entwurf',
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	created_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 	sent_at TIMESTAMPTZ,
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT uq_contracts_application UNIQUE (school_id, request_child_id, care_offering_id),
+	CONSTRAINT uq_contracts_application UNIQUE (school_id, request_child_id),
 	CONSTRAINT uq_contracts_organization UNIQUE (organization_id, id),
 	CONSTRAINT chk_contracts_status CHECK (status IN ('entwurf', 'versendet', 'unterschrieben', 'aktiv', 'beendet')),
 	CONSTRAINT chk_contracts_sent CHECK (status = 'entwurf' OR sent_at IS NOT NULL)
 );
 CREATE INDEX idx_contracts_organization_status ON care_contract.contracts (organization_id, status, school_id);
 COMMENT ON TABLE care_contract.contracts IS
-	'Care contract of a Träger from the accepted application of a child for one offering (#4678, ADR 0088, ADR 0153).';
+	'Care contract of a Träger from the accepted application of a child (#4678, ADR 0088, ADR 0153).';
 
 CREATE TABLE care_contract.contract_versions (
 	id BIGSERIAL PRIMARY KEY,
@@ -117,9 +121,7 @@ CREATE TABLE care_contract.contract_versions (
 	child_last_name TEXT NOT NULL,
 	child_birth_date DATE,
 	school_name TEXT NOT NULL,
-	offering_name TEXT NOT NULL,
 	phase_name TEXT NOT NULL DEFAULT '',
-	booked_days TEXT[] NOT NULL DEFAULT '{}',
 	price_cents BIGINT,
 	term_kind VARCHAR(16) NOT NULL,
 	term_months SMALLINT,
@@ -144,6 +146,23 @@ CREATE TABLE care_contract.contract_versions (
 );
 COMMENT ON TABLE care_contract.contract_versions IS
 	'Frozen version of a care contract with its effective date (#4678, ADR 0088, ADR 0153); never changed by the request role.';
+
+CREATE TABLE care_contract.contract_version_services (
+	id BIGSERIAL PRIMARY KEY,
+	organization_id BIGINT NOT NULL,
+	contract_version_id BIGINT NOT NULL,
+	weekday VARCHAR(3) NOT NULL,
+	care_offering_id BIGINT NOT NULL,
+	module_name TEXT NOT NULL,
+	ends_at TIME,
+	CONSTRAINT fk_contract_version_services_version FOREIGN KEY (organization_id, contract_version_id)
+		REFERENCES care_contract.contract_versions (organization_id, id) ON DELETE CASCADE,
+	CONSTRAINT uq_contract_version_services_day UNIQUE (contract_version_id, weekday, care_offering_id),
+	CONSTRAINT chk_contract_version_services_weekday CHECK (weekday IN ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')),
+	CONSTRAINT chk_contract_version_services_module CHECK (BTRIM(module_name) <> '')
+);
+COMMENT ON TABLE care_contract.contract_version_services IS
+	'Booked services of a contract version: per weekday the module and its end time (#4678, ADR 0153); a weekday without a row has no care.';
 
 CREATE TABLE care_contract.contract_parties (
 	id BIGSERIAL PRIMARY KEY,
@@ -238,6 +257,11 @@ ALTER TABLE care_contract.contract_versions FORCE ROW LEVEL SECURITY;
 CREATE POLICY traeger_isolation_care_contract_contract_versions ON care_contract.contract_versions FOR ALL
 	USING (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint)
 	WITH CHECK (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint);
+ALTER TABLE care_contract.contract_version_services ENABLE ROW LEVEL SECURITY;
+ALTER TABLE care_contract.contract_version_services FORCE ROW LEVEL SECURITY;
+CREATE POLICY traeger_isolation_care_contract_contract_version_services ON care_contract.contract_version_services FOR ALL
+	USING (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint)
+	WITH CHECK (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint);
 ALTER TABLE care_contract.contract_parties ENABLE ROW LEVEL SECURITY;
 ALTER TABLE care_contract.contract_parties FORCE ROW LEVEL SECURITY;
 CREATE POLICY traeger_isolation_care_contract_contract_parties ON care_contract.contract_parties FOR ALL
@@ -274,15 +298,15 @@ CREATE POLICY traeger_delete_care_contract_draft ON care_contract.contracts FOR 
 	USING (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint AND status = 'entwurf');
 
 REVOKE ALL ON care_contract.contract_templates, care_contract.contracts, care_contract.contract_versions,
-	care_contract.contract_parties, care_contract.contract_documents, care_contract.contract_mailings,
+	care_contract.contract_version_services, care_contract.contract_parties, care_contract.contract_documents, care_contract.contract_mailings,
 	care_contract.contract_events FROM PUBLIC;
 GRANT SELECT, INSERT, UPDATE ON care_contract.contract_templates TO phoenix_tenant;
 GRANT SELECT, INSERT, DELETE ON care_contract.contracts TO phoenix_tenant;
 GRANT UPDATE (status, sent_at, student_id) ON care_contract.contracts TO phoenix_tenant;
-GRANT SELECT, INSERT ON care_contract.contract_versions, care_contract.contract_parties,
+GRANT SELECT, INSERT ON care_contract.contract_versions, care_contract.contract_version_services, care_contract.contract_parties,
 	care_contract.contract_documents, care_contract.contract_mailings, care_contract.contract_events TO phoenix_tenant;
 GRANT USAGE ON SEQUENCE care_contract.contract_templates_id_seq, care_contract.contracts_id_seq,
-	care_contract.contract_versions_id_seq, care_contract.contract_parties_id_seq, care_contract.contract_documents_id_seq,
+	care_contract.contract_versions_id_seq, care_contract.contract_version_services_id_seq, care_contract.contract_parties_id_seq, care_contract.contract_documents_id_seq,
 	care_contract.contract_mailings_id_seq, care_contract.contract_events_id_seq TO phoenix_tenant;
 GRANT ALL ON ALL TABLES IN SCHEMA care_contract TO phoenix_admin;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA care_contract TO phoenix_admin;

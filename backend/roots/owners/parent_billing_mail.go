@@ -46,7 +46,7 @@ func careContractMailRenderer(render carecontract.ContractMailRenderer, defaultF
 			Subject: mail.Subject, Template: mail.Template,
 			Content: map[string]any{
 				"GuardianName": mail.Content.GuardianName, "SchoolName": mail.Content.TraegerName,
-				"ChildName": mail.Content.ChildName, "OfferingName": mail.Content.OfferingName,
+				"ChildName": mail.Content.ChildName, "Modules": mail.Content.Modules,
 			},
 			Attachments: []email.Attachment{{Filename: mail.Filename, ContentType: "application/pdf", Data: mail.PDF}},
 		}, nil

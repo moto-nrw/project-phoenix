@@ -21,7 +21,7 @@
     "module": "care-contract",
     "contract_package": "modules/carecontract",
     "test_file": "modules/carecontract/compose/public_contract_test.go",
-    "test": "TestPublicCareContractCreatesOneDraftPerChildAndOfferingAndFreezesItsPDFAtTheFirstSend"
+    "test": "TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtTheFirstSend"
   },
   {
     "module": "communication",

@@ -16,6 +16,7 @@ import {
   CONTRACT_STATUS_TONES,
   SEND_SKIP_LABELS,
   childName,
+  formatModules,
 } from "~/components/traeger/care-contract-format";
 import { careContractTabs } from "~/components/traeger/care-contract-tabs";
 import { Button } from "~/components/ui/button";
@@ -76,7 +77,7 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
           {childName(contract)}
         </NavigationLink>
         <span className="block text-sm text-gray-500">
-          {contract.offeringName}
+          {formatModules(contract.moduleNames)}
           <span className="sm:hidden">
             {" "}
             · ab {formatDate(contract.effectiveFrom)}
@@ -150,7 +151,7 @@ function matchesSearch(contract: CareContractSummary, search: string): boolean {
     contract.childLastName,
     contract.partyName,
     contract.partyEmail,
-    contract.offeringName,
+    ...contract.moduleNames,
   ]
     .join(" ")
     .toLocaleLowerCase("de-DE");
@@ -210,11 +211,6 @@ export default function TraegerVertraegePage() {
   const drafts = data?.list.counts.entwurf ?? 0;
   const sentCount = data?.list.counts.versendet ?? 0;
   const candidates = data?.candidates ?? [];
-  const missingConditions = new Set(
-    candidates
-      .filter((candidate) => !candidate.hasTemplate)
-      .map((candidate) => `${candidate.schoolId}:${candidate.careOfferingId}`),
-  ).size;
   const selectedDrafts = contracts.filter(
     (contract) => selected.has(contract.id) && contract.status === "entwurf",
   );
@@ -331,8 +327,8 @@ export default function TraegerVertraegePage() {
   return (
     <TenantPage
       title="Verträge"
-      info="Hier erstellen Sie Betreuungsverträge aus den angenommenen Anmeldungen Ihrer Schulen. moto übernimmt Kind, Eltern, Tage und Beginn. Sie prüfen den Entwurf und senden ihn per Mail und in die Eltern-App."
-      tabs={careContractTabs("vertraege", missingConditions)}
+      info="Hier erstellen Sie Betreuungsverträge aus den angenommenen Anmeldungen Ihrer Schulen. moto übernimmt Kind, Eltern, Beginn und die gebuchten Module je Wochentag. Sie prüfen den Entwurf und senden ihn per Mail und in die Eltern-App."
+      tabs={careContractTabs("vertraege")}
       stats={
         contracts.length > 0 || candidates.length > 0 ? (
           <TenantPageStats

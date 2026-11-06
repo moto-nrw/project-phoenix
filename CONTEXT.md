@@ -731,15 +731,26 @@ Schule), Betreuungsvereinbarung.
 
 Eine **Vertragsversion** ist der Inhalt eines Betreuungsvertrags ab einem
 Wirkdatum: gebuchte Leistungen, Zeiten und der Preis, der beim Anlegen der
-Version galt. Jede Änderung erzeugt eine neue Version; spätere Tarifänderungen ändern
-keine bestehende Version.
+Version galt. Die gebuchten Leistungen stehen je Wochentag: das Modul mit
+seiner Endzeit, oder keine Betreuung. Jede Änderung erzeugt eine neue Version;
+spätere Tarifänderungen ändern keine bestehende Version.
+
+## Modul
+
+Ein **Modul** ist ein Betreuungsangebot einer Schule, das ein Kind an einem
+Wochentag bucht, mit seiner Endzeit an diesem Tag (Gehzeit des Angebots), zum
+Beispiel „Kurzbetreuung bis 14:00 Uhr“. Ein Betreuungsvertrag umfasst alle
+Module eines Kindes an seinem Betreuungsort; ein Tag kann mehrere tragen (Früh-
+und Nachmittagsbetreuung). Der Monatsbeitrag rechnet je Wochentag und Modul.
+_Vermeiden_: Zeitband, Paket.
 
 ## Vertragsvorlage
 
 Eine **Vertragsvorlage** legt fest, was ein Betreuungsvertrag für ein Angebot
-einer Schule enthält: Laufzeit, Kündigungsfrist, Sonderkündigung,
+(Modul) einer Schule enthält: Laufzeit, Kündigungsfrist, Sonderkündigung,
 Satzungsbestätigung und Vertragspartner. Ein Vertrag kopiert diese Angaben in
-seine Version; eine spätere Änderung der Vorlage ändert keinen Vertrag. Den
+seine Version; eine spätere Änderung der Vorlage ändert keinen Vertrag. Bucht
+ein Kind mehrere Module, müssen ihre Vorlagen gleich sein. Den
 Brieftext legt die Vorlage der Dokumentart „Vertrag“ fest (ADR 0152).
 _Vermeiden_: Vertragsmuster, Briefvorlage (das ist der Text, nicht die
 Bedingungen).

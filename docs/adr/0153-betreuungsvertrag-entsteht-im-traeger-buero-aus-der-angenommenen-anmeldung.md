@@ -25,8 +25,16 @@ und hält fest, was er in den Registern ändert (ADR 0057 Punkt 5, ADR 0070).
 - Die Vorlage der Dokumentart „Vertrag“ mit Platzhaltern gibt es seit #4677
   (ADR 0152). Mails des Trägers mit PDF im Anhang gibt es seit ADR 0123, das
   Postfach der Eltern-App seit ADR 0126.
-- Die Form der Unterschrift ist rechtlich offen (#4679). Abschluss bei der
-  Annahme (Weg b, #4680), Änderung (#4681) und Kündigung (#4682) folgen.
+- Beim SJR Pforzheim bucht eine Familie Tage einzeln und über Module hinweg:
+  Montag bis 14:00, Dienstag bis 16:30, Mittwoch keine Betreuung, dazu
+  getrennte Früh- und Nachmittagsbetreuung (SJR-Abgleich vom 06.11.2026,
+  Zeile 1, ergänzt in #4678). In moto ist ein Modul ein Betreuungsangebot der
+  Schule mit seiner Gehzeit je Wochentag (`pickup_times`); ein Kind bucht
+  mehrere davon.
+- Die Unterschrift kommt mit #4679: gezeichnet oder getippt über den
+  Unterschrift-Baustein in Audit (#4785), dazu Papier oder PDF für
+  Bestandsverträge. Abschluss bei der Annahme (Weg b, #4680), Änderung
+  (#4681), Monatsbeitrag (#4684) und Kündigung (#4682) folgen.
 
 ## Entscheidung
 
@@ -43,13 +51,21 @@ und hält fest, was er in den Registern ändert (ADR 0057 Punkt 5, ADR 0070).
      Monaten und Termin (Monatsende, Halbjahr, Schuljahresende),
      Sonderkündigung mit Text, Satzungsbestätigung mit Titel und Link,
      Vertragspartner (leer heißt: der Träger).
-   - `contracts`: ein Vertrag je Kind der Anmeldung und Angebot. Der Schlüssel
-     `(school_id, request_child_id, care_offering_id)` ist eindeutig (ADR 0088
-     §6). Der Status kennt alle Werte von ADR 0088 §2; dieser Schnitt erreicht
-     nur `entwurf` und `versendet`.
-   - `contract_versions`: eingefrorene Kopie von Kind, Betreuungsort, Angebot,
-     gebuchten Tagen, Preis, Vertragsbedingungen und Wirkdatum. Status
-     `beantragt` bis ein späterer Schritt sie wirksam macht.
+   - `contracts`: ein Vertrag je Kind der Anmeldung an seiner Schule. Der
+     Schlüssel `(school_id, request_child_id)` ist eindeutig; das ist die
+     Anmeldung des Kindes aus ADR 0088 §6. Der Vertrag umfasst alle Module,
+     die das Kind dort bucht. Der Status kennt alle Werte von ADR 0088 §2;
+     dieser Schnitt erreicht nur `entwurf` und `versendet`.
+   - `contract_versions`: eingefrorene Kopie von Kind, Betreuungsort,
+     Monatsbeitrag, Vertragsbedingungen und Wirkdatum. Status `beantragt` bis
+     ein späterer Schritt sie wirksam macht. Der Monatsbeitrag ist die Summe
+     der Angebotspreise der gebuchten Module beim Anlegen, leer, wenn einem
+     Modul der Preis fehlt (ADR 0088 §2).
+   - `contract_version_services`: die gebuchten Leistungen der Version, eine
+     Zeile je Wochentag und Modul mit Angebot, Name des Moduls und Endzeit an
+     diesem Tag (`TIME`, aus der Gehzeit des Angebots). Ein Wochentag ohne
+     Zeile hat keine Betreuung; ein Tag kann mehrere Module tragen. Die Zeilen
+     ändern sich nie.
    - `contract_parties`: die Eltern aus der Anmeldung, mit optionalem
      Elternkonto.
    - `contract_documents`: das PDF einer Version, erzeugt beim ersten Versand,
@@ -62,22 +78,30 @@ und hält fest, was er in den Registern ändert (ADR 0057 Punkt 5, ADR 0070).
    Keine Tabelle verweist per Fremdschlüssel auf Anmeldung, Kind oder Angebot
    der Schule: der Vertrag überlebt sie (ADR 0088 §9).
 3. **Erzeugen (Weg a).** Das Träger-Büro sieht je Schule die angenommenen
-   Kinder mit gebuchtem Angebot ohne Vertrag und legt für sie Entwürfe an,
-   einzeln oder gesammelt. Die Intake-Fähigkeit liest jede Schule in ihrer
+   Kinder mit gebuchter Betreuung ohne Vertrag, mit ihren Modulen je
+   Wochentag, und legt für sie Entwürfe an, einzeln oder gesammelt. Nur
+   Angebote mit `counts_as_care` sind Module; AG und Mittagessen bleiben
+   draußen. Je Angebot zählt die laufende oder nächste Buchung. Die Intake-Fähigkeit liest jede Schule in ihrer
    eigenen Tenant-Transaktion (Enrollment: Anmeldung und Eltern; Care Plan:
    Buchungen und Angebote) und schreibt danach in der Träger-Transaktion. Ein
    zweiter Entwurf für denselben Schlüssel wird übersprungen
-   (`ON CONFLICT DO NOTHING`). Ohne Vorlage für das Angebot entsteht kein
-   Entwurf; die Liste sagt das. Das Wirkdatum ist der Beginn der Buchung,
-   sonst der Aktivierungstag des Kindes, sonst der Leistungsbeginn der
-   Anmeldephase.
+   (`ON CONFLICT DO NOTHING`). Jedes Modul braucht seine Vorlage, und die
+   Vorlagen der Module eines Kindes müssen gleich sein: ein Vertrag hat eine
+   Laufzeit, eine Frist und eine Satzung. Sonst entsteht kein Entwurf, und
+   die Liste nennt den Grund (`template_missing`, `templates_differ`). Das
+   Wirkdatum ist der früheste Beginn der Buchungen, sonst der Aktivierungstag
+   des Kindes, sonst der Leistungsbeginn der Anmeldephase. Der Vertrag endet
+   mit der letzten Buchung, wenn alle enden, oder früher mit einer festen
+   Laufzeit.
 4. **Status.** `entwurf` → `versendet` beim ersten Versand. Nur ein Entwurf
    lässt sich verwerfen; die Lösch-Policy der Tabelle lässt für die
    Request-Rolle nur Entwürfe zu. Der Workflow `contractconclusion`, der den
    Vertrag bei der Annahme anlegt, kommt mit #4680.
 5. **Dokument.** Betreff, Anrede, Text und Grußformel kommen aus der Vorlage
    „Vertrag“ des Trägers (ADR 0152). Danach druckt der Vertrag immer die
-   Tabelle „Vertragsangaben“ und, wenn gewählt, Sonderkündigung und Satzung,
+   Tabelle „Vertragsangaben“, die Tabelle „Gebuchte Betreuung“ mit jedem
+   Wochentag von Montag bis Freitag (Module mit Endzeit oder „keine
+   Betreuung“) und, wenn gewählt, Sonderkündigung und Satzung,
    damit kein Vorlagentext eine Bedingung weglassen kann. Vor dem Versand ist
    das PDF eine Vorschau mit der aktuellen Vorlage; beim ersten Versand wird es
    festgehalten und jeder weitere Versand nutzt dasselbe PDF.
@@ -104,13 +128,17 @@ und hält fest, was er in den Registern ändert (ADR 0057 Punkt 5, ADR 0070).
    Schule (`audit.data_access_log`, Art `care_contract_applications`, ADR 0084
    §7). Das Lesen im Postfach steht mit dem Elternkonto in
    `contract_events`.
-9. **Nicht entschieden.** Die Form der Unterschrift (#4679): der Schnitt legt
-   keine Tabelle und kein Verfahren dafür an. Die Tenant-Policy, mit der eine
+9. **Nicht in diesem Schnitt.** Die Unterschrift (#4679) legt dieser Schnitt
+   nicht an. Sie hängt später am versendeten Dokument einer Version
+   (`contract_documents`) und am Status `unterschrieben`, den die Tabelle schon
+   kennt; ob gezeichnet, getippt oder auf Papier, entscheidet kein Feld hier.
+   Neue Versionen mit eigenem Wirkdatum kommen mit #4681, der Abschluss bei
+   Annahme mit #4680. Die Tenant-Policy, mit der eine
    Schule ihre Verträge liest (ADR 0088 §7), kommt mit der ersten Schulfläche
    (#4683). Die Löschfristen der Verträge legt #4720 fest.
 10. **Register.**
     - `policy.json`: Owner `care-contract`, Epoche 97 → 98, Fragment
-      `policy/care-contract.json` mit sieben Datenobjekten.
+      `policy/care-contract.json` mit acht Datenobjekten.
     - `command-effects/{reviews,evidence}/care-contract.json`: 25 geprüfte
       Bindungen (Outbox: platform/durable, Transaktionen: platform/scope,
       Zugriffsprotokoll: platform/mutation, Briefkopf: leaf, sonst query).
@@ -129,12 +157,24 @@ und hält fest, was er in den Registern ändert (ADR 0057 Punkt 5, ADR 0070).
   die Tenant-Transaktion der Schule.
 - **PDF nur über einen Link:** braucht den einmaligen Mail-Link, der mit der
   Unterschrift (#4679) kommt.
-- **Ein Vertrag je Kind über alle Angebote:** jedes Angebot hat eigene
-  Vorlage, Laufzeit und Frist; ein Vertrag je Angebot hält das getrennt.
+- **Ein Vertrag je Kind und Angebot:** passt nicht zu Tagen, die einzeln und
+  über Module hinweg gebucht werden (SJR: Montag bis 14:00, Dienstag bis
+  16:30). Die Familie bekäme mehrere Verträge für eine Betreuung, und der
+  Monatsbeitrag je Wochentag und Modul (#4684) müsste sie wieder
+  zusammensetzen.
+- **Leistungen als JSON in der Version:** die Monatsrechnung (#4684) liest je
+  Wochentag und Modul; eine Tabelle mit Prüfungen für Wochentag und Modul hält
+  das sauber und abfragbar.
+- **Bedingungen je Modul im Vertrag mischen:** ein Vertrag mit zwei Laufzeiten
+  oder Fristen ist für Eltern nicht lesbar; abweichende Vorlagen halten den
+  Entwurf an, bis das Träger-Büro sie angleicht.
 
 ## Folgen
 
 - #4680 kann den Workflow `contractconclusion` auf `InsertContract` und den
   Status `aktiv` aufsetzen, #4679 die Unterschrift an `contract_documents`.
+- #4684 rechnet den Monatsbeitrag je Wochentag und Modul aus den Leistungen
+  der wirksamen Version mit ihrem Wirkdatum; #4681 legt dafür neue Versionen
+  mit eigenen Leistungen an, statt Zeilen zu ändern.
 - Eine Änderung der Vorlage ändert keinen bestehenden Vertrag.
 - Ein Vertrag, dessen Anmeldung gelöscht wird, bleibt mit seiner Kopie.

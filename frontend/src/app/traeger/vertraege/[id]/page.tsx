@@ -15,9 +15,11 @@ import {
   MAIL_STATE_TONES,
   SEND_SKIP_LABELS,
   childName,
+  formatModules,
   formatNotice,
+  formatService,
   formatTerm,
-  formatWeekdays,
+  serviceDays,
 } from "~/components/traeger/care-contract-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { Alert } from "~/components/ui/alert";
@@ -188,7 +190,7 @@ export default function TraegerVertragPage() {
               tone={CONTRACT_STATUS_TONES[contract.status]}
             />
             <span>
-              {contract.offeringName} · {contract.schoolName} · ab{" "}
+              {formatModules(contract.moduleNames)} · {contract.schoolName} · ab{" "}
               {formatDate(contract.effectiveFrom)}
             </span>
           </span>
@@ -284,17 +286,11 @@ export default function TraegerVertragPage() {
                   </DataField>
                   <DataField label="Betreuungsort">
                     {contract.version.schoolName}
-                  </DataField>
-                  <DataField label="Angebot">
-                    {contract.version.offeringName}
                     {contract.version.phaseName ? (
                       <span className="block text-sm font-normal text-gray-500">
                         {contract.version.phaseName}
                       </span>
                     ) : null}
-                  </DataField>
-                  <DataField label="Betreuungstage">
-                    {formatWeekdays(contract.version.bookedDays)}
                   </DataField>
                   <DataField label="Beginn">
                     {formatDate(contract.version.effectiveFrom)}
@@ -310,6 +306,28 @@ export default function TraegerVertragPage() {
                       ? "Kein Beitrag hinterlegt"
                       : formatEuro(contract.version.priceCents)}
                   </DataField>
+                </DataGrid>
+              </SectionCard>
+              <SectionCard
+                title="Gebuchte Betreuung"
+                description="Je Wochentag das Modul und bis wann das Kind betreut wird."
+              >
+                <DataGrid>
+                  {serviceDays(contract.version.services).map((day) => (
+                    <DataField key={day.weekday} label={day.label}>
+                      {day.services.length === 0 ? (
+                        <span className="font-normal text-gray-500">
+                          Keine Betreuung
+                        </span>
+                      ) : (
+                        day.services.map((service) => (
+                          <span key={service.careOfferingId} className="block">
+                            {formatService(service)}
+                          </span>
+                        ))
+                      )}
+                    </DataField>
+                  ))}
                 </DataGrid>
               </SectionCard>
               <SectionCard title="Kündigung und Satzung">

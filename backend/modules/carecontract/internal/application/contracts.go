@@ -225,8 +225,8 @@ func (c *Contracts) send(ctx context.Context, reviewer carecontract.Reviewer, co
 	outboxID, err := c.post.EnqueueContractMail(ctx, carecontract.ContractMail{
 		OrganizationID: reviewer.OrganizationID, ContractID: contractID, Recipient: party.Email,
 		GuardianName: fullName(party.FirstName, party.LastName), TraegerName: firstLine(textLines(head.SenderText)),
-		ChildName:    fullName(record.Version.ChildFirstName, record.Version.ChildLastName),
-		OfferingName: record.Version.OfferingName, Filename: file.Filename, PDF: file.Data,
+		ChildName: fullName(record.Version.ChildFirstName, record.Version.ChildLastName),
+		Modules:   joinGerman(ModuleNames(record.Version.Services)), Filename: file.Filename, PDF: file.Data,
 		IdempotencyKey: fmt.Sprintf("care-contract:%d:%d", contractID, len(stored)+1),
 	})
 	if err != nil {

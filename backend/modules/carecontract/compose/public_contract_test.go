@@ -17,11 +17,13 @@ import (
 )
 
 // schoolDouble is one school of the Träger with one accepted child who
-// books one offering from August on.
+// books three modules from August on, as at the SJR Pforzheim: early care
+// and care until 14:00 on Monday, care until 16:30 on Tuesday, nothing on
+// Wednesday.
 type schoolDouble struct {
 	school   carecontract.School
 	child    int64
-	offering int64
+	offering int64 // the module until 14:00; offering+1 until 16:30, offering+2 early care
 	accesses *int
 }
 
@@ -43,15 +45,26 @@ func (s schoolDouble) NamePhases(_ context.Context, offerings []carecontract.Off
 func (s schoolDouble) Bookings(context.Context, []int64) (map[int64][]carecontract.Booking, error) {
 	from, ended := calendar.NewDate(2027, 8, 1), calendar.NewDate(2020, 1, 1)
 	return map[int64][]carecontract.Booking{s.child: {
-		{CareOfferingID: s.offering, Days: []string{"wed", "mon"}, ValidFrom: &from},
-		// An ended booking of another offering is no candidate.
-		{CareOfferingID: s.offering + 1, Days: []string{"fri"}, ValidUntil: &ended},
+		{CareOfferingID: s.offering, Days: []string{"mon"}, ValidFrom: &from},
+		{CareOfferingID: s.offering + 1, Days: []string{"tue"}, ValidFrom: &from},
+		{CareOfferingID: s.offering + 2, Days: []string{"mon"}, ValidFrom: &from},
+		// An ended booking is no service.
+		{CareOfferingID: s.offering, Days: []string{"fri"}, ValidUntil: &ended},
+		// An offering that is no care (an AG) is not among the offerings.
+		{CareOfferingID: s.offering + 3, Days: []string{"thu"}, ValidFrom: &from},
 	}}, nil
 }
 
 func (s schoolDouble) Offerings(context.Context, []int64) ([]carecontract.Offering, error) {
-	price := 9500
-	return []carecontract.Offering{{ID: s.offering, Name: "Ganztag", PriceCents: &price, Active: true}}, nil
+	short, long, early := 5000, 7000, 2000
+	days := func(end string) map[string]string {
+		return map[string]string{"mon": end, "tue": end, "wed": end, "thu": end, "fri": end}
+	}
+	return []carecontract.Offering{
+		{ID: s.offering, Name: "Kurzbetreuung", PriceCents: &short, Active: true, EndTimes: days("14:00")},
+		{ID: s.offering + 1, Name: "Ganztag", PriceCents: &long, Active: true, EndTimes: days("16:30")},
+		{ID: s.offering + 2, Name: "Frühbetreuung", PriceCents: &early, Active: true, EndTimes: days("08:00")},
+	}, nil
 }
 
 func (s schoolDouble) RecordAccess(context.Context, carecontract.SchoolAccess) error {
@@ -91,7 +104,7 @@ func (p *postDouble) ContractMailStates(context.Context, int64, int64) ([]careco
 	return nil, nil
 }
 
-func TestPublicCareContractCreatesOneDraftPerChildAndOfferingAndFreezesItsPDFAtTheFirstSend(t *testing.T) {
+func TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtTheFirstSend(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, db))
@@ -108,13 +121,25 @@ func TestPublicCareContractCreatesOneDraftPerChildAndOfferingAndFreezesItsPDFAtT
 
 	candidates, err := intake.Candidates(ctx, reviewer, 0)
 	require.NoError(t, err)
-	require.Len(t, candidates, 1, "the ended booking is no candidate")
-	assert.Equal(t, []string{"mon", "wed"}, candidates[0].BookedDays)
+	require.Len(t, candidates, 1, "one candidate per child, over all its modules")
+	assert.Equal(t, []carecontract.Service{
+		{Weekday: "mon", CareOfferingID: school.offering + 2, ModuleName: "Frühbetreuung", EndsAt: "08:00"},
+		{Weekday: "mon", CareOfferingID: school.offering, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
+		{Weekday: "tue", CareOfferingID: school.offering + 1, ModuleName: "Ganztag", EndsAt: "16:30"},
+	}, candidates[0].Services, "per weekday the modules with their end times; no ended booking, no AG")
 	assert.Equal(t, calendar.NewDate(2027, 8, 1), candidates[0].EffectiveFrom)
+	assert.Equal(t, carecontract.SkipTemplateMissing, candidates[0].TemplateIssue)
 	assert.Equal(t, 1, accesses, "the read of the applications is in the school's access log")
 
-	_, err = intake.SaveTemplate(ctx, reviewer, school.school.ID, school.offering, carecontract.TemplateInput{
+	twelveMonths := carecontract.TemplateInput{
 		TermKind: carecontract.TermFixedMonths, TermMonths: new(12), NoticeMonths: 1, NoticeTo: carecontract.NoticeMonthEnd,
+	}
+	for _, offering := range []int64{school.offering, school.offering + 1} {
+		_, err = intake.SaveTemplate(ctx, reviewer, school.school.ID, offering, twelveMonths)
+		require.NoError(t, err)
+	}
+	_, err = intake.SaveTemplate(ctx, reviewer, school.school.ID, school.offering+2, carecontract.TemplateInput{
+		TermKind: carecontract.TermOpenEnded, NoticeMonths: 1, NoticeTo: carecontract.NoticeMonthEnd,
 	})
 	require.NoError(t, err)
 	_, err = intake.SaveTemplate(ctx, reviewer, testpkg.UniqueTestTenantID(t), school.offering, carecontract.TemplateInput{
@@ -122,9 +147,18 @@ func TestPublicCareContractCreatesOneDraftPerChildAndOfferingAndFreezesItsPDFAtT
 	})
 	require.ErrorIs(t, err, carecontract.ErrSchoolOutsideTraeger)
 
+	differing, err := intake.CreateContracts(ctx, reviewer, []carecontract.CandidateKey{candidates[0].CandidateKey})
+	require.NoError(t, err)
+	assert.Empty(t, differing.Created, "one contract has one set of conditions")
+	require.Len(t, differing.Skipped, 1)
+	assert.Equal(t, carecontract.SkipTemplatesDiffer, differing.Skipped[0].Reason)
+
+	_, err = intake.SaveTemplate(ctx, reviewer, school.school.ID, school.offering+2, twelveMonths)
+	require.NoError(t, err)
 	created, err := intake.CreateContracts(ctx, reviewer, []carecontract.CandidateKey{candidates[0].CandidateKey})
 	require.NoError(t, err)
 	require.Len(t, created.Created, 1)
+	assert.Equal(t, []string{"Frühbetreuung", "Kurzbetreuung", "Ganztag"}, created.Created[0].ModuleNames)
 	again, err := intake.CreateContracts(ctx, reviewer, []carecontract.CandidateKey{candidates[0].CandidateKey})
 	require.NoError(t, err)
 	assert.Empty(t, again.Created)
@@ -154,8 +188,9 @@ func TestPublicCareContractCreatesOneDraftPerChildAndOfferingAndFreezesItsPDFAtT
 	assert.Equal(t, carecontract.StatusDraft, detail.Status)
 	require.NotNil(t, detail.Version.EndsOn, "a term of twelve months ends")
 	assert.Equal(t, calendar.NewDate(2028, 7, 31), *detail.Version.EndsOn)
+	assert.Equal(t, candidates[0].Services, detail.Version.Services, "the version keeps the services")
 	require.NotNil(t, detail.Version.PriceCents)
-	assert.Equal(t, int64(9500), *detail.Version.PriceCents)
+	assert.Equal(t, int64(14000), *detail.Version.PriceCents, "the sum of the module prices")
 	assert.True(t, bytes.HasPrefix(preview.Data, []byte("%PDF")))
 	require.Len(t, post.mails, 1)
 	assert.Equal(t, fmt.Sprintf("care-contract:%d:1", id), post.mails[0].IdempotencyKey)

@@ -138,7 +138,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractBookings.Offerings",
-      "binding_digest": "f2f5cf1143afa0c62697fdbde712fc71",
+      "binding_digest": "f70a961d8b32f3dd41878373566f8181",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolBookings.Offerings",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.ContractOfferings.ContractOfferings",

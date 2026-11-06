@@ -286,21 +286,26 @@ func inboxContract(t *testing.T, db *bun.DB, organization, school int64, child, 
 		status = "versendet"
 	}
 	var contract, version, document int64
-	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id, care_offering_id, status, sent_at)
-		VALUES (?, ?, ?, 3, ?, CASE WHEN ? = 'entwurf' THEN NULL ELSE NOW() END) RETURNING id`,
+	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id, status, sent_at)
+		VALUES (?, ?, ?, ?, CASE WHEN ? = 'entwurf' THEN NULL ELSE NOW() END) RETURNING id`,
 		organization, school, testpkg.UniqueTestTenantID(t), status, status).Scan(ctx, &contract))
 	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contract_versions (organization_id, contract_id, version_number, effective_from,
-			child_first_name, child_last_name, school_name, offering_name, term_kind, notice_months, notice_to, special_termination,
+			child_first_name, child_last_name, school_name, term_kind, notice_months, notice_to, special_termination,
 			special_termination_note, statute_required, statute_title, statute_url, contract_partner)
-		VALUES (?, ?, 1, '2027-08-01', ?, 'Schneider', 'OGS Am Lindenhof', 'Ganztag', 'open_ended', 1, 'month_end', false, '', false, '', '', '')
+		VALUES (?, ?, 1, '2027-08-01', ?, 'Schneider', 'OGS Am Lindenhof', 'open_ended', 1, 'month_end', false, '', false, '', '', '')
 		RETURNING id`, organization, contract, child).Scan(ctx, &version))
+	_, err := db.ExecContext(ctx, `INSERT INTO care_contract.contract_version_services (organization_id, contract_version_id,
+			weekday, care_offering_id, module_name, ends_at) VALUES (?, ?, 'mon', 3, 'Frühbetreuung', '08:00'),
+			(?, ?, 'mon', 4, 'Ganztag', '16:30'), (?, ?, 'tue', 4, 'Ganztag', '16:30')`,
+		organization, version, organization, version, organization, version)
+	require.NoError(t, err)
 	if sentTo == "" {
 		return contract
 	}
 	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contract_documents (organization_id, contract_id, contract_version_id,
 			template_version, filename, pdf) VALUES (?, ?, ?, 0, 'betreuungsvertrag.pdf', ?) RETURNING id`,
 		organization, contract, version, []byte("%PDF-1.4 Vertrag "+child)).Scan(ctx, &document))
-	_, err := db.ExecContext(ctx, `INSERT INTO care_contract.contract_mailings (organization_id, contract_id, contract_document_id,
+	_, err = db.ExecContext(ctx, `INSERT INTO care_contract.contract_mailings (organization_id, contract_id, contract_document_id,
 			outbox_id, recipient_email) VALUES (?, ?, ?, ?, ?)`, organization, contract, document, testpkg.UniqueTestTenantID(t), sentTo)
 	require.NoError(t, err)
 	return contract
@@ -331,6 +336,7 @@ func TestDocumentInboxShowsTheFamilysSentContracts(t *testing.T) {
 	assert.Equal(t, sent, documents[0].ID)
 	assert.Equal(t, parentService.DocumentKindContract, documents[0].Kind)
 	assert.Equal(t, []string{"Felix"}, documents[0].ChildNames)
+	assert.Equal(t, "Frühbetreuung · Ganztag · OGS Am Lindenhof", documents[0].PeriodName, "the modules once each, then the place")
 
 	file, err := portal.ContractDocumentFile(ctx, chain.AccountID, organization, sent)
 	require.NoError(t, err)

@@ -1,8 +1,8 @@
 // Package carecontract is the public capability of the Betreuungsvertrag
 // (care-contract, ADR 0088, ADR 0153, #4678). The Träger-Büro keeps a
-// contract template for every care offering of its schools, creates a
+// contract template for every care offering of its schools, creates one
 // contract from the accepted application of a child (Weg a: the draft is
-// sent afterwards) and sends it to the parents by mail and into the inbox of
+// sent afterwards) over every module the child books, per weekday and sends it to the parents by mail and into the inbox of
 // the parents portal. Contracts, versions and their trail live at the Träger,
 // in tables with organization_id and the Träger policy (ADR 0086 section 5).
 //
@@ -69,17 +69,15 @@ var (
 	// ErrContractNotFound reports a contract that is not one of the Träger.
 	ErrContractNotFound = errors.New("care contract not found")
 	// ErrApplicationNotFound reports an application child that is unknown,
-	// not accepted, or does not book the offering at a school of the Träger.
+	// not accepted, or books no care offering at a school of the Träger.
 	ErrApplicationNotFound = errors.New("accepted application not found")
 	// ErrSchoolOutsideTraeger reports a school of another Träger.
 	ErrSchoolOutsideTraeger = errors.New("the school does not belong to the Träger")
 	// ErrOfferingNotFound reports an offering the school does not have.
 	ErrOfferingNotFound = errors.New("care offering not found")
-	// ErrTemplateMissing reports an offering without a contract template.
-	ErrTemplateMissing = errors.New("the offering has no contract template")
 	// ErrContractExists reports an application child that has a contract
-	// for the offering already.
-	ErrContractExists = errors.New("the application has a contract for this offering")
+	// already.
+	ErrContractExists = errors.New("the application has a contract")
 	// ErrContractNotDraft reports a write that only a draft allows.
 	ErrContractNotDraft = errors.New("the contract is no draft")
 	// ErrContractNotSendable reports a contract past sending (signed, active
@@ -143,15 +141,27 @@ type OfferingTemplate struct {
 	Template     *Template `json:"template"`
 }
 
-// CandidateKey names one accepted application child and offering.
+// CandidateKey names one accepted application child.
 type CandidateKey struct {
 	SchoolID       int64 `json:"school_id"`
 	RequestChildID int64 `json:"request_child_id"`
-	CareOfferingID int64 `json:"care_offering_id"`
 }
 
-// Candidate is an accepted application child with a booked offering and no
-// contract for it yet.
+// Service is one booked service of a contract: on a weekday ("mon" to
+// "sun") the child books a module (a care offering of the school) and ends
+// at its end time ("HH:MM", empty when the module has none). A weekday may
+// carry several modules, early and afternoon care for instance; a weekday
+// without a service has no care.
+type Service struct {
+	Weekday        string `json:"weekday"`
+	CareOfferingID int64  `json:"care_offering_id"`
+	ModuleName     string `json:"module_name"`
+	EndsAt         string `json:"ends_at"`
+}
+
+// Candidate is an accepted application child with booked care and no
+// contract yet. TemplateIssue names why no draft can be made: a module
+// without conditions, or modules whose conditions differ.
 type Candidate struct {
 	CandidateKey
 	SchoolName     string        `json:"school_name"`
@@ -159,11 +169,10 @@ type Candidate struct {
 	ChildLastName  string        `json:"child_last_name"`
 	GuardianName   string        `json:"guardian_name"`
 	GuardianEmail  string        `json:"guardian_email"`
-	OfferingName   string        `json:"offering_name"`
 	PhaseName      string        `json:"phase_name"`
-	BookedDays     []string      `json:"booked_days"`
+	Services       []Service     `json:"services"`
 	EffectiveFrom  calendar.Date `json:"effective_from"`
-	HasTemplate    bool          `json:"has_template"`
+	TemplateIssue  string        `json:"template_issue"`
 }
 
 // CreateResult answers a creation of several drafts: the created contracts
@@ -180,9 +189,11 @@ type CreateSkip struct {
 	Reason string `json:"reason"`
 }
 
-// The reasons of a CreateSkip.
+// The reasons of a CreateSkip; the first two are also the TemplateIssue
+// of a Candidate.
 const (
 	SkipTemplateMissing = "template_missing"
+	SkipTemplatesDiffer = "templates_differ"
 	SkipContractExists  = "contract_exists"
 	SkipNotFound        = "application_not_found"
 )
@@ -202,7 +213,7 @@ type ContractSummary struct {
 	SchoolName     string        `json:"school_name"`
 	ChildFirstName string        `json:"child_first_name"`
 	ChildLastName  string        `json:"child_last_name"`
-	OfferingName   string        `json:"offering_name"`
+	ModuleNames    []string      `json:"module_names"`
 	PartyName      string        `json:"party_name"`
 	PartyEmail     string        `json:"party_email"`
 	EffectiveFrom  calendar.Date `json:"effective_from"`
@@ -217,7 +228,8 @@ type ContractList struct {
 	Counts    map[string]int    `json:"counts"`
 }
 
-// Version is the frozen content of a contract version.
+// Version is the frozen content of a contract version: the child, the
+// booked services per weekday and module, the terms and the effective date.
 type Version struct {
 	ID             int64          `json:"id"`
 	Number         int            `json:"number"`
@@ -228,12 +240,14 @@ type Version struct {
 	ChildLastName  string         `json:"child_last_name"`
 	ChildBirthDate *calendar.Date `json:"child_birth_date"`
 	SchoolName     string         `json:"school_name"`
-	OfferingName   string         `json:"offering_name"`
 	PhaseName      string         `json:"phase_name"`
-	BookedDays     []string       `json:"booked_days"`
-	PriceCents     *int64         `json:"price_cents"`
-	Terms          TemplateInput  `json:"terms"`
-	CreatedAt      time.Time      `json:"created_at"`
+	Services       []Service      `json:"services"`
+	// PriceCents is the monthly price when the version was made: the sum
+	// of the prices of its modules, nil when one has none (ADR 0088
+	// section 2). The tariffs of #4684 take over from it.
+	PriceCents *int64        `json:"price_cents"`
+	Terms      TemplateInput `json:"terms"`
+	CreatedAt  time.Time     `json:"created_at"`
 }
 
 // Party is a party to the contract.
@@ -322,11 +336,12 @@ type Contracts interface {
 // transaction and writes in the Träger transaction, one after the other, so
 // it opens its own units and must be called outside any transaction.
 type Intake interface {
-	// Candidates lists the accepted application children with a booked
-	// offering and no contract for it, over all schools of the Träger.
+	// Candidates lists the accepted application children with booked care
+	// and no contract, over all schools of the Träger.
 	Candidates(ctx context.Context, reviewer Reviewer, schoolID int64) ([]Candidate, error)
-	// CreateContracts creates a draft for every key; the keys that have a
-	// contract already or no template are left out with their reason.
+	// CreateContracts creates a draft for every key over all modules the
+	// child books; the keys that have a contract already, or whose modules
+	// lack conditions or differ in them, are left out with their reason.
 	CreateContracts(ctx context.Context, reviewer Reviewer, keys []CandidateKey) (CreateResult, error)
 	// Templates lists every offering of the Träger's schools with its
 	// template.
@@ -344,12 +359,12 @@ type InboxReader struct {
 
 // InboxContract is one sent contract in the inbox of the parents portal.
 type InboxContract struct {
-	ID           int64         `json:"id"`
-	ChildNames   []string      `json:"child_names"`
-	OfferingName string        `json:"offering_name"`
-	SchoolName   string        `json:"school_name"`
-	SentAt       time.Time     `json:"sent_at"`
-	EffectiveOn  calendar.Date `json:"effective_on"`
+	ID          int64         `json:"id"`
+	ChildNames  []string      `json:"child_names"`
+	ModuleNames []string      `json:"module_names"`
+	SchoolName  string        `json:"school_name"`
+	SentAt      time.Time     `json:"sent_at"`
+	EffectiveOn calendar.Date `json:"effective_on"`
 }
 
 // Inbox serves the contracts of one Träger in the parents' inbox (ADR 0088
@@ -370,7 +385,7 @@ type ContractMail struct {
 	GuardianName   string `json:"guardian_name"`
 	TraegerName    string `json:"traeger_name"`
 	ChildName      string `json:"child_name"`
-	OfferingName   string `json:"offering_name"`
+	Modules        string `json:"modules"`
 	Filename       string `json:"filename"`
 	PDF            []byte `json:"pdf"`
 	IdempotencyKey string `json:"idempotency_key"`
@@ -391,7 +406,7 @@ type ContractMailContent struct {
 	GuardianName string
 	TraegerName  string
 	ChildName    string
-	OfferingName string
+	Modules      string
 }
 
 // ContractMailRenderer renders the payload of a claimed contract mail.

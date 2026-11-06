@@ -34,7 +34,7 @@ func RenderContractMail(_ context.Context, payload []byte) (carecontract.Rendere
 		Template:   contractMailTemplate,
 		Content: carecontract.ContractMailContent{
 			GuardianName: mail.GuardianName, TraegerName: mail.TraegerName,
-			ChildName: mail.ChildName, OfferingName: mail.OfferingName,
+			ChildName: mail.ChildName, Modules: mail.Modules,
 		},
 		Filename: mail.Filename,
 		PDF:      mail.PDF,

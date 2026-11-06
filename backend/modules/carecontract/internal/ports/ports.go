@@ -16,12 +16,11 @@ type TemplateRow struct {
 	Template   carecontract.Template
 }
 
-// ContractKey is the key of a contract: the application child and the
-// offering at one school.
+// ContractKey is the key of a contract: the application child at one
+// school (ADR 0088 section 6).
 type ContractKey struct {
 	SchoolID       int64
 	RequestChildID int64
-	CareOfferingID int64
 }
 
 // NewContract is a draft with its first version and its party.

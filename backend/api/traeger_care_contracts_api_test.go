@@ -24,25 +24,30 @@ import (
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
+type careContractServiceBody struct {
+	Weekday        string `json:"weekday"`
+	CareOfferingID int64  `json:"care_offering_id"`
+	ModuleName     string `json:"module_name"`
+	EndsAt         string `json:"ends_at"`
+}
+
 type careContractCandidateBody struct {
-	SchoolID       int64    `json:"school_id"`
-	RequestChildID int64    `json:"request_child_id"`
-	CareOfferingID int64    `json:"care_offering_id"`
-	ChildFirstName string   `json:"child_first_name"`
-	GuardianEmail  string   `json:"guardian_email"`
-	OfferingName   string   `json:"offering_name"`
-	BookedDays     []string `json:"booked_days"`
-	EffectiveFrom  string   `json:"effective_from"`
-	HasTemplate    bool     `json:"has_template"`
+	SchoolID       int64                     `json:"school_id"`
+	RequestChildID int64                     `json:"request_child_id"`
+	ChildFirstName string                    `json:"child_first_name"`
+	GuardianEmail  string                    `json:"guardian_email"`
+	Services       []careContractServiceBody `json:"services"`
+	EffectiveFrom  string                    `json:"effective_from"`
+	TemplateIssue  string                    `json:"template_issue"`
 }
 
 type careContractSummaryBody struct {
-	ID            int64  `json:"id"`
-	Status        string `json:"status"`
-	SchoolID      int64  `json:"school_id"`
-	OfferingName  string `json:"offering_name"`
-	PartyEmail    string `json:"party_email"`
-	EffectiveFrom string `json:"effective_from"`
+	ID            int64    `json:"id"`
+	Status        string   `json:"status"`
+	SchoolID      int64    `json:"school_id"`
+	ModuleNames   []string `json:"module_names"`
+	PartyEmail    string   `json:"party_email"`
+	EffectiveFrom string   `json:"effective_from"`
 }
 
 type careContractCreateBody struct {
@@ -56,12 +61,12 @@ type careContractCreateBody struct {
 type careContractDetailBody struct {
 	careContractSummaryBody
 	Version struct {
-		Number         int      `json:"number"`
-		Status         string   `json:"status"`
-		ChildFirstName string   `json:"child_first_name"`
-		ChildBirthDate string   `json:"child_birth_date"`
-		BookedDays     []string `json:"booked_days"`
-		PriceCents     *int64   `json:"price_cents"`
+		Number         int                       `json:"number"`
+		Status         string                    `json:"status"`
+		ChildFirstName string                    `json:"child_first_name"`
+		ChildBirthDate string                    `json:"child_birth_date"`
+		Services       []careContractServiceBody `json:"services"`
+		PriceCents     *int64                    `json:"price_cents"`
 		Terms          struct {
 			TermKind     string `json:"term_kind"`
 			NoticeMonths int    `json:"notice_months"`
@@ -125,7 +130,9 @@ func newCareContractFixture(t *testing.T, name string) careContractFixture {
 		AvailableDays: []string{"mon", "tue", "wed", "thu", "fri"}, AutoAddGradeLevels: []int{}, IsActive: true, CountsAsCare: true}
 	offering.TenantID = school
 	testpkg.InsertTestCareOffering(t, f.db, testpkg.TenantContext(school), offering)
-	_, err := f.db.ExecContext(ctx, `UPDATE enrollment.care_offerings SET price_cents = 9500 WHERE id = ?`, offering.ID)
+	// The offering ends at 14:00 on Monday and at 16:30 on the other days.
+	_, err := f.db.ExecContext(ctx, `UPDATE enrollment.care_offerings SET price_cents = 9500,
+		pickup_times = '{"mon":"14:00","tue":"16:30","wed":"16:30","thu":"16:30","fri":"16:30"}'::jsonb WHERE id = ?`, offering.ID)
 	require.NoError(t, err)
 	child := careContractApplication(t, f.db, school, phaseID, offering.ID, "Lina", "erika.muster@example.org")
 	// An AG the child books too counts as no care: a Betreuungsvertrag does
@@ -141,7 +148,7 @@ func newCareContractFixture(t *testing.T, name string) careContractFixture {
 }
 
 func (f careContractFixture) key() map[string]any {
-	return map[string]any{"school_id": f.school, "request_child_id": f.child, "care_offering_id": f.offering}
+	return map[string]any{"school_id": f.school, "request_child_id": f.child}
 }
 
 func templatePath(schoolID, offeringID int64) string {
@@ -162,9 +169,13 @@ func TestCareContractDraftFromTheAcceptedApplicationIsSentWithItsFrozenPDF(t *te
 	candidates := decodeSchoolPortalData[[]careContractCandidateBody](t, rec.Body.Bytes())
 	require.Len(t, candidates, 1)
 	assert.Equal(t, f.child, candidates[0].RequestChildID)
-	assert.Equal(t, []string{"mon", "tue", "wed"}, candidates[0].BookedDays)
+	assert.Equal(t, []careContractServiceBody{
+		{Weekday: "mon", CareOfferingID: f.offering, ModuleName: "Offene Ganztagsschule", EndsAt: "14:00"},
+		{Weekday: "tue", CareOfferingID: f.offering, ModuleName: "Offene Ganztagsschule", EndsAt: "16:30"},
+		{Weekday: "wed", CareOfferingID: f.offering, ModuleName: "Offene Ganztagsschule", EndsAt: "16:30"},
+	}, candidates[0].Services, "per weekday the module with its end time; the AG on Thursday is no care")
 	assert.Equal(t, "2027-08-01", candidates[0].EffectiveFrom)
-	assert.False(t, candidates[0].HasTemplate)
+	assert.Equal(t, "template_missing", candidates[0].TemplateIssue)
 
 	// Without a template there is no draft.
 	rec = traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts", map[string]any{"contracts": []any{f.key()}})
@@ -190,8 +201,9 @@ func TestCareContractDraftFromTheAcceptedApplicationIsSentWithItsFrozenPDF(t *te
 	contract := created.Created[0]
 	assert.Equal(t, "entwurf", contract.Status)
 	assert.Equal(t, "erika.muster@example.org", contract.PartyEmail)
+	assert.Equal(t, []string{"Offene Ganztagsschule"}, contract.ModuleNames)
 
-	// A second creation for the same child and offering makes no second contract.
+	// A second creation for the same child makes no second contract.
 	rec = traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts", map[string]any{"contracts": []any{f.key()}})
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	created = decodeSchoolPortalData[careContractCreateBody](t, rec.Body.Bytes())
@@ -207,6 +219,7 @@ func TestCareContractDraftFromTheAcceptedApplicationIsSentWithItsFrozenPDF(t *te
 	assert.Equal(t, 1, detail.Version.Number)
 	assert.Equal(t, "beantragt", detail.Version.Status)
 	assert.Equal(t, "2019-03-04", detail.Version.ChildBirthDate)
+	assert.Equal(t, candidates[0].Services, detail.Version.Services, "the version keeps the services")
 	require.NotNil(t, detail.Version.PriceCents)
 	assert.Equal(t, int64(9500), *detail.Version.PriceCents)
 	assert.Equal(t, "school_year", detail.Version.Terms.TermKind)
@@ -377,8 +390,7 @@ func TestCareContractListsQueryBudget(t *testing.T) {
 		rec := traegerJSON(t, f.traeger, token, http.MethodGet, "/traeger/contracts/candidates", nil)
 		keys := []map[string]any{}
 		for _, candidate := range decodeSchoolPortalData[[]careContractCandidateBody](t, rec.Body.Bytes()) {
-			keys = append(keys, map[string]any{"school_id": candidate.SchoolID, "request_child_id": candidate.RequestChildID,
-				"care_offering_id": candidate.CareOfferingID})
+			keys = append(keys, map[string]any{"school_id": candidate.SchoolID, "request_child_id": candidate.RequestChildID})
 		}
 		require.Equal(t, http.StatusCreated, traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts", map[string]any{"contracts": keys}).Code)
 	}

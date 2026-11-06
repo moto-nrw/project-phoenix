@@ -597,7 +597,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (b careContractBookings) Offerings(ctx context.Context, ids []int64) ([]carecontract.Offering, error) {\n\tfound, err := b.offerings.ContractOfferings(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]carecontract.Offering, len(found))\n\tfor i, offering := range found {\n\t\tresult[i] = carecontract.Offering{ID: offering.ID, PhaseID: offering.PhaseID, Name: offering.Name, PriceCents: offering.PriceCents, Active: offering.IsActive}\n\t}\n\treturn result, nil\n}",
+      "evidence": "func (b careContractBookings) Offerings(ctx context.Context, ids []int64) ([]carecontract.Offering, error) {\n\tfound, err := b.offerings.ContractOfferings(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]carecontract.Offering, len(found))\n\tfor i, offering := range found {\n\t\tresult[i] = carecontract.Offering{ID: offering.ID, PhaseID: offering.PhaseID, Name: offering.Name, PriceCents: offering.PriceCents, Active: offering.IsActive, EndTimes: offering.PickupTimes}\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/careContractBookings.Offerings",
       "owner": "roots"

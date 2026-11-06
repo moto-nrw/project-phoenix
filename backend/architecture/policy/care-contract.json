@@ -72,6 +72,10 @@
       "write_owner": "care-contract"
     },
     {
+      "name": "care_contract.contract_version_services",
+      "write_owner": "care-contract"
+    },
+    {
       "name": "care_contract.contract_versions",
       "write_owner": "care-contract"
     },

@@ -10,8 +10,10 @@ import type {
   CareContractStatus,
   ContractMailState,
   ContractNoticeTo,
+  ContractService,
   ContractTerms,
   SendSkipReason,
+  TemplateIssue,
   Weekday,
 } from "~/lib/traeger-care-contracts-api";
 
@@ -77,13 +79,80 @@ const WEEKDAY_ORDER: readonly Weekday[] = [
   "sun",
 ];
 
-/** The booked weekdays, short and in weekday order: „Mo, Di, Mi“. */
-export function formatWeekdays(days: readonly Weekday[]): string {
-  const shown = WEEKDAY_ORDER.filter((day) => days.includes(day)).map(
-    (day) => WEEKDAY_SHORT[day],
-  );
-  return shown.length > 0 ? shown.join(", ") : "–";
+const WEEKDAY_LONG: Record<Weekday, string> = {
+  mon: "Montag",
+  tue: "Dienstag",
+  wed: "Mittwoch",
+  thu: "Donnerstag",
+  fri: "Freitag",
+  sat: "Samstag",
+  sun: "Sonntag",
+};
+
+/** One weekday of a contract with the modules booked on it. */
+export interface ServiceDay {
+  readonly weekday: Weekday;
+  readonly label: string;
+  readonly services: readonly ContractService[];
 }
+
+/**
+ * The weekdays of a contract as the PDF prints them: Monday to Friday
+ * always, Saturday and Sunday only when booked. A day without services has
+ * no care.
+ */
+export function serviceDays(
+  services: readonly ContractService[],
+): ServiceDay[] {
+  return WEEKDAY_ORDER.map((weekday) => ({
+    weekday,
+    label: WEEKDAY_LONG[weekday],
+    services: services.filter((service) => service.weekday === weekday),
+  })).filter((day, index) => index < 5 || day.services.length > 0);
+}
+
+/** One module of a day: „Kurzbetreuung bis 14:00 Uhr“. */
+export function formatService(service: ContractService): string {
+  return service.endsAt
+    ? `${service.moduleName} bis ${service.endsAt} Uhr`
+    : service.moduleName;
+}
+
+/** The modules of a contract once each: „Frühbetreuung, Ganztag“. */
+export function formatModules(names: readonly string[]): string {
+  return names.length > 0 ? names.join(", ") : "–";
+}
+
+/** The module names of the services once each, in weekday order. */
+export function moduleNames(services: readonly ContractService[]): string[] {
+  return [...new Set(services.map((service) => service.moduleName))];
+}
+
+/**
+ * The booked days in short, with the end time of each module:
+ * „Mo bis 08:00 und 14:00 · Di bis 16:30“.
+ */
+export function formatServiceDays(
+  services: readonly ContractService[],
+): string {
+  const days = serviceDays(services).filter((day) => day.services.length > 0);
+  if (days.length === 0) return "–";
+  return days
+    .map((day) => {
+      const ends = day.services.map(
+        (service) => service.endsAt || service.moduleName,
+      );
+      const timed = day.services.every((service) => service.endsAt);
+      return `${WEEKDAY_SHORT[day.weekday]} ${timed ? "bis " : ""}${ends.join(" und ")}`;
+    })
+    .join(" · ");
+}
+
+/** Why a child gets no draft yet, as the create dialog says it. */
+export const TEMPLATE_ISSUE_LABELS: Record<TemplateIssue, string> = {
+  template_missing: "Vertragsbedingungen fehlen",
+  templates_differ: "Bedingungen der Module weichen ab",
+};
 
 export const NOTICE_TO_LABELS: Record<ContractNoticeTo, string> = {
   month_end: "zum Monatsende",

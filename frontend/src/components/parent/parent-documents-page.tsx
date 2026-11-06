@@ -138,7 +138,7 @@ function ParentDocumentCard({
           <DataField label={t("children")}>
             {document.child_names.join(", ")}
           </DataField>
-          <DataField label={t("offering")}>{document.period_name}</DataField>
+          <DataField label={t("bookedCare")}>{document.period_name}</DataField>
           <DataField label={t("startsOn")}>
             {formatDate(document.service_from, false, locale)}
           </DataField>

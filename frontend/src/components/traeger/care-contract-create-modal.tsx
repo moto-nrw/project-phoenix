@@ -1,9 +1,11 @@
 "use client";
 
 // Verträge aus angenommenen Anmeldungen erstellen (#4678). Das Modal zeigt
-// je Schule die Kinder mit gebuchtem Angebot, die noch keinen Vertrag haben.
-// Ohne Vertragsbedingungen für das Angebot entsteht kein Entwurf; die Zeile
-// sagt das und nennt den nächsten Schritt.
+// je Schule die Kinder mit gebuchter Betreuung, die noch keinen Vertrag
+// haben, mit ihren Modulen je Wochentag. Ein Vertrag umfasst alle Module des
+// Kindes. Fehlen für ein Modul die Vertragsbedingungen oder weichen sie
+// zwischen den Modulen ab, entsteht kein Entwurf; die Zeile sagt das und
+// nennt den nächsten Schritt.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
@@ -22,12 +24,18 @@ import {
   type CreateResult,
   createCareContracts,
 } from "~/lib/traeger-care-contracts-api";
-import { childName, formatWeekdays } from "./care-contract-format";
+import {
+  TEMPLATE_ISSUE_LABELS,
+  childName,
+  formatModules,
+  formatServiceDays,
+  moduleNames,
+} from "./care-contract-format";
 
 const logger = createLogger({ component: "CareContractCreateModal" });
 
 function candidateKey(candidate: ContractCandidate): string {
-  return `${candidate.schoolId}:${candidate.requestChildId}:${candidate.careOfferingId}`;
+  return `${candidate.schoolId}:${candidate.requestChildId}`;
 }
 
 interface SchoolGroup {
@@ -48,6 +56,24 @@ function bySchool(candidates: readonly ContractCandidate[]): SchoolGroup[] {
   }));
 }
 
+/** The warning when children get no draft yet, with the reason. */
+function conditionsMessage(missing: number, differing: number): string {
+  const children = (count: number) =>
+    count === 1 ? "1 Kind" : `${count} Kinder`;
+  const parts: string[] = [];
+  if (missing > 0) {
+    parts.push(
+      `Für ${children(missing)} fehlen die Vertragsbedingungen eines Moduls.`,
+    );
+  }
+  if (differing > 0) {
+    parts.push(
+      `Bei ${children(differing)} haben die gebuchten Module verschiedene Bedingungen. Ein Vertrag braucht für alle Module dieselben.`,
+    );
+  }
+  return `${parts.join(" ")} Legen Sie die Bedingungen zuerst fest.`;
+}
+
 export function CareContractCreateModal({
   isOpen,
   candidates,
@@ -63,7 +89,7 @@ export function CareContractCreateModal({
   onOpenConditions: () => void;
 }>) {
   const ready = useMemo(
-    () => candidates.filter((candidate) => candidate.hasTemplate),
+    () => candidates.filter((candidate) => candidate.templateIssue === null),
     [candidates],
   );
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -78,7 +104,12 @@ export function CareContractCreateModal({
     clearErrors();
   }, [isOpen, ready, clearErrors]);
 
-  const missing = candidates.length - ready.length;
+  const missing = candidates.filter(
+    (candidate) => candidate.templateIssue === "template_missing",
+  ).length;
+  const differing = candidates.filter(
+    (candidate) => candidate.templateIssue === "templates_differ",
+  ).length;
   const toggle = (key: string) =>
     setSelected((current) => {
       const next = new Set(current);
@@ -143,8 +174,9 @@ export function CareContractCreateModal({
         }}
       >
         <p className="text-sm text-gray-600">
-          Diese Kinder sind angenommen und haben ein Angebot gebucht. moto
-          übernimmt Kind, Eltern, Tage und Beginn aus der Anmeldung. Sie prüfen
+          Diese Kinder sind angenommen und haben Betreuung gebucht. moto
+          übernimmt Kind, Eltern, Beginn und die Module je Wochentag aus der
+          Anmeldung. Ein Vertrag umfasst alle Module eines Kindes. Sie prüfen
           jeden Entwurf, bevor Sie ihn senden.
         </p>
         {candidates.length === 0 ? (
@@ -153,14 +185,10 @@ export function CareContractCreateModal({
             description="Neue Anmeldungen erscheinen hier, sobald die Schule sie annimmt."
           />
         ) : null}
-        {missing > 0 ? (
+        {missing + differing > 0 ? (
           <Alert
             type="warning"
-            message={
-              missing === 1
-                ? "Für 1 Kind fehlen die Vertragsbedingungen des Angebots. Legen Sie sie zuerst fest."
-                : `Für ${missing} Kinder fehlen die Vertragsbedingungen des Angebots. Legen Sie sie zuerst fest.`
-            }
+            message={conditionsMessage(missing, differing)}
             actionLayout="responsive"
             action={
               <Button
@@ -198,14 +226,14 @@ export function CareContractCreateModal({
               return (
                 <ChoiceTile
                   key={key}
-                  selected={isSelected && candidate.hasTemplate}
-                  disabled={!candidate.hasTemplate}
+                  selected={isSelected && candidate.templateIssue === null}
+                  disabled={candidate.templateIssue !== null}
                   tone="blue"
                   className="flex items-start gap-3 px-4 py-3"
                 >
                   <Checkbox
-                    checked={isSelected && candidate.hasTemplate}
-                    disabled={!candidate.hasTemplate}
+                    checked={isSelected && candidate.templateIssue === null}
+                    disabled={candidate.templateIssue !== null}
                     onChange={() => toggle(key)}
                     aria-label={`${childName(candidate)} auswählen`}
                   />
@@ -214,17 +242,19 @@ export function CareContractCreateModal({
                       <span className="font-medium text-gray-900">
                         {childName(candidate)}
                       </span>
-                      {candidate.hasTemplate ? null : (
+                      {candidate.templateIssue === null ? null : (
                         <StatusBadge
                           tone="orange"
-                          label="Vertragsbedingungen fehlen"
+                          label={TEMPLATE_ISSUE_LABELS[candidate.templateIssue]}
                         />
                       )}
                     </span>
                     <span className="mt-0.5 block text-sm text-gray-600">
-                      {candidate.offeringName} ·{" "}
-                      {formatWeekdays(candidate.bookedDays)} · ab{" "}
+                      {formatModules(moduleNames(candidate.services))} · ab{" "}
                       {formatDate(candidate.effectiveFrom)}
+                    </span>
+                    <span className="block text-sm text-gray-600">
+                      {formatServiceDays(candidate.services)}
                     </span>
                     <span className="block text-sm wrap-anywhere text-gray-500">
                       {candidate.guardianName}

@@ -16,6 +16,6 @@
   "errorObject": "документы",
   "downloadErrorObject": "документ",
   "careContract": "Договор об уходе",
-  "offering": "Предложение",
+  "bookedCare": "Забронированный присмотр",
   "startsOn": "Начало"
 }

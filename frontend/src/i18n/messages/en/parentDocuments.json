@@ -16,6 +16,6 @@
   "errorObject": "the documents",
   "downloadErrorObject": "the document",
   "careContract": "Care contract",
-  "offering": "Offering",
+  "bookedCare": "Booked care",
   "startsOn": "Starts on"
 }

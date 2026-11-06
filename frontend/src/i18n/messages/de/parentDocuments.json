@@ -16,6 +16,6 @@
   "errorObject": "die Dokumente",
   "downloadErrorObject": "das Dokument",
   "careContract": "Betreuungsvertrag",
-  "offering": "Angebot",
+  "bookedCare": "Gebuchte Betreuung",
   "startsOn": "Beginn"
 }

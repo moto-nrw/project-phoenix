@@ -5669,7 +5669,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Sie bekommen das Schreiben als PDF. Sie können es speichern oder drucken.",
     notes: [
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
-      "Beim Betreuungsvertrag stehen Angebot und Beginn auf der Karte. Prüfen Sie im PDF die Tage und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
+      "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
       "Sie möchten eine Nachricht auf dem Handy bekommen? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein.",
     ],
@@ -10021,13 +10021,13 @@ export const traegerCareContractsTopic =
       title: "Betreuungsverträge erstellen und senden",
       question: "Wie schicke ich den Eltern den Betreuungsvertrag?",
       summary:
-        "Aus jeder angenommenen Anmeldung erstellt moto einen Vertragsentwurf. Sie prüfen ihn und senden ihn per Mail und in die Eltern-App.",
+        "Aus jeder angenommenen Anmeldung erstellt moto einen Vertragsentwurf mit den gebuchten Modulen je Wochentag. Sie prüfen ihn und senden ihn per Mail und in die Eltern-App.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "Signature",
       requirements: [
         "Sie haben die Rolle `Verwaltung`. Sie gibt das Recht `Verträge verwalten`.",
-        "Die Schule hat die Anmeldung angenommen, und das Kind hat ein Angebot gebucht.",
+        "Die Schule hat die Anmeldung angenommen, und das Kind hat Betreuung gebucht.",
       ],
       instructionGroups: [
         {
@@ -10047,8 +10047,8 @@ export const traegerCareContractsTopic =
           steps: [
             "Wählen Sie den Reiter `Verträge`.",
             "Wählen Sie `Verträge erstellen`. Die Zahl dahinter nennt die Kinder ohne Vertrag.",
-            "Prüfen Sie die Liste. moto übernimmt Kind, Eltern, Tage und Beginn aus der Anmeldung.",
-            "Wählen Sie die Kinder aus. Fehlen bei einem Angebot die Bedingungen, legen Sie sie zuerst fest.",
+            "Prüfen Sie die Liste. moto übernimmt Kind, Eltern, Beginn und je Wochentag die gebuchten Module mit ihrer Endzeit, zum Beispiel `Mo bis 14:00 · Di bis 16:30`.",
+            "Wählen Sie die Kinder aus. Ein Vertrag umfasst alle Module eines Kindes. Fehlen bei einem Modul die Bedingungen, oder weichen sie zwischen den Modulen ab, legen Sie sie zuerst fest.",
             "Wählen Sie `Entwürfe erstellen`.",
           ],
         },
@@ -10056,7 +10056,8 @@ export const traegerCareContractsTopic =
           title: "Prüfen und senden",
           steps: [
             "Wählen Sie in der Liste ein Kind. Die Seite zeigt die `Vertragsangaben` und die `Vorschau` des PDF.",
-            "Prüfen Sie Tage, Beginn und Beitrag.",
+            "Prüfen Sie unter `Gebuchte Betreuung` jeden Wochentag: das Modul und bis wann das Kind betreut wird. Tage ohne Betreuung stehen als `Keine Betreuung` da.",
+            "Prüfen Sie Beginn und Beitrag.",
             "Wählen Sie `Vertrag senden`.",
             "Mehrere Entwürfe auf einmal: Setzen Sie in der Liste die Haken und wählen Sie oben `Entwürfe senden`.",
           ],
@@ -10075,7 +10076,9 @@ export const traegerCareContractsTopic =
         "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
       ],
       troubleshootingDetails: [
-        "Ein Kind fehlt in `Verträge erstellen`? Die Schule hat die Anmeldung noch nicht angenommen, oder das Kind hat schon einen Vertrag für dieses Angebot.",
+        "Ein Kind fehlt in `Verträge erstellen`? Die Schule hat die Anmeldung noch nicht angenommen, oder das Kind hat schon einen Vertrag.",
+        "Ein Kind zeigt `Bedingungen der Module weichen ab`? Das Kind hat mehrere Module gebucht, und deren Vertragsbedingungen sind verschieden. Ein Vertrag hat eine Laufzeit und eine Frist. Gleichen Sie die Bedingungen der Module an.",
+        "Eine Endzeit fehlt? Das Modul hat für diesen Tag keine Gehzeit. Die Schule trägt sie beim Angebot ein.",
         "Ein Entwurf ist falsch? Wählen Sie auf seiner Seite oben `Entwurf verwerfen`. Danach erstellen Sie ihn neu. Einen versendeten Vertrag können Sie nicht verwerfen.",
         "Der Versand zeigt `Nicht angekommen`? Die Mail-Adresse stimmt vielleicht nicht. Klären Sie sie mit der Schule und senden Sie erneut.",
       ],

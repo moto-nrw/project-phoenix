@@ -185,6 +185,7 @@ func (b careContractBookings) Offerings(ctx context.Context, ids []int64) ([]car
 	for i, offering := range found {
 		result[i] = carecontract.Offering{
 			ID: offering.ID, PhaseID: offering.PhaseID, Name: offering.Name, PriceCents: offering.PriceCents, Active: offering.IsActive,
+			EndTimes: offering.PickupTimes,
 		}
 	}
 	return result, nil

@@ -21,7 +21,7 @@ export function parentDocumentsTopic(): HelpTopic {
       "Sie bekommen das Schreiben als PDF. Sie können es speichern oder drucken.",
     notes: [
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
-      "Beim Betreuungsvertrag stehen Angebot und Beginn auf der Karte. Prüfen Sie im PDF die Tage und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
+      "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
       "Sie möchten eine Nachricht auf dem Handy bekommen? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein.",
     ],

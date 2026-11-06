@@ -23,10 +23,10 @@ func TestCareContractTemplate_Renders(t *testing.T) {
 	var out bytes.Buffer
 	require.NoError(t, tpl.ExecuteTemplate(&out, "care-contract.html", map[string]any{
 		"GuardianName": "Erika Muster", "SchoolName": "Ganztag im Quartier e.V.",
-		"ChildName": "Lina Muster", "OfferingName": "Offene Ganztagsschule",
+		"ChildName": "Lina Muster", "Modules": "Kurzbetreuung und Ganztag",
 	}))
 	body := out.String()
-	for _, want := range []string{"Guten Tag Erika Muster,", "Lina Muster", "Offene Ganztagsschule", "Ganztag im Quartier e.V.",
+	for _, want := range []string{"Guten Tag Erika Muster,", "Lina Muster", "Kurzbetreuung und Ganztag", "Ganztag im Quartier e.V.",
 		"Prüfen Sie Betreuungstage, Beginn und Beitrag.", "unter „Dokumente“"} {
 		assert.Contains(t, body, template.HTMLEscapeString(want))
 	}

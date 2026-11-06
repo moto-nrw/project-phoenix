@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -27,10 +28,9 @@ type versionRow struct {
 	ChildLastName          string         `bun:"child_last_name"`
 	ChildBirthDate         *calendar.Date `bun:"child_birth_date,type:date"`
 	SchoolName             string         `bun:"school_name"`
-	OfferingName           string         `bun:"offering_name"`
 	PhaseName              string         `bun:"phase_name"`
-	BookedDays             []string       `bun:"booked_days,array"`
 	PriceCents             *int64         `bun:"price_cents"`
+	Services               string         `bun:"services"`
 	TermKind               string         `bun:"term_kind"`
 	TermMonths             *int           `bun:"term_months"`
 	NoticeMonths           int            `bun:"notice_months"`
@@ -44,32 +44,44 @@ type versionRow struct {
 	CreatedAt              time.Time      `bun:"created_at"`
 }
 
-const versionColumns = `id, version_number, status, effective_from, ends_on, child_first_name, child_last_name,
-	child_birth_date, school_name, offering_name, phase_name, booked_days, price_cents, term_kind, term_months,
-	notice_months, notice_to, special_termination, special_termination_note, statute_required, statute_title,
-	statute_url, contract_partner, created_at`
+const versionColumns = `v.id, v.version_number, v.status, v.effective_from, v.ends_on, v.child_first_name,
+	v.child_last_name, v.child_birth_date, v.school_name, v.phase_name, v.price_cents, v.term_kind, v.term_months,
+	v.notice_months, v.notice_to, v.special_termination, v.special_termination_note, v.statute_required,
+	v.statute_title, v.statute_url, v.contract_partner, v.created_at`
 
-// currentVersionSQL reads the newest version of a contract.
-const currentVersionSQL = `SELECT ` + versionColumns + ` FROM care_contract.contract_versions
-	WHERE organization_id = ? AND contract_id = ? ORDER BY version_number DESC LIMIT 1`
+// servicesSQL reads the services of version v as one JSON array, by weekday
+// and end time, in the same statement as the version.
+const servicesSQL = `COALESCE((SELECT json_agg(json_build_object('weekday', s.weekday,
+		'care_offering_id', s.care_offering_id, 'module_name', s.module_name,
+		'ends_at', COALESCE(to_char(s.ends_at, 'HH24:MI'), ''))
+		ORDER BY array_position(ARRAY['mon','tue','wed','thu','fri','sat','sun']::text[], s.weekday::text),
+			s.ends_at NULLS LAST, s.module_name)
+	FROM care_contract.contract_version_services AS s
+	WHERE s.organization_id = v.organization_id AND s.contract_version_id = v.id), '[]')::text`
 
-func (r versionRow) version() carecontract.Version {
-	days := r.BookedDays
-	if days == nil {
-		days = []string{}
+// currentVersionSQL reads the newest version of a contract with its
+// services.
+const currentVersionSQL = `SELECT ` + versionColumns + `, ` + servicesSQL + ` AS services
+	FROM care_contract.contract_versions AS v
+	WHERE v.organization_id = ? AND v.contract_id = ? ORDER BY v.version_number DESC LIMIT 1`
+
+func (r versionRow) version() (carecontract.Version, error) {
+	services := []carecontract.Service{}
+	if err := json.Unmarshal([]byte(r.Services), &services); err != nil {
+		return carecontract.Version{}, fmt.Errorf("care contract postgres: read services: %w", err)
 	}
 	return carecontract.Version{
 		ID: r.ID, Number: r.VersionNumber, Status: r.Status, EffectiveFrom: r.EffectiveFrom, EndsOn: r.EndsOn,
 		ChildFirstName: r.ChildFirstName, ChildLastName: r.ChildLastName, ChildBirthDate: r.ChildBirthDate,
-		SchoolName: r.SchoolName, OfferingName: r.OfferingName, PhaseName: r.PhaseName, BookedDays: days,
-		PriceCents: r.PriceCents, CreatedAt: r.CreatedAt,
+		SchoolName: r.SchoolName, PhaseName: r.PhaseName, Services: services, PriceCents: r.PriceCents,
+		CreatedAt: r.CreatedAt,
 		Terms: carecontract.TemplateInput{
 			TermKind: r.TermKind, TermMonths: r.TermMonths, NoticeMonths: r.NoticeMonths, NoticeTo: r.NoticeTo,
 			SpecialTermination: r.SpecialTermination, SpecialTerminationNote: r.SpecialTerminationNote,
 			StatuteRequired: r.StatuteRequired, StatuteTitle: r.StatuteTitle, StatuteURL: r.StatuteURL,
 			ContractPartner: r.ContractPartner,
 		},
-	}
+	}, nil
 }
 
 // Contract reads one contract of the Träger with its current version, its
@@ -112,7 +124,11 @@ func (Store) Contract(ctx context.Context, organizationID, contractID int64, for
 		WHERE organization_id = ? AND contract_id = ? ORDER BY id`, organizationID, contractID).Scan(ctx, &parties); err != nil {
 		return ports.ContractRecord{}, fmt.Errorf("care contract postgres: read parties: %w", err)
 	}
-	record := ports.ContractRecord{Summary: summary.summary(), Version: version.version(), Parties: []carecontract.Party{}}
+	current, err := version.version()
+	if err != nil {
+		return ports.ContractRecord{}, err
+	}
+	record := ports.ContractRecord{Summary: summary.summary(), Version: current, Parties: []carecontract.Party{}}
 	for _, party := range parties {
 		record.Parties = append(record.Parties, carecontract.Party{
 			FirstName: party.FirstName, LastName: party.LastName, Email: party.Email, HasAccount: party.AccountID != nil,
@@ -243,7 +259,7 @@ func (Store) DeleteDraft(ctx context.Context, organizationID, contractID int64) 
 
 // inboxSQL reads the contracts sent to an address, with the first send to
 // it.
-const inboxSQL = `SELECT c.id, v.child_first_name, v.child_last_name, v.offering_name, v.school_name,
+const inboxSQL = `SELECT c.id, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.school_name,
 	v.effective_from, m.first_sent AS sent_at
 	FROM care_contract.contracts AS c
 	JOIN (SELECT contract_id, MIN(sent_at) AS first_sent FROM care_contract.contract_mailings
@@ -264,7 +280,7 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, email str
 		ID             int64         `bun:"id"`
 		ChildFirstName string        `bun:"child_first_name"`
 		ChildLastName  string        `bun:"child_last_name"`
-		OfferingName   string        `bun:"offering_name"`
+		ModuleNames    []string      `bun:"module_names,array"`
 		SchoolName     string        `bun:"school_name"`
 		EffectiveFrom  calendar.Date `bun:"effective_from,type:date"`
 		SentAt         time.Time     `bun:"sent_at"`
@@ -276,7 +292,7 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, email str
 	result := make([]carecontract.InboxContract, len(rows))
 	for i, row := range rows {
 		result[i] = carecontract.InboxContract{
-			ID: row.ID, ChildNames: []string{row.ChildFirstName}, OfferingName: row.OfferingName,
+			ID: row.ID, ChildNames: []string{row.ChildFirstName}, ModuleNames: nonNil(row.ModuleNames),
 			SchoolName: row.SchoolName, SentAt: row.SentAt, EffectiveOn: row.EffectiveFrom,
 		}
 	}

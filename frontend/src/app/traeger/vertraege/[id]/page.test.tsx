@@ -32,7 +32,7 @@ const DRAFT: CareContractDetail = {
   schoolName: "OGS Am Lindenhof",
   childFirstName: "Lina",
   childLastName: "Muster",
-  offeringName: "Offene Ganztagsschule",
+  moduleNames: ["Frühbetreuung", "Offene Ganztagsschule"],
   partyName: "Erika Muster",
   partyEmail: "erika@example.org",
   effectiveFrom: "2027-08-01",
@@ -44,9 +44,27 @@ const DRAFT: CareContractDetail = {
     endsOn: null,
     childBirthDate: "2019-03-04",
     schoolName: "OGS Am Lindenhof",
-    offeringName: "Offene Ganztagsschule",
     phaseName: "2027/28",
-    bookedDays: ["mon", "tue", "wed"],
+    services: [
+      {
+        weekday: "mon",
+        careOfferingId: "6",
+        moduleName: "Frühbetreuung",
+        endsAt: "08:00",
+      },
+      {
+        weekday: "mon",
+        careOfferingId: "5",
+        moduleName: "Offene Ganztagsschule",
+        endsAt: "14:00",
+      },
+      {
+        weekday: "tue",
+        careOfferingId: "5",
+        moduleName: "Offene Ganztagsschule",
+        endsAt: "16:30",
+      },
+    ],
     priceCents: 9500,
     terms: {
       termKind: "school_year",
@@ -96,7 +114,17 @@ describe("TraegerVertragPage", () => {
   it("shows what the draft holds", async () => {
     renderPage();
 
-    expect(await screen.findByText("Mo, Di, Mi")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Frühbetreuung bis 08:00 Uhr"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Offene Ganztagsschule bis 14:00 Uhr"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Offene Ganztagsschule bis 16:30 Uhr"),
+    ).toBeInTheDocument();
+    // Wednesday to Friday carry no care.
+    expect(screen.getAllByText("Keine Betreuung")).toHaveLength(3);
     expect(
       screen.getByText("Bis zum Ende des Schuljahres"),
     ).toBeInTheDocument();

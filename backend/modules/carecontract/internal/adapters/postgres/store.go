@@ -133,33 +133,32 @@ func (Store) ContractKeys(ctx context.Context, organizationID int64, schoolIDs [
 	var rows []struct {
 		SchoolID       int64 `bun:"school_id"`
 		RequestChildID int64 `bun:"request_child_id"`
-		CareOfferingID int64 `bun:"care_offering_id"`
 	}
-	if err := db.NewRaw(`SELECT school_id, request_child_id, care_offering_id FROM care_contract.contracts
+	if err := db.NewRaw(`SELECT school_id, request_child_id FROM care_contract.contracts
 		WHERE organization_id = ? AND school_id = ANY(?)`, organizationID, pgdialect.Array(schoolIDs)).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: contract keys: %w", err)
 	}
 	keys := make(map[ports.ContractKey]bool, len(rows))
 	for _, row := range rows {
-		keys[ports.ContractKey{SchoolID: row.SchoolID, RequestChildID: row.RequestChildID, CareOfferingID: row.CareOfferingID}] = true
+		keys[ports.ContractKey{SchoolID: row.SchoolID, RequestChildID: row.RequestChildID}] = true
 	}
 	return keys, nil
 }
 
-// InsertContract stores a draft with its first version and its party. A
-// second contract for the same application child and offering is
-// ErrContractExists.
+// InsertContract stores a draft with its first version, the version's
+// services and its party. A second contract for the same application child
+// is ErrContractExists.
 func (Store) InsertContract(ctx context.Context, organizationID, accountID int64, contract ports.NewContract) (int64, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return 0, err
 	}
 	var id int64
-	err = db.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id, care_offering_id,
+	err = db.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id,
 			student_id, created_by_account_id)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT (school_id, request_child_id, care_offering_id) DO NOTHING
-		RETURNING id`, organizationID, contract.Key.SchoolID, contract.Key.RequestChildID, contract.Key.CareOfferingID,
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT (school_id, request_child_id) DO NOTHING
+		RETURNING id`, organizationID, contract.Key.SchoolID, contract.Key.RequestChildID,
 		contract.StudentID, accountID).Scan(ctx, &id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, carecontract.ErrContractExists
@@ -168,19 +167,22 @@ func (Store) InsertContract(ctx context.Context, organizationID, accountID int64
 		return 0, fmt.Errorf("care contract postgres: insert contract: %w", err)
 	}
 	version, terms := contract.Version, contract.Version.Terms
-	if _, err := db.ExecContext(ctx, `INSERT INTO care_contract.contract_versions (organization_id, contract_id,
+	var versionID int64
+	if err := db.NewRaw(`INSERT INTO care_contract.contract_versions (organization_id, contract_id,
 			version_number, status, effective_from, ends_on, child_first_name, child_last_name, child_birth_date,
-			school_name, offering_name, phase_name, booked_days, price_cents, term_kind, term_months, notice_months,
-			notice_to, special_termination, special_termination_note, statute_required, statute_title, statute_url,
-			contract_partner)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			school_name, phase_name, price_cents, term_kind, term_months, notice_months, notice_to, special_termination,
+			special_termination_note, statute_required, statute_title, statute_url, contract_partner)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
 		organizationID, id, version.Number, version.Status, version.EffectiveFrom, version.EndsOn,
-		version.ChildFirstName, version.ChildLastName, version.ChildBirthDate, version.SchoolName,
-		version.OfferingName, version.PhaseName, pgdialect.Array(version.BookedDays), version.PriceCents,
+		version.ChildFirstName, version.ChildLastName, version.ChildBirthDate, version.SchoolName, version.PhaseName,
+		version.PriceCents,
 		terms.TermKind, terms.TermMonths, terms.NoticeMonths, terms.NoticeTo, terms.SpecialTermination,
 		terms.SpecialTerminationNote, terms.StatuteRequired, terms.StatuteTitle, terms.StatuteURL,
-		terms.ContractPartner); err != nil {
+		terms.ContractPartner).Scan(ctx, &versionID); err != nil {
 		return 0, fmt.Errorf("care contract postgres: insert version: %w", err)
+	}
+	if err := insertServices(ctx, db, organizationID, versionID, version.Services); err != nil {
+		return 0, err
 	}
 	party := contract.Party
 	if _, err := db.ExecContext(ctx, `INSERT INTO care_contract.contract_parties (organization_id, contract_id,
@@ -191,10 +193,39 @@ func (Store) InsertContract(ctx context.Context, organizationID, accountID int64
 	return id, nil
 }
 
+// insertServices stores the booked services of a version in one statement;
+// an empty end time stays NULL.
+func insertServices(ctx context.Context, db bun.IDB, organizationID, versionID int64, services []carecontract.Service) error {
+	if len(services) == 0 {
+		return nil
+	}
+	weekdays, offerings := make([]string, len(services)), make([]int64, len(services))
+	names, ends := make([]string, len(services)), make([]string, len(services))
+	for i, service := range services {
+		weekdays[i], offerings[i], names[i], ends[i] = service.Weekday, service.CareOfferingID, service.ModuleName, service.EndsAt
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO care_contract.contract_version_services
+			(organization_id, contract_version_id, weekday, care_offering_id, module_name, ends_at)
+		SELECT ?, ?, s.weekday, s.care_offering_id, s.module_name, NULLIF(s.ends_at, '')::time
+		FROM unnest(?::text[], ?::bigint[], ?::text[], ?::text[]) AS s(weekday, care_offering_id, module_name, ends_at)`,
+		organizationID, versionID, pgdialect.Array(weekdays), pgdialect.Array(offerings), pgdialect.Array(names),
+		pgdialect.Array(ends)); err != nil {
+		return fmt.Errorf("care contract postgres: insert services: %w", err)
+	}
+	return nil
+}
+
+// moduleNamesSQL lists the modules of version v in the order of their first
+// weekday.
+const moduleNamesSQL = `ARRAY(SELECT s.module_name FROM care_contract.contract_version_services AS s
+		WHERE s.organization_id = v.organization_id AND s.contract_version_id = v.id
+		GROUP BY s.module_name
+		ORDER BY MIN(array_position(ARRAY['mon','tue','wed','thu','fri','sat','sun']::text[], s.weekday::text)), s.module_name)`
+
 // summarySQL reads a contract with its current version and its first
 // party; the filter follows.
 const summarySQL = `SELECT c.id, c.status, c.school_id, c.created_at, c.sent_at,
-	v.school_name, v.child_first_name, v.child_last_name, v.offering_name, v.effective_from,
+	v.school_name, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.effective_from,
 	COALESCE(p.first_name || ' ' || p.last_name, '') AS party_name, COALESCE(p.email, '') AS party_email
 	FROM care_contract.contracts AS c
 	JOIN LATERAL (SELECT * FROM care_contract.contract_versions AS cv
@@ -224,7 +255,7 @@ type summaryRow struct {
 	SchoolName     string        `bun:"school_name"`
 	ChildFirstName string        `bun:"child_first_name"`
 	ChildLastName  string        `bun:"child_last_name"`
-	OfferingName   string        `bun:"offering_name"`
+	ModuleNames    []string      `bun:"module_names,array"`
 	EffectiveFrom  calendar.Date `bun:"effective_from,type:date"`
 	PartyName      string        `bun:"party_name"`
 	PartyEmail     string        `bun:"party_email"`
@@ -233,7 +264,7 @@ type summaryRow struct {
 func (r summaryRow) summary() carecontract.ContractSummary {
 	return carecontract.ContractSummary{
 		ID: r.ID, Status: r.Status, SchoolID: r.SchoolID, SchoolName: r.SchoolName,
-		ChildFirstName: r.ChildFirstName, ChildLastName: r.ChildLastName, OfferingName: r.OfferingName,
+		ChildFirstName: r.ChildFirstName, ChildLastName: r.ChildLastName, ModuleNames: nonNil(r.ModuleNames),
 		PartyName: strings.TrimSpace(r.PartyName), PartyEmail: r.PartyEmail, EffectiveFrom: r.EffectiveFrom,
 		CreatedAt: r.CreatedAt, SentAt: r.SentAt,
 	}
@@ -259,6 +290,13 @@ func (Store) ListContracts(ctx context.Context, organizationID int64, filter car
 		result[i] = row.summary()
 	}
 	return result, nil
+}
+
+func nonNil(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }
 
 func likeEscape(value string) string {

@@ -9,7 +9,8 @@ import (
 // seedTraegerCareContractsStep gives the demo Träger its care contracts
 // (#4678, ADR 0153) through the Träger routes, the way the Träger-Büro works:
 // a contract template for every active offering of its schools, a draft for
-// every accepted application, and every second draft sent. The page
+// every accepted application over all modules the child books, and every
+// second draft sent. The page
 // "Verträge" then shows drafts and sent contracts side by side. Every step
 // is idempotent, so several demo schools may seed the same Träger at once.
 type seedTraegerCareContractsStep struct{}
@@ -25,10 +26,9 @@ var seedCareContractTemplate = map[string]any{
 }
 
 type seedCareContractCandidate struct {
-	SchoolID       int64 `json:"school_id"`
-	RequestChildID int64 `json:"request_child_id"`
-	CareOfferingID int64 `json:"care_offering_id"`
-	HasTemplate    bool  `json:"has_template"`
+	SchoolID       int64  `json:"school_id"`
+	RequestChildID int64  `json:"request_child_id"`
+	TemplateIssue  string `json:"template_issue"`
 }
 
 func (seedTraegerCareContractsStep) Run(_ context.Context, rt *Runtime) error {
@@ -102,9 +102,8 @@ func seedCareContractDrafts(client *Client, auth AuthRef) (int, error) {
 	}
 	keys := []map[string]any{}
 	for _, candidate := range envelope.Data {
-		if candidate.HasTemplate && len(keys) < 200 {
-			keys = append(keys, map[string]any{"school_id": candidate.SchoolID, "request_child_id": candidate.RequestChildID,
-				"care_offering_id": candidate.CareOfferingID})
+		if candidate.TemplateIssue == "" && len(keys) < 200 {
+			keys = append(keys, map[string]any{"school_id": candidate.SchoolID, "request_child_id": candidate.RequestChildID})
 		}
 	}
 	if len(keys) == 0 {
