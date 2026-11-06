@@ -51,13 +51,13 @@ func (s *Service) childrenOn(ctx context.Context, rules domain.OrderingRules, da
 	}
 	registration, known := seen[date]
 	var stats domain.OperationStats
-	if !known || registration.until.Before(cutoff) {
+	if !known || registration.candidates == nil || registration.until.Before(cutoff) {
 		until := cutoff
 		if seen != nil && rules.AbsenceCutoff(date).After(until) {
 			until = rules.AbsenceCutoff(date)
 		}
 		var err error
-		registration, stats, err = s.registrationOn(ctx, date, until)
+		registration, stats, err = s.registrationOn(ctx, date, until, seen)
 		if err != nil {
 			return result, stats, err
 		}
@@ -78,7 +78,7 @@ func (s *Service) childrenOn(ctx context.Context, rules domain.OrderingRules, da
 
 // registrationOn reads the day's candidates and their registration with the
 // absence changes up to until.
-func (s *Service) registrationOn(ctx context.Context, date domain.Date, until time.Time) (dayRegistration, domain.OperationStats, error) {
+func (s *Service) registrationOn(ctx context.Context, date domain.Date, until time.Time, seen registrations) (dayRegistration, domain.OperationStats, error) {
 	candidates, stats, err := s.directory.FindDailyCandidates(ctx, date)
 	if err != nil {
 		return dayRegistration{}, stats, err
@@ -87,7 +87,7 @@ func (s *Service) registrationOn(ctx context.Context, date domain.Date, until ti
 	for _, candidate := range candidates {
 		ids = append(ids, candidate.StudentID)
 	}
-	states, participationStats, err := s.store.FindDailyParticipation(ctx, ids, date, until)
+	states, participationStats, err := s.orderParticipation(ctx, ids, date, until, seen)
 	return dayRegistration{candidates: candidates, states: states, until: until}, addStats(stats, participationStats), err
 }
 
