@@ -541,15 +541,13 @@ func TestSchoolInvitationShowsItsMailAndRefusesAResendWhileDelayed(t *testing.T)
 	require.NoError(t, err)
 
 	outcomeOf := func() string {
-		invitations, listErr := module.Invitation.ListPendingSchoolInvitations(ctx)
-		require.NoError(t, listErr)
-		for _, listed := range invitations {
-			if listed.ID == invitation.ID {
-				return listed.Delivery.Outcome
-			}
-		}
-		require.Failf(t, "not listed", "invitation %d is missing", invitation.ID)
-		return ""
+		var outcome string
+		require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+			states, statesErr := module.Invitation.SchoolInvitationMailStates(txCtx, testpkg.Tenant(t), []int64{invitation.ID})
+			outcome = states[invitation.ID].Outcome
+			return statesErr
+		}))
+		return outcome
 	}
 	assert.NotEqual(t, "delivered", outcomeOf(), "no event, no delivery")
 
@@ -562,9 +560,9 @@ func TestSchoolInvitationShowsItsMailAndRefusesAResendWhileDelayed(t *testing.T)
 	require.ErrorIs(t, err, identityaccess.ErrInvitationMailDelayed)
 }
 
-func TestSchoolInvitationListQueryBudget(t *testing.T) {
-	db := testpkg.SetupIsolatedTestDB(t)
-	counter := testpkg.CaptureQueries(t, db)
+func TestSchoolInvitationMailStatesQueryBudget(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
 	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db),
 		api.WithAuthTestMailer(&retryingInvitationMailer{}),
 		api.WithAuthTestPasswordResetBackoff(time.Millisecond),
@@ -573,23 +571,30 @@ func TestSchoolInvitationListQueryBudget(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	creator := testpkg.CreateTestAccount(t, db, "mail-budget-creator")
 	role := testpkg.CreateTestRole(t, db, "mail-budget-caregiver")
+	var ids []int64
 	invite := func(seed string) {
-		_, inviteErr := module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+		invitation, inviteErr := module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 			Email: inviteeAddress(seed), RoleID: role.ID, CreatedBy: creator.ID,
 			ActorPermissions: []string{usersManagePermission},
 		})
 		require.NoError(t, inviteErr)
-	}
-	read := func() int {
-		counter.Reset()
-		_, listErr := module.Invitation.ListPendingSchoolInvitations(counter.Context(ctx))
-		require.NoError(t, listErr)
-		return len(counter.Queries())
+		ids = append(ids, invitation.ID)
 	}
 	invite("mail-budget-1")
-	first := read()
-	querybudgets.AssertQueryBudget(t, "api.invitations.pending", counter.Queries())
-	invite("mail-budget-2")
-	invite("mail-budget-3")
-	assert.Equal(t, first, read(), "a further invitation adds no statement")
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		counter := testpkg.CaptureQueriesForContext(t, db)
+		countedCtx := counter.Context(txCtx)
+		read := func() []string {
+			counter.Reset()
+			_, readErr := module.Invitation.SchoolInvitationMailStates(countedCtx, testpkg.Tenant(t), ids)
+			require.NoError(t, readErr)
+			return counter.Operation("SELECT")
+		}
+		small := read()
+		querybudgets.AssertQueryBudget(t, "api.invitations.mail_states", small)
+		invite("mail-budget-2")
+		invite("mail-budget-3")
+		assert.Equal(t, len(small), len(read()), "a further invitation adds no statement")
+		return nil
+	}))
 }

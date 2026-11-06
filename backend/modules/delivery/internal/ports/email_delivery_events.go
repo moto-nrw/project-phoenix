@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 )
 
@@ -26,7 +27,6 @@ type EmailReconciliationStore interface {
 	MarkEmailDeliveryChecked(ctx context.Context, id int64, at time.Time) error
 	EmailSuppressionReason(ctx context.Context, tenantID int64, address string) (domain.EmailSuppressionReason, bool, error)
 	DeleteEmailSuppression(ctx context.Context, tenantID int64, address string) error
-	StopEmailsToAddress(ctx context.Context, tenantID int64, address string) error
 	// SchoolMailedAddress reports whether the school itself has a mail to exactly
 	// this address. It ties a team-wide provider block to the school.
 	SchoolMailedAddress(ctx context.Context, tenantID int64, address string) (bool, error)
@@ -46,4 +46,13 @@ type EmailWebhookProvider interface {
 	Configured() bool
 	Verify(header func(string) string, body []byte, now time.Time) error
 	Parse(body []byte) (domain.ReportedEmailEvent, error)
+}
+
+// EmailOutcomeStore reads what became of a school's mails and changes the school's
+// list on its own decision, all in the school's tenant transaction (#5934).
+type EmailOutcomeStore interface {
+	EmailOutcomes(context.Context, int64, deliveryContract.EmailOutcomeQuery) ([]deliveryContract.EmailOutcomeReport, error)
+	LatestEmailOutcomes(ctx context.Context, tenantID int64, kinds, addresses []string) (map[string]deliveryContract.EmailOutcomeReport, error)
+	EmailAddressMarks(ctx context.Context, tenantID int64, addresses []string) (map[string]deliveryContract.EmailAddressMark, error)
+	StopEmailsToAddress(ctx context.Context, tenantID int64, address string) error
 }

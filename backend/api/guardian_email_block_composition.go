@@ -23,6 +23,7 @@ var errGuardianEmailBlockLiftFailed = errors.New("the email block could not be l
 type GuardianEmailDelivery struct {
 	Outcomes     deliveryRuntime.EmailOutcomes
 	Suppressions deliveryRuntime.EmailSuppressions
+	Stops        deliveryRuntime.EmailStops
 	// Guardians finds the address on file; it answers ErrGuardianNotFound for a
 	// guardian of another school.
 	Guardians interface {
@@ -59,58 +60,57 @@ func (d GuardianEmailDelivery) guardianEmailStates(ctx context.Context, addresse
 	return states, nil
 }
 
-// guardianEmailBlockFlows binds the two writes to the address on file. The address
-// never comes from the request, so only an address of this school can be changed;
-// the guardian's lookup runs under the school's row-level security. The list is
-// changed outside that transaction, because lifting waits for the provider.
-func guardianEmailBlockFlows(delivery GuardianEmailDelivery, runtime peopleCompose.LegacyRepositoryRuntime) (stop, lift func(context.Context, int64) error) {
-	addressOf := func(ctx context.Context, guardianID int64) (int64, string, error) {
-		tenantID, err := tenant.TenantFromContext(ctx)
-		if err != nil {
-			return 0, "", err
-		}
-		var address string
-		err = runtime.InTenantTx(ctx, func(txCtx context.Context) error {
-			guardian, findErr := delivery.Guardians.FindGuardian(txCtx, guardianID)
-			if findErr != nil {
-				return findErr
-			}
-			if guardian.Email != nil {
-				address = strings.TrimSpace(*guardian.Email)
-			}
-			return nil
-		})
-		if err != nil {
-			return 0, "", err
-		}
-		if address == "" {
-			return 0, "", usersAPI.ErrGuardianHasNoEmail
-		}
-		return tenantID.Int64(), address, nil
+// emailBlockAddress reads the address on file. It never comes from the request,
+// so only an address of this school can be changed; the lookup runs under the
+// school's row-level security. The list is changed outside this transaction,
+// because lifting waits for the provider.
+func (d GuardianEmailDelivery) emailBlockAddress(ctx context.Context, runtime peopleCompose.LegacyRepositoryRuntime, guardianID int64) (int64, string, error) {
+	tenantID, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return 0, "", err
 	}
+	var address string
+	err = runtime.InTenantTx(ctx, func(txCtx context.Context) error {
+		guardian, findErr := d.Guardians.FindGuardian(txCtx, guardianID)
+		if findErr == nil && guardian.Email != nil {
+			address = strings.TrimSpace(*guardian.Email)
+		}
+		return findErr
+	})
+	if err == nil && address == "" {
+		err = usersAPI.ErrGuardianHasNoEmail
+	}
+	return tenantID.Int64(), address, err
+}
+
+// liftGuardianEmailBlockFailure keeps what the school can act on and turns the
+// rest into a failure worth another try. An address nothing holds is free.
+func liftGuardianEmailBlockFailure(err error) error {
+	switch {
+	case err == nil, errors.Is(err, deliveryContract.ErrEmailSuppressionNotFound):
+		return nil
+	case errors.Is(err, deliveryContract.ErrEmailSuppressionNeedsReview),
+		errors.Is(err, deliveryContract.ErrEmailSuppressionStaysAtProvider):
+		return err
+	default:
+		return fmt.Errorf("%w: %w", errGuardianEmailBlockLiftFailed, err)
+	}
+}
+
+func guardianEmailBlockFlows(delivery GuardianEmailDelivery, runtime peopleCompose.LegacyRepositoryRuntime) (stop, lift func(context.Context, int64) error) {
 	stop = func(ctx context.Context, guardianID int64) error {
-		tenantID, address, err := addressOf(ctx, guardianID)
+		tenantID, address, err := delivery.emailBlockAddress(ctx, runtime, guardianID)
 		if err != nil {
 			return err
 		}
-		return delivery.Suppressions.StopEmails(ctx, tenantID, address)
+		return delivery.Stops.StopEmailsToAddress(ctx, tenantID, address)
 	}
 	lift = func(ctx context.Context, guardianID int64) error {
-		tenantID, address, err := addressOf(ctx, guardianID)
+		tenantID, address, err := delivery.emailBlockAddress(ctx, runtime, guardianID)
 		if err != nil {
 			return err
 		}
-		err = delivery.Suppressions.LiftEmailSuppression(ctx, tenantID, address)
-		switch {
-		case err == nil, errors.Is(err, deliveryContract.ErrEmailSuppressionNotFound):
-			// Nothing holds the address as far as moto knows: it is free.
-			return nil
-		case errors.Is(err, deliveryContract.ErrEmailSuppressionNeedsReview),
-			errors.Is(err, deliveryContract.ErrEmailSuppressionStaysAtProvider):
-			return err
-		default:
-			return fmt.Errorf("%w: %w", errGuardianEmailBlockLiftFailed, err)
-		}
+		return liftGuardianEmailBlockFailure(delivery.Suppressions.LiftEmailSuppression(ctx, tenantID, address))
 	}
 	return stop, lift
 }

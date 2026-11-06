@@ -842,7 +842,7 @@ func (e *lifecycleEnrollments) ClaimGuardianEnrollments(_ context.Context, accou
 }
 
 type lifecycleDelivery struct {
-	mailBlocks    map[string]domain.GuardianMailBlock
+	mailBlocks    map[string]string
 	emails        []domain.GuardianInvitation
 	accessEmails  []domain.GuardianProfile
 	welcomeEmails []domain.GuardianProfile
@@ -857,7 +857,7 @@ func (lifecycleDelivery) InvitationExpiry(context.Context) (time.Duration, error
 	return 48 * time.Hour, nil
 }
 func (lifecycleDelivery) SchoolName(context.Context, int64) string { return "OGS Musterschule" }
-func (d *lifecycleDelivery) GuardianMailBlocks(context.Context, int64, []string) (map[string]domain.GuardianMailBlock, error) {
+func (d *lifecycleDelivery) GuardianMailBlocks(context.Context, int64, []string) (map[string]string, error) {
 	return d.mailBlocks, nil
 }
 func (d *lifecycleDelivery) EnqueueInvitationEmail(_ context.Context, invitation domain.GuardianInvitation, _ domain.GuardianProfile, _ string) (int64, error) {

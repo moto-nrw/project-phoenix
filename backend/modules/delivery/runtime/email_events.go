@@ -33,9 +33,12 @@ type EmailSuppressions interface {
 	// the school's list and at the provider. A complaint's block stays: the
 	// failure is ErrEmailSuppressionNeedsReview of the contract.
 	LiftEmailSuppression(ctx context.Context, tenantID int64, address string) error
-	// StopEmails puts an address on the list on the school's own decision. The
-	// mark of a complaint stays.
-	StopEmails(ctx context.Context, tenantID int64, address string) error
+}
+
+// EmailStops puts an address on a school's list on the school's own decision, in
+// its own tenant transaction. The mark of a complaint stays.
+type EmailStops interface {
+	StopEmailsToAddress(ctx context.Context, tenantID int64, address string) error
 }
 
 // EmailOutcomes reads what became of a school's mails, in the caller's tenant

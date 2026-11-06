@@ -267,12 +267,3 @@ func liftFailure(err error) error {
 	}
 	return nil
 }
-
-// StopEmails marks an address on the school's own decision.
-func (r *EmailReconciliation) StopEmails(ctx context.Context, tenantID int64, address string) error {
-	address = strings.TrimSpace(address)
-	if tenantID <= 0 || address == "" {
-		return errors.New("delivery: school and address are required")
-	}
-	return r.store.StopEmailsToAddress(ctx, tenantID, address)
-}

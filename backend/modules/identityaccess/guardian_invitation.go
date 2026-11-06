@@ -83,14 +83,12 @@ type GuardianInvitationRequest struct {
 	RefuseBlockedAddress bool
 }
 
-// GuardianMailBlock says why a new mail to a guardian would change nothing.
-type GuardianMailBlock string
-
+// Why a new mail to a guardian would change nothing.
 const (
 	// GuardianMailBlockAddress: the school's list holds the mail back.
-	GuardianMailBlockAddress GuardianMailBlock = "address"
+	GuardianMailBlockAddress = "address"
 	// GuardianMailBlockDelayed: the mail server still tries the last mail.
-	GuardianMailBlockDelayed GuardianMailBlock = "delayed"
+	GuardianMailBlockDelayed = "delayed"
 )
 
 // GuardianInvitationPreview is the public-safe view of a redeemable

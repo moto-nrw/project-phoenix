@@ -24,8 +24,8 @@ func TestEmailDeliveryEventGrants(t *testing.T) {
 		}
 		assert.True(t, privilege("SELECT"), table)
 		assert.True(t, privilege("DELETE"), table)
-		assert.False(t, privilege("INSERT"), table)
-		assert.False(t, privilege("UPDATE"), table)
+		assert.Equal(t, table == "platform.email_suppressions", privilege("INSERT"), table) // 1.15.760: a school stops an address (#5934)
+		assert.Equal(t, table == "platform.email_suppressions", privilege("UPDATE"), table)
 
 		var forced bool
 		require.NoError(t, db.NewRaw(`SELECT relforcerowsecurity FROM pg_class WHERE oid = ?::regclass`, table).Scan(ctx, &forced))

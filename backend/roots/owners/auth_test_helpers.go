@@ -24,7 +24,7 @@ func (UnsentGuardianMail) InvitationExpiry(context.Context) (time.Duration, erro
 func (UnsentGuardianMail) SchoolName(context.Context, int64) string { return "" }
 
 // GuardianMailBlocks reports no block: a fixture without mail has none.
-func (UnsentGuardianMail) GuardianMailBlocks(context.Context, int64, []string) (map[string]identityaccess.GuardianMailBlock, error) {
+func (UnsentGuardianMail) GuardianMailBlocks(context.Context, int64, []string) (map[string]string, error) {
 	return nil, nil
 }
 

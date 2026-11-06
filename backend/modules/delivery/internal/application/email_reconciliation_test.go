@@ -17,7 +17,6 @@ import (
 var reconcileNow = time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
 
 type reconcileStore struct {
-	stopped   int
 	mails     []domain.ProviderMail
 	openErr   error
 	markErr   error
@@ -40,11 +39,6 @@ func (s *reconcileStore) OpenProviderMails(_ context.Context, query domain.Provi
 func (s *reconcileStore) MarkEmailDeliveryChecked(_ context.Context, id int64, _ time.Time) error {
 	s.checked = append(s.checked, id)
 	return s.markErr
-}
-
-func (s *reconcileStore) StopEmailsToAddress(context.Context, int64, string) error {
-	s.stopped++
-	return nil
 }
 
 func (s *reconcileStore) EmailSuppressionReason(context.Context, int64, string) (domain.EmailSuppressionReason, bool, error) {
@@ -290,15 +284,6 @@ func TestLiftSuppressionOfASchoolStopLeavesTheProviderAlone(t *testing.T) {
 	require.NoError(t, reconciler(store, api).LiftEmailSuppression(context.Background(), 7, "eltern@example.com"))
 	assert.Empty(t, api.lifted)
 	assert.Equal(t, 1, store.deleted)
-}
-
-func TestStopEmailsMarksTheAddress(t *testing.T) {
-	t.Parallel()
-	store := &reconcileStore{}
-	require.NoError(t, reconcilerWithoutProvider(store).StopEmails(context.Background(), 7, " eltern@example.com "))
-	assert.Equal(t, 1, store.stopped)
-	require.Error(t, reconcilerWithoutProvider(store).StopEmails(context.Background(), 7, " "))
-	assert.Equal(t, 1, store.stopped)
 }
 
 func TestLiftSuppressionReportsAComplaintRecordedDuringTheProviderCall(t *testing.T) {

@@ -224,9 +224,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	steps = append(steps,
 		seedParentEngagementStep{}, seedAnalyticsConsentStep{}, seedSchoolLifeStep{},
 		// After the parents: it orders lunch for the children they registered.
-		seedMealOrdersStep{seeder: seeder},
-		// After every invitation: a stopped address gets no new one.
-		seedEmailStopStep{},
+		seedMealOrdersStep{seeder: seeder}, seedEmailStopStep{},
 	)
 	if !seeder.options.DeferHistory {
 		// After the meal orders: books care and lunch for the children who eat.

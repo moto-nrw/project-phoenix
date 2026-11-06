@@ -102,14 +102,16 @@ func guardianFailureKind(kind GuardianFailureKind) usersAPI.FailureKind {
 	}
 }
 
+func guardianProtectedRoutes(router chi.Router, register func(chi.Router, usersAPI.Middleware)) {
+	ProtectedTenantRoutes(router, register)
+}
+
 // newGuardiansResource binds the guardian HTTP adapter over the People
 // Directory and the legacy-service runtime. appEnv gates the seed-only raw
 // invitation token.
 func newGuardiansResource(module peopleModule.Capability, runtime GuardianDirectoryRuntime, appEnv string, logger *slog.Logger) *usersAPI.GuardianResource {
 	return usersAPI.NewGuardianResource(module, usersAPI.GuardianRuntime{
-		Protected: func(router chi.Router, register func(chi.Router, usersAPI.Middleware)) {
-			ProtectedTenantRoutes(router, register)
-		},
+		Protected: guardianProtectedRoutes,
 		Permission: func(permission string) usersAPI.Middleware {
 			return apiCommon.RequiresPermission(permission)
 		},

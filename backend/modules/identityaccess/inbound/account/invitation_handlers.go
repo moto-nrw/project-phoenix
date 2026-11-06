@@ -456,6 +456,28 @@ func (rs *Resource) lookupTenantSubdomainForInvitation(ctx context.Context, toke
 	return rs.Invitations.SchoolInvitationSubdomain(ctx, token)
 }
 
+// pendingInvitationsWithMailStates adds what Delivery knows about the last mail of
+// each invitation, in one read for the whole list (#5934).
+func (rs *Resource) pendingInvitationsWithMailStates(ctx context.Context) ([]identityaccess.SchoolInvitation, error) {
+	invitations, err := rs.Invitations.ListPendingSchoolInvitations(ctx)
+	if err != nil || len(invitations) == 0 {
+		return invitations, err
+	}
+	ids := make([]int64, len(invitations))
+	for i, invitation := range invitations {
+		ids[i] = invitation.ID
+	}
+	states, err := rs.Invitations.SchoolInvitationMailStates(ctx, invitations[0].TenantID, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range invitations {
+		state := states[invitations[i].ID]
+		invitations[i].Delivery.Outcome, invitations[i].Delivery.AddressMark = state.Outcome, state.AddressMark
+	}
+	return invitations, nil
+}
+
 func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {
 	if rs.Invitations == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
@@ -467,12 +489,12 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 	var err error
 	if rs.transactions != nil {
 		err = rs.transactions.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-			inv, txErr := rs.Invitations.ListPendingSchoolInvitations(txCtx)
+			inv, txErr := rs.pendingInvitationsWithMailStates(txCtx)
 			invitations = inv
 			return txErr
 		})
 	} else {
-		invitations, err = rs.Invitations.ListPendingSchoolInvitations(ctx)
+		invitations, err = rs.pendingInvitationsWithMailStates(ctx)
 	}
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))

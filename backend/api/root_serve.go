@@ -554,7 +554,7 @@ func composeServeRoot(
 				structureViews.Education, renderer, activities, timetableOwner, iot, settingsWrites, organizations, carePlan, audit.Persistence.DataAccessLog,
 				membership, classListEntries, databaseStats, dataImports, persons, gradeTransition, enrollmentResource, env.Config.AppEnv, weekProtocolSeed, env.HealthData)
 			mountPeopleRoutes(tenant, db, logger, reports, renderer, persons, services.Guardian, identity, caller, feedback, mealPlan,
-				birthdays, emergency, settings.Service, GuardianEmailDelivery{Outcomes: delivery.Runtime.EmailOutcomes, Suppressions: delivery.Runtime.EmailReconciliation, Guardians: persons})
+				birthdays, emergency, settings.Service, GuardianEmailDelivery{Outcomes: delivery.Runtime.EmailOutcomes, Suppressions: delivery.Runtime.EmailReconciliation, Stops: delivery.Runtime.Store, Guardians: persons})
 			mountCalendarRoutes(router, tenant, logger, calendarApp)
 			return errors.Join(mountCommunicationRoutes(tenant, chat, announcements, reminders, deliveryDevices, communication),
 				mountDeliveryRoutes(router, tenant, logger, fileStore, parent, hub, caller, identity))

@@ -1,6 +1,0 @@
-{
-  "scenario": "api.invitations.pending",
-  "max": 12,
-  "exact": false,
-  "description": "api/auth/invitations (#5934): the open staff invitations of a school with what Delivery knows about their last mail, in one read for the whole list. A further invitation must not add a statement."
-}

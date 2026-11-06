@@ -19,6 +19,7 @@ type WorkerRecords interface {
 	targetedPushStore
 	ports.EmailDeliveryEventStore
 	ports.EmailReconciliationStore
+	ports.EmailOutcomeStore
 	DeleteExpiredSystemEmails(context.Context, time.Time, int) (int, error)
 }
 

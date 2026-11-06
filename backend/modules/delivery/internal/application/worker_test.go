@@ -92,18 +92,6 @@ func (*workerStore) Cancel(context.Context, int64, domain.Transport, string, int
 	return 0, nil
 }
 
-func (*workerStore) EmailOutcomes(context.Context, int64, deliveryContract.EmailOutcomeQuery) ([]deliveryContract.EmailOutcomeReport, error) {
-	return nil, nil
-}
-
-func (*workerStore) LatestEmailOutcomes(context.Context, int64, []string, []string) (map[string]deliveryContract.EmailOutcomeReport, error) {
-	return nil, nil
-}
-
-func (*workerStore) EmailAddressMarks(context.Context, int64, []string) (map[string]deliveryContract.EmailAddressMark, error) {
-	return nil, nil
-}
-
 func (*workerStore) TraegerEmailStatuses(context.Context, int64, string, int64) ([]domain.Intent, error) {
 	return nil, nil
 }

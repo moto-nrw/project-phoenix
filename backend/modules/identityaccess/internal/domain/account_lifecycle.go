@@ -324,21 +324,13 @@ type PendingApprovalView struct {
 	RoleUpgrade       bool
 }
 
-// GuardianMailBlock says why a new mail to a guardian would change nothing.
-type GuardianMailBlock string
-
+// Why a new mail to a guardian would change nothing.
 const (
 	// GuardianMailBlockAddress: the school's list holds the mail back.
-	GuardianMailBlockAddress GuardianMailBlock = "address"
+	GuardianMailBlockAddress = "address"
 	// GuardianMailBlockDelayed: the mail server still tries the last mail.
-	GuardianMailBlockDelayed GuardianMailBlock = "delayed"
+	GuardianMailBlockDelayed = "delayed"
 )
-
-// InvitationMailState is what Delivery knows about the last mail of an invitation.
-type InvitationMailState struct {
-	Outcome     string
-	AddressMark string
-}
 
 // InvitationMailOutcomeDelayed is the outcome that stops a resend.
 const InvitationMailOutcomeDelayed = "delayed"

@@ -174,7 +174,7 @@ type GuardianInvitationDelivery interface {
 	SchoolName(ctx context.Context, tenantID int64) string
 	// GuardianMailBlocks reports the addresses a new invitation would not reach,
 	// keyed by the address in lower case.
-	GuardianMailBlocks(ctx context.Context, tenantID int64, addresses []string) (map[string]domain.GuardianMailBlock, error)
+	GuardianMailBlocks(ctx context.Context, tenantID int64, addresses []string) (map[string]string, error)
 	// EnqueueInvitationEmail returns the enqueue failure of the primary
 	// access mail; the invitation rolls back with it (#4602).
 	EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) (outboxID int64, err error)

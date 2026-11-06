@@ -34,14 +34,15 @@ func TestRequestMailOutcomesStayInsideTheSchool(t *testing.T) {
 }
 
 func TestRequestMailOutcomesQueryBudget(t *testing.T) {
-	db := testpkg.SetupIsolatedTestDB(t)
-	counter := testpkg.CaptureQueries(t, db)
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	counter := testpkg.CaptureQueriesForContext(t, db)
 	school := newDeletionTestFixture(t, db, "mails-budget")
 	request := school.request("mails-budget", nil)
 	read := func() int {
 		counter.Reset()
 		_, err := tenantCall(t, db, school.scope.TenantID, func(ctx context.Context) ([]enrollmentNative.RequestMailOutcome, error) {
-			return school.service(nil, nil).RequestMailOutcomes(counter.Context(ctx), request.ID)
+			return school.service(nil, nil).RequestMailOutcomes(ctx, request.ID)
 		})
 		require.NoError(t, err)
 		return len(counter.Queries())

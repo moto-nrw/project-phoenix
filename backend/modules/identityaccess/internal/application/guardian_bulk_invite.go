@@ -268,7 +268,7 @@ type bulkInviteRun struct {
 	// needed on the write path; previews deliberately remain side-effect free.
 	existingAccounts map[string]domain.Account
 	// mailBlocks was read in one statement pair before the loop.
-	mailBlocks map[string]domain.GuardianMailBlock
+	mailBlocks map[string]string
 	// problemStudents keeps the children per problem, in result order, until
 	// the names are resolved in one read.
 	problemStudents [][]int64
@@ -312,7 +312,7 @@ func (l *AccountLifecycle) bulkInviteOne(ctx context.Context, run *bulkInviteRun
 
 // bulkInviteMailBlock names the problem of an address a new invitation would not
 // reach. An account holder needs no invitation, so the caller lets them through.
-func bulkInviteMailBlock(block domain.GuardianMailBlock) (string, bool) {
+func bulkInviteMailBlock(block string) (string, bool) {
 	switch block {
 	case domain.GuardianMailBlockAddress:
 		return domain.BulkInviteProblemAddressBlocked, true

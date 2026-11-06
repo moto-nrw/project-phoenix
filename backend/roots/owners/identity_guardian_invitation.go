@@ -87,7 +87,7 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 
 // GuardianMailBlocks asks Delivery what a new invitation to the addresses would
 // run into: the school's list, or a last mail the server still tries.
-func (d guardianInvitationDelivery) GuardianMailBlocks(ctx context.Context, tenantID int64, addresses []string) (map[string]identityaccess.GuardianMailBlock, error) {
+func (d guardianInvitationDelivery) GuardianMailBlocks(ctx context.Context, tenantID int64, addresses []string) (map[string]string, error) {
 	marks, err := d.outcomes.EmailAddressMarks(ctx, tenantID, addresses)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func (d guardianInvitationDelivery) GuardianMailBlocks(ctx context.Context, tena
 	if err != nil {
 		return nil, err
 	}
-	blocks := make(map[string]identityaccess.GuardianMailBlock, len(marks))
+	blocks := make(map[string]string, len(marks))
 	for _, address := range addresses {
 		key := deliveryContract.NormalizedEmailAddress(address)
 		switch deliveryContract.EmailSendBlockOf(marks[key], latest[key].Outcome) {

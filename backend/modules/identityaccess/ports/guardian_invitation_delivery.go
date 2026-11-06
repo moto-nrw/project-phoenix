@@ -24,5 +24,5 @@ type GuardianInvitationDelivery interface {
 	EnqueueWelcomeEmail(ctx context.Context, profile GuardianProfile, tenantID int64, schoolName string, precedingOutboxID int64)
 	// GuardianMailBlocks reports the addresses a new invitation would not reach,
 	// keyed by the address in lower case.
-	GuardianMailBlocks(ctx context.Context, tenantID int64, addresses []string) (map[string]identityaccess.GuardianMailBlock, error)
+	GuardianMailBlocks(ctx context.Context, tenantID int64, addresses []string) (map[string]string, error)
 }

@@ -249,3 +249,8 @@ type InvitationMailState struct {
 	Outcome     string
 	AddressMark string
 }
+
+// SchoolInvitationMailStates reads what became of the mails of invitations.
+type SchoolInvitationMailStates interface {
+	SchoolInvitationMailStates(ctx context.Context, tenantID int64, invitationIDs []int64) (map[int64]InvitationMailState, error)
+}

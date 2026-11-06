@@ -81,6 +81,4 @@ type SchoolInvitationDelivery interface {
 	// A resend calls DispatchSchoolInvitation only, so it never repeats the
 	// welcome.
 	QueueSchoolWelcome(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, rolePermissions []string) error
-	// InvitationMailStates reports what became of the last mail of each invitation.
-	InvitationMailStates(ctx context.Context, tenantID int64, invitationIDs []int64) (map[int64]domain.InvitationMailState, error)
 }

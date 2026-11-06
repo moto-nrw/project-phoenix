@@ -66,7 +66,7 @@ func newGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return GuardianTestModule{}, err
 	}
 	return GuardianTestModule{PeopleDirectory: people, runtime: NewGuardianDirectoryRuntime(guardian, lists.NewRendererService(), auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()),
-		GuardianEmailDelivery{Outcomes: mailDelivery.EmailOutcomes, Suppressions: mailDelivery.EmailReconciliation, Guardians: people})}, nil
+		GuardianEmailDelivery{Outcomes: mailDelivery.EmailOutcomes, Suppressions: mailDelivery.EmailReconciliation, Stops: mailDelivery.Store, Guardians: people})}, nil
 }
 
 // ParentGuardianRoleFixture supplies the canonical role preset as stored
