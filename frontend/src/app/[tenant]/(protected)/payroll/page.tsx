@@ -408,7 +408,7 @@ function ReadinessCard({
             key={item.label}
             className="flex items-start justify-between gap-3 text-sm"
           >
-            <span>
+            <span className="min-w-0 break-words">
               <span className="font-medium text-gray-800">{item.label}:</span>{" "}
               <span className="text-gray-600">{item.detail}</span>
             </span>
