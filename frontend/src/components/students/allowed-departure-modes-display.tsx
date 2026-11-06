@@ -1,16 +1,16 @@
 import {
   type AllowedDepartureModes,
-  CARE_DISPLAY_PILL,
   DEPARTURE_MODE_SHORT_LABELS,
   departureMatrixRows,
   hasAnyDepartureArrangement,
-} from "~/lib/student-helpers";
+} from "~/lib/departure-plan";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 /**
  * Read-only "Erlaubte Heimwege" display for the student Stammdaten. Mirrors the
  * editor's per-weekday layout: one row per weekday (Mo–Fr) with the allowed modes
  * as neutral badges, reusing the same labels and styling as the edit form
- * (DEPARTURE_MODE_* in student-helpers) so view and edit stay visually consistent.
+ * (DEPARTURE_MODE_* in departure-plan) so view and edit stay visually consistent.
  *
  * The badges wrap instead of forcing a single line, so a child with bus + pickup
  * on every weekday renders cleanly instead of overflowing the card. When the child
@@ -33,9 +33,12 @@ export function AllowedDepartureModesDisplay({
           </span>
           <div className="flex flex-wrap gap-1">
             {row.modes.map((mode) => (
-              <span key={mode} className={CARE_DISPLAY_PILL}>
-                {DEPARTURE_MODE_SHORT_LABELS[mode]}
-              </span>
+              <StatusBadge
+                key={mode}
+                tone="gray"
+                compact
+                label={DEPARTURE_MODE_SHORT_LABELS[mode]}
+              />
             ))}
           </div>
         </div>

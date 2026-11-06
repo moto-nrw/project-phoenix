@@ -12,24 +12,10 @@ import {
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { formatDate, relativeDaysLabel } from "~/lib/date-helpers";
-
-/**
- * Status-Beschriftung und -Farbe einer entschiedenen Anfrage. Geteilt mit der
- * Lese-Ansicht aus dem Nachrichten-Verlauf (#3135), damit ein Status dort
- * nicht anders heißt als in der Historie.
- */
-export const HISTORY_STATUS_META: Record<
-  string,
-  { label: string; tone: StatusBadgeTone }
-> = {
-  approved: { label: "Freigegeben", tone: "green" },
-  rejected: { label: "Abgelehnt", tone: "red" },
-  withdrawn: { label: "Zurückgezogen", tone: "gray" },
-  auto_applied: { label: "Automatisch übernommen", tone: "gray" },
-};
+import { HISTORY_STATUS_META } from "~/components/students/requests/request-copy";
 
 /** Die Anfragearten, die eine Zeile tragen kann. */
-export type RequestRowType =
+type RequestRowType =
   | "master_data"
   | "care_schedule"
   | "offering"

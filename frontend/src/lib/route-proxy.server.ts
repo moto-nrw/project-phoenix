@@ -2,6 +2,7 @@ import * as api from "./api-helpers.server";
 import { makeProxyFactories } from "./route-proxy-factory.server";
 import {
   createDeleteHandler,
+  createDeleteWithBodyHandler,
   createGetHandler,
   createPatchHandler,
   createPostHandler,
@@ -29,6 +30,8 @@ export const { proxyGet, proxyPost, proxyPut, proxyPatch, proxyDelete } =
     put: createPutHandler,
     patch: createPatchHandler,
     del: createDeleteHandler,
+    boundedPost: (handler, options) => createPostHandler(handler, options),
+    delWithBody: createDeleteWithBodyHandler,
     apiGet: <T>(endpoint: string, token: string) =>
       api.apiGet<T>(endpoint, token),
     apiPost: <T, B = unknown>(
@@ -46,5 +49,7 @@ export const { proxyGet, proxyPost, proxyPut, proxyPatch, proxyDelete } =
       api.apiPatch<T, B>(endpoint, token, body),
     apiDelete: (endpoint: string, token: string) =>
       api.apiDelete(endpoint, token),
+    apiDeleteWithBody: (endpoint: string, token: string, body: unknown) =>
+      api.apiDelete(endpoint, token, body),
     fetcherUnwrapsData: false,
   });

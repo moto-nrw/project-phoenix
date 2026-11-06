@@ -509,7 +509,7 @@ function useScopedSWR<T, E>(
  * ```tsx
  * const { data, isLoading, error } = useSWRAuth(
  *   'students-list',
- *   () => studentService.getStudents()
+ *   () => fetchStudents()
  * );
  * ```
  *
@@ -738,7 +738,7 @@ export function useTenantMutateMatching(substrings: readonly string[]) {
  * const { data: student } = useSWRWithId(
  *   'student',
  *   studentId,
- *   (id) => studentService.getStudent(id)
+ *   (id) => fetchStudent(id)
  * );
  * ```
  *

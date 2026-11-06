@@ -5,13 +5,14 @@ import { useEffect, useState } from "react";
 import { ExportDialog } from "~/components/ui/export-dialog";
 import { Input } from "~/components/ui/input";
 import { useExportRun } from "~/hooks/use-export-run";
-import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
+import { apiErrorFromResponse } from "~/lib/api-error";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import {
   downloadBlob,
   filenameFromDisposition,
   openBlobForPrint,
 } from "~/lib/file-download";
+import { sessionFetch } from "~/lib/session-cache";
 
 type AttendanceExportFormat = "pdf" | "docx" | "xlsx";
 
@@ -35,7 +36,7 @@ async function downloadAttendanceExport(
   printTarget?: Window,
 ): Promise<void> {
   const params = new URLSearchParams({ format, from, to });
-  const response = await transportFetch(
+  const response = await sessionFetch(
     `/api/students/${encodeURIComponent(studentId)}/attendance-history/export?${params.toString()}`,
   );
   if (!response.ok) {

@@ -264,7 +264,7 @@ describe.concurrent("swr/no-direct-import", () => {
   );
 
   it("accepts the existing exception but rejects an additional import", async () => {
-    const file = "src/components/database/database-form.test.tsx";
+    const file = "src/components/dashboard/sidebar.test.tsx";
     const existing = 'import useSWR from "swr"; void useSWR;';
     expect((await lintSource(existing, file)).status).toBe(0);
     const result = await lintSource(
@@ -278,7 +278,7 @@ describe.concurrent("swr/no-direct-import", () => {
   it("requires removing an exception once its import is removed", async () => {
     const result = await lintSource(
       "export const migrated = true;",
-      "src/components/database/database-form.test.tsx",
+      "src/components/dashboard/sidebar.test.tsx",
     );
     expect(result.status).toBe(1);
     expect(result.output).toContain("Shrink");

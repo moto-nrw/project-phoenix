@@ -9,17 +9,14 @@ import { studentNotesService } from "./student-notes-api";
 describe("studentNotesService errors", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("uses a German message when loading notes fails", async () => {
+  it("classifies a failed load by its status", async () => {
     sessionFetch.mockResolvedValueOnce(
       new Response(null, { status: 500, statusText: "Internal Server Error" }),
     );
 
     const error = await studentNotesService.list("42").catch((e) => e);
     expect(error).toBeInstanceOf(ApiError);
-    expect(error).toMatchObject({
-      message: "Notizen konnten nicht geladen werden.",
-      code: "general.server",
-    });
+    expect(error).toMatchObject({ status: 500, code: "general.server" });
   });
 
   it("does not expose a backend validation error when saving a note", async () => {
@@ -34,18 +31,20 @@ describe("studentNotesService errors", () => {
       ),
     );
 
-    await expect(
-      studentNotesService.create("42", {
+    const error = await studentNotesService
+      .create("42", {
         kind: "journal",
         visibility: "all_staff",
         body: "Kurzes Gespräch.",
         subjectDate: "2026-09-09",
-      }),
-    ).rejects.toMatchObject({
-      message: "Notiz konnte nicht gespeichert werden.",
+      })
+      .catch((e: unknown) => e);
+    expect(error).toMatchObject({
       code: "general.input",
       errors: [{ field: "body", reason: "too long" }],
     });
+    // The backend sentence is diagnosis; the screen reads the code.
+    expect((error as Error).message).not.toContain("invalid student note");
   });
 });
 
@@ -68,19 +67,20 @@ describe("studentNotesService activities", () => {
       { id: "12", name: "Fußball-AG" },
       { id: "15", name: "Schach" },
     ]);
-    expect(sessionFetch).toHaveBeenCalledWith("/api/students/42/note-subjects");
+    expect(sessionFetch).toHaveBeenCalledWith(
+      "/api/students/42/note-subjects",
+      expect.objectContaining({ method: "GET" }),
+    );
   });
 
-  it("uses a German message when the activities cannot be read", async () => {
+  it("classifies a failed activities read by its status", async () => {
     sessionFetch.mockResolvedValueOnce(
       new Response(null, { status: 500, statusText: "Internal Server Error" }),
     );
 
     await expect(
       studentNotesService.listActivities("42"),
-    ).rejects.toMatchObject({
-      message: "Angebote konnten nicht geladen werden.",
-    });
+    ).rejects.toMatchObject({ status: 500, code: "general.server" });
   });
 
   it("sends the chosen activity as the note's reference", async () => {

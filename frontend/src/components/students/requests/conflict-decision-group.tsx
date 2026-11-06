@@ -26,7 +26,7 @@ import { Radio } from "~/components/ui/radio";
 import { Textarea } from "~/components/ui/textarea";
 import { TimeField } from "~/components/ui/time-field";
 import { formatDate } from "~/lib/date-helpers";
-import { DEPARTURE_WEEKDAYS } from "~/lib/student-helpers";
+import { DEPARTURE_WEEKDAYS } from "~/lib/departure-plan";
 import { createLogger } from "~/lib/logger";
 import {
   conflictResolutionKind,

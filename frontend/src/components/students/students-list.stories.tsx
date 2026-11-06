@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import { StudentsList } from "./students-list";
 
 const students = [

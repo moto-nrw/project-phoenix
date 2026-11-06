@@ -51,6 +51,7 @@ import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 
 import { CarePlanDayTimeline } from "./care-plan-day";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { studentKeys } from "~/lib/swr/portal-keys";
 
 type ViewMode = "day" | "week";
 
@@ -218,7 +219,7 @@ export function CarePlanView({
   // --- Day mode fetch (only when the tab is active and in day mode) ---
   const dayKey =
     active && viewMode === "day"
-      ? `care-plan-day-${studentId}-${selectedDate}`
+      ? studentKeys.carePlanDay(studentId, selectedDate)
       : null;
   const {
     data: dayData,
@@ -238,7 +239,7 @@ export function CarePlanView({
   const weekTo = toISODate(weekDates[weekDates.length - 1]!);
   const weekKey =
     active && viewMode === "week"
-      ? `care-plan-week-${studentId}-${weekFrom}-${weekTo}`
+      ? studentKeys.carePlanWeek(studentId, weekFrom, weekTo)
       : null;
   const {
     data: weekData,

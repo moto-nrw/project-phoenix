@@ -18,6 +18,37 @@ import (
 // through a second path.
 var errPrivacyConsentsUnavailable = errors.New("privacy consent capability is not configured")
 
+// defaultPrivacyPolicyVersion is the policy version a child without an
+// accepted consent starts from.
+const defaultPrivacyPolicyVersion = "1.0"
+
+// privacyConsentDefaults is the consent a child starts from before anyone
+// records one: the school's configured retention, not yet accepted. The
+// student consent read and the create form's defaults share it.
+func (rs *Resource) privacyConsentDefaults(ctx context.Context) (PrivacyConsentDefaultsResponse, error) {
+	retentionDays, err := rs.SettingsService.ResolveInt(ctx, settingPrivacyConsentRetentionDays)
+	if err != nil {
+		return PrivacyConsentDefaultsResponse{}, err
+	}
+	return PrivacyConsentDefaultsResponse{
+		PolicyVersion:     defaultPrivacyPolicyVersion,
+		Accepted:          false,
+		DataRetentionDays: retentionDays,
+	}, nil
+}
+
+// getPrivacyConsentDefaults returns the consent defaults for a child that
+// does not exist yet, so staff creating one see the school's retention
+// without needing config:read.
+func (rs *Resource) getPrivacyConsentDefaults(w http.ResponseWriter, r *http.Request) {
+	defaults, err := rs.privacyConsentDefaults(r.Context())
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to resolve privacy retention", err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, defaults, "Privacy consent defaults retrieved successfully")
+}
+
 // getStudentPrivacyConsent handles getting a student's privacy consent
 func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Request) {
 	// Parse ID and get student
@@ -50,17 +81,17 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 
 	// If no consent exists, return a default response
 	if consent == nil {
-		retentionDays, err := rs.SettingsService.ResolveInt(r.Context(), settingPrivacyConsentRetentionDays)
+		defaults, err := rs.privacyConsentDefaults(r.Context())
 		if err != nil {
 			renderError(w, r, common.ErrorInternalServerWrap("failed to resolve privacy retention", err))
 			return
 		}
 		response := PrivacyConsentResponse{
 			StudentID:         student.ID,
-			PolicyVersion:     "1.0",
-			Accepted:          false,
+			PolicyVersion:     defaults.PolicyVersion,
+			Accepted:          defaults.Accepted,
 			RenewalRequired:   true,
-			DataRetentionDays: retentionDays,
+			DataRetentionDays: defaults.DataRetentionDays,
 		}
 		common.Respond(w, r, http.StatusOK, response, "No privacy consent found, returning defaults")
 		return

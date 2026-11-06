@@ -73,7 +73,7 @@ export function EarlyCheckoutNoteField({
   );
 }
 
-export interface EarlyCheckoutTarget {
+interface EarlyCheckoutTarget {
   studentId: string;
   studentName: string;
   plannedPickup?: string | null;

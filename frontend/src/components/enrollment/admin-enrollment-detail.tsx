@@ -113,6 +113,7 @@ import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { childrenConcept } from "~/lib/concepts/children";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { parentsConcept } from "~/lib/concepts/parents";
+import { announceChangeRequestsChanged } from "~/lib/change-requests-refresh";
 
 const logger = createLogger({ component: "AdminEnrollmentDetail" });
 
@@ -1587,7 +1588,7 @@ export function ChildOfferingAdjustment({
     setRosterImpact(mapRosterImpact(updated?.roster_impact));
     setWithdrawalCreated(completeWithdrawalConfirmed);
     if (completeWithdrawalConfirmed) {
-      window.dispatchEvent(new Event("change-requests-refresh"));
+      announceChangeRequestsChanged();
     }
     await finishSave();
   };

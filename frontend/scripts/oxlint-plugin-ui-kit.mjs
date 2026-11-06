@@ -59,6 +59,8 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //
 //   ui-kit/no-hand-rolled-dot       — dots and colour bars by hand outside
 //                                     src/components/ui/; hard-zero
+//   ui-kit/no-hand-rolled-portal-nav — sidebar and bottom bar of a portal only
+//                                     from the kit; hard-zero (#5603)
 //   ui-kit/no-status-dot-outside-plans — StatusDot only in legends and plans
 //
 // Three more catch classes that never render or miss contrast (#5577):
@@ -2959,6 +2961,99 @@ function readKitExportNames() {
   return names;
 }
 
+// Die Klassen, an denen sich ein Nachbau der Portal-Navigation verrät (#5603).
+// Jede steht nur in portal-bottom-nav.tsx oder portal-sidebar.tsx.
+const PORTAL_NAV_SHELL_SIGNATURES = [
+  ["shadow-[0_-2px_20px_rgba(0,0,0,0.08)]"],
+  ["absolute", "top-0", "h-full", "rounded-full", "bg-gray-100"],
+  ["flex", "min-h-[44px]", "justify-center", "gap-2.5", "rounded-full"],
+  ["border-r", "border-gray-200/70", "bg-white/95"],
+  ["top-[73px]", "h-[calc(100vh-73px)]"],
+  ["top-[121px]", "h-[calc(100vh-121px)]"],
+  ["top-[153px]", "h-[calc(100vh-153px)]"],
+];
+const PORTAL_NAV_KIT_ROW_EXPORTS = new Set([
+  "PORTAL_ICON_CLASSES",
+  "portalSidebarRowClasses",
+]);
+
+function hasPortalNavShellSignature(text) {
+  const tokens = new Set(text.split(/\s+/));
+  return PORTAL_NAV_SHELL_SIGNATURES.some((signature) =>
+    signature.every((token) => tokens.has(token)),
+  );
+}
+
+const noHandRolledPortalNav = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Sidebar and bottom bar of a portal exist once, in the UI kit (#5603).",
+    },
+    messages: {
+      shell:
+        "Keine eigene Portal-Navigation: PortalSidebar, PortalSidebarFrame oder PortalBottomNav aus dem Kit nehmen (#5603, .claude/rules/frontend-ui-kit.md).",
+      row: "`{{name}}` gehört in die Kit-Zeilen: PortalSidebarLink oder PortalSidebarButton nehmen (#5603, .claude/rules/frontend-ui-kit.md).",
+    },
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (
+      !key.startsWith("src/") ||
+      EXEMPT_FILE_RE.test(key) ||
+      key.startsWith(UI_KIT_DIR)
+    ) {
+      return {};
+    }
+    const sourceCode = context.sourceCode ?? context.getSourceCode();
+    const check = (node, text) => {
+      if (typeof text !== "string") return;
+      if (hasPortalNavShellSignature(text)) {
+        context.report({ node, messageId: "shell" });
+      }
+    };
+    return {
+      Literal: (node) => check(node, node.value),
+      TemplateLiteral(node) {
+        const chunks = [];
+        collectStaticStrings(node, chunks);
+        const combinations = classCombinations(
+          node,
+          new WeakSet(),
+          sourceCode,
+        ) ?? [chunks.join(" ")];
+        const rendered = combinations?.find(hasPortalNavShellSignature);
+        if (rendered !== undefined) check(node, rendered);
+      },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some(hasPortalNavShellSignature)) return;
+        const combinations = classCombinations(
+          node.value,
+          new WeakSet(),
+          sourceCode,
+        ) ?? [chunks.join(" ")];
+        const rendered = combinations.find(hasPortalNavShellSignature);
+        if (rendered !== undefined) check(node, rendered);
+      },
+      ImportSpecifier(node) {
+        const name = node.imported?.name;
+        if (PORTAL_NAV_KIT_ROW_EXPORTS.has(name)) {
+          context.report({ node, messageId: "row", data: { name } });
+        }
+      },
+    };
+  },
+};
+
 let kitExportNames;
 
 const noShadowKitName = {
@@ -3099,6 +3194,7 @@ export default {
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
     "no-hand-rolled-pill": noHandRolledPill,
+    "no-hand-rolled-portal-nav": noHandRolledPortalNav,
     "no-hand-rolled-surface": noHandRolledSurface,
     "no-hex-alpha-tint": noHexAlphaTint,
     "no-important-override": noImportantOverride,

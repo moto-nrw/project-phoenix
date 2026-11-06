@@ -8,6 +8,7 @@ import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useChangeRequestAccess } from "./use-change-request-access";
 import { useShellSeed } from "~/lib/shell-seed";
 import { useUnreadCount } from "./use-unread-count";
+import { CHANGE_REQUESTS_REFRESH_EVENT } from "~/lib/change-requests-refresh";
 
 /**
  * Pending-count badge for the Änderungsanfragen sidebar item — the actionable
@@ -49,7 +50,7 @@ export function useChangeRequestsPending() {
     fetcher: fetchPendingChangeRequestCount,
     cacheKey: `change_requests_pending_count:${tenantSlug ?? ""}:${accountId}`,
     cacheOwner: personalStorageOwner(session?.user),
-    eventNames: ["messages-unread-refresh", "change-requests-refresh"],
+    eventNames: ["messages-unread-refresh", CHANGE_REQUESTS_REFRESH_EVENT],
     eventDebounceMs: 500,
     refetchOnFocus: true,
     initialCount: useShellSeed()?.counts.changeRequestsPending,

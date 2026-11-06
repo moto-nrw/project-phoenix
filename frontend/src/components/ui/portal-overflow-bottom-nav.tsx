@@ -8,12 +8,11 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "~/components/ui/drawer";
-import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import {
   PortalBottomNav,
+  PortalBottomNavButton,
   PortalBottomNavLink,
   PortalNavSheetLink,
-  portalBottomNavItemClassName,
 } from "~/components/ui/portal-bottom-nav";
 import { moreConcept } from "~/lib/concepts/more";
 import type { MotoConcept } from "~/lib/moto-concepts";
@@ -93,27 +92,17 @@ export function PortalOverflowBottomNav({
           />
         ))}
         {crowded ? (
-          <li>
-            {/* Navigationszeile wie im Elternportal, kein Kit-Knopf (#5536):
-                Form und Zustand kommen aus der geteilten unteren Leiste. */}
-            <button
-              type="button"
-              onClick={() => setMoreOpen(true)}
-              {...{ [navItemAttribute]: "more" }}
-              data-active={moreActive ? "true" : "false"}
-              aria-haspopup="dialog"
-              aria-expanded={moreOpen}
-              aria-label={moreLabel}
-              className={portalBottomNavItemClassName(moreActive, PADDING)}
-            >
-              <MotoNavIcon
-                concept={moreConcept}
-                active={moreActive}
-                className="h-5 w-5 shrink-0"
-              />
-              {moreActive ? <span className={LABEL}>{moreLabel}</span> : null}
-            </button>
-          </li>
+          <PortalBottomNavButton
+            label={moreLabel}
+            concept={moreConcept}
+            active={moreActive}
+            onClick={() => setMoreOpen(true)}
+            {...{ [navItemAttribute]: "more" }}
+            aria-haspopup="dialog"
+            aria-expanded={moreOpen}
+            paddingClassName={PADDING}
+            labelClassName={LABEL}
+          />
         ) : null}
       </PortalBottomNav>
 

@@ -7,6 +7,8 @@ import { subscribeSettingsChanged } from "~/lib/settings-broadcast";
 import { useTenantMutate, useTenantMutateMatching } from "~/lib/swr";
 import { CHANGE_REQUEST_ACCESS_SWR_KEY } from "./use-change-request-access";
 import { USER_CONTEXT_SWR_KEY } from "./use-user-context";
+import { STUDENT_KEY_FAMILIES } from "~/lib/swr/portal-keys";
+import { announceChangeRequestsChanged } from "~/lib/change-requests-refresh";
 
 /**
  * Bridges cross-tab/cross-origin settings-change broadcasts to the active
@@ -24,7 +26,7 @@ export function useSettingsCacheBridge(): void {
   const { data: session } = useSession();
   const tenantMutate = useTenantMutate();
   const refreshActionAccess = useTenantMutateMatching([
-    "student-detail-",
+    STUDENT_KEY_FAMILIES.detail,
     "timetable-roster-",
     "timetable-day-",
     "timetable-week-",
@@ -40,7 +42,7 @@ export function useSettingsCacheBridge(): void {
       // reads outside the settings page (#4996).
       void tenantMutate(USER_CONTEXT_SWR_KEY);
       void refreshActionAccess();
-      window.dispatchEvent(new CustomEvent("change-requests-refresh"));
+      announceChangeRequestsChanged();
       if (accountId) {
         void tenantMutate(`${CHANGE_REQUEST_ACCESS_SWR_KEY}:${accountId}`);
       }
