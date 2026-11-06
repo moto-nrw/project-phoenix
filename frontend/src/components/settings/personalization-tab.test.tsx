@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { useTenant } from "~/lib/tenant-context";
 
@@ -488,13 +489,13 @@ describe("PersonalizationTab", () => {
       expect(screen.getByText("Bild auswählen")).toBeDefined();
     });
 
-    const clickButton = screen.getByLabelText(
-      "Bild hochladen — ziehen Sie eine Datei hierher oder klicken Sie zum Auswählen",
-    );
-    // Enter and Space should trigger file input click
-    fireEvent.keyDown(clickButton, { key: "Enter" });
-    fireEvent.keyDown(clickButton, { key: " " });
-    // No error thrown — keyboard handling works
+    const openDialog = vi.spyOn(HTMLInputElement.prototype, "click");
+    screen.getByRole("button", { name: "Bild auswählen" }).focus();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard(" ");
+
+    expect(openDialog).toHaveBeenCalledTimes(2);
+    openDialog.mockRestore();
   });
 
   it("handles non-ok fetch on mount gracefully", async () => {

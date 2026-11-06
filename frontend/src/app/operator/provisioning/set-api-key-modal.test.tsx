@@ -215,7 +215,7 @@ describe("SetApiKeyModal", () => {
 
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith("manual-key");
-      expect(screen.getByText("Kopiert!")).toBeInTheDocument();
+      expect(screen.getByText("Kopiert")).toBeInTheDocument();
     });
   });
 

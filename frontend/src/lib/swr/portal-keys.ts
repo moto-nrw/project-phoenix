@@ -281,6 +281,7 @@ export const traegerKeys = {
   school: (id: string) => `traeger-school-${encodeURIComponent(id)}`,
   schoolsAlerts: () => "traeger-schools-alerts",
   keyDateCounts: () => "traeger-key-date-counts",
+  occupancy: () => "traeger-occupancy",
   periodsFamily: "traeger-holiday-period-",
   periods: () => "traeger-holiday-period-list",
   period: (id: string) =>

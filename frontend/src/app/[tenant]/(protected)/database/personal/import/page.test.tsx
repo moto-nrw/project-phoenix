@@ -109,29 +109,18 @@ vi.mock("~/components/ui/alert", () => ({
 vi.mock("~/components/import/upload-section", () => ({
   UploadSection: ({
     onFileSelect,
-    isDragging,
     isLoading,
-    onDragEnter,
-    onDragLeave,
-    onDragOver,
-    onDrop,
   }: {
     onFileSelect: (file: File) => void;
-    isDragging: boolean;
     isLoading: boolean;
-    onDragEnter: (e: React.DragEvent) => void;
-    onDragLeave: (e: React.DragEvent) => void;
-    onDragOver: (e: React.DragEvent) => void;
-    onDrop: (e: React.DragEvent) => void;
   }) => (
     <div
       data-testid="upload-section"
-      onDragEnter={onDragEnter}
-      onDragLeave={onDragLeave}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
+      onDrop={(e) => {
+        const file = e.dataTransfer.files[0];
+        if (file) onFileSelect(file);
+      }}
     >
-      <span data-testid="is-dragging">{isDragging.toString()}</span>
       <span data-testid="is-loading">{isLoading.toString()}</span>
       <button
         type="button"
@@ -872,19 +861,6 @@ describe("StaffImportPage", () => {
     expect(screen.getByTestId("stat-new")).toHaveTextContent("105");
     expect(screen.getByTestId("stat-existing")).toHaveTextContent("100");
     expect(screen.getByTestId("stat-errors")).toHaveTextContent("0");
-  });
-
-  it("toggles isDragging on dragEnter/dragLeave", () => {
-    render(<StaffImportPage />);
-
-    const uploadSection = screen.getByTestId("upload-section");
-    expect(screen.getByTestId("is-dragging")).toHaveTextContent("false");
-
-    fireEvent.dragEnter(uploadSection);
-    expect(screen.getByTestId("is-dragging")).toHaveTextContent("true");
-
-    fireEvent.dragLeave(uploadSection);
-    expect(screen.getByTestId("is-dragging")).toHaveTextContent("false");
   });
 
   it("handles a valid file drop", async () => {

@@ -622,6 +622,7 @@ const TRAEGER_PUBLIC_PATHS = [
   "/schulen",
   "/uebersicht",
   "/stichtagszahlen",
+  "/belegung",
   "/dokumente",
 ];
 
