@@ -40,10 +40,12 @@ type (
 	ChildGuardian                   = care.ChildGuardian
 	ChildMasterData                 = care.ChildMasterData
 	BillingDocument                 = care.BillingDocument
+	DocumentInbox                   = care.DocumentInbox
 	BillingDocumentFile             = care.BillingDocumentFile
 	BillingDocumentPush             = care.BillingDocumentPush
 	BillingDocumentReader           = care.BillingDocumentReader
 	BillingDocumentsPort            = care.BillingDocuments
+	ContractDocumentsPort           = care.ContractDocuments
 	BillingDocumentNotifierPort     = care.BillingDocumentNotifier
 	ParentAccountsPort              = care.ParentAccounts
 	SchoolTraegerPort               = care.SchoolTraeger
@@ -81,6 +83,9 @@ type (
 )
 
 const (
+	DocumentKindContract         = care.DocumentKindContract
+	DocumentInboxLetters         = care.DocumentInboxLetters
+	DocumentInboxContracts       = care.DocumentInboxContracts
 	DayStatePresent              = care.DayStatePresent
 	DayStateUnknown              = care.DayStateUnknown
 	RelatedAccountActive         = care.RelatedAccountActive

@@ -583,6 +583,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (b careContractBookings) Bookings(ctx context.Context, requestChildIDs []int64) (map[int64][]carecontract.Booking, error) {\n\thistory, err := b.bookings.CareOfferingBookingHistory(ctx, requestChildIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tbyChild := map[int64][]carecontract.Booking{}\n\tfor _, booking := range history {\n\t\tbyChild[booking.RequestChildID] = append(byChild[booking.RequestChildID], carecontract.Booking{CareOfferingID: booking.CareOfferingID, Days: booking.EffectiveSelectedDays(), ValidFrom: careContractDate(booking.ValidFrom), ValidUntil: careContractDate(booking.ValidUntil)})\n\t}\n\treturn byChild, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/careContractBookings.Bookings",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b careContractBookings) Offerings(ctx context.Context, ids []int64) ([]carecontract.Offering, error) {\n\tfound, err := b.offerings.ContractOfferings(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]carecontract.Offering, len(found))\n\tfor i, offering := range found {\n\t\tresult[i] = carecontract.Offering{ID: offering.ID, PhaseID: offering.PhaseID, Name: offering.Name, PriceCents: offering.PriceCents, Active: offering.IsActive, EndTimes: offering.PickupTimes, DaysOfWeekMode: offering.DaysOfWeekMode, AvailableDays: offering.AvailableDays}\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/careContractBookings.Offerings",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (r childQuotaStudentsReader) ChildQuotaUsage(ctx context.Context) (students.ChildQuotaUsage, bool, error) {\n\tusage, limited, err := r.usages.ChildQuotaUsage(ctx)\n\treturn students.ChildQuotaUsage{Booked: usage.Booked, Occupied: usage.Occupied}, limited, err\n}",
       "form": "unclassified-evidence",
       "id": "api/childQuotaStudentsReader.ChildQuotaUsage",
@@ -6148,7 +6162,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (d parentBillingDocuments) BillingDocumentLetter(ctx context.Context, organizationID, documentID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {\n\tfile, err := d.documents.ParentDocumentLetter(ctx, organizationID, documentID, parentbilling.ParentDocumentReader(reader))\n\tif errors.Is(err, parentbilling.ErrParentDocumentNotFound) {\n\t\treturn parentportal.BillingDocumentFile{}, fmt.Errorf(\"%w: %w\", parentportal.ErrBillingDocumentNotFound, err)\n\t}\n\tif err != nil {\n\t\treturn parentportal.BillingDocumentFile{}, err\n\t}\n\treturn parentportal.BillingDocumentFile(file), nil\n}",
+      "evidence": "func (d parentBillingDocuments) BillingDocumentLetter(ctx context.Context, organizationID, documentID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {\n\tfile, err := d.documents.ParentDocumentLetter(ctx, organizationID, documentID, parentbilling.ParentDocumentReader{AccountID: reader.AccountID, Email: reader.Email})\n\tif errors.Is(err, parentbilling.ErrParentDocumentNotFound) {\n\t\treturn parentportal.BillingDocumentFile{}, fmt.Errorf(\"%w: %w\", parentportal.ErrBillingDocumentNotFound, err)\n\t}\n\tif err != nil {\n\t\treturn parentportal.BillingDocumentFile{}, err\n\t}\n\treturn parentportal.BillingDocumentFile(file), nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentBillingDocuments.BillingDocumentLetter",
       "owner": "roots"
@@ -6193,6 +6207,13 @@
       "evidence": "func (r parentChildReads) ListByAccount(ctx context.Context, accountID int64) ([]*parentportal.ChildSummary, error) {\n\trows, err := r.source.ListByAccount(ctx, accountID)\n\tif rows == nil {\n\t\treturn nil, err\n\t}\n\tout := make([]*parentportal.ChildSummary, len(rows))\n\tfor i, row := range rows {\n\t\tout[i] = parentPortalChild(row)\n\t}\n\treturn out, err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentChildReads.ListByAccount",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d parentContractDocuments) ContractDocumentFile(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {\n\tfile, err := d.inbox.InboxContractDocument(ctx, organizationID, contractID, carecontract.InboxReader(reader))\n\tif errors.Is(err, carecontract.ErrInboxDocumentNotFound) {\n\t\treturn parentportal.BillingDocumentFile{}, fmt.Errorf(\"%w: %w\", parentportal.ErrBillingDocumentNotFound, err)\n\t}\n\tif err != nil {\n\t\treturn parentportal.BillingDocumentFile{}, err\n\t}\n\treturn parentportal.BillingDocumentFile(file), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentContractDocuments.ContractDocumentFile",
       "owner": "roots"
     },
     {

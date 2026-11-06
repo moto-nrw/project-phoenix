@@ -2,6 +2,7 @@ package email
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -122,7 +123,7 @@ func (d *Dispatcher) deliverSynchronously(ctx context.Context, cfg dispatchConfi
 			sendErr = ctxErr
 		}
 
-		final := attempt == cfg.maxAttempts || ctx.Err() != nil
+		final := attempt == cfg.maxAttempts || ctx.Err() != nil || errors.Is(sendErr, mailcontract.ErrPermanentRejection)
 		d.invokeCallback(ctx, cfg, attempt, mailcontract.DeliveryStatusFailed, sendErr, final)
 		if final {
 			return fmt.Errorf("email delivery failed after %d attempt(s): %w", attempt, sendErr)
@@ -218,6 +219,9 @@ func (d *Dispatcher) deliverWithRetry(ctx context.Context, cfg dispatchConfig) {
 			Level:     sentry.LevelWarning,
 			Timestamp: time.Now(),
 		}, nil)
+		if errors.Is(lastErr, mailcontract.ErrPermanentRejection) {
+			break
+		}
 		if attempt < cfg.maxAttempts {
 			time.Sleep(backoffDuration(cfg.backoff, attempt))
 		}
@@ -261,7 +265,8 @@ func (d *Dispatcher) tryDelivery(ctx context.Context, cfg dispatchConfig, attemp
 		"error", err,
 	)
 
-	d.invokeCallback(ctx, cfg, attempt, mailcontract.DeliveryStatusFailed, err, attempt == cfg.maxAttempts)
+	final := attempt == cfg.maxAttempts || errors.Is(err, mailcontract.ErrPermanentRejection)
+	d.invokeCallback(ctx, cfg, attempt, mailcontract.DeliveryStatusFailed, err, final)
 	return err
 }
 

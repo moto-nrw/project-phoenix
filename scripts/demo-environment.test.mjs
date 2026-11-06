@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runInNewContext } from 'node:vm';
+import { compileFunction } from 'node:vm';
 import test from 'node:test';
 
 const build = readFileSync(new URL('../.github/workflows/build.yml', import.meta.url), 'utf8');
@@ -22,8 +22,10 @@ function stepRun(workflow, name) {
 }
 
 function interpolate(script, context) {
+  // These expressions come from the checked-in workflows. Compile them with
+  // explicit inputs so evaluating a property needs no VM watchdog thread.
   return script.replace(/\$\{\{\s*(.*?)\s*\}\}/g, (_, expression) =>
-    String(runInNewContext(expression, context, { timeout: 100 })));
+    String(compileFunction(`return (${expression});`, Object.keys(context))(...Object.values(context))));
 }
 
 function runStep(t, script, env = {}) {

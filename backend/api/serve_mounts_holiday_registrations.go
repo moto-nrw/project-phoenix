@@ -20,7 +20,8 @@ import (
 // mountTraegerRoutes serves the Träger-Portal at /traeger, the public
 // holiday registration (#4661, ADR 0110) at /traeger/holiday-registrations: the one
 // link of a published holiday period, without an account. Turnstile is
-// always required there. The Elternabrechnung (#4664) mounts beside them.
+// always required there. The Elternabrechnung (#4664) and the
+// Betreuungsvertrag (#4678) mount beside them.
 func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.Capability,
 	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerSettings, delivery deliveryRuntime.Capability, keys TurnstileKeys,
 	healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) error {
@@ -29,6 +30,7 @@ func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity Tra
 	}
 	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, logger).Router())
 	mountParentBillingRoutes(root, organizations, settings, delivery, healthData, logger)
+	mountCareContractRoutes(root, organizations, settings, delivery, audit.Log)
 	return nil
 }
 

@@ -497,7 +497,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/request_child_storage_contract.go:requestChildStorageContractDataPreflight": 66,
 	// ADR 0087.
-	"database/migrations/reset.go:resetDatabase": 99,
+	"database/migrations/reset.go:resetDatabase": 71,
 	// ADR 0087.
 	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).copyBatch": 75,
 	// ADR 0087.
