@@ -19,7 +19,7 @@ import (
 // a Träger whose run fails leaves its children candidates for the next run
 // and does not stop the other Träger. After the conclusion the same run
 // brings every active contract in line with an approved change of its
-// booked care (#4681, NewCareContractAmendments); the count covers both.
+// booked care (#4681, Conclusion.AmendFromBookings); the count covers both.
 func CareContractConclusionJob(logger *slog.Logger) owners.CareContractConclusionBuilder {
 	return func(organizations organizationtenancy.Capability, settings owners.SettingsOwner,
 		delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) schedulerPorts.CareContractConclusion {
@@ -27,10 +27,9 @@ func CareContractConclusionJob(logger *slog.Logger) owners.CareContractConclusio
 			panic("care contract conclusion: organizations, settings, delivery and the access log are required")
 		}
 		conclusion := NewCareContractConclusion(organizations, settings.Traeger, settings.Service, delivery, accessLog)
-		amendments := NewCareContractAmendments(organizations, settings.Traeger, settings.Service, delivery, accessLog)
 		return func(ctx context.Context) (int, error) {
 			concluded, concludeErr := concludeEveryTraeger(ctx, organizations, conclusion, logger)
-			amended, amendErr := amendEveryTraeger(ctx, organizations, amendments, logger)
+			amended, amendErr := amendEveryTraeger(ctx, organizations, conclusion, logger)
 			return concluded + amended, errors.Join(concludeErr, amendErr)
 		}
 	}
@@ -67,7 +66,7 @@ func concludeEveryTraeger(ctx context.Context, organizations organizationtenancy
 
 // amendEveryTraeger runs the amendments for every active Träger and counts
 // the new versions; the failures of single Träger are joined.
-func amendEveryTraeger(ctx context.Context, organizations organizationtenancy.Capability, amendments carecontract.Amendments,
+func amendEveryTraeger(ctx context.Context, organizations organizationtenancy.Capability, amendments carecontract.Conclusion,
 	logger *slog.Logger) (int, error) {
 	found, err := organizations.ListOrganizations(ctx)
 	if err != nil {

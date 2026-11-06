@@ -76,14 +76,11 @@ type AmendmentSkip struct {
 	Reason     string `json:"reason"`
 }
 
-// Amendments makes a new version for every active contract whose booked care
-// changed after its newest version. It reads each school in its own tenant
-// transaction and writes each contract in its own Träger transaction, so it
-// must be called outside any transaction. It acts for no account: the
-// school approved the change, and the trail records the new version.
-type Amendments interface {
-	AmendFromBookings(ctx context.Context, organizationID int64) (AmendmentRun, error)
-}
+// Conclusion.AmendFromBookings makes the new versions. It reads each school
+// in its own tenant transaction and writes each contract in its own Träger
+// transaction, so it must be called outside any transaction. It acts for no
+// account: the school approved the change, and the trail records the new
+// version.
 
 // VersionPeriod is the version of one contract in force over a span of
 // days: From and Until are inclusive and lie within the span asked for.
@@ -100,10 +97,10 @@ type VersionPeriod struct {
 // (#4684). It runs in the Träger transaction the caller holds.
 type ContractVersions interface {
 	// VersionsInForce answers, for every active or ended contract of the
-	// Träger, each version in force on a day between from and to (both
-	// inclusive), ordered by contract and day. A contract appears once per
-	// version, never twice for one day.
-	VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date) ([]VersionPeriod, error)
+	// Träger (or only contractIDs), each version in force on a day between
+	// from and to (both inclusive), ordered by contract and day. A contract
+	// appears once per version, never twice for one day.
+	VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date, contractIDs ...int64) ([]VersionPeriod, error)
 }
 
 // ServicesOn are the services of the version on one day: the modules booked

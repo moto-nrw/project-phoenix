@@ -61,8 +61,14 @@ type ConclusionRun struct {
 // transaction, so it must be called outside any transaction. The key of a
 // contract (the application child) keeps a repeated run from concluding
 // twice.
+//
+// AmendFromBookings is the same reconciliation for contracts that are
+// active already (#4681): it gives every one whose booked care changed after
+// its newest version the next version from the day of the change
+// (amendment.go).
 type Conclusion interface {
 	ConcludeAccepted(ctx context.Context, organizationID int64) (ConclusionRun, error)
+	AmendFromBookings(ctx context.Context, organizationID int64) (AmendmentRun, error)
 }
 
 // Concluded tells how and when a contract was concluded.

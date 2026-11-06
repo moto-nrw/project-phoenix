@@ -62,15 +62,6 @@ func NewCareContractConclusion(organizations HolidayOrganizations, settings Trae
 	return careContractCompose.NewConclusion(careContractPorts(organizations, settings, schoolSettings, delivery, accessLog))
 }
 
-// NewCareContractAmendments builds the Worker's run that gives an active
-// contract a new version when the school approved a change of its booked
-// care (#4681), over the same ports as the intake of the portal routes.
-func NewCareContractAmendments(organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) carecontract.Amendments {
-	_, intake := careContractPorts(organizations, settings, schoolSettings, delivery, accessLog)
-	return careContractCompose.NewAmendments(intake)
-}
-
 func careContractPorts(organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings CareContractSchoolSettings,
 	delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) (careContractCompose.ContractPorts, careContractCompose.IntakePorts) {
 	if schoolSettings == nil {

@@ -127,7 +127,7 @@ type Store interface {
 	InsertVersion(ctx context.Context, organizationID, contractID, previousID int64, version carecontract.Version) (int64, error)
 	// VersionsInForce reads the effective versions holding between from and
 	// to; VersionPeriod.From and Until stay for the caller to fill.
-	VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date) ([]carecontract.VersionPeriod, error)
+	VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date, contractIDs []int64) ([]carecontract.VersionPeriod, error)
 	// VersionDocument reads the stored PDF of a version; ok is false before
 	// its first send.
 	VersionDocument(ctx context.Context, organizationID, versionID int64) (carecontract.File, bool, error)

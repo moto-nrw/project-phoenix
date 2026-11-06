@@ -1,5 +1,4 @@
-// Package compose builds the Betreuungsvertrag (care-contract, ADR 0088,
-// ADR 0153) over the ports the root binds.
+// Package compose builds the Betreuungsvertrag (ADR 0088, ADR 0153) over the ports the root binds.
 package compose
 
 import (
@@ -12,52 +11,38 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// NewContracts builds the contracts of the Träger-Büro. The writes run in
-// the Träger transaction of the portal route; the reads open their own units
-// for the access log of each school.
+// ContractPorts and IntakePorts are the ports the root binds.
+type (
+	ContractPorts = application.ContractPorts
+	IntakePorts   = application.IntakePorts
+)
+
+// NewContracts builds the contracts of the Träger-Büro; the reads open own units for each school's access log.
 func NewContracts(ports ContractPorts) carecontract.Contracts {
-	return application.NewContracts(postgres.NewStore(), rendering.NewRenderer(), ports, application.Clock{Now: time.Now})
+	return application.NewContracts(postgres.NewStore(), rendering.NewRenderer(), ports, application.Clock{Now: time.Now}, NewContractVersions())
 }
 
-// ContractPorts are the ports the root binds for the contracts.
-type ContractPorts = application.ContractPorts
+// NewContractVersions reads the versions in force for the billing (#4681, #4684) in the caller's Träger unit.
+func NewContractVersions() carecontract.ContractVersions {
+	return application.NewVersions(postgres.NewStore())
+}
 
-// NewIntake builds the creation of contracts from the accepted applications
-// and the templates of the offerings; it opens its own units.
+// NewIntake builds the creation of contracts from the accepted applications and the offerings' templates.
 func NewIntake(ports IntakePorts) carecontract.Intake {
 	return application.NewIntake(postgres.NewStore(), ports, calendar.TodayDate)
 }
 
-// IntakePorts are the ports the root binds for the intake.
-type IntakePorts = application.IntakePorts
-
-// NewConclusion builds the conclusion at the acceptance (Weg b, #4680)
-// over the ports of the contracts and of the intake; it opens its own units.
+// NewConclusion builds the conclusion at the acceptance (Weg b, #4680); it opens its own units.
 func NewConclusion(contracts ContractPorts, intake IntakePorts) carecontract.Conclusion {
 	clock := application.Clock{Now: time.Now}
 	return application.NewConclusions(application.NewIntake(postgres.NewStore(), intake, calendar.TodayDate),
-		application.NewContracts(postgres.NewStore(), rendering.NewRenderer(), contracts, clock), clock)
+		application.NewContracts(postgres.NewStore(), rendering.NewRenderer(), contracts, clock, NewContractVersions()), clock)
 }
 
-// NewInbox builds the contracts of the parents' inbox, in the Träger
-// transaction the parents portal opens.
+// NewInbox builds the parents' inbox in the parents portal's Träger unit.
 func NewInbox() carecontract.Inbox { return application.NewInbox(postgres.NewStore()) }
 
-// NewContractMailRenderer renders the mail of a contract for Delivery's
-// worker.
+// NewContractMailRenderer renders a contract mail for Delivery's worker.
 func NewContractMailRenderer() carecontract.ContractMailRenderer {
 	return application.RenderContractMail
-}
-
-// NewAmendments builds the run that gives an active contract a new version
-// when its booked care changed (#4681) over the ports of the intake; it
-// opens its own units.
-func NewAmendments(intake IntakePorts) carecontract.Amendments {
-	return application.NewAmendments(application.NewIntake(postgres.NewStore(), intake, calendar.TodayDate))
-}
-
-// NewContractVersions builds the read of the versions in force for the
-// parents' billing (#4684), in the Träger transaction the caller holds.
-func NewContractVersions() carecontract.ContractVersions {
-	return application.NewVersions(postgres.NewStore())
 }

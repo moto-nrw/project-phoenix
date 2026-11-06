@@ -96,8 +96,9 @@ func TestPublicContractFollowsAnApprovedChangeWithANewVersionAndAnswersOneVersio
 	school := changedSchool{school: carecontract.School{ID: testpkg.UniqueTestTenantID(t), Name: "OGS Am Lindenhof"},
 		child: testpkg.UniqueTestTenantID(t), offering: testpkg.UniqueTestTenantID(t)}
 	contract := activeContract(t, ctx, organization, school)
-	amendments := compose.NewAmendments(compose.IntakePorts{Schools: school, Applications: school, Bookings: school,
-		Access: school, Runtime: runtimeDouble{}, Modes: modesDouble{}})
+	contractPorts := compose.ContractPorts{Letterheads: letterheadDouble{}, Post: &postDouble{}, Runtime: runtimeDouble{}, Access: school}
+	amendments := compose.NewConclusion(contractPorts, compose.IntakePorts{Schools: school, Applications: school,
+		Bookings: school, Access: school, Runtime: runtimeDouble{}, Modes: modesDouble{}})
 
 	run, err := amendments.AmendFromBookings(ctx, organization)
 	require.NoError(t, err)
@@ -107,8 +108,7 @@ func TestPublicContractFollowsAnApprovedChangeWithANewVersionAndAnswersOneVersio
 	require.NoError(t, err)
 	assert.Empty(t, again.Amended, "a repeated run makes no second version")
 
-	contracts := compose.NewContracts(compose.ContractPorts{Letterheads: letterheadDouble{}, Post: &postDouble{},
-		Runtime: runtimeDouble{}, Access: school})
+	contracts := compose.NewContracts(contractPorts)
 	detail, err := contracts.Contract(ctx, reviewer, contract)
 	require.NoError(t, err)
 	require.Len(t, detail.Versions, 2, "the old version stays readable")

@@ -60,47 +60,57 @@ func nextAmendment(read schoolRead, application carecontract.Application, contra
 // as today, since no version reaches into the past.
 func changeDays(read schoolRead, application carecontract.Application, contract AmendableContract, today calendar.Date) []calendar.Date {
 	latest := contract.Latest
-	termEnd := endsOn(latest.Terms, contract.FirstFrom, nil)
+	window := changeWindow{after: latest.EffectiveFrom, today: today, termEnd: endsOn(latest.Terms, contract.FirstFrom, nil)}
+	days := []*calendar.Date{dayAfter(latest.EndsOn)}
+	for _, booking := range application.Bookings {
+		if offering, ok := read.offerings[booking.CareOfferingID]; ok {
+			if clipped, ok := bookingWithinPhase(booking, offering, today); ok {
+				days = append(days, clipped.ValidFrom, clipped.ValidUntil)
+			}
+		}
+	}
+	for _, service := range latest.Services {
+		days = append(days, dayAfter(service.LastDay))
+	}
 	candidates := []calendar.Date{}
-	add := func(day *calendar.Date) {
-		if day == nil || day.IsZero() {
-			return
-		}
-		candidate := *day
-		if candidate.Before(today) {
-			candidate = today
-		}
-		if !candidate.After(latest.EffectiveFrom) || (termEnd != nil && candidate.After(*termEnd)) {
-			return
-		}
-		if !slices.Contains(candidates, candidate) {
+	for _, day := range days {
+		if candidate, ok := window.candidate(day); ok && !slices.Contains(candidates, candidate) {
 			candidates = append(candidates, candidate)
 		}
 	}
-	for _, booking := range application.Bookings {
-		offering, ok := read.offerings[booking.CareOfferingID]
-		if !ok {
-			continue
-		}
-		clipped, ok := bookingWithinPhase(booking, offering, today)
-		if !ok {
-			continue
-		}
-		add(clipped.ValidFrom)
-		add(clipped.ValidUntil)
-	}
-	for _, service := range latest.Services {
-		if service.LastDay != nil {
-			next := service.LastDay.AddDays(1)
-			add(&next)
-		}
-	}
-	if latest.EndsOn != nil {
-		next := latest.EndsOn.AddDays(1)
-		add(&next)
-	}
 	slices.SortFunc(candidates, func(a, b calendar.Date) int { return a.Compare(b) })
 	return candidates
+}
+
+// changeWindow bounds the days a new version may start on: after the newest
+// version, not before today, not after a fixed term.
+type changeWindow struct {
+	after, today calendar.Date
+	termEnd      *calendar.Date
+}
+
+// candidate moves a day before today to today and keeps it when it lies in
+// the window.
+func (w changeWindow) candidate(day *calendar.Date) (calendar.Date, bool) {
+	if day == nil || day.IsZero() {
+		return "", false
+	}
+	candidate := *day
+	if candidate.Before(w.today) {
+		candidate = w.today
+	}
+	if !candidate.After(w.after) || (w.termEnd != nil && candidate.After(*w.termEnd)) {
+		return "", false
+	}
+	return candidate, true
+}
+
+func dayAfter(day *calendar.Date) *calendar.Date {
+	if day == nil {
+		return nil
+	}
+	next := day.AddDays(1)
+	return &next
 }
 
 // servicesAt is the care the child books on one day: every booking that

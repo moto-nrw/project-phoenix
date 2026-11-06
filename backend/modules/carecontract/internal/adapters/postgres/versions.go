@@ -180,7 +180,7 @@ type periodRow struct {
 
 // VersionsInForce reads the effective versions of the active and ended
 // contracts that hold on a day between from and to, by contract and start.
-func (Store) VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date) ([]carecontract.VersionPeriod, error) {
+func (Store) VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date, contractIDs []int64) ([]carecontract.VersionPeriod, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
@@ -192,10 +192,11 @@ func (Store) VersionsInForce(ctx context.Context, organizationID int64, from, to
 			FROM care_contract.contracts AS c
 			JOIN care_contract.contract_versions AS v ON v.organization_id = c.organization_id AND v.contract_id = c.id
 			WHERE c.organization_id = ? AND c.status IN (?, ?) AND v.status IN `+effectiveStatusSQL+`
-				AND v.effective_from <= ?) AS t
+				AND v.effective_from <= ? AND (cardinality(?::bigint[]) = 0 OR c.id = ANY(?::bigint[]))) AS t
 		WHERE t.valid_until IS NULL OR t.valid_until >= ?
 		ORDER BY t.contract_id, t.effective_from`,
-		organizationID, carecontract.StatusActive, carecontract.StatusEnded, to, from).Scan(ctx, &rows); err != nil {
+		organizationID, carecontract.StatusActive, carecontract.StatusEnded, to, pgdialect.Array(nonNilIDs(contractIDs)),
+		pgdialect.Array(nonNilIDs(contractIDs)), from).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: read versions in force: %w", err)
 	}
 	periods := make([]carecontract.VersionPeriod, len(rows))
@@ -207,6 +208,13 @@ func (Store) VersionsInForce(ctx context.Context, organizationID int64, from, to
 		periods[i] = carecontract.VersionPeriod{ContractID: row.ContractID, SchoolID: row.SchoolID, StudentID: row.StudentID, Version: version}
 	}
 	return periods, nil
+}
+
+func nonNilIDs(ids []int64) []int64 {
+	if ids == nil {
+		return []int64{}
+	}
+	return ids
 }
 
 // VersionDocument reads the stored PDF of one version; ok is false when the

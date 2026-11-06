@@ -89,16 +89,16 @@ func NewVersions(store Store) *Versions {
 
 // VersionsInForce answers each version in force between from and to with
 // the days it holds within that span.
-func (v *Versions) VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date) ([]carecontract.VersionPeriod, error) {
+func (v *Versions) VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date, contractIDs ...int64) ([]carecontract.VersionPeriod, error) {
 	if organizationID <= 0 || from.IsZero() || to.IsZero() || to.Before(from) || from.DaysUntil(to) > maxBillingSpan {
 		return nil, &carecontract.ValidationError{Fields: map[string]string{"period": "invalid"}}
 	}
-	return v.periods(ctx, organizationID, from, to)
+	return v.periods(ctx, organizationID, from, to, contractIDs)
 }
 
 // periods reads the versions in force and clips each to the span.
-func (v *Versions) periods(ctx context.Context, organizationID int64, from, to calendar.Date) ([]carecontract.VersionPeriod, error) {
-	periods, err := v.store.VersionsInForce(ctx, organizationID, from, to)
+func (v *Versions) periods(ctx context.Context, organizationID int64, from, to calendar.Date, contractIDs []int64) ([]carecontract.VersionPeriod, error) {
+	periods, err := v.store.VersionsInForce(ctx, organizationID, from, to, contractIDs)
 	if err != nil {
 		return nil, fmt.Errorf("care contract: versions in force: %w", err)
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // maxSendBatch bounds a send of several contracts in one request.
@@ -27,6 +28,7 @@ type Contracts struct {
 	clock       Clock
 	runtime     carecontract.Runtime
 	access      carecontract.SchoolAccessLog
+	versions    carecontract.ContractVersions
 }
 
 // ContractPorts are the root-bound ports of the contracts.
@@ -40,12 +42,13 @@ type ContractPorts struct {
 var _ carecontract.Contracts = (*Contracts)(nil)
 
 // NewContracts builds the contracts of the Träger-Büro.
-func NewContracts(store Store, renderer LetterRenderer, ports ContractPorts, clock Clock) *Contracts {
-	if store == nil || renderer == nil || ports.Letterheads == nil || ports.Post == nil || ports.Runtime == nil || ports.Access == nil {
-		panic("care contract: the store, the renderer, the letterhead, the post, the runtime and the access log are required")
+func NewContracts(store Store, renderer LetterRenderer, ports ContractPorts, clock Clock, versions carecontract.ContractVersions) *Contracts {
+	if store == nil || renderer == nil || ports.Letterheads == nil || ports.Post == nil || ports.Runtime == nil || ports.Access == nil ||
+		versions == nil {
+		panic("care contract: the store, the renderer, the letterhead, the post, the runtime, the access log and the versions are required")
 	}
 	return &Contracts{store: store, letterheads: ports.Letterheads, renderer: renderer, post: ports.Post, clock: clock,
-		runtime: ports.Runtime, access: ports.Access}
+		runtime: ports.Runtime, access: ports.Access, versions: versions}
 }
 
 // ListContracts lists the contracts of the filter, records the read in the
@@ -204,10 +207,27 @@ func (c *Contracts) detail(ctx context.Context, reviewer carecontract.Reviewer, 
 	if err != nil {
 		return carecontract.ContractDetail{}, err
 	}
+	current, err := c.versionToday(ctx, reviewer.OrganizationID, record)
+	if err != nil {
+		return carecontract.ContractDetail{}, err
+	}
 	return carecontract.ContractDetail{
-		ContractSummary: record.Summary, Version: record.Version, Parties: record.Parties,
+		ContractSummary: record.Summary, Version: current, Parties: record.Parties,
 		Mailings: mailings, DocumentFrozen: record.DocumentID != nil, Versions: versions,
 	}, nil
+}
+
+// versionToday is the version the billing takes for today (#4681, #4684),
+// read through the same ContractVersions, so the page and the billing never
+// disagree; before the conclusion, or before the contract starts, it is the
+// contract's current version.
+func (c *Contracts) versionToday(ctx context.Context, organizationID int64, record ContractRecord) (carecontract.Version, error) {
+	today := calendar.DateFromTime(c.clock.now())
+	periods, err := c.versions.VersionsInForce(ctx, organizationID, today, today, record.Summary.ID)
+	if err != nil || len(periods) == 0 {
+		return record.Version, err
+	}
+	return periods[0].Version, nil
 }
 
 // mailings are the sends of the contract, newest first, with the state of
