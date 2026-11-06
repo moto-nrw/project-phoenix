@@ -99,7 +99,7 @@ describe.concurrent("ui-kit/no-hand-rolled-copy-field", () => {
     expect(result.output).toContain("ui-kit(no-hand-rolled-copy-field)");
   });
 
-  it("allows inline code and the shared hook", async () => {
+  it("allows inline code and only the shared copy primitives", async () => {
     const inline = await lintSource(
       `function Probe() {
         return <code className="shrink-0">wert</code>;
@@ -111,9 +111,25 @@ describe.concurrent("ui-kit/no-hand-rolled-copy-field", () => {
       `export const copy = (text: string) => navigator.clipboard.writeText(text);`,
       "src/lib/use-clipboard-copy.ts",
     );
+    const copyField = await lintSource(
+      `function Probe() {
+        return <code className="rounded-lg border px-3 py-2">wert</code>;
+      }
+      void Probe;`,
+      "src/components/ui/copy-field.tsx",
+    );
+    const otherUiComponent = await lintSource(
+      `export const copy = (text: string) => navigator.clipboard.writeText(text);`,
+      "src/components/ui/probe.tsx",
+    );
 
     expect(inline.output).not.toContain("ui-kit(no-hand-rolled-copy-field)");
     expect(hook.output).not.toContain("ui-kit(no-hand-rolled-copy-field)");
+    expect(copyField.output).not.toContain("ui-kit(no-hand-rolled-copy-field)");
+    expect(otherUiComponent.status).toBe(1);
+    expect(otherUiComponent.output).toContain(
+      "ui-kit(no-hand-rolled-copy-field)",
+    );
   });
 });
 

@@ -3026,7 +3026,7 @@ const noShadowKitName = {
 // Zwischenablage, an dem Rückmeldung und Fehlerweg hängen.
 const DROPZONE_FILE = "src/components/ui/dropzone.tsx";
 const CLIPBOARD_ALLOWED_RE =
-  /^src\/(?:components\/ui\/|lib\/use-clipboard-copy\.ts$)/;
+  /^src\/(?:components\/ui\/copy-field\.tsx|lib\/use-clipboard-copy\.ts)$/;
 
 const noHandRolledDropzone = {
   meta: {
@@ -3089,7 +3089,10 @@ const noHandRolledCopyField = {
       },
       MemberExpression(node) {
         const owner = node.object?.property ?? node.object;
-        if (owner?.name === "navigator" && node.property?.name === "clipboard") {
+        if (
+          owner?.name === "navigator" &&
+          node.property?.name === "clipboard"
+        ) {
           context.report({ node, messageId: "rawClipboard" });
         }
       },
