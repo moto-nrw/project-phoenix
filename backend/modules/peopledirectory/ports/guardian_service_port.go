@@ -26,6 +26,7 @@ type GuardianService interface {
 	EvaluateGuardianDelete(ctx context.Context, guardianProfileID int64, force bool, isAdmin bool) (hasLinks bool, err error)
 	GetGuardianByID(ctx context.Context, id int64) (*peopleValues.GuardianProfileSnapshot, error)
 	GetGuardianDeleteImpact(ctx context.Context, guardianProfileID int64) (*GuardianDeleteImpact, error)
+	GetGuardianDeletePreviewImpact(ctx context.Context, guardianProfileID int64) (*GuardianDeleteImpact, error)
 	GetGuardianPaymentMasked(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string) (*GuardianPaymentMasked, error)
 	GetGuardianStudents(ctx context.Context, guardianProfileID int64) ([]*StudentWithRelationship, error)
 	GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*peopleValues.GuardianRelationshipSnapshot, error)

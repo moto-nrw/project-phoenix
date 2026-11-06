@@ -44,6 +44,19 @@ func (s directPickupCoordinatorStub) PreviewDirectOfferingAdjustment(
 	return &careplan.DirectOfferingAdjustmentPreview{Catalog: s.catalog, MaterializedPickupTimes: profile}, err
 }
 
+func (s directPickupCoordinatorStub) PreviewDirectOfferingAlternatives(ctx context.Context, input careplan.DirectOfferingAdjustmentInput, alternatives [][]careplan.OfferingChangeSelection) ([]*careplan.DirectOfferingAdjustmentPreview, error) {
+	result := make([]*careplan.DirectOfferingAdjustmentPreview, 0, len(alternatives))
+	for _, selections := range alternatives {
+		input.Selections = selections
+		preview, err := s.PreviewDirectOfferingAdjustment(ctx, input)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, preview)
+	}
+	return result, nil
+}
+
 func selectedCareOfferingID(catalog *careplan.OfferingChangeCatalog, selections []careplan.OfferingChangeSelection) int64 {
 	for _, selected := range selections {
 		for _, item := range catalog.Items {

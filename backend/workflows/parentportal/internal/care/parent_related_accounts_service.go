@@ -82,9 +82,17 @@ func (s *Service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 		if err != nil {
 			return err
 		}
+		profileIDs := make([]int64, 0, len(links))
+		for _, link := range links {
+			profileIDs = append(profileIDs, link.GuardianProfileID)
+		}
+		profiles, err := s.GuardianProfileRepo.FindByIDs(txCtx, profileIDs)
+		if err != nil {
+			return err
+		}
 		out = make([]*RelatedAccount, 0, len(links))
 		for _, link := range links {
-			account, err := s.relatedAccountForLink(txCtx, link, accountID, studentID)
+			account, err := s.relatedAccountForLink(txCtx, link, profiles[link.GuardianProfileID], accountID, studentID)
 			if err != nil {
 				return err
 			}
@@ -103,10 +111,15 @@ func (s *Service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 
 // relatedAccountForLink projects one guardian link into a RelatedAccount. It
 // returns nil when the link's guardian profile no longer exists.
-func (s *Service) relatedAccountForLink(txCtx context.Context, link *GuardianRelationship, accountID, studentID int64) (*RelatedAccount, error) {
-	profile, err := s.GuardianProfileRepo.FindByID(txCtx, link.GuardianProfileID)
-	if err != nil {
-		return nil, err
+func (s *Service) relatedAccountForLink(txCtx context.Context, link *GuardianRelationship, profile *GuardianProfile, accountID, studentID int64) (*RelatedAccount, error) {
+	if profile == nil {
+		// The batch omits missing rows. Retain the single reader's not-found
+		// error (or nil result) if a linked profile disappeared.
+		var err error
+		profile, err = s.GuardianProfileRepo.FindByID(txCtx, link.GuardianProfileID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if profile == nil {
 		return nil, nil

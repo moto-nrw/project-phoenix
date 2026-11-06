@@ -1,6 +1,6 @@
 {
   "scenario": "modules.requestreview.pending_count.three_children",
-  "max": 49,
+  "max": 47,
   "exact": false,
   "description": "Request Review native four-queue pending_count, N=3 distinct children, one request of each kind per child, measured inside a tenant transaction (BEGIN and scope included, trailing COMMIT excluded). Write-capable caller badge, all four queues. Pins current linear schedule-plan/absence enrichment costs, not a flat-cost claim."
 }

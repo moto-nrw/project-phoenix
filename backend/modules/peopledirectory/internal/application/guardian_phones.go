@@ -26,16 +26,13 @@ func (s *RetainedGuardianService) AddPhoneNumber(ctx context.Context, guardianID
 		return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
 	}
 
-	// Get current count to determine if this should be primary
-	count, err := s.GuardianPhoneNumberRepo.CountByGuardianID(ctx, guardianID)
+	// Read the count and next priority under the guardian lock.
+	count, priority, err := s.GuardianPhoneNumberRepo.CountAndNextPriority(ctx, guardianID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count existing phone numbers: %w", err)
 	}
 
-	phone, err := s.newGuardianPhone(ctx, guardianID, req, count)
-	if err != nil {
-		return nil, err
-	}
+	phone := s.newGuardianPhone(ctx, guardianID, req, count, priority)
 
 	if err := phone.Validate(); err != nil {
 		return nil, newGuardianValidationError(err)
@@ -58,13 +55,7 @@ func (s *RetainedGuardianService) AddPhoneNumber(ctx context.Context, guardianID
 // newGuardianPhone builds the phone row AddPhoneNumber inserts: next
 // priority, a known phone type, and primary when it is the guardian's first
 // number or the request asks for it.
-func (s *RetainedGuardianService) newGuardianPhone(ctx context.Context, guardianID int64, req peoplePorts.PhoneNumberCreateRequest, count int) (*peopleValues.GuardianProfilePhoneSnapshot, error) {
-	// Get next priority
-	priority, err := s.GuardianPhoneNumberRepo.GetNextPriority(ctx, guardianID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get next priority: %w", err)
-	}
-
+func (s *RetainedGuardianService) newGuardianPhone(ctx context.Context, guardianID int64, req peoplePorts.PhoneNumberCreateRequest, count, priority int) *peopleValues.GuardianProfilePhoneSnapshot {
 	// Determine phone type
 	phoneType := string(req.PhoneType)
 	if !peopleValues.ValidPhoneType(phoneType) {
@@ -81,7 +72,7 @@ func (s *RetainedGuardianService) newGuardianPhone(ctx context.Context, guardian
 		Priority:  priority,
 	}
 	phone.SetTenantID(s.transactions.TenantID(ctx))
-	return phone, nil
+	return phone
 }
 
 // UpdatePhoneNumber updates an existing phone number

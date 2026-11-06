@@ -379,6 +379,7 @@ type StudentGuardianRepository interface {
 
 	// FindByGuardianProfileID retrieves relationships by guardian profile ID
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*peopledirectory.GuardianRelationshipSnapshot, error)
+	FindByGuardianProfileIDForDeletePreview(ctx context.Context, guardianProfileID int64) ([]*peopledirectory.GuardianRelationshipSnapshot, error)
 
 	// AccountHasStudentPermission reports whether the guardian account holds the
 	// named parent_portal.* permission on its relationship to the given student
@@ -564,6 +565,10 @@ type GuardianPhoneNumberRepository interface {
 
 	// CountByGuardianID returns the number of phone numbers for a guardian
 	CountByGuardianID(ctx context.Context, guardianProfileID int64) (int, error)
+
+	// CountAndNextPriority returns the phone count and MAX(priority)+1 (1 if empty).
+	// Callers that mutate the list must hold the guardian profile lock.
+	CountAndNextPriority(ctx context.Context, guardianProfileID int64) (int, int, error)
 
 	// GetNextPriority returns the next priority value for a guardian's phone numbers
 	GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error)

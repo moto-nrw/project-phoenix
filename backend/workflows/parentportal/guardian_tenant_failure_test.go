@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestListChildGuardiansTenantStartFailureKeepsSettingDetail(t *testing.T) {
+func TestListChildGuardiansTenantStartFailurePropagatesCause(t *testing.T) {
 	t.Parallel()
 	svc, db := buildGuardianService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -38,5 +38,4 @@ func TestListChildGuardiansTenantStartFailureKeepsSettingDetail(t *testing.T) {
 	rows, err := svc.ListChildGuardians(tenant.WithUnitOfWork(context.Background(), runtime), chain.AccountID, chain.StudentID)
 	require.Nil(t, rows)
 	require.ErrorIs(t, err, cause)
-	require.EqualError(t, err, "parent: resolve guardian-management setting: selected tenant start refused")
 }

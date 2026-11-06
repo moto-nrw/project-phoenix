@@ -105,6 +105,19 @@ func (p *GuardianDirectory) GuardianDeleteImpact(ctx context.Context, id int64) 
 	return peopledirectory.GuardianDeleteImpact{LinkIDs: impact.LinkIDs, StudentNames: impact.StudentNames}, nil
 }
 
+func (p *GuardianDirectory) PreviewGuardianDelete(ctx context.Context, id int64) (peopledirectory.GuardianDeletePreview, error) {
+	if _, err := p.guardians.GuardianProfiles().FindByID(ctx, id); err != nil {
+		return peopledirectory.GuardianDeletePreview{}, mapGuardianError(err)
+	}
+	result := peopledirectory.GuardianDeletePreview{GuardianFound: true}
+	impact, err := p.guardians.GetGuardianDeletePreviewImpact(ctx, id)
+	if err != nil {
+		return result, mapGuardianError(err)
+	}
+	result.Impact = peopledirectory.GuardianDeleteImpact{LinkIDs: impact.LinkIDs, StudentNames: impact.StudentNames}
+	return result, nil
+}
+
 func (p *GuardianDirectory) ListGuardianPhones(ctx context.Context, guardianID int64) ([]peopledirectory.GuardianPhone, error) {
 	phones, err := p.guardians.GuardianPhoneNumbers().FindByGuardianID(ctx, guardianID)
 	if err != nil {

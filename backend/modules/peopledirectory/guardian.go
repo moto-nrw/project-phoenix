@@ -167,6 +167,13 @@ type GuardianMatch struct {
 	LinkedChildrenCount int
 }
 
+// GuardianDeletePreview distinguishes a failed profile lookup from a failed
+// impact read so the HTTP adapter retains its historical error responses.
+type GuardianDeletePreview struct {
+	GuardianFound bool
+	Impact        GuardianDeleteImpact
+}
+
 // GuardianDeleteImpact is the exact current blast radius of a full delete.
 type GuardianDeleteImpact struct {
 	LinkIDs      []int64
@@ -355,6 +362,8 @@ type GuardianProfileQuery interface {
 	// the given one, ignoring case; ErrGuardianNotFound when there is none.
 	FindGuardianByEmail(context.Context, string) (Guardian, error)
 	GuardianDeleteImpact(context.Context, int64) (GuardianDeleteImpact, error)
+	// PreviewGuardianDelete checks the profile and reads its deletion impact without phone hydration.
+	PreviewGuardianDelete(context.Context, int64) (GuardianDeletePreview, error)
 }
 
 // GuardianPhoneQuery reads guardian phone numbers.

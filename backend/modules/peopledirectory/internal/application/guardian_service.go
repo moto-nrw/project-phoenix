@@ -411,7 +411,17 @@ func sameInt64Set(a, b []int64) bool {
 // getGuardianDeleteImpact retrieves the link IDs and full names of all students
 // linked to a guardian from the same relationship snapshot.
 func (s *RetainedGuardianService) getGuardianDeleteImpact(ctx context.Context, guardianProfileID int64) (*peoplePorts.GuardianDeleteImpact, error) {
-	relationships, err := s.StudentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+	return s.guardianDeleteImpactFrom(ctx, guardianProfileID, s.StudentGuardianRepo.FindByGuardianProfileID)
+}
+
+// GetGuardianDeletePreviewImpact retains the preview's phone-table observation
+// in the relationship read, without fetching or decoding unused phone records.
+func (s *RetainedGuardianService) GetGuardianDeletePreviewImpact(ctx context.Context, guardianProfileID int64) (*peoplePorts.GuardianDeleteImpact, error) {
+	return s.guardianDeleteImpactFrom(ctx, guardianProfileID, s.StudentGuardianRepo.FindByGuardianProfileIDForDeletePreview)
+}
+
+func (s *RetainedGuardianService) guardianDeleteImpactFrom(ctx context.Context, guardianProfileID int64, load func(context.Context, int64) ([]*peopleValues.GuardianRelationshipSnapshot, error)) (*peoplePorts.GuardianDeleteImpact, error) {
+	relationships, err := load(ctx, guardianProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load guardian-student relationships: %w", err)
 	}

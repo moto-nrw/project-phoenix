@@ -3,6 +3,7 @@ package parentportal_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
@@ -50,6 +51,9 @@ func TestRelatedAccountsQueryBudget(t *testing.T) {
 				assert.Equal(t, parentService.RelatedAccountNoAccount, account.Status)
 			}
 		}
+		assert.Len(t, counter.Matching(func(query string) bool {
+			return strings.Contains(query, "from users.guardian_profiles")
+		}), 1, "load linked profiles in one batch")
 		t.Logf("N=%d total=%d profiles=%d invitations=%d SQL=%q", n, len(counter.Queries()), len(counter.Selects("users.guardian_profiles")), len(counter.Selects("auth.guardian_invitations")), counter.Queries())
 		switch n {
 		case 1:
@@ -65,8 +69,8 @@ func TestRelatedAccountsQueryBudget(t *testing.T) {
 	}
 }
 
-// Cancellation at the profile boundary must retain the same error returned
-// by the real single-profile reader, including its diagnostic prefix.
+// Cancellation at the profile boundary must still abort the request. The
+// batch reader's internal diagnostic prefix need not match the single reader.
 func TestRelatedAccountsProfileReadError(t *testing.T) {
 	t.Parallel()
 	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
@@ -76,7 +80,7 @@ func TestRelatedAccountsProfileReadError(t *testing.T) {
 	svc.ChildFlows.GuardianProfileRepo = cancelledRelatedProfiles(profiles)
 	_, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.ErrorIs(t, err, context.Canceled)
-	assert.EqualError(t, err, "failed to find guardian profile: context canceled")
+	assert.EqualError(t, err, "failed to find guardian profiles by ids: context canceled")
 }
 
 type cancelledProfileReads[T any] struct{ guardianProfiles[T] }
@@ -95,4 +99,32 @@ func (r cancelledProfileReads[T]) FindByIDs(ctx context.Context, ids []int64) (m
 	ctx, cancel := context.WithCancel(ctx)
 	cancel()
 	return r.guardianProfiles.FindByIDs(ctx, ids)
+}
+
+func TestRelatedAccountsMissingProfileRetainsError(t *testing.T) {
+	t.Parallel()
+	svc, _, db := buildRelAcctService(t, parentService.ParentInviteModeDirect, false)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	profiles := owners.NewParentGuardianProfileReads(repos.GuardianProfile)
+	svc.ChildFlows.GuardianProfileRepo = missingRelatedProfiles(profiles)
+	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
+	require.ErrorIs(t, err, parentService.ErrGuardianProfileNotFound)
+	assert.ErrorIs(t, err, peopledirectory.ErrGuardianProfileNotFound)
+	assert.EqualError(t, err, peopledirectory.ErrGuardianProfileNotFound.Error())
+	assert.Nil(t, accounts)
+}
+
+type missingProfileReads[T any] struct{ guardianProfiles[T] }
+
+func missingRelatedProfiles[T any](source guardianProfiles[T]) missingProfileReads[T] {
+	return missingProfileReads[T]{source}
+}
+
+func (r missingProfileReads[T]) FindByIDs(context.Context, []int64) (map[int64]*T, error) {
+	return map[int64]*T{}, nil
+}
+
+func (r missingProfileReads[T]) FindByID(context.Context, int64) (*T, error) {
+	return nil, parentService.WithGuardianProfileMissingCause(peopledirectory.ErrGuardianProfileNotFound)
 }
