@@ -36,6 +36,12 @@ import {
   hasIncomeDeclaration,
   IncomeDeclarationButton,
 } from "~/components/enrollment/file-field-editor";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
 import { StatCard } from "~/components/ui/stat-card";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
@@ -1497,9 +1503,7 @@ function BaseTemplateOverviewRow() {
           <h4 className="truncate text-sm font-semibold text-gray-900">
             Basisformular
           </h4>
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-            System
-          </span>
+          <StatusBadge tone="gray" compact label="System" />
         </div>
         <p className="mt-1 text-xs leading-5 text-gray-500">
           Elternteil, Kind, Klassenstufe und gewünschtes Betreuungsangebot.
@@ -2209,15 +2213,15 @@ function BuilderTemplateSummary({
           />
           {!isCreating ? (
             <div className="flex flex-wrap content-start gap-2 text-xs text-gray-600">
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-                {fields.length} Zusatzfragen
-              </span>
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-                {requiredCount} Pflicht-Zusatzfragen
-              </span>
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-                {childFieldCount} pro Kind
-              </span>
+              <StatusBadge
+                tone="gray"
+                label={`${fields.length} Zusatzfragen`}
+              />
+              <StatusBadge
+                tone="gray"
+                label={`${requiredCount} Pflicht-Zusatzfragen`}
+              />
+              <StatusBadge tone="gray" label={`${childFieldCount} pro Kind`} />
             </div>
           ) : null}
         </div>
@@ -2225,11 +2229,12 @@ function BuilderTemplateSummary({
 
       {currentSchema ? (
         <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-600">
-          <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-            {new Date(currentSchema.created_at).toLocaleString("de-DE", {
+          <StatusBadge
+            tone="gray"
+            label={new Date(currentSchema.created_at).toLocaleString("de-DE", {
               timeZone: "Europe/Berlin",
             })}
-          </span>
+          />
         </div>
       ) : null}
     </section>
@@ -2264,9 +2269,8 @@ function CoreFieldsSection({
             können Sie hier verpflichtend machen.
           </p>
         </div>
-        <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-          <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-          Basisfelder
+        <span className="w-fit">
+          <StatusBadge tone="gray" icon={Lock} label="Basisfelder" />
         </span>
       </div>
 
@@ -2772,13 +2776,18 @@ export function LegalBlocksSection({
                     <h3 className="text-sm font-semibold text-gray-900">
                       {block.title}
                     </h3>
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                      Aus Einstellungen übernommen
-                    </span>
+                    <StatusBadge
+                      tone="gray"
+                      compact
+                      wrap
+                      label="Aus Einstellungen übernommen"
+                    />
                     {hasOverride ? (
-                      <span className="bg-moto-amber/10 text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
-                        Abweichung aktiv
-                      </span>
+                      <StatusColorBadge
+                        color={LOCATION_COLORS.WARNING}
+                        compact
+                        label="Abweichung aktiv"
+                      />
                     ) : null}
                   </div>
                   <p className="mt-1 text-sm leading-6 text-gray-600">
@@ -2917,8 +2926,8 @@ function AGBTemplateSourceEditor({
             Eltern lesen den Text direkt im Formular.
           </span>
           {hasText ? (
-            <span className="mt-2 inline-flex rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200">
-              Text gespeichert
+            <span className="mt-2 block">
+              <StatusBadge tone="outline" compact label="Text gespeichert" />
             </span>
           ) : null}
         </ChoiceTile>
@@ -2938,8 +2947,8 @@ function AGBTemplateSourceEditor({
             Eltern öffnen im Formular einen PDF-Link.
           </span>
           {hasDocument ? (
-            <span className="mt-2 inline-flex rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200">
-              PDF gespeichert
+            <span className="mt-2 block">
+              <StatusBadge tone="outline" compact label="PDF gespeichert" />
             </span>
           ) : null}
         </ChoiceTile>
@@ -3222,10 +3231,7 @@ function CoreFieldRow({
         </div>
       ) : (
         <div className="flex justify-start sm:justify-end">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-            <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-            Immer Pflicht
-          </span>
+          <StatusBadge tone="gray" icon={Lock} label="Immer Pflicht" />
         </div>
       )}
     </li>
@@ -3258,9 +3264,8 @@ function TargetSuggestions({
             sie hinzufügen oder entfernen; Label und Typ sind fest vorgegeben.
           </p>
         </div>
-        <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-sm">
-          <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-          Stammdaten
+        <span className="w-fit">
+          <StatusBadge tone="outline" icon={Lock} label="Stammdaten" />
         </span>
       </div>
 
@@ -3295,8 +3300,12 @@ function TargetSuggestions({
                 <span className="mt-1 block text-xs leading-5 text-gray-500">
                   {targetSuggestionDescriptions[target]}
                 </span>
-                <span className="mt-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
-                  {selected ? "Ist drin" : "Hinzufügen"}
+                <span className="mt-2 block">
+                  <StatusBadge
+                    tone="gray"
+                    compact
+                    label={selected ? "Ist drin" : "Hinzufügen"}
+                  />
                 </span>
               </span>
             </ChoiceTile>
@@ -3353,11 +3362,10 @@ function FormPreview({
             title="Elternformular"
             hint={previewStatus.hint}
             status={
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${previewStatus.className}`}
-              >
-                {previewStatus.label}
-              </span>
+              <StatusBadge
+                tone={previewStatus.tone}
+                label={previewStatus.label}
+              />
             }
           />
 
@@ -3445,9 +3453,11 @@ function FormPreview({
             <h4 className="text-sm font-semibold text-gray-900">
               Zustimmungen & Hinweise
             </h4>
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-              {enabledLegalBlocks.length}
-            </span>
+            <StatusBadge
+              tone="gray"
+              compact
+              label={String(enabledLegalBlocks.length)}
+            />
           </div>
           <div className="space-y-2">
             {enabledLegalBlocks.map((block) => {
@@ -3475,12 +3485,18 @@ function FormPreview({
                         <span className="text-sm font-medium text-gray-900">
                           {block.title.trim() || block.label}
                         </span>
-                        <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
-                          {block.kind === "notice"
-                            ? "Hinweis"
-                            : block.required
-                              ? "Pflicht"
-                              : "Optional"}
+                        <span className="shrink-0">
+                          <StatusBadge
+                            tone="gray"
+                            compact
+                            label={
+                              block.kind === "notice"
+                                ? "Hinweis"
+                                : block.required
+                                  ? "Pflicht"
+                                  : "Optional"
+                            }
+                          />
                         </span>
                       </div>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
@@ -3512,12 +3528,12 @@ function getPreviewStatus({
   assignedPhaseCount: number;
   isActive: boolean;
   isSaved: boolean;
-}>) {
+}>): { label: string; hint: string; tone: StatusBadgeTone } {
   if (assignedPhaseCount > 0) {
     return {
       label: "In Phase verwendet",
       hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
-      className: "bg-moto-green/10 text-moto-green-vivid",
+      tone: "green",
     };
   }
 
@@ -3525,7 +3541,7 @@ function getPreviewStatus({
     return {
       label: "Bereit zur Zuordnung",
       hint: "Eltern sehen diese Vorlage erst, wenn sie einer Anmeldephase zugeordnet ist.",
-      className: "bg-moto-green/10 text-moto-green-vivid",
+      tone: "green",
     };
   }
 
@@ -3533,14 +3549,14 @@ function getPreviewStatus({
     return {
       label: "Gespeichert",
       hint: "Ordne die Vorlage in einer Anmeldephase zu, damit Eltern sie verwenden.",
-      className: "bg-gray-100 text-gray-600",
+      tone: "gray",
     };
   }
 
   return {
     label: "Entwurf",
     hint: "Speichern Sie die Vorlage zuerst. Danach können Sie sie in einer Anmeldephase auswählen.",
-    className: "bg-gray-100 text-gray-600",
+    tone: "gray",
   };
 }
 

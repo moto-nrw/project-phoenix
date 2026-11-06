@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Eye, Info } from "lucide-react";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import {
@@ -106,24 +107,24 @@ function EnrollmentPreviewPageContent() {
     ? {
         label: "Vorschau wird geladen",
         hint: "Die Formularvorschau wird geladen.",
-        className: "bg-gray-100 text-gray-600",
+        tone: "gray" as const,
       }
     : activeAssignedPhaseCount > 0
       ? {
           label: "Aktiv in Anmeldephase",
           hint: `Diese Vorlage wird in ${activeAssignedPhaseCount} aktiver Anmeldephase verwendet.`,
-          className: "bg-moto-green/10 text-moto-green-strong",
+          tone: "green" as const,
         }
       : assignedPhaseCount > 0
         ? {
             label: "In Phase verwendet",
             hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
-            className: "bg-moto-green/10 text-moto-green-strong",
+            tone: "green" as const,
           }
         : {
             label: "Nicht live",
             hint: "Diese Formularvorschau ist nicht an eine aktive Anmeldephase gebunden.",
-            className: "bg-gray-100 text-gray-600",
+            tone: "gray" as const,
           };
   const previewTitle = loading
     ? "Formularvorschau wird geladen"
@@ -152,11 +153,12 @@ function EnrollmentPreviewPageContent() {
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
               {previewTitle}
             </h1>
-            <span
-              className={`mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium ${previewStatus.className}`}
-            >
-              {previewStatus.label}
-            </span>
+            <div className="mt-4">
+              <StatusBadge
+                tone={previewStatus.tone}
+                label={previewStatus.label}
+              />
+            </div>
             <p className="mt-4 max-w-3xl text-base leading-7 text-gray-600">
               Diese Ansicht zeigt nur das Formular mit Basisfeldern und
               Zusatzfragen. Zeitraum und Betreuungsangebote gehören zur

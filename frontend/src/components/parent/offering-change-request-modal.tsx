@@ -11,6 +11,7 @@ import {
 import { useLocale, useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
@@ -519,14 +520,18 @@ export function OfferingChangeRequestModal({
                               {item.name}
                             </span>
                             {item.is_required && (
-                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                                {t("careOfferingsModal.requiredBadge")}
-                              </span>
+                              <StatusBadge
+                                tone="gray"
+                                compact
+                                label={t("careOfferingsModal.requiredBadge")}
+                              />
                             )}
                             {full && (
-                              <span className="bg-parent-red-soft text-parent-red-strong rounded-full px-2 py-0.5 text-xs font-medium">
-                                {t("careOfferingsModal.fullBadge")}
-                              </span>
+                              <StatusBadge
+                                tone="red"
+                                compact
+                                label={t("careOfferingsModal.fullBadge")}
+                              />
                             )}
                             {!full && item.free_slots !== undefined && (
                               <span className="text-xs text-gray-500">

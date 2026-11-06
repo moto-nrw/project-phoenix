@@ -686,9 +686,14 @@ function ConnectedAccountRow({
         <p className="truncate text-sm font-semibold text-gray-900">{name}</p>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
           {account.is_self && isDemoBuild() ? (
-            <StatusBadge tone="blue" label={t("guardians.badges.self")} />
+            <StatusBadge
+              tone="blue"
+              compact
+              label={t("guardians.badges.self")}
+            />
           ) : null}
           <StatusBadge
+            compact
             label={t(`guardians.access.status.${account.status}`)}
             tone={accessTone(account.status)}
           />
@@ -791,13 +796,19 @@ function GuardianRow({
             <p className="text-sm font-semibold text-gray-900">{name}</p>
             <span className="text-xs text-gray-500">{relationshipLabel}</span>
             {g.is_primary && (
-              <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200 ring-inset">
-                {t("guardians.badges.primary")}
-              </span>
+              <StatusBadge
+                tone="outline"
+                compact
+                label={t("guardians.badges.primary")}
+              />
             )}
             {/* The demo visitor is this child's parent (#5033). */}
             {g.is_self && isDemoBuild() && (
-              <StatusBadge tone="blue" label={t("guardians.badges.self")} />
+              <StatusBadge
+                tone="blue"
+                compact
+                label={t("guardians.badges.self")}
+              />
             )}
           </div>
           {/* Neutral text chips, not colored dots: "darf abholen" and
@@ -806,18 +817,25 @@ function GuardianRow({
           {(g.can_pickup || g.is_emergency_contact || pendingPermission) && (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {g.can_pickup && (
-                <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 ring-inset">
-                  {t("guardians.badges.canPickup")}
-                </span>
+                <StatusBadge
+                  tone="outline"
+                  compact
+                  label={t("guardians.badges.canPickup")}
+                />
               )}
               {g.can_pickup && pickupDays.length > 0 && (
-                <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium whitespace-nowrap text-gray-700 ring-1 ring-gray-200 ring-inset">
-                  {tPermission("onlyDays", { days: weekdayList(pickupDays) })}
-                </span>
+                <StatusBadge
+                  tone="outline"
+                  compact
+                  label={tPermission("onlyDays", {
+                    days: weekdayList(pickupDays),
+                  })}
+                />
               )}
               {pendingPermission && (
                 <StatusBadge
                   tone="orange"
+                  compact
                   label={tPermission("pending", {
                     days:
                       pendingPermission.weekdays.length > 0
@@ -827,9 +845,11 @@ function GuardianRow({
                 />
               )}
               {g.is_emergency_contact && (
-                <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 ring-inset">
-                  {t("guardians.badges.emergency")}
-                </span>
+                <StatusBadge
+                  tone="outline"
+                  compact
+                  label={t("guardians.badges.emergency")}
+                />
               )}
             </div>
           )}
