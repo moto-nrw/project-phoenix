@@ -273,12 +273,14 @@ func TestCareContractConclusionRequiresTheTickedConditions(t *testing.T) {
 	f := newCareContractFixture(t, "Träger Vertrag Nachweis")
 	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
 	setTraegerConclusionMode(t, f, carecontract.ModeOnAcceptance)
+	assert.Equal(t, carecontract.SkipAcceptanceMissing, candidateAcceptanceIssue(t, f))
 	run := careContractConclusionRun(t, f)
 	assert.Empty(t, run.Concluded, "approval alone is no proof of agreement to the current contract")
 	require.Len(t, run.Skipped, 1)
 	assert.Equal(t, "acceptance_missing", run.Skipped[0].Reason)
 	assert.Zero(t, careContractRows(t, f))
 	recordCareContractAcceptance(t, f)
+	assert.Empty(t, candidateAcceptanceIssue(t, f), "ticked conditions before the acceptance are proof")
 	_, err := f.db.ExecContext(context.Background(), `UPDATE enrollment.requests
   SET legal_blocks_snapshot = jsonb_set(legal_blocks_snapshot, '{0,blocks,0,text_sha256}', '"invalid"'::jsonb)
   WHERE id = (SELECT request_id FROM enrollment.request_children WHERE id = ?)`, f.child)
@@ -341,9 +343,22 @@ func TestCareContractConclusionRefusesChangedConditions(t *testing.T) {
 	changed["notice_months"] = 3
 	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), changed).Code)
 	setTraegerConclusionMode(t, f, carecontract.ModeOnAcceptance)
+	assert.Equal(t, carecontract.SkipAcceptanceChanged, candidateAcceptanceIssue(t, f),
+		"the office sees why the contract does not come about")
 	run := careContractConclusionRun(t, f)
 	assert.Empty(t, run.Concluded)
 	require.Len(t, run.Skipped, 1)
 	assert.Equal(t, carecontract.SkipAcceptanceChanged, run.Skipped[0].Reason)
 	assert.Zero(t, careContractRows(t, f), "no draft or mail survives the rejected evidence")
+}
+
+// candidateAcceptanceIssue reads the proof state the candidates list gives
+// for the fixture's child.
+func candidateAcceptanceIssue(t *testing.T, f careContractFixture) string {
+	t.Helper()
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodGet, "/traeger/contracts/candidates", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	candidates := decodeSchoolPortalData[[]carecontract.Candidate](t, rec.Body.Bytes())
+	require.Len(t, candidates, 1)
+	return candidates[0].AcceptanceIssue
 }

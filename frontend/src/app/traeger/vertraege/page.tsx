@@ -222,9 +222,8 @@ export default function TraegerVertraegePage() {
                       ...candidate,
                       templateIssue:
                         candidate.templateIssue ??
-                        (candidate.hasAcceptance
-                          ? ("conclusion_automatic" as const)
-                          : ("acceptance_missing" as const)),
+                        candidate.acceptanceIssue ??
+                        ("conclusion_automatic" as const),
                     }
                   : candidate,
               ),

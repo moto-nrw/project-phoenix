@@ -26,6 +26,7 @@ import {
 } from "~/lib/traeger-care-contracts-api";
 import {
   TEMPLATE_ISSUE_LABELS,
+  TEMPLATE_ISSUE_REASONS,
   childName,
   formatModules,
   formatServiceDays,
@@ -245,11 +246,21 @@ export function CareContractCreateModal({
                       </span>
                       {candidate.templateIssue === null ? null : (
                         <StatusBadge
-                          tone="orange"
+                          tone={
+                            candidate.templateIssue === "conclusion_automatic"
+                              ? "green"
+                              : "orange"
+                          }
                           label={TEMPLATE_ISSUE_LABELS[candidate.templateIssue]}
                         />
                       )}
                     </span>
+                    {candidate.templateIssue !== null &&
+                    TEMPLATE_ISSUE_REASONS[candidate.templateIssue] ? (
+                      <span className="mt-0.5 block text-sm text-gray-700">
+                        {TEMPLATE_ISSUE_REASONS[candidate.templateIssue]}
+                      </span>
+                    ) : null}
                     <span className="mt-0.5 block text-sm text-gray-600">
                       {formatModules(moduleNames(candidate.services))} · ab{" "}
                       {formatDate(candidate.effectiveFrom)}

@@ -170,16 +170,19 @@ type Service struct {
 // without conditions, or modules whose conditions differ.
 type Candidate struct {
 	CandidateKey
-	HasAcceptance  bool          `json:"has_acceptance"`
-	SchoolName     string        `json:"school_name"`
-	ChildFirstName string        `json:"child_first_name"`
-	ChildLastName  string        `json:"child_last_name"`
-	GuardianName   string        `json:"guardian_name"`
-	GuardianEmail  string        `json:"guardian_email"`
-	PhaseName      string        `json:"phase_name"`
-	Services       []Service     `json:"services"`
-	EffectiveFrom  calendar.Date `json:"effective_from"`
-	TemplateIssue  string        `json:"template_issue"`
+	// AcceptanceIssue tells why the application gives no proof of the
+	// parents' agreement for a conclusion at the acceptance (Weg b): empty,
+	// SkipAcceptanceMissing or SkipAcceptanceChanged.
+	AcceptanceIssue string        `json:"acceptance_issue"`
+	SchoolName      string        `json:"school_name"`
+	ChildFirstName  string        `json:"child_first_name"`
+	ChildLastName   string        `json:"child_last_name"`
+	GuardianName    string        `json:"guardian_name"`
+	GuardianEmail   string        `json:"guardian_email"`
+	PhaseName       string        `json:"phase_name"`
+	Services        []Service     `json:"services"`
+	EffectiveFrom   calendar.Date `json:"effective_from"`
+	TemplateIssue   string        `json:"template_issue"`
 }
 
 // CreateResult answers a creation of several drafts: the created contracts
