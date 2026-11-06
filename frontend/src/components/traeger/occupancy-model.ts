@@ -159,9 +159,14 @@ export function occupancyCareFormSums(
     );
 }
 
-/** Whether an offer has as many children as places, or more. */
-export function isFull(children: number, capacity: number | null): boolean {
-  return capacity !== null && capacity > 0 && children >= capacity;
+/** Unlimited offers have no ratio; bookings against zero places sort highest. */
+export function occupancyRatio(
+  children: number,
+  capacity: number | null,
+): number | null {
+  if (capacity === null) return null;
+  if (capacity === 0) return children > 0 ? Number.POSITIVE_INFINITY : 0;
+  return children / capacity;
 }
 
 const percentFormat = new Intl.NumberFormat("de-DE", {

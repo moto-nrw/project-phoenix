@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TraegerSchoolOccupancy } from "~/lib/traeger-occupancy-api";
 import {
   formatShare,
-  isFull,
+  occupancyRatio,
   matchesSchool,
   occupancyCareFormRows,
   occupancyCareFormSums,
@@ -95,6 +95,13 @@ describe("occupancy model", () => {
     ]);
   });
 
+  it("sorts zero places as finite without dividing zero by zero", () => {
+    expect(occupancyRatio(2, null)).toBeNull();
+    expect(occupancyRatio(0, 0)).toBe(0);
+    expect(occupancyRatio(2, 0)).toBe(Number.POSITIVE_INFINITY);
+    expect(occupancyRatio(2, 4)).toBe(0.5);
+  });
+
   it("finds a school by name or town, ignoring case and umlauts", () => {
     expect(matchesSchool(BACH, "bissen")).toBe(true);
     expect(matchesSchool(LINDE, "LINDEN")).toBe(true);
@@ -102,12 +109,7 @@ describe("occupancy model", () => {
     expect(matchesSchool(BACH, "  ")).toBe(true);
   });
 
-  it("marks an offer full at its places and formats shares", () => {
-    expect(isFull(8, 8)).toBe(true);
-    expect(isFull(9, 8)).toBe(true);
-    expect(isFull(7, 8)).toBe(false);
-    expect(isFull(5, null)).toBe(false);
-    expect(isFull(0, 0)).toBe(false);
+  it("formats shares", () => {
     expect(formatShare(3, 4)).toMatch(/^75\s%$/);
     expect(formatShare(0, 0)).toBe("–");
   });

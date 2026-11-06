@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { metadataLoadError } from "./metadata-load-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
 import { traegerKeys } from "~/lib/swr/portal-keys";
@@ -25,7 +26,12 @@ export function useTraegerOccupancy() {
   );
   return {
     occupancy: response.data ?? null,
-    // Error cards only without confirmed figures: a failed reload keeps them.
-    error: response.data === undefined ? error : null,
+    // A failed reload keeps confirmed figures; a refusal (revoked right,
+    // school gone) hides them and shows the error instead.
+    error: metadataLoadError(
+      error,
+      response.data !== undefined,
+      response.error,
+    ),
   };
 }
