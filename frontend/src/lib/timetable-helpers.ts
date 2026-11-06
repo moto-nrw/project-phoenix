@@ -14,11 +14,7 @@ import {
   parseISODate,
   toISODate,
 } from "./date-helpers";
-import {
-  GROUP_ROOM_SHADES,
-  LOCATION_COLORS,
-  MOTO_COLOR_PALETTE,
-} from "./location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "./location-helper";
 import {
   shouldMaterializeWeekPattern,
   type CalendarPeriod,
@@ -138,15 +134,14 @@ export function getActivityColor(type: ActivityType): string {
  */
 export function getActivityTypeBadge(
   type: ActivityType,
-): { label: string; bg: string } | null {
+): { label: string; color: string } | null {
   switch (type) {
     case "activity":
-      // Trägt weiße Schrift, darum der Füllton statt GROUP_ROOM (#5141).
-      return { label: "AG", bg: GROUP_ROOM_SHADES.fill };
+      return { label: "AG", color: getActivityColor(type) };
     case "external":
-      return { label: "EXTERN", bg: LOCATION_COLORS.SCHOOLYARD };
+      return { label: "Extern", color: getActivityColor(type) };
     case "duty":
-      return { label: "DIENST", bg: MOTO_COLOR_PALETTE.navy.base };
+      return { label: "Dienst", color: getActivityColor(type) };
     case "care":
       return null;
   }
@@ -490,7 +485,7 @@ export function getStatusLabel(status: EnrichedInstance["status"]): string {
     case "planned":
       return "Geplant";
     case "active":
-      return "LÄUFT";
+      return "Läuft";
     case "completed":
       return "Abgeschlossen";
     case "cancelled":

@@ -184,10 +184,10 @@ describe("HomeBlocksTab", () => {
         "section.birthdays": "required",
       }),
     );
-    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
     expect(
       await screen.findByText("Die Startseite für alle ist gespeichert."),
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
   });
 
   it("speichert 'Frei wählbar' nicht mit", async () => {
