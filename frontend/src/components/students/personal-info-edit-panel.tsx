@@ -23,7 +23,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { todayISO } from "~/lib/date-helpers";
-import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import type { Student } from "~/lib/student-helpers";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import {
   deleteStudentPhoto,
@@ -33,7 +33,6 @@ import {
 import { DepartureSection, PrivacyConsentSection } from "./student-form-fields";
 import { StudentPhotoSection } from "./student-photo-section";
 import {
-  busDaysHaveAny,
   pickupDaysHaveAny,
   departureDaysFromLegacy,
   allowedDepartureModesFromDeparture,
@@ -44,7 +43,7 @@ import {
   allowedDepartureModesEqual,
   allowedDepartureModesFingerprint,
   accompaniedWeekdayKeys,
-} from "~/lib/student-helpers";
+} from "~/lib/departure-plan";
 import {
   companionsFingerprint,
   fetchStudentCompanions,
@@ -58,8 +57,8 @@ import {
   isCompanionDepartureRefusal,
   isCompanionsChanged,
   isPrivacyConsentSaved,
-} from "~/lib/api";
-import type { AllowedDepartureModes } from "~/lib/student-helpers";
+} from "~/lib/student-update-errors";
+import type { AllowedDepartureModes } from "~/lib/departure-plan";
 import {
   ParentVisibleBadge,
   ParentVisibilityLegend,
@@ -76,7 +75,7 @@ const EMPTY_GROUP_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [];
 const COMPANION_PLAN_QUESTION =
   "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.";
 
-export type PersonalInfoSaveDraft = ExtendedStudent & {
+export type PersonalInfoSaveDraft = Student & {
   /** Datenschutzwerte werden nur bei einer bewussten Änderung gespeichert. */
   privacyConsentChanged: boolean;
 };
@@ -86,7 +85,7 @@ export type PersonalInfoSaveDraft = ExtendedStudent & {
 // a comparison between them sees plan changes and not shape noise.
 function departureModesOf(
   source: Pick<
-    ExtendedStudent,
+    Student,
     "allowed_departure_modes" | "departure_days" | "bus_days" | "pickup_days"
   >,
 ): AllowedDepartureModes {
@@ -100,7 +99,7 @@ function departureModesOf(
 }
 
 interface PersonalInfoEditPanelProps {
-  readonly student: ExtendedStudent;
+  readonly student: Student;
   readonly onSave: (student: PersonalInfoSaveDraft) => Promise<void>;
   /**
    * Lädt die Akte neu, nachdem ein Foto hochgeladen oder entfernt wurde. Die
@@ -132,7 +131,7 @@ export function PersonalInfoEditPanel({
   groups = EMPTY_GROUP_OPTIONS,
   onCancel,
 }: PersonalInfoEditPanelProps) {
-  const [editedStudent, setEditedStudent] = useState<ExtendedStudent>(student);
+  const [editedStudent, setEditedStudent] = useState<Student>(student);
   const [isSaving, setIsSaving] = useState(false);
   // Foto (#3115): bis zum Speichern nur im Browser. Eine Datei zu wählen oder
   // „Foto entfernen" zu klicken ist wie jedes andere Feld ein Entwurf; erst
@@ -245,10 +244,8 @@ export function PersonalInfoEditPanel({
         if (cancelled) return;
         setEditedStudent((prev) => ({
           ...prev,
-          privacy_consent_accepted:
-            consent?.accepted ?? prev.privacy_consent_accepted ?? false,
-          data_retention_days:
-            consent?.dataRetentionDays ?? prev.data_retention_days ?? 30,
+          privacy_consent_accepted: consent.accepted,
+          data_retention_days: consent.dataRetentionDays,
         }));
         setPrivacyConsentStatus("ready");
       })
@@ -366,9 +363,9 @@ export function PersonalInfoEditPanel({
       onRefresh: reloadCompanionsFromRemote,
     });
 
-  const updateField = <K extends keyof ExtendedStudent>(
+  const updateField = <K extends keyof Student>(
     field: K,
-    value: ExtendedStudent[K],
+    value: Student[K],
   ) => {
     if (
       field === "privacy_consent_accepted" ||
@@ -547,7 +544,6 @@ export function PersonalInfoEditPanel({
               allowedDepartureModes,
             ),
             bus_days: busDays,
-            buskind: busDaysHaveAny(busDays),
             pickup_days: pickupDays,
             pickup_status: pickupDaysHaveAny(pickupDays)
               ? "Wird abgeholt"
@@ -872,7 +868,6 @@ export function PersonalInfoEditPanel({
             allowed_departure_modes: allowed,
             departure_days: departure,
             bus_days: busDays,
-            buskind: busDaysHaveAny(busDays),
             pickup_days: pickupDays,
             pickup_status: pickupDaysHaveAny(pickupDays)
               ? "Wird abgeholt"
@@ -914,10 +909,7 @@ export function PersonalInfoEditPanel({
         <PrivacyConsentSection
           formData={editedStudent}
           onChange={(field, value) =>
-            updateField(
-              field as keyof ExtendedStudent,
-              value as ExtendedStudent[keyof ExtendedStudent],
-            )
+            updateField(field as keyof Student, value as Student[keyof Student])
           }
           fieldError={errors.fieldError}
         />

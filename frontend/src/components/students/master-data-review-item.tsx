@@ -18,7 +18,7 @@ import {
   DEPARTURE_MODE_LABELS,
   DEPARTURE_WEEKDAYS,
   type DepartureMode,
-} from "~/lib/student-helpers";
+} from "~/lib/departure-plan";
 
 const logger = createLogger({ component: "MasterDataReviewItem" });
 

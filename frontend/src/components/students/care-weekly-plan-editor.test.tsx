@@ -915,8 +915,8 @@ describe("CareWeeklyPlanEditForm", () => {
   it("saves the end time of the lesson picked for the arrival", async () => {
     const { onSubmitWeekly } = renderForm({
       schoolPeriods: [
-        { period: 5, end_time: "12:35" },
-        { period: 6, end_time: "13:20" },
+        { period: 5, endTime: "12:35" },
+        { period: 6, endTime: "13:20" },
       ],
     });
 

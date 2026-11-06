@@ -3,15 +3,16 @@
  * Eliminates duplication between create and edit modals
  */
 
-import type { DepartureDayKey, Student } from "~/lib/student-helpers";
-import { accompaniedWeekdayKeys } from "~/lib/student-helpers";
+import type { DepartureDayKey } from "~/lib/departure-plan";
+import type { Student } from "~/lib/student-helpers";
+import { accompaniedWeekdayKeys } from "~/lib/departure-plan";
 
 /**
  * Validates data retention days field
  * @param retentionDays - The retention days value to validate
  * @returns Error message if invalid, undefined if valid
  */
-export function validateDataRetentionDays(
+function validateDataRetentionDays(
   retentionDays: number | null | undefined,
 ): string | undefined {
   if (retentionDays === null || retentionDays === undefined) {
@@ -64,11 +65,13 @@ export function validateStudentForm(
     errors.school_class = "Bitte geben Sie die Klasse ein.";
   }
 
-  const retentionError = validateDataRetentionDays(
-    formData.data_retention_days,
-  );
-  if (retentionError) {
-    errors.data_retention_days = retentionError;
+  // A form that leaves the consent pair out writes none, so there is
+  // nothing to check.
+  if ("data_retention_days" in formData) {
+    const retentionError = validateDataRetentionDays(
+      formData.data_retention_days,
+    );
+    if (retentionError) errors.data_retention_days = retentionError;
   }
 
   // When a child may leave "Mit anderem Kind", something must say with whom —

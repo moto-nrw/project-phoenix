@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/mail"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
 
@@ -46,6 +47,11 @@ type GuardianProfile struct {
 	// Preferences
 	PreferredContactMethod string `bun:"preferred_contact_method,default:'phone'" json:"preferred_contact_method"`
 	LanguagePreference     string `bun:"language_preference,default:'de'" json:"language_preference"`
+
+	// EmailsStoppedAt is the school's decision that this person gets no school
+	// mail (#5934). Only its own command writes it: an update of the profile, by
+	// staff or by the parent, can neither set nor clear it.
+	EmailsStoppedAt *time.Time `bun:"emails_stopped_at" json:"-"`
 
 	// PortalLocale is the parents-portal UI language the guardian explicitly
 	// chose. nil = never chosen, which lets the portal honour an anonymous

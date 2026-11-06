@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { installStorybookFetch, jsonResponse } from "~storybook/mocks/fetch";
 import { CareScheduleManager } from "~/components/students/care-schedule-manager";
-import type { ArrivalData } from "~/lib/student-arrival-api";
 import type { BackendPickupData } from "~/lib/pickup-schedule-helpers";
 
 interface MockResponses {
@@ -27,7 +26,8 @@ function mockCareSchedule(responses: MockResponses) {
   });
 }
 
-const filledArrival: ArrivalData = {
+// Wire shape of the arrival-schedules route.
+const filledArrival = {
   schedules: [
     {
       id: 1,

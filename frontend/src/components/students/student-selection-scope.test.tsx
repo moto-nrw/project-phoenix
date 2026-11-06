@@ -8,7 +8,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "~/contexts/ToastContext";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import { StudentSelectionScope } from "./student-selection-scope";
 import { StudentTable, classColumn, nameColumn } from "./student-table";
 

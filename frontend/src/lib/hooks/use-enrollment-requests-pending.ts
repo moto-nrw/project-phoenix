@@ -5,6 +5,7 @@ import { personalStorageOwner } from "~/lib/personal-storage";
 
 import { canReviewEnrollmentChangeRequests } from "~/lib/change-request-access";
 import { fetchPendingEnrollmentChangeRequestCount } from "~/lib/change-request-list-api";
+import { CHANGE_REQUESTS_REFRESH_EVENT } from "~/lib/change-requests-refresh";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useModuleBooked, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useShellSeed } from "~/lib/shell-seed";
@@ -36,7 +37,7 @@ export function useEnrollmentRequestsPending() {
     fetcher: fetchPendingEnrollmentChangeRequestCount,
     cacheKey: `enrollment_requests_pending_count:${tenantSlug ?? ""}:${accountId}`,
     cacheOwner: personalStorageOwner(session?.user),
-    eventNames: ["change-requests-refresh"],
+    eventNames: [CHANGE_REQUESTS_REFRESH_EVENT],
     eventDebounceMs: 500,
     refetchOnFocus: true,
     initialCount: useShellSeed()?.counts.enrollmentRequestsPending,

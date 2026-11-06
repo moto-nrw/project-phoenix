@@ -71,6 +71,7 @@ func (m *BillingLetterMail) LetterMailings(ctx context.Context, reviewer parentb
 	for i, document := range current.documents {
 		mailings.Documents[i] = documentMailing(document, current.mailings[document.ID], states)
 	}
+	m.readProviderBlocks(ctx, mailings.Documents)
 	if err := m.recordRead(ctx, reviewer, current.run.ID, map[string]any{"mail": "status"}); err != nil {
 		return parentbilling.BillingLetterMailings{}, err
 	}
@@ -146,8 +147,21 @@ func (m *BillingLetterMail) MailBillingLetter(ctx context.Context, reviewer pare
 	if err != nil {
 		return parentbilling.BillingLetterMailing{}, err
 	}
-	if documentMailing(document, current.mailings[document.ID], states).Status == parentbilling.LetterMailQueued {
+	last := documentMailing(document, current.mailings[document.ID], states)
+	if last.Status == parentbilling.LetterMailQueued {
 		return parentbilling.BillingLetterMailing{}, parentbilling.ErrLetterMailPending
+	}
+	if last.MailOutcome == parentbilling.LetterMailOutcomeDelayed {
+		return parentbilling.BillingLetterMailing{}, parentbilling.ErrLetterMailDelayed
+	}
+	// The block as it is now decides, not what became of the last mail.
+	one := []parentbilling.BillingLetterMailing{last}
+	m.readProviderBlocks(ctx, one)
+	switch one[0].ProviderBlock {
+	case parentbilling.LetterProviderBlockActive:
+		return parentbilling.BillingLetterMailing{}, parentbilling.ErrLetterMailBlocked
+	case parentbilling.LetterProviderBlockUnreadable:
+		return parentbilling.BillingLetterMailing{}, parentbilling.ErrLetterMailBlockUnreadable
 	}
 	file, err := m.store.DocumentLetter(ctx, reviewer.OrganizationID, current.run.ID, document.ID)
 	if err != nil {
@@ -284,6 +298,26 @@ func (m *BillingLetterMail) traegerName(ctx context.Context, organizationID int6
 	return firstLine(textLines(text)), nil
 }
 
+// readProviderBlocks asks once per address, and only about letters whose last mail
+// left a block at the provider.
+func (m *BillingLetterMail) readProviderBlocks(ctx context.Context, mailings []parentbilling.BillingLetterMailing) {
+	addresses := make([]string, 0)
+	for _, mailing := range mailings {
+		if parentbilling.LetterMailOutcomeHeldBack(mailing.MailOutcome) {
+			addresses = append(addresses, mailing.RecipientEmail)
+		}
+	}
+	if len(addresses) == 0 {
+		return
+	}
+	blocks := m.post.LetterMailBlocks(ctx, addresses)
+	for i := range mailings {
+		if parentbilling.LetterMailOutcomeHeldBack(mailings[i].MailOutcome) {
+			mailings[i].ProviderBlock = blocks[strings.ToLower(strings.TrimSpace(mailings[i].RecipientEmail))]
+		}
+	}
+}
+
 // states reads the mails of a run Delivery still keeps by outbox entry.
 func (m *BillingLetterMail) states(ctx context.Context, organizationID, runID int64) (map[int64]parentbilling.BillingLetterMailState, error) {
 	states, err := m.post.LetterMailStates(ctx, organizationID, runID)
@@ -323,7 +357,7 @@ func documentMailing(document parentbilling.BillingDocument, mailings []parentbi
 		mailing.Status = parentbilling.LetterMailUnknown
 		return mailing
 	}
-	mailing.Status, mailing.Attempts, mailing.SentAt = state.Status, state.Attempts, state.SentAt
+	mailing.Status, mailing.Attempts, mailing.SentAt, mailing.MailOutcome = state.Status, state.Attempts, state.SentAt, state.Outcome
 	return mailing
 }
 

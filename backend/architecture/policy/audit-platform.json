@@ -171,6 +171,10 @@
     {
       "name": "audit.traeger_account_changes",
       "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.traeger_document_downloads",
+      "write_owner": "audit-platform"
     }
   ],
   "rules": [

@@ -1,7 +1,7 @@
 // Pickup Schedule Type Definitions and Mapping Helpers
 import { berlinTodayISO, toISODate as formatDateISO } from "./date-helpers";
 import type { StudentStatusKind } from "./student-status-days-api";
-import type { DepartureMode } from "./student-helpers";
+import type { DepartureMode } from "~/lib/departure-plan";
 
 // Frontend Pickup Schedule Type
 export interface PickupSchedule {

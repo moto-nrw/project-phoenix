@@ -16,6 +16,7 @@ GET /api/enrollment/admin/requests/{id}/ -> online_anmeldung
 GET /api/enrollment/admin/requests/{id}/children/{childId}/delete-impact -> online_anmeldung
 GET /api/enrollment/admin/requests/{id}/children/{childId}/offering-adjustments -> online_anmeldung
 GET /api/enrollment/admin/requests/{id}/delete-impact -> online_anmeldung
+GET /api/enrollment/admin/requests/{id}/mails -> online_anmeldung
 GET /api/enrollment/admin/requests/{id}/uploads/{uploadId} -> online_anmeldung
 GET /api/enrollment/admin/students/{studentId}/requests/ -> online_anmeldung
 GET /api/enrollment/captcha-config/{tenantSlug} -> online_anmeldung  (Anmeldung: Captcha-Schlüssel, keine Personendaten)

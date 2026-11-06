@@ -131,6 +131,18 @@
     {
       "name": "platform.organization_erasure_orders",
       "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.traeger_documents",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.traeger_document_releases",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.traeger_document_reads",
+      "write_owner": "organization-tenancy"
     }
   ],
   "rules": [

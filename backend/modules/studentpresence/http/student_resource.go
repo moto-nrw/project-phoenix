@@ -44,6 +44,9 @@ func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/status-days/bulk", rs.bulkCreateStudentStatusDays)
 	r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/{id}/status-days", rs.createStudentStatusDays)
 	r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Delete("/{id}/status-days/{statusDayId}", rs.deleteStudentStatusDay)
+	// Staff creating a child see the school's consent defaults; the static
+	// path wins over /{id} in chi's tree.
+	r.With(common.RequiresPermission(permissions.UsersCreate), withTx).Get("/privacy-consent/defaults", rs.getPrivacyConsentDefaults)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/privacy-consent", rs.getStudentPrivacyConsent)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/privacy-consent", rs.updateStudentPrivacyConsent)
 	r.With(common.RequiresPermission(permissions.UsersCheckin), withTx, common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))).Post("/{id}/school-checkin", rs.schoolCheckinHandler)

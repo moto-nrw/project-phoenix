@@ -1,4 +1,5 @@
-import { apiErrorFromText, transportFetch } from "./api-error";
+import { bffJson } from "./bff-fetch";
+import { DEPARTURE_WEEKDAYS, type DepartureDayKey } from "./departure-plan";
 
 /**
  * Laufgemeinschaft ("läuft mit"): the children a child walks home with.
@@ -9,20 +10,18 @@ import { apiErrorFromText, transportFetch } from "./api-error";
  * Lina on Tom's list.
  */
 
-/** Weekday keys, identical to the ones the departure plan already uses. */
-export type CompanionWeekday = "mon" | "tue" | "wed" | "thu" | "fri";
+/** Weekday keys, identical to the ones the departure plan uses. */
+export type CompanionWeekday = DepartureDayKey;
 
 export const COMPANION_WEEKDAYS: {
   value: CompanionWeekday;
   label: string;
   short: string;
-}[] = [
-  { value: "mon", label: "Montag", short: "Mo" },
-  { value: "tue", label: "Dienstag", short: "Di" },
-  { value: "wed", label: "Mittwoch", short: "Mi" },
-  { value: "thu", label: "Donnerstag", short: "Do" },
-  { value: "fri", label: "Freitag", short: "Fr" },
-];
+}[] = DEPARTURE_WEEKDAYS.map((day) => ({
+  value: day.key,
+  label: day.label,
+  short: day.label.slice(0, 2),
+}));
 
 export const ALL_COMPANION_WEEKDAYS: CompanionWeekday[] =
   COMPANION_WEEKDAYS.map((day) => day.value);
@@ -121,44 +120,6 @@ interface RawStudentCompanion {
   weekdays?: CompanionWeekday[];
 }
 
-interface ApiWrapper<T> {
-  data: T;
-}
-
-function unwrap<T>(value: ApiWrapper<T> | T): T {
-  if (
-    value &&
-    typeof value === "object" &&
-    "data" in (value as ApiWrapper<T>)
-  ) {
-    return (value as ApiWrapper<T>).data;
-  }
-  return value as T;
-}
-
-// BFF routes read the session cookie; the browser holds no token (#5005).
-const JSON_HEADERS: Record<string, string> = {
-  "Content-Type": "application/json",
-};
-
-async function parseResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    // ApiError keeps code, field errors and request ID for the shared error
-    // path (#2513); the message is diagnosis only.
-    const text = await response.text().catch(() => "");
-    throw apiErrorFromText(
-      `Anfrage fehlgeschlagen (${response.status})`,
-      response.status,
-      text,
-    );
-  }
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  const payload = (await response.json()) as ApiWrapper<T> | T;
-  return unwrap<T>(payload);
-}
-
 /**
  * Consumers that want to be told when the stored "läuft mit" links may have
  * changed. Module-level and process-wide on purpose — see
@@ -243,17 +204,10 @@ export function notifyStudentCompanionDisplayChanged(): void {
 export async function fetchStudentCompanions(
   studentId: string,
 ): Promise<StudentCompanion[]> {
-  const response = await transportFetch(
-    `/api/students/${studentId}/companions`,
-    {
-      method: "GET",
-      headers: JSON_HEADERS,
-      credentials: "include",
-    },
+  const raw = await bffJson<RawStudentCompanion[] | null>(
+    `/api/students/${encodeURIComponent(studentId)}/companions`,
   );
-  const raw =
-    (await parseResponse<RawStudentCompanion[] | null>(response)) ?? [];
-  return raw.map((companion) => ({
+  return (raw ?? []).map((companion) => ({
     companion_student_id: String(companion.companion_student_id),
     first_name: companion.first_name,
     last_name: companion.last_name,

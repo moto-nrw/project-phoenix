@@ -12,6 +12,18 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
+// NewEnrollmentFlowOutcomes reads what became of the mails of the fixtures.
+func NewEnrollmentFlowOutcomes(db transactionruntime.Database) (delivery.EmailOutcomes, error) {
+	runtime, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
+		DB: db.Pool(), People: EnrollmentFlowGuardianDirectory{},
+		Observe: func(deliveryContract.Observation) {},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return runtime.EmailOutcomes, nil
+}
+
 // NewEnrollmentFlowDelivery composes the Delivery platform over the test
 // database with a provider that accepts every send.
 func NewEnrollmentFlowDelivery(db transactionruntime.Database) (delivery.Capability, error) {

@@ -1,6 +1,5 @@
 "use client";
 
-import { studentKeys } from "~/lib/swr/portal-keys";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { SectionCard } from "~/components/ui/section-card";
@@ -13,15 +12,8 @@ import { Button } from "~/components/ui/button";
 import { RemovableChip } from "~/components/ui/removable-chip";
 import { createLogger } from "~/lib/logger";
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
-import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "DatabaseForm" });
-
-/** Privacy consent data structure */
-interface PrivacyConsent {
-  accepted: boolean;
-  data_retention_days: number;
-}
 
 /** Gets default value for a form field based on its type */
 export function getDefaultValueForField(field: FormField): unknown {
@@ -31,65 +23,9 @@ export function getDefaultValueForField(field: FormField): unknown {
     case "multiselect":
       return [];
     case "number":
-      if (field.name === "data_retention_days") return 30;
       return field.required ? 0 : "";
     default:
       return "";
-  }
-}
-
-/** Checks if sections contain privacy consent fields */
-export function hasPrivacyConsentFields(sections: FormSection[]): boolean {
-  return sections.some((s) =>
-    s.fields.some(
-      (f) =>
-        f.name === "privacy_consent_accepted" ||
-        f.name === "data_retention_days",
-    ),
-  );
-}
-
-/** Extracts privacy consent from API response */
-export function extractPrivacyConsent(
-  responseData: unknown,
-): PrivacyConsent | null {
-  if (!responseData || typeof responseData !== "object") {
-    return null;
-  }
-
-  if (!("data" in responseData)) {
-    return null;
-  }
-
-  const consent = (responseData as { data: unknown }).data;
-  if (
-    consent &&
-    typeof consent === "object" &&
-    "accepted" in consent &&
-    "data_retention_days" in consent
-  ) {
-    return consent as PrivacyConsent;
-  }
-
-  return null;
-}
-
-/** Fetches privacy consent for a student */
-async function fetchPrivacyConsentForStudent(
-  studentId: string,
-): Promise<PrivacyConsent | null> {
-  try {
-    const response = await fetch(`/api/students/${studentId}/privacy-consent`);
-    if (!response.ok) {
-      return null;
-    }
-    const responseData = (await response.json()) as unknown;
-    return extractPrivacyConsent(responseData);
-  } catch (error) {
-    logger.error("failed to fetch privacy consent", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
   }
 }
 
@@ -329,18 +265,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
   errorPath,
   errorObject = "die Änderung",
 }: DatabaseFormProps<T>) {
-  const privacyStudentId =
-    initialData &&
-    "id" in initialData &&
-    typeof initialData.id === "string" &&
-    hasPrivacyConsentFields(sections)
-      ? initialData.id
-      : null;
-  const { data: privacyConsent } = useSWRAuth(
-    privacyStudentId ? studentKeys.privacyConsent(privacyStudentId) : null,
-    () => fetchPrivacyConsentForStudent(privacyStudentId!),
-    { keepPreviousData: false },
-  );
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const formRef = useRef<HTMLFormElement>(null);
   // „Wiederholen“ sendet den aktuellen Stand des Formulars.
@@ -362,7 +286,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
     {},
   );
   const loadedFieldsRef = useRef<Set<string>>(new Set());
-  const dirtyPrivacyFieldsRef = useRef<Set<string>>(new Set());
   const hasInitializedFormRef = useRef(false);
   const renderedFieldNamesRef = useRef<Set<string>>(new Set());
   // Track mount state to avoid setState on unmounted component
@@ -414,30 +337,12 @@ export function DatabaseForm<T = Record<string, unknown>>({
       return;
     }
 
-    dirtyPrivacyFieldsRef.current.clear();
     setFormData(initialFormData);
     hasInitializedFormRef.current = true;
     renderedFieldNamesRef.current = new Set(
       sections.flatMap((section) => section.fields.map((field) => field.name)),
     );
   }, [initialData, preserveDraftOnSectionsChange, sections]);
-
-  // Apply separately fetched consent without resetting unrelated form edits.
-  // Preserve consent fields too once the user has changed them locally.
-  useEffect(() => {
-    if (!privacyConsent) return;
-
-    setFormData((currentFormData) => {
-      const nextFormData = { ...currentFormData };
-      if (!dirtyPrivacyFieldsRef.current.has("privacy_consent_accepted")) {
-        nextFormData.privacy_consent_accepted = privacyConsent.accepted;
-      }
-      if (!dirtyPrivacyFieldsRef.current.has("data_retention_days")) {
-        nextFormData.data_retention_days = privacyConsent.data_retention_days;
-      }
-      return nextFormData;
-    });
-  }, [privacyConsent]);
 
   // Load async options for select fields
   useEffect(() => {
@@ -493,10 +398,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
     >,
   ) => {
     const { name, value, type } = e.target as HTMLInputElement;
-    if (name === "privacy_consent_accepted" || name === "data_retention_days") {
-      dirtyPrivacyFieldsRef.current.add(name);
-    }
-
     if (type === "checkbox") {
       const { checked } = e.target as HTMLInputElement;
       setFormData((prev) => ({
@@ -548,26 +449,8 @@ export function DatabaseForm<T = Record<string, unknown>>({
       return;
     }
 
-    const submitData = { ...formData };
-    // The student proxy writes the Datenschutz pair BEFORE the student PUT, so
-    // whatever this payload carries is stored even when the rest of the save is
-    // refused. While editing, the two fields are echoes of the separately
-    // fetched server consent unless the user touched them — resubmitting that
-    // copy would overwrite a change somebody else made since it was fetched.
-    // Both go or both stay: the proxy's consent PUT upserts the pair, so a lone
-    // field resets the other to its default. On create there is nothing to echo
-    // (no privacyStudentId), and the values travel as before.
-    if (
-      privacyStudentId &&
-      !dirtyPrivacyFieldsRef.current.has("privacy_consent_accepted") &&
-      !dirtyPrivacyFieldsRef.current.has("data_retention_days")
-    ) {
-      delete submitData.privacy_consent_accepted;
-      delete submitData.data_retention_days;
-    }
-
     try {
-      await onSubmit(submitData as T);
+      await onSubmit({ ...formData } as T);
     } catch (err) {
       logger.error("failed to submit form", {
         error: err instanceof Error ? err.message : String(err),
@@ -630,9 +513,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
             ...selectOptions,
           ]}
           onChange={(next) => {
-            if (field.name === "data_retention_days") {
-              dirtyPrivacyFieldsRef.current.add(field.name);
-            }
             setFormData((prev) => ({ ...prev, [field.name]: next }));
           }}
           required={field.required}

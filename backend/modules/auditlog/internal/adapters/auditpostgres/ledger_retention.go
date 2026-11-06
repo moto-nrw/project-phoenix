@@ -2,6 +2,7 @@ package audit
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -73,9 +74,10 @@ const operatorAuditLogCutoffSQL = `(
 
 // DeleteExpiredOperatorAuditLog removes platform-wide operator-ledger
 // entries before the database-clock cutoff (#4047), and with the same cutoff
-// the entries of the Träger account ledger (#4650), the other ledger without
-// a school. Neither has a school, so the call needs the administrative
-// transaction of the hourly cleanup, not a tenant.
+// the entries of the Träger account ledger (#4650) and of the Träger document
+// download ledger (#4692), the other ledgers without a school. None has a
+// school, so the call needs the administrative transaction of the hourly
+// cleanup, not a tenant.
 func (a *Appender) DeleteExpiredOperatorAuditLog(ctx context.Context) (int64, error) {
 	const operation = "delete expired operator audit log"
 	db, _, err := database(ctx, a.runtime)
@@ -96,12 +98,27 @@ func (a *Appender) DeleteExpiredOperatorAuditLog(ctx context.Context) (int64, er
 	if err != nil {
 		return 0, wrapDatabase(operation, err)
 	}
-	operatorRows, err := operator.RowsAffected()
+	downloads, err := db.NewDelete().
+		TableExpr("audit.traeger_document_downloads").
+		Where("downloaded_at < " + operatorAuditLogCutoffSQL).
+		Exec(ctx)
 	if err != nil {
 		return 0, wrapDatabase(operation, err)
 	}
-	traegerRows, err := traeger.RowsAffected()
-	return operatorRows + traegerRows, wrapDatabase(operation, err)
+	return sumRowsAffected(operation, operator, traeger, downloads)
+}
+
+// sumRowsAffected adds the deleted rows of the ledgers of one retention run.
+func sumRowsAffected(operation string, results ...sql.Result) (int64, error) {
+	var total int64
+	for _, result := range results {
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return 0, wrapDatabase(operation, err)
+		}
+		total += rows
+	}
+	return total, nil
 }
 
 // retentionTenant resolves the transaction and the school a retention call

@@ -26,7 +26,7 @@ import {
   StatusBadge,
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
-import { HISTORY_STATUS_META } from "~/components/students/request-review-card";
+import { HISTORY_STATUS_META } from "~/components/students/requests/request-copy";
 import {
   fetchCareScheduleChangeRequest,
   type StaffCareRequestDetail,
@@ -35,7 +35,7 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { DEPARTURE_MODE_LABELS } from "~/lib/student-helpers";
+import { DEPARTURE_MODE_LABELS } from "~/lib/departure-plan";
 
 const logger = createLogger({ component: "PickupRequestDetailModal" });
 

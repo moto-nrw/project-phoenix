@@ -31,20 +31,20 @@ export function SchoolPeriodSelect({
 }) {
   if (periods.length === 0) return null;
 
-  const selected = periods.find((period) => period.end_time === time);
+  const selected = periods.find((period) => period.endTime === time);
   return (
     <CustomSelect
       id={id}
       value={selected ? String(selected.period) : ""}
       options={periods.map((period) => ({
         value: String(period.period),
-        label: `${period.period}. Stunde (${period.end_time})`,
+        label: `${period.period}. Stunde (${period.endTime})`,
       }))}
       onChange={(value) => {
         const chosen = periods.find(
           (period) => String(period.period) === value,
         );
-        if (chosen) onSelect(chosen.end_time);
+        if (chosen) onSelect(chosen.endTime);
       }}
       ariaLabel={ariaLabel}
       placeholder="Nach Schulstunde"

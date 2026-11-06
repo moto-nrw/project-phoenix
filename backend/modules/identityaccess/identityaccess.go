@@ -157,11 +157,13 @@ type OperatorQuery interface {
 }
 
 // OperatorCommand changes operator identity rows. Create and Update validate
-// and normalize the address and display name; Update writes every mutable
-// column and returns ErrOperatorNotFound when the row is gone.
+// and normalize the address and display name. Update locks the row, lets
+// change edit the row as committed, writes every mutable column and returns
+// ErrOperatorNotFound when the row is gone; that and an error from change are
+// returned as is, and nothing is written.
 type OperatorCommand interface {
 	CreateOperator(ctx context.Context, operator Operator) (Operator, error)
-	UpdateOperator(ctx context.Context, operator Operator) (Operator, error)
+	UpdateOperator(ctx context.Context, id int64, change func(*Operator) error) (Operator, error)
 	DeleteOperator(ctx context.Context, id int64) error
 	RecordOperatorLogin(ctx context.Context, id int64) error
 	// IncrementOperatorMFAAttempts bumps the failed-attempt counter atomically
@@ -360,6 +362,7 @@ type Owner interface {
 	AccountMFA
 	PasswordResets
 	SchoolInvitations
+	SchoolInvitationMailStates
 	SignInDataRetention
 	AccountRetention
 	AccountSessionAccess

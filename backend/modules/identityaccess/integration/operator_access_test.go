@@ -66,9 +66,11 @@ func TestOperatorLifecycle(t *testing.T) {
 	_, err = access.FindOperatorByEmail(ctx, uniqueEmail("nobody"))
 	require.ErrorIs(t, err, identityaccess.ErrOperatorNotFound)
 
-	found.DisplayName = "Renamed"
-	found.Active = false
-	updated, err := access.UpdateOperator(ctx, found)
+	updated, err := access.UpdateOperator(ctx, found.ID, func(operator *identityaccess.Operator) error {
+		operator.DisplayName = "Renamed"
+		operator.Active = false
+		return nil
+	})
 	require.NoError(t, err)
 	assert.Equal(t, "Renamed", updated.DisplayName)
 	reloaded, err := access.FindOperator(ctx, created.ID)
@@ -76,7 +78,10 @@ func TestOperatorLifecycle(t *testing.T) {
 	assert.Equal(t, "Renamed", reloaded.DisplayName)
 	assert.False(t, reloaded.Active)
 
-	_, err = access.UpdateOperator(ctx, identityaccess.Operator{ID: created.ID + 1_000_000, Email: email, DisplayName: "Ghost", PasswordHash: "hash"})
+	_, err = access.UpdateOperator(ctx, created.ID+1_000_000, func(operator *identityaccess.Operator) error {
+		operator.DisplayName = "Ghost"
+		return nil
+	})
 	require.ErrorIs(t, err, identityaccess.ErrOperatorNotFound)
 
 	_, err = access.CreateOperator(ctx, identityaccess.Operator{Email: "", DisplayName: "No address", PasswordHash: "hash"})

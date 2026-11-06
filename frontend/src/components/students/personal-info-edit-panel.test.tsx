@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PersonalInfoEditPanel } from "./personal-info-edit-panel";
-import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import type { Student } from "~/lib/student-helpers";
 import type { StudentCompanion } from "~/lib/student-companion-api";
-import { CompanionPlanConflictError } from "~/lib/api";
+import { CompanionPlanConflictError } from "~/lib/student-update-errors";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
@@ -134,9 +134,7 @@ describe("PersonalInfoEditPanel", () => {
   const mockOnCancel = vi.fn();
   const mockOnSave = vi.fn();
 
-  const createMockStudent = (
-    overrides: Partial<ExtendedStudent> = {},
-  ): ExtendedStudent => ({
+  const createMockStudent = (overrides: Partial<Student> = {}): Student => ({
     id: "123",
     name: "Max Mustermann",
     first_name: "Max",
@@ -145,7 +143,6 @@ describe("PersonalInfoEditPanel", () => {
     current_location: "Raum 1",
     bus: false,
     birthday: "2015-05-15",
-    buskind: false,
     sick: false,
     pickup_status: "Wird abgeholt",
     address_street: "Musterstraße 12",
@@ -478,7 +475,6 @@ describe("PersonalInfoEditPanel", () => {
         <PersonalInfoEditPanel
           onCancel={mockOnCancel}
           student={createMockStudent({
-            buskind: true,
             bus_days: { mon: true },
           })}
           onSave={mockOnSave}
@@ -521,7 +517,7 @@ describe("PersonalInfoEditPanel", () => {
       render(
         <PersonalInfoEditPanel
           onCancel={mockOnCancel}
-          student={createMockStudent({ buskind: false })}
+          student={createMockStudent()}
           onSave={mockOnSave}
         />,
       );
@@ -535,7 +531,6 @@ describe("PersonalInfoEditPanel", () => {
             allowed_departure_modes: { mon: ["bus"] },
             departure_days: { mon: "bus" },
             bus_days: { mon: true },
-            buskind: true,
           }),
         );
       });
@@ -620,7 +615,7 @@ describe("PersonalInfoEditPanel", () => {
     // So the picker only appears once the load succeeded.
     const accompaniedStudentProps = {
       allowed_departure_modes: { mon: ["accompanied"] },
-    } as unknown as Partial<ExtendedStudent>;
+    } as unknown as Partial<Student>;
 
     it("offers the picker once the stored links are loaded", async () => {
       fetchStudentCompanionsMock.mockResolvedValue([
@@ -1054,7 +1049,7 @@ describe("PersonalInfoEditPanel", () => {
 // Heimweg?"), and the answer decides whether a write lands on a DIFFERENT
 // child. Dismissing it must leave nothing behind that a later save carries.
 describe("PersonalInfoEditPanel — companion plan conflicts", () => {
-  const student: ExtendedStudent = {
+  const student: Student = {
     id: "123",
     name: "Max Mustermann",
     first_name: "Max",
@@ -1063,7 +1058,6 @@ describe("PersonalInfoEditPanel — companion plan conflicts", () => {
     current_location: "Raum 1",
     bus: false,
     birthday: "2015-05-15",
-    buskind: false,
     sick: false,
     pickup_status: "Wird abgeholt",
   };

@@ -87,5 +87,8 @@
   "staff_profile_required": "Ten czas ustawili rodzice. Zmienić go może tylko osoba z profilem pracownika.",
   "staff_value_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "staff_value_unsupported": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
-  "status_day_conflict": "Niektóre dni mają już wpis. Tych dni nie zmieniono."
+  "status_day_conflict": "Niektóre dni mają już wpis. Tych dni nie zmieniono.",
+  "guardian_email_block_needs_review": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "guardian_email_block_lift_failed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "guardian_email_block_stays": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
 }

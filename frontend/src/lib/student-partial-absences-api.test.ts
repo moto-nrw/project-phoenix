@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api-error";
+
+vi.mock("./session-cache", async () => {
+  const { transportFetch } =
+    await vi.importActual<typeof import("./api-error")>("./api-error");
+  return { sessionFetch: transportFetch };
+});
 import {
   deleteStudentPartialAbsence,
   fetchStudentPartialAbsences,
@@ -25,7 +31,7 @@ describe("student-partial-absences-api", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
-        new Response(JSON.stringify({ status: "success", data: [backendRow] })),
+        new Response(JSON.stringify({ success: true, data: [backendRow] })),
       );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -37,7 +43,7 @@ describe("student-partial-absences-api", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/students/42/partial-absences?from=2026-05-01&to=2026-05-31",
-      undefined,
+      expect.objectContaining({ method: "GET" }),
     );
     expect(result[0]).toMatchObject({
       id: "9",
@@ -52,7 +58,7 @@ describe("student-partial-absences-api", () => {
       .fn()
       .mockImplementation(() =>
         Promise.resolve(
-          new Response(JSON.stringify({ status: "success", data: backendRow })),
+          new Response(JSON.stringify({ success: true, data: backendRow })),
         ),
       );
     vi.stubGlobal("fetch", fetchMock);
@@ -79,14 +85,16 @@ describe("student-partial-absences-api", () => {
   });
 
   it("deletes through the dedicated endpoint", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);
 
     await deleteStudentPartialAbsence("42", "9");
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/students/42/partial-absences/9",
-      { method: "DELETE" },
+      expect.objectContaining({ method: "DELETE" }),
     );
   });
 

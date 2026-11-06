@@ -32,7 +32,7 @@ interface StudentChoice {
 async function fetchStudentChoices(): Promise<StudentChoice[]> {
   const choices: StudentChoice[] = [];
   for (let page = 1; ; page += 1) {
-    const result = await fetchStudents({ page, page_size: STUDENT_PAGE_SIZE });
+    const result = await fetchStudents({ page, pageSize: STUDENT_PAGE_SIZE });
     choices.push(...result.students.map(toChoice));
     if (!result.pagination || page >= result.pagination.total_pages) {
       return choices.sort((a, b) => a.name.localeCompare(b.name, "de"));
@@ -111,7 +111,7 @@ export function useStudentChoices(
   return { load, error };
 }
 
-export interface StudentChoiceMatch {
+interface StudentChoiceMatch {
   readonly term: string;
   readonly visible: readonly StudentChoice[];
   readonly selectable: readonly StudentChoice[];
@@ -140,7 +140,7 @@ export function matchStudentChoices(
   return { term, visible, selectable, selected, target };
 }
 
-export interface StudentChoiceListProps {
+interface StudentChoiceListProps {
   readonly load: StudentChoicesLoad;
   readonly loadError: FormErrorInput;
   readonly search: string;

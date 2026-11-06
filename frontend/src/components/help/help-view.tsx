@@ -83,6 +83,8 @@ const GROUP_ORDER_BY_ROLE: Readonly<
   traeger: [
     "einstieg",
     "anmeldeverwaltung",
+    // Dokumente für Eltern und Schulen freigeben (#4692).
+    "elternarbeit",
     "auswertung",
     "konfiguration",
     "probleme",

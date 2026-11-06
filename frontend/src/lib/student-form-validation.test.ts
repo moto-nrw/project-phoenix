@@ -1,44 +1,27 @@
 import { describe, it, expect } from "vitest";
-import {
-  validateDataRetentionDays,
-  validateStudentForm,
-} from "./student-form-validation";
+import { validateStudentForm } from "./student-form-validation";
 import type { Student } from "~/lib/student-helpers";
 
-describe("validateDataRetentionDays", () => {
-  it("returns error message when retention days is null", () => {
-    const result = validateDataRetentionDays(null);
-    expect(result).toBe("Bitte geben Sie eine Zahl von 1 bis 31 ein.");
+describe("validateStudentForm retention days", () => {
+  const RETENTION_HINT = "Bitte geben Sie eine Zahl von 1 bis 31 ein.";
+
+  it.each([null, undefined, 0, 32])("marks %s as outside 1 to 31", (days) => {
+    expect(
+      // The number field hands null for an emptied input.
+      validateStudentForm({
+        data_retention_days: days,
+      } as unknown as Partial<Student>),
+    ).toMatchObject({ data_retention_days: RETENTION_HINT });
   });
 
-  it("returns error message when retention days is undefined", () => {
-    const result = validateDataRetentionDays(undefined);
-    expect(result).toBe("Bitte geben Sie eine Zahl von 1 bis 31 ein.");
+  it.each([1, 15, 31])("accepts %i", (days) => {
+    expect(validateStudentForm({ data_retention_days: days })).toEqual({});
   });
 
-  it("returns error message when retention days is less than 1", () => {
-    const result = validateDataRetentionDays(0);
-    expect(result).toBe("Bitte geben Sie eine Zahl von 1 bis 31 ein.");
-  });
-
-  it("returns error message when retention days is greater than 31", () => {
-    const result = validateDataRetentionDays(32);
-    expect(result).toBe("Bitte geben Sie eine Zahl von 1 bis 31 ein.");
-  });
-
-  it("returns undefined for valid retention days (1)", () => {
-    const result = validateDataRetentionDays(1);
-    expect(result).toBeUndefined();
-  });
-
-  it("returns undefined for valid retention days (31)", () => {
-    const result = validateDataRetentionDays(31);
-    expect(result).toBeUndefined();
-  });
-
-  it("returns undefined for valid retention days (15)", () => {
-    const result = validateDataRetentionDays(15);
-    expect(result).toBeUndefined();
+  // A form that leaves the consent pair out writes none (the school default
+  // applies), so there is nothing to check.
+  it("checks nothing when the form carries no retention", () => {
+    expect(validateStudentForm({})).toEqual({});
   });
 });
 
@@ -190,20 +173,6 @@ describe("validateStudentForm", () => {
     expect(errors.first_name).toBe("Bitte geben Sie den Vornamen ein.");
     expect(errors.last_name).toBe("Bitte geben Sie den Nachnamen ein.");
     expect(errors.school_class).toBe("Bitte geben Sie die Klasse ein.");
-  });
-
-  it("validates undefined data retention days", () => {
-    const formData: Partial<Student> = {
-      first_name: "Max",
-      second_name: "Mustermann",
-      school_class: "5a",
-    };
-
-    const errors = validateStudentForm(formData, {});
-
-    expect(errors.data_retention_days).toBe(
-      "Bitte geben Sie eine Zahl von 1 bis 31 ein.",
-    );
   });
 
   it("validates invalid data retention days", () => {
