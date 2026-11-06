@@ -7,12 +7,24 @@
 // Zwischen Summe und Tabelle stehen die Auffälligkeiten (#4675); in der
 // Tabelle ist jede Zahl hervorgehoben, die eine Grenze des Trägers erreicht.
 
-import { type MouseEvent, type ReactNode, useMemo, useState } from "react";
+import { type MouseEvent, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, School, TriangleAlert } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  School,
+  TriangleAlert,
+} from "lucide-react";
+import { CheckCircleIcon } from "@phosphor-icons/react/ssr";
 import { useSession } from "next-auth/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
+import { CustomSelect } from "~/components/ui/custom-select";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import { SectionCard } from "~/components/ui/section-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import NavigationLink from "~/components/ui/navigation-link";
@@ -25,7 +37,14 @@ import {
 } from "~/components/traeger/use-open-traeger-school";
 import { useTraegerSchoolsToday } from "~/components/traeger/use-traeger-schools-today";
 import { useTraegerSchoolsAlerts } from "~/components/traeger/use-traeger-schools-alerts";
-import { TraegerSchoolAlertsCard } from "~/components/traeger/traeger-school-alerts";
+import {
+  ALERT_LABELS,
+  alertSentence,
+  schoolCountLabel,
+  thresholdsSentence,
+} from "~/lib/traeger-alerts";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { hasPermission } from "~/lib/auth-utils";
 import { childrenConcept } from "~/lib/concepts/children";
 import { presentConcept } from "~/lib/concepts/present";
@@ -45,6 +64,21 @@ import { foldForSearch } from "~/lib/search-fold";
 
 const EMPTY_VALUE = "–";
 
+/** Rows shown before „N weitere anzeigen“, as in the other hint lists. */
+const INITIAL_ROW_COUNT = 5;
+
+/** The value of the school filter that shows every school. */
+const ALL_SCHOOLS = "";
+
+/** The settings area with the thresholds (`?bereich=` on the settings page). */
+const ALERT_SETTINGS_PATH = "/traeger/einstellungen?bereich=dashboard";
+
+const ALERT_CONCEPTS: Readonly<Record<TraegerAlertKind, MotoConcept>> = {
+  staff_shortage: staffConcept,
+  sick_children: sickConcept,
+  open_enrollments: enrollmentsConcept,
+};
+
 /** The Träger right that changes the thresholds of the hints. */
 const SETTINGS_RIGHT = "traeger_settings:manage";
 
@@ -57,24 +91,6 @@ function hasAlert(
   kind: TraegerAlertKind,
 ): boolean {
   return alerts.get(school.id)?.alerts.includes(kind) ?? false;
-}
-
-/**
- * A figure that reaches a threshold of the Träger: orange, with the warning
- * symbol and a spoken hint, so the colour is never the only sign.
- */
-function Flagged({
-  flagged,
-  children,
-}: Readonly<{ flagged: boolean; children: ReactNode }>) {
-  if (!flagged) return <>{children}</>;
-  return (
-    <span className="text-moto-orange-strong inline-flex items-center gap-1">
-      <TriangleAlert className="size-3.5 shrink-0" aria-hidden="true" />
-      {children}
-      <span className="sr-only">, erreicht Ihre Grenze</span>
-    </span>
-  );
 }
 
 const ratioFormat = new Intl.NumberFormat("de-DE", {
@@ -257,9 +273,17 @@ function figureColumns(
       align: "right",
       render: (school) => (
         <span className="text-sm text-gray-900 tabular-nums">
-          <Flagged flagged={hasAlert(alerts, school, "sick_children")}>
-            {school.figures.childrenSick}
-          </Flagged>
+          {hasAlert(alerts, school, "sick_children") ? (
+            <StatusBadge
+              tone="orange"
+              size="xs"
+              icon={TriangleAlert}
+              label={String(school.figures.childrenSick)}
+              accessibleLabel=", erreicht Ihre Grenze"
+            />
+          ) : (
+            school.figures.childrenSick
+          )}
         </span>
       ),
       sortValue: (school) => school.figures.childrenSick,
@@ -270,9 +294,17 @@ function figureColumns(
       align: "right",
       render: (school) => (
         <span className="text-sm text-gray-900 tabular-nums">
-          <Flagged flagged={hasAlert(alerts, school, "staff_shortage")}>
+          {hasAlert(alerts, school, "staff_shortage") ? (
+            <StatusBadge
+              tone="orange"
+              size="xs"
+              icon={TriangleAlert}
+              label={String(school.figures.staffPresent)}
+              accessibleLabel=", erreicht Ihre Grenze"
+            />
+          ) : (
             <span className="font-semibold">{school.figures.staffPresent}</span>
-          </Flagged>
+          )}
           <span className="text-gray-500">
             {" "}
             von {school.figures.staffTotal}
@@ -295,9 +327,17 @@ function figureColumns(
           </span>
         ) : (
           <span className="text-sm font-semibold text-gray-900 tabular-nums">
-            <Flagged flagged={hasAlert(alerts, school, "staff_shortage")}>
-              {formatRatio(school.figures.careRatio)}
-            </Flagged>
+            {hasAlert(alerts, school, "staff_shortage") ? (
+              <StatusBadge
+                tone="orange"
+                size="xs"
+                icon={TriangleAlert}
+                label={formatRatio(school.figures.careRatio)}
+                accessibleLabel=", erreicht Ihre Grenze"
+              />
+            ) : (
+              formatRatio(school.figures.careRatio)
+            )}
           </span>
         ),
       // Ohne Betreuungskraft fehlt der Wert und sortiert nach allen anderen.
@@ -318,9 +358,17 @@ function figureColumns(
           </span>
         ) : (
           <span className="text-sm text-gray-900 tabular-nums">
-            <Flagged flagged={hasAlert(alerts, school, "open_enrollments")}>
-              {open}
-            </Flagged>
+            {hasAlert(alerts, school, "open_enrollments") ? (
+              <StatusBadge
+                tone="orange"
+                size="xs"
+                icon={TriangleAlert}
+                label={String(open)}
+                accessibleLabel=", erreicht Ihre Grenze"
+              />
+            ) : (
+              open
+            )}
           </span>
         );
       },
@@ -336,18 +384,59 @@ export default function TraegerDashboardPage() {
   const router = useRouter();
   const { canOpen, opening, open } = useOpenTraegerSchool();
   const [search, setSearch] = useState("");
-  const loading = today === null && !error;
-  const schools = today?.schools ?? [];
-  const rows = useMemo(
-    () =>
-      (today?.schools ?? []).filter((school) => matchesSearch(school, search)),
-    [today, search],
+  const [alertSchoolId, setAlertSchoolId] = useState(ALL_SCHOOLS);
+  const [alertsExpanded, setAlertsExpanded] = useState(false);
+  const listId = useId();
+  const affected = useMemo(
+    () => (alerts?.schools ?? []).filter((school) => school.alerts.length > 0),
+    [alerts],
+  );
+  const options = useMemo(
+    () => [
+      { value: ALL_SCHOOLS, label: "Alle Schulen" },
+      ...(alerts?.schools ?? []).map((school) => ({
+        value: school.id,
+        label:
+          school.alerts.length > 0
+            ? `${school.name} (${school.alerts.length})`
+            : school.name,
+      })),
+    ],
+    [alerts],
   );
 
+  const alertsLoading = alerts === null;
+  const selected = alerts?.schools.find(
+    (school) => school.id === alertSchoolId,
+  );
+  const alertRows = selected
+    ? affected.filter((school) => school.id === selected.id)
+    : affected;
+  const hiddenCount = Math.max(0, alertRows.length - INITIAL_ROW_COUNT);
+  const visible = alertsExpanded
+    ? alertRows
+    : alertRows.slice(0, INITIAL_ROW_COUNT);
+  const quiet = !alertsLoading && affected.length === 0;
+
+  const loading = today === null && !error;
+  const schools = today?.schools ?? [];
   const alertsBySchool = useMemo<AlertsBySchool>(
     () => new Map((alerts?.schools ?? []).map((school) => [school.id, school])),
     [alerts],
   );
+  const rows = useMemo(
+    () =>
+      (today?.schools ?? [])
+        .filter((school) => matchesSearch(school, search))
+        .map((school) => ({
+          ...school,
+          // Keep figures and warning markers on the same confirmed snapshot,
+          // including when only one of the two requests refreshes successfully.
+          figures: alertsBySchool.get(school.id)?.figures ?? school.figures,
+        })),
+    [today, search, alertsBySchool],
+  );
+  const canChangeThresholds = hasPermission(session, SETTINGS_RIGHT);
 
   const columns = useMemo<DataTableColumn<TraegerSchoolToday>[]>(() => {
     const figures = figureColumns(alertsBySchool, alerts !== null);
@@ -428,11 +517,158 @@ export default function TraegerDashboardPage() {
       }
     >
       <TotalFigures total={today?.total ?? null} schoolCount={schools.length} />
-      <TraegerSchoolAlertsCard
-        alerts={alerts}
-        error={alertsError}
-        canChangeThresholds={hasPermission(session, SETTINGS_RIGHT)}
-      />
+      {alertsError ? (
+        <LoadErrorAlert error={alertsError} actionLayout="responsive" />
+      ) : alerts?.schools.length === 0 ? null : (
+        <SectionCard
+          title="Auffälligkeiten"
+          testId="traeger-school-alerts"
+          loading={alertsLoading}
+          titleBadge={
+            affected.length > 0 ? (
+              <StatusBadge
+                tone="orange"
+                label={schoolCountLabel(affected.length)}
+              />
+            ) : undefined
+          }
+          description="Hier stehen die Schulen, an denen gerade etwas Ihre Grenzen erreicht."
+          leading={
+            quiet ? (
+              <CheckCircleIcon
+                weight="duotone"
+                className="text-moto-green-strong mt-0.5 size-5 shrink-0"
+                aria-hidden="true"
+              />
+            ) : (
+              <TriangleAlert
+                className="text-moto-orange-strong mt-0.5 size-5 shrink-0"
+                aria-hidden="true"
+              />
+            )
+          }
+          actions={
+            alerts && alerts.schools.length > 1 ? (
+              <CustomSelect
+                value={alertSchoolId}
+                options={options}
+                onChange={(value) => {
+                  setAlertSchoolId(value);
+                  setAlertsExpanded(false);
+                }}
+                ariaLabel="Auffälligkeiten nach Schule filtern"
+                controlSize="compact"
+                searchable={alerts.schools.length > 8}
+                searchPlaceholder="Schule suchen"
+                className="w-full sm:w-64"
+              />
+            ) : undefined
+          }
+        >
+          {alerts ? (
+            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+              <p className="text-sm text-gray-600">
+                {thresholdsSentence(alerts.thresholds)}
+              </p>
+              <ButtonLink
+                href={traegerPath(ALERT_SETTINGS_PATH)}
+                variant="link"
+                size="md"
+                className="shrink-0 self-start sm:self-auto"
+              >
+                {canChangeThresholds ? "Grenzen ändern" : "Grenzen ansehen"}
+              </ButtonLink>
+            </div>
+          ) : null}
+          {quiet ? (
+            <p className="text-sm text-gray-900">
+              Gerade ist an keiner Schule etwas auffällig.
+            </p>
+          ) : null}
+          {!quiet && selected && alertRows.length === 0 ? (
+            <p className="text-sm text-gray-900">
+              An dieser Schule ist gerade nichts auffällig.
+            </p>
+          ) : null}
+          {visible.length > 0 ? (
+            <ResponsiveActionList id={listId}>
+              {visible.map((school) => (
+                <li
+                  key={school.id}
+                  className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">
+                      {school.name}
+                      {school.city ? (
+                        <span className="font-normal text-gray-500">
+                          {" "}
+                          · {school.city}
+                        </span>
+                      ) : null}
+                    </p>
+                    <ul className="mt-1.5 flex flex-col gap-1.5">
+                      {school.alerts.map((kind) => (
+                        <li
+                          key={kind}
+                          className="flex items-start gap-2 text-sm"
+                        >
+                          <MotoConceptIcon
+                            concept={ALERT_CONCEPTS[kind]}
+                            className="mt-0.5 size-4 shrink-0"
+                            aria-hidden="true"
+                          />
+                          <span className="min-w-0 text-gray-600">
+                            <span className="font-medium text-gray-900">
+                              {ALERT_LABELS[kind]}:
+                            </span>{" "}
+                            <span className="tabular-nums">
+                              {alertSentence(kind, school)}
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
+                    <ButtonLink
+                      href={traegerPath(`/traeger/schulen/${school.id}`)}
+                      variant="surface"
+                      size="compact"
+                      aria-label={`Zur Schule: ${school.name}`}
+                    >
+                      Zur Schule
+                    </ButtonLink>
+                  </div>
+                </li>
+              ))}
+            </ResponsiveActionList>
+          ) : null}
+          {hiddenCount > 0 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="md"
+              className="mt-2 w-full"
+              aria-expanded={alertsExpanded}
+              aria-controls={listId}
+              onClick={() => setAlertsExpanded((current) => !current)}
+            >
+              {alertsExpanded ? (
+                <>
+                  Weniger anzeigen
+                  <ChevronUp className="size-4" aria-hidden="true" />
+                </>
+              ) : (
+                <>
+                  {hiddenCount} weitere anzeigen
+                  <ChevronDown className="size-4" aria-hidden="true" />
+                </>
+              )}
+            </Button>
+          ) : null}
+        </SectionCard>
+      )}
       <DataTable
         heading={{ title: "Zahlen je Schule", count: rows.length }}
         columns={columns}
