@@ -147,8 +147,11 @@ interface Props {
 }
 
 export function AdminEnrollmentDetail({ requestId }: Props) {
-  const { mails: requestMails, loadError: requestMailsError } =
-    useRequestMails(requestId);
+  const {
+    mails: requestMails,
+    loadError: requestMailsError,
+    refresh: refreshRequestMails,
+  } = useRequestMails(requestId);
   const careOfferingsEnabled = useCareOfferingsEnabled();
   const waitlistEnabled = useWaitlistEnabled();
   const tenantPath = useTenantAwarePath();
@@ -264,7 +267,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     toast.success(
       `Die Entscheidung wurde gespeichert: ${CHILD_STATUS_LABELS[status as ChildStatus]}.`,
     );
-    await load();
+    await Promise.all([load(), refreshRequestMails()]);
   };
   useLayoutEffect(() => {
     latestDecideRef.current = handleDecide;
@@ -846,7 +849,13 @@ function useRequestMails(requestId: string) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-  return { mails, loadError: load.error };
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, 15_000);
+    return () => clearInterval(timer);
+  }, [refresh]);
+  return { mails, loadError: load.error, refresh };
 }
 
 function ReviewSidebar({

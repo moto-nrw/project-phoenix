@@ -111,7 +111,9 @@ export function SelectionBulkInviteModal({
     clearLoadError,
   ]);
 
-  const toMail = preview ? preview.invited + preview.resent : 0;
+  const toMail = preview
+    ? preview.invited + preview.resent + preview.linkedExistingAccount
+    : 0;
 
   const handleResendOpenChange = (value: boolean) => {
     setPreview(null);
@@ -233,7 +235,8 @@ function PreviewSummary({
   onResendOpenChange: (value: boolean) => void;
   disabled: boolean;
 }) {
-  const toMail = preview.invited + preview.resent;
+  const toMail =
+    preview.invited + preview.resent + preview.linkedExistingAccount;
   const openCount = preview.skippedOpen + preview.resent;
   return (
     <>
@@ -243,18 +246,21 @@ function PreviewSummary({
         ) : (
           <>
             <strong>{parents(toMail)}</strong>{" "}
-            {toMail === 1 ? "bekommt" : "bekommen"} eine E-Mail mit der
-            Einladung. Ausgewählt:{" "}
-            {childCount === 1 ? "1 Kind" : `${childCount} Kinder`}.
+            {toMail === 1 ? "bekommt" : "bekommen"} Zugang zum Elternportal.
+            Ausgewählt: {childCount === 1 ? "1 Kind" : `${childCount} Kinder`}.
           </>
         )}
       </p>
-      {toMail > 0 ? (
+      {preview.invited + preview.resent > 0 ? (
         <p className="text-sm text-gray-600">
           Sagen Sie den Eltern vorher Bescheid, dass eine E-Mail von moto kommt.
         </p>
       ) : null}
       <ul className="space-y-1 text-sm text-gray-700">
+        <CountRow
+          label="Vorhandenes moto-Konto wird verbunden"
+          count={preview.linkedExistingAccount}
+        />
         <CountRow
           label="Nutzen das Elternportal schon"
           count={preview.skippedActive}

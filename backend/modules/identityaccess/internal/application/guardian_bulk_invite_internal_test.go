@@ -270,7 +270,8 @@ func TestBulkInvite_DryRunWritesAndMailsNothing(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, result.DryRun)
-	assert.Equal(t, 2, result.Invited)
+	assert.Equal(t, 1, result.Invited)
+	assert.Equal(t, 1, result.LinkedExistingAccount)
 	assert.Equal(t, 1, result.Resent)
 	assert.Empty(t, f.delivery.emails)
 	assert.Empty(t, f.delivery.accessEmails)
@@ -313,6 +314,16 @@ func TestBulkInvite_LinksExistingAccountDespiteMailBlock(t *testing.T) {
 			f.store.addAccount(40, "konto@example.test", "hash:secret", true)
 			parent := f.bulkGuardian("konto@example.test", roleLegal, 11)
 			f.delivery.mailBlocks = map[string]string{parent.Email: block}
+
+			previewReq := bulkRequest(11)
+			previewReq.DryRun = true
+			preview, err := f.lifecycle.BulkInviteToStudents(tenantContext(), previewReq)
+			require.NoError(t, err)
+			assert.Equal(t, 1, preview.LinkedExistingAccount)
+			assert.Empty(t, preview.Problems)
+			assert.False(t, f.guardians.profiles[parent.ID].HasAccount)
+			assert.Empty(t, f.store.granted)
+			assert.Empty(t, f.delivery.accessEmails)
 
 			result, err := f.lifecycle.BulkInviteToStudents(tenantContext(), bulkRequest(11))
 

@@ -120,13 +120,11 @@ func (l *AccountLifecycle) newBulkInviteRun(ctx context.Context, req identityacc
 		return nil, failed(opGuardianBulkInvite, err)
 	}
 	run.mailBlocks = blocks
-	if !req.DryRun {
-		existingAccounts, err := l.bulkInviteExistingAccounts(ctx, profiles)
-		if err != nil {
-			return nil, err
-		}
-		run.existingAccounts = existingAccounts
+	existingAccounts, err := l.bulkInviteExistingAccounts(ctx, profiles)
+	if err != nil {
+		return nil, err
 	}
+	run.existingAccounts = existingAccounts
 	return run, nil
 }
 
@@ -264,8 +262,8 @@ type bulkInviteRun struct {
 	tenantID   int64
 	result     *identityaccess.BulkInviteResult
 	seenEmails map[string]bool
-	// existingAccounts was read in one statement before the loop. It is only
-	// needed on the write path; previews deliberately remain side-effect free.
+	// existingAccounts was read in one statement before the loop, including
+	// previews so they count account linking without writing it.
 	existingAccounts map[string]domain.Account
 	// mailBlocks was read in one statement pair before the loop.
 	mailBlocks map[string]string
@@ -360,6 +358,10 @@ func (l *AccountLifecycle) linkBulkExistingAccount(ctx context.Context, run *bul
 	account, found := run.existingAccounts[email]
 	if !found {
 		return false, nil
+	}
+	if run.req.DryRun {
+		run.result.LinkedExistingAccount++
+		return true, nil
 	}
 	if err := l.attachExistingAccount(ctx, &profile, account); err != nil {
 		return false, err
