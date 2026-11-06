@@ -22,11 +22,15 @@ export function StatusColorBadge({
   color,
   title,
   size,
+  compact,
+  wrap,
 }: {
   readonly label: string;
   readonly color: string;
   readonly title?: string;
   readonly size?: StatusBadgeSize;
+  readonly compact?: boolean;
+  readonly wrap?: boolean;
 }) {
   const tone = getLocationBadgeTone(color);
 
@@ -35,6 +39,8 @@ export function StatusColorBadge({
       label={label}
       title={title}
       size={size}
+      compact={compact}
+      wrap={wrap}
       backgroundColor={tone.backgroundColor}
       textColor={tone.textColor}
     />

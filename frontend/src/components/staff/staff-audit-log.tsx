@@ -6,6 +6,7 @@
 // time_tracking:manage (the page never mounts it otherwise, so no request
 // fires without the permission).
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   useCallback,
   useEffect,
@@ -352,9 +353,11 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
         key: "source",
         header: "Bereich",
         render: (row) => (
-          <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-            {auditLogSourceLabels[row.source]}
-          </span>
+          <StatusBadge
+            label={auditLogSourceLabels[row.source]}
+            tone="gray"
+            compact
+          />
         ),
       },
       {

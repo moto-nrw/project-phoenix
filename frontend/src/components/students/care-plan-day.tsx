@@ -12,6 +12,7 @@
  * care-plan-helpers.ts from data the student detail page already holds.
  */
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Ban, Check, LogIn, LogOut } from "lucide-react";
 
 import {
@@ -124,8 +125,8 @@ function SlotAnchor({
         <span className="font-semibold text-gray-900">{label}</span>{" "}
         <span className="text-gray-700 tabular-nums">{timeText}</span>
         {isException ? (
-          <span className="ml-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500">
-            abweichend
+          <span className="ml-1">
+            <StatusBadge label="abweichend" tone="gray" compact />
           </span>
         ) : null}
         {slot.reason ? (

@@ -277,10 +277,12 @@ export function StaffTimeAccountsTable({
             <ChevronRight className="h-4 w-4" />
           </Button>
           {monthClose?.closed && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
-              <Lock className="h-3 w-3" />
-              Abgeschlossen am {formatLocalizedDate(monthClose.closedAt, "de")}
-            </span>
+            <StatusBadge
+              label={`Abgeschlossen am ${formatLocalizedDate(monthClose.closedAt, "de")}`}
+              tone="gray"
+              icon={Lock}
+              wrap
+            />
           )}
         </>
       }

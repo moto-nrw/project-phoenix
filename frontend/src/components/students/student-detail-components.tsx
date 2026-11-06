@@ -313,11 +313,14 @@ export function WarningIcon({
 
 function ViewOnlyBadge() {
   return (
-    <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 sm:px-2.5">
-      <ViewOnlyIcon />
-      <span className="hidden sm:inline">Nur Ansicht</span>
-      <span className="sm:hidden">Ansicht</span>
-    </span>
+    <>
+      <span className="hidden flex-shrink-0 sm:inline-flex">
+        <StatusBadge label="Nur Ansicht" tone="gray" icon={<ViewOnlyIcon />} />
+      </span>
+      <span className="inline-flex flex-shrink-0 sm:hidden">
+        <StatusBadge label="Ansicht" tone="gray" icon={<ViewOnlyIcon />} />
+      </span>
+    </>
   );
 }
 
@@ -777,9 +780,7 @@ function SupervisorItem({
           <p className="text-base font-semibold text-gray-900">
             {supervisor.first_name} {supervisor.last_name}
           </p>
-          <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
-            Gruppenleitung
-          </span>
+          <StatusBadge label="Gruppenleitung" tone="gray" compact />
         </div>
         {displayEmail(supervisor.email) && (
           <>

@@ -3,6 +3,7 @@
  * Extracted to reduce code duplication between create and edit modals
  */
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useId } from "react";
 import { Bus } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -560,8 +561,11 @@ export function DepartureSection({
           <ParentVisibleBadge hint={PARENT_VISIBLE_HINTS.departure} />
         </h3>
         {anySelected && (
-          <span className="bg-moto-green-soft text-moto-green-strong hidden shrink-0 rounded-full px-2.5 py-1 text-xs font-medium sm:inline">
-            {formatAllowedDepartureDays(normalized)}
+          <span className="hidden shrink-0 sm:inline-flex">
+            <StatusBadge
+              label={formatAllowedDepartureDays(normalized)}
+              tone="green"
+            />
           </span>
         )}
       </div>
