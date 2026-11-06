@@ -76,7 +76,7 @@ func TestQueryFeedbackOptIn(t *testing.T) {
 		}
 		return path
 	})
-	if len(recorder.logs) != 1 || !strings.Contains(recorder.logs[0], indentQueries(queries)) {
+	if len(recorder.logs) != 1 || !strings.Contains(recorder.logs[0], indentQueries(queries, 200)) {
 		t.Fatalf("dump must include existing indentQueries output: %+v", recorder)
 	}
 	if len(recorder.errors) != 0 {
@@ -109,6 +109,48 @@ func TestQueryFeedbackWriteFailureFailsAssertion(t *testing.T) {
 	}
 	if len(recorder.errors) != 1 || !strings.Contains(recorder.errors[0], "write query budget report") {
 		t.Fatalf("write failure did not fail assertion: %+v", recorder)
+	}
+}
+
+func TestQueryFeedbackPreservesLongStatementTailsOnlyWhenOptedIn(t *testing.T) {
+	t.Parallel()
+	prefix := "SELECT " + strings.Repeat("'pädagogik', ", 32)
+	queries := []string{prefix + "id FROM students WHERE first_tail = 1", prefix + "id FROM students WHERE second_tail = 2"}
+	for _, dump := range []bool{false, true} {
+		path := filepath.Join(t.TempDir(), "report.jsonl")
+		var recorder feedbackRecorder
+		emitQueryFeedback(&recorder, "long-statements", queries, queryBudget{max: 2, exact: true}, func(key string) string {
+			if key == "PHX_QUERY_BUDGET_REPORT" {
+				return path
+			}
+			if key == "PHX_QUERY_DUMP" && dump {
+				return "1"
+			}
+			return ""
+		})
+		if len(recorder.errors) != 0 {
+			t.Fatal(recorder.errors)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var report struct {
+			Statements []string `json:"statements"`
+		}
+		if err := json.Unmarshal(data, &report); err != nil {
+			t.Fatal(err)
+		}
+		if dump {
+			if len(recorder.logs) != 1 || !strings.Contains(recorder.logs[0], "first_tail") || !strings.Contains(recorder.logs[0], "second_tail") {
+				t.Fatal("opt-in dump lost the distinguishing tails of long statements")
+			}
+			if !reflect.DeepEqual(report.Statements, queries) {
+				t.Fatal("opt-in report must preserve every complete statement in execution order")
+			}
+		} else if len(recorder.logs) != 0 || report.Statements != nil || strings.Contains(string(data), `"statements"`) {
+			t.Fatal("ordinary reports must not add full SQL without the dump opt-in")
+		}
 	}
 }
 

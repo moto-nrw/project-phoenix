@@ -16,6 +16,7 @@ type budgetReport struct {
 	Max                 int            `json:"max"`
 	Exact               bool           `json:"exact"`
 	DuplicateStatements map[string]int `json:"duplicate_statements"`
+	Statements          []string       `json:"statements,omitempty"`
 }
 
 type feedbackTB interface {
@@ -25,13 +26,17 @@ type feedbackTB interface {
 }
 
 func emitQueryFeedback(tb feedbackTB, scenario string, queries []string, budget queryBudget, getenv func(string) string) {
-	if getenv("PHX_QUERY_DUMP") == "1" {
-		tb.Logf("query budget %q: %d statements\n%s", scenario, len(queries), indentQueries(queries))
+	dump := getenv("PHX_QUERY_DUMP") == "1"
+	if dump {
+		tb.Logf("query budget %q: %d statements\n%s", scenario, len(queries), indentQueries(queries, 0))
 	}
 	if path := getenv("PHX_QUERY_BUDGET_REPORT"); path != "" {
 		report := budgetReport{
 			Scenario: scenario, Test: tb.Name(), Actual: len(queries),
 			Max: budget.max, Exact: budget.exact, DuplicateStatements: duplicateStatements(queries),
+		}
+		if dump {
+			report.Statements = queries
 		}
 		if err := appendBudgetReport(path, report); err != nil {
 			tb.Errorf("write query budget report %q: %v", path, err)
