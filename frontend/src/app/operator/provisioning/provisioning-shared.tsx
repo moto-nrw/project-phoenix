@@ -83,7 +83,10 @@ export function DeliveryStatusBadge({ status }: { readonly status: string }) {
     sent: { label: "Gesendet", tone: "green" },
     failed: { label: "Fehlgeschlagen", tone: "red" },
   };
-  const badge = badges[status] ?? { label: status, tone: "gray" };
+  const badge: { label: string; tone: StatusBadgeTone } = badges[status] ?? {
+    label: status,
+    tone: "gray",
+  };
   return <StatusBadge tone={badge.tone} compact label={badge.label} />;
 }
 
