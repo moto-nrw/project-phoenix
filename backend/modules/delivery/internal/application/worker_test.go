@@ -22,6 +22,7 @@ type workerStore struct {
 	finalizeCancelled   bool
 	sentToken           string
 	cancelledToken      string
+	cancelledReason     string
 	failureToken        string
 	failureAttempts     int
 	failureMaxAttempts  int
@@ -71,8 +72,8 @@ func (s *workerStore) FinalizeSent(_ context.Context, _ domain.Transport, _ int6
 	return s.finalizeSent, s.finalizeSentErr
 }
 
-func (s *workerStore) FinalizeCancelled(_ context.Context, _ domain.Transport, _ int64, token, _ string, _ time.Time) (bool, error) {
-	s.cancelledToken = token
+func (s *workerStore) FinalizeCancelled(_ context.Context, _ domain.Transport, _ int64, token, reason string, _ time.Time) (bool, error) {
+	s.cancelledToken, s.cancelledReason = token, reason
 	return s.finalizeCancelled, nil
 }
 

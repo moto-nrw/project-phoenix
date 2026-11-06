@@ -106,6 +106,26 @@ func TestInviteToStudent_NewEmailCreatesProfileLinkAndInvitation(t *testing.T) {
 	require.Len(t, f.delivery.emails, 1, "the invitation e-mail is enqueued")
 }
 
+func TestInviteToStudent_ExistingAccountSaysThatNoMailReachesThePerson(t *testing.T) {
+	t.Parallel()
+	for block, held := range map[string]bool{domain.GuardianMailBlockAddress: true, domain.GuardianMailBlockDelayed: false, "": false} {
+		t.Run("block "+block, func(t *testing.T) {
+			t.Parallel()
+			f := newLifecycleFixture(t)
+			f.store.addAccount(40, "parent@example.test", "hash:secret", true)
+			if block != "" {
+				f.delivery.mailBlocks = map[string]string{"parent@example.test": block}
+			}
+
+			result, err := f.lifecycle.inviteToStudent(tenantContext(), inviteRequest("parent@example.test"))
+
+			require.NoError(t, err)
+			assert.Equal(t, domain.InviteOutcomeLinkedExistingAccount, result.Outcome, "the link needs no mail")
+			assert.Equal(t, held, result.MailHeld)
+		})
+	}
+}
+
 func TestInviteToStudent_ExistingAccountIsLinkedWithoutInvitation(t *testing.T) {
 	t.Parallel()
 	f := newLifecycleFixture(t)

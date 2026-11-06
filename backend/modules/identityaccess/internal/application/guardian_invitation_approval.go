@@ -50,6 +50,9 @@ func (l *AccountLifecycle) approveInvitation(ctx context.Context, invitationID, 
 	if err != nil {
 		return failed(opGuardianInviteApprove, err)
 	}
+	if err := l.refuseBlockedMail(ctx, invitation.TenantID, profile); err != nil {
+		return failed(opGuardianInviteApprove, err)
+	}
 	invitation.Token = uuid.Must(uuid.NewV4()).String()
 	invitation.ExpiresAt = now.Add(expiry)
 	invitation.EmailSentAt = nil

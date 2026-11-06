@@ -61,31 +61,43 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 			return failed(opGuardianInviteCreate, err)
 		}
 		var insertErr error
-		invitation, insertErr = l.invitations.InsertGuardianInvitation(txCtx, domain.GuardianInvitation{
-			TenantID:          l.runtime.TenantID(txCtx),
-			Token:             uuid.Must(uuid.NewV4()).String(),
-			GuardianProfileID: profile.ID,
-			CreatedBy:         request.CreatedBy,
-			ExpiresAt:         time.Now().Add(expiry),
-			ApprovalStatus:    domain.GuardianInvitationApprovalNotRequired,
-		})
-		if insertErr != nil {
-			return failed(opGuardianInviteCreate, insertErr)
-		}
-		l.logger.Info("guardian invitation created",
-			slog.Int64("invitation_id", invitation.ID),
-			slog.Int64("guardian_profile_id", profile.ID),
-			slog.Int64("created_by", request.CreatedBy),
-		)
-		if err := l.mailNewInvitation(txCtx, invitation, profile); err != nil {
-			return failed(opGuardianInviteCreate, err)
-		}
-		return nil
+		invitation, insertErr = l.issueGuardianInvitation(txCtx, request, profile, time.Now().Add(expiry))
+		return insertErr
 	})
 	if err != nil {
 		return identityaccess.GuardianInvitation{}, err
 	}
 	return identityaccess.GuardianInvitation(invitation), nil
+}
+
+// issueGuardianInvitation writes the invitation and queues its mail. A request
+// that refuses a blocked address learns about the block before anything is kept.
+func (l *AccountLifecycle) issueGuardianInvitation(ctx context.Context, request identityaccess.GuardianInvitationRequest, profile domain.GuardianProfile, expiresAt time.Time) (domain.GuardianInvitation, error) {
+	if request.RefuseBlockedAddress {
+		if err := l.refuseBlockedMail(ctx, l.runtime.TenantID(ctx), profile); err != nil {
+			return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
+		}
+	}
+	invitation, err := l.invitations.InsertGuardianInvitation(ctx, domain.GuardianInvitation{
+		TenantID:          l.runtime.TenantID(ctx),
+		Token:             uuid.Must(uuid.NewV4()).String(),
+		GuardianProfileID: profile.ID,
+		CreatedBy:         request.CreatedBy,
+		ExpiresAt:         expiresAt,
+		ApprovalStatus:    domain.GuardianInvitationApprovalNotRequired,
+	})
+	if err != nil {
+		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
+	}
+	l.logger.Info("guardian invitation created",
+		slog.Int64("invitation_id", invitation.ID),
+		slog.Int64("guardian_profile_id", profile.ID),
+		slog.Int64("created_by", request.CreatedBy),
+	)
+	if err := l.mailNewInvitation(ctx, invitation, profile); err != nil {
+		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
+	}
+	return invitation, nil
 }
 
 func (l *AccountLifecycle) lockInvitationProfile(ctx context.Context, profileID int64) (domain.GuardianProfile, error) {
@@ -103,6 +115,34 @@ func (l *AccountLifecycle) lockInvitationProfile(ctx context.Context, profileID 
 		return domain.GuardianProfile{}, fmt.Errorf("guardian already has an account")
 	}
 	return profile, nil
+}
+
+// refuseBlockedMail fails when a new mail to the guardian would change nothing:
+// the school's list holds it back, or the server still tries the last one. Nobody
+// should read that as sent, so the person learns it while they are looking.
+func (l *AccountLifecycle) refuseBlockedMail(ctx context.Context, tenantID int64, profile domain.GuardianProfile) error {
+	blocks, err := l.delivery.GuardianMailBlocks(ctx, tenantID, []string{profile.Email})
+	if err != nil {
+		return fmt.Errorf("read the mail block of the guardian: %w", err)
+	}
+	switch blocks[strings.ToLower(strings.TrimSpace(profile.Email))] {
+	case domain.GuardianMailBlockAddress:
+		return domain.ErrGuardianEmailAddressBlocked
+	case domain.GuardianMailBlockDelayed:
+		return domain.ErrInvitationMailDelayed
+	case domain.GuardianMailBlockProvider:
+		return domain.ErrMailBlockedAtProvider
+	case domain.GuardianMailBlockUnreadable:
+		return domain.ErrMailBlockUnreadable
+	default:
+		return nil
+	}
+}
+
+// mailWouldStayBack reports a refusal that means no mail reaches the person. A
+// delay is none: that mail is still on its way.
+func mailWouldStayBack(err error) bool {
+	return errors.Is(err, domain.ErrGuardianEmailAddressBlocked) || errors.Is(err, domain.ErrMailBlockedAtProvider) || errors.Is(err, domain.ErrMailBlockUnreadable)
 }
 
 // mailNewInvitation queues the mail of a new token invitation and the
@@ -312,6 +352,22 @@ func (l *AccountLifecycle) claimGuardianEnrollments(ctx context.Context, account
 	return nil
 }
 
+// resendableGuardianProfile finds the guardian of an invitation and refuses a
+// resend that would change nothing.
+func (l *AccountLifecycle) resendableGuardianProfile(ctx context.Context, invitation domain.GuardianInvitation) (domain.GuardianProfile, error) {
+	profile, found, err := l.guardians.FindGuardianProfile(ctx, invitation.GuardianProfileID)
+	if err != nil {
+		return domain.GuardianProfile{}, err
+	}
+	if !found {
+		return domain.GuardianProfile{}, fmt.Errorf("guardian profile not found")
+	}
+	if err := l.refuseBlockedMail(ctx, invitation.TenantID, profile); err != nil {
+		return domain.GuardianProfile{}, err
+	}
+	return profile, nil
+}
+
 func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) (err error) {
 	if l == nil {
 		return errAccountLifecycleUnavailable
@@ -327,12 +383,9 @@ func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitat
 		if redeemErr := invitation.Redeemable(time.Now()); redeemErr != nil {
 			return failed(opGuardianInviteResend, redeemErr)
 		}
-		profile, found, err := l.guardians.FindGuardianProfile(ctx, invitation.GuardianProfileID)
+		profile, err := l.resendableGuardianProfile(ctx, invitation)
 		if err != nil {
 			return failed(opGuardianInviteResend, err)
-		}
-		if !found {
-			return failed(opGuardianInviteResend, fmt.Errorf("guardian profile not found"))
 		}
 		// The delivery bookkeeping starts over; the previous attempt's outcome
 		// says nothing about the send that follows. Only the hash of a token

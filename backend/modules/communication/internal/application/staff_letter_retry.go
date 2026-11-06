@@ -151,7 +151,14 @@ func deliveryPortalAccess(rows []EmailDeliveryStatus) map[string]bool {
 
 func (s *service) resendFailedLetterRecipient(ctx context.Context, a *StaffParentAnnouncement, row EmailDeliveryStatus, layout letterMailLayout, byAddress map[string]*communication.MailEnqueued, portalAccessByAddress map[string]bool) (queued bool, err error) {
 	tenantID := a.GetTenantID()
-	if row.EmailStatus != "failed" || row.RecipientEmail == nil || *row.RecipientEmail == "" {
+	if row.RecipientEmail == nil || *row.RecipientEmail == "" {
+		return false, nil
+	}
+	// A marked address and a stopped person stay out: the mail would stay back
+	// again and the school would read the resend as done. RecipientEmail is the
+	// person's current address, so a correction goes to the new one.
+	if row.EmailStatus != "failed" || row.AddressMark != "" || row.Stopped ||
+		row.ProviderBlock == letterProviderBlockActive || row.ProviderBlock == letterProviderBlockUnreadable {
 		return false, nil
 	}
 	claimed, err := s.deliveries.ClaimFailedDelivery(ctx, tenantID, row.DeliveryID)

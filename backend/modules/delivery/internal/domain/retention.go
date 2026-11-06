@@ -25,7 +25,7 @@ type RetentionResult struct {
 	RealtimeNotifications int
 	// DeliveryEvents are the reported events of the expired mails (#5932).
 	DeliveryEvents int
-	// Suppressions are addresses without an event for SuppressionRetention.
+	// Suppressions are marked addresses nobody at the school holds any more.
 	Suppressions int
 }
 

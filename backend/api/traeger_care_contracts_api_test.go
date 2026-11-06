@@ -13,12 +13,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
@@ -76,6 +78,8 @@ type careContractDetailBody struct {
 	Mailings []struct {
 		Recipient string `json:"recipient"`
 		State     string `json:"state"`
+		Outcome   string `json:"outcome"`
+		SendBlock string `json:"send_block"`
 	} `json:"mailings"`
 	DocumentFrozen bool `json:"document_frozen"`
 }
@@ -560,6 +564,98 @@ func TestCareContractBouncedAfterAcceptanceShowsAsFailedAndTakesACorrection(t *t
 		map[string]any{"contract_ids": []int64{id}, "recipient_email": "korrigiert@example.org"})
 	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), fmt.Sprintf(`"sent":[%d]`, id), "the corrected address takes the contract")
+}
+
+// A contract's mail reads as the Abrechnung's does: an unsubscribe and a complaint
+// are not "sent", a delay holds a second mail back, and the current state of the
+// address decides about another one (#5934).
+func TestCareContractMailFollowsTheCurrentStateOfTheAddress(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Zustellung")
+	token := f.office.token
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	rec := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts", map[string]any{"contracts": []any{f.key()}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	id := decodeSchoolPortalData[careContractCreateBody](t, rec.Body.Bytes()).Created[0].ID
+	send := func() string {
+		t.Helper()
+		rec := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send", map[string]any{"contract_ids": []int64{id}})
+		require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+		return rec.Body.String()
+	}
+	require.Contains(t, send(), fmt.Sprintf(`"sent":[%d]`, id))
+	set := func(state string) {
+		t.Helper()
+		_, err := f.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW(), delivery_state = ?, delivery_state_at = NOW()
+			WHERE organization_id = ? AND kind = 'care_contract' AND related_entity_id = ?`, state, f.office.organization, id)
+		require.NoError(t, err)
+	}
+	latest := func() (state, outcome, block, recipient string) {
+		t.Helper()
+		rec := traegerJSON(t, f.traeger, token, http.MethodGet, contractPath(id, ""), nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		mailings := decodeSchoolPortalData[careContractDetailBody](t, rec.Body.Bytes()).Mailings
+		require.NotEmpty(t, mailings)
+		return mailings[0].State, mailings[0].Outcome, mailings[0].SendBlock, mailings[0].Recipient
+	}
+
+	for _, reported := range []struct{ state, outcome string }{{"unsubscribed", "unsubscribed"}, {"complained", "complained"}} {
+		set(reported.state)
+		state, outcome, _, _ := latest()
+		assert.Equal(t, "failed", state, "%s is no sent contract", reported.state)
+		assert.Equal(t, reported.outcome, outcome)
+	}
+
+	set("delayed")
+	state, outcome, block, recipient := latest()
+	assert.Equal(t, "sent", state)
+	assert.Equal(t, "delayed", outcome)
+	assert.Equal(t, "delayed", block)
+	assert.Contains(t, send(), `"reason":"mail_delayed"`, "a second mail would only arrive twice")
+
+	set("suppressed")
+	address := strings.ToLower(recipient)
+	testProviderBlocks.Store(address, deliveryContract.EmailProviderBlockActive)
+	_, outcome, block, _ = latest()
+	assert.Equal(t, "provider_blocked", outcome)
+	assert.Equal(t, "provider", block)
+	assert.Contains(t, send(), `"reason":"mail_blocked"`)
+	testProviderBlocks.Store(address, deliveryContract.EmailProviderBlockUnreadable)
+	assert.Contains(t, send(), `"reason":"mail_block_unreadable"`)
+	testProviderBlocks.Store(address, deliveryContract.EmailProviderBlockNone)
+	_, _, block, _ = latest()
+	assert.Empty(t, block, "the block is gone")
+	assert.Contains(t, send(), fmt.Sprintf(`"sent":[%d]`, id), "the old mail decides nothing")
+}
+
+// A school's list and stop hold a contract's mail back, and the Träger reads the
+// reason as it is now, through a read that works inside its own transaction.
+func TestCareContractMailNamesAHoldOfTheSchool(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Sperre")
+	token := f.office.token
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	rec := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts", map[string]any{"contracts": []any{f.key()}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	id := decodeSchoolPortalData[careContractCreateBody](t, rec.Body.Bytes()).Created[0].ID
+	require.Equal(t, http.StatusAccepted, traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send", map[string]any{"contract_ids": []int64{id}}).Code)
+	detail := func() careContractDetailBody {
+		rec := traegerJSON(t, f.traeger, token, http.MethodGet, contractPath(id, ""), nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return decodeSchoolPortalData[careContractDetailBody](t, rec.Body.Bytes())
+	}
+	address := strings.ToLower(detail().Mailings[0].Recipient)
+	_, err := f.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW() WHERE organization_id = ? AND kind = 'care_contract' AND related_entity_id = ?`, f.office.organization, id)
+	require.NoError(t, err)
+	_, err = f.db.ExecContext(context.Background(), `INSERT INTO platform.email_suppressions (tenant_id, address, reason) VALUES (?, ?, 'failed')`, f.school, address)
+	require.NoError(t, err)
+	assert.Equal(t, "address", detail().Mailings[0].SendBlock)
+	sent := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send", map[string]any{"contract_ids": []int64{id}})
+	assert.Contains(t, sent.Body.String(), `"reason":"mail_blocked"`)
+
+	_, err = f.db.ExecContext(context.Background(), `DELETE FROM platform.email_suppressions WHERE tenant_id = ? AND address = ?`, f.school, address)
+	require.NoError(t, err)
+	assert.Empty(t, detail().Mailings[0].SendBlock, "the lift ends the hold at once")
 }
 
 func TestCareContractWithoutAPartnerCannotFreezeOrSendItsPDF(t *testing.T) {

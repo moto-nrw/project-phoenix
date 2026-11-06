@@ -61,7 +61,7 @@ func BuildIdentityAccess(
 	}
 	invitationDeps := InvitationDependencies(&InvitationWiring{
 		Dispatcher: mailDispatcher, DefaultFrom: mailFrom, Durable: durable, StaffURL: links.FrontendURL, SchoolURL: links.SchoolURL,
-		MailIdentity: mailIdentity, Expiry: links.InvitationTokenExpiry, Settings: settings, Outbox: outbox, WelcomeDelay: identityaccess.StaffWelcomeDelay,
+		MailIdentity: mailIdentity, Expiry: links.InvitationTokenExpiry, Settings: settings, Outbox: outbox, WelcomeDelay: identityaccess.StaffWelcomeDelay, Outcomes: deliveryRuntime.EmailOutcomes,
 	}, tokens.SessionTokens, authLogger)
 	invitationDeps.EmploymentReset, err = BuildInvitationEmploymentReset(db, env, workTime, persons, membership, people, audit, settings, calendar)
 	if err != nil {
@@ -91,7 +91,7 @@ func BuildIdentityAccess(
 	sessionRepos := SessionRepositoriesOf(identityChain, organizations, audit.Persistence.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
 	// The accept and login links go to the parents portal, never to the
 	// staff frontend.
-	guardianMail, enrollmentClaims, err := GuardianInvitationDependencies(settings, organizations, outbox, guardianEnrollments,
+	guardianMail, enrollmentClaims, err := GuardianInvitationDependencies(settings, organizations, outbox, deliveryRuntime.EmailOutcomes, guardianEnrollments,
 		links.ParentsURL, authLogger.With("flow", "guardian_invitation"))
 	if err != nil {
 		return nil, nil, err

@@ -6,6 +6,7 @@
  * whole cent; calendar dates stay "YYYY-MM-DD".
  */
 
+import type { MailOutcome } from "~/lib/email-delivery-status";
 import { apiErrorFromBody, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
 import { traegerRequest } from "./traeger-api";
@@ -137,6 +138,9 @@ export interface CareContractDetail extends CareContractSummary {
     readonly recipient: string;
     readonly sentAt: string;
     readonly state: ContractMailState;
+    readonly outcome?: MailOutcome;
+    /** Why another mail to this address would stay back now. */
+    readonly sendBlock?: ContractSendBlock;
   }[];
   readonly documentFrozen: boolean;
 }
@@ -152,7 +156,16 @@ export interface CreateResult {
 }
 
 export type SendSkipReason =
-  "recipient_missing" | "partner_missing" | "mail_pending" | "not_sendable";
+  | "recipient_missing"
+  | "partner_missing"
+  | "mail_pending"
+  | "mail_delayed"
+  | "mail_blocked"
+  | "mail_block_unreadable"
+  | "not_sendable";
+
+type ContractSendBlock =
+  "delayed" | "stopped" | "address" | "provider" | "provider_unknown";
 
 export interface SendResult {
   readonly sent: readonly string[];
@@ -255,7 +268,14 @@ interface BackendDetail extends BackendSummary {
       }[]
     | null;
   mailings:
-    { recipient: string; sent_at: string; state: ContractMailState }[] | null;
+    | {
+        recipient: string;
+        sent_at: string;
+        state: ContractMailState;
+        outcome?: MailOutcome;
+        send_block?: ContractSendBlock;
+      }[]
+    | null;
   document_frozen: boolean;
 }
 
@@ -375,6 +395,8 @@ function detailFromBackend(row: BackendDetail): CareContractDetail {
     mailings: (row.mailings ?? []).map((mailing) => ({
       recipient: mailing.recipient,
       sentAt: mailing.sent_at,
+      outcome: mailing.outcome,
+      sendBlock: mailing.send_block,
       state: mailing.state,
     })),
     documentFrozen: row.document_frozen,

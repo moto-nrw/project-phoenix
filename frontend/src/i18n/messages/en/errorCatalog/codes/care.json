@@ -76,5 +76,6 @@
   "request_not_open": "{object} is no longer open. Please ask your contact person.",
   "request_sharing_invalid": "{object} contains invalid details. Please check your entries.",
   "sick_note_disabled": "{object} is not available here at the moment. Please ask your contact person.",
-  "staff_managed_guardian_protected": "You cannot access {object}. Please contact the school."
+  "staff_managed_guardian_protected": "You cannot access {object}. Please contact the school.",
+  "guardian_invite_unavailable": "This invitation could not be sent right now. Please contact the after-school care team."
 }

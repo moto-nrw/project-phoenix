@@ -34,6 +34,9 @@ var (
 	// ErrInviteMailNotQueued reports an invitation whose mail could not be
 	// queued; nothing of it was kept and the parent can try again (#4602).
 	ErrInviteMailNotQueued = errors.New("the invitation email could not be queued")
+	// ErrInviteMailUnavailable reports an invitation that cannot reach the address
+	// right now. It does not say why: the address may be a third person's.
+	ErrInviteMailUnavailable = errors.New("the invitation email cannot be sent to this address")
 )
 
 // GuardianInviteRequest is one parent-initiated "invite this address to my

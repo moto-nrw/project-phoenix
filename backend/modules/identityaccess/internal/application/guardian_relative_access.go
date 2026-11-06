@@ -48,7 +48,7 @@ func (l *AccountLifecycle) InviteToStudent(ctx context.Context, req identityacce
 		}
 		public := identityaccess.InviteToStudentResult{
 			Outcome: identityaccess.InviteToStudentOutcome(result.Outcome), GuardianProfileID: result.GuardianProfileID,
-			InvitationID: result.InvitationID, ExistingRole: result.ExistingRole,
+			InvitationID: result.InvitationID, ExistingRole: result.ExistingRole, MailHeld: result.MailHeld,
 		}
 		return &public, nil
 	}
@@ -250,6 +250,7 @@ func (l *AccountLifecycle) resolveInviteNow(ctx context.Context, req domain.Invi
 		if err := l.mailExistingAccountAccess(ctx, profile, tenantID); err != nil {
 			return nil, failed(opGuardianInviteToStudent, err)
 		}
+		mailHeld := mailWouldStayBack(l.refuseBlockedMail(ctx, tenantID, profile))
 		outcome := domain.InviteOutcomeLinkedExistingAccount
 		if !linkCreated {
 			outcome = domain.InviteOutcomeAlreadyLinked
@@ -260,11 +261,14 @@ func (l *AccountLifecycle) resolveInviteNow(ctx context.Context, req domain.Invi
 			slog.Int64("created_by", req.CreatedBy),
 			slog.String("outcome", string(outcome)),
 		)
-		return &domain.InviteToStudentResult{Outcome: outcome, GuardianProfileID: profile.ID}, nil
+		return &domain.InviteToStudentResult{Outcome: outcome, GuardianProfileID: profile.ID, MailHeld: mailHeld}, nil
 	}
 
 	// No account yet: issue a token invitation for this child. The upgrade
 	// (if any) was already applied above, so the row's flag stays false.
+	if err := l.refuseBlockedMail(ctx, tenantID, profile); err != nil {
+		return nil, failed(opGuardianInviteToStudent, err)
+	}
 	invitation, err := l.createStudentInvitation(ctx, req, profile, tenantID, domain.GuardianInvitationApprovalNotRequired, profileCreated, false)
 	if err != nil {
 		return nil, err

@@ -46,6 +46,14 @@ var (
 	// ErrLetterMailPending reports a send while the last mail of the family
 	// still waits.
 	ErrLetterMailPending = errors.New("the last mail of this letter is still being sent")
+	// ErrLetterMailDelayed reports a send while the mail server still tries to
+	// deliver the last mail: a second one would only arrive twice.
+	ErrLetterMailDelayed = errors.New("the last mail of this letter is delayed")
+	// ErrLetterMailBlockUnreadable reports a block moto could not read just now.
+	ErrLetterMailBlockUnreadable = errors.New("the mail provider's block could not be read")
+	// ErrLetterMailBlocked reports a send to an address the provider holds back.
+	// Another mail would stay back too, so the Träger prints the letter.
+	ErrLetterMailBlocked = errors.New("the last mail of this letter was held back")
 	// ErrRecipientEmailMissing reports a family without an e-mail address.
 	ErrRecipientEmailMissing = errors.New("the family has no e-mail address")
 )
@@ -66,6 +74,12 @@ type BillingLetterMailing struct {
 	Attempts           int        `json:"attempts"`
 	RequestedAt        *time.Time `json:"requested_at"`
 	SentAt             *time.Time `json:"sent_at"`
+	// MailOutcome is what Delivery knows about the last mail; Status only tells
+	// whether a server took it (#5934). Empty before the first mail.
+	MailOutcome string `json:"mail_outcome,omitempty"`
+	// ProviderBlock is the provider's block of the address now. It is only read for
+	// a last mail that left one, and only it decides about another mail.
+	ProviderBlock string `json:"provider_block,omitempty"`
 }
 
 // BillingLetterMailings are the mail states of every family of a run.
@@ -123,7 +137,23 @@ type BillingLetterMailState struct {
 	Status     string
 	Attempts   int
 	SentAt     *time.Time
+	Outcome    string
 }
+
+// LetterMailOutcomeDelayed is the outcome that stops a further mail.
+const LetterMailOutcomeDelayed = "delayed"
+
+// LetterMailOutcomeHeldBack reports an outcome that leaves a block at the provider.
+// It only says the provider is worth asking: the block may be gone by now.
+func LetterMailOutcomeHeldBack(outcome string) bool {
+	return outcome == "provider_blocked" || outcome == "unsubscribed" || outcome == "complained"
+}
+
+// The states of BillingLetterMailing.ProviderBlock that refuse another mail.
+const (
+	LetterProviderBlockActive     = "active"
+	LetterProviderBlockUnreadable = "unreadable"
+)
 
 // BillingLetterPost is Delivery and the letterhead of the Träger as the
 // letters are mailed. The root binds it; every operation joins the caller's
@@ -137,6 +167,9 @@ type BillingLetterPost interface {
 	EnqueueLetterMail(ctx context.Context, mail BillingLetterMail) (int64, error)
 	// LetterMailStates reads the mails of a run Delivery still keeps.
 	LetterMailStates(ctx context.Context, organizationID, runID int64) ([]BillingLetterMailState, error)
+	// LetterMailBlocks reads the provider's current block of the addresses, keyed by
+	// normalized address. It answers for every address.
+	LetterMailBlocks(ctx context.Context, addresses []string) map[string]string
 	// EnqueueDocumentNotice puts the push of the Träger that the letter is
 	// in the inbox of the parents portal on Delivery's outbox (#4671, ADR
 	// 0126). It is keyed by the letter, so only its first send pushes.

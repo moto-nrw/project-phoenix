@@ -20,14 +20,18 @@ const CodeIdentityEmailAlreadyExists = "identity.email_already_exists"
 const CodeIdentityEmailChangeLinkInvalid = "identity.email_change_link_invalid"
 const CodeIdentityEmailChangeRateLimited = "identity.email_change_rate_limited"
 const CodeIdentityEmailChangeSameEmail = "identity.email_change_same_email"
+const CodeIdentityGuardianEmailAddressBlocked = "identity.guardian_email_address_blocked"
 const CodeIdentityGuardianInvitationEmailNotQueued = "identity.guardian_invitation_email_not_queued"
 const CodeIdentityInvalidCredentials = "identity.invalid_credentials"
 const CodeIdentityInvitationAccountLoginRequired = "identity.invitation_account_login_required"
 const CodeIdentityInvitationAccountMismatch = "identity.invitation_account_mismatch"
 const CodeIdentityInvitationExpired = "identity.invitation_expired"
+const CodeIdentityInvitationMailDelayed = "identity.invitation_mail_delayed"
 const CodeIdentityInvitationNotFound = "identity.invitation_not_found"
 const CodeIdentityInvitationRateLimited = "identity.invitation_rate_limited"
 const CodeIdentityLehrkraftRoleImmutable = "identity.lehrkraft_role_immutable"
+const CodeIdentityMailBlockUnreadable = "identity.mail_block_unreadable"
+const CodeIdentityMailBlockedAtProvider = "identity.mail_blocked_at_provider"
 const CodeIdentityMfaAlreadyEnrolled = "identity.mfa_already_enrolled"
 const CodeIdentityMfaBlocked = "identity.mfa_blocked"
 const CodeIdentityMfaCodeInvalid = "identity.mfa_code_invalid"
@@ -77,14 +81,18 @@ var errorCodeClassesIdentity = []errorCodeClass{
 	{CodeIdentityEmailChangeLinkInvalid, "business_rejection"},
 	{CodeIdentityEmailChangeRateLimited, "unavailable"},
 	{CodeIdentityEmailChangeSameEmail, "input"},
+	{CodeIdentityGuardianEmailAddressBlocked, "business_rejection"},
 	{CodeIdentityGuardianInvitationEmailNotQueued, "unavailable"},
 	{CodeIdentityInvalidCredentials, "input"},
 	{CodeIdentityInvitationAccountLoginRequired, "permission"},
 	{CodeIdentityInvitationAccountMismatch, "permission"},
 	{CodeIdentityInvitationExpired, "business_rejection"},
+	{CodeIdentityInvitationMailDelayed, "business_rejection"},
 	{CodeIdentityInvitationNotFound, "input"},
 	{CodeIdentityInvitationRateLimited, "unavailable"},
 	{CodeIdentityLehrkraftRoleImmutable, "business_rejection"},
+	{CodeIdentityMailBlockUnreadable, "unavailable"},
+	{CodeIdentityMailBlockedAtProvider, "business_rejection"},
 	{CodeIdentityMfaAlreadyEnrolled, "business_rejection"},
 	{CodeIdentityMfaBlocked, "unavailable"},
 	{CodeIdentityMfaCodeInvalid, "input"},

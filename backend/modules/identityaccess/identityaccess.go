@@ -362,6 +362,7 @@ type Owner interface {
 	AccountMFA
 	PasswordResets
 	SchoolInvitations
+	SchoolInvitationMailStates
 	SignInDataRetention
 	AccountRetention
 	AccountSessionAccess
