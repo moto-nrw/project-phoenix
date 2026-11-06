@@ -1,7 +1,8 @@
 // Package carecontracthttp serves the Betreuungsvertrag in the Träger-Portal
 // (#4678, ADR 0153). Every route requires the right "Verträge verwalten".
-// The reads and writes of the contracts run in the Träger transaction; the
-// candidates, the creation and the templates read the schools first and
+// The writes of the contracts run in the Träger transaction. The reads of
+// the contracts write into the access log of each school, and the
+// candidates, the creation and the templates read the schools; all of them
 // open their units themselves, so their routes carry no transaction.
 package carecontracthttp
 
@@ -43,11 +44,11 @@ func (rs *Resource) ContractRouter(protectedTraegerRoutes func(chi.Router, func(
 		open := r.With(rs.requireContract)
 		open.Get("/candidates", rs.candidates)
 		open.Post("/", rs.create)
+		open.Get("/", rs.list)
+		open.Get("/{id}", rs.detail)
+		open.Get("/{id}/document", rs.document)
 		inTx := r.With(rs.requireContract, withTx)
-		inTx.Get("/", rs.list)
 		inTx.Post("/send", rs.send)
-		inTx.Get("/{id}", rs.detail)
-		inTx.Get("/{id}/document", rs.document)
 		inTx.Delete("/{id}", rs.discard)
 	})
 	return r

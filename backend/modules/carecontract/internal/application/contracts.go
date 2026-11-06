@@ -14,29 +14,129 @@ import (
 // maxSendBatch bounds a send of several contracts in one request.
 const maxSendBatch = 200
 
-// Contracts serves carecontract.Contracts in the caller's Träger
-// transaction.
+// Contracts serves carecontract.Contracts. The writes run in the caller's
+// Träger transaction. The reads (list, detail, PDF) open their own units: the
+// Träger transaction for the contracts, then the tenant transaction of every
+// school whose contracts they showed, for that school's access log (ADR 0088
+// section 7, ADR 0084 section 7). No transaction holds both (ADR 0105).
 type Contracts struct {
 	store       Store
 	letterheads carecontract.Letterheads
 	renderer    LetterRenderer
 	post        carecontract.Post
 	clock       Clock
+	runtime     carecontract.Runtime
+	access      carecontract.SchoolAccessLog
+}
+
+// ContractPorts are the root-bound ports of the contracts.
+type ContractPorts struct {
+	Letterheads carecontract.Letterheads
+	Post        carecontract.Post
+	Runtime     carecontract.Runtime
+	Access      carecontract.SchoolAccessLog
 }
 
 var _ carecontract.Contracts = (*Contracts)(nil)
 
 // NewContracts builds the contracts of the Träger-Büro.
-func NewContracts(store Store, letterheads carecontract.Letterheads, renderer LetterRenderer, post carecontract.Post, clock Clock) *Contracts {
-	if store == nil || letterheads == nil || renderer == nil || post == nil {
-		panic("care contract: the store, the letterhead, the renderer and the post are required")
+func NewContracts(store Store, renderer LetterRenderer, ports ContractPorts, clock Clock) *Contracts {
+	if store == nil || renderer == nil || ports.Letterheads == nil || ports.Post == nil || ports.Runtime == nil || ports.Access == nil {
+		panic("care contract: the store, the renderer, the letterhead, the post, the runtime and the access log are required")
 	}
-	return &Contracts{store: store, letterheads: letterheads, renderer: renderer, post: post, clock: clock}
+	return &Contracts{store: store, letterheads: ports.Letterheads, renderer: renderer, post: ports.Post, clock: clock,
+		runtime: ports.Runtime, access: ports.Access}
 }
 
-// ListContracts lists the contracts of the filter and records the read of
-// every contract it shows.
+// ListContracts lists the contracts of the filter, records the read in the
+// trail and in the access log of every school it shows contracts of.
 func (c *Contracts) ListContracts(ctx context.Context, reviewer carecontract.Reviewer, filter carecontract.ContractFilter) (carecontract.ContractList, error) {
+	if err := checkReviewer(reviewer); err != nil {
+		return carecontract.ContractList{}, err
+	}
+	var list carecontract.ContractList
+	err := c.runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(txCtx context.Context) error {
+		var err error
+		list, err = c.listContracts(txCtx, reviewer, filter)
+		return err
+	})
+	if err != nil {
+		return carecontract.ContractList{}, err
+	}
+	bySchool := map[int64][]int64{}
+	for _, contract := range list.Contracts {
+		bySchool[contract.SchoolID] = append(bySchool[contract.SchoolID], contract.ID)
+	}
+	if err := c.logSchools(ctx, reviewer, "care_contract_list", bySchool); err != nil {
+		return carecontract.ContractList{}, err
+	}
+	return list, nil
+}
+
+// Contract reads one contract with the state of its mails and records the
+// read in the access log of its school.
+func (c *Contracts) Contract(ctx context.Context, reviewer carecontract.Reviewer, contractID int64) (carecontract.ContractDetail, error) {
+	if err := checkReviewer(reviewer); err != nil {
+		return carecontract.ContractDetail{}, err
+	}
+	var detail carecontract.ContractDetail
+	err := c.runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(txCtx context.Context) error {
+		var err error
+		detail, err = c.contract(txCtx, reviewer, contractID)
+		return err
+	})
+	if err != nil {
+		return carecontract.ContractDetail{}, err
+	}
+	return detail, c.logSchools(ctx, reviewer, "care_contract_detail", map[int64][]int64{detail.SchoolID: {detail.ID}})
+}
+
+// ContractDocument answers the PDF and records the read in the access log
+// of the contract's school.
+func (c *Contracts) ContractDocument(ctx context.Context, reviewer carecontract.Reviewer, contractID int64) (carecontract.File, error) {
+	if err := checkReviewer(reviewer); err != nil {
+		return carecontract.File{}, err
+	}
+	var file carecontract.File
+	var schoolID int64
+	err := c.runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(txCtx context.Context) error {
+		var err error
+		file, schoolID, err = c.contractDocument(txCtx, reviewer, contractID)
+		return err
+	})
+	if err != nil {
+		return carecontract.File{}, err
+	}
+	return file, c.logSchools(ctx, reviewer, "care_contract_document", map[int64][]int64{schoolID: {contractID}})
+}
+
+// logSchools writes one entry per school into that school's access log, in
+// the school's own tenant transaction, after the Träger transaction ended.
+// A failed entry fails the read: no contract leaves without its entry.
+func (c *Contracts) logSchools(ctx context.Context, reviewer carecontract.Reviewer, view string, bySchool map[int64][]int64) error {
+	schools := make([]int64, 0, len(bySchool))
+	for school := range bySchool {
+		if school > 0 {
+			schools = append(schools, school)
+		}
+	}
+	slices.Sort(schools)
+	for _, school := range schools {
+		ids := bySchool[school]
+		err := c.runtime.WithinSchool(ctx, school, func(txCtx context.Context) error {
+			return c.access.RecordAccess(txCtx, carecontract.SchoolAccess{
+				OrganizationID: reviewer.OrganizationID, AccountID: reviewer.AccountID,
+				Data: carecontract.SchoolAccessContracts, View: view, Rows: len(ids), ContractIDs: ids,
+			})
+		})
+		if err != nil {
+			return fmt.Errorf("care contract: access log of school %d: %w", school, err)
+		}
+	}
+	return nil
+}
+
+func (c *Contracts) listContracts(ctx context.Context, reviewer carecontract.Reviewer, filter carecontract.ContractFilter) (carecontract.ContractList, error) {
 	if err := checkReviewer(reviewer); err != nil {
 		return carecontract.ContractList{}, err
 	}
@@ -77,8 +177,7 @@ func (c *Contracts) ListContracts(ctx context.Context, reviewer carecontract.Rev
 	return carecontract.ContractList{Contracts: contracts, Counts: counts, HasMore: hasMore}, nil
 }
 
-// Contract reads one contract with the state of its mails.
-func (c *Contracts) Contract(ctx context.Context, reviewer carecontract.Reviewer, contractID int64) (carecontract.ContractDetail, error) {
+func (c *Contracts) contract(ctx context.Context, reviewer carecontract.Reviewer, contractID int64) (carecontract.ContractDetail, error) {
 	if err := checkReviewer(reviewer); err != nil {
 		return carecontract.ContractDetail{}, err
 	}
@@ -133,15 +232,16 @@ func (c *Contracts) mailings(ctx context.Context, organizationID, contractID int
 	return mailings, nil
 }
 
-// ContractDocument answers the stored PDF of a sent contract and, for a
-// draft, a preview with the current template that stores nothing.
-func (c *Contracts) ContractDocument(ctx context.Context, reviewer carecontract.Reviewer, contractID int64) (carecontract.File, error) {
+// contractDocument answers the stored PDF of a sent contract and, for a
+// draft, a preview with the current template that stores nothing, with the
+// contract's school.
+func (c *Contracts) contractDocument(ctx context.Context, reviewer carecontract.Reviewer, contractID int64) (carecontract.File, int64, error) {
 	if err := checkReviewer(reviewer); err != nil {
-		return carecontract.File{}, err
+		return carecontract.File{}, 0, err
 	}
 	record, err := c.store.Contract(ctx, reviewer.OrganizationID, contractID, false)
 	if err != nil {
-		return carecontract.File{}, err
+		return carecontract.File{}, 0, err
 	}
 	var file carecontract.File
 	if record.DocumentID != nil {
@@ -150,16 +250,16 @@ func (c *Contracts) ContractDocument(ctx context.Context, reviewer carecontract.
 		file, _, err = c.render(ctx, reviewer, record)
 	}
 	if err != nil {
-		return carecontract.File{}, err
+		return carecontract.File{}, 0, err
 	}
 	view := "document"
 	if record.DocumentID == nil {
 		view = "preview"
 	}
 	if err := c.record(ctx, reviewer, record, ActionRead, map[string]any{"view": view}); err != nil {
-		return carecontract.File{}, err
+		return carecontract.File{}, 0, err
 	}
-	return file, nil
+	return file, record.Summary.SchoolID, nil
 }
 
 func (c *Contracts) render(ctx context.Context, reviewer carecontract.Reviewer, record ContractRecord) (carecontract.File, int, error) {

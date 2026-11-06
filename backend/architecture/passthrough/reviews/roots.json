@@ -417,11 +417,6 @@
     },
     {
       "decision": "0153",
-      "id": "api/careContractAccessLog.RecordAccess",
-      "reason": "ADR 0153 (#4678): Consumer-port adapter of the Betreuungsvertrag's access log; it writes the Träger-Büro's read of the accepted applications into the access log of the school in that school's tenant transaction (ADR 0084 section 7)."
-    },
-    {
-      "decision": "0153",
       "id": "api/careContractBookings.Bookings",
       "reason": "ADR 0153 (#4678): Consumer-port adapter that reads the bookings of the application children through Care Plan and translates them into the Betreuungsvertrag's bookings by child."
     },

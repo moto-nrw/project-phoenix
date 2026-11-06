@@ -215,10 +215,14 @@ func ServiceFacts(services []carecontract.Service) []LetterFact {
 
 // ServiceText names one module of a day with its end time.
 func ServiceText(service carecontract.Service) string {
-	if service.EndsAt == "" {
-		return service.ModuleName
+	text := service.ModuleName
+	if service.EndsAt != "" {
+		text += " bis " + service.EndsAt + " Uhr"
 	}
-	return service.ModuleName + " bis " + service.EndsAt + " Uhr"
+	if service.LastDay != nil {
+		text += ", gebucht bis " + germanDate(*service.LastDay)
+	}
+	return text
 }
 
 // moduleCount counts the booked modules by offering, so two offerings with

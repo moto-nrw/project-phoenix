@@ -44,7 +44,7 @@ und hält fest, was er in den Registern ändert (ADR 0057 Punkt 5, ADR 0070).
    `internal/adapters/rendering`. Er importiert keinen anderen Domain-Owner;
    alle Kanten laufen über Ports, die die Root bindet
    (`api/serve_mounts_care_contract.go`, `roots/owners/parent_portal_documents.go`).
-2. **Tabellen** (Schema `care_contract`, Migration 1.15.758), alle mit
+2. **Tabellen** (Schema `care_contract`, Migration 1.15.759), alle mit
    `organization_id` und der Träger-Policy:
    - `contract_templates`: Vertragsvorlage je Schule und Angebot mit Laufzeit
      (unbefristet, bis Schuljahresende, feste Monate), Kündigungsfrist in
@@ -68,8 +68,10 @@ und hält fest, was er in den Registern ändert (ADR 0057 Punkt 5, ADR 0070).
    - `contract_version_services`: die gebuchten Leistungen der Version, eine
      Zeile je Wochentag und Modul mit Angebot, Name des Moduls und Endzeit an
      diesem Tag (`TIME`, aus der Gehzeit des Angebots). Ein Wochentag ohne
-     Zeile hat keine Betreuung; ein Tag kann mehrere Module tragen. Die Zeilen
-     ändern sich nie.
+     Zeile hat keine Betreuung; ein Tag kann mehrere Module tragen. Endet ein
+     Modul vor der Version, trägt die Zeile seinen letzten gebuchten Tag
+     (`last_day`), und das PDF nennt ihn („gebucht bis …“): Der Vertrag sagt
+     nie mehr zu, als die Buchung hergibt. Die Zeilen ändern sich nie.
    - `contract_parties`: die Eltern aus der Anmeldung, mit optionalem
      Elternkonto.
    - `contract_documents`: das PDF einer Version, erzeugt beim ersten Versand,
@@ -131,9 +133,13 @@ und hält fest, was er in den Registern ändert (ADR 0057 Punkt 5, ADR 0070).
 8. **Zugriff und Protokoll.** Alle Routen verlangen das Träger-Recht
    „Verträge verwalten“ (`traeger_contracts:manage`). Jede Liste, jedes Detail,
    jede Vorschau, jeder Versand und jedes Verwerfen steht mit Konto in
-   `contract_events`; das Lesen der Anmeldungen steht im Zugriffsprotokoll der
-   Schule (`audit.data_access_log`, Art `care_contract_applications`, ADR 0084
-   §7). Das Lesen im Postfach steht mit dem Elternkonto in
+   `contract_events`. Das Lesen der Anmeldungen und jedes Lesen eines
+   Vertrags (Liste, Detail, PDF) steht außerdem im Zugriffsprotokoll der
+   Schule, die Betreuungsort ist (`audit.data_access_log`, Arten
+   `care_contract_applications` und `care_contracts`, ADR 0084 §7, ADR 0088
+   §7). Weil das Protokoll nur eine Tenant-Policy hat, öffnen diese Lesewege
+   ihre Einheiten selbst: erst die Träger-Transaktion, dann je Schule deren
+   Tenant-Transaktion. Das Lesen im Postfach steht mit dem Elternkonto in
    `contract_events`.
 9. **Nicht in diesem Schnitt.** Die Unterschrift (#4679) legt dieser Schnitt
    nicht an. Sie hängt später am versendeten Dokument einer Version
@@ -149,7 +155,7 @@ und hält fest, was er in den Registern ändert (ADR 0057 Punkt 5, ADR 0070).
     - `command-effects/{reviews,evidence}/care-contract.json`: 25 geprüfte
       Bindungen (Outbox: platform/durable, Transaktionen: platform/scope,
       Zugriffsprotokoll: platform/mutation, Briefkopf: leaf, sonst query).
-    - `passthrough/{reviews,evidence}/roots.json`: vier Adapter mit
+    - `passthrough/{reviews,evidence}/roots.json`: drei Adapter mit
       Entscheidung 0153.
     - Enrollment bekommt `ContractApplications`, Care Plan
       `ContractOfferings`; beide lesen nur in der Tenant-Transaktion der

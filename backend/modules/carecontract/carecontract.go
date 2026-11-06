@@ -157,6 +157,11 @@ type Service struct {
 	CareOfferingID int64  `json:"care_offering_id"`
 	ModuleName     string `json:"module_name"`
 	EndsAt         string `json:"ends_at"`
+	// LastDay is the last day the module is booked, set only when it ends
+	// before the contract version does: the contract never promises a
+	// module beyond its booking. Nil means the module runs as long as the
+	// version.
+	LastDay *calendar.Date `json:"last_day"`
 }
 
 // Candidate is an accepted application child with booked care and no
@@ -318,8 +323,11 @@ const (
 )
 
 // Contracts serves the contracts of a Träger to its Träger-Büro. Every
-// operation runs in the Träger transaction of the reviewer's Träger, which
-// the caller opens, and lands in the trail.
+// operation lands in the trail. The writes run in the Träger transaction of
+// the reviewer's Träger, which the caller opens. The reads (ListContracts,
+// Contract, ContractDocument) open their own units, so the caller holds no
+// transaction: the Träger transaction, then the tenant transaction of each
+// school whose contracts they showed, for its access log (ADR 0088 section 7).
 type Contracts interface {
 	// ListContracts lists the contracts of the filter, newest first.
 	ListContracts(ctx context.Context, reviewer Reviewer, filter ContractFilter) (ContractList, error)

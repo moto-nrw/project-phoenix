@@ -74,7 +74,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractAccessLog.RecordAccess",
-      "binding_digest": "aa2411e94494534254753a48eaab4b04",
+      "binding_digest": "7aa0fdbe13ff73bf14c242879fd754b5",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
       "source_owner": "care-contract",
       "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
@@ -82,7 +82,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractAccessLog.RecordAccess",
-      "binding_digest": "3fb1f8ecd3cbea8befe3c3e6014f7505",
+      "binding_digest": "eeb8505aedb6fdf6fc5d845485cf3362",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
@@ -90,7 +90,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractAccessLog.RecordAccess",
-      "binding_digest": "c8e0663cae8a69984f78f1ad026bc9a5",
+      "binding_digest": "18369b9087e5250a0227303cbf9e48a2",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
@@ -98,7 +98,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractAccessLog.RecordAccess",
-      "binding_digest": "ff54c7999b2e02f0b34699e3e19d6b39",
+      "binding_digest": "695b625929b1fe1b8399f9f3775b5c02",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",

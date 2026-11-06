@@ -25,6 +25,7 @@ type schoolDouble struct {
 	child    int64
 	offering int64 // the module until 14:00; offering+1 until 16:30, offering+2 early care
 	accesses *int
+	reads    *[]carecontract.SchoolAccess
 }
 
 func (s schoolDouble) TraegerSchools(context.Context, int64) ([]carecontract.School, error) {
@@ -43,9 +44,10 @@ func (s schoolDouble) NamePhases(_ context.Context, offerings []carecontract.Off
 }
 
 func (s schoolDouble) Bookings(context.Context, []int64) (map[int64][]carecontract.Booking, error) {
-	from, ended := calendar.NewDate(2027, 8, 1), calendar.NewDate(2020, 1, 1)
+	from, ended, shortEnd := calendar.NewDate(2027, 8, 1), calendar.NewDate(2020, 1, 1), calendar.NewDate(2028, 2, 1)
 	return map[int64][]carecontract.Booking{s.child: {
-		{CareOfferingID: s.offering, Days: []string{"mon"}, ValidFrom: &from},
+		// The short module ends in January, the others run on.
+		{CareOfferingID: s.offering, Days: []string{"mon"}, ValidFrom: &from, ValidUntil: &shortEnd},
 		{CareOfferingID: s.offering + 1, Days: []string{"tue"}, ValidFrom: &from},
 		{CareOfferingID: s.offering + 2, Days: []string{"mon"}, ValidFrom: &from},
 		// An ended booking is no service.
@@ -67,8 +69,11 @@ func (s schoolDouble) Offerings(context.Context, []int64) ([]carecontract.Offeri
 	}, nil
 }
 
-func (s schoolDouble) RecordAccess(context.Context, carecontract.SchoolAccess) error {
+func (s schoolDouble) RecordAccess(_ context.Context, access carecontract.SchoolAccess) error {
 	*s.accesses++
+	if s.reads != nil {
+		*s.reads = append(*s.reads, access)
+	}
 	return nil
 }
 
@@ -122,12 +127,13 @@ func TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtThe
 		child: testpkg.UniqueTestTenantID(t), offering: testpkg.UniqueTestTenantID(t), accesses: &accesses}
 	intake := compose.NewIntake(compose.IntakePorts{Schools: school, Applications: school, Bookings: school, Access: school, Runtime: runtimeDouble{}})
 
+	shortLast := calendar.NewDate(2028, 1, 31)
 	candidates, err := intake.Candidates(ctx, reviewer, 0)
 	require.NoError(t, err)
 	require.Len(t, candidates, 1, "one candidate per child, over all its modules")
 	assert.Equal(t, []carecontract.Service{
 		{Weekday: "mon", CareOfferingID: school.offering + 2, ModuleName: "Frühbetreuung", EndsAt: "08:00"},
-		{Weekday: "mon", CareOfferingID: school.offering, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
+		{Weekday: "mon", CareOfferingID: school.offering, ModuleName: "Kurzbetreuung", EndsAt: "14:00", LastDay: &shortLast},
 		{Weekday: "tue", CareOfferingID: school.offering + 1, ModuleName: "Ganztag", EndsAt: "16:30"},
 	}, candidates[0].Services, "per weekday the modules with their end times; no ended booking, no AG")
 	assert.Equal(t, calendar.NewDate(2027, 8, 1), candidates[0].EffectiveFrom)
@@ -169,14 +175,18 @@ func TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtThe
 	assert.Equal(t, carecontract.SkipContractExists, again.Skipped[0].Reason)
 
 	post := &postDouble{next: testpkg.UniqueTestTenantID(t)}
-	contracts := compose.NewContracts(letterheadDouble{}, post)
+	reads := []carecontract.SchoolAccess{}
+	school.reads = &reads
+	ports := compose.ContractPorts{Letterheads: letterheadDouble{}, Post: post, Runtime: runtimeDouble{}, Access: school}
+	contracts := compose.NewContracts(ports)
 	id := created.Created[0].ID
 	// Missing identity cannot freeze an anonymous PDF or enqueue a mail.
-	unnamed := compose.NewContracts(letterheadDouble{missing: true}, post)
+	ports.Letterheads = letterheadDouble{missing: true}
+	unnamed := compose.NewContracts(ports)
+	_, previewErr := unnamed.ContractDocument(ctx, reviewer, id)
+	var invalid *carecontract.ValidationError
+	assert.ErrorAs(t, previewErr, &invalid)
 	require.NoError(t, tenant.WithinTraeger(ctx, organization, func(txCtx context.Context) error {
-		_, previewErr := unnamed.ContractDocument(txCtx, reviewer, id)
-		var invalid *carecontract.ValidationError
-		assert.ErrorAs(t, previewErr, &invalid)
 		refused, sendErr := unnamed.SendContracts(txCtx, reviewer, []int64{id})
 		assert.NoError(t, sendErr)
 		assert.Empty(t, refused.Sent)
@@ -184,23 +194,33 @@ func TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtThe
 		return nil
 	}))
 	assert.Empty(t, post.mails)
-	var detail carecontract.ContractDetail
-	var preview, frozen carecontract.File
+	// Every read of a contract writes into its school's access log
+	// (ADR 0088 section 7): the list, the detail and the PDF.
+	list, err := contracts.ListContracts(ctx, reviewer, carecontract.ContractFilter{})
+	require.NoError(t, err)
+	require.Len(t, list.Contracts, 1)
+	detail, err := contracts.Contract(ctx, reviewer, id)
+	require.NoError(t, err)
+	preview, err := contracts.ContractDocument(ctx, reviewer, id)
+	require.NoError(t, err)
 	require.NoError(t, tenant.WithinTraeger(ctx, organization, func(txCtx context.Context) error {
-		if detail, err = contracts.Contract(txCtx, reviewer, id); err != nil {
-			return err
-		}
-		if preview, err = contracts.ContractDocument(txCtx, reviewer, id); err != nil {
-			return err
-		}
 		result, err := contracts.SendContracts(txCtx, reviewer, []int64{id})
 		if err != nil {
 			return err
 		}
 		assert.Equal(t, []int64{id}, result.Sent)
-		frozen, err = contracts.ContractDocument(txCtx, reviewer, id)
-		return err
+		return nil
 	}))
+	frozen, err := contracts.ContractDocument(ctx, reviewer, id)
+	require.NoError(t, err)
+	views := []string{}
+	for _, read := range reads {
+		assert.Equal(t, carecontract.SchoolAccessContracts, read.Data)
+		assert.Equal(t, []int64{id}, read.ContractIDs)
+		views = append(views, read.View)
+	}
+	assert.Equal(t, []string{"care_contract_list", "care_contract_detail", "care_contract_document", "care_contract_document"},
+		views, "a refused preview showed nothing and logs nothing")
 	assert.Equal(t, carecontract.StatusDraft, detail.Status)
 	assert.False(t, detail.DocumentFrozen, "a missing partner did not freeze an anonymous PDF")
 	require.NotNil(t, detail.Version.EndsOn, "a term of twelve months ends")

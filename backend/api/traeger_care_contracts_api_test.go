@@ -305,6 +305,15 @@ func TestCareContractDraftFromTheAcceptedApplicationIsSentWithItsFrozenPDF(t *te
 	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM audit.data_access_log WHERE tenant_id = ?
 		AND resource_type = 'care_contract_applications' AND actor_role = 'traeger'`, f.school).Scan(context.Background(), &reads))
 	assert.GreaterOrEqual(t, reads, 2)
+	// Every read of the contract itself is in the access log of its school
+	// (ADR 0088 section 7): list, detail and PDF, each with the contract.
+	var contractReads []string
+	require.NoError(t, f.db.NewRaw(`SELECT metadata->>'view' FROM audit.data_access_log WHERE tenant_id = ?
+		AND resource_type = 'care_contracts' AND actor_role = 'traeger' AND metadata->'contract_ids' @> to_jsonb(?::bigint)
+		ORDER BY id`, f.school, contract.ID).Scan(context.Background(), &contractReads))
+	for _, view := range []string{"care_contract_list", "care_contract_detail", "care_contract_document"} {
+		assert.Contains(t, contractReads, view)
+	}
 }
 
 func TestCareContractDraftIsDiscardedAndOnlyADraft(t *testing.T) {

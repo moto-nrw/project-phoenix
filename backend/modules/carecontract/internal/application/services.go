@@ -41,6 +41,7 @@ func bookedCare(read schoolRead, application carecontract.Application, today cal
 			}
 			result.services = append(result.services, carecontract.Service{
 				Weekday: day, CareOfferingID: offering.ID, ModuleName: offering.Name, EndsAt: offering.EndTimes[day],
+				LastDay: lastDay(booking.ValidUntil),
 			})
 			added = true
 		}
@@ -89,6 +90,28 @@ func (b *booked) addPrice(cents *int) {
 	}
 	price := int64(*cents)
 	b.price = &price
+}
+
+// lastDay is the inclusive last day of a booking whose end is exclusive.
+func lastDay(until *calendar.Date) *calendar.Date {
+	if until == nil {
+		return nil
+	}
+	last := until.AddDays(-1)
+	return &last
+}
+
+// boundServices keeps a module's last day only where it ends before the
+// version: a module that runs as long as the version needs no own end.
+func boundServices(services []carecontract.Service, versionEnd *calendar.Date) []carecontract.Service {
+	bound := make([]carecontract.Service, len(services))
+	for i, service := range services {
+		if service.LastDay != nil && versionEnd != nil && !service.LastDay.Before(*versionEnd) {
+			service.LastDay = nil
+		}
+		bound[i] = service
+	}
+	return bound
 }
 
 // sortServices orders the services by weekday, then by end time, so early

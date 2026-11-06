@@ -59,18 +59,21 @@ const DRAFT: CareContractDetail = {
         careOfferingId: "6",
         moduleName: "Frühbetreuung",
         endsAt: "08:00",
+        lastDay: null,
       },
       {
         weekday: "mon",
         careOfferingId: "5",
         moduleName: "Offene Ganztagsschule",
         endsAt: "14:00",
+        lastDay: null,
       },
       {
         weekday: "tue",
         careOfferingId: "5",
         moduleName: "Offene Ganztagsschule",
         endsAt: "16:30",
+        lastDay: null,
       },
     ],
     priceCents: 9500,
@@ -163,6 +166,31 @@ describe("TraegerVertragPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("names the last day of a module that ends before the contract", async () => {
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      version: {
+        ...DRAFT.version,
+        services: [
+          {
+            weekday: "mon",
+            careOfferingId: "5",
+            moduleName: "Kurzbetreuung",
+            endsAt: "14:00",
+            lastDay: "2027-07-31",
+          },
+        ],
+      },
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        "Kurzbetreuung bis 14:00 Uhr, gebucht bis 31.07.2027",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("counts two same-named offerings as two modules", async () => {
     api.fetchCareContract.mockResolvedValue({
       ...DRAFT,
@@ -176,12 +204,14 @@ describe("TraegerVertragPage", () => {
             careOfferingId: "7",
             moduleName: "Nachmittagsbetreuung",
             endsAt: "16:00",
+            lastDay: null,
           },
           {
             weekday: "tue",
             careOfferingId: "8",
             moduleName: "Nachmittagsbetreuung",
             endsAt: "16:00",
+            lastDay: null,
           },
         ],
       },

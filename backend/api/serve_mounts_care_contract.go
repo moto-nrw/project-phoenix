@@ -50,7 +50,10 @@ func NewCareContractHTTP(organizations HolidayOrganizations, settings TraegerBra
 	delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) *careContractHTTP.Resource {
 	letterheads := careContractLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(),
 		templates: organizationTenancyCompose.NewTraegerDocumentTemplates(), settings: settings}
-	contracts := careContractCompose.NewContracts(letterheads, careContractPost{delivery: delivery})
+	contracts := careContractCompose.NewContracts(careContractCompose.ContractPorts{
+		Letterheads: letterheads, Post: careContractPost{delivery: delivery},
+		Runtime: careContractRuntime{}, Access: careContractAccessLog{log: accessLog},
+	})
 	intake := careContractCompose.NewIntake(careContractCompose.IntakePorts{
 		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications()},
 		Bookings: careContractBookings{offerings: carePlanCompose.NewContractOfferings(), bookings: carePlanCompose.NewOfferingBookings()},
@@ -201,12 +204,17 @@ type careContractAccessLog struct {
 
 func (l careContractAccessLog) RecordAccess(ctx context.Context, access carecontract.SchoolAccess) error {
 	now := time.Now()
+	resource := auditModels.ResourceTypeCareContractApplications
+	metadata := map[string]any{
+		"channel": "traeger_portal", "organization_id": access.OrganizationID, "view": access.View, "rows": access.Rows,
+	}
+	if access.Data == carecontract.SchoolAccessContracts {
+		resource = auditModels.ResourceTypeCareContracts
+		metadata["contract_ids"] = access.ContractIDs
+	}
 	return l.log.Create(ctx, &auditModels.DataAccessLog{
 		ActorAccountID: access.AccountID, ActorRole: traegerAccessActorRole,
-		ResourceType: auditModels.ResourceTypeCareContractApplications, RangeStart: now, RangeEnd: now,
-		Metadata: map[string]any{
-			"channel": "traeger_portal", "organization_id": access.OrganizationID, "view": access.View, "rows": access.Rows,
-		},
+		ResourceType: resource, RangeStart: now, RangeEnd: now, Metadata: metadata,
 	})
 }
 

@@ -113,7 +113,7 @@ func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templa
 				GuardianName:  fullName(application.GuardianFirstName, application.GuardianLastName),
 				GuardianEmail: application.GuardianEmail,
 				PhaseName:     firstText(booked.phaseName, application.PhaseName),
-				Services:      booked.services,
+				Services:      boundServices(booked.services, lastDay(booked.until)),
 				EffectiveFrom: booked.effectiveFrom(application, today),
 				TemplateIssue: issue,
 			})
@@ -235,11 +235,12 @@ func (in *Intake) draft(key carecontract.CandidateKey, reads []schoolRead, templ
 		return NewContract{}, issue
 	}
 	from := booked.effectiveFrom(application, today)
+	ends := endsOn(terms, from, booked.until)
 	version := carecontract.Version{
-		Number: 1, Status: carecontract.VersionRequested, EffectiveFrom: from, EndsOn: endsOn(terms, from, booked.until),
+		Number: 1, Status: carecontract.VersionRequested, EffectiveFrom: from, EndsOn: ends,
 		ChildFirstName: application.ChildFirstName, ChildLastName: application.ChildLastName, ChildBirthDate: application.ChildBirthDate,
 		SchoolName: read.school.Name, PhaseName: firstText(booked.phaseName, application.PhaseName),
-		Services: booked.services, PriceCents: booked.price, Terms: terms,
+		Services: boundServices(booked.services, ends), PriceCents: booked.price, Terms: terms,
 	}
 	return NewContract{
 		Key: contractKey, StudentID: application.StudentID, Version: version,
@@ -421,7 +422,8 @@ func (in *Intake) readSchools(ctx context.Context, reviewer carecontract.Reviewe
 				read.offerings[offering.ID] = offering
 			}
 			return in.access.RecordAccess(txCtx, carecontract.SchoolAccess{
-				OrganizationID: reviewer.OrganizationID, AccountID: reviewer.AccountID, View: view, Rows: len(applications),
+				OrganizationID: reviewer.OrganizationID, AccountID: reviewer.AccountID,
+				Data: carecontract.SchoolAccessApplications, View: view, Rows: len(applications),
 			})
 		})
 		if err != nil {

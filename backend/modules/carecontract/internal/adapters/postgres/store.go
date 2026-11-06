@@ -200,16 +200,20 @@ func insertServices(ctx context.Context, db bun.IDB, organizationID, versionID i
 		return nil
 	}
 	weekdays, offerings := make([]string, len(services)), make([]int64, len(services))
-	names, ends := make([]string, len(services)), make([]string, len(services))
+	names, ends, lastDays := make([]string, len(services)), make([]string, len(services)), make([]string, len(services))
 	for i, service := range services {
 		weekdays[i], offerings[i], names[i], ends[i] = service.Weekday, service.CareOfferingID, service.ModuleName, service.EndsAt
+		if service.LastDay != nil {
+			lastDays[i] = service.LastDay.String()
+		}
 	}
 	if _, err := db.ExecContext(ctx, `INSERT INTO care_contract.contract_version_services
-			(organization_id, contract_version_id, weekday, care_offering_id, module_name, ends_at)
-		SELECT ?, ?, s.weekday, s.care_offering_id, s.module_name, NULLIF(s.ends_at, '')::time
-		FROM unnest(?::text[], ?::bigint[], ?::text[], ?::text[]) AS s(weekday, care_offering_id, module_name, ends_at)`,
+			(organization_id, contract_version_id, weekday, care_offering_id, module_name, ends_at, last_day)
+		SELECT ?, ?, s.weekday, s.care_offering_id, s.module_name, NULLIF(s.ends_at, '')::time, NULLIF(s.last_day, '')::date
+		FROM unnest(?::text[], ?::bigint[], ?::text[], ?::text[], ?::text[])
+			AS s(weekday, care_offering_id, module_name, ends_at, last_day)`,
 		organizationID, versionID, pgdialect.Array(weekdays), pgdialect.Array(offerings), pgdialect.Array(names),
-		pgdialect.Array(ends)); err != nil {
+		pgdialect.Array(ends), pgdialect.Array(lastDays)); err != nil {
 		return fmt.Errorf("care contract postgres: insert services: %w", err)
 	}
 	return nil

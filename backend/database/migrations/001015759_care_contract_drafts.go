@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const careContractDraftsVersion = "1.15.758"
+const careContractDraftsVersion = "1.15.759"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -36,7 +36,9 @@ func init() {
 //     effective date. The request role adds versions, never changes them.
 //   - contract_version_services: the booked services of a version, one row
 //     per weekday and module with the module's end time on that day. A
-//     weekday without a row is a day without care. The tariffs of #4684
+//     weekday without a row is a day without care. last_day is the last
+//     booked day of a module that ends before the version does, so the
+//     contract never promises a module beyond its booking. The tariffs of #4684
 //     price each weekday and module from these rows.
 //   - contract_parties: the parents who are party to the contract, with an
 //     optional parents' account.
@@ -155,6 +157,7 @@ CREATE TABLE care_contract.contract_version_services (
 	care_offering_id BIGINT NOT NULL,
 	module_name TEXT NOT NULL,
 	ends_at TIME,
+	last_day DATE,
 	CONSTRAINT fk_contract_version_services_version FOREIGN KEY (organization_id, contract_version_id)
 		REFERENCES care_contract.contract_versions (organization_id, id) ON DELETE CASCADE,
 	CONSTRAINT uq_contract_version_services_day UNIQUE (contract_version_id, weekday, care_offering_id),

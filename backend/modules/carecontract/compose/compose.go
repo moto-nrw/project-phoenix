@@ -12,10 +12,19 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// NewContracts builds the contracts of the Träger-Büro, which run in the
-// Träger transaction of the portal route.
-func NewContracts(letterheads carecontract.Letterheads, post carecontract.Post) carecontract.Contracts {
-	return application.NewContracts(postgres.NewStore(), letterheads, rendering.NewRenderer(), post, application.Clock{Now: time.Now})
+// NewContracts builds the contracts of the Träger-Büro. The writes run in
+// the Träger transaction of the portal route; the reads open their own units
+// for the access log of each school.
+func NewContracts(ports ContractPorts) carecontract.Contracts {
+	return application.NewContracts(postgres.NewStore(), rendering.NewRenderer(), application.ContractPorts(ports), application.Clock{Now: time.Now})
+}
+
+// ContractPorts are the ports the root binds for the contracts.
+type ContractPorts struct {
+	Letterheads carecontract.Letterheads
+	Post        carecontract.Post
+	Runtime     carecontract.Runtime
+	Access      carecontract.SchoolAccessLog
 }
 
 // NewIntake builds the creation of contracts from the accepted applications

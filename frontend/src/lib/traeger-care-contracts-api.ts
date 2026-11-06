@@ -68,6 +68,11 @@ export interface ContractService {
   readonly careOfferingId: string;
   readonly moduleName: string;
   readonly endsAt: string;
+  /**
+   * Last booked day "YYYY-MM-DD" of a module that ends before the contract
+   * version; null when it runs as long as the version.
+   */
+  readonly lastDay: string | null;
 }
 
 /** Why no draft can be made for a candidate yet. */
@@ -196,6 +201,7 @@ interface BackendService {
   care_offering_id: number;
   module_name: string;
   ends_at: string;
+  last_day?: string | null;
 }
 
 interface BackendCandidate {
@@ -308,6 +314,7 @@ function servicesFromBackend(rows: BackendService[] | null): ContractService[] {
     careOfferingId: String(row.care_offering_id),
     moduleName: row.module_name,
     endsAt: row.ends_at,
+    lastDay: row.last_day ?? null,
   }));
 }
 

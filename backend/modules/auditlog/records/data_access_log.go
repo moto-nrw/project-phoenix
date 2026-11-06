@@ -162,6 +162,12 @@ const (
 	// (#4678, ADR 0153): child, guardian and booked offering. StudentID is
 	// NULL; metadata carries the view and the row count.
 	ResourceTypeCareContractApplications = "care_contract_applications"
+	// ResourceTypeCareContracts records the Träger-Büro reading care
+	// contracts whose place of care is the school (#4678, ADR 0088 section
+	// 7): the list, one contract or its PDF, with child, parents, booked
+	// services and fee. StudentID is NULL; metadata carries the view, the
+	// row count and the contract IDs. One row per school and read.
+	ResourceTypeCareContracts = "care_contracts"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

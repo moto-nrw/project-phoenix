@@ -70,9 +70,24 @@ type Offering struct {
 type SchoolAccess struct {
 	OrganizationID int64
 	AccountID      int64
-	View           string
-	Rows           int
+	// Data names what was read: SchoolAccessApplications or
+	// SchoolAccessContracts.
+	Data string
+	View string
+	Rows int
+	// ContractIDs are the contracts at this school a contract read showed.
+	ContractIDs []int64
 }
+
+// The data of a SchoolAccess.
+const (
+	// SchoolAccessApplications is a read of the school's accepted
+	// applications to create contracts.
+	SchoolAccessApplications = "applications"
+	// SchoolAccessContracts is a read of the care contracts whose place of
+	// care is the school: the list, a detail or a PDF (ADR 0088 section 7).
+	SchoolAccessContracts = "contracts"
+)
 
 // SchoolApplications reads the accepted applications of the school whose
 // tenant transaction the caller holds (Enrollment).

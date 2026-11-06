@@ -113,9 +113,12 @@ export function serviceDays(
 
 /** One module of a day: „Kurzbetreuung bis 14:00 Uhr“. */
 export function formatService(service: ContractService): string {
-  return service.endsAt
+  const text = service.endsAt
     ? `${service.moduleName} bis ${service.endsAt} Uhr`
     : service.moduleName;
+  return service.lastDay
+    ? `${text}, gebucht bis ${formatDate(service.lastDay)}`
+    : text;
 }
 
 /** The modules of a contract once each: „Frühbetreuung, Ganztag“. */

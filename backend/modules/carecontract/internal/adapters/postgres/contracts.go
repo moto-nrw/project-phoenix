@@ -53,7 +53,8 @@ const versionColumns = `v.id, v.version_number, v.status, v.effective_from, v.en
 // and end time, in the same statement as the version.
 const servicesSQL = `COALESCE((SELECT json_agg(json_build_object('weekday', s.weekday,
 		'care_offering_id', s.care_offering_id, 'module_name', s.module_name,
-		'ends_at', COALESCE(to_char(s.ends_at, 'HH24:MI'), ''))
+		'ends_at', COALESCE(to_char(s.ends_at, 'HH24:MI'), ''),
+		'last_day', to_char(s.last_day, 'YYYY-MM-DD'))
 		ORDER BY array_position(ARRAY['mon','tue','wed','thu','fri','sat','sun']::text[], s.weekday::text),
 			s.ends_at NULLS LAST, s.module_name)
 	FROM care_contract.contract_version_services AS s

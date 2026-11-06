@@ -198,8 +198,9 @@ func TestBookedCareLeavesALaterModuleSwitchOutOfTheVersion(t *testing.T) {
 		{CareOfferingID: 2, Days: []string{"mon"}, ValidFrom: &november},
 		{CareOfferingID: 3, Days: []string{"tue"}, ValidFrom: &august},
 	}}, today)
+	september := calendar.NewDate(2027, 9, 30)
 	assert.Equal(t, []carecontract.Service{
-		{Weekday: "mon", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
+		{Weekday: "mon", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00", LastDay: &september},
 		{Weekday: "tue", CareOfferingID: 3, ModuleName: "Frühbetreuung", EndsAt: "08:00"},
 	}, got.services, "the switch to Ganztag in November is no service of this version")
 	assert.Equal(t, august, got.effectiveFrom(carecontract.Application{}, today))
@@ -234,4 +235,34 @@ func TestContractWithoutPriceNamesTheFeeRule(t *testing.T) {
 	facts := termFacts(version, carecontract.Letterhead{SenderText: "Träger"})
 	assert.Contains(t, facts, LetterFact{Label: "Beitrag im Monat", Value: feeByStatute})
 	assert.Equal(t, feeByStatute, letterValues(ContractRecord{Version: version}, carecontract.Letterhead{})["summe"].Text)
+}
+
+// A module that ends before another never runs in the contract beyond its
+// booking (#4678 review): the version ends with the longest module, and the
+// shorter one carries its own last day, also in the PDF.
+func TestShorterModuleKeepsItsOwnLastDay(t *testing.T) {
+	t.Parallel()
+	read := schoolRead{offerings: map[int64]carecontract.Offering{
+		1: {ID: 1, Name: "Kurzbetreuung", EndTimes: map[string]string{"mon": "14:00"}},
+		2: {ID: 2, Name: "OGS Ganztag", EndTimes: map[string]string{"tue": "16:00"}},
+	}}
+	today := calendar.NewDate(2026, 11, 6)
+	august, shortEnd, longEnd := calendar.NewDate(2027, 2, 1), calendar.NewDate(2027, 8, 1), calendar.NewDate(2028, 1, 1)
+	got := bookedCare(read, carecontract.Application{Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: &august, ValidUntil: &shortEnd},
+		{CareOfferingID: 2, Days: []string{"tue"}, ValidFrom: &august, ValidUntil: &longEnd},
+	}}, today)
+	ends := endsOn(carecontract.TemplateInput{TermKind: carecontract.TermOpenEnded}, august, got.until)
+	if assert.NotNil(t, ends) {
+		assert.Equal(t, calendar.NewDate(2027, 12, 31), *ends, "the contract runs as long as its longest module")
+	}
+	services := boundServices(got.services, ends)
+	july := calendar.NewDate(2027, 7, 31)
+	assert.Equal(t, []carecontract.Service{
+		{Weekday: "mon", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00", LastDay: &july},
+		{Weekday: "tue", CareOfferingID: 2, ModuleName: "OGS Ganztag", EndsAt: "16:00"},
+	}, services, "the short module ends on 31.07., not with the contract on 31.12.")
+	facts := ServiceFacts(services)
+	assert.Equal(t, LetterFact{Label: "Montag", Value: "Kurzbetreuung bis 14:00 Uhr, gebucht bis 31.07.2027"}, facts[0])
+	assert.Equal(t, LetterFact{Label: "Dienstag", Value: "OGS Ganztag bis 16:00 Uhr"}, facts[1])
 }
