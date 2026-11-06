@@ -103,8 +103,8 @@ type reviewPlanCache struct {
 	pickups map[int64][]careplan.PickupSchedule
 }
 
-// preloadReviewPlans batches only the first read for the visible weekly cohort.
-// The remaining plan inputs and diff validation still run in request order.
+// preloadReviewPlans fills the existing plan memo for the visible weekly cohort.
+// Failed batches leave the scalar per-child reads and diff fallback in place.
 func (s *ScheduleReviews) preloadReviewPlans(ctx context.Context, rows []careplan.CareScheduleChangeRequest, students map[int64]careplan.ReviewStudent, scope careplan.ReviewScope, today careplan.Date) reviewPlanCache {
 	cache := reviewPlanCache{plans: map[int64]reviewPlanFacts{}, errs: map[int64]error{}}
 	ids := make([]int64, 0, len(rows))
@@ -133,6 +133,7 @@ func (s *ScheduleReviews) preloadReviewPlans(ctx context.Context, rows []carepla
 	for _, pickup := range pickups {
 		cache.pickups[pickup.StudentID] = append(cache.pickups[pickup.StudentID], pickup)
 	}
+	s.preloadWeeklyPlans(ctx, ids, students, today, cache)
 	return cache
 }
 
