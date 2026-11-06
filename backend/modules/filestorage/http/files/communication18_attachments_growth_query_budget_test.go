@@ -100,7 +100,10 @@ func TestCommunication18AttachmentsPositiveGrowthQueryBudget(t *testing.T) {
 		for _, parent := range []bool{false, true} {
 			prefix, token, other := "/api/announcement-attachments", staffToken, foreignStaff
 			if parent {
-				testpkg.PublishTestParentAnnouncement(t, db, announcement.ID)
+				// This case needs an already-live publication, not the boundary
+				// between the database clock and announcementIsLive's host clock.
+				_, err = db.NewRaw(`UPDATE users.parent_announcements SET published_at = ? WHERE id = ? AND tenant_id = ?`, time.Now().Add(-time.Hour), announcement.ID, testpkg.Tenant(t)).Exec(ctx)
+				require.NoError(t, err)
 				prefix, token, other = "/parent-news-attachments", parentToken, foreignParent
 			}
 			path := fmt.Sprintf("%s/%d", prefix, announcement.ID)

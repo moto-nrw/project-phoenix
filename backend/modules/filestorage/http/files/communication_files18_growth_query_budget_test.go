@@ -42,7 +42,7 @@ func TestCommunicationFiles18PositiveGrowthQueryBudget(t *testing.T) {
 	_, foreignAccount := testpkg.CreateTestStaffWithAccountForTenant(t, c.db, foreignTenant, "Foreign", "Growth")
 	var foreignFolder int64
 	require.NoError(t, c.db.NewRaw(`INSERT INTO documents.folders (tenant_id,name,visibility,created_by) VALUES (?,'Foreign folder','all_staff',?) RETURNING id`, foreignTenant, foreignAccount.ID).Scan(testpkg.Ctx(t), &foreignFolder))
-	_, err := c.db.NewRaw(`INSERT INTO documents.files (tenant_id,category,filename_display,filename_stored,size_bytes,content_type,uploaded_by,folder_id) VALUES (?,'file','Foreign.pdf','foreign-fixture.pdf',123,'application/pdf',?,?)`, foreignTenant, foreignAccount.ID, foreignFolder).Exec(testpkg.Ctx(t))
+	_, err := c.db.NewRaw(`INSERT INTO documents.files (tenant_id,category,filename_display,filename_stored,size_bytes,content_type,uploaded_by,folder_id) VALUES (?,'file','Foreign.pdf',?,123,'application/pdf',?,?)`, foreignTenant, fmt.Sprintf("foreign-fixture-%d.pdf", foreignTenant), foreignAccount.ID, foreignFolder).Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 	foreignToken := communication18AttachmentToken(t, foreignAccount.ID, foreignAccount.Email, foreignTenant, "", []string{"user"}, []string{permissions.AdminWildcard})
 	var folders []filesHTTP.FolderResponse

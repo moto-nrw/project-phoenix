@@ -1,6 +1,6 @@
 {
   "scenario": "parent.me.notification_preferences",
-  "max": 14,
+  "max": 12,
   "exact": true,
   "description": "Protected parent JWT GET /parent/me/notification-preferences/ with two active guardian schools and N=0/3/8 persisted decisions across them. Real Delivery, Communication, Settings and Identity stores; all-school consent/availability, any-school dispatch, ordered complete DTO, unrelated/staff-only school exclusion and no writes. Includes admin BEGIN/role/COMMIT. Fixed school count, not a school-fanout budget; outer host session-liveness and module-booking middleware excluded."
 }
