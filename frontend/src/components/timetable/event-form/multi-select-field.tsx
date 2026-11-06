@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { getSchoolYear } from "~/lib/student-helpers";
 
 import {
@@ -298,8 +299,12 @@ export function MultiSelectField({
                     <span className="flex min-w-0 items-center gap-1.5">
                       <span className="truncate">{option.name}</span>
                       {isProtected && (
-                        <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
-                          aus Anmeldung
+                        <span className="shrink-0">
+                          <StatusBadge
+                            label="aus Anmeldung"
+                            tone="gray"
+                            size="xs"
+                          />
                         </span>
                       )}
                     </span>

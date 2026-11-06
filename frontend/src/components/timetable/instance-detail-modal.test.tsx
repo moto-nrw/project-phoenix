@@ -551,9 +551,7 @@ describe("InstanceDetailModal", () => {
       />,
     );
 
-    expect(screen.getByText("Grenze").parentElement).toHaveTextContent(
-      "Grenze66 / 45",
-    );
+    expect(screen.getByText("Grenze 66 / 45")).toBeInTheDocument();
     expect(
       screen.getByText(
         /^Überbucht\. Mehr Kinder als erlaubt \(höchstens 45\)\./,
@@ -573,9 +571,7 @@ describe("InstanceDetailModal", () => {
         onLifecycleAction={vi.fn()}
       />,
     );
-    expect(screen.getByText("Grenze").parentElement).toHaveTextContent(
-      "Grenze45 / 45",
-    );
+    expect(screen.getByText("Grenze 45 / 45")).toBeInTheDocument();
     expect(screen.queryByText(/Überbucht/)).not.toBeInTheDocument();
 
     rerender(
@@ -590,7 +586,7 @@ describe("InstanceDetailModal", () => {
         onLifecycleAction={vi.fn()}
       />,
     );
-    expect(screen.queryByText("Grenze")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Grenze/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Überbucht/)).not.toBeInTheDocument();
   });
 
@@ -609,10 +605,7 @@ describe("InstanceDetailModal", () => {
       />,
     );
 
-    expect(
-      screen.getByText("Anwesend", { selector: "span.font-medium" })
-        .parentElement,
-    ).toHaveTextContent("Anwesend3 / 3");
+    expect(screen.getByText("Anwesend 3 / 3")).toBeInTheDocument();
   });
 
   it("marks spontaneous instances in the detail header", () => {
@@ -625,6 +618,21 @@ describe("InstanceDetailModal", () => {
     );
 
     expect(screen.getByText("Spontan gestartet")).toBeInTheDocument();
+  });
+
+  it("shows the status as the kit pill without capitals", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({ status: "active", isLive: true })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    const pill = screen.getByText("Läuft");
+    expect(pill).toHaveClass("rounded-full");
+    expect(pill).not.toHaveClass("uppercase");
+    expect(pill).toHaveStyle({ backgroundColor: "#EEF9E1" });
   });
 
   it("locks complete until the planned end", () => {
