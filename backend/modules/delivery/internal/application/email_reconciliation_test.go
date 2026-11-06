@@ -24,6 +24,7 @@ type reconcileStore struct {
 	listed    bool
 	deleted   int
 	recordErr error
+	deleteErr error
 }
 
 func (s *reconcileStore) OpenProviderMails(_ context.Context, query domain.ProviderMailQuery) ([]domain.ProviderMail, error) {
@@ -42,7 +43,7 @@ func (s *reconcileStore) EmailSuppressionReason(context.Context, int64, string) 
 
 func (s *reconcileStore) DeleteEmailSuppression(context.Context, int64, string) error {
 	s.deleted++
-	return nil
+	return s.deleteErr
 }
 
 func (s *reconcileStore) RecordEmailDeliveryEvent(_ context.Context, event domain.EmailDeliveryEvent) (domain.EmailDeliveryEventResult, error) {
@@ -250,5 +251,15 @@ func TestLiftSuppressionWithoutProviderFreesTheSchoolsList(t *testing.T) {
 
 	require.NoError(t, reconciliation.LiftEmailSuppression(context.Background(), 7, "eltern@example.com"))
 
+	assert.Equal(t, 1, store.deleted)
+}
+
+func TestLiftSuppressionReportsAComplaintRecordedDuringTheProviderCall(t *testing.T) {
+	t.Parallel()
+	store := &reconcileStore{listed: true, reason: domain.EmailDeliveryFailed, deleteErr: domain.ErrSuppressionNeedsReview}
+	api := &stubProviderAPI{}
+	err := reconciler(store, api).LiftEmailSuppression(context.Background(), 7, "eltern@example.com")
+	assert.ErrorIs(t, err, deliveryContract.ErrEmailSuppressionNeedsReview)
+	assert.Equal(t, []string{"eltern@example.com"}, api.lifted)
 	assert.Equal(t, 1, store.deleted)
 }

@@ -2,9 +2,11 @@ package emailoutbox
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"testing"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +49,7 @@ type receiptMailTransport struct{ sent *email.Message }
 func (receiptMailTransport) Send(email.Message) error { panic("ReceiptMailer must be used") }
 func (m receiptMailTransport) SendWithReceipt(_ context.Context, message email.Message) (email.Receipt, error) {
 	*m.sent = message
-	return email.Receipt{ProviderMessageID: "provider-1"}, nil
+	return email.Receipt{ProviderMessageID: "provider-1", UsedFallback: message.UseFallback}, nil
 }
 
 func TestTransportHandsTheMailKindToTheMailer(t *testing.T) {
@@ -83,4 +85,20 @@ func (contextCheckingMailTransactions) WithinSystem(ctx context.Context, fn func
 		return err
 	}
 	return fn(ctx)
+}
+
+func TestProviderResultPersistsFallbackReceipt(t *testing.T) {
+	t.Parallel()
+	sent := &email.Message{}
+	provider := MailPushProvider{
+		Registry: NewTemplateRegistry(map[string]Renderer{"security": &recordingMailRenderer{}}),
+		Mailer:   receiptMailTransport{sent: sent}, Tenants: contextCheckingMailTransactions{}, Logger: slog.Default(),
+	}
+	result, err := provider.SendEmail(context.Background(), deliveryContract.ClaimedIntent{
+		TenantID: 42, Template: "security", Security: true, UseFallback: true, EmailPayload: json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+	encoded, err := json.Marshal(result)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"provider_message_id":"provider-1","used_fallback":true,"status_code":202}`, string(encoded))
 }

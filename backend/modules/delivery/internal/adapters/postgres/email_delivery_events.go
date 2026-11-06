@@ -105,9 +105,12 @@ func applyEmailEvent(ctx context.Context, db bun.IDB, mail emailEventMailRow, ev
 	if mail.Fallback != nil {
 		// The mail left over the fallback: the event stays in the history, and
 		// the provider no longer speaks for it.
+		if event.State == domain.EmailDeliveryComplained {
+			return suppressEmailEventAddress(ctx, db, mail, event)
+		}
 		return nil
 	}
-	if event.Reroute && mail.Security {
+	if event.Reroute && mail.Security && (result.State == "" || result.State == domain.EmailDeliveryDelayed) {
 		if _, err := db.ExecContext(ctx, emailEventRerouteSQL, time.Now(), mail.ID); err != nil {
 			return err
 		}
@@ -121,6 +124,10 @@ func applyEmailEvent(ctx context.Context, db bun.IDB, mail emailEventMailRow, ev
 		}
 		result.State = next
 	}
+	return suppressEmailEventAddress(ctx, db, mail, event)
+}
+
+func suppressEmailEventAddress(ctx context.Context, db bun.IDB, mail emailEventMailRow, event domain.EmailDeliveryEvent) error {
 	if !event.State.BlocksAddress() || event.KeepsAddress || mail.TenantID == nil || mail.Address == nil || *mail.Address == "" {
 		return nil
 	}
@@ -233,7 +240,21 @@ func (s *Store) EmailSuppressionReason(ctx context.Context, tenantID int64, addr
 // DeleteEmailSuppression implements ports.EmailReconciliationStore.
 func (s *Store) DeleteEmailSuppression(ctx context.Context, tenantID int64, address string) error {
 	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
-		_, err := db.ExecContext(txCtx, `DELETE FROM platform.email_suppressions WHERE tenant_id = ? AND address = ?`,
+		// Recheck under the row lock after the provider call: a complaint may
+		// have replaced the bounce since the initial eligibility check.
+		var reason string
+		err := db.NewRaw(`SELECT reason FROM platform.email_suppressions WHERE tenant_id = ? AND address = ? FOR UPDATE`,
+			tenantID, normalizedAddress(address)).Scan(txCtx, &reason)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if domain.EmailDeliveryState(reason) == domain.EmailDeliveryComplained {
+			return domain.ErrSuppressionNeedsReview
+		}
+		_, err = db.ExecContext(txCtx, `DELETE FROM platform.email_suppressions WHERE tenant_id = ? AND address = ? AND reason = 'failed'`,
 			tenantID, normalizedAddress(address))
 		return err
 	})

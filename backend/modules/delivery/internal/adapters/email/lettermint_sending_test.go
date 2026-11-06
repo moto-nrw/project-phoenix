@@ -112,6 +112,7 @@ func TestSecurityMailLeavesOverTheFallbackWhenTheProviderFails(t *testing.T) {
 			receipt, err := mailer.SendWithReceipt(context.Background(), securityTestMessage())
 
 			require.NoError(t, err)
+			assert.True(t, receipt.UsedFallback)
 			assert.Empty(t, receipt.ProviderMessageID, "the mailbox gives no ID events could refer to")
 			assert.Equal(t, "token-1@example.org", receipt.MessageID)
 			assert.Contains(t, fallbackSent(), "app-sicherheit@example.org")
@@ -182,6 +183,7 @@ func TestHangingProviderLeavesTheFallbackItsTime(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "fallback", receipt.MessageID)
+	assert.True(t, receipt.UsedFallback)
 }
 
 func TestCancelledCallerGetsNoFallback(t *testing.T) {

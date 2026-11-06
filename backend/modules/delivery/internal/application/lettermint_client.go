@@ -171,30 +171,9 @@ func (c *lettermintClient) WebhookEnabled(ctx context.Context) (bool, error) {
 // the provider's support, so nothing is removed if one exists. Blocks set by
 // hand or by an unsubscribe are someone's decision and stay.
 func (c *lettermintClient) LiftSuppression(ctx context.Context, address string) error {
-	var page struct {
-		Data []struct {
-			ID     string `json:"id"`
-			Type   string `json:"type"`
-			Value  string `json:"value"`
-			Reason string `json:"reason"`
-		} `json:"data"`
-	}
-	query := url.Values{"filter[value]": {address}, "page[size]": {apiPageSize}}
-	if err := c.get(ctx, "/suppressions", query, &page); err != nil {
+	bounces, err := c.suppressionBounces(ctx, address)
+	if err != nil {
 		return err
-	}
-	bounces := []string{}
-	for _, entry := range page.Data {
-		// The filter matches parts of a value, so it can name other addresses.
-		if entry.Type != apiTypeEmail || !strings.EqualFold(entry.Value, address) {
-			continue
-		}
-		switch entry.Reason {
-		case apiReasonSpam:
-			return domain.ErrSuppressionNeedsReview
-		case apiReasonBounce:
-			bounces = append(bounces, entry.ID)
-		}
 	}
 	for _, id := range bounces {
 		if err := c.call(ctx, http.MethodDelete, "/suppressions/"+url.PathEscape(id), nil); err != nil {
@@ -202,4 +181,42 @@ func (c *lettermintClient) LiftSuppression(ctx context.Context, address string) 
 		}
 	}
 	return nil
+}
+
+// Read and validate the complete list before making any destructive request.
+// A failed page or an excessive list leaves both provider and local blocks in place.
+func (c *lettermintClient) suppressionBounces(ctx context.Context, address string) ([]string, error) {
+	query := url.Values{"filter[value]": {address}, "page[size]": {apiPageSize}}
+	bounces := []string{}
+	for range apiMaxPages {
+		var page struct {
+			Data []struct {
+				ID     string `json:"id"`
+				Type   string `json:"type"`
+				Value  string `json:"value"`
+				Reason string `json:"reason"`
+			} `json:"data"`
+			NextCursor *string `json:"next_cursor"`
+		}
+		if err := c.get(ctx, "/suppressions", query, &page); err != nil {
+			return nil, err
+		}
+		for _, entry := range page.Data {
+			// The filter matches parts of a value, so it can name other addresses.
+			if entry.Type != apiTypeEmail || !strings.EqualFold(entry.Value, address) {
+				continue
+			}
+			switch entry.Reason {
+			case apiReasonSpam:
+				return nil, domain.ErrSuppressionNeedsReview
+			case apiReasonBounce:
+				bounces = append(bounces, entry.ID)
+			}
+		}
+		if page.NextCursor == nil || *page.NextCursor == "" {
+			return bounces, nil
+		}
+		query.Set("page[cursor]", *page.NextCursor)
+	}
+	return nil, fmt.Errorf("lettermint api: suppression pagination limit reached")
 }

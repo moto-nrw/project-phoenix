@@ -25,6 +25,8 @@ type ContextMailer interface {
 type Receipt struct {
 	MessageID         string
 	ProviderMessageID string
+	// UsedFallback records acceptance by the security fallback transport.
+	UsedFallback bool
 }
 
 // ReceiptMailer is implemented by transports that report the identity of an

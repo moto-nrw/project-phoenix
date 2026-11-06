@@ -64,5 +64,7 @@ func (m *fallbackMailer) sendOverFallback(ctx context.Context, message mailcontr
 	m.logger.Warn("security mail sent over fallback transport",
 		slog.String("template", message.Template),
 		slog.String("reason", reason))
-	return m.fallback.SendWithReceipt(ctx, message)
+	receipt, err := m.fallback.SendWithReceipt(ctx, message)
+	receipt.UsedFallback = err == nil
+	return receipt, err
 }

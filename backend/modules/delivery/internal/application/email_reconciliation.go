@@ -208,5 +208,11 @@ func (r *EmailReconciliation) LiftEmailSuppression(ctx context.Context, tenantID
 			return fmt.Errorf("lift the provider's block: %w", err)
 		}
 	}
-	return r.store.DeleteEmailSuppression(ctx, tenantID, address)
+	if err := r.store.DeleteEmailSuppression(ctx, tenantID, address); err != nil {
+		if errors.Is(err, domain.ErrSuppressionNeedsReview) {
+			return deliveryContract.ErrEmailSuppressionNeedsReview
+		}
+		return err
+	}
+	return nil
 }
