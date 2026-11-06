@@ -34,6 +34,15 @@ type PlannedCareDay struct {
 	Source PlannedCareSource
 }
 
+// ContractCareDay is what the care contract in force on a day books for the
+// child (#4683, ADR 0154), the input the composition root supplies. Booked
+// is false for a weekday the contract books no module on; Pickup is the
+// latest module end, nil when a module of the day names none.
+type ContractCareDay struct {
+	Booked bool
+	Pickup *calendar.WallClock
+}
+
 // PlannedCareSource names the source of a PlannedCareDay.
 type PlannedCareSource string
 

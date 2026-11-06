@@ -1,10 +1,10 @@
 package application
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -84,7 +84,8 @@ func (o *Overruns) evaluate(ctx context.Context, reviewer carecontract.Reviewer,
 
 // readSchool reads one school's list in its tenant transaction. A named
 // read records the children it shows in that school's access log in the
-// same transaction: no name leaves without its entry.
+// same transaction: no name leaves without its entry, and a school that
+// shows no child records none.
 func (o *Overruns) readSchool(ctx context.Context, reviewer carecontract.Reviewer, school carecontract.School,
 	filter carecontract.OverrunFilter, named bool) (carecontract.SchoolOverrunList, error) {
 	var list carecontract.SchoolOverrunList
@@ -93,9 +94,12 @@ func (o *Overruns) readSchool(ctx context.Context, reviewer carecontract.Reviewe
 		if list, err = o.careTimes.Overruns(txCtx, reviewer, filter.From, filter.To); err != nil || !named {
 			return err
 		}
-		ids := make([]int64, len(list.Rows))
-		for i, row := range list.Rows {
-			ids[i] = row.StudentID
+		ids := make([]int64, 0, len(list.Rows))
+		for _, row := range namedChildren(school, list.Rows) {
+			ids = append(ids, row.StudentID)
+		}
+		if len(ids) == 0 {
+			return nil
 		}
 		return o.access.RecordAccess(txCtx, carecontract.SchoolAccess{
 			OrganizationID: reviewer.OrganizationID, AccountID: reviewer.AccountID,
@@ -171,8 +175,16 @@ func namedChildren(school carecontract.School, rows []carecontract.SchoolOverrun
 // sortChildren puts the children with the most extra time first.
 func sortChildren(children []carecontract.OverrunChild) {
 	slices.SortStableFunc(children, func(a, b carecontract.OverrunChild) int {
-		return cmp.Or(cmp.Compare(b.ExtraMinutes, a.ExtraMinutes),
-			cmp.Compare(b.OverrunDays+b.UnbookedDays, a.OverrunDays+a.UnbookedDays),
-			cmp.Compare(a.LastName, b.LastName), cmp.Compare(a.FirstName, b.FirstName), cmp.Compare(a.StudentID, b.StudentID))
+		switch {
+		case a.ExtraMinutes != b.ExtraMinutes:
+			return b.ExtraMinutes - a.ExtraMinutes
+		case a.OverrunDays+a.UnbookedDays != b.OverrunDays+b.UnbookedDays:
+			return (b.OverrunDays + b.UnbookedDays) - (a.OverrunDays + a.UnbookedDays)
+		case a.LastName != b.LastName:
+			return strings.Compare(a.LastName, b.LastName)
+		case a.FirstName != b.FirstName:
+			return strings.Compare(a.FirstName, b.FirstName)
+		}
+		return int(a.StudentID - b.StudentID)
 	})
 }

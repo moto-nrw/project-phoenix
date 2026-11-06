@@ -80,10 +80,16 @@ func TestCareContractsStayWithTheirTraeger(t *testing.T) {
 		}))
 		return visible
 	}
+	// The school reads the booked care of its sent contract, never the draft
+	// and never a document (#4683, migration 1.15.760).
+	schoolReads := map[string]int{"care_contract.contracts": 1, "care_contract.contract_versions": 1,
+		"care_contract.contract_version_services": 2, "care_contract.contract_documents": 0}
 	for _, table := range []string{"care_contract.contracts", "care_contract.contract_versions", "care_contract.contract_version_services", "care_contract.contract_documents"} {
 		assert.Positive(t, count("app.current_org_id", ownOrg, table), "the Träger reads its own %s", table)
 		assert.Zero(t, count("app.current_org_id", fmt.Sprint(foreign), table), "another Träger reads none of %s", table)
-		assert.Zero(t, count("app.current_tenant_id", fmt.Sprint(ownSchool), table), "a school transaction reads none of %s", table)
+		assert.Equal(t, schoolReads[table], count("app.current_tenant_id", fmt.Sprint(ownSchool), table),
+			"a school transaction reads only the sent contract of %s", table)
+		assert.Zero(t, count("app.current_tenant_id", fmt.Sprint(ownSchool+1_000_000), table), "another school reads none of %s", table)
 	}
 
 	assert.ErrorContains(t, asRequestRole("app.current_org_id", ownOrg, `INSERT INTO care_contract.contracts

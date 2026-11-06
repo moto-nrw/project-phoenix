@@ -10473,6 +10473,22 @@
       "target_owner": "school-calendar"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsContractCareDays.ContractCareDays",
+      "binding_digest": "c5547dd56b4869d42594b30a250ba304",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.ContractCareDays.ContractCareDays",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.BookedCare.BookedCare",
+      "target_owner": "care-contract"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsContractCareDays.ContractCareDays",
+      "binding_digest": "ab2fa3d264b68400c81a7d69dd3f27f4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.ContractCareDays.ContractCareDays",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.BookedContract.Day",
+      "target_owner": "care-contract"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.courseStatistics.CourseInstances",
       "binding_digest": "a81096bf04de93cae8ef745793d14ce0",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.CourseStatistics.CourseInstances",
@@ -10618,7 +10634,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsPlannedCareDays.PlannedCareDays",
-      "binding_digest": "38e2f116e5bf6270a5f6101ecd3a0fe1",
+      "binding_digest": "48381cae87ffa0f647c165346d9bc0a1",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.PlannedCareDays.PlannedCareDays",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
@@ -10626,7 +10642,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsPlannedCareDays.PlannedCareDays",
-      "binding_digest": "697e26b45f16b16f19acc28ff605bf4a",
+      "binding_digest": "a53fb7f8f849eeb3c8b6355b49c643c0",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.PlannedCareDays.PlannedCareDays",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayStatus.Expected",

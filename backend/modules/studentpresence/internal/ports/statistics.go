@@ -118,6 +118,14 @@ type PlannedCareDays interface {
 	PlannedCareDays(ctx context.Context, studentIDs []int64, from, to Date) (map[int64]map[Date]PlannedCareDay, error)
 }
 
+type ContractCareDay = studentpresence.ContractCareDay
+
+// ContractCareDays reads the days a care contract of the Träger covers, by
+// child and date (#4683); a day without an entry has no contract in force.
+type ContractCareDays interface {
+	ContractCareDays(ctx context.Context, studentIDs []int64, from, to Date) (map[int64]map[Date]ContractCareDay, error)
+}
+
 // Own presence facts the report reads through the application service.
 
 type AttendanceDays interface {

@@ -131,16 +131,10 @@ type AccessLogLedger interface {
 	ExistsSince(context.Context, int64, string, map[string]string, time.Time) (bool, error)
 }
 
-// StatisticsPlannedCareDays reads the Soll for the occupancy by time of day
-// (#4764) and Soll und Ist (#4774): Care Plan's verdict with the planned
-// clock times, and where a care contract of the Träger is in force on a day,
-// the contract's booked services instead (#4683, ADR 0154). The contract
-// decides whether the day is booked and its latest module end is the pickup;
-// it names no arrival, so the care plan's arrival and a cancellation of the
-// day ("Kommt heute nicht") stay. Contracts nil reads the care plan alone.
+// StatisticsPlannedCareDays reads Care Plan's verdict with the planned clock
+// times for the occupancy by time of day (#4764) and Soll und Ist (#4774).
 type StatisticsPlannedCareDays struct {
-	CareDays  careplan.CareDayQuery
-	Contracts carecontract.BookedCare
+	CareDays careplan.CareDayQuery
 }
 
 func (a StatisticsPlannedCareDays) PlannedCareDays(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]studentpresence.PlannedCareDay, error) {
@@ -160,35 +154,30 @@ func (a StatisticsPlannedCareDays) PlannedCareDays(ctx context.Context, studentI
 		}
 		result[studentID] = byDate
 	}
-	if a.Contracts == nil {
-		return result, nil
-	}
+	return result, nil
+}
+
+// StatisticsContractCareDays reads the days the care contracts of the
+// Träger cover at the school, the Soll of Soll und Ist where a contract is
+// in force (#4683, ADR 0154).
+type StatisticsContractCareDays struct {
+	Contracts carecontract.BookedCare
+}
+
+func (a StatisticsContractCareDays) ContractCareDays(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]studentpresence.ContractCareDay, error) {
 	contracts, err := a.Contracts.BookedCare(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err
 	}
+	result := make(map[int64]map[timezone.Date]studentpresence.ContractCareDay, len(contracts))
 	for studentID, contract := range contracts {
-		if result[studentID] == nil {
-			result[studentID] = map[timezone.Date]studentpresence.PlannedCareDay{}
-		}
+		days := map[timezone.Date]studentpresence.ContractCareDay{}
 		for date := from; !date.After(to); date = date.AddDays(1) {
-			booked := contract.Day(date)
-			if booked.InForce {
-				result[studentID][date] = contractCareDay(booked, result[studentID][date])
+			if booked := contract.Day(date); booked.InForce {
+				days[date] = studentpresence.ContractCareDay{Booked: booked.Booked, Pickup: booked.EndsAt}
 			}
 		}
+		result[studentID] = days
 	}
 	return result, nil
-}
-
-// contractCareDay is the Soll of a day the contract covers, over the care
-// plan's verdict of that day.
-func contractCareDay(booked carecontract.BookedDay, plan studentpresence.PlannedCareDay) studentpresence.PlannedCareDay {
-	day := studentpresence.PlannedCareDay{Source: studentpresence.PlannedCareSourceContract}
-	if !booked.Booked {
-		return day
-	}
-	day.Expected, day.Cancelled = !plan.Cancelled, plan.Cancelled
-	day.Arrival, day.Pickup = plan.Arrival, booked.EndsAt
-	return day
 }
