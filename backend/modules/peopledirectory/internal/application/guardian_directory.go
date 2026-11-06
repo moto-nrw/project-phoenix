@@ -269,7 +269,7 @@ func (p *GuardianDirectory) SetPrimaryGuardianPhone(ctx context.Context, phoneID
 
 func (p *GuardianDirectory) LinkGuardianToStudent(ctx context.Context, input peopledirectory.LinkGuardian) (peopledirectory.GuardianLink, error) {
 	if !(RepositoryRuntime{}).InTransaction(ctx) {
-		input.CreatedStudent = nil
+		input.CreatedStudent, input.CreatedGuardian = nil, nil
 	}
 	var link *peopledirectory.GuardianRelationshipSnapshot
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {

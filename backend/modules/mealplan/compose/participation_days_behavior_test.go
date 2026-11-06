@@ -1,17 +1,15 @@
-package postgres_test
+package compose_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
-	mealpostgres "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+	mealcompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestParticipationDaysKeepsEffectiveSchedulesCutoffsAndTenantScope(t *testing.T) {
@@ -43,36 +41,40 @@ func TestParticipationDaysKeepsEffectiveSchedulesCutoffsAndTenantScope(t *testin
 		school, student.ID, monday.AddDays(2), account.ID,
 		school, student.ID, monday.AddDays(4), account.ID)
 	require.NoError(t, err)
-	tuesday := monday.AddDays(1)
-	reported := tuesday.BerlinMidnight().Add(8 * time.Hour)
+	reported := monday.BerlinMidnight().Add(8 * time.Hour)
 	cleared := reported.Add(2 * time.Hour)
 	_, err = db.ExecContext(ctx, `INSERT INTO schedule.meal_sickness_status_history
   (tenant_id, student_id, date, status, changed_at, reported_at, cleared_at)
   VALUES (?, ?, ?, 'sick', ?, ?, NULL), (?, ?, ?, 'sick', ?, ?, ?)`,
-		school, student.ID, tuesday, reported, reported,
-		school, student.ID, tuesday, cleared, reported, cleared)
+		school, student.ID, monday, reported, reported,
+		school, student.ID, monday, cleared, reported, cleared)
 	require.NoError(t, err)
-	store := mealpostgres.New(func(context.Context) (bun.IDB, int64, error) { return db, school, nil })
-	cutoffs := map[domain.Date]time.Time{}
-	for offset := range 5 {
-		date := monday.AddDays(offset)
-		cutoffs[date] = date.BerlinMidnight().Add(9 * time.Hour)
-	}
-	ids := []int64{student.ID, other.ID}
-	days, _, err := store.FindParticipationDays(ctx, ids, cutoffs)
+	// The third child's schedule must not leak into the current roster.
+	_, err = db.ExecContext(ctx, `UPDATE users.student_school_memberships
+  SET enrolled_from = ? WHERE tenant_id = ? AND student_profile_id = ?`, monday.AddDays(7), school, unrequested.ID)
 	require.NoError(t, err)
-	for date, cutoff := range cutoffs {
-		daily, _, dailyErr := store.FindDailyParticipation(ctx, ids, date, cutoff)
+	module := mealcompose.BuildOrderDateModuleForTest(t, db, true, nil, monday.BerlinMidnight().Add(11*time.Hour))
+	from, to := mealplan.Date(monday.String()), mealplan.Date(monday.AddDays(4).String())
+	week, err := module.Orders(ctx, from, to)
+	require.NoError(t, err)
+	require.Len(t, week.Days, 5)
+	for index, day := range week.Days {
+		single, dailyErr := module.Orders(ctx, day.Date, day.Date)
 		require.NoError(t, dailyErr)
-		for _, id := range ids {
-			assert.Equal(t, daily[id], days[date][id], "child %d on %s", id, date)
+		require.Len(t, single.Days, 1)
+		assert.Equal(t, single.Days[0], day, "batch and scalar public orders on %s", day.Date)
+		assert.Equal(t, []int{0, 1, 1, 1, 0}[index], day.Total)
+		for _, child := range day.Children {
+			assert.Equal(t, student.ID, child.StudentID)
+			assert.NotEqual(t, other.ID, child.StudentID)
+			assert.NotEqual(t, unrequested.ID, child.StudentID)
 		}
-		assert.NotContains(t, days[date], unrequested.ID)
-		assert.Equal(t, domain.DailyParticipation{}, days[date][other.ID])
 	}
-	assert.True(t, days[monday][student.ID].Regular)
-	assert.False(t, days[monday.AddDays(4)][student.ID].Regular)
-	require.Len(t, days[tuesday][student.ID].Absences, 1, "Tuesday's later clearance is beyond its cutoff, even though Wednesday's cutoff is later")
-	require.NotNil(t, days[monday.AddDays(2)][student.ID].Override)
-	assert.True(t, *days[monday.AddDays(2)][student.ID].Override)
+	foreign, err := module.Participation(ctx, other.ID, from, to)
+	require.NoError(t, err)
+	assert.Empty(t, foreign.Weekdays)
+	for _, day := range foreign.Days {
+		assert.False(t, day.Participating)
+		assert.False(t, day.Regular)
+	}
 }
