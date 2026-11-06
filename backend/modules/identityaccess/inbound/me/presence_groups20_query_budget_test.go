@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
@@ -20,6 +21,9 @@ func TestPresenceGroups20CallerQueryBudget(t *testing.T) {
 	require.Same(t, db, tc.db)
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
+	// TenantSessionChain authenticates but deliberately does not attach host
+	// caches. Match the production host's existing request memo here too.
+	router.Use(rootAPI.RequestIdentityCacheMiddleware)
 	router.Mount("/api/me", tc.resource.Router())
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Groups20", "Caller")
 	claims := testutil.TeacherTestClaims(int(account.ID))
