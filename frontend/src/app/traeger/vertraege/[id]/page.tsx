@@ -4,7 +4,7 @@
 // er geht, wann er versendet wurde, und das PDF, das die Eltern bekommen.
 // Ein Entwurf lässt sich senden oder verwerfen; ein versendeter Vertrag
 // behält sein PDF und lässt sich erneut senden. Ein abgeschlossener Vertrag
-// (#4680) zeigt, wann und wie er zustande kam; senden lässt er sich nicht mehr.
+// (#4680) zeigt, wann und wie er zustande kam; erneut senden lässt er sich mit demselben PDF.
 
 import { Download, RotateCw, Send, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
@@ -221,7 +221,8 @@ export default function TraegerVertragPage() {
   };
 
   const isDraft = contract?.status === "entwurf";
-  const canSend = isDraft || contract?.status === "versendet";
+  const canSend =
+    isDraft || contract?.status === "versendet" || contract?.status === "aktiv";
   const lastMail = contract?.mailings[0];
   const party = contract?.parties[0];
   const planned = contract
@@ -501,8 +502,7 @@ export default function TraegerVertragPage() {
                     ))}
                   </ol>
                 ) : null}
-                {contract.status === "versendet" &&
-                lastMail?.state === "failed" ? (
+                {!isDraft && canSend && lastMail?.state === "failed" ? (
                   <form
                     ref={recipientForm}
                     noValidate

@@ -166,6 +166,8 @@ export function formatServiceDays(
 export const TEMPLATE_ISSUE_LABELS: Record<TemplateIssue, string> = {
   template_missing: "Vertragsbedingungen fehlen",
   templates_differ: "Bedingungen der Module weichen ab",
+  conclusion_automatic: "Entsteht bei der Annahme",
+  acceptance_missing: "Zustimmung zum Vertrag fehlt",
 };
 
 export const NOTICE_TO_LABELS: Record<ContractNoticeTo, string> = {

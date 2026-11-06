@@ -197,7 +197,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/database/database-form-modal", () => ({
+vi.mock("~/components/database/database-form-modal", () => ({
   DatabaseFormModal: ({
     isOpen,
     onClose,

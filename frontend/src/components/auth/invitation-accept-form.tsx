@@ -14,7 +14,6 @@ import {
 import { PasswordRequirements } from "~/components/auth/password-requirements";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { acceptInvitation } from "~/lib/invitation-api";
 import type { InvitationValidation } from "~/lib/invitation-helpers";
@@ -67,8 +66,6 @@ export function InvitationAcceptForm({
   const [lastName, setLastName] = useState(invitation.lastName ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   // Fehler über den gemeinsamen Weg (#2517): Katalogtext im Fehlerkasten,
   // Feldfehler am Feld. Vor der Anmeldung heißt 401 "abgelehnt".
   const formRef = useRef<HTMLFormElement>(null);
@@ -370,28 +367,22 @@ export function InvitationAcceptForm({
         >
           Passwort
         </FieldLabel>
-        <div className="relative">
-          <Input
-            id="password"
-            name="password"
-            type={showPassword ? "text" : "password"}
-            controlSize="compact"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            disabled={isSubmitting}
-            autoComplete="new-password"
-            aria-invalid={Boolean(fieldError("password"))}
-            aria-describedby={
-              fieldError("password") ? "password-error" : undefined
-            }
-            required
-            className="pr-10"
-          />
-          <PasswordToggleButton
-            showPassword={showPassword}
-            onToggle={() => setShowPassword(!showPassword)}
-          />
-        </div>
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          controlSize="compact"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          disabled={isSubmitting}
+          autoComplete="new-password"
+          aria-invalid={Boolean(fieldError("password"))}
+          aria-describedby={
+            fieldError("password") ? "password-error" : undefined
+          }
+          required
+          revealable
+        />
         <AuthFieldError id="password-error" message={fieldError("password")} />
       </div>
 
@@ -403,30 +394,22 @@ export function InvitationAcceptForm({
         >
           Passwort bestätigen
         </FieldLabel>
-        <div className="relative">
-          <Input
-            id="confirmPassword"
-            name="confirm_password"
-            type={showConfirmPassword ? "text" : "password"}
-            controlSize="compact"
-            value={confirmPassword}
-            onChange={(event) => setConfirmPassword(event.target.value)}
-            disabled={isSubmitting}
-            autoComplete="new-password"
-            aria-invalid={Boolean(fieldError("confirm_password"))}
-            aria-describedby={
-              fieldError("confirm_password")
-                ? "confirmPassword-error"
-                : undefined
-            }
-            required
-            className="pr-10"
-          />
-          <PasswordToggleButton
-            showPassword={showConfirmPassword}
-            onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
-          />
-        </div>
+        <Input
+          id="confirmPassword"
+          name="confirm_password"
+          type="password"
+          controlSize="compact"
+          value={confirmPassword}
+          onChange={(event) => setConfirmPassword(event.target.value)}
+          disabled={isSubmitting}
+          autoComplete="new-password"
+          aria-invalid={Boolean(fieldError("confirm_password"))}
+          aria-describedby={
+            fieldError("confirm_password") ? "confirmPassword-error" : undefined
+          }
+          required
+          revealable
+        />
         <AuthFieldError
           id="confirmPassword-error"
           message={fieldError("confirm_password")}

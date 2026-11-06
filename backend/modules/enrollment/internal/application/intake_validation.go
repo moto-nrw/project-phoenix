@@ -235,11 +235,16 @@ func ensureRequiredConsentFlags(flags map[string]any, legalBlocks []enrollment.L
 // filtered consent flags into the append-only evidence entry of the request
 // (Art. 5 Abs. 2, Art. 7 Abs. 1 DSGVO). It is the only reliable record of the
 // wording the family saw and the answers it gave at that moment.
-func legalBlocksSnapshotEntry(blocks []enrollment.LegalBlock, flags map[string]any, at time.Time) (LegalBlocksSnapshotEntry, error) {
+func legalBlocksSnapshotEntry(blocks []enrollment.LegalBlock, flags map[string]any, at time.Time, fingerprint Fingerprint) (LegalBlocksSnapshotEntry, error) {
 	snapshot := make([]LegalBlockSnapshot, 0, len(blocks))
 	for _, block := range blocks {
+		checksum := ""
+		if fingerprint != nil {
+			checksum = fingerprint([]byte(block.Text))
+		}
 		snapshot = append(snapshot, LegalBlockSnapshot{
 			Key: block.Key, Kind: block.Kind, Title: block.Title, Label: block.Label, Text: block.Text,
+			TextSHA256:  checksum,
 			Attachments: append([]enrollment.FormAttachment(nil), block.Attachments...),
 			Required:    block.Required, Source: block.Source, Translations: block.Translations.Texts(),
 		})

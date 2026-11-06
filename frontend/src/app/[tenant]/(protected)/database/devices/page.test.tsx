@@ -180,7 +180,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/database/database-form-modal", () => ({
+vi.mock("~/components/database/database-form-modal", () => ({
   // One mock serves both the create and the edit instance; the edit modal is
   // the one that receives initialData. Mirrors what DatabaseForm does in
   // production: catches the rejection from onSubmit and hands it to the

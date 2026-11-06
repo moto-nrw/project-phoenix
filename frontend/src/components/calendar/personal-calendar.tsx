@@ -13,8 +13,11 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import {
+  PlanLegend,
+  type PlanLegendEntry,
+} from "~/components/ui/planning/plan-legend";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";

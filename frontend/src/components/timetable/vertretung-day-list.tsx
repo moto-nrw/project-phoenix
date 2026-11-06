@@ -27,7 +27,7 @@ import { Button } from "~/components/ui/button";
 import {
   CoverageIndicator,
   type CoverageState,
-} from "~/components/ui/coverage-indicator";
+} from "~/components/ui/planning/coverage-indicator";
 import {
   BlockStaffNames,
   blockPlaceLine,

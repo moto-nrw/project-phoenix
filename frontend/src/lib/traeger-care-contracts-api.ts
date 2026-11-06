@@ -79,10 +79,15 @@ export interface ContractService {
 }
 
 /** Why no draft can be made for a candidate yet. */
-export type TemplateIssue = "template_missing" | "templates_differ";
+export type TemplateIssue =
+  | "template_missing"
+  | "templates_differ"
+  | "conclusion_automatic"
+  | "acceptance_missing";
 
 /** An accepted application child with booked care and no contract. */
 export interface ContractCandidate extends CandidateKey {
+  readonly hasAcceptance?: boolean;
   readonly schoolName: string;
   readonly childFirstName: string;
   readonly childLastName: string;
@@ -257,6 +262,7 @@ interface BackendService {
 }
 
 interface BackendCandidate {
+  has_acceptance?: boolean;
   school_id: number;
   request_child_id: number;
   school_name: string;
@@ -396,6 +402,7 @@ function candidateFromBackend(row: BackendCandidate): ContractCandidate {
     services: servicesFromBackend(row.services),
     effectiveFrom: row.effective_from,
     templateIssue: row.template_issue === "" ? null : row.template_issue,
+    hasAcceptance: row.has_acceptance ?? false,
   };
 }
 

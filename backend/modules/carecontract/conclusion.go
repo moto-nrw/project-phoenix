@@ -54,7 +54,12 @@ type ConclusionRun struct {
 // acceptance (Weg b). For every accepted application child with booked care
 // and no contract it creates the contract, freezes its PDF, sends it to the
 // parents by mail and into the inbox, and concludes it: status aktiv, its
-// version wirksam, method mit_anmeldung. A child whose modules lack
+// version wirksam, method mit_anmeldung. This requires the parents' proof
+// from the application (ADR 0088 section 3): a required conditions block they
+// ticked, with the checksum taken when it was shown, submitted before the
+// school's acceptance, and conditions that did not change since. Missing or
+// outdated proof holds the contract back and never binds a historical
+// submission to today's terms. A child whose modules lack
 // conditions, or whose parents have no address, stays without a contract
 // and is tried again on the next run. The run reads each school in its own
 // tenant transaction and writes each contract in its own Träger

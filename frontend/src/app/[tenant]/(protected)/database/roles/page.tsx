@@ -28,7 +28,7 @@ import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { isHiddenSystemRole } from "@/lib/role-labels";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { RolesMasterDetail } from "@/components/roles/roles-master-detail";
-import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
+import { DatabaseFormModal } from "~/components/database/database-form-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
   useApiFormError,

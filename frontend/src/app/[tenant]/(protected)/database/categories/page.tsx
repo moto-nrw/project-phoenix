@@ -14,7 +14,7 @@ import {
   CATALOG_SELECTION_PARAM,
   type CatalogConfig,
 } from "~/components/database/catalog/catalog-page";
-import { CatalogColorField } from "~/components/ui/database/catalog-color-field";
+import { CatalogColorField } from "~/components/database/catalog-color-field";
 import type { SectionConfig } from "~/lib/database/types";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import { categoryService } from "~/lib/category-api";

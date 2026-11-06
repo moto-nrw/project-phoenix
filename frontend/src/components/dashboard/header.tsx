@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { LogoutModal } from "~/components/ui/logout-modal";
+import { LogoutModal } from "~/components/auth/logout-modal";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { BrandTenantSwitcher } from "~/components/tenant/tenant-switcher";

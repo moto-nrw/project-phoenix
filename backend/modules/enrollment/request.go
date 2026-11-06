@@ -48,6 +48,7 @@ type LegalBlockSnapshot struct {
 	Title       string           `json:"title"`
 	Label       string           `json:"label"`
 	Text        string           `json:"text"`
+	TextSHA256  string           `json:"text_sha256,omitempty"`
 	Required    bool             `json:"required"`
 	Source      string           `json:"source,omitempty"`
 	// Translations records the translated wordings (locale → attribute →

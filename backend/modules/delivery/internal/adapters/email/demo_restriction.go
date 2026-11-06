@@ -51,3 +51,13 @@ func (m demoRestrictedMailer) SendContext(ctx context.Context, message mailcontr
 	}
 	return m.mailer.Send(message)
 }
+
+// SendWithReceipt keeps the identity of a demo mail that really goes out; a
+// mail the demo keeps has none.
+func (m demoRestrictedMailer) SendWithReceipt(ctx context.Context, message mailcontract.Message) (mailcontract.Receipt, error) {
+	if mailer, ok := m.mailer.(mailcontract.ReceiptMailer); ok && ctx.Err() == nil &&
+		(message.Template == mailcontract.TemplateDemoAccess || message.Template == mailcontract.TemplateDemoLead) {
+		return mailer.SendWithReceipt(ctx, message)
+	}
+	return mailcontract.Receipt{}, m.SendContext(ctx, message)
+}

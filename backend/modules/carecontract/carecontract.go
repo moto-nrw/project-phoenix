@@ -81,8 +81,8 @@ var (
 	ErrContractExists = errors.New("the application has a contract")
 	// ErrContractNotDraft reports a write that only a draft allows.
 	ErrContractNotDraft = errors.New("the contract is no draft")
-	// ErrContractNotSendable reports a contract past sending (signed, active
-	// or ended).
+	// ErrContractNotSendable reports a contract that cannot be sent
+	// (signed, ended, or active without its frozen document).
 	ErrContractNotSendable = errors.New("the contract can no longer be sent")
 	// ErrRecipientMissing reports a party without an address.
 	ErrRecipientMissing = errors.New("the contract party has no e-mail address")
@@ -170,6 +170,7 @@ type Service struct {
 // without conditions, or modules whose conditions differ.
 type Candidate struct {
 	CandidateKey
+	HasAcceptance  bool          `json:"has_acceptance"`
 	SchoolName     string        `json:"school_name"`
 	ChildFirstName string        `json:"child_first_name"`
 	ChildLastName  string        `json:"child_last_name"`
@@ -198,10 +199,13 @@ type CreateSkip struct {
 // The reasons of a CreateSkip; the first two are also the TemplateIssue
 // of a Candidate.
 const (
-	SkipTemplateMissing = "template_missing"
-	SkipTemplatesDiffer = "templates_differ"
-	SkipContractExists  = "contract_exists"
-	SkipNotFound        = "application_not_found"
+	SkipTemplateMissing     = "template_missing"
+	SkipTemplatesDiffer     = "templates_differ"
+	SkipContractExists      = "contract_exists"
+	SkipNotFound            = "application_not_found"
+	SkipConclusionAutomatic = "conclusion_automatic"
+	SkipAcceptanceMissing   = "acceptance_missing"
+	SkipAcceptanceChanged   = "acceptance_changed"
 )
 
 // ContractFilter selects the contracts of the list.
@@ -350,7 +354,7 @@ type Contracts interface {
 	// that a preview with the current template, which stores nothing.
 	ContractDocument(ctx context.Context, reviewer Reviewer, contractID int64) (File, error)
 	// SendContracts sends each contract by mail and into the inbox: a draft
-	// gets its PDF and becomes versendet, a sent one is sent again with the
+	// gets its PDF and becomes versendet, a sent or active one is sent again with the
 	// same PDF.
 	SendContracts(ctx context.Context, reviewer Reviewer, contractIDs []int64) (SendResult, error)
 	// ResendContract corrects only the delivery address of a failed send,

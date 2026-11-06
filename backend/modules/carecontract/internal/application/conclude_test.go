@@ -77,3 +77,30 @@ func TestConcludeContractOnlyConcludesASentContractOnce(t *testing.T) {
 	assert.Equal(t, map[string]any{"method": carecontract.MethodWithApplication, "version_id": int64(11), "document_id": int64(31)},
 		store.events[0].Details)
 }
+
+// TestAcceptanceIssueNeedsTickedConditionsShownBeforeTheAcceptance pins the
+// proof of Weg b (ADR 0088 section 3): a ticked conditions block with its
+// checksum, submitted before the school's acceptance, with conditions that
+// did not change after the submission.
+func TestAcceptanceIssueNeedsTickedConditionsShownBeforeTheAcceptance(t *testing.T) {
+	t.Parallel()
+	submitted := time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC)
+	accepted := submitted.Add(24 * time.Hour)
+	proof := carecontract.AcceptedText{Key: "terms", Text: "Bedingungen", SHA256: "abc", SubmittedAt: submitted}
+	draft := func(at *time.Time, proofs ...carecontract.AcceptedText) NewContract {
+		return NewContract{AcceptedAt: at, Acceptances: proofs}
+	}
+	before := submitted.Add(-time.Hour)
+
+	assert.Empty(t, acceptanceIssue(draft(&accepted, proof), before), "proof before the acceptance, conditions older")
+	assert.Equal(t, carecontract.SkipAcceptanceMissing, acceptanceIssue(draft(&accepted), before), "approval alone is no proof")
+	assert.Equal(t, carecontract.SkipAcceptanceMissing, acceptanceIssue(draft(nil, proof), before), "no acceptance instant")
+	unsigned := proof
+	unsigned.SHA256 = ""
+	assert.Equal(t, carecontract.SkipAcceptanceMissing, acceptanceIssue(draft(&accepted, unsigned), before), "no checksum of the shown text")
+	late := proof
+	late.SubmittedAt = accepted.Add(time.Minute)
+	assert.Equal(t, carecontract.SkipAcceptanceMissing, acceptanceIssue(draft(&accepted, late), before), "a submission after the acceptance")
+	assert.Equal(t, carecontract.SkipAcceptanceChanged, acceptanceIssue(draft(&accepted, proof), submitted.Add(time.Minute)),
+		"conditions changed after the submission")
+}

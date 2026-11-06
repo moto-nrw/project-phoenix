@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -73,7 +74,7 @@ func careContractPorts(organizations HolidayOrganizations, settings TraegerBrand
 		Letterheads: letterheads, Post: careContractPost{delivery: delivery},
 		Runtime: careContractRuntime{}, Access: careContractAccessLog{log: accessLog},
 	}, careContractCompose.IntakePorts{
-		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications()},
+		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications(securityruntime.Fingerprint)},
 		Bookings: careContractBookings{offerings: carePlanCompose.NewContractOfferings(), bookings: carePlanCompose.NewOfferingBookings()},
 		Access:   careContractAccessLog{log: accessLog}, Runtime: careContractRuntime{},
 		Modes: careContractModes{settings: schoolSettings},
@@ -163,12 +164,16 @@ func (a careContractApplications) AcceptedApplications(ctx context.Context, requ
 	result := make([]carecontract.Application, len(found))
 	for i, application := range found {
 		result[i] = carecontract.Application{
+			AcceptedAt:     application.AcceptedAt,
 			RequestChildID: application.RequestChildID, StudentID: application.StudentID,
 			ChildFirstName: application.ChildFirstName, ChildLastName: application.ChildLastName,
 			ChildBirthDate: application.ChildBirthDate, GuardianFirstName: application.GuardianFirstName,
 			GuardianLastName: application.GuardianLastName, GuardianEmail: application.GuardianEmail,
 			GuardianAccountID: application.GuardianAccountID, PhaseName: application.PhaseName,
 			ServiceStartDate: application.ServiceStartDate, ActivateOn: application.ActivateOn,
+		}
+		for _, proof := range application.Acceptances {
+			result[i].Acceptances = append(result[i].Acceptances, carecontract.AcceptedText{Key: proof.Key, Text: proof.Text, SHA256: proof.SHA256, SubmittedAt: proof.SubmittedAt})
 		}
 	}
 	return result, nil

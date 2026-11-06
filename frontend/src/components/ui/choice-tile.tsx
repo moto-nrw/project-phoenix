@@ -28,7 +28,7 @@ import { cn } from "~/lib/utils";
  * A hand-rolled `rounded-xl border … bg-white` with a selected branch is
  * exactly what `ui-kit/no-hand-rolled-surface` rejects; use this instead.
  */
-export type ChoiceTileTone = "gray" | "green" | "blue";
+type ChoiceTileTone = "gray" | "green" | "blue";
 
 const SELECTED_CLASS: Record<ChoiceTileTone, string> = {
   gray: "border-gray-300 bg-gray-50 text-gray-900",
@@ -46,7 +46,7 @@ const FOCUS_CLASS: Record<"label" | "button" | "div", string> = {
   div: "",
 };
 
-export function choiceTileClassName({
+function choiceTileClassName({
   as = "label",
   selected = false,
   disabled = false,

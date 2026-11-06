@@ -20,8 +20,7 @@ import {
   PASSKEY_LOGIN_REFUSALS,
 } from "~/components/auth/credential-error";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
-import { PasswordResetModal } from "~/components/ui/password-reset-modal";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
+import { PasswordResetModal } from "~/components/auth/password-reset-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -78,7 +77,6 @@ interface MFAStep {
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -290,28 +288,22 @@ function LoginForm() {
                 >
                   Passwort
                 </FieldLabel>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    controlSize="compact"
-                    autoComplete="current-password"
-                    required
-                    disabled={isSubmitting}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    aria-invalid={Boolean(passwordError)}
-                    aria-describedby={
-                      passwordError ? "password-error" : undefined
-                    }
-                    className="pr-10"
-                  />
-                  <PasswordToggleButton
-                    showPassword={showPassword}
-                    onToggle={() => setShowPassword(!showPassword)}
-                  />
-                </div>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  controlSize="compact"
+                  autoComplete="current-password"
+                  required
+                  disabled={isSubmitting}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  aria-invalid={Boolean(passwordError)}
+                  aria-describedby={
+                    passwordError ? "password-error" : undefined
+                  }
+                  revealable
+                />
                 <AuthFieldError id="password-error" message={passwordError} />
               </div>
 

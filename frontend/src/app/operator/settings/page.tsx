@@ -13,7 +13,7 @@ import {
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
-import { PasswordChangeModal } from "~/components/ui/password-change-modal";
+import { PasswordChangeModal } from "~/components/auth/password-change-modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import {
   FormSkeleton,

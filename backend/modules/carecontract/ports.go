@@ -2,6 +2,7 @@ package carecontract
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -32,6 +33,8 @@ type Booking struct {
 // Application is an accepted application child of one school, with its
 // guardian and its bookings.
 type Application struct {
+	AcceptedAt        *time.Time
+	Acceptances       []AcceptedText
 	RequestChildID    int64
 	StudentID         *int64
 	ChildFirstName    string
@@ -160,4 +163,13 @@ type MailState struct {
 type Post interface {
 	EnqueueContractMail(ctx context.Context, mail ContractMail) (int64, error)
 	ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]MailState, error)
+}
+
+// AcceptedText is Enrollment's checked evidence of a parent's agreement to
+// the exact terms shown before the school's acceptance.
+type AcceptedText struct {
+	Key         string
+	Text        string
+	SHA256      string
+	SubmittedAt time.Time
 }

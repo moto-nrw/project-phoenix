@@ -25,8 +25,8 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     src/components/ui/; use Modal / Drawer /
 //                                     OverflowMenu from the kit
 //   ui-kit/no-hand-rolled-surface   — hand-built card surfaces
-//                                     (`rounded-xl/2xl` + `border` + `bg-white`)
-//                                     outside src/components/ui/; use
+//                                     (`rounded-xl/2xl` + `border` + `bg-white`),
+//                                     in the kit except SURFACE_KIT_CONTROLS; use
 //                                     moto-content-surface (cards),
 //                                     moto-popover-surface (floating menus),
 //                                     ChoiceTile (selectable rows) or a kit
@@ -73,8 +73,10 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //
 // One more keeps form fields on the kit (#5217):
 //
+//   ui-kit/no-kit-domain-import     — files in components/ui import no other
+//                                     components and fetch no data (#5586)
 //   ui-kit/no-raw-input             — no hand-built <input> or <textarea>
-//                                     outside src/components/ui/; use Input,
+//                                     outside RAW_INPUT_KIT_PRIMITIVES; use Input,
 //                                     Textarea, Checkbox, Radio, TimeField,
 //                                     ConsentCheckbox or ColorSwatchInput.
 //                                     Hidden and file inputs stay native.
@@ -609,12 +611,27 @@ const isSurfaceCombo = (text) =>
   SURFACE_BORDER_RE.test(text) &&
   SURFACE_BG_RE.test(text);
 
+// Kit controls whose border and white fill belong to the control, not to a
+// card (#5586). Every other kit file uses the kit surfaces.
+const SURFACE_KIT_CONTROLS = new Map([
+  [
+    "src/components/ui/page-header/FilterButton.tsx",
+    "Filterknopf der Kopfzeile",
+  ],
+  [
+    "src/components/ui/page-header/FilterPanel.tsx",
+    "Filtertafel: eigene Schattenstufe shadow-xl",
+  ],
+  ["src/components/ui/page-header/SearchBar.tsx", "Suchfeld der Kopfzeile"],
+  ["src/components/ui/checkbox-card.tsx", "Auswahlzeile mit Häkchen"],
+]);
+
 const noHandRolledSurface = {
   meta: {
     type: "problem",
     docs: {
       description:
-        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`) outside the UI kit; use moto-content-surface, moto-popover-surface, ChoiceTile or a kit surface component (SectionCard).",
+        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`), in the UI kit too (#5586); use moto-content-surface, moto-popover-surface, ChoiceTile or a kit surface component (SectionCard).",
     },
     messages: {
       handRolledSurface:
@@ -626,7 +643,7 @@ const noHandRolledSurface = {
     const key = fileKey(context);
     if (!key.startsWith("src/")) return {};
     if (EXEMPT_FILE_RE.test(key)) return {};
-    if (key.startsWith(UI_KIT_DIR)) return {};
+    if (SURFACE_KIT_CONTROLS.has(key)) return {};
 
     const check = (node, text) => {
       if (!isSurfaceCombo(text)) return;
@@ -1127,15 +1144,15 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/timetable/vertretung-week-list.tsx",
   "src/components/timetable/weekly-calendar-grid.tsx",
   "src/components/ui/avatar.tsx",
-  "src/components/ui/coverage-indicator.tsx",
+  "src/components/ui/planning/coverage-indicator.tsx",
   "src/components/ui/location-badge.tsx",
   "src/components/ui/notification-badge.tsx",
-  "src/components/ui/origin-chip.tsx",
+  "src/components/ui/planning/origin-chip.tsx",
   "src/components/ui/page-header/FilterButton.tsx",
   "src/components/ui/page-header/OverflowMenu.tsx",
   "src/components/ui/parent-visible-badge.tsx",
-  "src/components/ui/plan-block.tsx",
-  "src/components/ui/plan-legend.tsx",
+  "src/components/ui/planning/plan-block.tsx",
+  "src/components/ui/planning/plan-legend.tsx",
   "src/components/ui/presence-badge.tsx",
 ]);
 
@@ -1159,7 +1176,7 @@ src/components/parent/parent-enroll-picker.tsx|text-[11px]@228 text-[11px]@232
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/planning/closing-day-marker.tsx|text-[10px]@54
 src/components/staff/absence-request-row.tsx|text-[11px]@107
-src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@485 text-[11px]@581 text-[11px]@590 text-[11px]@597 text-[10px]@731
+src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@584 text-[11px]@593 text-[11px]@600 text-[10px]@734
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1393 text-[11px]@1482 text-[11px]@1492 text-[11px]@1520
 src/components/students/planned-status-days-modal.tsx|text-[10px]@936 text-[11px]@936
@@ -1182,15 +1199,15 @@ src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@401 text-[9px]@417 text-[10px]@477 text-[11px]@477 text-[11px]@482 text-[10px]@505 text-[10px]@540 text-[11px]@540
 src/components/ui/avatar.tsx|text-[10px]@32
-src/components/ui/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
+src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[11px]@122 text-[11px]@123 text-[10px]@295 text-[10px]@322
 src/components/ui/notification-badge.tsx|text-[10px]@15
-src/components/ui/origin-chip.tsx|text-[11px]@24
+src/components/ui/planning/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
 src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@463 text-[11px]@535
 src/components/ui/parent-visible-badge.tsx|text-[11px]@44
-src/components/ui/plan-block.tsx|text-[11px]@154 text-[11px]@175
-src/components/ui/plan-legend.tsx|text-[11px]@106
+src/components/ui/planning/plan-block.tsx|text-[11px]@154 text-[11px]@175
+src/components/ui/planning/plan-legend.tsx|text-[11px]@106
 src/components/ui/presence-badge.tsx|text-[11px]@83 text-[11px]@84 text-[10px]@239
 `);
 
@@ -1609,6 +1626,87 @@ const requireCheckboxLabel = {
   },
 };
 
+// --- ui-kit/no-kit-domain-import ---------------------------------------------
+//
+// The kit works in every portal, so it knows no domain: a file under
+// components/ui/ imports nothing from other component folders and loads no
+// data. Context arrives through props and slots (#5586).
+
+const KIT_DATA_HOOK_RE = /^useSWR/;
+
+function kitImportLeavesKit(source, key) {
+  if (source === "swr" || source.startsWith("swr/")) return true;
+  const alias = /^[~@]\/(.*)$/.exec(source);
+  let target;
+  if (alias) {
+    target = `src/${alias[1]}`;
+  } else if (source.startsWith(".")) {
+    const parts = key.split("/").slice(0, -1);
+    for (const part of source.split("/")) {
+      if (part === "..") parts.pop();
+      else if (part !== ".") parts.push(part);
+    }
+    target = parts.join("/");
+  } else {
+    return false;
+  }
+  if (target.startsWith(UI_KIT_DIR)) return false;
+  return target.startsWith("src/components/") || target.startsWith("src/app/");
+}
+
+const noKitDomainImport = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Files under components/ui import no domain components and load no data.",
+    },
+    messages: {
+      domainImport:
+        "Das Kit importiert keine Fachlogik ('{{source}}'). Baustein nach components/ui ziehen oder Kontext über Props oder Slots hereinreichen (#5586, .claude/rules/frontend-ui-kit.md).",
+      dataAccess:
+        "Das Kit lädt keine Daten ('{{name}}'). Die Daten kommen über Props vom fachlichen Aufrufer (#5586, .claude/rules/frontend-ui-kit.md).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
+
+    const checkSource = (node, source) => {
+      if (typeof source !== "string" || !kitImportLeavesKit(source, key))
+        return;
+      context.report({ node, messageId: "domainImport", data: { source } });
+    };
+    const checkDeclaration = (node) => checkSource(node, node.source?.value);
+
+    return {
+      ImportDeclaration: checkDeclaration,
+      ExportNamedDeclaration: checkDeclaration,
+      ExportAllDeclaration: checkDeclaration,
+      ImportExpression(node) {
+        checkSource(node, node.source?.value);
+      },
+      CallExpression(node) {
+        const { callee } = node;
+        const name =
+          callee.type === "Identifier"
+            ? callee.name
+            : callee.type === "MemberExpression" &&
+                !callee.computed &&
+                callee.object.type === "Identifier" &&
+                (callee.object.name === "window" ||
+                  callee.object.name === "globalThis")
+              ? callee.property.name
+              : null;
+        if (name === "fetch" || (name && KIT_DATA_HOOK_RE.test(name))) {
+          context.report({ node, messageId: "dataAccess", data: { name } });
+        }
+      },
+    };
+  },
+};
+
 // --- ui-kit/no-raw-input ----------------------------------------------------
 
 // A native input that has no kit counterpart: a value carried in the form
@@ -1633,6 +1731,23 @@ function staticInputType(openingElement) {
   return null;
 }
 
+// Kit files that are the primitive themselves: every other kit file composes
+// them (#5586). Each entry names what the native element is for.
+const RAW_INPUT_KIT_PRIMITIVES = new Map([
+  ["src/components/ui/input.tsx", "Input"],
+  ["src/components/ui/textarea.tsx", "Textarea"],
+  ["src/components/ui/checkbox.tsx", "Checkbox: sr-only control"],
+  ["src/components/ui/radio.tsx", "Radio: sr-only control"],
+  ["src/components/ui/time-field.tsx", "TimeField: native time input"],
+  ["src/components/ui/date-picker.tsx", "DatePicker: text entry of the date"],
+  [
+    "src/components/ui/color-swatch-input.tsx",
+    "ColorSwatchInput: colour dialog",
+  ],
+  ["src/components/ui/page-header/SearchBar.tsx", "SearchBar: combobox field"],
+  ["src/components/ui/listbox-dropdown.tsx", "ListboxDropdown: filter field"],
+]);
+
 const noRawInput = {
   meta: {
     type: "problem",
@@ -1653,7 +1768,7 @@ const noRawInput = {
     // Test mocks stand in for a kit control and render its native input.
     if (
       EXEMPT_FILE_RE.test(key) ||
-      key.includes(UI_KIT_DIR) ||
+      RAW_INPUT_KIT_PRIMITIVES.has(key) ||
       key.includes("src/test/")
     ) {
       return {};
@@ -2916,6 +3031,7 @@ export default {
     "no-important-override": noImportantOverride,
     "no-pill-dot": noPillDot,
     "no-raw-input": noRawInput,
+    "no-kit-domain-import": noKitDomainImport,
     "no-raw-z-index": noRawZIndex,
     "no-select-override": noSelectOverride,
     "no-rounded-3xl": noRounded3xl,

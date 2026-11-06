@@ -10,9 +10,11 @@
 import { Plus, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CareContractConclusionCard } from "~/components/traeger/care-contract-conclusion-card";
+import { useSession } from "next-auth/react";
 import { CareContractCreateModal } from "~/components/traeger/care-contract-create-modal";
 import {
+  CONCLUSION_MODE_LABELS,
+  CONCLUSION_MODE_TONES,
   CONTRACT_STATUS_LABELS,
   CONTRACT_STATUS_ORDER,
   CONTRACT_STATUS_TONES,
@@ -21,7 +23,7 @@ import {
   formatModules,
 } from "~/components/traeger/care-contract-format";
 import { careContractTabs } from "~/components/traeger/care-contract-tabs";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -30,6 +32,8 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
+import { SectionCard } from "~/components/ui/section-card";
+import { hasPermission } from "~/lib/auth-utils";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import {
@@ -65,6 +69,17 @@ interface PageData {
   readonly candidates: readonly ContractCandidate[];
   readonly schools: readonly TraegerSchool[];
   readonly modes: readonly SchoolConclusionMode[];
+}
+
+function conclusionDescription(modes: readonly SchoolConclusionMode[]): string {
+  const onAcceptance = modes.filter((school) => school.mode === "bei_annahme");
+  if (onAcceptance.length === 0) {
+    return "Sie erstellen jeden Vertrag hier und schicken ihn den Eltern.";
+  }
+  if (onAcceptance.length === modes.length) {
+    return "Nimmt die Schule eine Anmeldung an, gilt der Vertrag. Die Eltern bekommen ihn per E-Mail und in der Eltern-App. Voraussetzung: Die Eltern haben im Anmeldeformular den Vertragsbedingungen zugestimmt, und Sie haben die Bedingungen seitdem nicht geändert.";
+  }
+  return "Bei „Gilt bei der Annahme“ entsteht der Vertrag von selbst, sobald die Schule die Anmeldung annimmt. Voraussetzung: Die Eltern haben im Anmeldeformular den Vertragsbedingungen zugestimmt. Die anderen Verträge erstellen und verschicken Sie hier.";
 }
 
 function contractHref(contract: CareContractSummary): string {
@@ -158,6 +173,7 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
 
 export default function TraegerVertraegePage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [data, setData] = useState<PageData | null>(null);
   const [status, setStatus] = useState<StatusChoice>("all");
   const [schoolId, setSchoolId] = useState("");
@@ -196,7 +212,22 @@ export default function TraegerVertraegePage() {
               fetchTraegerSchools(),
               fetchConclusionModes(),
             ]).then(([candidates, schools, modes]) => ({
-              candidates,
+              candidates: candidates.map((candidate) =>
+                modes.some(
+                  (school) =>
+                    school.schoolId === candidate.schoolId &&
+                    school.mode === "bei_annahme",
+                )
+                  ? {
+                      ...candidate,
+                      templateIssue:
+                        candidate.templateIssue ??
+                        (candidate.hasAcceptance
+                          ? ("conclusion_automatic" as const)
+                          : ("acceptance_missing" as const)),
+                    }
+                  : candidate,
+              ),
               schools,
               modes,
             })),
@@ -446,7 +477,43 @@ export default function TraegerVertraegePage() {
         ) : null
       }
     >
-      {data ? <CareContractConclusionCard modes={data.modes} /> : null}
+      {data && data.modes.length > 0 ? (
+        <SectionCard
+          title="Wann gilt der Vertrag?"
+          description={conclusionDescription(data.modes)}
+          action={
+            hasPermission(session, "traeger_overview:read") ? (
+              <ButtonLink
+                href={traegerPath("/traeger/einstellungen")}
+                variant="surface"
+                size="compact"
+              >
+                In den Einstellungen ändern
+              </ButtonLink>
+            ) : null
+          }
+        >
+          <ul
+            aria-label="Abschluss je Schule"
+            className="divide-y divide-gray-100"
+          >
+            {data.modes.map((school) => (
+              <li
+                key={school.schoolId}
+                className="flex flex-wrap items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+              >
+                <span className="min-w-0 text-sm font-medium wrap-anywhere text-gray-900">
+                  {school.schoolName}
+                </span>
+                <StatusBadge
+                  label={CONCLUSION_MODE_LABELS[school.mode]}
+                  tone={CONCLUSION_MODE_TONES[school.mode]}
+                />
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      ) : null}
       {data ? (
         <DataTable
           columns={COLUMNS}

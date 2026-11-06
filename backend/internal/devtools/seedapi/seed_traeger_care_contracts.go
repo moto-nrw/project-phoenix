@@ -13,11 +13,12 @@ import (
 // every accepted application over all modules the child books, and every
 // second draft sent. The last few candidates of one school get no draft:
 // that school then concludes its contracts at the acceptance (#4680), so the
-// Worker's conclusion makes theirs active within minutes. The page
-// "Verträge" then shows drafts, sent and active contracts side by side.
-// Lina Amini, whose parents' change of care the school approved (parent
-// enrollment seed), is among the active ones: the Worker's next run gives
-// her contract version 2 from the day of the change (#4681).
+// Worker's conclusion checks their acceptance evidence. Legacy demo
+// submissions without a ticked, checksummed conditions block stay candidates;
+// the seed never fabricates retrospective parental consent. Lina Amini, whose
+// parents' change of care the school approved (parent enrollment seed), is
+// reserved there too: once her contract is active, the Worker's next run
+// gives it version 2 from the day of the change (#4681).
 // Every step is idempotent, so several demo schools may seed the same
 // Träger at once.
 type seedTraegerCareContractsStep struct{}

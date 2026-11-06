@@ -10062,7 +10062,7 @@ export const traegerCareContractsTopic =
         {
           title: "Bei der Annahme: nichts zu tun",
           steps: [
-            "Die Schule nimmt die Anmeldung an.",
+            "Im Anmeldeformular stimmen die Eltern den Vertragsbedingungen zu. Dafür ist bei `AGB / Teilnahmebedingungen im Anmeldeformular anzeigen` der Schalter an. Die Schule nimmt die Anmeldung an.",
             "Nach wenigen Minuten steht der Vertrag in der Liste. Sein Status ist `Aktiv`.",
             "Die Eltern bekommen das PDF per Mail und in der Eltern-App. Sie müssen nichts unterschreiben.",
             "Auf der Vertragsseite steht unter `Abgeschlossen`, wann der Vertrag gilt.",
@@ -10116,11 +10116,13 @@ export const traegerCareContractsTopic =
       ],
       troubleshootingDetails: [
         "Die Schule hat angenommen, aber nach einigen Minuten steht kein aktiver Vertrag da? Dann fehlt etwas. Das Kind steht in `Verträge erstellen` mit dem Grund, zum Beispiel `Vertragsbedingungen fehlen`. Fehlt die E-Mail-Adresse der Eltern, ergänzt die Schule sie in der Anmeldung. moto versucht es danach von selbst noch einmal.",
+        "Ein Kind zeigt `Zustimmung zum Vertrag fehlt`? Die Eltern haben in der Anmeldung den Vertragsbedingungen nicht zugestimmt, oder Sie haben die Bedingungen danach geändert. Dann entsteht kein aktiver Vertrag. Stellen Sie die Schule auf `Später verschicken` und schicken Sie den Vertrag. Eine frühere Anmeldung wird nicht nachträglich verbindlich.",
+        "Schulen mit `Bei der Annahme` erlauben keine manuellen Entwürfe. Bereits vorhandene Entwürfe werden nicht automatisch abgeschlossen. Prüfen und verwerfen Sie diese bei Bedarf.",
         "Ein Kind fehlt in `Verträge erstellen`? Die Schule hat die Anmeldung noch nicht angenommen, oder das Kind hat schon einen Vertrag.",
         "Ein Kind zeigt `Bedingungen der Module weichen ab`? Das Kind hat mehrere Module gebucht, und deren Vertragsbedingungen sind verschieden. Ein Vertrag hat eine Laufzeit und eine Frist. Gleichen Sie die Bedingungen der Module an.",
         "Eine Endzeit fehlt? Das Modul hat für diesen Tag keine Gehzeit. Die Schule trägt sie beim Angebot ein.",
         "Ein Entwurf ist falsch? Wählen Sie auf seiner Seite oben `Entwurf verwerfen`. Danach erstellen Sie ihn neu. Einen versendeten Vertrag können Sie nicht verwerfen.",
-        "Der Versand zeigt `Nicht angekommen`? Prüfen Sie die Adresse mit der Schule. Tragen Sie auf der Vertragsseite unter `Versand` die `Neue Versandadresse` ein. Wählen Sie `An diese Adresse senden`. Das PDF, die Vertragspartei und bisherige Versanddaten bleiben gleich. Spätere Wiederholungen nutzen die letzte Versandadresse.",
+        "Der Versand zeigt `Nicht angekommen`? Prüfen Sie die Adresse mit der Schule. Tragen Sie auf der Vertragsseite unter `Versand` die `Neue Versandadresse` ein. Wählen Sie `An diese Adresse senden`. Das geht auch bei aktiven Verträgen. Das PDF, der Abschluss, die Vertragspartei und bisherige Versanddaten bleiben gleich. Spätere Wiederholungen nutzen die letzte Versandadresse.",
         "Der Name des Vertragspartners fehlt? Ergänzen Sie den Briefkopf. Oder verwerfen Sie den Entwurf und erstellen ihn mit eingetragenem Vertragspartner neu.",
         "Die Schule hat eine Änderung freigegeben, aber es gibt keine neue Version? Neue Versionen bekommen nur aktive Verträge. Bucht das Kind ab dem Tag gar keine Betreuung mehr, ist das eine Kündigung und keine neue Version.",
       ],
@@ -10132,7 +10134,7 @@ export const traegerCareContractsTopic =
     };
   } satisfies typeof authored_traegerCareContractsTopic;
 
-/** `/traeger/uebersicht` (#4674), in der Navigation „Dashboard": die Zahlen von jetzt für alle Schulen. */
+/** `/traeger/uebersicht` (#4674), in der Navigation „Dashboard": die Zahlen von jetzt für alle Schulen und ihre Auffälligkeiten (#4675). */
 export const traegerDashboardTopic =
   function traegerDashboardTopic(): HelpTopic {
     return {
@@ -10147,23 +10149,35 @@ export const traegerDashboardTopic =
       steps: [
         "Wählen Sie in der Navigation `Dashboard`.",
         "Lesen Sie oben die Summe für alle Schulen.",
+        "Prüfen Sie unter `Auffälligkeiten`, an welcher Schule etwas Ihre Grenzen erreicht.",
+        "Wählen Sie dort `Zur Schule`, um die Schule anzusehen.",
         "Lesen Sie unter `Zahlen je Schule` die Zahlen jeder Schule.",
         "Wählen Sie eine Schule, um ihre Zahlen und Stammdaten zu sehen.",
       ],
       result:
-        "Sie sehen für jede Schule, wie viele Kinder gerade da sind, wie viele heute krank sind und wie viele Betreuungskräfte angemeldet sind.",
+        "Sie sehen für jede Schule, wie viele Kinder gerade da sind, wie viele heute krank sind, wie viele Betreuungskräfte angemeldet sind und wie viele Anmeldungen offen sind.",
       notes: [
         "Die Zahlen aktualisieren sich jede Minute von selbst.",
         "Sie sehen nur Zahlen, keine Namen.",
         "Mit einem Klick auf eine Spaltenüberschrift sortieren Sie die Schulen, zum Beispiel nach `Heute krank`.",
         "Bei vielen Schulen finden Sie eine Schule schneller über das Suchfeld. Sie können nach dem Namen oder dem Ort suchen.",
         "`Betreuungsschlüssel` heißt: Eine anwesende Betreuungskraft kommt auf so viele anwesende Kinder. Oben gilt das für alle Schulen zusammen.",
+        "`Auffälligkeiten` kennt drei Hinweise: `Zu wenig Personal`, `Viele Krankmeldungen` und `Offene Anmeldungen`. In der Tabelle sind die Zahlen dazu orange mit einem Warnzeichen.",
+        "Mit dem Feld `Alle Schulen` zeigen Sie nur die Hinweise einer Schule.",
+        "Ab wann eine Schule auffällt, legen Sie selbst fest. Wählen Sie dazu `Grenzen ändern`. Mehr dazu steht im Artikel `Einstellungen für alle Schulen festlegen`.",
+        "`Offene Anmeldungen` zählt die Kinder aus der Online-Anmeldung, über die die Schule noch nicht entschieden hat.",
       ],
       differences: [
         "`Betreuungskräfte` zählt nur, wer sich in der Zeiterfassung angemeldet hat. Homeoffice zählt nicht. Nutzt eine Schule die Zeiterfassung nicht, steht dort 0 und beim Schlüssel `–`.",
         "Ohne das Recht `In OGS wechseln` fehlt die Aktion `Schul-App öffnen`. Die Zahlen sehen Sie trotzdem.",
+        "Ohne das Recht, Einstellungen zu ändern, steht dort `Grenzen ansehen` statt `Grenzen ändern`.",
+        "Steht unter `Auffälligkeiten` „Gerade ist an keiner Schule etwas auffällig.“? Dann erreicht keine Schule Ihre Grenzen.",
       ],
-      related: [HELP_TOPICS.traegerSchoolView, HELP_TOPICS.traegerSchoolSwitch],
+      related: [
+        HELP_TOPICS.traegerSchoolView,
+        HELP_TOPICS.traegerSchoolSwitch,
+        HELP_TOPICS.traegerSettings,
+      ],
     };
   } satisfies typeof authored_traegerDashboardTopic;
 
@@ -10964,6 +10978,7 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
       "Im Bereich `Ferienbetreuung` legen Sie fest, ob Sie beim Bestätigen einer Ferienanmeldung die Debitorennummer der Familie abfragen. Diese Einstellung gilt nur im Träger-Büro.",
       "Ebenfalls unter `Ferienbetreuung` schreiben Sie bei `Zahlungstext im Schreiben` einen eigenen Satz, der um die Zahlung bittet. Erlaubte Platzhalter sind {Betrag}, {Zahlungsfrist}, {Rechnungsnummer} und {Debitorennummer}. Darunter zeigt die `Vorschau des Zahlungstexts` den Satz mit Beispielwerten. Ist das Feld leer, steht im Schreiben der eingebaute Satz.",
       "Der eigene Zahlungstext gilt für die Schreiben, die Sie danach erstellen. Fertige Schreiben bleiben, wie sie sind.",
+      "Im Bereich `Dashboard` legen Sie fest, ab wann das Dashboard eine Schule unter `Auffälligkeiten` zeigt: bei zu wenig Personal, bei vielen Krankmeldungen und bei offenen Anmeldungen. 0 schaltet einen Hinweis aus.",
       "Unter `Ferienbetreuung` legen Sie bei `Ferienbeitrag` auch fest, welches Kind das erste Kind ist und was ein Kostenträger bezahlt. Mehr dazu steht im Artikel `Ferienbeitrag festlegen`.",
     ],
     differences: [

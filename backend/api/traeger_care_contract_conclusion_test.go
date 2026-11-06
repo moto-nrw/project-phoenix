@@ -9,10 +9,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +23,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -100,6 +104,7 @@ func TestCareContractIsConcludedAtTheAcceptanceWhereTheSchoolSaysSo(t *testing.T
 
 	// Without the school's own value the Träger's holds.
 	setSchoolConclusionMode(t, f, "")
+	accepted := recordCareContractAcceptance(t, f)
 	run = careContractConclusionRun(t, f)
 	require.Len(t, run.Concluded, 1)
 	assert.Empty(t, run.Skipped)
@@ -118,6 +123,9 @@ func TestCareContractIsConcludedAtTheAcceptanceWhereTheSchoolSaysSo(t *testing.T
 	assert.Equal(t, "wirksam", detail.Version.Status)
 	require.NotNil(t, detail.Concluded)
 	assert.Equal(t, carecontract.MethodWithApplication, detail.Concluded.Method)
+	acceptedAt, err := time.Parse(time.RFC3339Nano, detail.Concluded.At)
+	require.NoError(t, err)
+	assert.WithinDuration(t, accepted, acceptedAt, time.Millisecond, "the conclusion keeps the instant of the school's acceptance")
 	assert.True(t, detail.DocumentFrozen, "the parents received the frozen PDF")
 	require.Len(t, detail.Mailings, 1)
 	assert.Equal(t, "erika.muster@example.org", detail.Mailings[0].Recipient)
@@ -157,10 +165,34 @@ func TestCareContractIsConcludedAtTheAcceptanceWhereTheSchoolSaysSo(t *testing.T
 	rec = traegerJSON(t, f.traeger, token, http.MethodGet, "/traeger/contracts/candidates", nil)
 	assert.Empty(t, decodeSchoolPortalData[[]careContractCandidateBody](t, rec.Body.Bytes()))
 
-	// An active contract can be neither sent again nor discarded.
+	// An active contract cannot be discarded; a pending mailing still
+	// prevents duplicate sends.
 	rec = traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send", map[string]any{"contract_ids": []int64{id}})
 	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "not_sendable")
+	assert.Contains(t, rec.Body.String(), "mail_pending")
+	// A terminal failure can be corrected without changing the conclusion or PDF.
+	pdf := traegerJSON(t, f.traeger, token, http.MethodGet, contractPath(id, "/document"), nil)
+	require.Equal(t, http.StatusOK, pdf.Code, pdf.Body.String())
+	beforePDF := pdf.Body.Bytes()
+	assert.True(t, bytes.HasPrefix(beforePDF, []byte("%PDF")))
+	_, err = f.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'dead_letter', dead_letter_at = NOW(), last_error = 'recipient rejected'
+  WHERE organization_id = ? AND kind = 'care_contract' AND related_entity_id = ?`, f.office.organization, id)
+	require.NoError(t, err)
+	rec = traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send", map[string]any{"contract_ids": []int64{id}, "recipient_email": "korrigiert@example.org"})
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), fmt.Sprintf(`"sent":[%d]`, id))
+	afterPDF := traegerJSON(t, f.traeger, token, http.MethodGet, contractPath(id, "/document"), nil).Body.Bytes()
+	assert.Equal(t, beforePDF, afterPDF)
+	rec = traegerJSON(t, f.traeger, token, http.MethodGet, contractPath(id, ""), nil)
+	after := decodeSchoolPortalData[struct {
+		careContractDetailBody
+		Concluded *carecontract.Concluded `json:"concluded"`
+	}](t, rec.Body.Bytes())
+	assert.Equal(t, "aktiv", after.Status)
+	require.NotNil(t, after.Concluded)
+	assert.WithinDuration(t, accepted, after.Concluded.At, time.Millisecond, "a corrected send keeps the conclusion")
+	require.Len(t, after.Mailings, 2)
+	assert.Equal(t, "korrigiert@example.org", after.Mailings[0].Recipient)
 	rec = traegerJSON(t, f.traeger, token, http.MethodDelete, contractPath(id, ""), nil)
 	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	rec = traegerJSON(t, f.traeger, token, http.MethodGet, "/traeger/contracts?status=aktiv", nil)
@@ -182,6 +214,7 @@ func TestCareContractConclusionHoldsBackAChildItCannotConcludeYet(t *testing.T) 
 	// Without the parents' address the contract cannot reach them: the
 	// whole Träger transaction rolls back, so no draft blocks a later run.
 	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	recordCareContractAcceptance(t, f)
 	_, err := f.db.ExecContext(context.Background(), `UPDATE enrollment.requests SET guardian_email = ''
 		WHERE id = (SELECT request_id FROM enrollment.request_children WHERE id = ?)`, f.child)
 	require.NoError(t, err)
@@ -233,4 +266,84 @@ func TestCareContractConclusionModesNameTheWayOfEverySchool(t *testing.T) {
 	billing := traegerColleague(t, f.reviewFixture, identityaccess.TraegerRoleBilling)
 	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, "/traeger/contracts/conclusion-modes", nil)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+}
+
+func TestCareContractConclusionRequiresTheTickedConditions(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Nachweis")
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	setTraegerConclusionMode(t, f, carecontract.ModeOnAcceptance)
+	run := careContractConclusionRun(t, f)
+	assert.Empty(t, run.Concluded, "approval alone is no proof of agreement to the current contract")
+	require.Len(t, run.Skipped, 1)
+	assert.Equal(t, "acceptance_missing", run.Skipped[0].Reason)
+	assert.Zero(t, careContractRows(t, f))
+	recordCareContractAcceptance(t, f)
+	_, err := f.db.ExecContext(context.Background(), `UPDATE enrollment.requests
+  SET legal_blocks_snapshot = jsonb_set(legal_blocks_snapshot, '{0,blocks,0,text_sha256}', '"invalid"'::jsonb)
+  WHERE id = (SELECT request_id FROM enrollment.request_children WHERE id = ?)`, f.child)
+	require.NoError(t, err)
+	run = careContractConclusionRun(t, f)
+	assert.Empty(t, run.Concluded, "an invalid checksum cannot establish agreement")
+	require.Len(t, run.Skipped, 1)
+	assert.Equal(t, carecontract.SkipAcceptanceMissing, run.Skipped[0].Reason)
+	assert.Zero(t, careContractRows(t, f))
+}
+
+func TestCareContractAutomaticModeRefusesManualDrafts(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Keine Entwürfe")
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	setTraegerConclusionMode(t, f, carecontract.ModeOnAcceptance)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, "/traeger/contracts", map[string]any{"contracts": []any{f.key()}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	result := decodeSchoolPortalData[careContractCreateBody](t, rec.Body.Bytes())
+	assert.Empty(t, result.Created)
+	assert.Contains(t, rec.Body.String(), "conclusion_automatic")
+	assert.Zero(t, careContractRows(t, f))
+}
+
+// recordCareContractAcceptance arranges a parent submission whose required
+// conditions block was ticked, with the checksum taken when it was shown,
+// after the conditions were saved; the school accepted it an hour later. The
+// instants come from the database clock, which also stamps the templates.
+// It returns the instant of the acceptance.
+func recordCareContractAcceptance(t *testing.T, f careContractFixture) time.Time {
+	t.Helper()
+	ctx := context.Background()
+	var submitted time.Time
+	require.NoError(t, f.db.NewRaw(`SELECT NOW()`).Scan(ctx, &submitted))
+	accepted := submitted.Add(time.Hour)
+	text := "Es gelten die Teilnahmebedingungen des Trägers mit Laufzeit, Kündigungsfrist und Satzung."
+	snapshot, err := json.Marshal([]enrollment.LegalBlocksSnapshotEntry{{
+		SnapshotAt: submitted, ConsentFlags: json.RawMessage(`{"terms":true}`),
+		Blocks: []enrollment.LegalBlockSnapshot{{Key: "terms", Kind: enrollment.LegalBlockKindTerms,
+			Required: true, Text: text, TextSHA256: securityruntime.Fingerprint([]byte(text))}},
+	}})
+	require.NoError(t, err)
+	_, err = f.db.ExecContext(ctx, `UPDATE enrollment.requests SET legal_blocks_snapshot = ?::jsonb, submission_source = 'public'
+  WHERE id = (SELECT request_id FROM enrollment.request_children WHERE id = ?)`, string(snapshot), f.child)
+	require.NoError(t, err)
+	_, err = f.db.ExecContext(ctx, `UPDATE enrollment.request_children SET reviewed_at = ? WHERE id = ?`, accepted, f.child)
+	require.NoError(t, err)
+	return accepted
+}
+
+func TestCareContractConclusionRefusesChangedConditions(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Geänderte Bedingungen")
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	recordCareContractAcceptance(t, f)
+	changed := map[string]any{}
+	for key, value := range careContractTemplate {
+		changed[key] = value
+	}
+	changed["notice_months"] = 3
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), changed).Code)
+	setTraegerConclusionMode(t, f, carecontract.ModeOnAcceptance)
+	run := careContractConclusionRun(t, f)
+	assert.Empty(t, run.Concluded)
+	require.Len(t, run.Skipped, 1)
+	assert.Equal(t, carecontract.SkipAcceptanceChanged, run.Skipped[0].Reason)
+	assert.Zero(t, careContractRows(t, f), "no draft or mail survives the rejected evidence")
 }
