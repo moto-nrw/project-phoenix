@@ -5,8 +5,14 @@
   "api/traeger/schools/[id]": [
     "GET traeger /traeger/schools/id%2F1"
   ],
+  "api/traeger/schools/alerts": [
+    "GET traeger /traeger/schools/alerts"
+  ],
   "api/traeger/schools/key-date-counts": [
     "GET traeger /traeger/schools/key-date-counts"
+  ],
+  "api/traeger/schools/occupancy": [
+    "GET traeger /traeger/schools/occupancy"
   ],
   "api/traeger/schools/today": [
     "GET traeger /traeger/schools/today"

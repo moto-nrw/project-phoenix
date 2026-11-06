@@ -8,7 +8,7 @@ import { apiErrorFromBody, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
 import type { TraegerSchool } from "./traeger-api";
 
-export interface TraegerOccupancyGroup {
+interface TraegerOccupancyGroup {
   readonly id: string;
   readonly name: string;
   readonly children: number;
