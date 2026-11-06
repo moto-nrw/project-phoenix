@@ -36,5 +36,6 @@ export function useTraegerSchool(id: string) {
       school.data !== null,
       school.failure,
     ),
+    reload: school.reload,
   };
 }

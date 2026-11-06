@@ -33,5 +33,6 @@ export function useTraegerKeyDateCounts() {
       counts.data !== null,
       counts.failure,
     ),
+    reload: counts.reload,
   };
 }
