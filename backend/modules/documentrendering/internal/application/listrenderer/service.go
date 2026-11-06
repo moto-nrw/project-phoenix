@@ -74,8 +74,10 @@ func safeFilename(input string) string {
 	var b strings.Builder
 	lastDash := false
 	for _, r := range input {
-		ok := unicode.IsLetter(r) || unicode.IsDigit(r) || (unicode.Is(unicode.Mn, r) && !lastDash && b.Len() > 0)
-		if ok {
+		// A combining mark NFC could not compose stays with the letter before
+		// it; after a dash or at the start it has nothing to belong to.
+		keepsMark := unicode.Is(unicode.Mn, r) && !lastDash && b.Len() > 0
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || keepsMark {
 			b.WriteRune(r)
 			lastDash = false
 			continue

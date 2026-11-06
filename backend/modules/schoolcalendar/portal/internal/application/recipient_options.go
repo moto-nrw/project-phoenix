@@ -14,9 +14,8 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 		limit = 25
 	}
 	search := recipientQueryFor(query)
-	query = search.folded
 
-	staffOptions, err := s.staffRecipientOptions(ctx, query, limit)
+	staffOptions, err := s.staffRecipientOptions(ctx, search.folded, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -24,15 +23,15 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 	if err != nil {
 		return nil, err
 	}
-	groupOptions, err := s.groupRecipientOptions(ctx, query, limit)
+	groupOptions, err := s.groupRecipientOptions(ctx, search.folded, limit)
 	if err != nil {
 		return nil, err
 	}
-	classOptions, err := s.classRecipientOptions(ctx, query, limit)
+	classOptions, err := s.classRecipientOptions(ctx, search.folded, limit)
 	if err != nil {
 		return nil, err
 	}
-	studentOptions, err := s.studentRecipientOptions(ctx, query, limit)
+	studentOptions, err := s.studentRecipientOptions(ctx, search.folded, limit)
 	if err != nil {
 		return nil, err
 	}

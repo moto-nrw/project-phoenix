@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
@@ -211,10 +212,10 @@ func (s *Store) Search(ctx context.Context, filter peopledirectory.PersonFilter)
 	rows := []personRow{}
 	query := withTenant(personSelect(db, &rows).Where(`"person".deleted_at IS NULL`), scope)
 	if filter.FirstNamePrefix != "" {
-		query = query.Where(`public.f_unaccent("person".first_name) ILIKE `+unaccentLikePattern+` || '%'`, filter.FirstNamePrefix)
+		query = query.Where(`public.f_unaccent("person".first_name) ILIKE `+collation.UnaccentLikePatternSQL+` || '%' ESCAPE '\'`, filter.FirstNamePrefix)
 	}
 	if filter.LastNamePrefix != "" {
-		query = query.Where(`public.f_unaccent("person".last_name) ILIKE `+unaccentLikePattern+` || '%'`, filter.LastNamePrefix)
+		query = query.Where(`public.f_unaccent("person".last_name) ILIKE `+collation.UnaccentLikePatternSQL+` || '%' ESCAPE '\'`, filter.LastNamePrefix)
 	}
 	if filter.FirstNameEquals != "" {
 		query = query.Where(`LOWER(NORMALIZE(BTRIM("person".first_name), NFC)) = LOWER(NORMALIZE(BTRIM(?), NFC))`, filter.FirstNameEquals)
@@ -223,7 +224,7 @@ func (s *Store) Search(ctx context.Context, filter peopledirectory.PersonFilter)
 		query = query.Where(`LOWER(NORMALIZE(BTRIM("person".last_name), NFC)) = LOWER(NORMALIZE(BTRIM(?), NFC))`, filter.LastNameEquals)
 	}
 	if filter.FullNameContains != "" {
-		query = query.Where(`public.f_unaccent("person".first_name || ' ' || "person".last_name) ILIKE '%' || `+unaccentLikePattern+` || '%'`, filter.FullNameContains)
+		query = query.Where(`public.f_unaccent("person".first_name || ' ' || "person".last_name) ILIKE '%' || `+collation.UnaccentLikePatternSQL+` || '%' ESCAPE '\'`, filter.FullNameContains)
 	}
 	if filter.TagID != "" {
 		query = query.Where(`"person".tag_id = ?`, filter.TagID)
@@ -530,11 +531,6 @@ func withTenant[Q interface {
 	}
 	return query.Where(`"person".tenant_id = ?`, scope.TenantID)
 }
-
-// unaccentLikePattern folds the search text bound to ? with public.f_unaccent
-// and then escapes its LIKE metacharacters. The order matters: unaccent turns
-// fullwidth ％, ＿ and ＼ into %, _ and \ (#5791).
-const unaccentLikePattern = `replace(replace(replace(public.f_unaccent(?), '\', '\\'), '%', '\%'), '_', '\_')`
 
 func toDomain(row personRow) peopledirectory.Person {
 	birthday := ""

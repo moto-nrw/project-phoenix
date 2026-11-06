@@ -12,6 +12,7 @@ import (
 
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // Error messages (S1192 - avoid duplicate string literals)
@@ -467,7 +468,7 @@ func (r *guardianProfileRepository) SearchByText(ctx context.Context, searchText
 		pattern := "%" + escapeLikePattern(tok) + "%"
 		// Escape AFTER unaccent, which can turn fullwidth punctuation into LIKE
 		// metacharacters. Keep email matching on its original, unnormalized token.
-		namePattern := bun.SafeQuery(`'%' || replace(replace(replace(public.f_unaccent(?), '\', '\\'), '%', '\%'), '_', '\_') || '%'`, tok)
+		namePattern := bun.SafeQuery(`'%' || `+collation.UnaccentLikePatternSQL+` || '%'`, tok)
 		// A token unaccent removes entirely (accent or enclosing marks alone)
 		// matches nothing instead of widening to every guardian.
 		query = query.Where(

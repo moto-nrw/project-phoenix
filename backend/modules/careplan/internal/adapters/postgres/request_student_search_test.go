@@ -78,3 +78,25 @@ func TestWithdrawalSearchIgnoresAccents(t *testing.T) {
 		assert.Equal(t, wanted.ID, *rows[0].StudentID, search)
 	}
 }
+
+// The withdrawal queue's search treats LIKE characters literally, also the
+// fullwidth ones unaccent turns into them (#5791).
+func TestWithdrawalSearchTreatsLikeCharactersLiterally(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	store := NewDirectoryStore(New(func(context.Context) (bun.IDB, int64, error) {
+		return db, testpkg.Tenant(t), nil
+	}), testpkg.StudentDirectory{})
+	actor := testpkg.CreateTestAccount(t, db, fmt.Sprintf("withdrawal-like-%d@example.com", testpkg.UniqueSuffix()))
+	student := testpkg.CreateTestStudent(t, db, "Zoë", "Özdemir", "2b")
+	testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, actor.ID, calendar.NewDate(2026, 9, 1))
+
+	for _, search := range []string{"％", "＿", "%", "_"} {
+		rows, total, _, err := store.ListWithdrawals(ctx, careplan.WithdrawalStatePending, careplan.WithdrawalListFilter{Search: search, Page: 1, PageSize: 10})
+		require.NoError(t, err, search)
+		assert.Zero(t, total, search)
+		assert.Empty(t, rows, search)
+	}
+}

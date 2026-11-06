@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 	"github.com/uptrace/bun"
 )
 
@@ -18,13 +19,13 @@ func NewRequestStore(store *Store, directory StudentDirectory) *requestStore {
 	return &requestStore{Store: store, directory: directory}
 }
 
-// filterRequestQueueStudentName escapes LIKE metacharacters after unaccent,
-// which turns fullwidth ％, ＿ and ＼ into %, _ and \ (#5791).
+// filterRequestQueueStudentName matches the name without accents; the
+// pattern escapes LIKE metacharacters after folding (#5791).
 func filterRequestQueueStudentName(directory StudentDirectory, query *bun.SelectQuery, alias, search string) *bun.SelectQuery {
 	return query.Where("?", bun.SafeQuery(`? IN (
   SELECT student.id FROM (?) AS student
   JOIN users.persons AS person ON person.id = student.person_id AND person.tenant_id = student.tenant_id
   WHERE student.tenant_id = ?
-  AND public.f_unaccent(person.first_name || ' ' || person.last_name) ILIKE '%' || replace(replace(replace(public.f_unaccent(?), '\', '\\'), '%', '\%'), '_', '\_') || '%' ESCAPE '\'
+  AND public.f_unaccent(person.first_name || ' ' || person.last_name) ILIKE '%' || `+collation.UnaccentLikePatternSQL+` || '%' ESCAPE '\'
  )`, bun.Ident(alias+".student_id"), directory.AllSchoolsStudentRows(query.DB()), bun.Ident(alias+".tenant_id"), search))
 }
