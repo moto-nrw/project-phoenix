@@ -2,6 +2,10 @@
 
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
 import { cn } from "~/lib/utils";
 
 export type GroupHeaderVariant = "neutral" | "warning" | "success";
@@ -28,10 +32,10 @@ const CHEVRON_COLOR: Record<GroupHeaderVariant, string> = {
   success: "text-moto-green",
 };
 
-const BADGE_STYLES: Record<GroupHeaderVariant, string> = {
-  neutral: "bg-gray-200 text-gray-700",
-  warning: "bg-moto-orange-soft text-moto-orange",
-  success: "bg-moto-green-soft text-moto-green",
+const BADGE_TONES: Record<GroupHeaderVariant, StatusBadgeTone> = {
+  neutral: "gray",
+  warning: "orange",
+  success: "green",
 };
 
 export function GroupHeader({
@@ -60,15 +64,11 @@ export function GroupHeader({
       >
         <Chevron className={cn("h-4 w-4", CHEVRON_COLOR[variant])} />
         <span className="text-sm font-bold text-gray-900">{title}</span>
-        <span
-          className={cn(
-            "rounded-full px-2 py-0.5 text-xs font-semibold",
-            BADGE_STYLES[variant],
-          )}
-        >
-          {count}
-          {countSuffix ? ` ${countSuffix}` : ""}
-        </span>
+        <StatusBadge
+          label={countSuffix ? `${count} ${countSuffix}` : String(count)}
+          tone={BADGE_TONES[variant]}
+          compact
+        />
       </button>
       {bulkAction ? <div className="shrink-0">{bulkAction}</div> : null}
     </div>
