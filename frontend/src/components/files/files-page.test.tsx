@@ -350,4 +350,80 @@ describe("FilesPage documents of the Träger (#4692)", () => {
       }),
     ).toBeInTheDocument();
   });
+
+  it("wraps a long file name instead of cutting it off on a phone", async () => {
+    const fileName = `${"Elternbrief_Schuljahr_2026_27_Anmeldung_".repeat(4)}final.pdf`;
+    useSession.mockReturnValue({
+      data: { user: { permissions: ["files:manage"] } },
+    });
+    useSWRAuth.mockImplementation((key: string) => ({
+      data:
+        key === "traeger-documents-school"
+          ? [
+              {
+                id: "5",
+                title: "Elternbrief",
+                fileName,
+                contentType: "application/pdf",
+                sizeBytes: 2048,
+                releasedAt: "2026-09-02T10:00:00Z",
+                releases: [],
+              },
+            ]
+          : {
+              folders: [],
+              canManage: true,
+              canUpload: true,
+              staffUploadEnabled: true,
+              usedBytes: 0,
+              maxBytes: 1024,
+            },
+      error: undefined,
+      isLoading: false,
+      mutate,
+    }));
+
+    renderWithToasts(<FilesPage />);
+
+    // Ein Dateiname ohne Leerzeichen bricht überall um, sonst schneidet die
+    // Karte ihn bei 390 px ab (#4692 Review).
+    expect(await screen.findByText(fileName)).toHaveClass("wrap-anywhere");
+  });
+
+  it("keeps a failed load of the Träger documents visible without folders", async () => {
+    useSession.mockReturnValue({
+      data: { user: { permissions: ["files:manage"] } },
+    });
+    useSWRAuth.mockImplementation((key: string) =>
+      key === "traeger-documents-school"
+        ? {
+            data: undefined,
+            error: new ApiError("boom", 503, { code: "general.unavailable" }),
+            isLoading: false,
+            mutate,
+          }
+        : {
+            data: {
+              folders: [],
+              canManage: true,
+              canUpload: true,
+              staffUploadEnabled: true,
+              usedBytes: 0,
+              maxBytes: 1024,
+            },
+            error: undefined,
+            isLoading: false,
+            mutate,
+          },
+    );
+
+    renderWithToasts(<FilesPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Dokumente des Trägers"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Noch keine Ordner")).not.toBeInTheDocument();
+  });
 });

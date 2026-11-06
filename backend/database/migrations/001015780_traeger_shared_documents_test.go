@@ -131,6 +131,27 @@ func TestTraegerSharedDocumentsReachOnlyTheReleasedAudience(t *testing.T) {
 	assert.False(t, found, "an uncovered school opens nothing")
 	assert.Equal(t, 1, countRows("app.current_org_id", own, "platform.traeger_document_reads"), "only the covered opening is recorded")
 
+	// A school's opening deletes its Träger's reads older than three years,
+	// also where no parent ever opens a document; another Träger's stay.
+	foreignDocument, err := insertDocument(foreign, "Fremde Hausordnung")
+	require.NoError(t, err)
+	for _, old := range [][2]int64{{own, document}, {foreign, foreignDocument}} {
+		_, err = db.ExecContext(ctx, `INSERT INTO platform.traeger_document_reads (organization_id, document_id, reader, read_at)
+			VALUES (?, ?, 'school', NOW() - INTERVAL '3 years 1 day')`, old[0], old[1])
+		require.NoError(t, err)
+	}
+	_, found = open(released)
+	require.True(t, found)
+	oldReads := func(organization int64) int {
+		var n int
+		require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM platform.traeger_document_reads
+			WHERE organization_id = ? AND read_at < NOW() - INTERVAL '3 years'`, organization).Scan(ctx, &n))
+		return n
+	}
+	assert.Zero(t, oldReads(own), "a school's opening prunes the Träger's old reads")
+	assert.Equal(t, 1, oldReads(foreign), "and never another Träger's")
+	assert.Equal(t, 2, countRows("app.current_org_id", own, "platform.traeger_document_reads"))
+
 	// A release for the parents of all schools covers every school of the
 	// Träger, and the school sees it too.
 	parentsRelease, err := release(own, "parents", nil)

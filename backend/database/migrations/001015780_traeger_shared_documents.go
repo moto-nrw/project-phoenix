@@ -243,7 +243,8 @@ COMMENT ON FUNCTION platform.traeger_school_document_releases() IS
 
 -- platform.open_traeger_school_document returns the file of a document an
 -- active release covers for the school of app.current_tenant_id and records
--- the read with the account; nothing for any other document.
+-- the read with the account, pruning the Träger's reads older than three
+-- years; nothing for any other document.
 CREATE FUNCTION platform.open_traeger_school_document(p_document_id BIGINT, p_account_id BIGINT)
 	RETURNS TABLE (file_name TEXT, content_type VARCHAR, content BYTEA)
 	LANGUAGE plpgsql
@@ -264,6 +265,10 @@ CREATE FUNCTION platform.open_traeger_school_document(p_document_id BIGINT, p_ac
 		END IF;
 		INSERT INTO platform.traeger_document_reads (organization_id, document_id, account_id, reader, school_id)
 		VALUES (v_organization_id, p_document_id, p_account_id, 'school', v_school_id);
+		-- The reads are kept three years; a school's opening prunes them as
+		-- a parent's does, so they expire without any parent download.
+		DELETE FROM platform.traeger_document_reads
+		WHERE organization_id = v_organization_id AND read_at < CURRENT_TIMESTAMP - INTERVAL '3 years';
 		RETURN QUERY
 			SELECT document.file_name, document.content_type, document.content
 			FROM platform.traeger_documents AS document

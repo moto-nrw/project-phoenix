@@ -180,6 +180,7 @@ export default function TraegerDocumentPage() {
               documentTitle={document.title}
               schools={audiences.data ?? []}
               schoolsLoading={audiences.isLoading}
+              schoolsLoadError={audiences.loadError}
               onClose={() => setReleasing(false)}
               onReleased={(release) => {
                 setReleasing(false);

@@ -8,9 +8,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useApiFormError } from "~/contexts/ToastContext";
+import type { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
   releaseTraegerDocument,
@@ -52,6 +54,7 @@ export function TraegerDocumentReleaseModal({
   documentTitle,
   schools,
   schoolsLoading,
+  schoolsLoadError,
   onClose,
   onReleased,
 }: Readonly<{
@@ -60,6 +63,8 @@ export function TraegerDocumentReleaseModal({
   documentTitle: string;
   schools: readonly TraegerDocumentSchool[];
   schoolsLoading: boolean;
+  /** Ohne geladene Schulen lässt sich keine Schule und keine Gruppe wählen. */
+  schoolsLoadError: ReturnType<typeof useSwrLoadError>;
   onClose: () => void;
   onReleased: (release: TraegerDocumentRelease) => void;
 }>) {
@@ -195,7 +200,10 @@ export function TraegerDocumentReleaseModal({
             fullWidth
           />
         </div>
-        {scope !== "all" && (
+        {scope !== "all" && schoolsLoadError && (
+          <LoadErrorAlert error={schoolsLoadError} actionLayout="responsive" />
+        )}
+        {scope !== "all" && !schoolsLoadError && (
           <CustomSelect
             id="traeger-document-release-school"
             name="school_id"
@@ -218,7 +226,7 @@ export function TraegerDocumentReleaseModal({
             searchable={schools.length > 8}
           />
         )}
-        {scope === "group" && (
+        {scope === "group" && !schoolsLoadError && (
           <CustomSelect
             id="traeger-document-release-group"
             name="group_id"

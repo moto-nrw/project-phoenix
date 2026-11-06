@@ -104,6 +104,9 @@ func officeArchiveHas(data []byte, part string) bool {
 	return hasPart && hasTypes
 }
 
+// maxFileNameExtension is the longest extension a shortened name keeps.
+const maxFileNameExtension = 16
+
 // TraegerDocumentFileName keeps the base name of an uploaded file, without
 // control characters, at most 255 bytes long and with its extension.
 func TraegerDocumentFileName(fileName string) string {
@@ -118,6 +121,10 @@ func TraegerDocumentFileName(fileName string) string {
 		return name
 	}
 	ext := filepath.Ext(name)
+	if len(ext) > maxFileNameExtension {
+		// No admitted type has such an extension; cut the name as a whole.
+		ext = ""
+	}
 	stem := name[:255-len(ext)]
 	for !utf8.ValidString(stem) {
 		stem = stem[:len(stem)-1]

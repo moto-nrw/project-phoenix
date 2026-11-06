@@ -41,11 +41,17 @@ export function useTraegerDocuments() {
  */
 export function useTraegerDocumentAudiences(enabled: boolean) {
   const { data: session } = useSession();
-  return useSWRAuth(
+  const response = useSWRAuth(
     enabled && session?.user.scope === "org"
       ? traegerKeys.documentAudiences()
       : null,
     fetchTraegerDocumentAudiences,
     { keepPreviousData: false },
   );
+  const loadError = useSwrLoadError(
+    response.error,
+    "die Liste der Schulen",
+    response.mutate,
+  );
+  return { ...response, loadError };
 }

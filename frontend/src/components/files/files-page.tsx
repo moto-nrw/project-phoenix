@@ -143,7 +143,7 @@ export function FilesPage() {
   const traegerDocuments = useSchoolTraegerDocuments(
     hasPermission(session, "files:manage"),
   );
-  const hasTraegerDocuments = traegerDocuments.documents.length > 0;
+  const showsTraegerCard = traegerDocuments.shown;
   const canUpload = overview?.canUpload ?? false;
   const canChangeUploadPermission =
     hasPermission(session, "config:read") &&
@@ -210,7 +210,7 @@ export function FilesPage() {
       loading={isLoading || (!!error && !loadError)}
       error={loadError}
       empty={
-        !isLoading && !error && folders.length === 0 && !hasTraegerDocuments
+        !isLoading && !error && folders.length === 0 && !showsTraegerCard
           ? {
               icon: <FolderOpen className="h-12 w-12" aria-hidden="true" />,
               title: "Noch keine Ordner",

@@ -42,7 +42,11 @@ export function useSchoolTraegerDocuments(enabled: boolean) {
     fetchSchoolTraegerDocuments,
   );
   const loadError = useSwrLoadError(error, "die Dokumente des Trägers", mutate);
-  return { documents: enabled ? (data ?? []) : [], loadError, mutate };
+  const documents = enabled ? (data ?? []) : [];
+  // Die Karte zeigt Dokumente oder ihren Ladefehler; dann verdeckt kein
+  // Leerzustand der Seite sie.
+  const shown = documents.length > 0 || loadError !== null;
+  return { documents, loadError, mutate, shown };
 }
 
 /** Die Dokumente des Trägers auf „Dateien“; ohne Dokument fehlt die Karte. */
@@ -50,11 +54,12 @@ export function TraegerDocumentsCard({
   documents,
   loadError,
   mutate,
+  shown,
 }: Readonly<ReturnType<typeof useSchoolTraegerDocuments>>) {
   const downloadErrors = useApiErrorDisplay();
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  if (loadError === null && documents.length === 0) return null;
+  if (!shown) return null;
 
   const download = async (document: SharedTraegerDocument) => {
     setBusyId(document.id);
@@ -114,7 +119,8 @@ export function TraegerDocumentsCard({
                   </p>
                   <p className="text-xs text-gray-500">
                     Seit {formatBerlinDate(document.releasedAt)} ·{" "}
-                    {document.fileName} · {documentFileFacts(document)}
+                    <span className="wrap-anywhere">{document.fileName}</span> ·{" "}
+                    {documentFileFacts(document)}
                   </p>
                 </div>
               </div>

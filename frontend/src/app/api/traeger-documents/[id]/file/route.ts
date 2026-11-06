@@ -12,6 +12,7 @@ import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 import { problemResponse } from "~/lib/api-helpers.server";
+import { clientIdentityHeaders } from "~/lib/client-headers.server";
 
 const logger = createLogger({ component: "TraegerDocumentDownloadRoute" });
 
@@ -31,7 +32,10 @@ async function GETHandler(
   const makeRequest = (bearer: string) =>
     fetch(backendUrl, {
       method: "GET",
-      headers: { Authorization: `Bearer ${bearer}` },
+      headers: {
+        ...clientIdentityHeaders(request.headers),
+        Authorization: `Bearer ${bearer}`,
+      },
     });
 
   let upstream = await makeRequest(token);

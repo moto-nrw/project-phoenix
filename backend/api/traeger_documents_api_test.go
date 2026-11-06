@@ -13,6 +13,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -319,6 +320,9 @@ func TestTraegerDocumentUploadChecksTheFile(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code, "the name alone never decides")
 	rec = f.upload(t, f.office.token, "Getarnt", "liste.xlsx", []byte("PK\x03\x04not an archive"))
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	rec = f.upload(t, f.office.token, "Endung", "file."+strings.Repeat("a", 256), samplePDF)
+	assert.Equal(t, http.StatusBadRequest, rec.Code, "an overlong extension is refused, never a crash")
+	assert.Equal(t, "files.file_type_not_allowed", refusalOf(t, rec).Code)
 	rec = f.upload(t, f.office.token, "  ", "brief.pdf", samplePDF)
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	assert.Equal(t, "traeger.document_invalid", refusalOf(t, rec).Code)
