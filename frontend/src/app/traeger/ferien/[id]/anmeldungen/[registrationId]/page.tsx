@@ -39,7 +39,7 @@ import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import {
-  AttachmentList,
+  DocumentAttachmentList,
   type AttachmentLabels,
 } from "~/components/enrollment/attachment-list";
 import { holidayDocumentPath } from "~/lib/traeger-holiday-form-api";
@@ -628,7 +628,7 @@ export default function TraegerHolidayRegistrationPage() {
                               : "Nicht zugestimmt"}
                           </p>
                         )}
-                        <AttachmentList
+                        <DocumentAttachmentList
                           labels={PDF_LABELS}
                           attachments={block.attachments}
                           documentURL={(documentId) =>

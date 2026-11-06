@@ -331,7 +331,7 @@ function CounterLegend({
   );
 }
 
-function StatusBadge({
+function SlotRowStatusBadge({
   row,
   source,
 }: Readonly<{ row: SlotListRow; source: SlotListSource }>) {
@@ -2054,7 +2054,7 @@ export default function SlotListsPage() {
     cols.push({
       key: "status",
       header: "Status",
-      render: (r) => <StatusBadge row={r} source={source} />,
+      render: (r) => <SlotRowStatusBadge row={r} source={source} />,
       sortValue: (r) => r.status_label,
     });
     return cols;
@@ -2064,7 +2064,7 @@ export default function SlotListsPage() {
   // wie in Dienstplan und Betreuungsplan. Gesperrt, solange keine Liste
   // geladen ist — es gäbe nichts mitzunehmen.
   const exportBlocked = isExporting || isLoading || !result;
-  const exportMenuItems: OverflowMenuEntry[] = [
+  const exportActions: OverflowMenuEntry[] = [
     { kind: "header", label: "Drucken oder exportieren" },
     {
       label: isExporting ? "Erstelle PDF…" : "Drucken",
@@ -2156,7 +2156,7 @@ export default function SlotListsPage() {
       // Bauart 3, Regel 4: Drucken und Exportieren stehen im Kebab der
       // Kopfkarte, nicht als Knopfreihe in einer Inhaltskarte.
       actions={
-        <OverflowMenu items={exportMenuItems} ariaLabel="Weitere Aktionen" />
+        <OverflowMenu items={exportActions} ariaLabel="Weitere Aktionen" />
       }
       // Bauart 3, Regel 1: die Tageswahl sitzt im Bedienband der Kopfkarte,
       // an derselben Stelle wie die Zeitnavigation der Planungsflächen.

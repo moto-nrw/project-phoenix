@@ -3,6 +3,7 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { StatCard } from "~/components/ui/stat-card";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -1517,19 +1518,10 @@ export function CalendarOverviewList({
   return (
     <div className="space-y-4">
       {overview.delivery_mode === "rsvp_required" ? (
-        <div className="grid grid-cols-3 gap-2 text-center text-xs">
-          <div className="bg-moto-green-soft rounded-lg px-2 py-2 text-gray-800">
-            <div className="font-semibold">{accepted}</div>
-            <div>Zugesagt</div>
-          </div>
-          <div className="bg-moto-red/10 text-moto-red-strong rounded-lg px-2 py-2">
-            <div className="font-semibold">{declined}</div>
-            <div>Abgesagt</div>
-          </div>
-          <div className="rounded-lg bg-gray-100 px-2 py-2 text-gray-700">
-            <div className="font-semibold">{pending}</div>
-            <div>Offen</div>
-          </div>
+        <div className="grid grid-cols-3 gap-2">
+          <StatCard label="Zugesagt" value={accepted} tone="green" />
+          <StatCard label="Abgesagt" value={declined} tone="red" />
+          <StatCard label="Offen" value={pending} tone="neutral" />
         </div>
       ) : null}
       <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">

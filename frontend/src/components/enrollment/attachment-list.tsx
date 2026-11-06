@@ -39,7 +39,7 @@ interface AttachmentActionsProps {
   attachments: FormAttachment[];
   documentURL: (reference: string) => string;
 }
-export function AttachmentList({
+export function DocumentAttachmentList({
   attachments = NO_ATTACHMENTS,
   documentURL = publicDocumentURL,
   labels,

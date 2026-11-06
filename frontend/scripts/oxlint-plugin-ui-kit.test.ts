@@ -621,7 +621,8 @@ describe.concurrent("ui-kit/no-raw-z-index", () => {
 });
 
 describe.concurrent("ui-kit/no-tenant-kicker", () => {
-  const kickerSource = `function SectionCard(_: { kicker?: string; title: string }) {
+  const kickerSource = `// oxlint-disable-next-line ui-kit/no-shadow-kit-name
+function SectionCard(_: { kicker?: string; title: string }) {
       return null;
     }
     function Probe() {
@@ -653,6 +654,74 @@ describe.concurrent("ui-kit/no-tenant-kicker", () => {
 
     expect(result.status, `${path}\n${output}`).toBe(0);
     expect(output).not.toContain("no-tenant-kicker");
+  });
+});
+
+describe.concurrent("ui-kit/no-shadow-kit-name", () => {
+  it("reports a local function and a local constant named like a kit export", async () => {
+    const result = await lintSource(
+      `function StatCard() {
+        return null;
+      }
+      function Probe() {
+        const exportMenuItems = [];
+        return <StatCard items={exportMenuItems} />;
+      }
+      void Probe;`,
+      "src/components/import/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-shadow-kit-name\)/g)).toHaveLength(
+      2,
+    );
+    expect(result.output).toContain("StatCard");
+  });
+
+  it("also knows the default export of a kit file", async () => {
+    const result = await lintSource(
+      `function NavigationLink() {
+        return null;
+      }
+      void NavigationLink;`,
+      "src/components/import/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-shadow-kit-name");
+  });
+
+  it("allows other names, the kit itself and test files", async () => {
+    const other = await lintSource(
+      `function StatusChip() {
+        return null;
+      }
+      void StatusChip;`,
+      "src/components/import/probe.tsx",
+    );
+    const kit = await lintSource(
+      `export function StatCard() {
+        return null;
+      }`,
+      "src/components/ui/stat-card.tsx",
+    );
+    const testFile = await lintSource(
+      `function StatCard() {
+        return null;
+      }
+      void StatCard;`,
+      "src/components/import/probe.test.tsx",
+    );
+    const mock = await lintSource(
+      `export function Drawer() {
+        return null;
+      }`,
+      "src/test/mocks/probe.tsx",
+    );
+
+    for (const { output } of [other, kit, testFile, mock]) {
+      expect(output).not.toContain("no-shadow-kit-name");
+    }
   });
 });
 
@@ -855,7 +924,8 @@ describe.concurrent("ui-kit/no-tabs-as-value-switcher", () => {
 
   it("ignores unrelated components named TabsTrigger", async () => {
     const result = await lintSource(
-      `function TabsTrigger(_: { children: unknown }) {
+      `// oxlint-disable-next-line ui-kit/no-shadow-kit-name
+      function TabsTrigger(_: { children: unknown }) {
         return null;
       }
       function Probe() {
@@ -942,6 +1012,7 @@ describe.concurrent("ui-kit/require-checkbox-label", () => {
 
   it("accepts a checkbox nested anywhere inside its label", async () => {
     const result = await lintSource(`
+      // oxlint-disable-next-line ui-kit/no-shadow-kit-name
       const Checkbox = (props: { id: string }) =>
         <span {...props} />;
       function Probe() {

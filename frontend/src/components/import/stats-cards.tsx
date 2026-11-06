@@ -1,8 +1,7 @@
-import type { ReactNode } from "react";
 import { AlertTriangle, Check, Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { databaseConcept } from "~/lib/concepts/database";
-import { IconTile } from "~/components/ui/icon-tile";
+import { StatCard } from "~/components/ui/stat-card";
 
 interface StatsCardsProps {
   readonly total: number;
@@ -11,26 +10,6 @@ interface StatsCardsProps {
   /** Title of the "existing" card; update mode calls it "Wird aktualisiert". */
   readonly existingTitle?: string;
   readonly errors: number;
-}
-
-interface StatCardProps {
-  readonly title: string;
-  readonly value: number;
-  readonly icon: ReactNode;
-}
-
-function StatCard({ title, value, icon }: StatCardProps) {
-  return (
-    <div className="moto-content-surface rounded-2xl border p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-0.5">
-          <p className="text-xs font-medium text-gray-600">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">{value}</p>
-        </div>
-        <IconTile icon={icon} />
-      </div>
-    </div>
-  );
 }
 
 export function StatsCards({
@@ -43,22 +22,26 @@ export function StatsCards({
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
       <StatCard
-        title="Gesamt"
+        tone="neutral"
+        label="Gesamt"
         value={total}
         icon={<MotoConceptIcon concept={databaseConcept} size={20} />}
       />
       <StatCard
-        title="Neu"
+        tone="neutral"
+        label="Neu"
         value={newCount}
         icon={<Plus className="h-5 w-5 text-gray-700" aria-hidden="true" />}
       />
       <StatCard
-        title={existingTitle}
+        tone="neutral"
+        label={existingTitle}
         value={existing}
         icon={<Check className="h-5 w-5 text-gray-700" aria-hidden="true" />}
       />
       <StatCard
-        title="Fehler"
+        tone="neutral"
+        label="Fehler"
         value={errors}
         icon={
           <AlertTriangle className="text-moto-red h-5 w-5" aria-hidden="true" />

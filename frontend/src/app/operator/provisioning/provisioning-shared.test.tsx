@@ -4,7 +4,7 @@ import {
   FormField,
   FieldWarning,
   DeliveryStatusBadge,
-  EmptyState,
+  ProvisioningEmptyState,
   SimpleEmptyState,
   SelectWithChevron,
   PlusIcon,
@@ -164,10 +164,10 @@ describe("DeliveryStatusBadge", () => {
   });
 });
 
-describe("EmptyState", () => {
+describe("ProvisioningEmptyState", () => {
   it("should render title", () => {
     render(
-      <EmptyState
+      <ProvisioningEmptyState
         title="No items"
         description="Create your first item"
         buttonLabel="Add"
@@ -180,7 +180,7 @@ describe("EmptyState", () => {
 
   it("should render description", () => {
     render(
-      <EmptyState
+      <ProvisioningEmptyState
         title="No items"
         description="Create your first item"
         buttonLabel="Add"
@@ -193,7 +193,7 @@ describe("EmptyState", () => {
 
   it("should render button with label", () => {
     render(
-      <EmptyState
+      <ProvisioningEmptyState
         title="No items"
         description="Description"
         buttonLabel="Add Item"
@@ -210,7 +210,7 @@ describe("EmptyState", () => {
     const onAction = vi.fn();
 
     render(
-      <EmptyState
+      <ProvisioningEmptyState
         title="No items"
         description="Description"
         buttonLabel="Add"
@@ -225,7 +225,7 @@ describe("EmptyState", () => {
 
   it("should render an SVG icon", () => {
     const { container } = render(
-      <EmptyState
+      <ProvisioningEmptyState
         title="Empty"
         description="Nothing here"
         buttonLabel="Create"

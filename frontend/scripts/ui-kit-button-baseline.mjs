@@ -113,7 +113,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3133],
+    lines: [3112],
     reason: "Schalter (role=switch)",
   },
   {
@@ -157,7 +157,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1061],
+    lines: [1062],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {

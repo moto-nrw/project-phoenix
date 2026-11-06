@@ -293,14 +293,14 @@ function SeriesRosterMaintenance({
   return <RosterMaintenanceBadge state={state} />;
 }
 
-interface StatusBadgeProps {
+interface InstanceStatusBadgeProps {
   status: InstanceStatus;
 }
 
 /** Schrift auf den beiden gefüllten Statusflächen (grün, rot). */
 const STATUS_BADGE_ON_CLASS = "text-white";
 
-function StatusBadge({ status }: StatusBadgeProps) {
+function InstanceStatusBadge({ status }: InstanceStatusBadgeProps) {
   // Flächen aus LOCATION_COLORS bzw. der neutralen Palette, die Schrift als
   // Tailwind-Klasse (gray-700 = neutral.strong, gray-500 = neutral.base) —
   // kein Hex-Literal neben einem Token in derselben Tabelle.
@@ -1070,7 +1070,7 @@ export function InstanceDetailModal({
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge status={instance.status} />
+                <InstanceStatusBadge status={instance.status} />
                 {instance.isSpontaneous && (
                   <span
                     className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-gray-600 uppercase"

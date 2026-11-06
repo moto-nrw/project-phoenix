@@ -88,7 +88,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
-import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { StatCard } from "~/components/ui/stat-card";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
@@ -1136,23 +1136,27 @@ function CareOfferingToolbar({
           verdrängt die Kacheln nie (#5022). */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="grid min-w-0 flex-[999_1_40rem] gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept={carePlanConcept} size={16} />}
+          <StatCard
+            variant="inline"
+            icon={<MotoConceptIcon concept={carePlanConcept} size={16} />}
             label="Angebote"
             value={offeringCount}
           />
-          <EnrollmentStatTile
-            icon={Check}
+          <StatCard
+            variant="inline"
+            icon={<Check aria-hidden="true" />}
             label="Aktiv"
             value={activeOfferingCount}
           />
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept={calendarConcept} size={18} />}
+          <StatCard
+            variant="inline"
+            icon={<MotoConceptIcon concept={calendarConcept} size={18} />}
             label="Tage"
             value={selectableDaysCount}
           />
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept={childrenConcept} size={18} />}
+          <StatCard
+            variant="inline"
+            icon={<MotoConceptIcon concept={childrenConcept} size={18} />}
             label="Kapazität"
             value={hasCapacityLimit ? totalCapacity : "frei"}
             detail={

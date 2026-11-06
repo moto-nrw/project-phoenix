@@ -36,6 +36,7 @@ import {
   hasIncomeDeclaration,
   IncomeDeclarationButton,
 } from "~/components/enrollment/file-field-editor";
+import { StatCard } from "~/components/ui/stat-card";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   useApiErrorDisplay,
@@ -1750,24 +1751,28 @@ function FormTemplateDetail({
               </div>
 
               <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                <FormMetric
+                <StatCard
+                  variant="inline"
                   icon={<FileText className="h-4 w-4" aria-hidden="true" />}
                   value={formatSchemaDate(schema.created_at)}
                   label="Zuletzt gespeichert"
                 />
-                <FormMetric
+                <StatCard
+                  variant="inline"
                   icon={
                     <MotoConceptIcon concept={enrollmentsConcept} size={16} />
                   }
                   value={schema.fields.length.toString()}
                   label="Zusatzfragen"
                 />
-                <FormMetric
+                <StatCard
+                  variant="inline"
                   icon={<Check className="h-4 w-4" aria-hidden="true" />}
                   value={requiredCount.toString()}
                   label="Pflicht-Zusatzfragen"
                 />
-                <FormMetric
+                <StatCard
+                  variant="inline"
                   icon={<MotoConceptIcon concept={childrenConcept} size={16} />}
                   value={childFieldCount.toString()}
                   label="Pro Kind"
@@ -2149,32 +2154,6 @@ function FormBuilderIntro() {
         Anmeldephase ausgewählt.
       </p>
     </header>
-  );
-}
-
-function FormMetric({
-  icon,
-  value,
-  label,
-}: Readonly<{
-  icon: ReactNode;
-  value: string;
-  label: string;
-}>) {
-  return (
-    <div className="moto-content-surface flex items-center gap-3 rounded-2xl border px-4 py-3">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
-        {icon}
-      </span>
-      <span>
-        <span className="block text-lg leading-none font-semibold text-gray-900">
-          {value}
-        </span>
-        <span className="mt-1 block text-xs font-medium text-gray-500">
-          {label}
-        </span>
-      </span>
-    </div>
   );
 }
 

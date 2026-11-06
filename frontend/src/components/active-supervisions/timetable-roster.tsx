@@ -12,6 +12,7 @@ import {
 } from "react";
 import { UserPlus, Users } from "lucide-react";
 import { ArrowUpRightIcon } from "@phosphor-icons/react";
+import { StatCard } from "~/components/ui/stat-card";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -165,18 +166,6 @@ const HOMEWORK_FEEDBACK_TONES = {
 
 const ROSTER_META_CLASS =
   "inline-flex items-center gap-1 text-xs font-medium text-gray-500";
-
-function RosterSummaryStat({
-  label,
-  value,
-}: Readonly<{ label: string; value: number }>) {
-  return (
-    <div className="rounded-xl bg-white/80 px-3 py-2 shadow-[0_1px_0_rgba(17,24,39,0.04)]">
-      <span className="block text-sm font-semibold text-gray-900">{value}</span>
-      <span className="block text-xs font-medium text-gray-500">{label}</span>
-    </div>
-  );
-}
 
 export type RosterAction =
   "check-in" | "check-out" | "excused" | "absent" | "expected";
@@ -901,8 +890,13 @@ function TimetableRosterHeader({
         // dazugekommen. Anwesend, Erwartet und Abwesend wären immer 0, die
         // Kinder im Raum heißen hier wie die Liste darunter (#3921).
         <div className="grid grid-cols-2 gap-2 p-4">
-          <RosterSummaryStat label="Teilnehmende" value={summary.unplanned} />
-          <RosterSummaryStat
+          <StatCard
+            variant="tile"
+            label="Teilnehmende"
+            value={summary.unplanned}
+          />
+          <StatCard
+            variant="tile"
             label="Nicht mehr im Raum"
             value={summary.departed}
           />
@@ -913,20 +907,26 @@ function TimetableRosterHeader({
             summary.arrivingLater > 0 ? "sm:grid-cols-6" : "sm:grid-cols-5"
           }`}
         >
-          <RosterSummaryStat label="Anwesend" value={summary.present} />
-          <RosterSummaryStat label="Erwartet" value={summary.expected} />
+          <StatCard variant="tile" label="Anwesend" value={summary.present} />
+          <StatCard variant="tile" label="Erwartet" value={summary.expected} />
           {summary.arrivingLater > 0 ? (
-            <RosterSummaryStat
+            <StatCard
+              variant="tile"
               label="Kommt später"
               value={summary.arrivingLater}
             />
           ) : null}
-          <RosterSummaryStat label="Abwesend" value={summary.absent} />
-          <RosterSummaryStat
+          <StatCard variant="tile" label="Abwesend" value={summary.absent} />
+          <StatCard
+            variant="tile"
             label="Nicht mehr im Raum"
             value={summary.departed}
           />
-          <RosterSummaryStat label="Ungeplant" value={summary.unplanned} />
+          <StatCard
+            variant="tile"
+            label="Ungeplant"
+            value={summary.unplanned}
+          />
         </div>
       ) : null}
     </div>
