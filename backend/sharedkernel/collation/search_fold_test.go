@@ -15,6 +15,7 @@ func TestFoldForSearchIgnoresAccentsAndCase(t *testing.T) {
 		"Zoë":          "zoe", // NFD input, as macOS pastes it
 		"Müller":        "muller",
 		"Raum 2b":       "raum 2b",
+		"Cœur Æsir ǽ":   "coeur aesir ae", // ligatures, as PostgreSQL's unaccent (#5791)
 		"  Kim  ":       "  kim  ",
 	} {
 		if got := FoldForSearch(input); got != want {

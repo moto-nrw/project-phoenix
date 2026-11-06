@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 	"github.com/uptrace/bun"
 )
 
@@ -66,9 +67,11 @@ func ListEndedCare(ctx context.Context, db bun.IDB, tenantID int64, asOfDay stri
 			Where(`"membership".enrolled_until < ?`, asOf).
 			Where(`"membership".status <> 'alumnus'`)
 		if search := strings.TrimSpace(filter.Search); search != "" {
-			pattern := "%" + search + "%"
+			// LIKE metacharacters match literally, also the fullwidth ones
+			// unaccent turns into them (#5791).
+			pattern := bun.SafeQuery(`'%' || `+collation.UnaccentLikePatternSQL+` || '%'`, search)
 			query = query.Where(
-				`(public.f_unaccent("person".first_name) ILIKE public.f_unaccent(?) OR public.f_unaccent("person".last_name) ILIKE public.f_unaccent(?) OR "membership".school_class ILIKE ?)`,
+				`(public.f_unaccent("person".first_name) ILIKE ? ESCAPE '\' OR public.f_unaccent("person".last_name) ILIKE ? ESCAPE '\' OR public.f_unaccent("membership".school_class) ILIKE ? ESCAPE '\')`,
 				pattern, pattern, pattern,
 			)
 		}

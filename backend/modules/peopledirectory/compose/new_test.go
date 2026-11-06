@@ -511,3 +511,36 @@ func TestModuleSearchIgnoresAccents(t *testing.T) {
 		assert.Equal(t, []int64{created.ID}, ids, name)
 	}
 }
+
+// Fullwidth ％, ＿ and ＼ fold to LIKE metacharacters; the search escapes
+// after folding, so they match literally instead of every name (#5791).
+func TestModuleSearchTreatsFullwidthLikeCharactersLiterally(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	_, err := module.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "Zoë", LastName: "Özdemir"})
+	require.NoError(t, err)
+	percent, err := module.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "100%", LastName: "Gruppe_A"})
+	require.NoError(t, err)
+
+	for name, tc := range map[string]struct {
+		filter peopledirectory.PersonFilter
+		want   []int64
+	}{
+		"first name prefix ％":   {peopledirectory.PersonFilter{FirstNamePrefix: "％"}, []int64{}},
+		"last name prefix ＿":    {peopledirectory.PersonFilter{LastNamePrefix: "＿"}, []int64{}},
+		"full name contains ％":  {peopledirectory.PersonFilter{FullNameContains: "％"}, []int64{percent.ID}},
+		"full name contains ＼":  {peopledirectory.PersonFilter{FullNameContains: "＼"}, []int64{}},
+		"full name contains ＿a": {peopledirectory.PersonFilter{FullNameContains: "＿a"}, []int64{percent.ID}},
+	} {
+		listed, err := module.SearchPersons(ctx, tc.filter)
+		require.NoError(t, err, name)
+		ids := make([]int64, 0, len(listed))
+		for _, person := range listed {
+			ids = append(ids, person.ID)
+		}
+		assert.Equal(t, tc.want, ids, name)
+	}
+}
