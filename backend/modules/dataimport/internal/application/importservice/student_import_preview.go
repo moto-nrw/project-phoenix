@@ -25,9 +25,10 @@ func (c *StudentImportConfig) PreviewConfig(ctx context.Context, rows []importMo
 	if err != nil {
 		return c
 	}
-	// Database LOWER follows its collation, not Go's Unicode folding. Keep
-	// scalar matching when non-ASCII names could need that distinction. An
-	// empty bulk result proves absence for every pair regardless of collation.
+	// Both owner predicates use database LOWER with NFC normalization, not
+	// accent-insensitive search or Go's Unicode folding. Keep scalar matching
+	// for non-ASCII results rather than reimplementing the database equality.
+	// An empty bulk result proves absence because it uses the scalar predicate.
 	if len(persons) > 0 && !asciiPreviewNames(filter.Names, persons) {
 		return c
 	}

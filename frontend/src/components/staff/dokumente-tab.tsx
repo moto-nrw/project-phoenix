@@ -315,11 +315,8 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
                 setUploadCategory(value as StaffDocumentCategory)
               }
               disabled={visibleCategories.length === 0}
-              // triggerClassName REPLACES the default trigger classes, and the
-              // base class carries a colorless `border` — without
-              // moto-content-surface the Tailwind-4 default (currentColor)
-              // paints it black.
-              triggerClassName="moto-content-surface h-9 w-56"
+              controlSize="compact"
+              className="w-56"
             />
           </div>
 
@@ -384,7 +381,8 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
               value={filter}
               options={filterItems}
               onChange={(value) => setFilter(value as CategoryFilter)}
-              triggerClassName="moto-content-surface h-9 w-56"
+              controlSize="compact"
+              className="w-56"
             />
           </div>
         )}

@@ -113,6 +113,10 @@
       "write_owner": "organization-tenancy"
     },
     {
+      "name": "platform.traeger_document_templates",
+      "write_owner": "organization-tenancy"
+    },
+    {
       "name": "platform.traeger_master_data_audit",
       "write_owner": "organization-tenancy"
     },
@@ -242,6 +246,66 @@
       "target_owner": "tenant-runtime",
       "target_role": "public",
       "target_package": "tenant"
+    },
+    {
+      "id": "organization-tenancy.public.document-rendering-templates",
+      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0152).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "organization-tenancy",
+      "source_role": "public",
+      "target_owner": "document-rendering",
+      "target_role": "contract",
+      "target_package": "modules/documentrendering/templates"
+    },
+    {
+      "id": "organization-tenancy.port.document-rendering-templates",
+      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0152).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "organization-tenancy",
+      "source_role": "port",
+      "target_owner": "document-rendering",
+      "target_role": "contract",
+      "target_package": "modules/documentrendering/templates"
+    },
+    {
+      "id": "organization-tenancy.application.document-rendering-templates",
+      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0152).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "organization-tenancy",
+      "source_role": "application",
+      "target_owner": "document-rendering",
+      "target_role": "contract",
+      "target_package": "modules/documentrendering/templates"
+    },
+    {
+      "id": "organization-tenancy.postgres.document-rendering-templates",
+      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0152).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "organization-tenancy",
+      "source_role": "postgres",
+      "target_owner": "document-rendering",
+      "target_role": "contract",
+      "target_package": "modules/documentrendering/templates"
+    },
+    {
+      "id": "organization-tenancy.http.document-rendering-templates",
+      "description": "The document templates of a Träger name their kinds, parts and placeholders in the pure template contract of Document Rendering, which checks unknown placeholders and fills the preview (#4677, ADR 0152).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "organization-tenancy",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "contract",
+      "target_package": "modules/documentrendering/templates"
     }
   ],
   "read_projections": [

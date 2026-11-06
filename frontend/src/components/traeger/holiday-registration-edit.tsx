@@ -32,6 +32,7 @@ import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError } from "~/contexts/ToastContext";
 import {
   buildFieldsByKey,
@@ -51,13 +52,14 @@ import {
 import {
   EDIT_HINT,
   editableQuestions,
+  EDIT_TITLE,
 } from "./holiday-registration-edit-fields";
 
 const logger = createLogger({ component: "HolidayRegistrationEdit" });
 
 // The calendar of the kit date picker loads only when an open edit form
 // asks a date question; the German texts are its defaults.
-const ISODatePicker = lazy(() =>
+const LazyDatePicker = lazy(() =>
   import("~/components/ui/date-picker").then((module) => ({
     default: module.ISODatePicker,
   })),
@@ -113,10 +115,13 @@ function EditForm({
   registration,
   onSaved,
   onCancel,
+  description,
   edit,
   children,
 }: HolidayRegistrationEditorProps &
   Readonly<{
+    /** Der Bereich, den dieser Bearbeiten-Zustand ändert. */
+    description: string;
     edit: () => HolidayRegistrationEdit;
     children: (fieldError: (name: string) => string | undefined) => ReactNode;
   }>) {
@@ -142,23 +147,27 @@ function EditForm({
   };
 
   return (
-    <form
-      ref={formRef}
-      noValidate
-      className="space-y-4"
-      onSubmit={(event) => void submit(event)}
-    >
-      <FormErrorAlert message={errors.error} />
-      <p className="text-sm text-gray-700">{EDIT_HINT}</p>
-      {children(fieldError)}
-      <EditActions
-        onCancel={() => {
-          errors.clear();
-          onCancel();
-        }}
-        saving={saving}
-        saveLabel="Änderung speichern"
-      />
+    <form ref={formRef} noValidate onSubmit={(event) => void submit(event)}>
+      <SectionCard
+        title={EDIT_TITLE}
+        description={description}
+        footer={
+          <EditActions
+            onCancel={() => {
+              errors.clear();
+              onCancel();
+            }}
+            saving={saving}
+            saveLabel="Änderung speichern"
+          />
+        }
+      >
+        <div className="space-y-4">
+          <FormErrorAlert message={errors.error} />
+          <p className="text-sm text-gray-700">{EDIT_HINT}</p>
+          {children(fieldError)}
+        </div>
+      </SectionCard>
     </form>
   );
 }
@@ -184,6 +193,7 @@ function PersonFields({
     props: Readonly<{ type?: string; required: boolean; maxLength: number }>,
   ) => (
     <Input
+      controlSize="compact"
       name={`${prefix}.${path}`}
       label={label}
       type={props.type}
@@ -272,6 +282,7 @@ function AddressSection({
         </p>
       ) : null}
       <GuardianAddressFields
+        controlSize="compact"
         address={address}
         required={required}
         labels={ADDRESS_LABELS}
@@ -304,6 +315,7 @@ export function GuardiansEditor(
   return (
     <EditForm
       {...props}
+      description="Eltern"
       edit={() => ({
         guardians: {
           guardian,
@@ -426,6 +438,7 @@ function ContactFields({
             className="grid grid-cols-1 gap-3 sm:grid-cols-3"
           >
             <Input
+              controlSize="compact"
               name={`${path}.name`}
               label="Name"
               required
@@ -435,6 +448,7 @@ function ContactFields({
               onChange={(event) => set(index, { name: event.target.value })}
             />
             <Input
+              controlSize="compact"
               name={`${path}.phone`}
               type="tel"
               label={phoneRequired ? "Telefon" : "Telefon (freiwillig)"}
@@ -445,6 +459,7 @@ function ContactFields({
               onChange={(event) => set(index, { phone: event.target.value })}
             />
             <Input
+              controlSize="compact"
               name={`${path}.relationship`}
               label="Beziehung (freiwillig)"
               maxLength={60}
@@ -513,6 +528,7 @@ export function ContactsEditor(props: HolidayRegistrationEditorProps) {
   return (
     <EditForm
       {...props}
+      description="Notfallkontakte und Abholung"
       edit={() => {
         const keptEmergency = filled(emergency);
         const keptPickup = filled(pickup);
@@ -594,7 +610,7 @@ function Questions({
           controlId={name.replaceAll(".", "-")}
           renderControl={(control) => (
             <Suspense fallback={null}>
-              <ISODatePicker
+              <LazyDatePicker
                 id={control.id}
                 name={control.name}
                 controlSize="md"
@@ -623,7 +639,11 @@ export function FamilyAnswersEditor(props: HolidayRegistrationEditorProps) {
     ...registration.answers,
   });
   return (
-    <EditForm {...props} edit={() => ({ answers })}>
+    <EditForm
+      {...props}
+      description="Allgemeine Angaben"
+      edit={() => ({ answers })}
+    >
       {(fieldError) => (
         <Questions
           questions={editableQuestions(fields, false)}
@@ -671,6 +691,7 @@ export function ChildEditor(
   return (
     <EditForm
       {...props}
+      description={`${props.child.firstName} ${props.child.lastName}`}
       edit={() => ({
         child: {
           id: child.id,
@@ -691,6 +712,7 @@ export function ChildEditor(
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input
+              controlSize="compact"
               name={`${prefix}.first_name`}
               label="Vorname"
               required
@@ -700,6 +722,7 @@ export function ChildEditor(
               onChange={(event) => set({ firstName: event.target.value })}
             />
             <Input
+              controlSize="compact"
               name={`${prefix}.last_name`}
               label="Nachname"
               required
@@ -757,6 +780,7 @@ export function ChildEditor(
             />
             {guest ? (
               <Input
+                controlSize="compact"
                 name={`${prefix}.guest_school_name`}
                 label="Name der eigenen Schule (freiwillig)"
                 maxLength={120}

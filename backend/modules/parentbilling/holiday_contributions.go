@@ -31,6 +31,30 @@ const (
 	// LineCostTakeover (cost_bearers.go) is what a cost bearer pays.
 )
 
+// How a Träger ranks siblings and when a cost bearer takes over (#5664). The
+// values are those of the settings parent_billing.sibling_rank and
+// parent_billing.cost_takeover_order.
+const (
+	// SiblingRankHighestContribution makes the child with the highest base
+	// price the first child: the default.
+	SiblingRankHighestContribution = "highest_contribution"
+	// SiblingRankOldestChild makes the oldest child the first child.
+	SiblingRankOldestChild = "oldest_child"
+	// CostTakeoverAfterDiscount lets a cost bearer pay what is left after the
+	// sibling discount: the default.
+	CostTakeoverAfterDiscount = "after_discount"
+	// CostTakeoverBeforeDiscount lets a cost bearer pay the full base price;
+	// the discount reaches only the other children.
+	CostTakeoverBeforeDiscount = "before_discount"
+)
+
+// HolidayChainSettings are the two choices of a Träger in the chain. A frozen
+// contribution keeps those it was computed with (#5664).
+type HolidayChainSettings struct {
+	SiblingRank       string
+	CostTakeoverOrder string
+}
+
 // States of a registration as the Holiday registrations port reports them.
 const (
 	HolidayRegistrationConfirmed = "confirmed"
@@ -56,6 +80,9 @@ var (
 	// ErrInvalidHolidayQuote reports bookings of a quote that the period does
 	// not offer.
 	ErrInvalidHolidayQuote = errors.New("invalid holiday contribution quote")
+	// ErrHolidayRegistrationFrozen reports a cancellation of a registration
+	// after the registration deadline; the Träger-Büro reopens it first.
+	ErrHolidayRegistrationFrozen = errors.New("the holiday registration is frozen")
 	// ErrDebtorNumberLocked reports a change of the debtor number of a
 	// registration an issued invoice already bills: the invoice keeps its
 	// copy (#5621, ADR 0119).
@@ -116,6 +143,29 @@ type HolidayContribution struct {
 	// SiblingsInvoiced reports that an issued invoice bills a registration
 	// of the group, which then neither merges nor splits (#5628).
 	SiblingsInvoiced bool `json:"siblings_invoiced,omitempty"`
+	// Chain names how the contribution was computed (#5664). A frozen one
+	// keeps it, so a later change of the settings does not reach it.
+	Chain HolidayChainSettings `json:"-"`
+	// CorrectionNeeded reports that the issued invoice billed the family or
+	// the cost bearer another amount than the frozen contribution has now,
+	// for example after a
+	// sibling was cancelled (#5662). The invoice keeps its amount; the
+	// Träger-Büro corrects it with a cancellation or credit note (#4690).
+	CorrectionNeeded bool `json:"correction_needed,omitempty"`
+}
+
+// IssuedContribution is what the issued invoice of a registration billed,
+// without the corrections of its run (#5662): TotalCents the family pays and
+// CostTakeoverCents the cost bearer pays.
+type IssuedContribution struct {
+	TotalCents        int64
+	CostTakeoverCents int64
+}
+
+// HolidayCancellation is a cancelled registration (#5662).
+type HolidayCancellation struct {
+	RegistrationID int64  `json:"id"`
+	Status         string `json:"status"`
 }
 
 // HolidayConfirmation is a confirmed registration with the contribution its
@@ -139,11 +189,15 @@ type HolidayBooking struct {
 
 // HolidayChild is a child of a registration with its bookings. Position is
 // its place in the form; the names show only in the Träger-Büro (#5628).
+// BirthDate ranks the children of a registration when the Träger ranks by
+// age; a quote knows no date and carries AgeRank instead (#5664).
 type HolidayChild struct {
 	ID        int64
 	Position  int
 	FirstName string
 	LastName  string
+	BirthDate calendar.Date
+	AgeRank   int
 	Bookings  []HolidayBooking
 }
 
@@ -208,12 +262,16 @@ type HolidayRegistrations interface {
 	// SetHolidayDebtorNumber changes the debtor number of a confirmed
 	// registration; a blank one removes it.
 	SetHolidayDebtorNumber(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, debtorNumber string) (HolidayRegistration, error)
+	// CancelHolidayRegistration cancels the registration (#5662); a
+	// registration after the deadline is ErrHolidayRegistrationFrozen.
+	CancelHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayRegistration, error)
 	// HoldHolidayPeriod locks the period until the transaction ends, so no
 	// registration of it changes while a sibling group is read and decided
 	// on (#5628). A period of another Träger is ErrHolidayPeriodNotFound.
 	HoldHolidayPeriod(ctx context.Context, reviewer HolidayReviewer, periodID int64) error
-	// RecordHolidaySiblings records action, HolidaySiblingsMerged or
-	// HolidaySiblingsSplit, with the other registrations it names.
+	// RecordHolidaySiblings records action, HolidaySiblingsMerged,
+	// HolidaySiblingsSplit or HolidaySiblingsCancelled, with the other
+	// registrations it names.
 	RecordHolidaySiblings(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, action string, siblingIDs []int64) error
 }
 
@@ -229,6 +287,10 @@ type HolidayBillingSettings interface {
 	// letter with its placeholders, empty for the built-in sentence: its
 	// value of parent_billing.payment_text or the default (#5622).
 	PaymentText(ctx context.Context, organizationID int64) (string, error)
+	// HolidayChain is how the Träger ranks siblings and when a cost bearer
+	// takes over: its values of parent_billing.sibling_rank and
+	// parent_billing.cost_takeover_order or the defaults (#5664).
+	HolidayChain(ctx context.Context, organizationID int64) (HolidayChainSettings, error)
 }
 
 // HolidayConfirmationSettings is what the Träger-Büro needs to know before
@@ -262,9 +324,13 @@ type HolidayQuoteBooking struct {
 	TimeModelID int64
 }
 
-// HolidayQuoteChild is a child of the public form by its bookings.
+// HolidayQuoteChild is a child of the public form by its bookings and its
+// place among the children by age: 1 for the oldest, the same number for the
+// same date of birth, 0 when the form knows no date yet (#5664). The quote
+// needs no date of birth to rank them.
 type HolidayQuoteChild struct {
 	Bookings []HolidayQuoteBooking
+	AgeRank  int
 }
 
 // HolidayContributions computes, shows and freezes the holiday contribution
@@ -295,6 +361,15 @@ type HolidayContributions interface {
 	// Träger asks for it, a blank one is a validation error on
 	// debtor_number before anything is written (#5621).
 	ConfirmHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, costBearerID int64, debtorNumber string) (HolidayConfirmation, error)
+	// CancelHolidayRegistration cancels the registration through Enrollment
+	// in the caller's Träger transaction (#5662). In a sibling group it
+	// takes the registration out of the group and computes the frozen
+	// contribution of every other confirmed registration of the group again,
+	// under the locks of a merge, also of one an issued invoice bills, which
+	// keeps its own positions. A cancelled registration is
+	// ErrHolidayRegistrationStateConflict, one after the deadline
+	// ErrHolidayRegistrationFrozen.
+	CancelHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayCancellation, error)
 	// HolidayConfirmationSettings reports what a confirmation of the
 	// session's Träger needs (#5621).
 	HolidayConfirmationSettings(ctx context.Context, reviewer HolidayReviewer) (HolidayConfirmationSettings, error)

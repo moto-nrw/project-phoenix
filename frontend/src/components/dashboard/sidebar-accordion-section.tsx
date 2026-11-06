@@ -10,8 +10,6 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { NavSceneFallback } from "~/components/ui/nav-scene-icon/nav-scene-icon";
 import {
-  PORTAL_ICON_CLASSES,
-  portalSidebarRowClasses,
   SIDEBAR_ICON_CLASSES,
   sidebarLabelClasses,
   sidebarRowClasses,
@@ -20,9 +18,6 @@ import type { MotoConcept } from "~/lib/moto-concepts";
 
 interface SidebarAccordionSectionProps {
   readonly icon?: string;
-  /** Keep dashboard defaults; portals share their responsive link geometry. */
-  readonly variant?: "dashboard" | "portal";
-  readonly "data-portal-nav-section"?: string;
   readonly concept?: MotoConcept;
   readonly label: string;
   readonly activeColor?: string;
@@ -55,8 +50,6 @@ interface SidebarAccordionSectionProps {
 
 export function SidebarAccordionSection({
   icon,
-  variant = "dashboard",
-  "data-portal-nav-section": dataSection,
   concept,
   label,
   activeColor,
@@ -109,21 +102,13 @@ export function SidebarAccordionSection({
             onToggle();
           }
         }}
-        className={`${variant === "portal" ? `${portalSidebarRowClasses(rowActive)} w-full justify-start text-left` : sidebarRowClasses({ isActive: rowActive })} cursor-pointer`}
-        data-portal-nav-section={dataSection}
+        className={`${sidebarRowClasses({ isActive: rowActive })} cursor-pointer`}
         data-active={rowActive ? "true" : "false"}
         aria-controls={bodyId}
         aria-expanded={bodyExpanded}
         {...(collapsed ? { title: label, "aria-label": label } : {})}
       >
-        {variant === "portal" && concept ? (
-          <MotoNavIcon
-            scene
-            concept={concept}
-            active={showActiveIcon}
-            className={`${PORTAL_ICON_CLASSES} ${showActiveIcon ? "" : "text-gray-400"}`}
-          />
-        ) : conceptDefinition ? (
+        {conceptDefinition ? (
           <MotoNavIcon
             scene
             concept={conceptDefinition}
@@ -150,15 +135,7 @@ export function SidebarAccordionSection({
         )}
         {labelsMounted && (
           <>
-            <span
-              className={
-                variant === "portal"
-                  ? "flex-1"
-                  : sidebarLabelClasses(labelsVisible)
-              }
-            >
-              {label}
-            </span>
+            <span className={sidebarLabelClasses(labelsVisible)}>{label}</span>
             {/* Sammelzähler auf der geschlossenen Kopfzeile; sobald der
                 Bereich offen ist, übernehmen die Zähler der Unterpunkte.
                 Für die Dauer der Blende steht er neben dem Zähler im

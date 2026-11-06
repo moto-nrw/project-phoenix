@@ -52,6 +52,27 @@ Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
   needs two connections at once — without headroom those tests deadlock and
   every one of them fails on its own 5s deadline, which looks nothing like a
   pool problem.
+- The full wrapper caps Go runtime parallelism at one worker per process,
+  including child tools, while keeping concurrent packages and `-parallel 8`.
+  This bounds parallel-GC overhead; `-cpu` still controls the test runtime.
+  Other pinned commands and the native app loop keep their existing budgets.
+  Its lower GC target is inherited by the build driver, test processes and
+  their children; set `GOGC` explicitly to override it. No `-exec` wrapper
+  interferes with Go's successful-test result cache. Its
+  `-ldflags=-w` drops DWARF, not Go's runtime line tables. Go also strips
+  ordinary disposable test binaries by default. For a debugger, retain one
+  with `go test -c -tags=testhooks -ldflags= ./package`; normal failures retain
+  source lines and stacks.
+- The full wrapper caches silent native test links under Go's build cache,
+  independently of test results: `-count=1` still executes every test. The key
+  includes cmd/go's link action hash and every input archive's full build ID,
+  covering toolchain, flags and source contents, including comment-only edits.
+  Cold temporary paths normalize to the same IDs as warm cached objects.
+  It keeps one binary per package;
+  concurrent eviction is a cache miss. CGO/race, unknown linker flags, forced
+  rebuilds and caller-owned tool adapters retain native behavior. The changed
+  wrapper and CI test invocation remain unchanged; CI runs the cache adapter's
+  real-toolchain invalidation and diagnostic tests.
 - **Leftovers are a gate, not a report (#2419)**: every test binary compares its
   clone against the start state it recorded for itself and fails the PACKAGE
   when rows are left in SHARED state — rows outside the tenants its own tests

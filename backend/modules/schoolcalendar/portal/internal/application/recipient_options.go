@@ -6,31 +6,32 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 func (s *service) RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error) {
 	if limit <= 0 || limit > 50 {
 		limit = 25
 	}
-	query = strings.ToLower(strings.TrimSpace(query))
+	search := recipientQueryFor(query)
 
-	staffOptions, err := s.staffRecipientOptions(ctx, query, limit)
+	staffOptions, err := s.staffRecipientOptions(ctx, search.folded, limit)
 	if err != nil {
 		return nil, err
 	}
-	parentOptions, err := s.parentRecipientOptions(ctx, query, limit)
+	parentOptions, err := s.parentRecipientOptions(ctx, search, limit)
 	if err != nil {
 		return nil, err
 	}
-	groupOptions, err := s.groupRecipientOptions(ctx, query, limit)
+	groupOptions, err := s.groupRecipientOptions(ctx, search.folded, limit)
 	if err != nil {
 		return nil, err
 	}
-	classOptions, err := s.classRecipientOptions(ctx, query, limit)
+	classOptions, err := s.classRecipientOptions(ctx, search.folded, limit)
 	if err != nil {
 		return nil, err
 	}
-	studentOptions, err := s.studentRecipientOptions(ctx, query, limit)
+	studentOptions, err := s.studentRecipientOptions(ctx, search.folded, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -44,10 +45,29 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 	}, nil
 }
 
-// matchesRecipientQuery reports whether name matches the lower-cased search
-// query; an empty query matches everything.
+// recipientQuery is the search as typed, for the database search that folds
+// on its own, and folded, for the in-memory lists (#5791). Folding before the
+// database misses e-mail addresses with umlauts and letters Go folds but
+// PostgreSQL keeps, such as й.
+type recipientQuery struct {
+	text   string
+	folded string
+}
+
+func recipientQueryFor(query string) recipientQuery {
+	return recipientQuery{text: strings.TrimSpace(query), folded: normalizeRecipientQuery(query)}
+}
+
+// normalizeRecipientQuery trims the search query and folds it for
+// matchesRecipientQuery.
+func normalizeRecipientQuery(query string) string {
+	return collation.FoldForSearch(strings.TrimSpace(query))
+}
+
+// matchesRecipientQuery reports whether name matches the normalized search
+// query, ignoring case and accents (#4949); an empty query matches everything.
 func matchesRecipientQuery(name, query string) bool {
-	return query == "" || strings.Contains(strings.ToLower(name), query)
+	return query == "" || strings.Contains(collation.FoldForSearch(name), query)
 }
 
 func (s *service) staffRecipientOptions(ctx context.Context, query string, limit int) ([]StaffOption, error) {
@@ -79,13 +99,13 @@ func (s *service) staffRecipientOptions(ctx context.Context, query string, limit
 	return staffOptions, nil
 }
 
-func (s *service) parentRecipientOptions(ctx context.Context, query string, limit int) ([]ParentOption, error) {
+func (s *service) parentRecipientOptions(ctx context.Context, query recipientQuery, limit int) ([]ParentOption, error) {
 	// Over-fetch text matches before filtering: reachability (active portal
 	// account + guardian role) and student visibility are applied below, so
 	// capping SearchByText at `limit` would let unreachable matches consume the
 	// budget and hide reachable parents ranked later. Fetch a larger candidate
 	// pool, then cap the filtered result at `limit`.
-	parents, err := s.cfg.GuardianProfileRepo.SearchByText(ctx, query, limit*parentSearchCandidateFactor)
+	parents, err := s.cfg.GuardianProfileRepo.SearchByText(ctx, query.text, limit*parentSearchCandidateFactor)
 	if err != nil {
 		return nil, err
 	}

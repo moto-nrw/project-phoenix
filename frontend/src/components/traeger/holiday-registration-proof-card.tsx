@@ -4,8 +4,8 @@
 // die Eltern mit der Anmeldung hochgeladen haben. Bringt die Familie den
 // Nachweis auf Papier, lädt das Träger-Büro ihn hier hoch (#5627). Nur die
 // Einzelansicht zeigt die Nachweise, nie die Liste oder der Export. Jede
-// Datei öffnet sich in einem neuen Tab; das Backend protokolliert jedes
-// Öffnen und jedes Hochladen.
+// Datei lässt sich in einem neuen Tab öffnen und herunterladen; das Backend
+// protokolliert jeden Abruf und jedes Hochladen.
 
 import { Upload } from "lucide-react";
 import { useRef, useState } from "react";
@@ -88,11 +88,12 @@ export function HolidayRegistrationProofCard({
               type="button"
               variant="outline"
               size="md"
+              className="gap-2"
               isLoading={uploading}
               loadingText="Lädt hoch …"
               onClick={() => fileRef.current?.click()}
             >
-              <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+              <Upload className="h-4 w-4" aria-hidden="true" />
               Nachweis hochladen
             </Button>
           </>
@@ -111,6 +112,7 @@ export function HolidayRegistrationProofCard({
             holidayProofHref(periodId, registration.id, proofId)
           }
           openLabel="In neuem Tab öffnen"
+          fileActions
         />
       ) : (
         <p className="text-sm text-gray-700">{emptyText(registration)}</p>

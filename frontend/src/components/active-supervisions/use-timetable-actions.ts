@@ -132,7 +132,13 @@ export interface TimetableActions {
   ) => Promise<void>;
   readonly confirmCompleteTimetableInstance: () => Promise<void>;
   readonly handleCompleteTimetableInstance: () => Promise<void>;
-  readonly handleReopenTimetableInstance: () => Promise<void>;
+  /**
+   * Reopens the block the undo banner offers, or `target`: a finished block
+   * the end-of-day review offers to reopen (#5676).
+   */
+  readonly handleReopenTimetableInstance: (
+    target?: ReopenableInstance,
+  ) => Promise<void>;
   readonly handleConfirmExpectedStudents: (
     rows: TimetableRosterRow[],
   ) => Promise<void>;
@@ -216,7 +222,7 @@ export function useTimetableActions(
     restOfDay: (row: TimetableRosterRow) => void;
     complete: () => void;
     confirmExpected: (rows: TimetableRosterRow[]) => void;
-    reopen: () => void;
+    reopen: (target?: ReopenableInstance) => void;
     rosterSync: () => void;
   }>({
     startPlanned: () => undefined,
@@ -616,58 +622,68 @@ export function useTimetableActions(
     setShowCompleteConfirmation(true);
   }, [clearCompleteError]);
 
-  const handleReopenTimetableInstance = useCallback(async () => {
-    if (!reopenable) return;
-    try {
-      setIsReopeningInstance(true);
-      const result = await timetableOperationsApi.reopen(reopenable.instanceId);
-      clearReopenable();
-      // Undo opens the restored block, wherever the page went after the end.
-      // An entry stored before the room was remembered keeps the old
-      // behaviour: it only selects the block.
-      if (reopenable.roomId) {
-        router.push(
-          adoptSession(
-            result.activeGroupId,
-            result.instanceId,
-            reopenable.roomId,
-          ),
-        );
-        memory.write("supervision-last-session", result.activeGroupId);
-        memory.write("sidebar-last-room", reopenable.roomId);
-      } else {
-        setSelectedTimetableInstanceId(result.instanceId);
+  const handleReopenTimetableInstance = useCallback(
+    async (target?: ReopenableInstance) => {
+      const instance = target ?? reopenable;
+      if (!instance) return;
+      // The banner keeps offering its own undo while another block reopens.
+      const clearBanner = () => {
+        if (reopenable?.instanceId === instance.instanceId) clearReopenable();
+      };
+      try {
+        setIsReopeningInstance(true);
+        const result = await timetableOperationsApi.reopen(instance.instanceId);
+        clearBanner();
+        // Undo opens the restored block, wherever the page went after the
+        // end. An entry stored before the room was remembered keeps the old
+        // behaviour: it only selects the block.
+        if (instance.roomId) {
+          router.push(
+            adoptSession(
+              result.activeGroupId,
+              result.instanceId,
+              instance.roomId,
+            ),
+          );
+          memory.write("supervision-last-session", result.activeGroupId);
+          memory.write("sidebar-last-room", instance.roomId);
+        } else {
+          setSelectedTimetableInstanceId(result.instanceId);
+        }
+        await reloadAfterLifecycleChange();
+      } catch (err) {
+        logger.error("failed to reopen timetable instance", {
+          instance_id: instance.instanceId,
+          error: err instanceof Error ? err.message : String(err),
+          status: errorStatus(err),
+        });
+        const unavailable = isReopenUnavailableError(err);
+        if (unavailable) {
+          clearBanner();
+        }
+        // A full room names itself through its code and details (#3633).
+        // Wiederholen only while the block can still be reopened.
+        void showActionError(err, {
+          object: "das Wiederöffnen",
+          retry: unavailable
+            ? undefined
+            : () => retryRef.current.reopen(target),
+        });
+      } finally {
+        setIsReopeningInstance(false);
       }
-      await reloadAfterLifecycleChange();
-    } catch (err) {
-      logger.error("failed to reopen timetable instance", {
-        instance_id: reopenable.instanceId,
-        error: err instanceof Error ? err.message : String(err),
-        status: errorStatus(err),
-      });
-      const unavailable = isReopenUnavailableError(err);
-      if (unavailable) {
-        clearReopenable();
-      }
-      // A full room names itself through its code and details (#3633).
-      // Wiederholen only while the banner still offers the undo.
-      void showActionError(err, {
-        object: "die Rücknahme",
-        retry: unavailable ? undefined : () => retryRef.current.reopen(),
-      });
-    } finally {
-      setIsReopeningInstance(false);
-    }
-  }, [
-    adoptSession,
-    clearReopenable,
-    memory,
-    reloadAfterLifecycleChange,
-    reopenable,
-    router,
-    setSelectedTimetableInstanceId,
-    showActionError,
-  ]);
+    },
+    [
+      adoptSession,
+      clearReopenable,
+      memory,
+      reloadAfterLifecycleChange,
+      reopenable,
+      router,
+      setSelectedTimetableInstanceId,
+      showActionError,
+    ],
+  );
 
   const handleConfirmExpectedStudents = useCallback(
     async (rows: TimetableRosterRow[]) => {
@@ -820,7 +836,7 @@ export function useTimetableActions(
       restOfDay: (row) => void handleExcuseRestOfDay(row),
       complete: () => void confirmCompleteTimetableInstance(),
       confirmExpected: (rows) => void handleConfirmExpectedStudents(rows),
-      reopen: () => void handleReopenTimetableInstance(),
+      reopen: (target) => void handleReopenTimetableInstance(target),
       rosterSync: () => void syncRoster(),
     };
   });

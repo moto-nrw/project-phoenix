@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 	"github.com/uptrace/bun"
 )
 
@@ -176,14 +176,16 @@ func applyChangeRequestReviewFilters(q *bun.SelectQuery, filters enrollment.Chan
 		// The affected child is the pinned one when the request targets a
 		// single child, and every child of the enrollment otherwise — the same
 		// rule the response's child names follow, so a name that shows up in
-		// the list is also a name that finds it.
+		// the list is also a name that finds it. LIKE metacharacters are
+		// escaped after folding (#5791).
 		q = q.Where(`EXISTS (
 			SELECT 1 FROM enrollment.request_children AS rc
 			WHERE rc.request_id = "change_request".request_id
 			  AND rc.tenant_id = "change_request".tenant_id
 			  AND ("change_request".request_child_id IS NULL OR rc.id = "change_request".request_child_id)
-			  AND (rc.first_name || ' ' || rc.last_name) ILIKE ? ESCAPE '\'
-		)`, "%"+strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(filters.Search)+"%")
+			  AND public.f_unaccent(rc.first_name || ' ' || rc.last_name)
+			      ILIKE '%' || `+collation.UnaccentLikePatternSQL+` || '%' ESCAPE '\'
+		)`, filters.Search)
 	}
 	if filters.History {
 		if !filters.From.IsZero() {

@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+import { releaseFakeTimers } from "~/test/clock";
 import { ToastProvider, useToast } from "./ToastContext";
 
 // Helper to create a wrapper with ToastProvider
@@ -404,7 +405,11 @@ describe("ToastContext", () => {
       );
 
       await screen.findByText("Second");
+      // Fake timers skip the 300-ms exit animation of the dismissed bar.
+      vi.useFakeTimers();
       fireEvent.click(screen.getAllByLabelText("Schließen")[1]!);
+      await act(() => vi.advanceTimersByTimeAsync(300));
+      releaseFakeTimers();
 
       await waitFor(() => {
         expect(screen.queryByText("Second")).not.toBeInTheDocument();

@@ -317,6 +317,32 @@ func TestValidate_MaxLength(t *testing.T) {
 	}
 }
 
+// An example text belongs to a textarea, the one input that shows it (#5693).
+func TestValidate_Placeholder(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		fieldType FieldType
+		wantErr   string
+	}{
+		"textarea":       {fieldType: FieldTextarea},
+		"text refused":   {fieldType: FieldText, wantErr: "only be set for textarea fields"},
+		"number refused": {fieldType: FieldNumber, wantErr: "only be set for textarea fields"},
+	} {
+		def := Definition{
+			Key: "test.placeholder", Type: tc.fieldType, Tab: "system", Category: "general",
+			Placeholder: "Musterstraße 1",
+		}
+		err := def.Validate()
+		if tc.wantErr == "" {
+			assert.NoError(t, err, name)
+			continue
+		}
+		require.Error(t, err, name)
+		assert.Contains(t, err.Error(), tc.wantErr, name)
+	}
+}
+
 func TestValidate_DefaultBelowMin(t *testing.T) {
 	t.Parallel()
 

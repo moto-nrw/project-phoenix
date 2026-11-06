@@ -32,11 +32,17 @@ func newStaffHarness(t *testing.T) (*staffHarness, *harness) {
 // do sends one request as the account and decodes a 200 body into the status.
 func (h *staffHarness) do(t *testing.T, accountID int64, method, path string, body any) (*httptest.ResponseRecorder, schoolsetup.StaffStatus) {
 	t.Helper()
+	return h.doIn(t, testpkg.Ctx(t), accountID, method, path, body)
+}
+
+// doIn is do in a given school.
+func (h *staffHarness) doIn(t *testing.T, base context.Context, accountID int64, method, path string, body any) (*httptest.ResponseRecorder, schoolsetup.StaffStatus) {
+	t.Helper()
 	var payload bytes.Buffer
 	if body != nil {
 		require.NoError(t, json.NewEncoder(&payload).Encode(body))
 	}
-	ctx := context.WithValue(testpkg.Ctx(t), accountKey{}, accountID)
+	ctx := context.WithValue(base, accountKey{}, accountID)
 	request := httptest.NewRequest(method, path, &payload).WithContext(ctx)
 	recorder := httptest.NewRecorder()
 	h.router.ServeHTTP(recorder, request)

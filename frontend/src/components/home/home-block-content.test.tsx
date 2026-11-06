@@ -223,8 +223,31 @@ describe("HomeBlockContent — Listen", () => {
     );
 
     expect(
-      screen.getByRole("link", { name: "Schach: Aktivitäten öffnen" }),
+      screen.getByRole("link", { name: "Schach, Läuft: Aktivitäten öffnen" }),
     ).toHaveAttribute("href", "/test-tenant/activities");
+  });
+
+  it("liest den Status vor, den nur der Punkt zeigt", () => {
+    const currentActivities: DashboardAnalytics["currentActivities"] = [
+      {
+        id: "2",
+        name: "Basteln",
+        category: "Kreativ",
+        participants: 12,
+        maxCapacity: 12,
+        status: "full",
+      },
+    ];
+    render(
+      <HomeBlockContent
+        blockKey="section.current_activities"
+        data={data({ analytics: { ...analytics, currentActivities } })}
+      />,
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Basteln, Voll: Aktivitäten öffnen" }),
+    ).toBeInTheDocument();
   });
 
   // #3634: überbucht ist ein eigener, lesbarer Zustand, nicht nur ein
@@ -341,7 +364,9 @@ describe("HomeBlockContent — Listen", () => {
     render(<HomeBlockContent blockKey="section.active_groups" data={data()} />);
 
     expect(
-      screen.getByRole("link", { name: "OGS Gruppe A: Betreuung öffnen" }),
+      screen.getByRole("link", {
+        name: "OGS Gruppe A, Aktiv: Betreuung öffnen",
+      }),
     ).toHaveAttribute("href", "/test-tenant/ogs-groups");
   });
 
@@ -387,7 +412,7 @@ describe("HomeBlockContent — Listen", () => {
 
 describe("HomeBlockContent — Kinder (#4347)", () => {
   const withAtSchool = data({
-    analytics: { ...analytics, studentsAtSchool: 21 },
+    analytics: { ...analytics, studentsAtSchool: 21, studentsInClass: 6 },
   });
 
   it("zählt die Kinder nach Status und führt jede Zahl in die passende Liste", () => {
@@ -398,6 +423,7 @@ describe("HomeBlockContent — Kinder (#4347)", () => {
     const rows: [string, string, string][] = [
       ["Anwesend", "150", "/test-tenant/students/search?status=anwesend"],
       ["Schule", "21", "/test-tenant/students/search?status=schule"],
+      ["Im Unterricht", "6", "/test-tenant/students/search?status=unterricht"],
       ["Zuhause", "33", "/test-tenant/students/search?status=abwesend"],
       ["Krank", "4", "/test-tenant/students/search?status=krank"],
       [
@@ -449,7 +475,7 @@ describe("HomeBlockContent — Kinder (#4347)", () => {
 
     // Anker: alle fünf Zeilen stehen da, mit Strich statt Zahl. Der
     // Ladezustand zeichnet an dieser Stelle ein Skelett, keinen Strich.
-    expect(screen.getAllByText("–")).toHaveLength(5);
+    expect(screen.getAllByText("–")).toHaveLength(6);
     expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 });

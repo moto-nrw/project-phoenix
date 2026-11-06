@@ -461,6 +461,12 @@
       "class": "permission",
       "parameters": [],
       "legacy": "staff_managed_guardian_protected"
+    },
+    {
+      "code": "care.pickup_signature_too_large",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care.pickup_signature_too_large"
     }
   ]
 }

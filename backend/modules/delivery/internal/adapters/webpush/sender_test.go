@@ -2,8 +2,14 @@ package webpush
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
@@ -72,4 +78,152 @@ func TestSendPushKeepsPushTokenOutOfInvalidEndpointErrors(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "invalid push endpoint")
 	assert.NotContains(t, err.Error(), "device-token-123")
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) { return f(request) }
+
+// pushServiceAnswering returns a sender whose push service answers every
+// request with status, and a counter of subscription cleanups.
+func pushServiceAnswering(t *testing.T, status int, transportErr error) (*Sender, *int) {
+	t.Helper()
+	privateKey, publicKey, err := provider.GenerateVAPIDKeys()
+	require.NoError(t, err)
+	cleanups := 0
+	sender := New(deliveryContract.WebPushConfig{Subscriber: "mailto:push@example.test", PublicKey: publicKey, PrivateKey: privateKey},
+		func(context.Context, deliveryContract.ClaimedIntent) error {
+			cleanups++
+			return nil
+		})
+	sender.client = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		if transportErr != nil {
+			return nil, transportErr
+		}
+		return &http.Response{StatusCode: status, Status: fmt.Sprintf("%d %s", status, http.StatusText(status)), Body: io.NopCloser(strings.NewReader(""))}, nil
+	})}
+	return sender, &cleanups
+}
+
+func pushIntent(t *testing.T) deliveryContract.ClaimedIntent {
+	t.Helper()
+	// A VAPID public key is an uncompressed P-256 point, the same shape as a
+	// browser subscription's p256dh key.
+	_, devicePublicKey, err := provider.GenerateVAPIDKeys()
+	require.NoError(t, err)
+	return deliveryContract.ClaimedIntent{
+		PushRecipient: deliveryContract.PushRecipient{
+			Endpoint: "https://fcm.googleapis.com/fcm/send/device-token-123",
+			P256DH:   devicePublicKey,
+			Auth:     "MDEyMzQ1Njc4OWFiY2RlZg", // 16 bytes, base64url
+
+		},
+		PushPayload: deliveryContract.PushPayload{Title: "Abwesenheit", Priority: "normal"},
+	}
+}
+
+// Sentry BACKEND-15: a 403 was retried until the attempt limit. RFC 8292 lets
+// a push service answer 403 for an invalid JWT, which hits every subscription,
+// so the rejection is final for this intent but keeps the subscription.
+func TestSendPushClassifiesPushServiceAnswers(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusRequestEntityTooLarge} {
+		t.Run(fmt.Sprintf("%d is final and keeps the subscription", status), func(t *testing.T) {
+			t.Parallel()
+			sender, cleanups := pushServiceAnswering(t, status, nil)
+
+			result, err := sender.SendPush(context.Background(), pushIntent(t))
+
+			require.ErrorIs(t, err, deliveryContract.ErrPermanent)
+			assert.NotErrorIs(t, err, deliveryContract.ErrCancelled)
+			assert.Equal(t, status, result.StatusCode)
+			assert.Zero(t, *cleanups, "a permanent rejection must not prune the subscription")
+			assert.NotContains(t, err.Error(), "device-token-123")
+		})
+	}
+	for _, status := range []int{http.StatusNotFound, http.StatusGone} {
+		t.Run(fmt.Sprintf("%d prunes the expired subscription", status), func(t *testing.T) {
+			t.Parallel()
+			sender, cleanups := pushServiceAnswering(t, status, nil)
+
+			_, err := sender.SendPush(context.Background(), pushIntent(t))
+
+			require.ErrorIs(t, err, deliveryContract.ErrCancelled)
+			assert.Equal(t, 1, *cleanups)
+		})
+	}
+	for _, status := range []int{http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusServiceUnavailable} {
+		t.Run(fmt.Sprintf("%d stays retryable", status), func(t *testing.T) {
+			t.Parallel()
+			sender, cleanups := pushServiceAnswering(t, status, nil)
+
+			_, err := sender.SendPush(context.Background(), pushIntent(t))
+
+			require.Error(t, err)
+			assert.NotErrorIs(t, err, deliveryContract.ErrPermanent)
+			assert.NotErrorIs(t, err, deliveryContract.ErrCancelled)
+			assert.Zero(t, *cleanups)
+		})
+	}
+	t.Run("a network failure stays retryable without the push token", func(t *testing.T) {
+		t.Parallel()
+		sender, cleanups := pushServiceAnswering(t, 0, errors.New("connection refused"))
+
+		_, err := sender.SendPush(context.Background(), pushIntent(t))
+
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, deliveryContract.ErrPermanent)
+		assert.NotContains(t, err.Error(), "device-token-123")
+		assert.Zero(t, *cleanups)
+	})
+	t.Run("2xx is acceptance", func(t *testing.T) {
+		t.Parallel()
+		sender, _ := pushServiceAnswering(t, http.StatusCreated, nil)
+
+		result, err := sender.SendPush(context.Background(), pushIntent(t))
+
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusCreated, result.StatusCode)
+	})
+}
+
+// Sentry BACKEND-17: the configured contact is the RFC 8292 URI
+// "mailto:…", and webpush-go adds the mailto scheme itself. Passed through
+// unchanged, the JWT claimed "mailto:mailto:…", which Apple's push service
+// rejects with 403 for every subscription.
+func TestSendPushClaimsTheConfiguredContactOnce(t *testing.T) {
+	t.Parallel()
+
+	for _, subscriber := range []string{"mailto:push@example.test", "https://example.test/contact"} {
+		t.Run(subscriber, func(t *testing.T) {
+			t.Parallel()
+			privateKey, publicKey, err := provider.GenerateVAPIDKeys()
+			require.NoError(t, err)
+			sender := New(deliveryContract.WebPushConfig{Subscriber: subscriber, PublicKey: publicKey, PrivateKey: privateKey}, nil)
+			var claims map[string]any
+			sender.client = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				claims = vapidClaims(t, request.Header.Get("Authorization"))
+				return &http.Response{StatusCode: http.StatusCreated, Status: "201 Created", Body: io.NopCloser(strings.NewReader(""))}, nil
+			})}
+
+			_, err = sender.SendPush(context.Background(), pushIntent(t))
+
+			require.NoError(t, err)
+			assert.Equal(t, subscriber, claims["sub"])
+		})
+	}
+}
+
+// vapidClaims decodes the JWT claims of a "vapid t=<jwt>, k=<key>" header.
+func vapidClaims(t *testing.T, header string) map[string]any {
+	t.Helper()
+	token, _, _ := strings.Cut(strings.TrimPrefix(header, "vapid t="), ",")
+	parts := strings.Split(token, ".")
+	require.Len(t, parts, 3, "VAPID header carries a JWT")
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	require.NoError(t, err)
+	var claims map[string]any
+	require.NoError(t, json.Unmarshal(payload, &claims))
+	return claims
 }

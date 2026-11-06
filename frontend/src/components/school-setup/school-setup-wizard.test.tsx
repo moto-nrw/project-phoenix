@@ -22,6 +22,7 @@ const push = vi.fn();
 const replace = vi.fn(() => Promise.resolve());
 const refresh = vi.fn(() => Promise.resolve());
 let shellUser: { id: string } | null = { id: "73" };
+let shellViaTraeger = false;
 let setupState: SchoolSetupState | null = null;
 let pathname = "/dashboard";
 
@@ -31,7 +32,9 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("~/lib/shell-auth-context", () => ({
   useShellAuthSafe: () =>
-    shellUser ? { user: shellUser, isPreview: false } : undefined,
+    shellUser
+      ? { user: shellUser, isPreview: false, isViaTraeger: shellViaTraeger }
+      : undefined,
 }));
 
 vi.mock("~/lib/tenant-context", () => ({
@@ -236,6 +239,7 @@ describe("SchoolSetupWizard", () => {
     sessionStorage.clear();
     document.body.innerHTML = "";
     shellUser = { id: "73" };
+    shellViaTraeger = false;
     setupState = newSchool();
     pathname = "/dashboard";
   });
@@ -358,6 +362,18 @@ describe("SchoolSetupWizard", () => {
     await waitFor(() =>
       expect(api.setSchoolSetupDismissed).toHaveBeenCalledWith(true),
     );
+  });
+
+  it("names the Träger in the confirmation of a session from the Träger-Portal", () => {
+    shellViaTraeger = true;
+    setupState = newSchool();
+    render(<SchoolSetupWizard />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Nicht mehr anzeigen" }),
+    );
+
+    expect(screen.getByText(/in allen OGS Ihres Trägers/)).toBeInTheDocument();
   });
 
   it("offers the parent tour only once there is a child", () => {

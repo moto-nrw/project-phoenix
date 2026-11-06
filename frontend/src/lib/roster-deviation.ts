@@ -1,5 +1,6 @@
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { schoolClassesLabel } from "~/lib/school-class-label";
+import { describeGapWeekdays } from "~/lib/offering-gap";
 
 /**
  * A Regeltermin whose hand-kept children list no longer matches the bookings
@@ -60,10 +61,18 @@ export interface OfferingPreviewChild {
   name: string;
 }
 
+/** A child the preview drops, with what the selection books for it. */
+export interface OfferingPreviewDroppedChild extends OfferingPreviewChild {
+  /** ISO weekdays the selected offerings book the child on; absent: unknown. */
+  bookedWeekdays?: number[];
+  /** The Klassen or Jahrgang filter leaves out a child the selection books. */
+  excludedBy?: "school_class" | "grade_level";
+}
+
 interface OfferingPreviewWeekday {
   weekday: number;
   added: OfferingPreviewChild[];
-  removed: OfferingPreviewChild[];
+  removed: OfferingPreviewDroppedChild[];
   keptCount: number;
 }
 
@@ -74,11 +83,24 @@ interface OfferingPreviewSegment {
   validUntil?: string;
 }
 
+/** An offering outside the selection that books children who drop. */
+export interface OfferingPreviewAlternative {
+  offeringId: string;
+  name: string;
+  /** Each dropped child counts once, however many days it covers. */
+  childCount: number;
+}
+
 /** Who joins and who leaves per weekday when the series switches to a source. */
 export interface OfferingPreview {
   from: string;
   weekdays: OfferingPreviewWeekday[];
   segments: OfferingPreviewSegment[];
+  /**
+   * Offerings of the same phase that would keep children who drop; absent
+   * means none.
+   */
+  otherOfferings?: OfferingPreviewAlternative[];
 }
 
 interface BackendOfferingRef {
@@ -115,18 +137,28 @@ interface BackendPreviewChild {
   name: string;
 }
 
+interface BackendPreviewDroppedChild extends BackendPreviewChild {
+  booked_weekdays?: number[] | null;
+  excluded_by?: "school_class" | "grade_level" | null;
+}
+
 export interface BackendOfferingPreview {
   from: string;
   weekdays?: Array<{
     weekday: number;
     added?: BackendPreviewChild[] | null;
-    removed?: BackendPreviewChild[] | null;
+    removed?: BackendPreviewDroppedChild[] | null;
     kept_count: number;
   }> | null;
   segments?: Array<{
     template_id: number;
     valid_from: string;
     valid_until?: string | null;
+  }> | null;
+  other_offerings?: Array<{
+    offering_id: number;
+    name: string;
+    child_count: number;
   }> | null;
 }
 
@@ -175,6 +207,14 @@ const previewChild = (child: BackendPreviewChild): OfferingPreviewChild => ({
   name: child.name,
 });
 
+const droppedChild = (
+  child: BackendPreviewDroppedChild,
+): OfferingPreviewDroppedChild => ({
+  ...previewChild(child),
+  ...(child.booked_weekdays ? { bookedWeekdays: child.booked_weekdays } : {}),
+  ...(child.excluded_by ? { excludedBy: child.excluded_by } : {}),
+});
+
 export function mapOfferingPreview(
   raw: BackendOfferingPreview,
 ): OfferingPreview {
@@ -183,7 +223,7 @@ export function mapOfferingPreview(
     weekdays: (raw.weekdays ?? []).map((day) => ({
       weekday: day.weekday,
       added: (day.added ?? []).map(previewChild),
-      removed: (day.removed ?? []).map(previewChild),
+      removed: (day.removed ?? []).map(droppedChild),
       keptCount: day.kept_count,
     })),
     segments: (raw.segments ?? []).map((segment) => ({
@@ -191,7 +231,33 @@ export function mapOfferingPreview(
       validFrom: segment.valid_from,
       validUntil: segment.valid_until ?? undefined,
     })),
+    otherOfferings: (raw.other_offerings ?? []).map((offering) => ({
+      offeringId: String(offering.offering_id),
+      name: offering.name,
+      childCount: offering.child_count,
+    })),
   };
+}
+
+/**
+ * Names the offerings outside the selection that would keep the children
+ * who drop, so the school sees why they drop and what brings them back.
+ */
+export function otherOfferingsSentence(
+  offerings: readonly OfferingPreviewAlternative[],
+): string | null {
+  if (offerings.length === 0) return null;
+  const parts = offerings.map(
+    (offering) =>
+      `„${offering.name}“ (${offering.childCount} ${offering.childCount === 1 ? "Kind" : "Kinder"})`,
+  );
+  const list =
+    parts.length === 1
+      ? parts[0]
+      : `${parts.slice(0, -1).join(", ")} und ${parts.at(-1)}`;
+  const where =
+    parts.length === 1 ? "in einem anderen Angebot" : "in anderen Angeboten";
+  return `Kinder, die wegfallen, sind ${where} angemeldet: ${list}.`;
 }
 
 function joinNames(names: readonly string[]): string {
@@ -418,6 +484,23 @@ export function untouchedSegmentSentence(
   return `Die Termine ${joinNames(ranges)} gehören zu ${
     ranges.length === 1 ? "einem früheren Abschnitt" : "anderen Abschnitten"
   } und behalten ihre Kinderliste. „Mit Angebot verbinden“ an der Karte des Regeltermins stellt alle Abschnitte auf einmal um.`;
+}
+
+/**
+ * Why a child drops from the Regeltermin, next to its name: Schule am Berg
+ * connected all offerings and still saw children drop, booked on Monday
+ * only. Null when the preview carries no reason.
+ */
+export function droppedChildReason(
+  child: OfferingPreviewDroppedChild,
+): string | null {
+  if (!child.bookedWeekdays) return null;
+  if (child.bookedWeekdays.length > 0) {
+    return `nur ${describeGapWeekdays(child.bookedWeekdays)} angemeldet`;
+  }
+  if (child.excludedBy === "school_class") return "Klasse nicht ausgewählt";
+  if (child.excludedBy === "grade_level") return "Jahrgang nicht ausgewählt";
+  return "in keinem gewählten Angebot angemeldet";
 }
 
 const WEEKDAY_NAMES: Record<number, string> = {

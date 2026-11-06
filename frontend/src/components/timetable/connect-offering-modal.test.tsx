@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
@@ -94,9 +100,9 @@ describe("ConnectOfferingModal (#5103)", () => {
     });
     expect(await screen.findByText("Mittwoch")).toBeInTheDocument();
     expect(screen.getByText("Kommt dazu (1): Ada Berg")).toBeInTheDocument();
-    expect(
-      screen.getByText("Fällt weg (2): Ben Kurz, Cem Ott"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Fällt weg (2)")).toBeInTheDocument();
+    expect(screen.getByText("Ben Kurz")).toBeInTheDocument();
+    expect(screen.getByText("Cem Ott")).toBeInTheDocument();
     expect(screen.getByText("Bleibt (4)")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -147,6 +153,52 @@ describe("ConnectOfferingModal (#5103)", () => {
     expect(onConnected).not.toHaveBeenCalled();
   });
 
+  it("locks alternative offerings until the pending connection finishes", async () => {
+    mockPreview.mockResolvedValue({
+      ...preview,
+      otherOfferings: [{ offeringId: "4", name: "Ganztag", childCount: 2 }],
+    });
+    let finishSave!: () => void;
+    mockConnect.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishSave = resolve;
+      }),
+    );
+    const onClose = vi.fn();
+    render(
+      <ConnectOfferingModal
+        isOpen
+        templateName="RDST 1b"
+        deviation={deviation}
+        onClose={onClose}
+        onConnected={vi.fn()}
+      />,
+    );
+    const add = await screen.findByRole("button", {
+      name: "Angebot dazunehmen",
+    });
+    expect(add).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Verbinden" }));
+
+    try {
+      expect(add).toBeDisabled();
+      fireEvent.click(add);
+      expect(
+        screen.getByRole("button", { name: "Angebote" }),
+      ).toHaveTextContent("Randstunde");
+      expect(mockConnect).toHaveBeenCalledWith(
+        "9",
+        { offeringIds: ["3"], gradeLevels: [], schoolClasses: ["1b"] },
+        preview.from,
+      );
+      expect(mockPreview).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => finishSave());
+    }
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("preselects no offering when several fit equally and previews the chosen one (#5138)", async () => {
     render(
       <ConnectOfferingModal
@@ -179,9 +231,7 @@ describe("ConnectOfferingModal (#5103)", () => {
     expect(mockPreview).not.toHaveBeenCalled();
 
     fireEvent.click(select);
-    fireEvent.click(
-      await screen.findByRole("checkbox", { name: "Randstunde" }),
-    );
+    fireEvent.click(await screen.findByRole("option", { name: "Randstunde" }));
 
     await waitFor(() =>
       expect(mockPreview).toHaveBeenCalledWith("9", {
@@ -224,8 +274,8 @@ describe("ConnectOfferingModal (#5103)", () => {
 
     fireEvent.click(select);
     // Anker: the open menu carries the field name.
-    expect(screen.getByRole("dialog", { name: "Angebote" })).toBeVisible();
-    fireEvent.click(await screen.findByRole("checkbox", { name: "Ganztag" }));
+    expect(screen.getByRole("listbox", { name: "Angebote" })).toBeVisible();
+    fireEvent.click(await screen.findByRole("option", { name: "Ganztag" }));
     expect(duplicateIds()).toEqual([]);
 
     expect(await screen.findByText("Mittwoch")).toBeInTheDocument();
@@ -283,12 +333,8 @@ describe("ConnectOfferingModal (#5103)", () => {
 
     // Every offering of the period can be added; another phase cannot.
     fireEvent.click(screen.getByRole("button", { name: "Angebote" }));
-    expect(
-      await screen.findByRole("checkbox", { name: "Ferien" }),
-    ).toBeEnabled();
-    expect(
-      screen.getByRole("checkbox", { name: "Nachmeldung" }),
-    ).toBeDisabled();
+    expect(await screen.findByRole("option", { name: "Ferien" })).toBeEnabled();
+    expect(screen.getByRole("option", { name: "Nachmeldung" })).toBeDisabled();
     expect(
       screen.getByText(
         "Angebote anderer Anmeldephasen sind ausgegraut, solange ein Angebot gewählt ist.",

@@ -605,7 +605,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"test/fixtures.go:CreateTestParentGuardianChain": 77,
 	// ADR 0087.
-	"test/fixtures.go:cleanupTenantTestData": 107,
+	"test/fixtures.go:cleanupTenantTestData": 94,
 	// ADR 0087.
 	"test/runtime_checkpoint.go:MeasureDeliveryCheckpoint": 94,
 	// ADR 0087.

@@ -5,9 +5,9 @@ import {
   render,
   renderHook,
   screen,
-  waitFor,
   within,
 } from "@testing-library/react";
+import { waitFor } from "~/test/wait-for-state";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PickupTimeModal,
@@ -24,6 +24,7 @@ import type {
 import * as parentApi from "~/lib/parent-api";
 import deMessages from "~/i18n/messages/de.generated";
 import { ApiError } from "~/lib/api-error";
+import { releaseFakeTimers } from "~/test/clock";
 import { catalogText } from "~/test/error-catalog-text";
 import {
   berlinTodayISO,
@@ -305,9 +306,10 @@ describe("PickupTimeModal — failed preload guard", () => {
   it("marks the required reason visibly", () => {
     renderModal();
 
-    expect(screen.getByText("Grund für die Änderung")).toHaveTextContent(
-      "Grund für die Änderung *",
-    );
+    // The star sits next to the label element (FieldLabel, #5217).
+    expect(
+      screen.getByText("Grund für die Änderung").parentElement,
+    ).toHaveTextContent("Grund für die Änderung *");
   });
 
   it("allows a pickup change when only the arrival was set by staff", () => {
@@ -903,9 +905,9 @@ describe("SickNoteModal — Abmeldegrund", () => {
       name: "Grund / Hinweis an die OGS",
     });
     expect(reasonField).toBeRequired();
-    expect(reasonField.closest("label")).toHaveTextContent(
-      "Grund / Hinweis an die OGS *",
-    );
+    expect(
+      screen.getByText("Grund / Hinweis an die OGS").parentElement,
+    ).toHaveTextContent("Grund / Hinweis an die OGS *");
     fireEvent.change(reasonField, { target: { value: "Fieber" } });
     fireEvent.click(
       screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
@@ -1027,7 +1029,11 @@ describe("SickNoteModal — Abmeldegrund", () => {
     expect(
       screen.queryByRole("button", { name: "Krankmeldung an die OGS senden" }),
     ).not.toBeInTheDocument();
+    // Fake timers skip the modal's 250-ms exit animation.
+    vi.useFakeTimers();
     fireEvent.click(closeButtons[0]!);
+    await act(() => vi.advanceTimersByTimeAsync(250));
+    releaseFakeTimers();
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 

@@ -4,5 +4,11 @@
   "previousMonth": "Önceki ay",
   "nextMonth": "Sonraki ay",
   "month": "Ay",
-  "year": "Yıl"
+  "year": "Yıl",
+  "timePicker": {
+    "selectTime": "Saat seçin",
+    "hour": "Saat",
+    "minute": "Dakika",
+    "minimum": "En erken {time}"
+  }
 }

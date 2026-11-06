@@ -90,7 +90,9 @@ describe("StaffList", () => {
 
     const images = container.querySelectorAll("img");
     expect(images).toHaveLength(1);
-    expect(images[0]?.getAttribute("src")).toMatch(/\/api\/staff\/1\/avatar$/);
+    expect(images[0]?.getAttribute("src")).toMatch(
+      /\/api\/staff\/1\/avatar\?v=1\.png$/,
+    );
     expect(screen.getByRole("link", { name: /Person 2/ })).toHaveTextContent(
       "P2",
     );
@@ -146,9 +148,7 @@ describe("StaffList", () => {
 
     const row = screen.getByRole("link", { name: /Person 3/ });
     expect(row).toHaveTextContent("–");
-    expect(row).not.toHaveTextContent(
-      "julia.klein@demo-ogs-nord.moto-ogs.de",
-    );
+    expect(row).not.toHaveTextContent("julia.klein@demo-ogs-nord.moto-ogs.de");
   });
 
   it("shows the empty state when no group has entries", () => {

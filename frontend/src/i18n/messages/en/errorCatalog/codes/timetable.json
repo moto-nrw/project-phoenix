@@ -81,6 +81,7 @@
   "reopen_attendance_changed": "{object} could not be changed. Please check its current status.",
   "reopen_staff_busy": "{object} could not be changed. Please check its current status.",
   "reopen_student_active": "{object} could not be changed. Please check its current status.",
+  "reopen_student_left": "{object} could not be changed. Please check its current status.",
   "reopen_supervision_changed": "{object} could not be changed. Please check its current status.",
   "room_occupied": "{object} could not be changed. Please check its current status.",
   "school_vacation_not_found": "{object} could not be changed. Please check its current status.",

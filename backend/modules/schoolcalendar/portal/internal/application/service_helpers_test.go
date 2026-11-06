@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -301,4 +302,41 @@ func TestTimetableRoomIDPrefersAssignmentOverride(t *testing.T) {
 	assert.Equal(t, int64(90), timetableRoomID(instance, &ports.InstanceStaff{RoomID: &override}))
 	assert.Equal(t, int64(70), timetableRoomID(instance, nil))
 	assert.Equal(t, int64(0), timetableRoomID(nil, nil))
+}
+
+// The recipient picker finds "Özdemir" for "ozdem" (#4949).
+func TestMatchesRecipientQueryIgnoresAccents(t *testing.T) {
+	t.Parallel()
+	assert.True(t, matchesRecipientQuery("Zoë Özdemir", normalizeRecipientQuery(" Zoe OZDEM ")))
+	assert.False(t, matchesRecipientQuery("Kim Becker", normalizeRecipientQuery("ozdem")))
+	assert.True(t, matchesRecipientQuery("Kim Becker", normalizeRecipientQuery("  ")))
+}
+
+type searchCapturingGuardians struct {
+	ports.GuardianDirectory
+	queries []string
+}
+
+func (g *searchCapturingGuardians) SearchByText(_ context.Context, query string, _ int) ([]*ports.GuardianProfile, error) {
+	g.queries = append(g.queries, query)
+	return nil, nil
+}
+
+func (g *searchCapturingGuardians) FindActivePortalProfilesByIDs(context.Context, []int64) (map[int64]*ports.GuardianProfile, error) {
+	return map[int64]*ports.GuardianProfile{}, nil
+}
+
+// The database search folds on its own (f_unaccent); a query folded in Go
+// first misses e-mail addresses with umlauts and letters Go folds but
+// PostgreSQL keeps, such as й (#5791).
+func TestParentRecipientSearchSendsTheTypedQuery(t *testing.T) {
+	t.Parallel()
+
+	for _, typed := range []string{"  jörg@schule.de ", "Андрей"} {
+		guardians := &searchCapturingGuardians{}
+		svc := &service{cfg: Config{GuardianProfileRepo: guardians}}
+		_, err := svc.parentRecipientOptions(context.TODO(), recipientQueryFor(typed), 5)
+		require.NoError(t, err)
+		assert.Equal(t, []string{strings.TrimSpace(typed)}, guardians.queries)
+	}
 }

@@ -45,7 +45,7 @@ func (s *operations) PlannedNow(ctx context.Context, accountID int64, isAdmin bo
 	if err != nil {
 		return nil, err
 	}
-	candidates, err := s.plannedNowCandidates(ctx, eligiblePlannedNow(instances, now, opts, startLead), access, opts.Limit)
+	candidates, err := s.plannedNowCandidates(ctx, eligiblePlannedNow(instances, now, opts, startLead), access, opts, accountID, now)
 	if err != nil {
 		return nil, err
 	}
@@ -61,6 +61,7 @@ func (s *operations) PlannedNow(ctx context.Context, accountID int64, isAdmin bo
 		if err != nil {
 			return nil, err
 		}
+		applyPlannedReopen(&mapped, candidate, opts, accountID, isAdmin, now)
 		out = append(out, mapped)
 	}
 	if opts.Scope == timetable.PlannedNowScopeDay {
@@ -69,6 +70,32 @@ func (s *operations) PlannedNow(ctx context.Context, accountID int64, isAdmin bo
 		}
 	}
 	return out, nil
+}
+
+// applyPlannedReopen announces on the past scope whether the caller may
+// reopen the finished block, and until when (#5676).
+func applyPlannedReopen(mapped *timetable.OperationPlannedInstance, candidate plannedNowCandidate, opts timetable.PlannedNowOptions, accountID int64, isAdmin bool, now time.Time) {
+	if opts.Scope != timetable.PlannedNowScopePast || !plannedReopenable(candidate, accountID, isAdmin, now) {
+		return
+	}
+	mapped.CanReopen = true
+	mapped.ReopenUntil = candidate.instance.ReopenUntil.Format(time.RFC3339)
+}
+
+// plannedReopenable reports whether the caller may reopen a finished block
+// from the end-of-day review (#5676): the planner list's gate, and no slot
+// written after the completion, which Reopen would refuse.
+func plannedReopenable(candidate plannedNowCandidate, accountID int64, isAdmin bool, now time.Time) bool {
+	inst := candidate.instance
+	if !timetable.CanReopenInstance(ScheduledInstanceOf(inst), accountID, isAdmin, now) || inst.CompletedAt == nil {
+		return false
+	}
+	for _, row := range candidate.studentRows {
+		if row.UpdatedAt.After(*inst.CompletedAt) {
+			return false
+		}
+	}
+	return true
 }
 
 // plannedNowAccess resolves the caller's staff profile and overview rights.
@@ -136,35 +163,39 @@ func eligiblePlannedNow(instances []*scheduleModels.ActivityInstance, now time.T
 }
 
 // plannedNowCandidates keeps the blocks the caller may see (all of them
-// under the operational overview, otherwise their own assignments) up to
-// the limit and loads their staff rows, participant rows and display
-// metadata (room name and planning track, #4413) in one read each.
+// under the operational overview, otherwise their own assignments or past
+// blocks they can reopen) up to the limit. Staff and participant rows load
+// before visibility so a changed attendance excludes an unassigned completer;
+// display metadata loads only for visible blocks, in one read (#4413).
 func (s *operations) plannedNowCandidates(
 	ctx context.Context,
 	eligible []*scheduleModels.ActivityInstance,
 	access plannedNowAccess,
-	limit int,
+	opts timetable.PlannedNowOptions,
+	accountID int64,
+	now time.Time,
 ) ([]plannedNowCandidate, error) {
 	staffRows, err := staffOfInstances(ctx, s.deps.InstanceStaff, retainedInstanceIDs(eligible))
 	if err != nil {
 		return nil, err
 	}
 	staffByInstance := IndexInstanceStaffRows(staffRows)
-	visible := make([]*scheduleModels.ActivityInstance, 0, len(eligible))
-	for _, inst := range eligible {
-		if !access.allOperational && !staffAssigned(staffByInstance[inst.ID], access.staffID) {
-			continue
-		}
-		visible = append(visible, inst)
-		if limit > 0 && len(visible) >= limit {
-			break
-		}
-	}
-	studentRows, err := participantsOfInstances(ctx, s.deps.Participants.Reads, retainedInstanceIDs(visible))
+	studentRows, err := participantsOfInstances(ctx, s.deps.Participants.Reads, retainedInstanceIDs(eligible))
 	if err != nil {
 		return nil, err
 	}
 	studentsByInstance := indexInstanceStudentRows(studentRows)
+	visible := make([]*scheduleModels.ActivityInstance, 0, len(eligible))
+	for _, inst := range eligible {
+		candidate := plannedNowCandidate{instance: inst, staffRows: staffByInstance[inst.ID], studentRows: studentsByInstance[inst.ID]}
+		if !plannedNowVisible(candidate, access, opts.Scope, accountID, now) {
+			continue
+		}
+		visible = append(visible, inst)
+		if opts.Limit > 0 && len(visible) >= opts.Limit {
+			break
+		}
+	}
 	display, err := s.deps.BlockMetadata.ListBlockDisplayMetadata(ctx, retainedInstanceIDs(visible))
 	if err != nil {
 		return nil, err
@@ -182,6 +213,13 @@ func (s *operations) plannedNowCandidates(
 		})
 	}
 	return candidates, nil
+}
+
+func plannedNowVisible(candidate plannedNowCandidate, access plannedNowAccess, scope string, accountID int64, now time.Time) bool {
+	if access.allOperational || staffAssigned(candidate.staffRows, access.staffID) {
+		return true
+	}
+	return scope == timetable.PlannedNowScopePast && plannedReopenable(candidate, accountID, false, now)
 }
 
 func plannedNowStudentIDs(candidates []plannedNowCandidate) []int64 {

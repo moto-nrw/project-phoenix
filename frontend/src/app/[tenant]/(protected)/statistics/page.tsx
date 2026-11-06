@@ -771,7 +771,7 @@ export default function StatisticsPage() {
   // allein die halbe Kopfzeile füllten. Kind- und Raumtabelle sind
   // verschiedene Dokumente, deshalb bekommt jeder Bereich seinen eigenen
   // Menüeintrag.
-  const exportMenuItems = (
+  const exportActions = (
     section: StatisticsExportSection,
   ): OverflowMenuEntry[] => [
     { kind: "header", label: "Exportieren" },
@@ -919,14 +919,14 @@ export default function StatisticsPage() {
   ) {
     sectionActions = (
       <OverflowMenu
-        items={exportMenuItems("rooms")}
+        items={exportActions("rooms")}
         ariaLabel="Raumtabelle exportieren"
       />
     );
   } else if (view === "occupancy" && occupancy) {
     sectionActions = (
       <OverflowMenu
-        items={exportMenuItems("occupancy")}
+        items={exportActions("occupancy")}
         ariaLabel="Zahlen nach Uhrzeit exportieren"
       />
     );
@@ -941,7 +941,7 @@ export default function StatisticsPage() {
           ariaLabel="Kurs-Sicht wählen"
         />
         <OverflowMenu
-          items={exportMenuItems(
+          items={exportActions(
             courseView === "by-course" ? "courses" : "course-students",
           )}
           ariaLabel="Kurstabelle exportieren"
@@ -975,7 +975,7 @@ export default function StatisticsPage() {
       actions={
         view === "care-times" ? undefined : (
           <OverflowMenu
-            items={exportMenuItems("attendance")}
+            items={exportActions("attendance")}
             ariaLabel="Weitere Aktionen"
           />
         )
@@ -998,9 +998,8 @@ export default function StatisticsPage() {
               presets={presets}
               toMax={today}
               className="min-w-0"
-              // Zwischen den Pfeilen: Rahmen und Rundung kommen von der
-              // Gruppe, der Chip bringt nur Inhalt und Höhe mit.
-              triggerClassName="h-9 w-full justify-center rounded-none border-0 px-3"
+              // Zwischen den Pfeilen.
+              embedded
             />
           }
           onPrevious={shiftWindow ? () => shiftWindow(-1) : undefined}
@@ -1020,8 +1019,8 @@ export default function StatisticsPage() {
                 onChange={setSchoolClasses}
                 placeholder="Alle Klassen"
                 summaryLabel={(count) => `${count} Klassen`}
-                className="w-full md:w-44"
-                triggerClassName="moto-content-surface h-9 w-full"
+                controlSize="compact"
+                className="md:w-44"
               />
               <MultiSelect
                 ariaLabel="Gruppen"
@@ -1030,8 +1029,8 @@ export default function StatisticsPage() {
                 onChange={setGroupIds}
                 placeholder="Alle Gruppen"
                 summaryLabel={(count) => `${count} Gruppen`}
-                className="w-full md:w-56"
-                triggerClassName="moto-content-surface h-9 w-full"
+                controlSize="compact"
+                className="md:w-56"
               />
             </div>
           }

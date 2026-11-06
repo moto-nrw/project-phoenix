@@ -133,7 +133,7 @@ export function WeekdayScheduleInput({
                     ariaLabel={`${dayLabel} – ${field.label}`}
                     placeholder={tr("structured.selectTime")}
                     invalid={Boolean(error) || isStale}
-                    className="mt-1 border-gray-200 bg-white"
+                    className="mt-1"
                     options={[
                       { value: "", label: tr("structured.selectTime") },
                       ...allowedTimes.map((time) => ({

@@ -213,3 +213,27 @@ func TestFiltersWants(t *testing.T) {
 	assert.True(t, studentpresence.StatisticsFilters{Sections: []studentpresence.StatisticsSection{studentpresence.StatisticsSectionCourses}}.Wants(studentpresence.StatisticsSectionCourses))
 	assert.False(t, studentpresence.StatisticsFilters{Sections: []studentpresence.StatisticsSection{studentpresence.StatisticsSectionRooms}}.Wants(studentpresence.StatisticsSectionCourses))
 }
+
+// Courses and children are listed in German dictionary order: an accent or a
+// lowercase initial no longer lands behind Z (#4949).
+func TestSortCourseRows_UsesGermanDictionaryOrder(t *testing.T) {
+	t.Parallel()
+	rows := []studentpresence.StatisticsCourseRow{{Name: "Zeichnen"}, {Name: "Échecs"}, {Name: "basteln"}, {Name: "Chor"}}
+	children := []studentpresence.StatisticsCourseStudentRow{
+		{StudentID: 1, LastName: "Zimmermann"},
+		{StudentID: 2, LastName: "Ábel"},
+		{StudentID: 3, LastName: "adler"},
+		{StudentID: 4, LastName: "Becker"},
+	}
+	sortCourseRows(rows, children)
+	names := make([]string, len(rows))
+	for i, row := range rows {
+		names[i] = row.Name
+	}
+	assert.Equal(t, []string{"basteln", "Chor", "Échecs", "Zeichnen"}, names)
+	ids := make([]int64, len(children))
+	for i, row := range children {
+		ids[i] = row.StudentID
+	}
+	assert.Equal(t, []int64{2, 3, 4, 1}, ids)
+}

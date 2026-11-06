@@ -21,7 +21,6 @@ import {
 import { HolidayRegistrationChildCard } from "~/components/traeger/holiday-registration-child-card";
 import {
   CANCELLED_EDIT_TEXT,
-  EDIT_TITLE,
   editableQuestions,
 } from "~/components/traeger/holiday-registration-edit-fields";
 import {
@@ -40,7 +39,7 @@ import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import {
-  AttachmentList,
+  DocumentAttachmentList,
   type AttachmentLabels,
 } from "~/components/enrollment/attachment-list";
 import { holidayDocumentPath } from "~/lib/traeger-holiday-form-api";
@@ -49,6 +48,7 @@ import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
+import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
@@ -89,6 +89,7 @@ const PDF_LABELS: AttachmentLabels = {
 };
 
 const logger = createLogger({ component: "TraegerHolidayRegistrationPage" });
+const TRAEGER_BILLING_RIGHT = "traeger_billing:manage";
 
 // The edit states load with the first „Ändern“, not with the page.
 const editors = () => import("~/components/traeger/holiday-registration-edit");
@@ -138,6 +139,10 @@ export default function TraegerHolidayRegistrationPage() {
   const registrationId = params?.registrationId ?? "";
   const { data: session } = useSession();
   const canSeeHealth = hasPermission(session, TRAEGER_HEALTH_RIGHT);
+  const canManageBillingSettings = hasPermission(
+    session,
+    TRAEGER_BILLING_RIGHT,
+  );
   const [health, setHealth] = useState<HolidayRegistrationHealthDetail | null>(
     null,
   );
@@ -357,7 +362,7 @@ export default function TraegerHolidayRegistrationPage() {
       backLabel="Zurück zu den Anmeldungen"
       stats={
         registration ? (
-          <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+          <HolidayHeadFacts>
             <StatusBadge
               tone={HOLIDAY_REGISTRATION_STATUS_TONES[registration.status]}
               label={HOLIDAY_REGISTRATION_STATUS_LABELS[registration.status]}
@@ -365,11 +370,12 @@ export default function TraegerHolidayRegistrationPage() {
             {registration.frozen ? (
               <StatusBadge tone="gray" label="Eingefroren" />
             ) : null}
+            <span>Nr. {registration.id}</span>
+            {period ? <span>{period.name}</span> : null}
             <span>
-              Nr. {registration.id} · {period ? `${period.name} · ` : ""}
               Eingegangen am {formatBerlinDate(registration.submittedAt)}
             </span>
-          </span>
+          </HolidayHeadFacts>
         ) : null
       }
       statsLoading={!registration && !loadError}
@@ -390,13 +396,14 @@ export default function TraegerHolidayRegistrationPage() {
             costBearerId={costBearerId}
             onCostBearerChange={changeCostBearer}
             onChanged={changed}
-            onConfirmed={load}
+            onReload={load}
             onDebtorNumberChanged={load}
+            canManageBillingSettings={canManageBillingSettings}
           />
           {contribution?.siblings?.length ? (
             <SectionCard
               title="Geschwister"
-              description="Die Kinder dieser Anmeldungen zählen beim Ferienbeitrag zusammen. Das Kind mit dem höchsten Beitrag ist das 1. Kind."
+              description="Die Kinder dieser Anmeldungen zählen beim Ferienbeitrag zusammen. Welches Kind das 1. Kind ist, steht in den Einstellungen unter Allgemein im Bereich Ferienbetreuung."
               action={
                 contribution.siblingsInvoiced ? undefined : (
                   <Button
@@ -465,15 +472,14 @@ export default function TraegerHolidayRegistrationPage() {
             <HolidayContributionCard
               contribution={contribution}
               registration={registration}
+              canManageBillingSettings={canManageBillingSettings}
             />
           ) : null}
           {editing === "guardians" && editorProps ? (
-            <SectionCard title={EDIT_TITLE} description="Eltern">
-              <GuardiansEditor
-                {...editorProps}
-                invoiced={contribution?.invoiced ?? false}
-              />
-            </SectionCard>
+            <GuardiansEditor
+              {...editorProps}
+              invoiced={contribution?.invoiced ?? false}
+            />
           ) : (
             <SectionCard
               title="Eltern"
@@ -569,9 +575,7 @@ export default function TraegerHolidayRegistrationPage() {
             />
           ))}
           {editing === "answers" && editorProps ? (
-            <SectionCard title={EDIT_TITLE} description="Allgemeine Angaben">
-              <FamilyAnswersEditor {...editorProps} />
-            </SectionCard>
+            <FamilyAnswersEditor {...editorProps} />
           ) : registration.form.fields.length > 0 ? (
             <SectionCard
               title="Allgemeine Angaben"
@@ -624,7 +628,7 @@ export default function TraegerHolidayRegistrationPage() {
                               : "Nicht zugestimmt"}
                           </p>
                         )}
-                        <AttachmentList
+                        <DocumentAttachmentList
                           labels={PDF_LABELS}
                           attachments={block.attachments}
                           documentURL={(documentId) =>
@@ -638,12 +642,7 @@ export default function TraegerHolidayRegistrationPage() {
             </SectionCard>
           ) : null}
           {editing === "contacts" && editorProps ? (
-            <SectionCard
-              title={EDIT_TITLE}
-              description="Notfallkontakte und Abholung"
-            >
-              <ContactsEditor {...editorProps} />
-            </SectionCard>
+            <ContactsEditor {...editorProps} />
           ) : (
             <SectionCard
               title="Notfallkontakte und Abholung"
@@ -673,6 +672,7 @@ export default function TraegerHolidayRegistrationPage() {
           )}
           <HolidayRegistrationHistory
             period={period}
+            names={names}
             registration={registration}
           />
         </>

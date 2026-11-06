@@ -11,6 +11,8 @@ import (
 
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // The status link: a request behind its public token, the parent's edits of
@@ -291,10 +293,10 @@ func (s *Intake) lockedStatusByToken(ctx context.Context, token string) (*Reques
 
 func applyEditPatch(req *Request, patch enrollmentNative.EditPatch, consentFlags, customData map[string]any) error {
 	if patch.GuardianFirstName != nil {
-		req.GuardianFirstName = strings.TrimSpace(*patch.GuardianFirstName)
+		req.GuardianFirstName = textnorm.Name(*patch.GuardianFirstName)
 	}
 	if patch.GuardianLastName != nil {
-		req.GuardianLastName = strings.TrimSpace(*patch.GuardianLastName)
+		req.GuardianLastName = textnorm.Name(*patch.GuardianLastName)
 	}
 	if patch.GuardianPhone != nil {
 		v := strings.TrimSpace(*patch.GuardianPhone)

@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 type Resource struct {
@@ -358,7 +359,7 @@ func (rs *Resource) appointmentICS(w http.ResponseWriter, r *http.Request) {
 // writeICS streams an iCalendar document as a downloadable attachment.
 func writeICS(w http.ResponseWriter, filename, content string) {
 	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", filename))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(content))
 }

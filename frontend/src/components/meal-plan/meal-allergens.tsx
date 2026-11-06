@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 
-import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import { MultiSelect } from "~/components/ui/multi-select";
 import {
   MEAL_ALLERGENS,
   mealAllergenLetter,
@@ -101,18 +101,20 @@ export function MealAllergenSelect({
   }));
   const names = value.map((code) => t(`names.${code}`)).join(", ");
   return (
-    <MultiCheckboxSelect
+    <MultiSelect
       value={value}
       options={options}
       onChange={onChange}
       ariaLabel={names ? `${t("legendTitle")}: ${names}` : t("choose")}
-      emptyLabel={t("legendTitle")}
-      summaryLabel={(selected) =>
+      placeholder={t("legendTitle")}
+      summaryThreshold={0}
+      summaryLabel={(_count, selected) =>
         selected
           .map((option) => mealAllergenLetter(option.value as MealAllergen))
           .join(", ")
       }
-      className={cn("h-8 text-xs", className)}
+      controlSize="compact"
+      className={cn("text-xs", className)}
       menuClassName="w-72"
       menuAlign={menuAlign}
     />

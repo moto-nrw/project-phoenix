@@ -2,12 +2,12 @@ package catererportalhttp
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 var errExportFormat = errors.New("format must be pdf, xlsx or csv")
@@ -66,7 +66,7 @@ func (rs *Resource) writeExport(w http.ResponseWriter, r *http.Request, export m
 		return
 	}
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)

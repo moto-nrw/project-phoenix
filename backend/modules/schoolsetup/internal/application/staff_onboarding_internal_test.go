@@ -16,10 +16,16 @@ import (
 type fakeStaffStore struct {
 	states map[int64]*schoolsetup.StaffState
 	writes int
+	locks  int
 }
 
 func newFakeStaffStore() *fakeStaffStore {
 	return &fakeStaffStore{states: map[int64]*schoolsetup.StaffState{}}
+}
+
+func (f *fakeStaffStore) LockStaffOnboarding(_ context.Context, _ int64) error {
+	f.locks++
+	return nil
 }
 
 func (f *fakeStaffStore) StaffOnboardingOf(_ context.Context, accountID int64) (*schoolsetup.StaffState, error) {
@@ -140,6 +146,7 @@ func TestSetStaffStepStateMovesAStepBetweenStates(t *testing.T) {
 	stored := f.store.states[setupColleague]
 	require.NotNil(t, stored)
 	assert.Equal(t, int64(setupTenant), stored.TenantID, "the first write creates the state for the school")
+	assert.Equal(t, 4, f.store.locks, "every state change locks before reading and replacing the shared state")
 }
 
 func TestStaffProgressIsPersonal(t *testing.T) {

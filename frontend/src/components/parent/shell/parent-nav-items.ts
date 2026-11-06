@@ -24,6 +24,9 @@ import { moreConcept } from "~/lib/concepts/more";
 import { newsConcept } from "~/lib/concepts/news";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 import { settingsConcept } from "~/lib/concepts/settings";
+import { languageConcept } from "~/lib/concepts/language";
+import { notificationsConcept } from "~/lib/concepts/notifications";
+import { privacyConcept } from "~/lib/concepts/privacy";
 
 /**
  * Woher ein Zaehler kommt. Die Huelle loest das zu einer Zahl auf, damit diese
@@ -172,3 +175,36 @@ export const PARENT_MORE_ENTRY = {
 export const PARENT_MORE_BADGE_SOURCES: readonly ParentNavBadgeSource[] = [
   "news",
 ];
+
+export interface ParentSettingsSection {
+  /** Der Wert von `?tab=` in der Adresse. */
+  readonly key: "notifications" | "language" | "privacy";
+  /** Schluessel im Katalog "parentNav". */
+  readonly tKey: string;
+  readonly concept: MotoConcept;
+}
+
+/**
+ * Die Bereiche der Einstellungen (#5750). Der erste oeffnet ohne `?tab=` und
+ * traegt die Karte zur App: Sie ist die Voraussetzung fuer die Hinweise auf dem
+ * Geraet, und die Touren der Eltern zeigen auf diese Karten.
+ */
+export const PARENT_SETTINGS_SECTIONS: readonly ParentSettingsSection[] = [
+  {
+    key: "notifications",
+    tKey: "notifications",
+    concept: notificationsConcept,
+  },
+  { key: "language", tKey: "language", concept: languageConcept },
+  { key: "privacy", tKey: "privacy", concept: privacyConcept },
+];
+
+/** Der Bereich, den `?tab=` nennt; ein unbekannter Wert oeffnet den ersten. */
+export function activeParentSettingsSection(
+  requestedTab: string | null | undefined,
+): ParentSettingsSection {
+  return (
+    PARENT_SETTINGS_SECTIONS.find((section) => section.key === requestedTab) ??
+    (PARENT_SETTINGS_SECTIONS[0] as ParentSettingsSection)
+  );
+}

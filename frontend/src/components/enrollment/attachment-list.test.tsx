@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { AttachmentList } from "./attachment-list";
+import { DocumentAttachmentList } from "./attachment-list";
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
@@ -51,7 +51,7 @@ describe("anonymous enrollment PDF actions", () => {
     mocks.fetch
       .mockResolvedValueOnce(pdf("%PDF school start"))
       .mockResolvedValueOnce(pdf("%PDF pickup"));
-    render(<AttachmentList attachments={attachments} />);
+    render(<DocumentAttachmentList attachments={attachments} />);
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", {
@@ -107,7 +107,7 @@ describe("anonymous enrollment PDF actions", () => {
       expect(open).toHaveBeenCalled();
       return Promise.resolve(pdf("%PDF"));
     });
-    render(<AttachmentList attachments={attachments} />);
+    render(<DocumentAttachmentList attachments={attachments} />);
     fireEvent.click(
       screen.getByRole("button", {
         name: "Informationen zum Schulstart öffnen",
@@ -141,7 +141,7 @@ describe("anonymous enrollment PDF actions", () => {
               }),
         );
       mocks.fetch.mockResolvedValueOnce(pdf("%PDF retry"));
-      render(<AttachmentList attachments={attachments} />);
+      render(<DocumentAttachmentList attachments={attachments} />);
       fireEvent.click(
         screen.getByRole("button", {
           name: "Informationen zum Schulstart öffnen",
@@ -161,7 +161,7 @@ describe("anonymous enrollment PDF actions", () => {
 
   it("reports blocked popups without starting a download", async () => {
     vi.spyOn(window, "open").mockReturnValue(null);
-    render(<AttachmentList attachments={attachments} />);
+    render(<DocumentAttachmentList attachments={attachments} />);
     fireEvent.click(
       screen.getByRole("button", { name: "Abholen und Kontakt öffnen" }),
     );
@@ -171,7 +171,7 @@ describe("anonymous enrollment PDF actions", () => {
 
   it("rejects an external document URL instead of fetching it", async () => {
     render(
-      <AttachmentList
+      <DocumentAttachmentList
         attachments={[
           { label: "External", document_url: "https://example.com/file.pdf" },
         ]}
@@ -186,7 +186,7 @@ describe("anonymous enrollment PDF actions", () => {
   it("uses explicit portal labels and a period document route without enrollment translations", async () => {
     mocks.fetch.mockResolvedValueOnce(pdf("%PDF holiday"));
     render(
-      <AttachmentList
+      <DocumentAttachmentList
         attachments={[{ label: "Ferienhinweis", document_url: "81" }]}
         documentURL={(id) =>
           `/api/traeger/holiday-periods/5/form/documents/${id}`

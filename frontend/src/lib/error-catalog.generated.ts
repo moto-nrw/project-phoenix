@@ -123,6 +123,8 @@ export const ERROR_CATALOG = {
         "Die Unterschrift ist nicht lesbar. Bitte unterschreiben Sie noch einmal.",
       "care.pickup_signature_required":
         "Bitte unterschreiben Sie die Erlaubnis und bestätigen Sie die Unterschrift.",
+      "care.pickup_signature_too_large":
+        "Die Unterschrift ist zu groß. Bitte tippen Sie auf „Neu unterschreiben“ und dann auf „Namen tippen“.",
       "care.poll_closed":
         "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
       "care.remove_disabled":
@@ -435,6 +437,8 @@ export const ERROR_CATALOG = {
         "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_week_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen.",
+      "enrollment.holiday_weeks_booked_together":
+        "Ein Kind ist schon für beide Wochen angemeldet. Darum dürfen die Wochen nicht auf dieselben Tage fallen.",
       "enrollment.hosted_holiday_week_not_found":
         "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
       "enrollment.invalid_email":
@@ -606,7 +610,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Sie sind mit einem anderen Konto angemeldet. Bitte melden Sie sich mit der eingeladenen E-Mail-Adresse an.",
       "identity.invitation_expired":
-        "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie Ihre Schule nach einer neuen Einladung.",
+        "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie die Person, die Sie eingeladen hat, nach einer neuen Einladung.",
       "identity.invitation_not_found":
         "Diese Einladung gibt es nicht. Bitte prüfen Sie den Link in der E-Mail.",
       "identity.invitation_rate_limited":
@@ -728,9 +732,9 @@ export const ERROR_CATALOG = {
       "operator.audit_unavailable":
         "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
       "parent_billing.bank_account_missing":
-        "Für die Schreiben fehlt eine Bankverbindung. Bitte tragen Sie unter „Briefkopf“ ein Konto ein.",
+        "Für die Schreiben fehlt eine Bankverbindung. Bitte tragen Sie unter „Abrechnungsvorgaben“ ein Konto ein.",
       "parent_billing.benefits_exemption_unavailable":
-        "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Ermäßigungen“. Bitte fragen Sie die Abrechnung.",
+        "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Abrechnungsvorgaben“. Bitte fragen Sie die Abrechnung.",
       "parent_billing.billing_correction_invalid":
         "Bitte prüfen Sie die markierten Felder.",
       "parent_billing.billing_document_correction_invalid":
@@ -759,6 +763,8 @@ export const ERROR_CATALOG = {
         "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
       "parent_billing.billing_run_released":
         "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
+      "parent_billing.carried_correction_not_found":
+        "Diese Korrektur wird in diesem Lauf nicht mehr vorgeschlagen. Bitte laden Sie die Seite neu.",
       "parent_billing.contribution_rule_invalid":
         "Bitte prüfen Sie die markierten Felder.",
       "parent_billing.contribution_rule_not_found":
@@ -779,6 +785,8 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die Debitorennummer.",
       "parent_billing.debtor_number_locked":
         "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
+      "parent_billing.family_not_found":
+        "Zu dieser Familie gibt es keine Rechnung. Bitte öffnen Sie sie über die Liste „Familien“.",
       "parent_billing.holiday_quote_invalid":
         "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
       "parent_billing.invoice_cancelled":
@@ -786,19 +794,19 @@ export const ERROR_CATALOG = {
       "parent_billing.invoice_credited":
         "Diese Rechnung hat schon eine Gutschrift. Schreiben Sie den Rest gut, statt zu stornieren.",
       "parent_billing.invoice_number_taken":
-        "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnung“.",
+        "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnungsvorgaben“.",
       "parent_billing.letter_mail_pending":
         "Die Mail an diese Familie wird gerade gesendet. Bitte warten Sie, bis sie gesendet ist oder nicht zugestellt wurde.",
       "parent_billing.letterhead_too_long":
-        "Absender oder Fußzeile im Briefkopf sind zu lang für ein Schreiben. Bitte lassen Sie sie unter „Briefkopf“ kürzen.",
+        "Absender oder Fußzeile im Briefkopf sind zu lang für ein Schreiben. Bitte lassen Sie sie unter „Briefkopf und Vorlagen“ kürzen.",
       "parent_billing.number_range_invalid":
         "Bitte prüfen Sie das Muster. Es braucht genau eine laufende Nummer und darf nur Buchstaben, Ziffern und . / _ - enthalten.",
       "parent_billing.number_range_missing":
-        "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnung“ fest.",
+        "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnungsvorgaben“ fest.",
       "parent_billing.parent_document_not_found":
         "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.payment_text_debtor_number_missing":
-        "Rechnungen ohne Debitorennummer: {count}. Ihr Zahlungstext nennt aber die Debitorennummer. Löschen Sie den eigenen Zahlungstext unter „Einstellungen“ im Bereich „Ferienbetreuung“ oder nehmen Sie dort den Platzhalter für die Debitorennummer heraus.",
+        "Rechnungen ohne Debitorennummer: {count}. Ihr Zahlungstext nennt aber die Debitorennummer. Löschen Sie den eigenen Zahlungstext in den Einstellungen unter „Allgemein“ im Bereich „Ferienbetreuung“ oder nehmen Sie dort den Platzhalter für die Debitorennummer heraus.",
       "parent_billing.recipient_email_missing":
         "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
       "parent_billing.sibling_group_invalid":
@@ -1278,6 +1286,8 @@ export const ERROR_CATALOG = {
         "Eine Betreuungsperson betreut inzwischen eine andere Gruppe. Der Termin lässt sich nicht wieder öffnen.",
       "timetable.reopen_student_active":
         "Ein Kind ist inzwischen woanders eingecheckt. Der Termin lässt sich nicht wieder öffnen.",
+      "timetable.reopen_student_left":
+        "Ein Kind ist inzwischen nach Hause gegangen. Der Termin lässt sich nicht wieder öffnen.",
       "timetable.reopen_supervision_changed":
         "Die Betreuung wurde nach dem Abschluss geändert. Der Termin lässt sich nicht wieder öffnen.",
       "timetable.room_occupied":
@@ -1407,6 +1417,14 @@ export const ERROR_CATALOG = {
         "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
       "traeger.bank_account_not_found":
         "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.document_template_invalid":
+        "Die Vorlage ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
+      "traeger.document_template_kind_not_found":
+        "Diese Dokumentart gibt es nicht. Bitte wählen Sie eine Vorlage aus der Liste.",
+      "traeger.document_template_unchanged":
+        "Die Vorlage hat sich nicht geändert. Es gibt keine neue Version.",
+      "traeger.document_template_unknown_placeholder":
+        "Diese Platzhalter kennt moto nicht: {placeholders}. Bitte nehmen Sie nur Platzhalter aus der Liste.",
       "traeger.last_administrator":
         "Das Träger-Büro braucht mindestens eine Person mit der Rolle Leitung. Geben Sie die Rolle zuerst einer anderen Person.",
       "traeger.logo_invalid":
@@ -1682,6 +1700,8 @@ export const ERROR_CATALOG = {
         "The signature cannot be read. Please sign again.",
       "care.pickup_signature_required":
         "Please sign the permission and confirm your signature.",
+      "care.pickup_signature_too_large":
+        "The signature is too large. Please tap “Sign again” and then “Type your name”.",
       "care.poll_closed":
         "{object} is no longer open. Please ask your contact person.",
       "care.remove_disabled":
@@ -1863,6 +1883,8 @@ export const ERROR_CATALOG = {
         "This is not possible for this registration right now. Please reload the page.",
       "enrollment.holiday_week_booked":
         "This week already has registrations. That is why the week and its booked time models cannot be removed.",
+      "enrollment.holiday_weeks_booked_together":
+        "A child is already registered for both weeks. That is why the weeks cannot fall on the same days.",
       "enrollment.hosted_holiday_week_not_found":
         "There is no participant list for this week any more. It is only available until the last day of the week.",
       "enrollment.invalid_email": "Please enter a valid email address.",
@@ -1938,7 +1960,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "You are signed in with a different account. Please sign in with the invited email address.",
       "identity.invitation_expired":
-        "This invitation has expired or has already been used. Please ask your school for a new invitation.",
+        "This invitation has expired or has already been used. Please ask the person who invited you for a new invitation.",
       "identity.invitation_not_found":
         "This invitation does not exist. Please check the link in the email.",
       "identity.mfa_blocked":
@@ -2051,6 +2073,14 @@ export const ERROR_CATALOG = {
         "Another bank account already has this label. Please choose a different label.",
       "traeger.bank_account_not_found":
         "This bank account no longer exists. Please reload the page.",
+      "traeger.document_template_invalid":
+        "The template is incomplete. Please check the marked fields.",
+      "traeger.document_template_kind_not_found":
+        "This kind of document does not exist. Please choose a template from the list.",
+      "traeger.document_template_unchanged":
+        "The template has not changed. No new version was saved.",
+      "traeger.document_template_unknown_placeholder":
+        "moto does not know these placeholders: {placeholders}. Please use only placeholders from the list.",
       "traeger.last_administrator":
         "The Träger office needs at least one person with the role Leitung. Give this role to someone else first.",
       "traeger.logo_invalid":
@@ -2183,6 +2213,8 @@ export const ERROR_CATALOG = {
         "Подпись не читается. Пожалуйста, распишитесь ещё раз.",
       "care.pickup_signature_required":
         "Пожалуйста, подпишите разрешение и подтвердите подпись.",
+      "care.pickup_signature_too_large":
+        "Подпись слишком большая. Нажмите «Расписаться заново», а затем «Ввести имя».",
       "care.poll_closed":
         "Больше не открыто: {object}. Обратитесь к контактному лицу.",
       "care.remove_disabled":
@@ -2394,7 +2426,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Вы вошли в другой аккаунт. Войдите с адресом электронной почты из приглашения.",
       "identity.invitation_expired":
-        "Это приглашение истекло или уже было использовано. Попросите в школе новое приглашение.",
+        "Это приглашение истекло или уже было использовано. Попросите человека, который вас пригласил, отправить новое приглашение.",
       "identity.invitation_not_found":
         "Такого приглашения нет. Проверьте ссылку в письме.",
       "identity.mfa_blocked":
@@ -2598,6 +2630,8 @@ export const ERROR_CATALOG = {
         "Nënshkrimi nuk lexohet. Ju lutemi nënshkruani përsëri.",
       "care.pickup_signature_required":
         "Ju lutemi nënshkruani lejen dhe konfirmoni nënshkrimin.",
+      "care.pickup_signature_too_large":
+        "Nënshkrimi është shumë i madh. Ju lutemi prekni „Nënshkruani përsëri“ dhe pastaj „Shkruani emrin“.",
       "care.poll_closed":
         "Nuk është më i hapur: {object}. Pyetni personin tuaj të kontaktit.",
       "care.remove_disabled":
@@ -2821,7 +2855,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Jeni i identifikuar me një llogari tjetër. Hyni me adresën e e-mailit që është ftuar.",
       "identity.invitation_expired":
-        "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini shkollës suaj një ftesë të re.",
+        "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini personit që ju ftoi një ftesë të re.",
       "identity.invitation_not_found":
         "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
       "identity.mfa_blocked":
@@ -3027,6 +3061,8 @@ export const ERROR_CATALOG = {
         "Podpis jest nieczytelny. Proszę podpisać się jeszcze raz.",
       "care.pickup_signature_required":
         "Proszę podpisać zgodę i potwierdzić podpis.",
+      "care.pickup_signature_too_large":
+        "Podpis jest za duży. Proszę kliknąć „Podpisz ponownie”, a potem „Wpisz imię i nazwisko”.",
       "care.poll_closed":
         "Już nie jest otwarte: {object}. Zapytaj swoją osobę kontaktową.",
       "care.remove_disabled":
@@ -3238,7 +3274,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Jesteś zalogowany na inne konto. Zaloguj się adresem e-mail, na który przyszło zaproszenie.",
       "identity.invitation_expired":
-        "To zaproszenie wygasło lub zostało już użyte. Poproś swoją szkołę o nowe zaproszenie.",
+        "To zaproszenie wygasło lub zostało już użyte. Poproś osobę, która Cię zaprosiła, o nowe zaproszenie.",
       "identity.invitation_not_found":
         "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
       "identity.mfa_blocked":
@@ -3443,6 +3479,8 @@ export const ERROR_CATALOG = {
         "İmza okunamıyor. Lütfen tekrar imzalayın.",
       "care.pickup_signature_required":
         "Lütfen izni imzalayın ve imzanızı onaylayın.",
+      "care.pickup_signature_too_large":
+        "İmza çok büyük. Lütfen „Yeniden imzala“ ve ardından „Adınızı yazın“ seçeneğine dokunun.",
       "care.poll_closed":
         "{object} artık açık değil. Lütfen ilgili kişinize danışın.",
       "care.remove_disabled":
@@ -3660,7 +3698,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Başka bir hesapla giriş yaptınız. Lütfen davet edilen e-posta adresiyle giriş yapın.",
       "identity.invitation_expired":
-        "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen okulunuzdan yeni bir davet isteyin.",
+        "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen sizi davet eden kişiden yeni bir davet isteyin.",
       "identity.invitation_not_found":
         "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
       "identity.mfa_blocked":
@@ -3863,6 +3901,8 @@ export const ERROR_CATALOG = {
         "Підпис неможливо прочитати. Будь ласка, підпишіться ще раз.",
       "care.pickup_signature_required":
         "Будь ласка, підпишіть дозвіл і підтвердьте підпис.",
+      "care.pickup_signature_too_large":
+        "Підпис завеликий. Натисніть «Підписатися знову», а потім «Ввести ім'я».",
       "care.poll_closed":
         "Уже не відкрито: {object}. Зверніться до контактної особи.",
       "care.remove_disabled":
@@ -4074,7 +4114,7 @@ export const ERROR_CATALOG = {
       "identity.invitation_account_mismatch":
         "Ви увійшли в інший обліковий запис. Увійдіть з адресою ел. пошти, на яку надійшло запрошення.",
       "identity.invitation_expired":
-        "Це запрошення вже недійсне або його вже використали. Попросіть у школи нове запрошення.",
+        "Це запрошення вже недійсне або його вже використали. Попросіть людину, яка вас запросила, надіслати нове запрошення.",
       "identity.invitation_not_found":
         "Такого запрошення немає. Перевірте посилання в листі.",
       "identity.mfa_blocked":

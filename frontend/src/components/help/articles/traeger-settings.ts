@@ -2,7 +2,7 @@ import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
 /**
- * `/traeger/einstellungen` (#4652, ADR 0086): Träger-Werte zwischen Standard
+ * `/traeger/einstellungen` (#4652, ADR 0086, #5685): Träger-Werte zwischen Standard
  * und Schule. Bezeichnungen aus `settings-origin.ts` und `traeger-nav-items.ts`.
  */
 export function traegerSettingsTopic(): HelpTopic {
@@ -16,8 +16,8 @@ export function traegerSettingsTopic(): HelpTopic {
     icon: "Settings",
     requirements: ["Sie dürfen im Träger-Büro Einstellungen ändern."],
     steps: [
-      "Klicken Sie links unten in der Navigation auf `Einstellungen`.",
-      "Wählen Sie darunter noch einmal `Einstellungen`.",
+      "Wählen Sie unten in der Navigation `Einstellungen`.",
+      "Wählen Sie `Allgemein`.",
       "Wählen Sie den Bereich, zum Beispiel `Anmeldung` oder `Betrieb`.",
       "Ändern Sie den Wert. moto speichert die Änderung von selbst.",
     ],
@@ -29,12 +29,15 @@ export function traegerSettingsTopic(): HelpTopic {
       "`Zurücksetzen` entfernt Ihren Wert. Dann gilt wieder der Standard.",
       "Eine Schule kann einen eigenen Wert eintragen. Dann gilt dort ihr Wert.",
       "Den eigenen Wert einer Schule kann nur die Schule selbst zurücksetzen.",
+      "Im Bereich `Kontakt` tragen Sie den `Ansprechpartner` Ihres Trägers ein. Er steht auf allen Briefen und Rechnungen.",
+      "Mit `Zurück zur App` oben in der Navigation kommen Sie zur zuletzt geöffneten Seite zurück.",
       "Im Bereich `Ferienbetreuung` legen Sie fest, ob Sie beim Bestätigen einer Ferienanmeldung die Debitorennummer der Familie abfragen. Diese Einstellung gilt nur im Träger-Büro.",
       "Ebenfalls unter `Ferienbetreuung` schreiben Sie bei `Zahlungstext im Schreiben` einen eigenen Satz, der um die Zahlung bittet. Erlaubte Platzhalter sind {Betrag}, {Zahlungsfrist}, {Rechnungsnummer} und {Debitorennummer}. Darunter zeigt die `Vorschau des Zahlungstexts` den Satz mit Beispielwerten. Ist das Feld leer, steht im Schreiben der eingebaute Satz.",
       "Der eigene Zahlungstext gilt für die Schreiben, die Sie danach erstellen. Fertige Schreiben bleiben, wie sie sind.",
+      "Unter `Ferienbetreuung` legen Sie bei `Ferienbeitrag` auch fest, welches Kind das erste Kind ist und was ein Kostenträger bezahlt. Mehr dazu steht im Artikel `Ferienbeitrag festlegen`.",
     ],
     differences: [
-      "Auf dem Handy steht `Einstellungen` in der Leiste unten oder unter `Mehr`.",
+      "Auf dem Handy steht `Einstellungen` in der Leiste unten. Der Pfeil führt zurück zur App.",
       "Sie können die Werte nur ansehen? Ihnen fehlt das Recht zum Ändern. Wenden Sie sich an das moto-Team.",
     ],
     related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.errorMessages],

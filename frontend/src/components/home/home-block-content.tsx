@@ -41,6 +41,7 @@ import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { childrenConcept } from "~/lib/concepts/children";
 import { groupsConcept } from "~/lib/concepts/groups";
 import { atSchoolConcept } from "~/lib/concepts/atSchool";
+import { inClassConcept } from "~/lib/concepts/inClass";
 import { excusedConcept } from "~/lib/concepts/excused";
 import { homeConcept } from "~/lib/concepts/home";
 import { presentConcept } from "~/lib/concepts/present";
@@ -49,6 +50,21 @@ import { roomsConcept } from "~/lib/concepts/rooms";
 import { schoolyardConcept } from "~/lib/concepts/schoolyard";
 import { transitConcept } from "~/lib/concepts/transit";
 import { utilizationConcept } from "~/lib/concepts/utilization";
+import { StatusDot } from "~/components/ui/status-dot";
+
+// Der Punkt zeigt den Status nur als Farbe. Der Linkname liest ihn vor (#5598).
+const ACTIVITY_STATUS_LABEL: Readonly<Record<string, string>> = {
+  active: "Läuft",
+  full: "Voll",
+  ending_soon: "Endet bald",
+  overbooked: "Überbucht",
+};
+const GROUP_STATUS_LABEL: Readonly<Record<string, string>> = {
+  active: "Aktiv",
+  transitioning: "Im Wechsel",
+  preparing: "In Vorbereitung",
+};
+const UNKNOWN_STATUS_LABEL = "Status unbekannt";
 
 /**
  * Der Inhalt eines Bausteins der Startseite (#2180).
@@ -202,7 +218,7 @@ function CurrentActivitiesCard({ data }: { readonly data: HomeBlockData }) {
             <Link
               key={activity.id}
               href={data.tenantPath("/activities")}
-              aria-label={`${activity.name}: Aktivitäten öffnen`}
+              aria-label={`${activity.name}, ${ACTIVITY_STATUS_LABEL[activity.status] ?? UNKNOWN_STATUS_LABEL}: Aktivitäten öffnen`}
               className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50"
             >
               <p className="min-w-0 flex-1 truncate text-sm">
@@ -225,9 +241,11 @@ function CurrentActivitiesCard({ data }: { readonly data: HomeBlockData }) {
                 nfcEnabled={nfcEnabled}
                 compact
               />
-              <div
-                className={`h-2.5 w-2.5 rounded-full ${getActivityStatusColor(activity.status)} ml-2 flex-shrink-0`}
-              ></div>
+              <StatusDot
+                className={`ml-2 ${getActivityStatusColor(activity.status)}`}
+                size="lg"
+                decorative
+              />
             </Link>
           ))}
           <HomeMoreRow
@@ -274,7 +292,7 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
             <Link
               key={`${group.type}-${group.name}`}
               href={data.tenantPath("/ogs-groups")}
-              aria-label={`${group.name}: Betreuung öffnen`}
+              aria-label={`${group.name}, ${GROUP_STATUS_LABEL[group.status] ?? UNKNOWN_STATUS_LABEL}: Betreuung öffnen`}
               className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2 transition-colors hover:bg-gray-100/50"
             >
               <p className="min-w-0 flex-1 truncate text-sm">
@@ -298,9 +316,11 @@ function ActiveGroupsCard({ data }: { readonly data: HomeBlockData }) {
                 nfcEnabled={nfcEnabled}
                 compact
               />
-              <div
-                className={`h-2.5 w-2.5 rounded-full ${getGroupStatusColor(group.status)} ml-2 flex-shrink-0`}
-              ></div>
+              <StatusDot
+                className={`ml-2 ${getGroupStatusColor(group.status)}`}
+                size="lg"
+                decorative
+              />
             </Link>
           ))}
           <HomeMoreRow
@@ -339,6 +359,12 @@ const STUDENT_STATUS_ROWS: readonly {
     concept: atSchoolConcept,
     status: "schule",
     count: (a) => a.studentsAtSchool,
+  },
+  {
+    label: "Im Unterricht",
+    concept: inClassConcept,
+    status: "unterricht",
+    count: (a) => a.studentsInClass,
   },
   {
     label: "Zuhause",

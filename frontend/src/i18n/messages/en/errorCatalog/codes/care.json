@@ -68,6 +68,7 @@
   "pickup_proof_not_found": "There is no proof with your signature for this request.",
   "pickup_signature_invalid": "The signature cannot be read. Please sign again.",
   "pickup_signature_required": "Please sign the permission and confirm your signature.",
+  "pickup_signature_too_large": "The signature is too large. Please tap “Sign again” and then “Type your name”.",
   "poll_closed": "{object} is no longer open. Please ask your contact person.",
   "primary_guardian_protected": "You cannot access {object}. Please contact the school.",
   "remove_disabled": "{object} is not available here at the moment. Please ask your contact person.",

@@ -20,6 +20,53 @@ export interface NavScene {
  * `nav-scene-icon.test.ts` scheitern. Neue Szenen: README.md daneben.
  */
 export const NAV_SCENES: Readonly<Record<string, NavScene>> = {
+  ArrowLeftIcon: {
+    description: "Der Pfeil holt aus und zeigt zurück",
+    render: () => (
+      <>
+        <path className="ns-shaft" d="M216,128H40" />
+        <polyline className="ns-tip" points="112,56 40,128 112,200" />
+      </>
+    ),
+  },
+  BellIcon: {
+    description: "die Glocke schwingt, der Klöppel schlägt nach",
+    render: () => (
+      <>
+        <g className="ns-bell">
+          <path d="M56,104a72,72,0,0,1,144,0c0,35.82,8.3,64.6,14.9,76A8,8,0,0,1,208,192H48a8,8,0,0,1-6.88-12C47.71,168.6,56,139.81,56,104Z" />
+        </g>
+        <path className="ns-clapper" d="M96,192a32,32,0,0,0,64,0" />
+      </>
+    ),
+  },
+  LockKeyIcon: {
+    description: "der Bügel springt auf und rastet wieder ein",
+    render: () => (
+      <>
+        <path className="ns-shackle" d="M88,88V56a40,40,0,0,1,80,0V88" />
+        <rect x="40" y="88" width="176" height="128" rx="8" />
+        <circle className="ns-solid" cx="128" cy="140" r="12" />
+        <path d="M128,152v24" />
+      </>
+    ),
+  },
+  TranslateIcon: {
+    description: "die beiden Schriftzeichen rücken nacheinander zueinander",
+    render: () => (
+      <>
+        <g className="ns-sign">
+          <path d="M32,56H160M96,32V56" />
+          <path d="M128,56c0,48-40,96-96,96" />
+          <path d="M64,88c12,36,46,64,92,64" />
+        </g>
+        <g className="ns-latin">
+          <path d="M120,216l64-120,64,120" />
+          <path d="M144,184h80" />
+        </g>
+      </>
+    ),
+  },
   HouseLineIcon: {
     description: "Dach hüpft, Tür geht auf",
     render: () => (

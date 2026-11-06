@@ -24,6 +24,7 @@ import {
 } from "~/lib/localized-date-format";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { schoolsConcept } from "~/lib/concepts/schools";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "ParentEnrollPicker" });
 
@@ -165,9 +166,7 @@ function SchoolCard({
   return (
     <div className="moto-content-surface overflow-hidden rounded-2xl border">
       <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
-          <MotoConceptIcon concept={schoolsConcept} size={22} />
-        </span>
+        <ConceptIconTile concept={schoolsConcept} size="page" />
         <h3 className="min-w-0 text-base font-semibold break-words text-gray-900">
           {group.schoolName}
         </h3>
@@ -257,9 +256,11 @@ function EmptyPhases() {
   const t = useTranslations("parentEnroll");
   return (
     <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
-      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
-        <MotoConceptIcon concept={schoolsConcept} size={22} />
-      </span>
+      <ConceptIconTile
+        concept={schoolsConcept}
+        size="page"
+        className="mx-auto"
+      />
       <p className="mt-3 text-sm leading-6 text-gray-600">{t("empty")}</p>
     </div>
   );

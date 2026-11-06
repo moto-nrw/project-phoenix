@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { waitFor } from "~/test/wait-for-state";
 
 // The provider now shares the real SWR cache with the parent shell.
 vi.unmock("swr");

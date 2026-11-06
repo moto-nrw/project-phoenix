@@ -68,6 +68,7 @@
   "pickup_proof_not_found": "Dla tej prośby nie ma potwierdzenia z Państwa podpisem.",
   "pickup_signature_invalid": "Podpis jest nieczytelny. Proszę podpisać się jeszcze raz.",
   "pickup_signature_required": "Proszę podpisać zgodę i potwierdzić podpis.",
+  "pickup_signature_too_large": "Podpis jest za duży. Proszę kliknąć „Podpisz ponownie”, a potem „Wpisz imię i nazwisko”.",
   "poll_closed": "Już nie jest otwarte: {object}. Zapytaj swoją osobę kontaktową.",
   "primary_guardian_protected": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
   "remove_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",

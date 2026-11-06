@@ -28,7 +28,7 @@ export function nfcSettingsTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Bei der Auslieferung ist eine einfache PIN gesetzt. Ändern Sie sie vor dem ersten Betreuungstag.",
         steps: [
           "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
-          "Wählen Sie oben den Bereich `Geräte`.",
+          "Wählen Sie den Bereich `Geräte`.",
           "Tragen Sie unter `Geräte-PIN` eine vierstellige Zahl ein.",
           "Geben Sie die neue PIN an Ihr Team weiter.",
         ],

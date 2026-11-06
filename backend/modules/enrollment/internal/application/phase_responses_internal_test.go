@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -523,4 +524,24 @@ func TestResponseOverview_OnlyActiveChildrenAreAsked(t *testing.T) {
 	overview, err := svc.ResponseOverview(context.Background(), 5)
 	require.NoError(t, err)
 	assert.Equal(t, 1, overview.Expected, "a child that is not active is not asked to re-enroll")
+}
+
+// Within one answer state, children appear in German dictionary order (#4949).
+func TestPhaseResponseRowLess_UsesGermanDictionaryOrder(t *testing.T) {
+	t.Parallel()
+	rows := []enrollment.PhaseResponseRow{
+		{LastName: "Zimmermann", FirstName: "Eva"},
+		{LastName: "Özdemir", FirstName: "Can"},
+		{LastName: "adler", FirstName: "Ida"},
+		{LastName: "Becker", FirstName: "Tom"},
+		{LastName: "Ábel", FirstName: "Ana"},
+		{LastName: "Ábel", FirstName: "Öykü"},
+		{LastName: "Ábel", FirstName: "Zoe"},
+	}
+	sort.SliceStable(rows, func(i, j int) bool { return phaseResponseRowLess(rows[i], rows[j]) })
+	got := make([]string, len(rows))
+	for i, row := range rows {
+		got[i] = row.LastName + " " + row.FirstName
+	}
+	assert.Equal(t, []string{"Ábel Ana", "Ábel Öykü", "Ábel Zoe", "adler Ida", "Becker Tom", "Özdemir Can", "Zimmermann Eva"}, got)
 }

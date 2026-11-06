@@ -34,6 +34,7 @@ import { fetchStudentFeedback, type FeedbackEntry } from "~/lib/feedback-api";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { feedbackConcept } from "~/lib/concepts/feedback";
+import { PlanLegend } from "~/components/ui/plan-legend";
 
 const logger = createLogger({ component: "StudentFeedbackHistoryPage" });
 
@@ -309,7 +310,7 @@ function StudentFeedbackHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={<ConceptIconTile concept={feedbackConcept} variant="page" />}
+        leading={<ConceptIconTile concept={feedbackConcept} size="page" />}
         title={student?.name ?? "Feedbackhistorie"}
         stats={studentMeta || feedbackLine}
         statsLoading={loading}
@@ -396,15 +397,6 @@ function StudentFeedbackHistoryPageContent() {
                                 className="flex items-center gap-3 py-2.5"
                                 data-testid={`feedback-indicator-${feedback.feedback_type}`}
                               >
-                                <span
-                                  className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                                  style={{
-                                    backgroundColor:
-                                      feedbackToneColors[
-                                        feedback.feedback_type
-                                      ],
-                                  }}
-                                />
                                 <span className="text-sm text-gray-900">
                                   {feedbackTypeLabels[feedback.feedback_type]}
                                 </span>
@@ -461,38 +453,33 @@ function StudentFeedbackHistoryPageContent() {
             </div>
 
             {/* Inline stats */}
-            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: feedbackToneColors.positive }}
-                />
-                <span className="font-medium text-gray-900">
-                  {positiveFeedbackCount}
-                </span>
-                <span className="text-gray-500">Positiv</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: feedbackToneColors.neutral }}
-                />
-                <span className="font-medium text-gray-900">
-                  {neutralFeedbackCount}
-                </span>
-                <span className="text-gray-500">Neutral</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: feedbackToneColors.negative }}
-                />
-                <span className="font-medium text-gray-900">
-                  {negativeFeedbackCount}
-                </span>
-                <span className="text-gray-500">Negativ</span>
-              </span>
-            </div>
+            <PlanLegend
+              size="md"
+              className="mt-3"
+              entries={[
+                {
+                  key: "positive",
+                  label: "Positiv",
+                  value: positiveFeedbackCount,
+                  color: feedbackToneColors.positive,
+                  variant: "dot",
+                },
+                {
+                  key: "neutral",
+                  label: "Neutral",
+                  value: neutralFeedbackCount,
+                  color: feedbackToneColors.neutral,
+                  variant: "dot",
+                },
+                {
+                  key: "negative",
+                  label: "Negativ",
+                  value: negativeFeedbackCount,
+                  color: feedbackToneColors.negative,
+                  variant: "dot",
+                },
+              ]}
+            />
 
             {/* Stacked bar chart */}
             {chartData.length > 1 && (

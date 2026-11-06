@@ -53,7 +53,7 @@ describe("PageHeader", () => {
 
     const indicator = container.querySelector(".bg-moto-green");
     expect(indicator).toBeInTheDocument();
-    expect(indicator).toHaveClass("animate-pulse");
+    expect(indicator).not.toHaveClass("animate-pulse");
   });
 
   it("renders status indicator with yellow color", () => {

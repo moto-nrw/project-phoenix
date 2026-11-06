@@ -43,6 +43,15 @@ beforeEach(() => {
   freezeTestClock();
 });
 
+// End every test on a fresh macrotask. V8 keeps the target of every WeakRef
+// a job creates or reads alive until that job ends; happy-dom caches query
+// results behind WeakRefs. A file whose tests never wait on a timer runs as
+// one job, so each test's detached DOM stayed reachable until the file ended
+// (sidebar.test.tsx: 62 MB live after its first test, 713 MB after its
+// 160th). Captured here, before a test file can install fake timers.
+const nextMacrotask = globalThis.setImmediate;
+afterEach(() => new Promise<void>((resolve) => nextMacrotask(resolve)));
+
 afterEach(() => {
   if (fakeTimersInstalledBeforeTest) {
     if (!vi.isFakeTimers()) vi.useFakeTimers();

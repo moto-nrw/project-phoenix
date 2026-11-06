@@ -7,6 +7,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { formatPlannedHours, type StaffShift } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
 import { sumsByType } from "~/components/staff/dienstplan-person-week-grid";
+import { ColorBar } from "~/components/ui/color-bar";
 
 // Wochensummen je Schichtart der eigenen Woche (#3821). Das Raster zeigt die
 // Stunden je Tag; hier steht, was über die ganze Woche je Art zusammenkommt.
@@ -65,13 +66,7 @@ export function OwnWeekHoursCard({
             <span className="font-semibold text-gray-900">{row.label}</span>
           ) : (
             <span className="inline-flex items-center gap-2 text-gray-900">
-              <span
-                aria-hidden
-                className={`h-3.5 w-1 shrink-0 rounded-full ${
-                  row.color ? "" : "bg-gray-300"
-                }`}
-                style={row.color ? { backgroundColor: row.color } : undefined}
-              />
+              <ColorBar color={row.color} size="md" />
               {row.label}
             </span>
           ),

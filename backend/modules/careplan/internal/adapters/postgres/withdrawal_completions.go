@@ -3,12 +3,12 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 	"github.com/uptrace/bun"
 )
 
@@ -216,8 +216,10 @@ func (s *DirectoryStore) withdrawalListQuery(db bun.IDB, tenantID int64, state s
 	}
 	query = withTenant(query.Where(`"care_withdrawal_completion".state = ?`, state), "care_withdrawal_completion", tenantID)
 	if search := filter.Search; search != "" {
-		pattern := "%" + strings.ToLower(search) + "%"
-		query = query.Where(`(LOWER("student".first_name) LIKE ? OR LOWER("student".last_name) LIKE ? OR LOWER("student".school_class) LIKE ?)`, pattern, pattern, pattern)
+		// LIKE metacharacters match literally, also the fullwidth ones unaccent
+		// turns into them (#5791).
+		pattern := bun.SafeQuery(`'%' || `+collation.UnaccentLikePatternSQL+` || '%'`, search)
+		query = query.Where(`(public.f_unaccent("student".first_name) ILIKE ? ESCAPE '\' OR public.f_unaccent("student".last_name) ILIKE ? ESCAPE '\' OR public.f_unaccent("student".school_class) ILIKE ? ESCAPE '\')`, pattern, pattern, pattern)
 	}
 	if filter.StudentID > 0 {
 		query = query.Where(`"care_withdrawal_completion".student_id = ?`, filter.StudentID)

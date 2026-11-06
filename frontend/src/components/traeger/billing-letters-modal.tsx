@@ -79,7 +79,7 @@ function ContactRow({
           }
         />
       </div>
-      <div className="flex sm:pt-7">
+      <div className="flex sm:pt-8">
         {/* Icon only next to the row on wide screens; on a phone the row
             stacks, so the button names what it removes. */}
         <Button
@@ -220,13 +220,16 @@ export function BillingLettersModal({
       size="lg"
       error={formErrors.error}
       footer={
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        // On a phone Abbrechen and „Schreiben erstellen“ share one
+        // full-width row and the preview sits full width below (#5758).
+        <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
           <Button
             type="button"
             variant="outline"
             size="md"
             disabled={previewing || saving}
             onClick={() => void preview()}
+            className="w-full sm:w-auto"
           >
             {previewing ? "Vorschau wird erstellt …" : "Vorschau ansehen"}
           </Button>
@@ -235,6 +238,7 @@ export function BillingLettersModal({
             onSave={() => formRef.current?.requestSubmit()}
             saving={saving}
             saveLabel="Schreiben erstellen"
+            stretchOnPhone
           />
         </div>
       }

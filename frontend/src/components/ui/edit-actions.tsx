@@ -21,6 +21,7 @@ export function EditActions({
   savingLabel = "Speichert…",
   cancelLabel = "Abbrechen",
   saveType,
+  stretchOnPhone = false,
   className,
 }: Readonly<{
   onCancel: () => void;
@@ -35,16 +36,29 @@ export function EditActions({
   savingLabel?: string;
   cancelLabel?: string;
   saveType?: "button" | "submit";
+  /**
+   * Unter `sm` teilen sich beide Knöpfe die volle Breite, damit ihre Kanten
+   * mit einem vollbreiten Knopf darüber oder darunter fluchten (#5758).
+   */
+  stretchOnPhone?: boolean;
   className?: string;
 }>) {
+  const buttonWidth = stretchOnPhone ? "flex-1 sm:flex-none" : undefined;
   return (
-    <div className={cn("flex flex-wrap justify-end gap-2", className)}>
+    <div
+      className={cn(
+        "flex flex-wrap justify-end gap-2",
+        stretchOnPhone && "w-full flex-nowrap sm:w-auto sm:flex-wrap",
+        className,
+      )}
+    >
       <Button
         type="button"
         variant="outline"
         size="md"
         onClick={onCancel}
         disabled={saving || cancelDisabled}
+        className={buttonWidth}
       >
         {cancelLabel}
       </Button>
@@ -54,6 +68,7 @@ export function EditActions({
         size="md"
         onClick={onSave}
         disabled={saving || disabled}
+        className={buttonWidth}
       >
         {saving ? savingLabel : saveLabel}
       </Button>

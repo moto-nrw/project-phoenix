@@ -174,6 +174,45 @@ func TestModuleSearchByExactNameIsUnpagedAndIgnoresPrefixes(t *testing.T) {
 	}
 }
 
+func TestModuleNameLookupsMatchCanonicalUnicodeForms(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	current := testpkg.CreateTestStudent(t, db, "José", "Müller", "1a")
+	legacy := testpkg.CreateTestStudent(t, db, "Legacy", "Name", "1a")
+	// Bypass the write boundary to represent a record stored before NFC writes.
+	_, err := db.NewRaw(`UPDATE users.persons SET first_name = ?, last_name = ?
+		WHERE id = ?`, "Jose\u0301", "Mu\u0308ller", legacy.PersonID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewRaw(`UPDATE users.persons SET birthday = '2016-03-14'
+		WHERE id IN (?, ?)`, current.PersonID, legacy.PersonID).Exec(ctx)
+	require.NoError(t, err)
+	testpkg.CreateTestStudent(t, db, "Jose", "Muller", "1a")
+	testpkg.CreateTestStudent(t, db, "Joséfina", "Müllermann", "1a")
+
+	for _, first := range []string{" JOSÉ ", " JOSE\u0301 "} {
+		for _, last := range []string{" MÜLLER ", " MU\u0308LLER "} {
+			found, err := module.SearchPersons(ctx, peopledirectory.PersonFilter{FirstNameEquals: first, LastNameEquals: last})
+			require.NoError(t, err)
+			ids := make([]int64, 0, len(found))
+			for _, person := range found {
+				ids = append(ids, person.ID)
+			}
+			assert.ElementsMatch(t, []int64{current.PersonID, legacy.PersonID}, ids)
+
+			students, err := peopledirectory.EnrolledStudentIDsByNameAndClass(ctx, module, first, last, "1a")
+			require.NoError(t, err)
+			assert.ElementsMatch(t, []int64{current.ID, legacy.ID}, students)
+
+			byBirthday, err := module.ListEnrolledStudentIDsByNameAndBirthday(ctx, testpkg.Tenant(t), first, last, "2016-03-14")
+			require.NoError(t, err)
+			assert.ElementsMatch(t, []int64{current.ID, legacy.ID}, byBirthday)
+		}
+	}
+}
+
 func TestModuleTenantIsolationHidesAnotherTenantsPersons(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -445,4 +484,63 @@ func TestDirectoryReadRequiresTenantAndEnforcesRLS(t *testing.T) {
 	}
 	_, err := module.ListPersonsByID(tenant.ContextWithoutTenant(ctx), []int64{own.ID, foreign.ID})
 	require.ErrorIs(t, err, tenant.ErrTenantRequired)
+}
+
+// A search typed without accents finds the accented name (#4949): prefix
+// searches on first and last name and the full-name search alike.
+func TestModuleSearchIgnoresAccents(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	created, err := module.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "Zoë", LastName: "Özdemir-Gómez"})
+	require.NoError(t, err)
+
+	for name, filter := range map[string]peopledirectory.PersonFilter{
+		"first name prefix":  {FirstNamePrefix: "zoe"},
+		"last name prefix":   {LastNamePrefix: "ozdem"},
+		"full name contains": {FullNameContains: "zoe ozdemir-gomez"},
+	} {
+		listed, err := module.SearchPersons(ctx, filter)
+		require.NoError(t, err, name)
+		ids := make([]int64, 0, len(listed))
+		for _, person := range listed {
+			ids = append(ids, person.ID)
+		}
+		assert.Equal(t, []int64{created.ID}, ids, name)
+	}
+}
+
+// Fullwidth ％, ＿ and ＼ fold to LIKE metacharacters; the search escapes
+// after folding, so they match literally instead of every name (#5791).
+func TestModuleSearchTreatsFullwidthLikeCharactersLiterally(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+
+	_, err := module.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "Zoë", LastName: "Özdemir"})
+	require.NoError(t, err)
+	percent, err := module.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "100%", LastName: "Gruppe_A"})
+	require.NoError(t, err)
+
+	for name, tc := range map[string]struct {
+		filter peopledirectory.PersonFilter
+		want   []int64
+	}{
+		"first name prefix ％":   {peopledirectory.PersonFilter{FirstNamePrefix: "％"}, []int64{}},
+		"last name prefix ＿":    {peopledirectory.PersonFilter{LastNamePrefix: "＿"}, []int64{}},
+		"full name contains ％":  {peopledirectory.PersonFilter{FullNameContains: "％"}, []int64{percent.ID}},
+		"full name contains ＼":  {peopledirectory.PersonFilter{FullNameContains: "＼"}, []int64{}},
+		"full name contains ＿a": {peopledirectory.PersonFilter{FullNameContains: "＿a"}, []int64{percent.ID}},
+	} {
+		listed, err := module.SearchPersons(ctx, tc.filter)
+		require.NoError(t, err, name)
+		ids := make([]int64, 0, len(listed))
+		for _, person := range listed {
+			ids = append(ids, person.ID)
+		}
+		assert.Equal(t, tc.want, ids, name)
+	}
 }

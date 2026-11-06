@@ -6,6 +6,7 @@ import { DatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { TimeField } from "~/components/ui/time-field";
+import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import {
   berlinClockFromISO,
@@ -184,7 +185,9 @@ export function AnnouncementReminderDialog({
         suspended={confirmRemove}
         error={formErrors.error}
         footer={
-          <div className="flex flex-wrap justify-end gap-2">
+          // On a phone Abbrechen and Speichern share one full-width row and
+          // „Erinnerung entfernen“ sits full width below them (#5758).
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             {hasReminder && (
               <Button
                 type="button"
@@ -192,30 +195,34 @@ export function AnnouncementReminderDialog({
                 size="md"
                 onClick={() => setConfirmRemove(true)}
                 disabled={pending !== null}
-                className="mr-auto"
+                className="w-full sm:mr-auto sm:w-auto"
               >
                 {pending === "remove"
                   ? "Wird entfernt…"
                   : "Erinnerung entfernen"}
               </Button>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={onClose}
-              disabled={pending !== null}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              size="md"
-              onClick={() => void submit(false)}
-              disabled={pending !== null}
-            >
-              {pending === "save" ? "Wird gespeichert…" : "Speichern"}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={onClose}
+                disabled={pending !== null}
+                className="flex-1 sm:flex-none"
+              >
+                Abbrechen
+              </Button>
+              <Button
+                type="button"
+                size="md"
+                onClick={() => void submit(false)}
+                disabled={pending !== null}
+                className="flex-1 sm:flex-none"
+              >
+                {pending === "save" ? "Wird gespeichert…" : "Speichern"}
+              </Button>
+            </div>
           </div>
         }
       >
@@ -262,29 +269,22 @@ export function AnnouncementReminderDialog({
               invalid={Boolean(reminderAtError)}
             />
           </div>
-          <div>
-            <label
-              htmlFor="announcement-reminder-dialog-text"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Erinnerungstext (optional)
-            </label>
-            <textarea
-              id="announcement-reminder-dialog-text"
-              name="reminder_text"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={3}
-              maxLength={MAX_REMINDER_TEXT_LENGTH}
-              placeholder="Kurz das Wichtigste, z. B. „Morgen endet die Betreuung um 13:00 Uhr.“"
-              className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
-            />
-            <p className="mt-1.5 text-xs text-gray-500">
-              {announcement.delivery_mode === "letter"
+          <Textarea
+            id="announcement-reminder-dialog-text"
+            name="reminder_text"
+            label="Erinnerungstext (optional)"
+            hint={
+              announcement.delivery_mode === "letter"
                 ? "Ohne eigenen Text schickt moto den Text des Elternbriefs noch einmal."
-                : "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal."}
-            </p>
-          </div>
+                : "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal."
+            }
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={3}
+            maxLength={MAX_REMINDER_TEXT_LENGTH}
+            placeholder="Kurz das Wichtigste, z. B. „Morgen endet die Betreuung um 13:00 Uhr.“"
+            className="resize-y px-4 py-3 text-base"
+          />
         </div>
       </FormModal>
       <ConfirmDeleteModal

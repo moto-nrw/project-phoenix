@@ -10,7 +10,9 @@ import (
 
 	common "github.com/moto-nrw/project-phoenix/api/common"
 	lists "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 const (
@@ -79,7 +81,7 @@ func (rs *Resource) exportStudentsDayLog(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)
@@ -147,16 +149,31 @@ func dayLogExportUntil(student dayLogStudent) string {
 	return exportOptionalTime(student.CheckOutTime)
 }
 
-func dayLogExportDetails(student dayLogStudent) string {
-	if student.CheckOutNote != "" {
-		note := "Früher gegangen: " + student.CheckOutNote
-		if student.Hint != "" {
-			return student.Hint + " · " + note
+// dayLogExportClassPeriods names the class times, so the export tells them apart
+// from going home (#5656).
+func dayLogExportClassPeriods(periods []dayLogClassPeriod) []string {
+	parts := make([]string, 0, len(periods))
+	for _, period := range periods {
+		from := exportOptionalTime(&period.From)
+		if period.Until != nil {
+			parts = append(parts, studentpresence.InClassLocationLabel+" "+from+"–"+exportOptionalTime(period.Until))
+			continue
 		}
-		return note
+		parts = append(parts, studentpresence.InClassLocationLabel+" ab "+from)
 	}
+	return parts
+}
+
+func dayLogExportDetails(student dayLogStudent) string {
+	parts := dayLogExportClassPeriods(student.ClassPeriods)
 	if student.Hint != "" {
-		return student.Hint
+		parts = append([]string{student.Hint}, parts...)
+	}
+	if student.CheckOutNote != "" {
+		parts = append(parts, "Früher gegangen: "+student.CheckOutNote)
+	}
+	if len(parts) > 0 {
+		return strings.Join(parts, " · ")
 	}
 	if student.ReportedAt != nil {
 		return "gemeldet " + student.ReportedAt.In(calendar.Berlin).Format("02.01. 15:04") + dayLogSourceSuffix(student.Source)

@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 type parentCalendarResponseRequest struct {
@@ -104,7 +105,7 @@ func (rs *Resource) calendarAppointmentICS(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", filename))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(content))
 }

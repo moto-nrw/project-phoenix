@@ -47,7 +47,7 @@ func (s *Sender) SendPush(ctx context.Context, intent deliveryContract.ClaimedIn
 		Endpoint: intent.PushRecipient.Endpoint,
 		Keys:     provider.Keys{P256dh: intent.PushRecipient.P256DH, Auth: intent.PushRecipient.Auth},
 	}, &provider.Options{
-		Subscriber: s.config.Subscriber, VAPIDPublicKey: s.config.PublicKey,
+		Subscriber: deliveryContract.WebPushProviderSubscriber(s.config.Subscriber), VAPIDPublicKey: s.config.PublicKey,
 		VAPIDPrivateKey: s.config.PrivateKey, TTL: pushTTL(intent.PushPayload.Priority), Urgency: pushUrgency(intent.PushPayload.Priority), HTTPClient: s.client,
 	})
 	if err != nil {
@@ -55,19 +55,23 @@ func (s *Sender) SendPush(ctx context.Context, intent deliveryContract.ClaimedIn
 	}
 	defer func() { _ = response.Body.Close() }()
 	_, _ = io.Copy(io.Discard, response.Body)
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		if response.StatusCode == http.StatusNotFound || response.StatusCode == http.StatusGone {
-			if s.cleanup == nil {
-				return deliveryContract.ProviderResult{StatusCode: response.StatusCode}, errors.New("delivery provider: expired push subscription cleanup is not configured")
-			}
-			if err := s.cleanup(ctx, intent); err != nil {
-				return deliveryContract.ProviderResult{StatusCode: response.StatusCode}, fmt.Errorf("delivery provider: remove expired push subscription: %w", err)
-			}
-			return deliveryContract.ProviderResult{StatusCode: response.StatusCode}, deliveryContract.ErrCancelled
+	result := deliveryContract.ProviderResult{StatusCode: response.StatusCode}
+	switch {
+	case response.StatusCode >= 200 && response.StatusCode < 300:
+		return result, nil
+	case deliveryContract.PushSubscriptionExpired(response.StatusCode):
+		if s.cleanup == nil {
+			return result, errors.New("delivery provider: expired push subscription cleanup is not configured")
 		}
-		return deliveryContract.ProviderResult{StatusCode: response.StatusCode}, fmt.Errorf("delivery provider: push service returned %s", response.Status)
+		if err := s.cleanup(ctx, intent); err != nil {
+			return result, fmt.Errorf("delivery provider: remove expired push subscription: %w", err)
+		}
+		return result, deliveryContract.ErrCancelled
+	case deliveryContract.PushRejectedPermanently(response.StatusCode):
+		return result, fmt.Errorf("delivery provider: push service returned %s: %w", response.Status, deliveryContract.ErrPermanent)
+	default:
+		return result, fmt.Errorf("delivery provider: push service returned %s", response.Status)
 	}
-	return deliveryContract.ProviderResult{StatusCode: response.StatusCode}, nil
 }
 
 // withoutPushToken drops the endpoint path, the device's push token, from a

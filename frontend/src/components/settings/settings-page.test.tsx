@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { useEffect, useState } from "react";
 import { render, waitFor, fireEvent, screen } from "@testing-library/react";
+import { stateChange } from "~/test/wait-for-state";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError, unavailableApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
@@ -210,7 +211,7 @@ const mockSchema = {
 };
 
 interface TabsResult {
-  tabs: { id: string; label: string; icon: MotoConcept }[];
+  tabs: readonly { id: string; label: string; icon: MotoConcept }[];
   renderTab: (tabId: string) => React.ReactNode;
   highlightTabId: string | null;
   highlightNeedsNfc: boolean;
@@ -318,7 +319,7 @@ describe("useSettingsTabs", () => {
     let captured: TabsResult | null = null;
 
     render(<HookWrapper onResult={(r) => (captured = r)} />);
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(captured).not.toBeNull();
     });
     expect(captured!.tabs).toHaveLength(1);
@@ -330,7 +331,7 @@ describe("useSettingsTabs", () => {
     let captured: TabsResult | null = null;
 
     render(<HookWrapper onResult={(r) => (captured = r)} />);
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(captured).not.toBeNull();
     });
     expect(captured!.tabs).toHaveLength(3);
@@ -344,7 +345,7 @@ describe("useSettingsTabs", () => {
     let captured: TabsResult | null = null;
 
     render(<HookWrapper onResult={(r) => (captured = r)} />);
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(captured).not.toBeNull();
     });
     expect(captured!.tabs[0]!.id).toBe("settings-operations");
@@ -356,7 +357,7 @@ describe("useSettingsTabs", () => {
     let captured: TabsResult | null = null;
 
     render(<HookWrapper onResult={(r) => (captured = r)} />);
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(captured).not.toBeNull();
     });
     expect(captured!.tabs).toHaveLength(1);
@@ -369,7 +370,7 @@ describe("useSettingsTabs", () => {
     let captured: TabsResult | null = null;
 
     render(<HookWrapper onResult={(r) => (captured = r)} />);
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(captured).not.toBeNull();
     });
     expect(captured!.tabs.map((tab) => tab.label)).toContain("Geräte");
@@ -381,7 +382,7 @@ describe("useSettingsTabs", () => {
     let captured: TabsResult | null = null;
 
     render(<HookWrapper onResult={(r) => (captured = r)} />);
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(captured).not.toBeNull();
     });
     expect(captured!.tabs.map((tab) => tab.id)).not.toContain(
@@ -410,7 +411,7 @@ describe("useSettingsTabs", () => {
     let captured: TabsResult | null = null;
 
     render(<HookWrapper onResult={(r) => (captured = r)} />);
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(captured).not.toBeNull();
     });
     expect(captured!.tabs.map((tab) => tab.id)).toEqual([
@@ -425,7 +426,7 @@ describe("useSettingsTabs", () => {
     let captured: TabsResult | null = null;
 
     render(<HookWrapper onResult={(r) => (captured = r)} />);
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(captured).not.toBeNull();
     });
     // Without config:update there is no "Startseite für alle" at all, and
@@ -437,7 +438,7 @@ describe("useSettingsTabs", () => {
     mockPermissions.value = ["config:update"];
     let withWrite: TabsResult | null = null;
     render(<HookWrapper onResult={(r) => (withWrite = r)} />);
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(withWrite).not.toBeNull();
     });
     expect(
@@ -452,7 +453,7 @@ describe("useSettingsTabs", () => {
     let captured: TabsResult | null = null;
 
     render(<HookWrapper onResult={(r) => (captured = r)} />);
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(captured?.highlightTabId).toBe("settings-devices");
     });
     expect(captured!.highlightNeedsNfc).toBe(false);
@@ -465,7 +466,7 @@ describe("useSettingsTabs", () => {
     let captured: TabsResult | null = null;
 
     render(<HookWrapper onResult={(r) => (captured = r)} />);
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(captured?.highlightNeedsNfc).toBe(true);
     });
     expect(captured!.highlightTabId).toBeNull();
@@ -478,7 +479,7 @@ describe("useSettingsTabs", () => {
     let captured: TabsResult | null = null;
 
     render(<HookWrapper onResult={(r) => (captured = r)} />);
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(captured?.highlightTabId).toBe("settings-startseite");
     });
   });
@@ -488,7 +489,7 @@ describe("useSettingsTabs", () => {
     let captured: TabsResult | null = null;
 
     render(<HookWrapper onResult={(r) => (captured = r)} />);
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(captured).not.toBeNull();
     });
     expect(typeof captured!.tabs[0]!.icon.key).toBe("string");
@@ -550,7 +551,7 @@ describe("SettingsContent (via renderTab)", () => {
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(mockSetSettingValue).toHaveBeenCalled();
     });
   });
@@ -575,14 +576,14 @@ describe("SettingsContent (via renderTab)", () => {
     const toggle = screen.getByRole("switch");
     fireEvent.click(toggle);
 
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(mockSetSettingValue).toHaveBeenCalled();
     });
 
     // Authoritative re-fetch happens immediately after save — covers
     // server-side derived state (defaults, audit columns) the
     // optimistic setSchema doesn't know about.
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(mockFetchSchema.mock.calls.length).toBeGreaterThan(
         fetchCountBefore,
       );
@@ -599,7 +600,7 @@ describe("SettingsContent (via renderTab)", () => {
     const fetchCountBefore = mockFetchSchema.mock.calls.length;
     window.dispatchEvent(new CustomEvent("phoenix:tenant-settings-stale"));
 
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(mockFetchSchema.mock.calls.length).toBeGreaterThan(
         fetchCountBefore,
       );
@@ -628,7 +629,9 @@ describe("SettingsContent (via renderTab)", () => {
 
     mockSetSettingValue.mockResolvedValueOnce(null);
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
-    await waitFor(() => expect(mockSetSettingValue).toHaveBeenCalledTimes(2));
+    await stateChange.waitFor(() =>
+      expect(mockSetSettingValue).toHaveBeenCalledTimes(2),
+    );
     expect(
       await screen.findByText("Die Einstellung „Aktiviert“ ist gespeichert."),
     ).toBeInTheDocument();
@@ -810,7 +813,7 @@ describe("SettingsContent (via renderTab)", () => {
       }),
     );
 
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(mockRefreshSupervision).toHaveBeenCalledWith({ force: true });
     });
   });
@@ -824,7 +827,7 @@ describe("SettingsContent (via renderTab)", () => {
     const toggle = await screen.findByRole("switch");
     fireEvent.click(toggle);
 
-    await waitFor(() => {
+    await stateChange.waitFor(() => {
       expect(mockSetSettingValue).toHaveBeenCalled();
     });
     expect(mockRefreshSupervision).not.toHaveBeenCalled();

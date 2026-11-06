@@ -46,6 +46,7 @@ import type { EnrichedInstance } from "~/lib/timetable-types";
 
 import { InstanceBlock } from "./instance-block";
 import { timetableSurface } from "./timetable-style";
+import { StatusDot } from "~/components/ui/status-dot";
 
 // Grid template columns: narrow time gutter + day columns. Mobile shows a
 // single day column via the day strip; ab sm bekommt JEDER übergebene Tag
@@ -421,10 +422,7 @@ export function WeeklyCalendarGrid({
                 </span>
               )}
               {isToday && !isSelected && (
-                <span
-                  className="bg-moto-red h-1 w-1 rounded-full"
-                  aria-hidden
-                />
+                <StatusDot className="bg-moto-red" size="xs" label="heute" />
               )}
             </button>
           );
@@ -664,9 +662,15 @@ export function WeeklyCalendarGrid({
                     {nowOffset !== null && (
                       <>
                         <div
-                          className="bg-moto-red pointer-events-none absolute -left-1 z-10 h-2 w-2 rounded-full"
+                          className="pointer-events-none absolute -left-1 z-10 flex"
                           style={{ top: `${nowOffset - 4}px` }}
-                        />
+                        >
+                          <StatusDot
+                            className="bg-moto-red"
+                            size="md"
+                            decorative
+                          />
+                        </div>
                         <div
                           className="border-moto-red pointer-events-none absolute right-0 left-0 z-10 border-t-2"
                           style={{ top: `${nowOffset}px` }}

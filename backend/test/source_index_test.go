@@ -89,6 +89,43 @@ func TestGoSourceIndexReportsWalkErrors(t *testing.T) {
 	}
 }
 
+// Repository source is immutable during a test binary. Fixture trees live
+// outside it and still read the current bytes, including deliberate rewrites.
+var backendSourceRoot = sync.OnceValues(findBackendRoot)
+var backendSourceContents = sync.OnceValues(func() (map[string][]byte, error) {
+	root, err := backendSourceRoot()
+	if err != nil {
+		return nil, err
+	}
+	files, err := goSourceIndex(root)
+	if err != nil {
+		return nil, err
+	}
+	contents := make(map[string][]byte, len(files))
+	for _, file := range files {
+		contents[filepath.Join(root, filepath.FromSlash(file.rel))] = file.content
+	}
+	return contents, nil
+})
+
+func readGoSource(path string) ([]byte, error) {
+	root, rootErr := backendSourceRoot()
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	if rootErr == nil && strings.HasPrefix(absolute, root+string(filepath.Separator)) {
+		contents, err := backendSourceContents()
+		if err != nil {
+			return nil, err
+		}
+		if content, ok := contents[absolute]; ok {
+			return content, nil
+		}
+	}
+	return os.ReadFile(path) // #nosec G304 -- test scans repository or temporary fixture sources
+}
+
 // parsedGoFile is one cached parse result. content is kept so a later request
 // for the same path with different bytes (self-tests rewriting temp fixtures)
 // reparses instead of returning a stale tree.
@@ -115,7 +152,7 @@ func parseGoSourceCached(path string, src any) (*token.FileSet, *ast.File, error
 	var content []byte
 	switch s := src.(type) {
 	case nil:
-		b, err := os.ReadFile(path) // #nosec G304 -- test scans repo-local source files
+		b, err := readGoSource(path)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -159,5 +196,14 @@ func TestParseGoSourceCachedReparsesChangedContent(t *testing.T) {
 	_, changed, err := parseGoSourceCached(path, "package b\n")
 	if err != nil || changed.Name.Name != "b" {
 		t.Fatalf("changed content served stale tree: %v", err)
+	}
+	for _, name := range []string{"first", "rewritten"} {
+		if err := os.WriteFile(path, []byte("package "+name+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, disk, err := parseGoSourceCached(path, nil)
+		if err != nil || disk.Name.Name != name {
+			t.Fatalf("disk fixture served stale tree for %s: %v", name, err)
+		}
 	}
 }

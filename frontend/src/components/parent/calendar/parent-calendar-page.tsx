@@ -74,6 +74,7 @@ import {
   type CalendarEvent,
 } from "~/lib/personal-calendar-api";
 import { childrenConcept } from "~/lib/concepts/children";
+import { StatusDot } from "~/components/ui/status-dot";
 
 const logger = createLogger({ component: "ParentCalendarPage" });
 const MAX_CALENDAR_WINDOW_OFFSET = 91;
@@ -717,14 +718,15 @@ function CalendarMonthPanel({
               </span>
               <div className="mt-0.5 flex min-h-2 justify-center gap-0.5 md:hidden">
                 {dayEvents.slice(0, 3).map((event) => (
-                  <span
+                  <StatusDot
                     key={event.id}
-                    className={`size-1.5 rounded-full ${eventState(event) === "needsResponse" ? "ring-1 ring-offset-1" : ""}`}
-                    style={{
-                      backgroundColor: eventColors(event).base,
-                      color: eventColors(event).base,
-                    }}
-                    aria-hidden="true"
+                    color={eventColors(event).base}
+                    className={
+                      eventState(event) === "needsResponse"
+                        ? "ring-1 ring-offset-1"
+                        : ""
+                    }
+                    label={event.title}
                   />
                 ))}
               </div>

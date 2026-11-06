@@ -3,8 +3,10 @@ package listexport
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // RendererService renders list/record documents to PDF, XLSX, DOCX, and CSV files.
@@ -64,18 +66,18 @@ func (s *RendererService) RenderLetter(letter listrecords.Letter, filenameBase s
 	return listrecords.File{Data: data, ContentType: "application/pdf", Filename: base + ".pdf"}, nil
 }
 
+// safeFilename turns a title into a file name: lower case, letters and
+// digits of any script, everything else one dash. Accents stay (#5791); the
+// HTTP edge adds the ASCII spelling for clients that need one.
 func safeFilename(input string) string {
-	input = strings.TrimSpace(strings.ToLower(input))
-	replacer := strings.NewReplacer(
-		"ä", "ae", "ö", "oe", "ü", "ue", "ß", "ss",
-		" ", "-", "/", "-", "\\", "-", ":", "-", ";", "-",
-	)
-	input = replacer.Replace(input)
+	input = strings.ToLower(textnorm.Name(input))
 	var b strings.Builder
 	lastDash := false
 	for _, r := range input {
-		ok := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
-		if ok {
+		// A combining mark NFC could not compose stays with the letter before
+		// it; after a dash or at the start it has nothing to belong to.
+		keepsMark := unicode.Is(unicode.Mn, r) && !lastDash && b.Len() > 0
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || keepsMark {
 			b.WriteRune(r)
 			lastDash = false
 			continue

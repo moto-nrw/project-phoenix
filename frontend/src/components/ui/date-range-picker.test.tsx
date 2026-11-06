@@ -40,6 +40,38 @@ describe("DateRangePicker", () => {
     );
   });
 
+  it("opens the calendar from the trigger between the arrows", async () => {
+    render(
+      <DateRangePicker
+        embedded
+        value={{ from: new Date(2026, 7, 1), to: new Date(2026, 7, 30) }}
+        onChange={() => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Aug/ }));
+
+    await waitFor(() => {
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    });
+  });
+
+  it("marks the normal trigger while its calendar is open", () => {
+    render(
+      <DateRangePicker
+        value={{ from: new Date(2026, 7, 1), to: new Date(2026, 7, 30) }}
+        onChange={() => undefined}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /Aug/ });
+    expect(trigger).not.toHaveClass("bg-gray-50!");
+
+    fireEvent.click(trigger);
+
+    expect(trigger).toHaveClass("bg-gray-50!");
+  });
+
   it("shows a single day as one date", () => {
     render(
       <DateRangePicker

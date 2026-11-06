@@ -23,6 +23,9 @@ const source = `http://school-a.mfa.localhost:${ports.frontend}`;
 const target = `http://school-b.mfa.localhost:${ports.frontend}`;
 const cookieName = "mfa-localhost.session-token";
 const fixtureState = `http://127.0.0.1:${ports.api}/__fixture/switch-state`;
+// The first logout compiles its auth routes on a fresh Turbopack graph; on a CI
+// runner that alone can take more than 30 s. A hanging logout still fails here.
+const sessionCookieDeletionTimeout = 60_000;
 
 async function isolate(context: BrowserContext) {
   await context.route("**/*", async (route) => {
@@ -69,6 +72,7 @@ async function waitForSessionCookieDeletion(page: Page) {
     (response) =>
       response.request().method() === "POST" &&
       new URL(response.url()).pathname === "/api/auth/signout",
+    { timeout: sessionCookieDeletionTimeout },
   );
   return (
     response.status() === 200 &&

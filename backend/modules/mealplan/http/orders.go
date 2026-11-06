@@ -8,6 +8,7 @@ import (
 	"time"
 
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // OrderChangeResponse is a numbered change of an order. The school's view
@@ -119,7 +120,7 @@ func (rs *Resource) exportMonth(w http.ResponseWriter, r *http.Request) {
 
 func writeFile(w http.ResponseWriter, file ExportFile) {
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)

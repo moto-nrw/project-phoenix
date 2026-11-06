@@ -276,3 +276,42 @@ describe("mapAttendanceHistoryResponse checkout note (#3324)", () => {
     expect(plain?.attendance?.checkOutNote).toBeNull();
   });
 });
+
+describe("mapAttendanceHistoryResponse class checkout (#5656)", () => {
+  it("lists only the stays that ended with going to class", () => {
+    const mapped = mapAttendanceHistoryResponse({
+      student_id: "42",
+      days: [
+        {
+          date: "2026-04-07",
+          attendance: {
+            check_in_time: "2026-04-07T06:00:00Z",
+            check_out_time: "2026-04-07T14:00:00Z",
+            checked_in_by: 11,
+            device_id: 3,
+            sessions: [
+              {
+                check_in_time: "2026-04-07T06:00:00Z",
+                check_out_time: "2026-04-07T07:00:00Z",
+                check_out_reason: "class",
+              },
+              {
+                check_in_time: "2026-04-07T11:00:00Z",
+                check_out_time: "2026-04-07T14:00:00Z",
+              },
+            ],
+          },
+          room_detail_available: false,
+          visits: [],
+        },
+      ],
+      range: { start: "2026-04-01T00:00:00Z", end: "2026-04-08T00:00:00Z" },
+      clamped: false,
+      caps: { attendance_days: 30, room_detail_days: 7 },
+    });
+
+    expect(mapped.days[0]?.attendance?.leftForClassAt).toEqual([
+      new Date("2026-04-07T07:00:00Z"),
+    ]);
+  });
+});

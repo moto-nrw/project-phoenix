@@ -113,12 +113,9 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 	if err != nil {
 		return err
 	}
-	schools, err := seedTraegerSchoolIDs(rt.Client, auth)
+	schools, err := seedTraegerHolidaySchools(rt, auth)
 	if err != nil {
 		return err
-	}
-	if !slices.Contains(schools, rt.Bootstrap.SchoolID) {
-		return fmt.Errorf("the Träger does not list school %d to host the holiday weeks", rt.Bootstrap.SchoolID)
 	}
 	raw, err := rt.Client.PostWithAuth(auth, "/traeger/holiday-periods/", seedHolidayPeriod(calendar.TodayDate(), rt.Bootstrap.SchoolID))
 	if err != nil {
@@ -366,7 +363,7 @@ func seedHolidaySiblingGroup(rt *Runtime, auth AuthRef, token string, periodID i
 		return fmt.Errorf("merge the siblings of two registrations: %w", err)
 	}
 	fmt.Println("  Träger-Büro: the third sibling's registration merged with the siblings")
-	return nil
+	return seedHolidaySiblingCancellation(rt, auth, token, periodID, sibling, siblings)
 }
 
 // seedHolidayAfterConfirmation corrects the confirmed siblings' details

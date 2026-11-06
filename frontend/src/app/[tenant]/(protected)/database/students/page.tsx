@@ -47,6 +47,7 @@ import { MasterDetailSkeleton } from "~/components/database/master-detail-skelet
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { childrenConcept } from "~/lib/concepts/children";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "DatabaseStudentsPage" });
 
@@ -275,25 +276,22 @@ function StudentsPageContent() {
     let filtered = [...students];
 
     if (searchTerm) {
-      const searchLower = searchTerm.trim().toLowerCase();
+      const searchLower = foldForSearch(searchTerm.trim());
       filtered = filtered.filter((student) => {
-        const fullName = [student.first_name, student.second_name]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        const lastNameFirst = [student.second_name, student.first_name]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
+        const fullName = foldForSearch(
+          [student.first_name, student.second_name].filter(Boolean).join(" "),
+        );
+        const lastNameFirst = foldForSearch(
+          [student.second_name, student.first_name].filter(Boolean).join(" "),
+        );
 
         return (
-          (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
-          (student.second_name?.toLowerCase().includes(searchLower) ?? false) ||
+          foldForSearch(student.first_name).includes(searchLower) ||
+          foldForSearch(student.second_name).includes(searchLower) ||
           fullName.includes(searchLower) ||
           lastNameFirst.includes(searchLower) ||
-          (student.school_class?.toLowerCase().includes(searchLower) ??
-            false) ||
-          (student.group_name?.toLowerCase().includes(searchLower) ?? false)
+          foldForSearch(student.school_class).includes(searchLower) ||
+          foldForSearch(student.group_name).includes(searchLower)
         );
       });
     }

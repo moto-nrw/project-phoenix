@@ -20,53 +20,27 @@ func (r *exportRun) tableModel(ctx context.Context, table organizationtenancy.Li
 	if len(parts) != 2 {
 		return model, exportTableError(table.Name)
 	}
-	var metadata []struct {
-		Section      int
-		Name         string
-		Type         string
-		UDT          string
-		Nullable     string
-		TargetTable  string
-		TargetColumn string
+	if r.schema == nil {
+		schema, err := loadExportSchema(ctx, r.tx, r.catalog)
+		if err != nil {
+			return model, exportTableError(table.Name)
+		}
+		r.schema = schema
 	}
-	err := r.tx.NewRaw(`WITH metadata AS (
-		SELECT 0 AS section, row_number() OVER (ORDER BY ordinal_position) AS entry_position,
-			column_name::text AS name, data_type::text AS type, udt_name::text AS udt,
-			is_nullable::text AS nullable, ''::text AS target_table, ''::text AS target_column
-		FROM information_schema.columns WHERE table_schema = ? AND table_name = ?
-		UNION ALL
-		SELECT 1, row_number() OVER (ORDER BY a.attname, ns.nspname, c.relname),
-			a.attname::text, ''::text, ''::text, ''::text,
-			ns.nspname || '.' || c.relname, b.attname::text
-		FROM pg_catalog.pg_constraint fk
-		JOIN pg_catalog.pg_class c ON c.oid = fk.confrelid
-		JOIN pg_catalog.pg_namespace ns ON ns.oid = c.relnamespace
-		CROSS JOIN LATERAL generate_subscripts(fk.conkey, 1) AS n(i)
-		JOIN pg_catalog.pg_attribute a ON a.attrelid = fk.conrelid AND a.attnum = fk.conkey[n.i]
-		JOIN pg_catalog.pg_attribute b ON b.attrelid = fk.confrelid AND b.attnum = fk.confkey[n.i]
-		WHERE fk.contype = 'f' AND fk.conrelid = ?::regclass
-	)
-	SELECT section, name, type, udt, nullable, target_table, target_column
-	FROM metadata ORDER BY section, entry_position`, parts[0], parts[1], table.Name).Scan(ctx, &metadata)
-	if err != nil {
+	columns := r.schema.columns[table.Name]
+	if len(columns) == 0 {
 		return model, exportTableError(table.Name)
 	}
-	columnCount := 0
-	for _, row := range metadata {
-		switch row.Section {
-		case 0:
-			columnCount++
-			if _, excluded := table.ExcludeSecretColumns[row.Name]; !excluded {
-				model.Columns = append(model.Columns, organizationtenancy.ExportColumn{Name: row.Name, Type: row.Type, UDT: row.UDT, Nullable: row.Nullable == "YES"})
-			}
-		case 1:
-			if _, excluded := table.ExcludeSecretColumns[row.Name]; !excluded {
-				model.Relationships = append(model.Relationships, organizationtenancy.ExportRelationship{Column: row.Name, TargetTable: row.TargetTable, TargetColumn: row.TargetColumn})
-			}
+	for _, col := range columns {
+		if _, excluded := table.ExcludeSecretColumns[col.Name]; !excluded {
+			model.Columns = append(model.Columns, organizationtenancy.ExportColumn{Name: col.Name, Type: col.Type, UDT: col.UDT, Nullable: col.Nullable == "YES"})
 		}
 	}
-	if columnCount == 0 {
-		return model, exportTableError(table.Name)
+	relations := r.schema.relations[table.Name]
+	for _, rel := range relations {
+		if _, excluded := table.ExcludeSecretColumns[rel.Column]; !excluded {
+			model.Relationships = append(model.Relationships, organizationtenancy.ExportRelationship{Column: rel.Column, TargetTable: rel.TargetTable, TargetColumn: rel.TargetColumn})
+		}
 	}
 	return model, nil
 }

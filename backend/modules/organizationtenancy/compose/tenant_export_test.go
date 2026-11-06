@@ -287,14 +287,14 @@ func TestTenantExportMigratedSchema(t *testing.T) {
 	require.NoError(t, err)
 	var model []organizationtenancy.ExportModelTable
 	require.NoError(t, json.Unmarshal(modelData, &model))
-	// Aggregate metadata dispatch budget follows the exported catalogue size.
-	// This does not attribute queries per table or establish server/wire SQL.
+	// The upstream export snapshot batches columns and relationships once
+	// across the catalogue, independent of the exported table count.
 	metadata := counter.Matching(func(query string) bool {
 		return strings.Contains(query, "information_schema.columns") || strings.Contains(query, "pg_catalog.pg_constraint")
 	})
 	t.Logf("tenant-export-metadata dispatches=%d models=%d", len(metadata), len(model))
 	require.NotEmpty(t, model)
-	require.Len(t, metadata, len(model), "aggregate metadata dispatch count must equal exported model count")
+	require.Len(t, metadata, 2, "columns and relationships each have one catalogue-wide metadata read")
 	person := model[slices.IndexFunc(model, func(table organizationtenancy.ExportModelTable) bool { return table.Name == "users.persons" })]
 	require.Contains(t, person.Relationships, organizationtenancy.ExportRelationship{Column: "account_id", TargetTable: "auth.accounts", TargetColumn: "id"})
 }

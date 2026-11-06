@@ -195,6 +195,14 @@ function DayCard({
                 checkedOut={day.attendance.checkedOutActor}
               />
             )}
+            {day.attendance?.leftForClassAt.map((at) => (
+              <span
+                key={at.getTime()}
+                className="mt-0.5 block text-xs text-gray-600"
+              >
+                Zum Unterricht gegangen: {formatTime(at)} Uhr
+              </span>
+            ))}
             {day.attendance?.checkOutNote && (
               <span className="mt-0.5 block text-xs text-gray-600">
                 Grund für das frühe Gehen: {day.attendance.checkOutNote}
@@ -317,7 +325,6 @@ function DayCard({
                   className="flex items-center justify-between text-xs"
                 >
                   <div className="flex items-center gap-2">
-                    <div className="bg-moto-blue h-1.5 w-1.5 rounded-full" />
                     <span className="font-medium text-gray-700">
                       {v.roomName || "Unbekannt"}
                     </span>
@@ -455,6 +462,14 @@ function HistoryTable({
                                   )}
                                 </span>
                               )}
+                            {day.attendance?.leftForClassAt.map((at) => (
+                              <span
+                                key={at.getTime()}
+                                className="mt-0.5 block text-xs text-gray-500"
+                              >
+                                Zum Unterricht gegangen: {formatTime(at)} Uhr
+                              </span>
+                            ))}
                             {day.attendance?.checkOutNote && (
                               <span className="mt-0.5 block text-xs text-gray-500">
                                 Grund für das frühe Gehen:{" "}
@@ -487,7 +502,6 @@ function HistoryTable({
                             >
                               <td className="py-2 pr-6 pl-12">
                                 <div className="flex items-center gap-2">
-                                  <div className="bg-moto-green h-1.5 w-1.5 shrink-0 rounded-full" />
                                   <span className="font-medium text-gray-700">
                                     {slot.title}
                                   </span>
@@ -626,7 +640,6 @@ function HistoryTable({
                                 >
                                   <td className="py-2 pr-6 pl-12">
                                     <div className="flex items-center gap-2">
-                                      <div className="bg-moto-blue h-1.5 w-1.5 shrink-0 rounded-full" />
                                       <span className="font-medium text-gray-700">
                                         {v.roomName || "Unbekannt"}
                                       </span>
@@ -821,9 +834,7 @@ function StudentRoomHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={
-          <ConceptIconTile concept={changeHistoryConcept} variant="page" />
-        }
+        leading={<ConceptIconTile concept={changeHistoryConcept} size="page" />}
         title={displayName || "Anwesenheitsprotokoll"}
         stats={studentMeta || dayLine}
         statsLoading={loading}

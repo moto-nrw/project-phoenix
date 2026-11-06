@@ -857,11 +857,14 @@ export function TimetableEventModal({
               </Button>
             )}
           </div>
-          <div className="order-1 flex items-center justify-end gap-3 sm:order-2">
+          {/* On a phone the actions share the full width, so their edges line
+              up with „Löschen“ below; from sm on they sit on the right. */}
+          <div className="order-1 flex items-center gap-3 sm:order-2 sm:justify-end">
             <Button
               type="button"
               variant="outline"
               size="md"
+              className="flex-1 sm:flex-none"
               onClick={onClose}
               disabled={submitting || deletingSeries}
             >
@@ -872,6 +875,7 @@ export function TimetableEventModal({
                 type="button"
                 variant="outline"
                 size="md"
+                className="flex-1 sm:flex-none"
                 onClick={() => setStep((current) => Math.max(current - 1, 0))}
                 disabled={submitting || deletingSeries}
               >
@@ -891,6 +895,7 @@ export function TimetableEventModal({
                 form="timetable-event-form"
                 variant="primary"
                 size="md"
+                className="flex-1 sm:flex-none"
                 disabled={submitting || deletingSeries}
               >
                 Weiter
@@ -901,6 +906,7 @@ export function TimetableEventModal({
                 form="timetable-event-form"
                 variant="primary"
                 size="md"
+                className="flex-1 sm:flex-none"
                 isLoading={submitting}
                 loadingText="Speichere …"
                 disabled={

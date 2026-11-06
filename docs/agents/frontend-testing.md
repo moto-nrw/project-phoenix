@@ -28,6 +28,46 @@ processes. Its regression cases change `TZ` to UTC, Pacific/Honolulu and
 Pacific/Kiritimati at runtime (the original sick-report suite also uses Tokyo);
 Node worker threads do not apply those timezone changes. The cases assert the
 local date first so an ineffective timezone change cannot hide the defect.
+It runs first (`groupOrder` 0), then `api-node` and `logic-node`, then
+`app-dom`.
+
+## Reused workers
+
+All projects run with `isolate: false`: one worker thread (a process for
+`school-date-dom`) runs many test files. `src/test/setup-worker-reuse.ts`, the
+first setup file, resets after every file what a fresh worker would not have:
+evaluated modules and `vi.mock` registrations, the file's `vi.spyOn` spies and
+its mocks in the registry that `vi.clearAllMocks` walks, globals and
+prototypes, Node's builtin modules with their exported classes and prototypes
+(a patched
+`ServerResponse.prototype` kept the previous file's module instances), the DOM
+with cookies, URL and viewport, listeners on window/document/html/head/body,
+pending Node and window timers, and `process.env`. A property it cannot restore
+fails the file. `src/test/reused-threads-pool.ts` bounds each thread's heap and
+replaces a thread after a file that leaves more than 200 MB of heap.
+
+- Never rely on state from another file; the file order in a worker is
+  arbitrary. A package whose module state must start fresh in every file
+  (Testing Library, SWR, next-auth) belongs in `perFileDependencies` in
+  `vitest.config.ts`. A non-configurable global that a natively loaded package
+  keeps for the worker's lifetime goes into `WORKER_LIFETIME_KEYS` with its
+  reason.
+- Every test ends on a fresh macrotask (`setup-common.ts`), so work the test
+  left pending runs before the next test. Timers are the exception: happy-dom
+  sends `hashchange` after `history.replaceState` from a `setTimeout`, and it
+  can reach the next test (`portal-shell-scroll.test.tsx` waits for it in
+  `beforeEach`). Act only on what the test awaited:
+  after `await screen.findBy…(A)` or `await waitFor(() => expect(mock)…)`,
+  query a different element B with `findBy…`, and wait for a button to be
+  enabled before clicking it.
+- Check order independence with
+  `pnpm vitest run --sequence.shuffle.files --sequence.seed=<n>`, and with
+  `--maxWorkers=1` for the most sharing.
+- Transformed modules persist across runs in
+  `node_modules/.experimental-vitest-cache` (`experimental.fsModuleCache`),
+  keyed by file content, Vite config and lockfile. A Vite plugin whose output
+  depends on other files must add them to the cache key; after a suspected
+  stale transform, `pnpm vitest --clearCache` empties the cache.
 
 ## Scope
 

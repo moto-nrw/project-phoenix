@@ -51,6 +51,7 @@ jobs:
     name: Select backend tests
     if: ${{ inputs.run-backend && inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
@@ -81,6 +82,7 @@ jobs:
           scripts/backend-affected-packages_test.sh
           scripts/backend-test-matrix_test.sh
           scripts/test-changed_test.sh
+          scripts/go-test-link-cache_test.sh
       - name: Select and partition backend packages
         id: packages
         working-directory: backend
@@ -109,14 +111,13 @@ jobs:
     if: ${{ !cancelled() && inputs.run-backend && (needs.plan-backend.result == 'success' || needs.plan-backend.result == 'skipped') }}
     strategy:
       fail-fast: false
-      # Size the run from the actual affected graph, not just the event type.
-      # Small PRs keep one modest runner; broad PRs use the existing full-suite
-      # budgets, without mixing architecture/migrations into application work.
-      matrix: ${{ fromJSON(needs.plan-backend.outputs.matrix || '{"include":[{"shard":0},{"shard":1},{"shard":2},{"shard":3}]}') }}
+      # One job sized from the affected graph (scripts/backend-test-matrix.sh).
+      # Only the nightly race run keeps four shards.
+      matrix: ${{ fromJSON(needs.plan-backend.outputs.matrix || (inputs.backend-race && '{"include":[{"shard":0},{"shard":1},{"shard":2},{"shard":3}]}' || '{"include":[{"shard":0,"blobs":true}]}')) }}
     runs-on: ${{ matrix.runner || 'blacksmith-8vcpu-ubuntu-2404' }}
     # Instrumented builds and tests need more headroom than ordinary runs.
     # Keep the default Actions limit unchanged for non-race callers.
-    timeout-minutes: ${{ inputs.backend-race && 60 || 360 }}
+    timeout-minutes: ${{ inputs.backend-race && 60 || 20 }}
     env:
       # Keep sibling package clones in one run, as the local test wrappers do.
       # Generation GC must not collect them while this shard is still running.
@@ -127,7 +128,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17-alpine
         env:
           POSTGRES_DB: phoenix_test
           POSTGRES_USER: postgres
@@ -152,7 +153,7 @@ jobs:
           # its history and comparison refs without downloading every branch
           # and tag. Only the architecture suite needs historical blobs.
           fetch-depth: 1
-          filter: ${{ matrix.shard != 1 && 'blob:none' || '' }}
+          filter: ${{ !(matrix.blobs || matrix.shard == 1) && 'blob:none' || '' }}
 
       - name: Fetch backend comparison history
         env:
@@ -203,6 +204,7 @@ jobs:
           scripts/backend-affected-packages_test.sh
           scripts/backend-test-matrix_test.sh
           scripts/test-changed_test.sh
+          scripts/go-test-link-cache_test.sh
 
       - name: Verify snapshot roles match migrations
         if: matrix.shard == 0
@@ -214,10 +216,10 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: backend/.db-snapshot
-          # pg17: bump manually when the postgres service image major version
-          # changes. No restore-keys on purpose — a stale snapshot must never
+          # pg17-alpine: bump manually when the postgres service image changes.
+          # No restore-keys on purpose — a stale snapshot must never
           # be restored; a miss only costs the ~25s migrate path below.
-          key: db-snapshot-pg17-${{ hashFiles('backend/database/migrations/*.go', 'backend/cmd/migrate.go') }}
+          key: db-snapshot-pg17-alpine-${{ hashFiles('backend/database/migrations/*.go', 'backend/cmd/migrate.go') }}
 
       - name: Restore database from snapshot
         if: matrix.shard != 1 && steps.db-snapshot.outputs.cache-hit == 'true'
@@ -234,7 +236,7 @@ jobs:
           # this block too, including role memberships such as pg_read_all_data.
           # A role the dump references fails the restore (ON_ERROR_STOP); a role
           # used only through SET ROLE fails later, in the tests that need it.
-          # Everything runs inside the postgres:17 service container: the
+          # Everything runs inside the postgres:17-alpine service container: the
           # local socket is trust-auth and the runner's psql is v16, which
           # refuses a v17 server.
           docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d phoenix_test <<EOF
@@ -314,6 +316,7 @@ jobs:
           FULL_SUITE: ${{ !inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '' }}
           SHARD_INDEX: ${{ matrix.shard }}
           BACKEND_RACE: ${{ inputs.backend-race }}
+          SPLIT_SUITES: ${{ inputs.backend-race }}
         run: |
           if [ "$FULL_SUITE" = true ]; then
             # Known full runs start immediately, without a planning runner.
@@ -376,9 +379,11 @@ jobs:
   test-frontend:
     name: Frontend tests (${{ matrix.project }})
     if: ${{ inputs.run-frontend }}
-    # The existing Vitest projects are independent, but groupOrder runs Node
-    # before DOM in one process. Split them without raising worker counts or
-    # disabling isolation. Only Node needs the browser layout checks.
+    # The existing Vitest projects are independent, but groupOrder runs them
+    # one after another in one process. Split them without raising worker
+    # counts; workers are reused with a per-file reset
+    # (frontend/src/test/setup-worker-reuse.ts). Only Node needs the browser
+    # layout checks.
     strategy:
       fail-fast: false
       matrix:
@@ -386,6 +391,7 @@ jobs:
         # Vitest's built-in sharding, retaining four workers per DOM runner.
         project: ${{ fromJSON(inputs.frontend-guards-only && '["guards"]' || (!inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '') && '["node","dom-1","dom-2"]' || '["node","dom"]') }}
     runs-on: ${{ (matrix.project == 'node' || matrix.project == 'guards') && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -478,12 +484,13 @@ jobs:
     # Postgres reported an active query with no lock wait (run 38232330367).
     # Use a fresh hosted VM without changing smoke coverage or read timeouts.
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions:
       contents: read
 
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17-alpine
         env:
           POSTGRES_DB: phoenix_seed
           POSTGRES_USER: postgres

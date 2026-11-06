@@ -425,7 +425,6 @@ export function RolloverForm({
             </label>
             <DateTimePicker
               id="rollover-deadline"
-              controlSize="md"
               dateAriaLabel="Frist für die Eltern-Antwort"
               timeAriaLabel="Frist Uhrzeit"
               className="mt-1"
@@ -485,9 +484,7 @@ export function RolloverForm({
         backLabel="Zurück zu den Anmeldephasen"
         stats={statusLine}
         statsLoading={loadingPreview}
-        leading={
-          <ConceptIconTile concept={enrollmentsConcept} variant="page" />
-        }
+        leading={<ConceptIconTile concept={enrollmentsConcept} size="page" />}
       >
         {form}
       </TenantPage>

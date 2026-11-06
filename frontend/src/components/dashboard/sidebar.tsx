@@ -26,6 +26,8 @@ import {
   type SupervisedRoom,
 } from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { useTraegerReturnHref } from "~/lib/hooks/use-traeger-return-href";
+import { TRAEGER_RETURN_LABEL } from "~/lib/traeger-handoff";
 import { isDemoBannerShown } from "~/components/demo/demo-banner";
 import { useDemoEveningActive } from "~/components/demo/demo-evening-notice";
 import {
@@ -45,6 +47,10 @@ import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSidebarGroups } from "~/lib/hooks/use-sidebar-groups";
 import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
+import {
+  isStaffSettingsPath,
+  StaffSettingsSidebarNav,
+} from "./staff-settings-nav";
 import { useSidebarCollapseTransition } from "~/lib/hooks/use-sidebar-collapse-transition";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useSidebarMemory } from "~/lib/sidebar-memory";
@@ -675,6 +681,7 @@ function SidebarContent({
   const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
   const { mode, isPreview } = useShellAuth();
+  const traegerReturnHref = useTraegerReturnHref();
   const demoBannerShown = isDemoBannerShown({ mode, isPreview });
   const eveningRow = useDemoEveningActive() && demoBannerShown;
   const changeRequestAccess = useChangeRequestAccess();
@@ -1872,55 +1879,99 @@ function SidebarContent({
           eveningRow,
         )}
       >
-        {/* Main navigation, scrollable.
-            Der Rollbalken bleibt ausgeklappt sichtbar — er ist dort der
-            einzige Hinweis, dass unten noch Einträge folgen. Nur im
-            64px-Streifen wird er ausgeblendet, wo er ein Viertel der Breite
-            einnähme (Muster: VS-Code-Aktivitätsleiste). */}
-        <nav
-          className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_GAP} ${SIDEBAR_NAV_PADDING}`}
-        >
-          {/* Startseite der Rolle: Home für Admins, Tagesplan (#2383) für
-              Betreuungskräfte — über den Gruppen, wie bisher. */}
-          {STAFF_NAV_TOP.map(renderEntry)}
+        {/* Rückweg ins Träger-Portal (#5687): nur in einer Sitzung, die über
+            das Träger-Büro kam. Außerhalb der Rollfläche, damit er immer
+            sichtbar bleibt. */}
+        {traegerReturnHref ? (
+          <nav
+            aria-label="Rückweg"
+            className={`border-b border-gray-200 ${SIDEBAR_NAV_PADDING}`}
+          >
+            <NavLink
+              href={traegerReturnHref}
+              className={sidebarRowClasses({ isActive: false })}
+              {...(collapsed
+                ? {
+                    title: TRAEGER_RETURN_LABEL,
+                    "aria-label": TRAEGER_RETURN_LABEL,
+                  }
+                : {})}
+            >
+              <MotoNavIcon
+                scene
+                concept={organizationsConcept}
+                active={false}
+                className={SIDEBAR_ICON_CLASSES}
+              />
+              {labelsMounted && (
+                <span className={sidebarLabelClasses(labelsVisible)}>
+                  {TRAEGER_RETURN_LABEL}
+                </span>
+              )}
+            </NavLink>
+          </nav>
+        ) : null}
 
-          {/* Die fünf Gruppen (#2826), in der Reihenfolge des Baums. Eine
-              Gruppe ohne sichtbare Zeile fällt weg. */}
-          {STAFF_NAV_GROUPS.map((group) => {
-            const rows = group.entries.map(renderEntry);
-            if (!rows.some(Boolean)) return null;
-            return (
-              <div key={group.key} className="pt-2">
-                <SidebarGroup
-                  label={group.label}
-                  icon={group.icon}
-                  tourId={`nav-group-${group.key}`}
-                  isOpen={isGroupOpen(group.key)}
-                  onToggle={() => toggleGroup(group.key)}
-                  containsActive={group.entries.some(isEntryActive)}
-                  badgeCount={group.entries.reduce(
-                    (sum, entry) => sum + entryBadgeCount(entry),
-                    0,
-                  )}
-                  badgeTone={group.key === "eltern" ? "parents" : "staff"}
-                  collapsed={collapsed}
-                  labelsMounted={labelsMounted}
-                  labelsVisible={labelsVisible}
-                >
-                  {rows}
-                </SidebarGroup>
-              </div>
-            );
-          })}
-        </nav>
+        {/* In den Einstellungen wechselt der Inhalt derselben Leiste (#5750). */}
+        {isStaffSettingsPath(pathname) ? (
+          <StaffSettingsSidebarNav
+            collapsed={collapsed}
+            labelsMounted={labelsMounted}
+            labelsVisible={labelsVisible}
+          />
+        ) : (
+          <>
+            {/* Main navigation, scrollable.
+                Der Rollbalken bleibt ausgeklappt sichtbar — er ist dort der
+                einzige Hinweis, dass unten noch Einträge folgen. Nur im
+                64px-Streifen wird er ausgeblendet, wo er ein Viertel der Breite
+                einnähme (Muster: VS-Code-Aktivitätsleiste). */}
+            <nav
+              className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_GAP} ${SIDEBAR_NAV_PADDING}`}
+            >
+              {/* Startseite der Rolle: Home für Admins, Tagesplan (#2383) für
+                  Betreuungskräfte — über den Gruppen, wie bisher. */}
+              {STAFF_NAV_TOP.map(renderEntry)}
 
-        {/* Bottom pinned items — gleiches Raster wie oben, damit der untere
-            Block in beiden Zuständen zur Hauptnavigation passt. */}
-        <nav
-          className={`border-t border-gray-200 ${SIDEBAR_NAV_GAP} ${SIDEBAR_NAV_PADDING}`}
-        >
-          {STAFF_NAV_BOTTOM.map(renderEntry)}
-        </nav>
+              {/* Die fünf Gruppen (#2826), in der Reihenfolge des Baums. Eine
+                  Gruppe ohne sichtbare Zeile fällt weg. */}
+              {STAFF_NAV_GROUPS.map((group) => {
+                const rows = group.entries.map(renderEntry);
+                if (!rows.some(Boolean)) return null;
+                return (
+                  <div key={group.key} className="pt-2">
+                    <SidebarGroup
+                      label={group.label}
+                      icon={group.icon}
+                      tourId={`nav-group-${group.key}`}
+                      isOpen={isGroupOpen(group.key)}
+                      onToggle={() => toggleGroup(group.key)}
+                      containsActive={group.entries.some(isEntryActive)}
+                      badgeCount={group.entries.reduce(
+                        (sum, entry) => sum + entryBadgeCount(entry),
+                        0,
+                      )}
+                      badgeTone={group.key === "eltern" ? "parents" : "staff"}
+                      collapsed={collapsed}
+                      labelsMounted={labelsMounted}
+                      labelsVisible={labelsVisible}
+                    >
+                      {rows}
+                    </SidebarGroup>
+                  </div>
+                );
+              })}
+            </nav>
+
+            {/* Bottom pinned items — gleiches Raster wie oben, damit der untere
+                Block in beiden Zuständen zur Hauptnavigation passt. */}
+            <nav
+              className={`border-t border-gray-200 ${SIDEBAR_NAV_GAP} ${SIDEBAR_NAV_PADDING}`}
+            >
+              {STAFF_NAV_BOTTOM.map(renderEntry)}
+            </nav>
+          </>
+        )}
       </div>
     </aside>
   );

@@ -7,6 +7,7 @@ import type {
   InputHTMLAttributes,
   KeyboardEvent,
   MouseEvent,
+  PointerEvent,
   ReactNode,
   RefObject,
 } from "react";
@@ -241,31 +242,89 @@ export interface TenantPageProps {
   readonly testId?: string;
 }
 
+/** Kurzes Vorbeifahren öffnet nichts; der Weg zum Link schließt nichts. */
+const INFO_HOVER_OPEN_DELAY_MS = 150;
+const INFO_HOVER_CLOSE_DELAY_MS = 250;
+
 /**
  * Der Info-Knopf neben dem Seitentitel. Ein Popover statt eines Tooltips:
  * auf dem Telefon gibt es kein Hover, und die Erklärung darf einen Link
  * tragen. Escape und ein Klick daneben schließen sie wieder.
  *
- * Beim Öffnen springt der Fokus in den Rahmen: er hängt am Ende des
- * Dokuments, und ohne den Sprung erreichte die Tastatur seinen Link erst
- * nach der ganzen Seite.
+ * Mit der Maus öffnet schon das Darüberfahren (#5682). Der Hinweis bleibt
+ * offen, solange die Maus über Knopf oder Hinweis steht, und nimmt niemandem
+ * den Fokus. Ein Klick darauf hält ihn fest, dann gilt das Verhalten von
+ * Klick und Tastatur.
+ *
+ * Beim Öffnen per Klick oder Tastatur springt der Fokus in den Rahmen: er hängt
+ * am Ende des Dokuments, und ohne den Sprung erreichte die Tastatur seinen Link
+ * erst nach der ganzen Seite.
  */
 function TenantPageInfo({
   title,
   children,
 }: Readonly<{ title: string; children: ReactNode }>) {
-  const [open, setOpen] = useState(false);
+  const [openMode, setOpenMode] = useState<"hover" | "pinned" | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const label = `Erklärung zu ${title}`;
+
+  const clearHoverTimer = useCallback(() => {
+    if (hoverTimerRef.current !== null) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = null;
+  }, []);
+  useEffect(() => clearHoverTimer, [clearHoverTimer]);
+
+  const handlePointerEnter = (event: PointerEvent) => {
+    if (event.pointerType !== "mouse") return;
+    clearHoverTimer();
+    if (openMode !== null) return;
+    hoverTimerRef.current = setTimeout(() => {
+      setOpenMode((current) => current ?? "hover");
+    }, INFO_HOVER_OPEN_DELAY_MS);
+  };
+  const handlePointerLeave = (event: PointerEvent) => {
+    if (event.pointerType !== "mouse") return;
+    clearHoverTimer();
+    if (openMode !== "hover") return;
+    hoverTimerRef.current = setTimeout(() => {
+      setOpenMode((current) => (current === "hover" ? null : current));
+    }, INFO_HOVER_CLOSE_DELAY_MS);
+  };
+  const handleTriggerClick = () => {
+    clearHoverTimer();
+    if (openMode === "hover") {
+      // Der Rahmen ist schon offen, der Klick hält ihn nur fest. Wer per
+      // Gewohnheit klickt, soll ihn nicht wieder zuklappen.
+      setOpenMode("pinned");
+      contentRef.current?.focus();
+      return;
+    }
+    setOpenMode(openMode === null ? "pinned" : null);
+  };
 
   return (
     <AnchoredPopover
-      open={open}
-      onOpenChange={setOpen}
+      open={openMode !== null}
+      onOpenChange={(next) => {
+        clearHoverTimer();
+        setOpenMode(next ? "pinned" : null);
+      }}
       ariaLabel={label}
-      initialFocusRef={contentRef}
+      initialFocusRef={openMode === "pinned" ? contentRef : undefined}
+      restoreFocusOnClose={openMode === "pinned"}
+      panelHandlers={{
+        onPointerEnter: handlePointerEnter,
+        onPointerLeave: handlePointerLeave,
+        // Fokus im Rahmen, per Klick zum Markieren oder per Tab: ab dann
+        // schließt die Maus ihn nicht mehr, und Escape führt den Fokus zurück.
+        onFocus: () => {
+          clearHoverTimer();
+          setOpenMode("pinned");
+        },
+      }}
       preferredWidth={360}
-      renderTrigger={({ ref, open: expanded, panelId, toggle }) => (
+      renderTrigger={({ ref, open: expanded, panelId }) => (
         <Button
           ref={ref}
           type="button"
@@ -274,7 +333,9 @@ function TenantPageInfo({
           aria-label={label}
           aria-expanded={expanded}
           aria-controls={expanded ? panelId : undefined}
-          onClick={toggle}
+          onClick={handleTriggerClick}
+          onPointerEnter={handlePointerEnter}
+          onPointerLeave={handlePointerLeave}
           // Sichtbar 32 px wie die übrigen Symbolknöpfe; die Trefferfläche
           // reicht per Pseudoelement auf 44 px, die Untergrenze für eine
           // Touch-Fläche, ohne die Titelzeile höher zu machen.

@@ -105,8 +105,8 @@ describe("ParentEnrollPicker", () => {
       screen.queryByRole("link", { name: "Zurück zum Elternportal" }),
     ).not.toBeInTheDocument();
 
-    // Section labels
-    expect(screen.getByText("Ihre Schulen")).toBeInTheDocument();
+    // Section labels, rendered once the schools have loaded
+    expect(await screen.findByText("Ihre Schulen")).toBeInTheDocument();
     expect(screen.getByText("Weitere Schulen")).toBeInTheDocument();
 
     // School headings

@@ -7,7 +7,7 @@ import { PresenceBadge } from "./presence-badge";
 import { StatusBadge } from "./status-badge";
 import { StatusColorBadge } from "./status-color-badge";
 import {
-  getAccessibleTextColor,
+  getLocationBadgeTone,
   LOCATION_COLORS,
   LOCATION_STATUSES,
 } from "~/lib/location-helper";
@@ -150,11 +150,32 @@ describe("PresenceBadge without decorative dot", () => {
 });
 
 describe("StatusBadge, StatusColorBadge, DataTableStatusBadge without decorative dot", () => {
-  it("StatusBadge renders every tone as plain text", () => {
-    for (const tone of ["blue", "green", "orange", "red", "gray"] as const) {
-      const view = render(<StatusBadge label={`Ton ${tone}`} tone={tone} />);
-      expectPlainPill(screen.getByText(`Ton ${tone}`), `Ton ${tone}`);
-      view.unmount();
+  it("StatusBadge renders every tone and size as plain text", () => {
+    for (const tone of [
+      "blue",
+      "green",
+      "orange",
+      "red",
+      "gray",
+      "purple",
+      "cyan",
+      "outline",
+    ] as const) {
+      for (const size of ["md", "xs"] as const) {
+        for (const compact of [false, true]) {
+          const label = `Ton ${tone} ${size} ${compact}`;
+          const view = render(
+            <StatusBadge
+              label={label}
+              tone={tone}
+              size={size}
+              compact={compact}
+            />,
+          );
+          expectPlainPill(screen.getByText(label), label);
+          view.unmount();
+        }
+      }
     }
   });
 
@@ -165,8 +186,18 @@ describe("StatusBadge, StatusColorBadge, DataTableStatusBadge without decorative
     expectPlainPill(screen.getByText("Krank"), "Krank");
     palette.unmount();
 
-    render(<StatusColorBadge label="Bauraum" color="#A3D977" />);
+    const room = render(<StatusColorBadge label="Bauraum" color="#A3D977" />);
     expectPlainPill(screen.getByText("Bauraum"), "Bauraum");
+    room.unmount();
+
+    render(
+      <StatusColorBadge
+        label="Eingeladen"
+        color={LOCATION_COLORS.WARNING}
+        size="xs"
+      />,
+    );
+    expectPlainPill(screen.getByText("Eingeladen"), "Eingeladen");
   });
 
   it.each([
@@ -174,12 +205,16 @@ describe("StatusBadge, StatusColorBadge, DataTableStatusBadge without decorative
     ["Inaktiv", { active: false }, LOCATION_COLORS.DANGER],
     ["Unbekannt", { active: false, unknown: true }, LOCATION_COLORS.UNKNOWN],
   ] as const)(
-    "DataTableStatusBadge renders %s as plain text with accessible color",
+    "DataTableStatusBadge renders %s as plain text in the tint of its state",
     (label, props, color) => {
       const view = render(<DataTableStatusBadge {...props} />);
       const pill = screen.getByText(label);
       expectPlainPill(pill, label);
-      expect(pill.style.color).toBe(getAccessibleTextColor(color, "#F9FAFB"));
+      // #5584: the DataTable pill shares the StatusBadge base, so it carries
+      // the tone of its state instead of a gray-50 surface.
+      const tone = getLocationBadgeTone(color);
+      expect(pill.style.color).toBe(tone.textColor);
+      expect(pill.style.backgroundColor).toBe(tone.backgroundColor);
       view.unmount();
     },
   );

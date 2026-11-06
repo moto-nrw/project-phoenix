@@ -65,6 +65,7 @@ type correctionRow struct {
 	TotalBeforeCents           int64     `bun:"total_before_cents"`
 	TotalAfterCents            int64     `bun:"total_after_cents"`
 	Reason                     string    `bun:"reason"`
+	CarriedFromNumber          string    `bun:"carried_from_number"`
 	CreatedByAccountID         *int64    `bun:"created_by_account_id"`
 	CreatedAt                  time.Time `bun:"created_at,nullzero,default:current_timestamp"`
 }
@@ -276,6 +277,41 @@ func (s *Store) IssuedRegistrations(ctx context.Context, organizationID int64, s
 	return issued, nil
 }
 
+// IssuedContributions names the registrations of the period that an
+// invoice of the service bills, each with what the invoice billed: the sum
+// of its positions without the corrections of the run and the sum of its
+// cost takeover positions (#5662). A cancelled invoice bills nothing.
+func (s *Store) IssuedContributions(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]parentbilling.IssuedContribution, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		RegistrationID    int64 `bun:"holiday_registration_id"`
+		TotalCents        int64 `bun:"total_cents"`
+		CostTakeoverCents int64 `bun:"cost_takeover_cents"`
+	}
+	if err := db.NewSelect().TableExpr("parent_billing.documents AS document").
+		ColumnExpr("document.holiday_registration_id").
+		ColumnExpr(`COALESCE((SELECT sum(position.amount_cents) FROM parent_billing.document_positions AS position
+			WHERE position.organization_id = document.organization_id AND position.document_id = document.id
+				AND position.kind <> 'correction'), 0) AS total_cents`).
+		ColumnExpr(`COALESCE((SELECT sum(position.amount_cents) FROM parent_billing.document_positions AS position
+			WHERE position.organization_id = document.organization_id AND position.document_id = document.id
+				AND position.kind = ?), 0) AS cost_takeover_cents`, parentbilling.LineCostTakeover).
+		Where("document.organization_id = ?", organizationID).Where("document.service = ?", service).
+		Where("document.holiday_period_id = ?", periodID).Where("document.kind = ?", parentbilling.DocumentInvoice).
+		Where(notCancelledSQL).
+		Scan(ctx, &rows); err != nil {
+		return nil, err
+	}
+	issued := make(map[int64]parentbilling.IssuedContribution, len(rows))
+	for _, row := range rows {
+		issued[row.RegistrationID] = parentbilling.IssuedContribution{TotalCents: row.TotalCents, CostTakeoverCents: row.CostTakeoverCents}
+	}
+	return issued, nil
+}
+
 // LockPeriodBilling takes a transaction lock on the invoices of the service
 // and period of a Träger (#5621). The release of a run and a change of the
 // debtor number of a registration of the period take it, so one waits for
@@ -290,7 +326,8 @@ func (s *Store) LockPeriodBilling(ctx context.Context, organizationID int64, ser
 	return err
 }
 
-// RunCorrections lists the corrections of a run in their order.
+// RunCorrections lists the corrections of a run in the order of their
+// positions on the invoice: those carried over first (#5663), then its own.
 func (s *Store) RunCorrections(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingCorrection, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -298,7 +335,7 @@ func (s *Store) RunCorrections(ctx context.Context, organizationID, runID int64)
 	}
 	var rows []correctionRow
 	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).Where("run_id = ?", runID).
-		OrderExpr("id").Scan(ctx); err != nil {
+		OrderExpr("carried_from_number = '', id").Scan(ctx); err != nil {
 		return nil, err
 	}
 	corrections := make([]parentbilling.BillingCorrection, len(rows))
@@ -306,6 +343,7 @@ func (s *Store) RunCorrections(ctx context.Context, organizationID, runID int64)
 		corrections[i] = parentbilling.BillingCorrection{
 			ID: row.ID, ChildID: row.HolidayRegistrationChildID, AmountCents: row.AmountCents, TotalBeforeCents: row.TotalBeforeCents,
 			TotalAfterCents: row.TotalAfterCents, Reason: row.Reason, CreatedByAccountID: row.CreatedByAccountID, CreatedAt: row.CreatedAt,
+			CarriedFromNumber: row.CarriedFromNumber,
 		}
 	}
 	return corrections, nil
@@ -320,7 +358,7 @@ func (s *Store) InsertRunCorrection(ctx context.Context, organizationID int64, r
 	_, err = db.NewInsert().Model(&correctionRow{
 		OrganizationID: organizationID, RunID: run.ID, HolidayPeriodID: run.HolidayPeriodID, HolidayRegistrationID: registrationID,
 		HolidayRegistrationChildID: correction.ChildID, AmountCents: correction.AmountCents, TotalBeforeCents: correction.TotalBeforeCents,
-		TotalAfterCents: correction.TotalAfterCents, Reason: correction.Reason, CreatedByAccountID: &accountID,
+		TotalAfterCents: correction.TotalAfterCents, Reason: correction.Reason, CarriedFromNumber: correction.CarriedFromNumber, CreatedByAccountID: &accountID,
 	}).Exec(ctx)
 	return err
 }

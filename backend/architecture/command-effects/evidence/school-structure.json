@@ -1330,7 +1330,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CheckOutStudentWithNote",
-      "binding_digest": "50c564d2d99316c38c930b0b49e2eb7f",
+      "binding_digest": "2309d369670d09fbde8ea4a1cdcfbb5e",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudentWithNote",
       "source_owner": "school-structure",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CheckOutStudentWithNote",
@@ -1338,7 +1338,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudentWithNote",
-      "binding_digest": "3c43905b0662eff8f2cbffe940c8d3d1",
+      "binding_digest": "29ed9e0ed1b8b5cf659bf4954751b3c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudentWithNote",
       "source_owner": "school-structure",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.CheckOutStudentWithNote",
@@ -1970,7 +1970,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ProcessSchoolCheckinBatch",
-      "binding_digest": "4d30ff8e5591e804a884662ff09ba956",
+      "binding_digest": "d0546edee505599167f69c2e69381043",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSchoolCheckinBatch",
       "source_owner": "school-structure",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ProcessSchoolCheckinBatch",
@@ -1978,7 +1978,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSchoolCheckinBatch",
-      "binding_digest": "7093832f806db675284b0de356c8bbc6",
+      "binding_digest": "9988c5b591e535c4bb43384512bf5349",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSchoolCheckinBatch",
       "source_owner": "school-structure",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ProcessSchoolCheckinBatch",

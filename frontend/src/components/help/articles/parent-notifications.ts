@@ -23,7 +23,7 @@ export function parentNotificationsTopic(): HelpTopic {
     icon: "BellRing",
     steps: [
       "Tippen Sie unten auf `Mehr` und dann auf `Einstellungen`.",
-      "Schalten Sie unter `Benachrichtigungen` die Themen ein. Oder wählen Sie `Alle aktivieren`.",
+      "Sie sind jetzt im Bereich `Benachrichtigungen`. Schalten Sie die Themen ein. Oder wählen Sie `Alle aktivieren`.",
       "Wählen Sie darunter bei `Benachrichtigungen auf diesem Gerät` den Knopf `Aktivieren`. Auf breiten Bildschirmen heißt er `Benachrichtigungen einschalten`.",
       "Ihr Gerät fragt einmal nach Erlaubnis. Wählen Sie `Erlauben`.",
     ],

@@ -92,7 +92,7 @@ func scanHandBuiltSchoolClassLabels(root string) ([]string, error) {
 				return nil
 			}
 		}
-		raw, err := os.ReadFile(path)
+		raw, err := readGoSource(path)
 		if err != nil {
 			return err
 		}

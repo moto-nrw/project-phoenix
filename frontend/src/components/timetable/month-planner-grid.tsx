@@ -19,6 +19,7 @@ import {
   timetableSurface,
 } from "./timetable-style";
 import { calendarConcept } from "~/lib/concepts/calendar";
+import { StatusDot } from "~/components/ui/status-dot";
 
 interface MonthPlannerGridProps {
   days: Date[];
@@ -181,15 +182,14 @@ export function MonthPlannerGrid({
                                 TIMETABLE_UNTYPED_EDGE_COLOR),
                           }}
                         >
-                          <span
-                            className="h-1.5 w-1.5 shrink-0 rounded-full"
-                            style={{
-                              backgroundColor: isCancelled
+                          <StatusDot
+                            color={
+                              isCancelled
                                 ? MOTO_COLOR_PALETTE.red.base
                                 : (inst.planningTrackColor ??
-                                  TIMETABLE_UNTYPED_EDGE_COLOR),
-                            }}
-                            aria-hidden
+                                  TIMETABLE_UNTYPED_EDGE_COLOR)
+                            }
+                            decorative
                           />
                           <span className="min-w-0 flex-1 truncate font-medium">
                             {inst.title}
@@ -208,9 +208,9 @@ export function MonthPlannerGrid({
                             </span>
                           )}
                           {isActive && !isCancelled && (
-                            <span
-                              className="bg-moto-green h-1.5 w-1.5 shrink-0 rounded-full"
-                              aria-label="läuft"
+                            <StatusDot
+                              className="bg-moto-green"
+                              label="läuft"
                             />
                           )}
                           {hasConflict && (

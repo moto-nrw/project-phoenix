@@ -80,6 +80,10 @@ var ErrInvalidTraegerRole = errors.New("invalid Träger role")
 // belongs to the Träger-Büro (#5144).
 var ErrTraegerAlreadyMember = errors.New("the person already belongs to the Träger-Büro")
 
+// ErrTraegerInvitationNotFound reports an invitation that is unknown,
+// belongs to another Träger, or was accepted or withdrawn (#5749).
+var ErrTraegerInvitationNotFound = errors.New("no open invitation of this Träger-Büro")
+
 // ErrTraegerInvalidEmail reports an invitation address that cannot receive
 // mail (#5144).
 var ErrTraegerInvalidEmail = errors.New("invalid e-mail address")
@@ -124,12 +128,23 @@ type InviteTraegerMember struct {
 }
 
 // TraegerInvitation is an open invitation into a Träger-Büro as the operator
-// sees it after inviting.
+// sees it. Expired marks a link that can no longer be accepted; the cleanup
+// deletes it later (#5749).
 type TraegerInvitation struct {
 	ID        int64     `json:"id"`
 	Email     string    `json:"email"`
 	Roles     []string  `json:"roles"`
 	ExpiresAt time.Time `json:"expires_at"`
+	Expired   bool      `json:"expired"`
+}
+
+// TraegerInvitationCommand names one invitation of a Träger-Büro the
+// operator sends again or withdraws (#5749).
+type TraegerInvitationCommand struct {
+	OrganizationID int64
+	InvitationID   int64
+	OperatorID     int64
+	ClientIP       net.IP
 }
 
 // ResetTraegerMemberMFA is the operator's reset of the second factor of a
@@ -150,5 +165,13 @@ type TraegerMemberProvisioning interface {
 	ListTraegerMembers(ctx context.Context, organizationID int64) ([]TraegerMember, error)
 	AssignTraegerMember(ctx context.Context, input AssignTraegerMember) (TraegerMember, error)
 	InviteTraegerMember(ctx context.Context, input InviteTraegerMember) (TraegerInvitation, error)
+	// ListTraegerInvitations lists the invitations that are neither accepted
+	// nor withdrawn, the expired ones marked (#5749).
+	ListTraegerInvitations(ctx context.Context, organizationID int64) ([]TraegerInvitation, error)
+	// ResendTraegerInvitation replaces the invitation by a new one with a new
+	// link and lifetime and mails it; the old link stops working.
+	ResendTraegerInvitation(ctx context.Context, input TraegerInvitationCommand) (TraegerInvitation, error)
+	// RevokeTraegerInvitation withdraws the invitation; its link stops working.
+	RevokeTraegerInvitation(ctx context.Context, input TraegerInvitationCommand) error
 	ResetTraegerMemberMFA(ctx context.Context, input ResetTraegerMemberMFA) error
 }

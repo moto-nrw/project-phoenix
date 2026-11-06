@@ -16,7 +16,6 @@ import { Loader2, Trash2 } from "lucide-react";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
-import { RequiredMark } from "~/components/ui/field-label";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
   RequestSharingControl,
@@ -58,6 +57,7 @@ import {
 } from "~/components/parent/child-requests-context";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
@@ -943,28 +943,23 @@ export function SickNoteModal({
             </div>
           </fieldset>
           <p className="text-sm text-gray-600">{dayCopy}</p>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              {t("sick.reasonLabelRequired")}
-              {reasonRequired && <RequiredMark />}
-            </span>
-            <textarea
-              value={reason}
-              maxLength={MAX_NOTE_LEN}
-              onChange={(event) => {
-                setReason(event.target.value);
-                if (form.error) form.clear();
-              }}
-              name={SICK_REASON_FIELD}
-              autoComplete="off"
-              required={reasonRequired}
-              rows={3}
-              placeholder={t("sick.reasonPlaceholder")}
-              aria-invalid={Boolean(reasonError)}
-              aria-describedby={reasonError ? errorId : undefined}
-              className="min-h-20 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            />
-          </label>
+          <Textarea
+            label={t("sick.reasonLabelRequired")}
+            value={reason}
+            maxLength={MAX_NOTE_LEN}
+            onChange={(event) => {
+              setReason(event.target.value);
+              if (form.error) form.clear();
+            }}
+            name={SICK_REASON_FIELD}
+            autoComplete="off"
+            required={reasonRequired}
+            rows={3}
+            placeholder={t("sick.reasonPlaceholder")}
+            aria-invalid={Boolean(reasonError)}
+            aria-describedby={reasonError ? errorId : undefined}
+            className="min-h-20 text-base"
+          />
           {requiresApproval === true && studentId && (
             <RequestSharingSelector
               studentId={studentId}
@@ -1063,6 +1058,7 @@ export function PickupTimeModal({
 }>) {
   const t = useTranslations("parentChildCare");
   const tModes = useTranslations("parentMasterData");
+  const tTimePicker = useTranslations("datePicker.timePicker");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const today = berlinTodayISO();
@@ -1724,38 +1720,37 @@ export function PickupTimeModal({
                   ? `${t("pickup.pickupOptionalHint")} ${t("timeFormatHint")}`
                   : t("timeFormatHint")
               }
+              timePickerLabels={{
+                selectTime: tTimePicker("selectTime"),
+                hour: tTimePicker("hour"),
+                minute: tTimePicker("minute"),
+                minimum: (time) => tTimePicker("minimum", { time }),
+              }}
               placeholder={t("timeExample")}
               // Mit einer Abholperson darf die Uhrzeit gleich bleiben (#4780).
               required={!modeField && !pickupPerson}
               invalid={invalidField === "pickupTime"}
               describedBy={invalidField === "pickupTime" ? errorId : undefined}
             />
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-gray-700">
-                {t("pickup.reasonLabel")}
-                {reasonRequired && <RequiredMark />}
-              </span>
-              <textarea
-                ref={reasonRef}
-                value={reason}
-                onChange={(e) => {
-                  setReason(e.target.value);
-                  if (invalidField === "reason") {
-                    setInvalidField(null);
-                    form.clear();
-                  }
-                }}
-                maxLength={255}
-                required={reasonRequired}
-                rows={3}
-                placeholder={t("pickup.reasonPlaceholder")}
-                aria-invalid={invalidField === "reason"}
-                aria-describedby={
-                  invalidField === "reason" ? errorId : undefined
+            <Textarea
+              label={t("pickup.reasonLabel")}
+              ref={reasonRef}
+              value={reason}
+              onChange={(e) => {
+                setReason(e.target.value);
+                if (invalidField === "reason") {
+                  setInvalidField(null);
+                  form.clear();
                 }
-                className="min-h-20 w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              />
-            </label>
+              }}
+              maxLength={255}
+              required={reasonRequired}
+              rows={3}
+              placeholder={t("pickup.reasonPlaceholder")}
+              aria-invalid={invalidField === "reason"}
+              aria-describedby={invalidField === "reason" ? errorId : undefined}
+              className="min-h-20 resize-y text-base"
+            />
             {dayStatement && (
               <PickupSignatureField
                 id={DAY_SIGNATURE_FIELD}

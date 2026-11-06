@@ -21,6 +21,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { StatCard } from "~/components/ui/stat-card";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   type AdminRequestChild,
@@ -72,7 +73,6 @@ import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { EnrollmentRequestUploadList } from "~/components/enrollment/admin-enrollment-upload-list";
 import { AdminEnrollmentSignature } from "~/components/enrollment/admin-enrollment-signature";
 import { formatCalendarDate } from "~/lib/localized-date-format";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
@@ -366,7 +366,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       backHref={`/admin/enrollments/phases/${data.phase_id}`}
       backLabel="Zurück zur Anmeldephase"
       stats={statusLine}
-      leading={<ConceptIconTile concept={enrollmentsConcept} variant="page" />}
+      leading={<ConceptIconTile concept={enrollmentsConcept} size="page" />}
       overlays={
         <>
           <ConfirmationModal
@@ -773,9 +773,17 @@ function ReviewSidebar({
         description="Alle Kinder werden einzeln geprüft. Die Statusseite zeigt Eltern den aktuellen Stand der Anmeldung."
       >
         <div className="grid grid-cols-3 gap-2">
-          <SidebarMetric label="Kinder" value={data.children.length} />
-          <SidebarMetric label="Offen" value={childStats.open} />
-          <SidebarMetric label="Bestätigt" value={childStats.approved} />
+          <StatCard
+            variant="inline"
+            label="Kinder"
+            value={data.children.length}
+          />
+          <StatCard variant="inline" label="Offen" value={childStats.open} />
+          <StatCard
+            variant="inline"
+            label="Bestätigt"
+            value={childStats.approved}
+          />
         </div>
         <div className="mt-4">
           <DataGrid>
@@ -856,22 +864,6 @@ function ReviewSidebar({
           </section>
         );
       })}
-    </div>
-  );
-}
-
-function SidebarMetric({
-  label,
-  value,
-}: Readonly<{ label: string; value: number }>) {
-  return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2">
-      <span className="block text-lg leading-none font-semibold text-gray-900">
-        {value}
-      </span>
-      <span className="mt-1 block text-xs font-medium text-gray-500">
-        {label}
-      </span>
     </div>
   );
 }
@@ -1057,15 +1049,6 @@ export function RequestExtraSection({
           <ul className="mt-1.5 space-y-1 text-sm">
             {Object.entries(request.consent_flags ?? {}).map(([key, val]) => (
               <li key={key} className="flex items-center gap-2">
-                <span
-                  className="inline-block h-2 w-2 rounded-full"
-                  style={{
-                    backgroundColor:
-                      val === true
-                        ? MOTO_COLOR_PALETTE.green.base
-                        : MOTO_COLOR_PALETTE.neutral.base,
-                  }}
-                />
                 <span className="text-gray-700">
                   {consentTitles.get(key) ?? CONSENT_LABELS[key] ?? key}:
                 </span>

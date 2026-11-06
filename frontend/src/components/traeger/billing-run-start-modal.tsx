@@ -5,7 +5,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
-import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FormModal } from "~/components/ui/form-modal";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -21,11 +20,14 @@ const logger = createLogger({ component: "BillingRunStartModal" });
 export function BillingRunStartModal({
   isOpen,
   periods,
+  initialPeriodId,
   onClose,
   onStarted,
 }: Readonly<{
   isOpen: boolean;
   periods: readonly BillingPeriod[];
+  /** Vorgewählt, wenn die Liste auf diesen Zeitraum gefiltert ist (#5688). */
+  initialPeriodId?: string;
   onClose: () => void;
   onStarted: (run: BillingRun) => void;
 }>) {
@@ -37,9 +39,10 @@ export function BillingRunStartModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setPeriodId(periods[0]?.id ?? "");
+    const initial = periods.find((period) => period.id === initialPeriodId);
+    setPeriodId(initial?.id ?? periods[0]?.id ?? "");
     clearErrors();
-  }, [isOpen, periods, clearErrors]);
+  }, [isOpen, periods, initialPeriodId, clearErrors]);
 
   const submit = async () => {
     formErrors.clear();
@@ -90,17 +93,11 @@ export function BillingRunStartModal({
           void submit();
         }}
       >
-        <span
-          id="billing-run-period-label"
-          className="mb-2 block text-sm font-medium text-gray-700"
-        >
-          Ferienzeitraum
-        </span>
         <CustomSelect
+          id="billing-run-period"
           name="holiday_period_id"
-          ariaLabelledBy="billing-run-period-label"
-          ariaDescribedBy={periodError ? "billing-run-period-error" : undefined}
-          invalid={Boolean(periodError)}
+          label="Ferienzeitraum"
+          error={periodError}
           placeholder="Ferienzeitraum wählen"
           value={periodId}
           options={periods.map((period) => ({
@@ -109,7 +106,6 @@ export function BillingRunStartModal({
           }))}
           onChange={setPeriodId}
         />
-        <FieldErrorHint id="billing-run-period-error" message={periodError} />
         <p className="text-sm text-gray-600">
           Der Lauf rechnet alle bestätigten Anmeldungen ab, die noch keine
           Rechnung haben. Sie prüfen zuerst die Vorschau.

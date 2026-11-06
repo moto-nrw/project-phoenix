@@ -21,6 +21,7 @@ import {
 } from "~/components/ui/slide-over";
 import { Button } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
+import { ContributionRulesLink } from "./contribution-rules-link";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import type { BillingChild, BillingDocument } from "~/lib/traeger-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
@@ -128,13 +129,23 @@ function DocumentHistory({
 }
 
 function CorrectionHistory({ child }: Readonly<{ child: BillingChild }>) {
-  if (child.corrections.length === 0) return null;
+  if (child.corrections.length === 0 && child.carriedCorrections.length === 0) {
+    return null;
+  }
   return (
     <div className="space-y-1">
       <p className="text-sm font-medium text-gray-700">
         Korrekturen für {child.firstName}
       </p>
       <ul className="space-y-1 text-sm text-gray-700">
+        {child.carriedCorrections.map((carried) => (
+          <li key={carried.positionId}>
+            <span className="tabular-nums">
+              {formatEuro(carried.amountCents)}
+            </span>{" "}
+            aus {carried.sourceNumber}. {carried.reason}
+          </li>
+        ))}
         {child.corrections.map((correction) => (
           <li key={correction.id}>
             {formatBerlinDate(correction.createdAt)}:{" "}
@@ -142,6 +153,9 @@ function CorrectionHistory({ child }: Readonly<{ child: BillingChild }>) {
               {formatEuro(correction.totalBeforeCents)} →{" "}
               {formatEuro(correction.totalAfterCents)}
             </span>
+            {correction.carriedFromNumber
+              ? ` aus ${correction.carriedFromNumber}`
+              : ""}
             . {correction.reason}
           </li>
         ))}
@@ -213,6 +227,13 @@ export function BillingDocumentBreakdown({
                   : `${BILLING_DOCUMENT_KIND_LABELS[document.kind]} gesamt`
               }
               total={formatEuro(document.totalCents)}
+            />
+            <ContributionRulesLink
+              // Der Abrechnungslauf setzt das Recht „Abrechnung“ voraus.
+              canManageBillingSettings
+              kinds={document.children.flatMap((child) =>
+                child.positions.map((position) => position.kind),
+              )}
             />
             {document.children.map((child) => (
               <CorrectionHistory key={child.childId} child={child} />

@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { isTraegerNavActive } from "./traeger-nav-active";
+import {
+  isTraegerNavActive,
+  isTraegerSettingsPath,
+} from "./traeger-nav-active";
 
 describe("isTraegerNavActive", () => {
   it("marks Schulen on the start page of both spellings only", () => {
     expect(isTraegerNavActive("/traeger", "/")).toBe(true);
     expect(isTraegerNavActive("/traeger", "/traeger")).toBe(true);
+    expect(isTraegerNavActive("/traeger", "/schulen/2")).toBe(true);
+    expect(isTraegerNavActive("/traeger", "/traeger/schulen/2")).toBe(true);
     expect(isTraegerNavActive("/traeger", "/ferien")).toBe(false);
+    expect(isTraegerNavActive("/traeger", "/uebersicht")).toBe(false);
     expect(isTraegerNavActive("/traeger", "/traeger/ferien")).toBe(false);
   });
 
@@ -24,7 +30,26 @@ describe("isTraegerNavActive", () => {
   });
 
   it("does not mark a page whose path only starts the same", () => {
-    expect(isTraegerNavActive("/traeger/accounts", "/access-log")).toBe(false);
+    expect(
+      isTraegerNavActive("/traeger/einstellungen/abrechnung", "/abrechnung"),
+    ).toBe(false);
     expect(isTraegerNavActive("/traeger/ferien", "/ferienwochen")).toBe(false);
+  });
+
+  it("keeps Allgemein off on the other settings pages (#5685)", () => {
+    const home = "/traeger/einstellungen";
+    expect(isTraegerNavActive(home, "/einstellungen")).toBe(true);
+    expect(isTraegerNavActive(home, "/traeger/einstellungen")).toBe(true);
+    expect(isTraegerNavActive(home, "/einstellungen/mitglieder")).toBe(false);
+  });
+
+  it("recognizes the settings area in both spellings (#5685)", () => {
+    expect(isTraegerSettingsPath("/einstellungen")).toBe(true);
+    expect(isTraegerSettingsPath("/traeger/einstellungen/briefkopf")).toBe(
+      true,
+    );
+    expect(isTraegerSettingsPath("/einstellungenx")).toBe(false);
+    expect(isTraegerSettingsPath("/abrechnung")).toBe(false);
+    expect(isTraegerSettingsPath("/")).toBe(false);
   });
 });

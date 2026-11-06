@@ -154,6 +154,16 @@ function futureISODate(): string {
   return `${new Date().getFullYear() + 1}-12-31`;
 }
 
+/**
+ * Öffnet einen Filter erst, wenn er bedienbar ist: Ohne geladenen Katalog
+ * gibt es nichts zu wählen und das Feld bleibt gesperrt.
+ */
+async function openFilter(name: "Gruppen" | "Klassen") {
+  const filter = await screen.findByRole("button", { name });
+  await waitFor(() => expect(filter).toBeEnabled());
+  fireEvent.click(filter);
+}
+
 async function openCourses() {
   render(<StatisticsPage />);
   await waitFor(() =>
@@ -450,7 +460,7 @@ describe("Statistik — Filterkatalog", () => {
 
   it("erneuert die Auswahl beim Zeitraumwechsel trotz aktivem Filter", async () => {
     render(<StatisticsPage />);
-    fireEvent.click(await screen.findByRole("button", { name: "Gruppen" }));
+    await openFilter("Gruppen");
     fireEvent.click(await screen.findByRole("option", { name: "Bärengruppe" }));
     fireEvent.click(screen.getByRole("button", { name: "Klassen" }));
     fireEvent.click(await screen.findByRole("option", { name: "2a" }));
@@ -579,7 +589,7 @@ describe("Statistik — Kinder nach Uhrzeit (#4764)", () => {
 
   it("filtert nach Klasse und schickt die Klasse mit", async () => {
     render(<StatisticsPage />);
-    fireEvent.click(await screen.findByRole("button", { name: "Klassen" }));
+    await openFilter("Klassen");
     fireEvent.click(await screen.findByRole("option", { name: "2a" }));
 
     await waitFor(() =>

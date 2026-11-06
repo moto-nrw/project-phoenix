@@ -96,13 +96,7 @@ export function SelectField({
           }
         }}
         disabled={disabled}
-        // moto-content-surface is unlayered and would paint over the kit's
-        // grey disabled state, so a read-only select looked editable.
-        triggerClassName={
-          disabled
-            ? "h-10 w-auto min-w-[8rem] max-w-full border-gray-200 sm:max-w-xs"
-            : "moto-content-surface h-10 w-auto min-w-[8rem] max-w-full sm:max-w-xs"
-        }
+        className="w-auto max-w-full min-w-[8rem] sm:max-w-xs"
       />
     </div>
   );

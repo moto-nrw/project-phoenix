@@ -7,8 +7,11 @@ const teamChat = { unreadCount: 0, available: false } as const;
 
 const mockPathname = vi.hoisted(() => ({ value: "/" }));
 
+const mockSearch = vi.hoisted(() => ({ value: "" }));
+
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname.value,
+  useSearchParams: () => new URLSearchParams(mockSearch.value),
 }));
 
 vi.mock("~/lib/school-url", () => ({
@@ -16,7 +19,7 @@ vi.mock("~/lib/school-url", () => ({
 }));
 
 describe("SchoolSidebar", () => {
-  it("führt genau die sieben erreichbaren Ziele", () => {
+  it("führt die sieben Ziele und den Einstieg in die Einstellungen", () => {
     render(<SchoolSidebar teamChat={teamChat} />);
 
     expect(screen.getByText("Klassenansicht")).toBeInTheDocument();
@@ -31,7 +34,28 @@ describe("SchoolSidebar", () => {
     // Seit #4793 liest sie die Fehlzeiten ihrer Klasse.
     expect(screen.getByText("Fehlzeiten")).toBeInTheDocument();
     expect(screen.getByText("Hilfe")).toBeInTheDocument();
-    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(7);
+    expect(screen.getByText("Einstellungen")).toBeInTheDocument();
+    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(8);
+  });
+
+  it("zeigt in den Einstellungen die Bereiche statt der Ziele (#5750)", () => {
+    mockPathname.value = "/einstellungen";
+    mockSearch.value = "tab=privacy";
+    render(<SchoolSidebar teamChat={teamChat} />);
+
+    expect(
+      screen.getByRole("link", { name: "Zurück zur App" }),
+    ).toHaveAttribute("href", "/");
+    expect(
+      screen.getByRole("link", { name: "Benachrichtigungen" }),
+    ).toHaveAttribute("href", "/einstellungen?tab=notifications");
+    expect(screen.getByRole("link", { name: "Datenschutz" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.queryByText("Klassenansicht")).not.toBeInTheDocument();
+    mockPathname.value = "/";
+    mockSearch.value = "";
   });
 
   it("zählt offene Tagesinformationen am Eintrag (#2208)", () => {

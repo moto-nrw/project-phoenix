@@ -820,13 +820,16 @@ func sharedPoolCloseViolations(rel, text string) []string {
 		delete(shared, match[1])
 	}
 
+	closeCalls := make([]*regexp.Regexp, 0, len(shared))
+	for name := range shared {
+		closeCalls = append(closeCalls, regexp.MustCompile(`\b`+regexp.QuoteMeta(name)+`\.Close\(\)`))
+	}
 	var violations []string
 	for i, line := range strings.Split(text, "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), "//") {
 			continue
 		}
-		for name := range shared {
-			closeCall := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\.Close\(\)`)
+		for _, closeCall := range closeCalls {
 			if closeCall.MatchString(line) {
 				violations = append(violations, formatViolation(rel, i+1, strings.TrimSpace(line)))
 				break

@@ -60,13 +60,13 @@ import type {
 } from "~/components/ui/page-header/types";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import { MultiSelect } from "~/components/ui/multi-select";
 import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
-import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { StatCard } from "~/components/ui/stat-card";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
@@ -681,7 +681,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         onChange: () => undefined,
         options: [],
         render: (
-          <MultiCheckboxSelect
+          <MultiSelect
             id="enrollment-offering-filter"
             ariaLabel="Berücksichtigte Angebote"
             value={displayedOfferingIds}
@@ -696,9 +696,9 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
                     : undefined,
               }),
             )}
-            emptyLabel="Keine Angebote"
+            placeholder="Keine Angebote"
             unavailableLabel="Keine Angebote verfügbar"
-            multipleLabel={(count) => `${count} Angebote`}
+            summaryLabel={(count) => `${count} Angebote`}
           />
         ),
       },
@@ -870,9 +870,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         back
         backHref={overviewPath}
         backLabel="Zurück zur Anmeldungs-Übersicht"
-        leading={
-          <ConceptIconTile concept={enrollmentsConcept} variant="page" />
-        }
+        leading={<ConceptIconTile concept={enrollmentsConcept} size="page" />}
         empty={{
           title: "Anmeldephase nicht gefunden",
           description:
@@ -889,7 +887,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       backHref={overviewPath}
       backLabel="Zurück zur Anmeldungs-Übersicht"
       stats={`${formatDate(phase.service_start_date)} bis ${formatDate(phase.service_end_date)} · ${stats.total} ${stats.total === 1 ? "Eingang" : "Eingänge"} · ${stats.open} offen`}
-      leading={<ConceptIconTile concept={enrollmentsConcept} variant="page" />}
+      leading={<ConceptIconTile concept={enrollmentsConcept} size="page" />}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <DataTableStatusBadge active={phase.is_active} />
@@ -969,19 +967,27 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       ) : (
         <>
           <div className="grid gap-3 md:grid-cols-4">
-            <EnrollmentStatTile
-              icon={Inbox}
+            <StatCard
+              variant="inline"
+              icon={<Inbox aria-hidden="true" />}
               label="Eingänge"
               value={stats.total}
             />
-            <EnrollmentStatTile icon={Clock} label="Offen" value={stats.open} />
-            <EnrollmentStatTile
-              icon={Check}
+            <StatCard
+              variant="inline"
+              icon={<Clock aria-hidden="true" />}
+              label="Offen"
+              value={stats.open}
+            />
+            <StatCard
+              variant="inline"
+              icon={<Check aria-hidden="true" />}
               label="Bestätigt"
               value={stats.approved}
             />
-            <EnrollmentStatTile
-              icon={X}
+            <StatCard
+              variant="inline"
+              icon={<X aria-hidden="true" />}
               label="Abgelehnt"
               value={stats.rejected}
             />
@@ -1156,12 +1162,14 @@ function ReportStats({
   return (
     <section className="relative z-10 space-y-2">
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-[repeat(7,minmax(0,1fr))_minmax(15rem,1.2fr)]">
-        <EnrollmentStatTile
+        <StatCard
+          variant="inline"
           label="Kinder"
           value={loading ? "…" : String(totals?.children ?? 0)}
         />
         {DAY_COUNT_OPTIONS.map((count) => (
-          <EnrollmentStatTile
+          <StatCard
+            variant="inline"
             key={count}
             label={formatDayCountLabel(count)}
             value={

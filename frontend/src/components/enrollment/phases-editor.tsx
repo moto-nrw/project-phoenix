@@ -69,7 +69,7 @@ import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import { schoolClassLabel } from "~/lib/school-class-label";
-import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { StatCard } from "~/components/ui/stat-card";
 import { Button } from "~/components/ui/button";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { Input } from "~/components/ui/input";
@@ -105,6 +105,7 @@ import { useTenantMutate } from "~/lib/swr";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -914,9 +915,7 @@ export function PhasesEditor() {
               description:
                 "Legen Sie zuerst fest, für welchen Zeitraum Eltern anmelden können, zum Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung.",
               icon: (
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-                  <MotoConceptIcon concept={calendarPeriodsConcept} size={24} />
-                </span>
+                <ConceptIconTile concept={calendarPeriodsConcept} size="page" />
               ),
             }
           : null
@@ -1048,8 +1047,9 @@ export function PhasesEditor() {
           bis zur Unterkante des Bildschirms (`.moto-tenant-body`). */}
       <div className="hidden space-y-4 lg:flex lg:flex-col">
         <div className="grid gap-2 sm:grid-cols-3">
-          <EnrollmentStatTile
-            leading={
+          <StatCard
+            variant="inline"
+            icon={
               <MotoConceptIcon
                 concept={calendarPeriodsConcept}
                 colorMode="inherit"
@@ -1059,13 +1059,15 @@ export function PhasesEditor() {
             label="Anmeldephasen"
             value={phases.length}
           />
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept={careTimesConcept} size={16} />}
+          <StatCard
+            variant="inline"
+            icon={<MotoConceptIcon concept={careTimesConcept} size={16} />}
             label="Aktiv"
             value={activePhaseCount}
           />
-          <EnrollmentStatTile
-            leading={
+          <StatCard
+            variant="inline"
+            icon={
               <MotoConceptIcon concept={calendarPeriodsConcept} size={18} />
             }
             label="In Vorbereitung"
@@ -1563,7 +1565,6 @@ function PhaseForm(props: PhaseFormProps) {
             </label>
             <DateTimePicker
               id="enrollment_open_at"
-              controlSize="md"
               dateAriaLabel="Öffnung"
               timeAriaLabel="Öffnung Uhrzeit"
               className="mt-1"
@@ -1597,7 +1598,6 @@ function PhaseForm(props: PhaseFormProps) {
             </label>
             <DateTimePicker
               id="enrollment_close_at"
-              controlSize="md"
               dateAriaLabel="Schließung"
               timeAriaLabel="Schließung Uhrzeit"
               className="mt-1"

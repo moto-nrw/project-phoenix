@@ -1,10 +1,4 @@
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { _resetTraegerHostCache } from "~/lib/traeger-url";
 import {
@@ -12,14 +6,16 @@ import {
   RENDER_BUDGET_MAX_COMMITS,
 } from "~/test/render-budget";
 
-const { mockPathname, sessionUser } = vi.hoisted(() => ({
+const { mockPathname, mockSearch, sessionUser } = vi.hoisted(() => ({
   mockPathname: vi.fn(() => "/"),
+  mockSearch: vi.fn(() => new URLSearchParams()),
   sessionUser: { permissions: [] as string[] },
 }));
 
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   usePathname: () => mockPathname(),
+  useSearchParams: () => mockSearch(),
   useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }),
 }));
 
@@ -27,6 +23,7 @@ vi.mock("next-auth/react", () => ({
   useSession: () => ({ data: { user: sessionUser }, status: "authenticated" }),
 }));
 
+import { TraegerReturnPathMemory } from "./traeger-return-path";
 import { TraegerSidebar } from "./traeger-sidebar";
 
 const ALL_RIGHTS = [
@@ -47,15 +44,17 @@ function bottomNav() {
   );
 }
 
-function settingsLinks() {
-  return Array.from(
-    document.querySelectorAll<HTMLAnchorElement>("[data-portal-nav-item]"),
-  ).map((link) => link.textContent);
+function settingsNav() {
+  return within(screen.getByRole("navigation", { name: "Einstellungen" }));
+}
+
+function linkNames(nav: ReturnType<typeof mainNav>) {
+  return nav.getAllByRole("link").map((link) => link.textContent);
 }
 
 describe("TraegerSidebar", () => {
   beforeEach(() => {
-    localStorage.clear();
+    sessionStorage.clear();
     mockPathname.mockReturnValue("/");
     vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", window.location.host);
     _resetTraegerHostCache();
@@ -67,141 +66,198 @@ describe("TraegerSidebar", () => {
     sessionUser.permissions = [];
   });
 
-  it("puts Briefkopf, Einstellungen and Zugriffsprotokoll into the collapsed section at the bottom (#5241, #5242)", () => {
+  it("groups the main navigation by task and keeps Personen and Ermäßigungen out (#5685)", () => {
     sessionUser.permissions = ALL_RIGHTS;
     render(<TraegerSidebar />);
 
-    // Anker: die Arbeitsbereiche stehen oben.
-    expect(mainNav().getByRole("link", { name: "Personen" })).toHaveAttribute(
-      "href",
-      "/accounts",
-    );
-    for (const name of ["Briefkopf", "Einstellungen", "Zugriffsprotokoll"]) {
-      expect(mainNav().queryByRole("link", { name })).toBeNull();
+    for (const [group, name] of [
+      ["Übersicht", "Dashboard"],
+      ["Übersicht", "Schulen"],
+      ["Betreuung", "Ferienbetreuung"],
+      ["Finanzen", "Abrechnung"],
+    ] as const) {
+      expect(
+        within(mainNav().getByRole("list", { name: group })).getByRole("link", {
+          name,
+        }),
+      ).toBeInTheDocument();
     }
-
-    const section = bottomNav().getByRole("button", { name: "Einstellungen" });
-    expect(section).toHaveAttribute("aria-expanded", "false");
-    const body = document.getElementById(
-      section.getAttribute("aria-controls")!,
+    expect(linkNames(mainNav())).toEqual([
+      "Dashboard",
+      "Schulen",
+      "Ferienbetreuung",
+      "Abrechnung",
+    ]);
+    expect(mainNav().getByRole("link", { name: "Dashboard" })).toHaveAttribute(
+      "href",
+      "/uebersicht",
     );
-    expect(body).toHaveAttribute("inert");
+    expect(linkNames(bottomNav())).toEqual(["Hilfe", "Einstellungen"]);
     expect(bottomNav().getByRole("link", { name: "Hilfe" })).toHaveAttribute(
       "href",
       "/help?role=traeger",
     );
-
-    fireEvent.click(section);
-    expect(section).toHaveAttribute("aria-expanded", "true");
-    expect(body).toHaveProperty("inert", false);
     expect(
-      bottomNav().getByRole("link", { name: "Zugriffsprotokoll" }),
-    ).toHaveAttribute("href", "/access-log");
-    expect(settingsLinks()).toEqual([
-      "Briefkopf",
-      "Einstellungen",
-      "Zugriffsprotokoll",
-    ]);
-
-    fireEvent.click(section);
-    expect(section).toHaveAttribute("aria-expanded", "false");
-    expect(body).toHaveAttribute("inert");
+      bottomNav().getByRole("link", { name: "Einstellungen" }),
+    ).toHaveAttribute("href", "/einstellungen");
   });
 
-  it("shows only the entries the rights open", () => {
+  it("leaves out a group without an open entry", () => {
+    sessionUser.permissions = ["traeger_overview:read"];
+    render(<TraegerSidebar />);
+
+    expect(linkNames(mainNav())).toEqual(["Dashboard", "Schulen"]);
+    expect(mainNav().queryByText("Betreuung")).toBeNull();
+    expect(mainNav().queryByText("Finanzen")).toBeNull();
+  });
+
+  it("shows the Dashboard only with its right (#4674)", () => {
+    sessionUser.permissions = [];
+    render(<TraegerSidebar />);
+
+    expect(linkNames(mainNav())).toEqual(["Schulen"]);
+  });
+
+  it("replaces the content of the same sidebar in the settings (#5685)", () => {
+    sessionUser.permissions = ALL_RIGHTS;
+    mockPathname.mockReturnValue("/einstellungen/zugriffsprotokoll");
+    render(<TraegerSidebar />);
+
+    expect(screen.getAllByRole("complementary")).toHaveLength(1);
+    expect(linkNames(settingsNav())).toEqual([
+      "Zurück zur App",
+      "Allgemein",
+      "Mitglieder und Rollen",
+      "Briefkopf und Vorlagen",
+      "Abrechnungsvorgaben",
+      "Zugriffsprotokoll",
+    ]);
+    expect(
+      settingsNav().getByRole("link", { name: "Zugriffsprotokoll" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      settingsNav().getByRole("link", { name: "Allgemein" }),
+    ).not.toHaveAttribute("aria-current");
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(
+      screen.queryByRole("navigation", { name: "Hauptnavigation" }),
+    ).toBeNull();
+    // Der Name des Bereichs steht als Überschrift, nie als zweiter Eintrag.
+    expect(
+      settingsNav().queryByRole("link", { name: "Einstellungen" }),
+    ).toBeNull();
+    expect(settingsNav().getAllByText("Einstellungen")).toHaveLength(1);
+  });
+
+  it("marks Allgemein only on its own page", () => {
+    sessionUser.permissions = ALL_RIGHTS;
+    mockPathname.mockReturnValue("/einstellungen");
+    render(<TraegerSidebar />);
+
+    expect(
+      settingsNav().getByRole("link", { name: "Allgemein" }),
+    ).toHaveAttribute("aria-current", "page");
+  });
+
+  it("shows only the settings entries the rights open (#5685)", () => {
+    mockPathname.mockReturnValue("/einstellungen");
     sessionUser.permissions = ["traeger_overview:read"];
     const { unmount } = render(<TraegerSidebar />);
-    expect(settingsLinks()).toEqual(["Briefkopf", "Einstellungen"]);
+    expect(linkNames(settingsNav())).toEqual([
+      "Zurück zur App",
+      "Allgemein",
+      "Briefkopf und Vorlagen",
+      "Abrechnungsvorgaben",
+    ]);
     unmount();
 
     sessionUser.permissions = ["traeger_access_log:read"];
     render(<TraegerSidebar />);
-    expect(settingsLinks()).toEqual(["Zugriffsprotokoll"]);
+    expect(linkNames(settingsNav())).toEqual([
+      "Zurück zur App",
+      "Zugriffsprotokoll",
+    ]);
   });
 
-  it("hides the section when no entry is open to the person", () => {
-    sessionUser.permissions = ["traeger_accounts:manage"];
+  it("opens the first settings page the rights allow", () => {
+    sessionUser.permissions = ["traeger_access_log:read"];
     render(<TraegerSidebar />);
 
-    // Anker: die Sitzung ist geladen, ihr Arbeitsbereich steht da.
     expect(
-      mainNav().getByRole("link", { name: "Personen" }),
+      bottomNav().getByRole("link", { name: "Einstellungen" }),
+    ).toHaveAttribute("href", "/einstellungen/zugriffsprotokoll");
+  });
+
+  it("hides Einstellungen when no entry is open to the person", () => {
+    sessionUser.permissions = ["traeger_enrollment:manage"];
+    render(<TraegerSidebar />);
+
+    expect(
+      mainNav().getByRole("link", { name: "Ferienbetreuung" }),
     ).toBeInTheDocument();
     expect(
       bottomNav().getByRole("link", { name: "Hilfe" }),
     ).toBeInTheDocument();
     expect(
-      bottomNav().queryByRole("button", { name: "Einstellungen" }),
+      bottomNav().queryByRole("link", { name: "Einstellungen" }),
     ).toBeNull();
   });
 
-  it("opens the section on one of its pages and marks that page", () => {
-    sessionUser.permissions = ALL_RIGHTS;
-    mockPathname.mockReturnValue("/access-log");
-    render(<TraegerSidebar />);
+  describe("Zurück zur App (#5685)", () => {
+    it("leads to the start page without a remembered page", () => {
+      sessionUser.permissions = ALL_RIGHTS;
+      mockPathname.mockReturnValue("/einstellungen");
+      render(<TraegerSidebar />);
 
-    expect(
-      bottomNav().getByRole("button", { name: "Einstellungen" }),
-    ).toHaveAttribute("aria-expanded", "true");
-    expect(
-      bottomNav().getByRole("link", { name: "Zugriffsprotokoll" }),
-    ).toHaveAttribute("aria-current", "page");
-  });
-
-  it("opens the section when the person navigates into it", () => {
-    sessionUser.permissions = ALL_RIGHTS;
-    const { rerender } = render(<TraegerSidebar />);
-    const section = bottomNav().getByRole("button", { name: "Einstellungen" });
-    expect(section).toHaveAttribute("aria-expanded", "false");
-
-    mockPathname.mockReturnValue("/briefkopf");
-    rerender(<TraegerSidebar />);
-    expect(section).toHaveAttribute("aria-expanded", "true");
-
-    // Zugeklappt auf einer seiner Seiten trägt die Kopfzeile die Markierung.
-    fireEvent.click(section);
-    expect(section).toHaveAttribute("aria-expanded", "false");
-    expect(section).toHaveAttribute("data-active", "true");
-  });
-
-  it("keeps the section collapsed after a reload on one of its pages (#5331)", async () => {
-    sessionUser.permissions = ALL_RIGHTS;
-    mockPathname.mockReturnValue("/access-log");
-    const { unmount } = render(<TraegerSidebar />);
-    fireEvent.click(bottomNav().getByRole("button", { name: "Einstellungen" }));
-    unmount();
-
-    render(<TraegerSidebar />);
-    const section = bottomNav().getByRole("button", { name: "Einstellungen" });
-    await waitFor(() =>
-      expect(section).toHaveAttribute("aria-expanded", "false"),
-    );
-    // Zugeklappt bleibt die aktive Seite an der Kopfzeile erkennbar.
-    expect(section).toHaveAttribute("data-active", "true");
-  });
-
-  it("keeps the section open after a reload outside its pages (#5331)", async () => {
-    sessionUser.permissions = ALL_RIGHTS;
-    const { unmount } = render(<TraegerSidebar />);
-    fireEvent.click(bottomNav().getByRole("button", { name: "Einstellungen" }));
-    unmount();
-
-    render(<TraegerSidebar />);
-    await waitFor(() =>
       expect(
-        bottomNav().getByRole("button", { name: "Einstellungen" }),
-      ).toHaveAttribute("aria-expanded", "true"),
-    );
+        settingsNav().getByRole("link", { name: "Zurück zur App" }),
+      ).toHaveAttribute("href", "/");
+    });
+
+    it("leads back to the page opened last, with its filter", () => {
+      sessionUser.permissions = ALL_RIGHTS;
+      mockPathname.mockReturnValue("/ferien/5/anmeldungen");
+      mockSearch.mockReturnValue(new URLSearchParams("status=offen"));
+      const memory = render(<TraegerReturnPathMemory />);
+      memory.unmount();
+
+      mockPathname.mockReturnValue("/einstellungen/briefkopf");
+      mockSearch.mockReturnValue(new URLSearchParams());
+      render(
+        <>
+          <TraegerReturnPathMemory />
+          <TraegerSidebar />
+        </>,
+      );
+
+      expect(
+        settingsNav().getByRole("link", { name: "Zurück zur App" }),
+      ).toHaveAttribute("href", "/ferien/5/anmeldungen?status=offen");
+    });
+
+    it("ignores a stored address that leaves the portal", () => {
+      sessionUser.permissions = ALL_RIGHTS;
+      sessionStorage.setItem(
+        "traeger-settings-return-path",
+        "//fremde-seite.example",
+      );
+      mockPathname.mockReturnValue("/einstellungen");
+      render(<TraegerSidebar />);
+
+      expect(
+        settingsNav().getByRole("link", { name: "Zurück zur App" }),
+      ).toHaveAttribute("href", "/");
+    });
   });
 
   // Render-Budget (#2939): die Leiste ist auf jeder Seite des Portals
-  // gemountet; das Aufklappen beim Seitenwechsel darf keine Schleife sein.
+  // gemountet; der Wechsel des Inhalts darf keine Schleife sein.
   describe("render budget", () => {
     afterEach(() => {
       vi.useRealTimers();
     });
 
-    it.each(["/", "/access-log"])(
+    it.each(["/", "/einstellungen/zugriffsprotokoll"])(
       `commits at most ${RENDER_BUDGET_MAX_COMMITS} times in idle on %s`,
       async (pathname) => {
         vi.useFakeTimers();

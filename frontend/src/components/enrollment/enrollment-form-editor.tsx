@@ -36,6 +36,7 @@ import {
   hasIncomeDeclaration,
   IncomeDeclarationButton,
 } from "~/components/enrollment/file-field-editor";
+import { StatCard } from "~/components/ui/stat-card";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   useApiErrorDisplay,
@@ -116,6 +117,8 @@ import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { childrenConcept } from "~/lib/concepts/children";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { permissionsConcept } from "~/lib/concepts/permissions";
+import { IconTile } from "~/components/ui/icon-tile";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "EnrollmentFormEditor" });
 
@@ -1490,9 +1493,7 @@ function BaseTemplateOverviewRow() {
     <article className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
-            <Lock className="h-4 w-4" aria-hidden="true" />
-          </span>
+          <IconTile size="xs" icon={<Lock aria-hidden="true" />} />
           <h4 className="truncate text-sm font-semibold text-gray-900">
             Basisformular
           </h4>
@@ -1556,9 +1557,7 @@ function TemplateOverviewRow({
     <article className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100">
-            <MotoConceptIcon concept={enrollmentsConcept} size={16} />
-          </span>
+          <ConceptIconTile concept={enrollmentsConcept} size="xs" />
           <h4 className="truncate text-sm font-semibold text-gray-900">
             {schema.name}
           </h4>
@@ -1627,20 +1626,14 @@ function UsageLine({
   title: string;
   status: TemplateStatus;
 }>) {
-  const statusMap: Record<
-    TemplateStatus,
-    { dotClassName: string; textClassName: string }
-  > = {
+  const statusMap: Record<TemplateStatus, { textClassName: string }> = {
     base: {
-      dotClassName: "bg-gray-300",
       textClassName: "text-gray-700",
     },
     assigned: {
-      dotClassName: "bg-moto-green",
       textClassName: "text-moto-green-vivid",
     },
     ready: {
-      dotClassName: "bg-gray-300",
       textClassName: "text-gray-700",
     },
   };
@@ -1650,10 +1643,6 @@ function UsageLine({
     <span
       className={`inline-flex items-center gap-2 font-medium ${config.textClassName}`}
     >
-      <span
-        className={`h-2 w-2 shrink-0 rounded-full ${config.dotClassName}`}
-        aria-hidden="true"
-      />
       {title}
     </span>
   );
@@ -1762,24 +1751,28 @@ function FormTemplateDetail({
               </div>
 
               <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                <FormMetric
+                <StatCard
+                  variant="inline"
                   icon={<FileText className="h-4 w-4" aria-hidden="true" />}
                   value={formatSchemaDate(schema.created_at)}
                   label="Zuletzt gespeichert"
                 />
-                <FormMetric
+                <StatCard
+                  variant="inline"
                   icon={
                     <MotoConceptIcon concept={enrollmentsConcept} size={16} />
                   }
                   value={schema.fields.length.toString()}
                   label="Zusatzfragen"
                 />
-                <FormMetric
+                <StatCard
+                  variant="inline"
                   icon={<Check className="h-4 w-4" aria-hidden="true" />}
                   value={requiredCount.toString()}
                   label="Pflicht-Zusatzfragen"
                 />
-                <FormMetric
+                <StatCard
+                  variant="inline"
                   icon={<MotoConceptIcon concept={childrenConcept} size={16} />}
                   value={childFieldCount.toString()}
                   label="Pro Kind"
@@ -1897,24 +1890,19 @@ function GuideStep({
 }: Readonly<{ icon: ReactNode; title: string; done: boolean }>) {
   return (
     <div className="flex items-center gap-3">
-      <span
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
-          done
-            ? "bg-moto-green/15 text-moto-green-vivid"
-            : "bg-gray-100 text-gray-500"
-        }`}
-      >
-        {icon}
-      </span>
+      <IconTile size="xs" tone={done ? "green" : "neutral"} icon={icon} />
       <span className="min-w-0 flex-1 text-sm font-medium text-gray-700">
         {title}
       </span>
-      <span
-        className={`h-2 w-2 rounded-full ${
-          done ? "bg-moto-green" : "bg-gray-300"
-        }`}
-        aria-hidden="true"
-      />
+      {done && (
+        <>
+          <Check
+            className="text-moto-green-strong h-4 w-4 shrink-0"
+            aria-hidden="true"
+          />
+          <span className="sr-only">Erledigt</span>
+        </>
+      )}
     </div>
   );
 }
@@ -2166,32 +2154,6 @@ function FormBuilderIntro() {
         Anmeldephase ausgewählt.
       </p>
     </header>
-  );
-}
-
-function FormMetric({
-  icon,
-  value,
-  label,
-}: Readonly<{
-  icon: ReactNode;
-  value: string;
-  label: string;
-}>) {
-  return (
-    <div className="moto-content-surface flex items-center gap-3 rounded-2xl border px-4 py-3">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
-        {icon}
-      </span>
-      <span>
-        <span className="block text-lg leading-none font-semibold text-gray-900">
-          {value}
-        </span>
-        <span className="mt-1 block text-xs font-medium text-gray-500">
-          {label}
-        </span>
-      </span>
-    </div>
   );
 }
 
@@ -3314,19 +3276,18 @@ function TargetSuggestions({
               onClick={() => onAdd(target)}
               className="min-h-24 items-start p-3 shadow-sm"
             >
-              <span
-                className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                  selected
-                    ? "bg-gray-100 text-gray-500"
-                    : "bg-gray-900 text-white"
-                }`}
-              >
-                {selected ? (
-                  <Check className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                )}
-              </span>
+              <IconTile
+                size="xs"
+                tone={selected ? "neutral" : "inverse"}
+                className="mt-0.5"
+                icon={
+                  selected ? (
+                    <Check aria-hidden="true" />
+                  ) : (
+                    <Plus aria-hidden="true" />
+                  )
+                }
+              />
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-gray-900">
                   {RESERVED_TARGETS[target].label}
@@ -3395,10 +3356,6 @@ function FormPreview({
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${previewStatus.className}`}
               >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${previewStatus.dotClassName}`}
-                  aria-hidden="true"
-                />
                 {previewStatus.label}
               </span>
             }
@@ -3561,7 +3518,6 @@ function getPreviewStatus({
       label: "In Phase verwendet",
       hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
       className: "bg-moto-green/10 text-moto-green-vivid",
-      dotClassName: "bg-moto-green",
     };
   }
 
@@ -3570,7 +3526,6 @@ function getPreviewStatus({
       label: "Bereit zur Zuordnung",
       hint: "Eltern sehen diese Vorlage erst, wenn sie einer Anmeldephase zugeordnet ist.",
       className: "bg-moto-green/10 text-moto-green-vivid",
-      dotClassName: "bg-moto-green",
     };
   }
 
@@ -3579,7 +3534,6 @@ function getPreviewStatus({
       label: "Gespeichert",
       hint: "Ordne die Vorlage in einer Anmeldephase zu, damit Eltern sie verwenden.",
       className: "bg-gray-100 text-gray-600",
-      dotClassName: "bg-gray-300",
     };
   }
 
@@ -3587,7 +3541,6 @@ function getPreviewStatus({
     label: "Entwurf",
     hint: "Speichern Sie die Vorlage zuerst. Danach können Sie sie in einer Anmeldephase auswählen.",
     className: "bg-gray-100 text-gray-600",
-    dotClassName: "bg-gray-300",
   };
 }
 

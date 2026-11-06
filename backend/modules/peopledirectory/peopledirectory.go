@@ -10,6 +10,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 const MaxNameLength = 200
@@ -79,7 +81,8 @@ type UpdatePerson struct {
 
 // PersonFilter narrows a directory search. Every field is optional; the
 // prefix, contains and equals matches are case-insensitive, and the equals
-// matches also ignore surrounding whitespace on both sides.
+// matches also ignore surrounding whitespace and canonical Unicode form on
+// both sides.
 type PersonFilter struct {
 	FirstNamePrefix  string
 	LastNamePrefix   string
@@ -191,9 +194,10 @@ func NormalizeTagID(tagID string) string {
 	return strings.NewReplacer(":", "", "-", "", " ", "").Replace(tagID)
 }
 
-// NormalizePersonNames trims the names without changing their spelling.
+// NormalizePersonNames trims the names and composes them to NFC without
+// changing their spelling (#4949).
 func NormalizePersonNames(firstName, lastName string) (string, string) {
-	return strings.TrimSpace(firstName), strings.TrimSpace(lastName)
+	return textnorm.Name(firstName), textnorm.Name(lastName)
 }
 
 func normalizeTag(tagID *string) *string {

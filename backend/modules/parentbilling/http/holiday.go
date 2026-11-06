@@ -19,7 +19,8 @@ import (
 
 // HolidayResource serves the holiday contribution (#4664, ADR 0115): in the
 // Träger-Portal at /traeger/holiday-contributions the contribution of a
-// registration and its confirmation, which freezes it; publicly at
+// registration, its confirmation, which freezes it, and its cancellation,
+// which computes the rest of its sibling group again (#5662); publicly at
 // /traeger/holiday-quotes the contribution of the registration form before
 // it is sent.
 type HolidayResource struct {
@@ -47,6 +48,7 @@ func (rs *HolidayResource) TraegerRouter(protectedTraegerRoutes func(chi.Router,
 		manage.Get("/confirmation-settings", rs.confirmationSettings)
 		manage.Get("/{periodId}/registrations/{registrationId}", rs.contribution)
 		manage.Post("/{periodId}/registrations/{registrationId}/confirm", rs.confirm)
+		manage.Post("/{periodId}/registrations/{registrationId}/cancel", rs.cancel)
 		manage.Put("/{periodId}/registrations/{registrationId}/debtor-number", rs.changeDebtorNumber)
 		manage.Get("/{periodId}/sibling-groups", rs.listSiblingGroups)
 		manage.Post("/{periodId}/sibling-groups", rs.mergeSiblings)
@@ -97,11 +99,13 @@ type holidayQuoteBookingRequest struct {
 
 type holidayQuoteChildRequest struct {
 	Bookings []holidayQuoteBookingRequest `json:"bookings"`
+	AgeRank  int                          `json:"age_rank"`
 }
 
 // HolidayQuoteRequest is the body of POST /traeger/holiday-quotes/{token}:
-// the bookings of every child of the form and the parents' statement on
-// benefits. It carries no personal data.
+// the bookings of every child of the form, the order of the children by age
+// and the parents' statement on benefits. It carries no personal data: the
+// form sends the order, not the date of birth (#5664).
 type HolidayQuoteRequest struct {
 	Children         []holidayQuoteChildRequest `json:"children"`
 	BenefitsDeclared bool                       `json:"benefits_declared"`
@@ -117,7 +121,7 @@ func (req *HolidayQuoteRequest) children() []capability.HolidayQuoteChild {
 		for j, booking := range child.Bookings {
 			bookings[j] = capability.HolidayQuoteBooking(booking)
 		}
-		children[i] = capability.HolidayQuoteChild{Bookings: bookings}
+		children[i] = capability.HolidayQuoteChild{Bookings: bookings, AgeRank: child.AgeRank}
 	}
 	return children
 }
@@ -194,6 +198,23 @@ func (rs *HolidayResource) confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, confirmation, "Holiday registration confirmed successfully")
+}
+
+// cancel cancels the registration and computes the rest of its sibling
+// group again (#5662). Any refusal rolls the Träger transaction back, so no
+// registration is cancelled while its group still ranks it.
+func (rs *HolidayResource) cancel(w http.ResponseWriter, r *http.Request) {
+	reviewer, periodID, registrationID, ok := registrationKey(w, r)
+	if !ok {
+		return
+	}
+	cancellation, err := rs.contributions.CancelHolidayRegistration(r.Context(), reviewer, periodID, registrationID)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderHolidayError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, cancellation, "Holiday registration cancelled successfully")
 }
 
 // previewChoice reads the exemption and the cost bearer of a preview from
@@ -311,6 +332,8 @@ func renderHolidayError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentHolidayRegistrationEntryNotFound))
 	case errors.Is(err, capability.ErrHolidayRegistrationStateConflict):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayRegistrationStateConflict))
+	case errors.Is(err, capability.ErrHolidayRegistrationFrozen):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayRegistrationFrozen))
 	case errors.Is(err, capability.ErrBenefitsExemptionUnavailable):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingBenefitsExemptionUnavailable))
 	case errors.Is(err, capability.ErrCostTakeoverWithExemption):

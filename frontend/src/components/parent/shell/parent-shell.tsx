@@ -16,6 +16,7 @@ import { useDemoEveningActive } from "~/components/demo/demo-evening-notice";
 import { PortalShell } from "~/components/ui/portal-shell";
 
 import { ParentBottomNav } from "./parent-bottom-nav";
+import { ParentSettingsReturnPathMemory } from "./parent-settings-nav";
 import { ParentSidebar } from "./parent-sidebar";
 import { ParentFirstSteps } from "~/components/parent/onboarding/parent-first-steps";
 import { useShellAuth } from "~/lib/shell-auth-context";
@@ -124,6 +125,7 @@ export function ParentShell({
             />
           }
         >
+          <ParentSettingsReturnPathMemory />
           <Fragment key={`${identity}:${contentEpoch.revision}`}>
             {identity === null ? <ParentPageSkeleton rows={2} /> : children}
           </Fragment>

@@ -29,6 +29,7 @@ import { sickConcept } from "~/lib/concepts/sick";
 import { excusedConcept } from "~/lib/concepts/excused";
 import { homeConcept } from "~/lib/concepts/home";
 import { atSchoolConcept } from "~/lib/concepts/atSchool";
+import { inClassConcept } from "~/lib/concepts/inClass";
 import { classTripConcept } from "~/lib/concepts/classTrip";
 import { freeRoomsConcept } from "~/lib/concepts/freeRooms";
 import { utilizationConcept } from "~/lib/concepts/utilization";
@@ -68,6 +69,7 @@ import { infoDisplaysConcept } from "~/lib/concepts/infoDisplays";
 import { accountsConcept } from "~/lib/concepts/accounts";
 import { rolesConcept } from "~/lib/concepts/roles";
 import { permissionsConcept } from "~/lib/concepts/permissions";
+import { privacyConcept } from "~/lib/concepts/privacy";
 import { passkeysConcept } from "~/lib/concepts/passkeys";
 import { exportsConcept } from "~/lib/concepts/exports";
 import { gradeTransitionsConcept } from "~/lib/concepts/gradeTransitions";
@@ -77,6 +79,7 @@ import { birthdaysConcept } from "~/lib/concepts/birthdays";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { requestsConcept } from "~/lib/concepts/requests";
 import { documentsConcept } from "~/lib/concepts/documents";
+import { documentTemplatesConcept } from "~/lib/concepts/documentTemplates";
 import { filesConcept } from "~/lib/concepts/files";
 import { rfidConcept } from "~/lib/concepts/rfid";
 import { helpConcept } from "~/lib/concepts/help";
@@ -84,6 +87,7 @@ import { settingsConcept } from "~/lib/concepts/settings";
 import { notificationsConcept } from "~/lib/concepts/notifications";
 import { languageConcept } from "~/lib/concepts/language";
 import { logoutConcept } from "~/lib/concepts/logout";
+import { backConcept } from "~/lib/concepts/back";
 import { moreConcept } from "~/lib/concepts/more";
 import type { MotoConceptDefinition } from "~/lib/concepts/define";
 
@@ -111,6 +115,7 @@ const registry = {
   excused: excusedConcept,
   home: homeConcept,
   atSchool: atSchoolConcept,
+  inClass: inClassConcept,
   classTrip: classTripConcept,
   freeRooms: freeRoomsConcept,
   utilization: utilizationConcept,
@@ -150,6 +155,7 @@ const registry = {
   accounts: accountsConcept,
   roles: rolesConcept,
   permissions: permissionsConcept,
+  privacy: privacyConcept,
   passkeys: passkeysConcept,
   exports: exportsConcept,
   gradeTransitions: gradeTransitionsConcept,
@@ -159,6 +165,7 @@ const registry = {
   changeHistory: changeHistoryConcept,
   requests: requestsConcept,
   documents: documentsConcept,
+  documentTemplates: documentTemplatesConcept,
   files: filesConcept,
   rfid: rfidConcept,
   help: helpConcept,
@@ -166,6 +173,7 @@ const registry = {
   notifications: notificationsConcept,
   language: languageConcept,
   logout: logoutConcept,
+  back: backConcept,
   more: moreConcept,
 } as const;
 

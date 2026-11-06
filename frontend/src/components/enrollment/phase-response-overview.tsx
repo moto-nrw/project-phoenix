@@ -27,6 +27,7 @@ import {
   CHILD_STATUS_LABELS,
   ChildStatusBadge,
 } from "~/components/enrollment/child-status-badge";
+import { foldForSearch } from "~/lib/search-fold";
 
 type ResponseView = "missing" | "responded";
 
@@ -90,13 +91,13 @@ export function PhaseResponseOverview({
   );
 
   const rows = useMemo(() => {
-    const term = search.trim().toLowerCase();
+    const term = foldForSearch(search.trim());
     const source = view === "missing" ? missing : responded;
     if (term === "") return source;
     return source.filter(
       (child) =>
-        fullName(child).toLowerCase().includes(term) ||
-        child.schoolClass.toLowerCase().includes(term),
+        foldForSearch(fullName(child)).includes(term) ||
+        foldForSearch(child.schoolClass).includes(term),
     );
   }, [missing, responded, search, view]);
 

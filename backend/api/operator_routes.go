@@ -83,12 +83,14 @@ func operatorIdentityResponses() identityOperatorAPI.Responses {
 	return identityOperatorAPI.OperatorResponses(provisioningOperatorAPI.ProvisioningErrorRenderer)
 }
 
-// operatorSchoolSettings are the per-school settings routes: Settings
-// Platform's values and Care Plan's review before a school switches to
-// booking-led care (#4072). Both are required.
+// operatorSchoolSettings are the settings routes: Settings Platform's values
+// and Care Plan's review before a school switches to booking-led care
+// (#4072), both required, and Settings Platform's Träger values of an
+// organization (#5748), mounted when present.
 type operatorSchoolSettings struct {
 	values                 *settingsOperatorAPI.SettingsResource
 	bookingAuthorityImpact http.Handler
+	traegerValues          settingsOperatorAPI.TraegerOperations
 }
 
 // operatorRouter builds the operator routes. billing (#2791) and
@@ -138,6 +140,9 @@ func operatorRouter(
 
 		identityRoutes.mountPasskeyRoutes(r)
 		mountOperatorProvisioningRoutes(r, provisioningRoutes, sampleChildren)
+		if schoolSettings != nil && schoolSettings.traegerValues != nil {
+			mountOperatorTraegerSettingsRoutes(r, provisioningRoutes, schoolSettings.traegerValues)
+		}
 		mountOperatorSchoolRoutes(r, provisioningRoutes, identityRoutes.mfaAdmin, schoolSettings, demoPresenceHistory)
 		mountOperatorPersonRoutes(r, provisioningRoutes)
 		r.Mount("/staff-person-merges", staffPersonMerge)
@@ -304,7 +309,10 @@ func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOpe
 		r.Get("/{id}/persons", provisioning.AuditReadAccess(organizationtenancy.ReadOrganizationPersons, provisioning.ListOrganizationPersons))
 		r.Get("/{id}/traeger-members", provisioning.AuditReadAccess(organizationtenancy.ReadTraegerMembers, provisioning.ListTraegerMembers))
 		r.Post("/{id}/traeger-members", provisioning.AssignTraegerMember)
+		r.Get("/{id}/traeger-members/invitations", provisioning.AuditReadAccess(organizationtenancy.ReadTraegerInvitations, provisioning.ListTraegerInvitations))
 		r.Post("/{id}/traeger-members/invitations", provisioning.InviteTraegerMember)
+		r.Post("/{id}/traeger-members/invitations/{invitationId}/resend", provisioning.ResendTraegerInvitation)
+		r.Delete("/{id}/traeger-members/invitations/{invitationId}", provisioning.RevokeTraegerInvitation)
 		r.Delete("/{id}/traeger-members/{accountId}/mfa", provisioning.ResetTraegerMemberMFA)
 		r.Get("/{id}/erasure-order", provisioning.TraegerErasureOrder)
 		r.Post("/{id}/erasure-order", provisioning.RecordTraegerErasureOrder)
@@ -313,6 +321,18 @@ func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOpe
 			r.Post("/{id}/sample-children", sampleChildren)
 		}
 	})
+}
+
+// mountOperatorTraegerSettingsRoutes registers the settings of a Träger
+// (#5748) below /organizations/{id}. Reading records an operator read. A
+// change records its operator audit entry after the registry's checks and
+// before it writes; the Träger value and its change log then commit in the
+// Träger transaction.
+func mountOperatorTraegerSettingsRoutes(r chi.Router, provisioning *provisioningOperatorAPI.ProvisioningResource, operations settingsOperatorAPI.TraegerOperations) {
+	traeger := settingsOperatorAPI.NewTraegerSettingsResource(operations, operatorIDFromSession, provisioning.RecordTraegerSettingChange)
+	r.Get("/organizations/{id}/traeger-settings/schema", provisioning.AuditReadAccess(organizationtenancy.ReadTraegerSettings, traeger.GetTraegerSettingsSchema))
+	r.Put("/organizations/{id}/traeger-settings/values/{key}", traeger.SetTraegerSettingValue)
+	r.Delete("/organizations/{id}/traeger-settings/values/{key}", traeger.ResetTraegerSettingValue)
 }
 
 // mountOperatorSchoolRoutes registers the /schools subtree, including the

@@ -52,6 +52,13 @@ type ProvisioningTraegerIdentity interface {
 	// organizationtenancy.ErrTraegerInvalidEmail, a Träger that is not live
 	// organizationtenancy.ErrOrganizationInactive.
 	InviteTraegerAccount(ctx context.Context, organizationID int64, email string, roles []string) (organizationtenancy.TraegerInvitation, error)
+	// ListTraegerInvitations, ResendTraegerInvitation and
+	// RevokeTraegerInvitation serve the open invitations (#5749) on the
+	// caller's administrative transaction. An invitation that is not open
+	// is organizationtenancy.ErrTraegerInvitationNotFound.
+	ListTraegerInvitations(ctx context.Context, organizationID int64) ([]organizationtenancy.TraegerInvitation, error)
+	ResendTraegerInvitation(ctx context.Context, organizationID, invitationID int64) (organizationtenancy.TraegerInvitation, error)
+	RevokeTraegerInvitation(ctx context.Context, organizationID, invitationID int64) (organizationtenancy.TraegerInvitation, error)
 	ListTraegerAccounts(ctx context.Context, organizationID int64, accountIDs []int64) ([]organizationtenancy.TraegerAccount, error)
 	// ResetTraegerMFA resets the account's second factor on the caller's
 	// administrative transaction (#4651).

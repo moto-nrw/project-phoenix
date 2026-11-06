@@ -377,6 +377,7 @@ func scanMigrationsForDateColumns(t *testing.T, root string) map[string]string {
 		t.Fatalf("reading migrations dir: %v", err)
 	}
 
+	buffer := make([]byte, 1024*1024)
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
 			continue
@@ -389,7 +390,7 @@ func scanMigrationsForDateColumns(t *testing.T, root string) map[string]string {
 
 		currentTable := ""
 		scanner := bufio.NewScanner(f)
-		scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+		scanner.Buffer(buffer, len(buffer))
 		lineNo := 0
 		for scanner.Scan() {
 			lineNo++

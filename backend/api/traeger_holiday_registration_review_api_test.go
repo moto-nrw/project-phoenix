@@ -120,13 +120,17 @@ func (f reviewFixture) list(t *testing.T, query string) reviewList {
 	return decodeSchoolPortalData[reviewList](t, rec.Body.Bytes())
 }
 
-// act changes a registration. A confirmation freezes the contribution, so
-// the Elternabrechnung serves it (#4664, ADR 0115); its answer names the
+// act changes a registration. A confirmation freezes the contribution and
+// a cancellation computes the sibling group again, so the Elternabrechnung
+// serves both (#4664, #5662, ADR 0115); their answers name the
 // registration and its status like the other changes.
 func (f reviewFixture) act(t *testing.T, id int64, action string) *httptest.ResponseRecorder {
 	t.Helper()
-	if action == "confirm" {
+	switch action {
+	case "confirm":
 		return traegerJSON(t, f.traeger, f.office.token, http.MethodPost, holidayConfirmPath(f.period.ID, id), nil)
+	case "cancel":
+		return traegerJSON(t, f.traeger, f.office.token, http.MethodPost, holidayCancelPath(f.period.ID, id), nil)
 	}
 	return traegerJSON(t, f.traeger, f.office.token, http.MethodPost, f.registrationPath(id, "/"+action), nil)
 }
@@ -237,7 +241,9 @@ func TestTraegerConfirmsAndCancelsHolidayRegistrationsWithHistory(t *testing.T) 
 	code, _ := registrationRefusalOf(t, rec)
 	assert.Equal(t, "enrollment.holiday_registration_state_conflict", code)
 
-	cancelled := f.detail(t, f.act(t, f.again, "cancel"))
+	assert.Equal(t, "cancelled", f.detail(t, f.act(t, f.again, "cancel")).Status)
+	// The cancellation answers the status; the detail shows the rest (#5662).
+	cancelled := f.detail(t, traegerJSON(t, f.traeger, f.office.token, http.MethodGet, f.registrationPath(f.again, ""), nil))
 	assert.Equal(t, "cancelled", cancelled.Status)
 	assert.Empty(t, cancelled.Children[0].DuplicateRegistrationIDs, "a cancelled registration is no duplicate hint")
 	rec = f.act(t, f.again, "confirm")
@@ -250,7 +256,8 @@ func TestTraegerConfirmsAndCancelsHolidayRegistrationsWithHistory(t *testing.T) 
 	assert.Empty(t, registrationByID(t, list, f.siblings).Children[0].DuplicateRegistrationIDs,
 		"the cancelled second registration no longer counts as a duplicate")
 
-	cancelledLater := f.detail(t, f.act(t, f.siblings, "cancel"))
+	assert.Equal(t, "cancelled", f.detail(t, f.act(t, f.siblings, "cancel")).Status)
+	cancelledLater := f.detail(t, traegerJSON(t, f.traeger, f.office.token, http.MethodGet, f.registrationPath(f.siblings, ""), nil))
 	require.Len(t, cancelledLater.History, 2)
 	assert.Equal(t, "confirm", cancelledLater.History[0].Action)
 	assert.Equal(t, "cancel", cancelledLater.History[1].Action)
@@ -275,7 +282,7 @@ func TestTraegerConfirmsAndCancelsHolidayRegistrationsWithHistory(t *testing.T) 
 
 	assert.Equal(t, []string{
 		fmt.Sprintf("read:%d", f.siblings), fmt.Sprintf("confirm:%d", f.siblings), fmt.Sprintf("cancel:%d", f.again),
-		"list", fmt.Sprintf("cancel:%d", f.siblings),
+		fmt.Sprintf("read:%d", f.again), "list", fmt.Sprintf("cancel:%d", f.siblings), fmt.Sprintf("read:%d", f.siblings),
 	}, f.auditActions(t), "reads and changes are in the audit trail; refused changes left nothing")
 }
 

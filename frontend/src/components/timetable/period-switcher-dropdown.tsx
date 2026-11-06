@@ -41,6 +41,7 @@ import {
 } from "~/lib/calendar-period-helpers";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { getGermanWeekdayShort, toISODate } from "~/lib/timetable-helpers";
+import { StatusDot } from "~/components/ui/status-dot";
 
 interface PeriodSwitcherDropdownProps {
   periods: CalendarPeriod[];
@@ -182,10 +183,7 @@ export function PeriodSwitcherDropdown({
         className="-ml-2.5 max-w-[240px]"
         title="Planungszeitraum wechseln"
       >
-        <span
-          className="bg-moto-green h-1.5 w-1.5 shrink-0 rounded-full"
-          aria-hidden
-        />
+        <StatusDot className="bg-moto-green" decorative />
         <span className="truncate">{triggerLabel}</span>
         <ChevronDown className="h-3.5 w-3.5 text-gray-400" aria-hidden />
       </Button>

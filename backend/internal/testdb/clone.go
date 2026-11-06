@@ -193,8 +193,11 @@ func createCloneDatabase(ctx context.Context, conn sqlExecutor, cfg *Config, nam
 	if err := dropDatabase(ctx, conn, name); err != nil {
 		return fmt.Errorf("drop stale package test database %q: %w", name, err)
 	}
+	// Copy the template's files instead of WAL-logging every copied block.
+	// Both strategies produce an independent database; the disposable local
+	// server (fsync off) and CI service (tmpfs) make the forced checkpoints cheap.
 	if _, err := conn.ExecContext(ctx,
-		`CREATE DATABASE `+quoteIdentifier(name)+` TEMPLATE `+quoteIdentifier(cfg.TemplateName())); err != nil {
+		`CREATE DATABASE `+quoteIdentifier(name)+` TEMPLATE `+quoteIdentifier(cfg.TemplateName())+` STRATEGY FILE_COPY`); err != nil {
 		return fmt.Errorf("clone test database %q from %q: %w", name, cfg.TemplateName(), err)
 	}
 	// The name hashes the working directory; the label makes leftover reports

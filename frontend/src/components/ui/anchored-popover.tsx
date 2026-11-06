@@ -3,6 +3,7 @@
 import { Z_INDEX } from "./overlay-styles";
 import {
   type CSSProperties,
+  type HTMLAttributes,
   type ReactNode,
   type RefObject,
   useCallback,
@@ -19,14 +20,27 @@ import { cn } from "~/lib/utils";
 const VIEWPORT_MARGIN = 8;
 const PANEL_GAP = 4;
 const DEFAULT_MAX_HEIGHT = 420;
+const DEFAULT_PORTAL_SCOPE = '[data-date-picker-focus-trap="true"]';
 
 interface AnchoredPopoverProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly ariaLabel: string;
   readonly initialFocusRef?: RefObject<HTMLElement | null>;
+  /**
+   * Ob der Fokus beim Schließen auf den Auslöser zurückgeht. Aus nur für einen
+   * Rahmen, der den Fokus nie bekommen hat, etwa beim Öffnen per Darüberfahren.
+   */
+  readonly restoreFocusOnClose?: boolean;
+  /** Handler für den Rahmen selbst, samt Rand und Scrollleiste. */
+  readonly panelHandlers?: Pick<
+    HTMLAttributes<HTMLDivElement>,
+    "onPointerEnter" | "onPointerLeave" | "onFocus"
+  >;
   readonly preferredWidth?: number;
   readonly align?: "start" | "end";
+  /** Vorfahre mit Fokusfalle, in dessen Baum der Rahmen portaliert wird. */
+  readonly portalScopeSelector?: string;
   readonly className?: string;
   readonly renderTrigger: (props: {
     ref: RefObject<HTMLButtonElement | null>;
@@ -45,8 +59,11 @@ export function AnchoredPopover({
   onOpenChange,
   ariaLabel,
   initialFocusRef,
+  restoreFocusOnClose = true,
+  panelHandlers,
   preferredWidth,
   align = "start",
+  portalScopeSelector = DEFAULT_PORTAL_SCOPE,
   className,
   renderTrigger,
   children,
@@ -59,15 +76,14 @@ export function AnchoredPopover({
   const portalContainer =
     typeof document === "undefined"
       ? null
-      : (triggerRef.current?.closest('[data-date-picker-focus-trap="true"]') ??
-        document.body);
+      : (triggerRef.current?.closest(portalScopeSelector) ?? document.body);
 
   const close = useCallback(
     (restoreFocus = true) => {
       onOpenChange(false);
-      if (restoreFocus) triggerRef.current?.focus();
+      if (restoreFocus && restoreFocusOnClose) triggerRef.current?.focus();
     },
-    [onOpenChange],
+    [onOpenChange, restoreFocusOnClose],
   );
 
   const updatePosition = useCallback(() => {
@@ -90,7 +106,7 @@ export function AnchoredPopover({
     const openAbove =
       spaceBelow < Math.min(DEFAULT_MAX_HEIGHT, 280) && spaceAbove > spaceBelow;
     const availableHeight = Math.max(openAbove ? spaceAbove : spaceBelow, 0);
-    const scope = trigger.closest('[data-date-picker-focus-trap="true"]');
+    const scope = trigger.closest(portalScopeSelector);
     const scopeRect = scope?.getBoundingClientRect();
     const coordinateLeft = scopeRect ? left - scopeRect.left : left;
 
@@ -109,7 +125,7 @@ export function AnchoredPopover({
       style.top = rect.bottom + PANEL_GAP - (scopeRect?.top ?? 0);
     }
     setPanelStyle(style);
-  }, [align, preferredWidth]);
+  }, [align, portalScopeSelector, preferredWidth]);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -182,6 +198,7 @@ export function AnchoredPopover({
         role="dialog"
         aria-label={ariaLabel}
         data-overflow-menu-scope="true"
+        {...panelHandlers}
         onKeyDown={(event) => {
           if (event.key !== "Escape") return;
           event.preventDefault();

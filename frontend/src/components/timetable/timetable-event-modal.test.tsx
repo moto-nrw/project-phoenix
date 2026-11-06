@@ -1915,11 +1915,11 @@ describe("TimetableEventModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Jahrgang" }));
     fireEvent.click(screen.getByLabelText(/^Jahrgang$/));
     expect(
-      screen.getByRole("checkbox", { name: "Jahrgang 13" }),
+      screen.getByRole("option", { name: "Jahrgang 13" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", { name: "Jahrgang 14" })).toBeNull();
-    fireEvent.click(screen.getByRole("checkbox", { name: "Jahrgang 12" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Jahrgang 13" }));
+    expect(screen.queryByRole("option", { name: "Jahrgang 14" })).toBeNull();
+    fireEvent.click(screen.getByRole("option", { name: "Jahrgang 12" }));
+    fireEvent.click(screen.getByRole("option", { name: "Jahrgang 13" }));
 
     await clickSave();
 
@@ -1962,14 +1962,14 @@ describe("TimetableEventModal", () => {
     expect(gradeSelect).toHaveTextContent("2 ausgewählt");
     fireEvent.click(gradeSelect);
     expect(
-      screen.getByRole("checkbox", { name: "Jahrgang 13 (bestehend)" }),
+      screen.getByRole("option", { name: "Jahrgang 13 (bestehend)" }),
     ).toBeEnabled();
     expect(
       screen.getByText(/über der aktuell konfigurierten Höchststufe 4/),
     ).toBeVisible();
 
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "Jahrgang 13 (bestehend)" }),
+      screen.getByRole("option", { name: "Jahrgang 13 (bestehend)" }),
     );
 
     await clickSave();
@@ -2008,7 +2008,7 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(screen.getByLabelText("Raum")).toBeEnabled());
     await goToStep(3);
     fireEvent.click(screen.getByLabelText(/^Jahrgang$/));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Jahrgang 3" }));
+    fireEvent.click(screen.getByRole("option", { name: "Jahrgang 3" }));
 
     await clickSave();
 
@@ -4738,7 +4738,8 @@ describe("TimetableEventModal", () => {
   });
 
   it("checks every selected series weekday instead of the arbitrary anchor date", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
+    // Fake timers skip the coverage debounce below instead of waiting it out.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-05-02T10:00:00"));
     const shortPeriod: CalendarPeriod = {
       ...periods[0]!,
@@ -4761,6 +4762,7 @@ describe("TimetableEventModal", () => {
     });
 
     await waitFor(() => expect(screen.getByLabelText("Raum")).toBeEnabled());
+    await act(() => vi.advanceTimersByTimeAsync(500));
     await waitFor(
       () =>
         expect(mockCheckShiftCoverage).toHaveBeenCalledWith({

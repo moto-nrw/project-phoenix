@@ -209,3 +209,23 @@ func TestBuildVisitDisplayResponses_ActualsGatedPerStudent(t *testing.T) {
 		}
 	}
 }
+
+func TestVisitActualTimes_ClassIsNoPickup(t *testing.T) {
+	t.Parallel()
+
+	checkIn := time.Date(2026, 9, 29, 6, 30, 0, 0, time.UTC)
+	checkOut := checkIn.Add(time.Hour)
+	reason := studentpresence.CheckoutReasonClass
+	statuses := map[int64]*studentpresence.AttendanceStatus{
+		1: {Status: "checked_out", CheckInTime: &checkIn, CheckOutTime: &checkOut, CheckOutReason: &reason},
+		2: {Status: "checked_out", CheckInTime: &checkIn, CheckOutTime: &checkOut},
+	}
+	access := &common.StudentAccessContext{IsStaff: true}
+
+	arrival, pickup := visitActualTimes(1, statuses, access)
+	assert.NotNil(t, arrival)
+	assert.Nil(t, pickup, "a child in class has not been picked up")
+
+	_, pickup = visitActualTimes(2, statuses, access)
+	assert.NotNil(t, pickup)
+}

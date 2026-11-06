@@ -32,6 +32,7 @@ import {
 } from "~/lib/activity-occupancy";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { useNFCEnabled, useShowTimetableCounts } from "~/lib/tenant-context";
+import { StatusDot } from "~/components/ui/status-dot";
 
 interface InstanceBlockProps {
   instance: EnrichedInstance;
@@ -197,16 +198,14 @@ export function InstanceBlock({
           aria-label={compactStatusDetails.join(", ")}
         >
           {hasCoverageGap && (
-            <span className="bg-moto-orange h-1.5 w-1.5 rounded-full" />
+            <StatusDot className="bg-moto-orange" decorative />
           )}
-          {isActive && (
-            <span className="bg-moto-green h-1.5 w-1.5 rounded-full" />
-          )}
+          {isActive && <StatusDot className="bg-moto-green" decorative />}
           {absentCount > 0 && (
-            <span className="bg-moto-red-strong h-1.5 w-1.5 rounded-full" />
+            <StatusDot className="bg-moto-red-strong" decorative />
           )}
           {hasSubstitute && (
-            <span className="bg-moto-green-strong h-1.5 w-1.5 rounded-full" />
+            <StatusDot className="bg-moto-green-strong" decorative />
           )}
         </span>
       );
@@ -297,12 +296,7 @@ export function InstanceBlock({
 
       {!isCancelled && (coverage || isActive || !isCompact) && (
         <span className="flex flex-wrap items-center gap-1.5 text-[10px] text-gray-500">
-          {isActive && (
-            <span
-              className="bg-moto-green inline-block h-1.5 w-1.5 rounded-full"
-              aria-label="läuft"
-            />
-          )}
+          {isActive && <StatusDot className="bg-moto-green" label="läuft" />}
           {coverage}
           {/* Vor den Zahlen, damit das Abschneiden schmaler Blöcke es nicht
               frisst; als Kit-Abzeichen in lesbarer Größe. */}

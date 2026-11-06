@@ -67,7 +67,7 @@ func testSlotCheckInRollback(t *testing.T, batch bool) {
 			_, err := svc.CheckInStudent(ctx, studentIDs[0], staff.ID, device.ID, true)
 			return err
 		}
-		_, err := svc.ProcessSchoolCheckinBatch(ctx, studentIDs, staff.ID, activeService.SchoolCheckinActionIn)
+		_, err := svc.ProcessSchoolCheckinBatch(ctx, studentIDs, staff.ID, activeService.SchoolCheckinActionIn, "")
 		return err
 	}
 	require.ErrorIs(t, checkIn(), injected)

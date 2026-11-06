@@ -88,11 +88,12 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
-import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { StatCard } from "~/components/ui/stat-card";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
 import { childrenConcept } from "~/lib/concepts/children";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
 
@@ -1135,23 +1136,27 @@ function CareOfferingToolbar({
           verdrängt die Kacheln nie (#5022). */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="grid min-w-0 flex-[999_1_40rem] gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept={carePlanConcept} size={16} />}
+          <StatCard
+            variant="inline"
+            icon={<MotoConceptIcon concept={carePlanConcept} size={16} />}
             label="Angebote"
             value={offeringCount}
           />
-          <EnrollmentStatTile
-            icon={Check}
+          <StatCard
+            variant="inline"
+            icon={<Check aria-hidden="true" />}
             label="Aktiv"
             value={activeOfferingCount}
           />
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept={calendarConcept} size={18} />}
+          <StatCard
+            variant="inline"
+            icon={<MotoConceptIcon concept={calendarConcept} size={18} />}
             label="Tage"
             value={selectableDaysCount}
           />
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept={childrenConcept} size={18} />}
+          <StatCard
+            variant="inline"
+            icon={<MotoConceptIcon concept={childrenConcept} size={18} />}
             label="Kapazität"
             value={hasCapacityLimit ? totalCapacity : "frei"}
             detail={
@@ -1168,7 +1173,8 @@ function CareOfferingToolbar({
             ariaLabel="Anmeldephase"
             value={selectedPhaseId}
             onChange={onPhaseChange}
-            className="h-9 min-w-0 sm:w-auto sm:max-w-md"
+            controlSize="compact"
+            className="min-w-0 sm:w-auto sm:max-w-md"
             options={phases.map((phase) => ({
               value: phase.id,
               label: `${phase.name} (${KIND_LABELS[phase.kind]})${
@@ -1221,11 +1227,7 @@ function NoPhaseState() {
   return (
     <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <EmptyState
-        icon={
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-            <MotoConceptIcon concept={calendarPeriodsConcept} size={28} />
-          </span>
-        }
+        icon={<ConceptIconTile concept={calendarPeriodsConcept} size="page" />}
         title="Erst eine Anmeldephase anlegen"
         description="Betreuungsangebote gehören immer zu einer Anmeldephase. Legen Sie zuerst den Zeitraum an, danach können Sie die passenden Angebote ergänzen."
         action={
@@ -1251,11 +1253,7 @@ function EmptyCareOfferingState() {
   return (
     <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <EmptyState
-        icon={
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-            <MotoConceptIcon concept={carePlanConcept} size={24} />
-          </span>
-        }
+        icon={<ConceptIconTile concept={carePlanConcept} size="page" />}
         title="Noch kein Betreuungsangebot angelegt"
         description="Erstellen Sie das erste Angebot, das Eltern auswählen können. Typisch sind Regelbetreuung, Ferienbetreuung oder ein Angebot mit Mittagessen."
       />
@@ -1580,7 +1578,7 @@ function CareOfferingTemplateField({
             onChange({ activity_group_id: value ? Number(value) : null })
           }
           disabled={selectorDisabled}
-          className="mt-1 border-gray-200 bg-white"
+          className="mt-1"
           invalid={templateError !== undefined}
           ariaDescribedBy={
             templateError ? "care-offering-template-error" : undefined

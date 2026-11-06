@@ -20,6 +20,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { useModuleBooked } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { StatCard } from "~/components/ui/stat-card";
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ToggleChip } from "~/components/ui/toggle-chip";
@@ -40,7 +41,6 @@ import { DataField } from "~/components/ui/detail-modal-components";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
-import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import { Modal } from "~/components/ui/modal";
 import {
   SlideOver,
@@ -152,6 +152,7 @@ import { absenceRequestFor, selectValueFor } from "~/lib/absence-type-select";
 import { formatWeekLabel } from "~/lib/timetable-helpers";
 import { createLogger } from "~/lib/logger";
 import { errorStatus } from "~/lib/expected-failure";
+import { IconTile } from "~/components/ui/icon-tile";
 
 const logger = createLogger({ component: "TimeTrackingPage" });
 
@@ -1276,90 +1277,53 @@ function ClockInStatsStrip({
   const weekPct = week && week.soll > 0 ? (week.ist / week.soll) * 100 : 0;
   const monthPct = month && month.soll > 0 ? (month.ist / month.soll) * 100 : 0;
 
-  const accountTone: StatusTone =
+  const accountTone =
     accountBalanceMinutes === null
       ? "gray"
       : accountBalanceMinutes > 0
-        ? "amber"
+        ? "orange"
         : accountBalanceMinutes < -60
           ? "gray"
           : "green";
 
   return (
-    <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3 sm:gap-4">
-      <InlineStat
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+      <StatCard
         label="Diese Woche"
-        primary={week === null ? "–" : formatDuration(week.ist)}
-        secondary={
-          week === null ? undefined : `von ${formatDuration(week.soll)}`
+        value={week === null ? "–" : formatDuration(week.ist)}
+        hint={
+          week === null
+            ? undefined
+            : `von ${formatDuration(week.soll)} · ${Math.round(weekPct)} %`
         }
         progressPct={week === null ? undefined : weekPct}
         tone="green"
       />
-      <InlineStat
+      <StatCard
         label="Dieser Monat"
-        primary={month === null ? "–" : formatDuration(month.ist)}
-        secondary={
-          month === null ? undefined : `von ${formatDuration(month.soll)}`
+        value={month === null ? "–" : formatDuration(month.ist)}
+        hint={
+          month === null
+            ? undefined
+            : `von ${formatDuration(month.soll)} · ${Math.round(monthPct)} %`
         }
         progressPct={month === null ? undefined : monthPct}
         tone="green"
       />
-      <InlineStat
+      <StatCard
         label="Stundenkonto"
-        primary={
+        value={
           accountBalanceMinutes === null
             ? "–"
             : formatSignedDuration(accountBalanceMinutes)
         }
-        secondary={`seit ${metrics.accountStart.toLocaleDateString("de-DE", {
+        hint={`seit ${metrics.accountStart.toLocaleDateString("de-DE", {
           timeZone: "Europe/Berlin",
           day: "numeric",
           month: "short",
         })}`}
         tone={accountTone}
       />
-    </div>
-  );
-}
-
-function InlineStat({
-  label,
-  primary,
-  secondary,
-  progressPct,
-  tone,
-}: {
-  readonly label: string;
-  readonly primary: string;
-  readonly secondary?: string;
-  readonly progressPct?: number;
-  readonly tone: StatusTone;
-}) {
-  return (
-    <div className="text-center">
-      <div className="flex items-baseline justify-center gap-2">
-        <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-          {label}
-        </span>
-        {progressPct !== undefined && (
-          <span className="text-sm text-gray-400">
-            {Math.round(progressPct)}%
-          </span>
-        )}
-      </div>
-      <p className={`mt-1 text-base font-bold sm:text-lg ${STATUS_TEXT[tone]}`}>
-        {primary}
-      </p>
-      {secondary && <p className="mt-0.5 text-sm text-gray-500">{secondary}</p>}
-      {progressPct !== undefined && (
-        <div className="mx-auto mt-1.5 h-1 max-w-[180px] overflow-hidden rounded-full bg-gray-100">
-          <div
-            className={`h-full rounded-full transition-all ${STATUS_BAR[tone]}`}
-            style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
-          />
-        </div>
-      )}
     </div>
   );
 }
@@ -1578,29 +1542,6 @@ function BreakActivityLog({
     </>
   );
 }
-
-// ─── StaffStatusPanel ────────────────────────────────────────────────────────
-// Kompakte Status-Sidebar neben der Stempeluhr. Eine Card mit drei Zeilen
-// statt drei einzelner Karten: Diese Woche / Dieser Monat / Stundenkonto.
-
-type StatusTone = "green" | "amber" | "gray";
-
-// Standalone value text on a white card, so it follows the app's tone map:
-// the same one StaffSessionTable and KpiCard (staff-time-views) use, so the
-// identical Saldo reads the same on /staff/[id] and here. moto-amber-strong
-// (#92400E) is the ramp step that stays legible on white; the older
-// text-amber-600 (#D97706) missed WCAG AA for normal text.
-const STATUS_TEXT: Record<StatusTone, string> = {
-  green: "text-moto-green-strong",
-  amber: "text-moto-amber-strong",
-  gray: "text-gray-700",
-};
-
-const STATUS_BAR: Record<StatusTone, string> = {
-  green: "bg-moto-green",
-  amber: "bg-moto-orange",
-  gray: "bg-gray-400",
-};
 
 // OwnZeiterfassungSection — wrappt die StaffSessionTable mit RangeNav und
 // Card-Chrome, in derselben Struktur wie auf /staff/[id]. Drift zwischen
@@ -2816,7 +2757,7 @@ function EditSessionModal({
                         />
                       )}
                     </div>
-                    <ListboxDropdown
+                    <CustomSelect
                       {...absenceTypeSelect}
                       id="edit-abs-type"
                       ariaLabelledBy="edit-abs-type-label"
@@ -3053,7 +2994,7 @@ function CreateAbsenceModal({
               />
             )}
           </div>
-          <ListboxDropdown
+          <CustomSelect
             {...absenceTypeSelect}
             id="absence-type"
             ariaLabelledBy="absence-type-label"
@@ -4108,21 +4049,27 @@ function TimeTrackingContent() {
             }
           >
             <div className="py-4 text-center">
-              <div className="bg-moto-orange/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
-                <svg
-                  className="text-moto-orange-strong h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-                  />
-                </svg>
-              </div>
+              <IconTile
+                size="page"
+                shape="round"
+                tone="orange"
+                className="mx-auto mb-4"
+                icon={
+                  <svg
+                    className="text-moto-orange-strong"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                    />
+                  </svg>
+                }
+              />
               <p className="mt-2 text-gray-600">
                 Für heute ist eine Abwesenheit eingetragen
                 {todayAbsence ? ` (${absenceDisplayLabel(todayAbsence)})` : ""}.

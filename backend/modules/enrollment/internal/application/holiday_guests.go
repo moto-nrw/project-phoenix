@@ -65,6 +65,8 @@ type HolidayGuests struct {
 	log     enrollment.HolidayGuestAccessLog
 	today   func() calendar.Date
 	logger  *slog.Logger
+	// HolidayGuestBadgeList serves the hints of the school's lists (#5630).
+	HolidayGuestBadgeList
 }
 
 var _ enrollment.HolidayGuests = (*HolidayGuests)(nil)
@@ -84,7 +86,7 @@ func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeo
 		today = calendar.TodayDate
 	}
 	return &HolidayGuests{store: store, people: people, schools: schools, care: care, health: health, log: log, today: today,
-		logger: slog.Default().With("service", "holiday-guests")}
+		logger: slog.Default().With("service", "holiday-guests"), HolidayGuestBadgeList: NewHolidayGuestBadgeList(store, today)}
 }
 
 // AssignHolidayGuestGroup stores the group of the week and copies the
@@ -574,15 +576,43 @@ func holidayGuestSheet(guest enrollment.HolidayGuest, today calendar.Date) enrol
 	return sheet
 }
 
+// HolidayGuestCurrentGuests is the slice of the holiday guest store the
+// hints read.
+type HolidayGuestCurrentGuests interface {
+	ListCurrentGuests(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayGuest, error)
+}
+
+// HolidayGuestBadgeList serves enrollment.HolidayGuestBadgeList on its own,
+// for readers such as the tablet that need the hints and nothing else of
+// the guests (PyrePortal#499).
+type HolidayGuestBadgeList struct {
+	store HolidayGuestCurrentGuests
+	today func() calendar.Date
+}
+
+var _ enrollment.HolidayGuestBadgeList = HolidayGuestBadgeList{}
+
+// NewHolidayGuestBadgeList builds the hints; a nil today uses the Berlin
+// calendar day.
+func NewHolidayGuestBadgeList(store HolidayGuestCurrentGuests, today func() calendar.Date) HolidayGuestBadgeList {
+	if store == nil {
+		panic("enrollment: the holiday guest store is required")
+	}
+	if today == nil {
+		today = calendar.TodayDate
+	}
+	return HolidayGuestBadgeList{store: store, today: today}
+}
+
 // HolidayGuestBadges lists the hint of every guest the school cares for
 // today (#5630). It reads the name the copy carries and never the Träger's
 // schools; a guest before or after its week has no hint because it is in no
 // list then.
-func (h *HolidayGuests) HolidayGuestBadges(ctx context.Context, schoolID int64) ([]enrollment.HolidayGuestBadge, error) {
+func (l HolidayGuestBadgeList) HolidayGuestBadges(ctx context.Context, schoolID int64) ([]enrollment.HolidayGuestBadge, error) {
 	if schoolID <= 0 {
 		return nil, errors.New("enrollment: the hosting school is required")
 	}
-	current, err := h.store.ListCurrentGuests(ctx, schoolID, h.today())
+	current, err := l.store.ListCurrentGuests(ctx, schoolID, l.today())
 	if err != nil {
 		return nil, err
 	}

@@ -14,7 +14,6 @@ import {
   type LucideIcon,
   Settings2,
 } from "lucide-react";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   type AdminEnrollmentChangeRequest,
   type AdminRequestSummary,
@@ -43,12 +42,14 @@ import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
-import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { StatCard } from "~/components/ui/stat-card";
 import { ButtonLink } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { ProgressBar } from "~/components/ui/progress-bar";
 
 const logger = createLogger({ component: "AdminEnrollmentsList" });
 
@@ -314,9 +315,10 @@ function ChangeRequestsOverview({
     <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 shadow-sm">
-            <MotoConceptIcon concept={parentConversationsConcept} size={20} />
-          </span>
+          <ConceptIconTile
+            concept={parentConversationsConcept}
+            size="section"
+          />
           <div>
             <h2 className="text-base font-semibold text-gray-900">
               Änderungsanfragen
@@ -341,12 +343,13 @@ function ChangeRequestsOverview({
         <LoadErrorAlert error={error} className="mt-4" />
       ) : (
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          <EnrollmentStatTile label="Offen" value={pending.length} />
-          <EnrollmentStatTile
+          <StatCard variant="inline" label="Offen" value={pending.length} />
+          <StatCard
+            variant="inline"
             label="Rückfragen"
             value={waitingForParent.length}
           />
-          <EnrollmentStatTile label="Gesamt" value={requests.length} />
+          <StatCard variant="inline" label="Gesamt" value={requests.length} />
         </div>
       )}
       {!failed && openCount === 0 ? (
@@ -525,10 +528,18 @@ function EnrollmentPhaseOverview({
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-4 gap-2">
-                <EnrollmentStatTile label="Gesamt" value={stats.total} />
-                <EnrollmentStatTile label="Offen" value={stats.open} />
-                <EnrollmentStatTile label="Bestätigt" value={stats.approved} />
-                <EnrollmentStatTile label="Abgelehnt" value={stats.rejected} />
+                <StatCard variant="inline" label="Gesamt" value={stats.total} />
+                <StatCard variant="inline" label="Offen" value={stats.open} />
+                <StatCard
+                  variant="inline"
+                  label="Bestätigt"
+                  value={stats.approved}
+                />
+                <StatCard
+                  variant="inline"
+                  label="Abgelehnt"
+                  value={stats.rejected}
+                />
               </div>
             </article>
           );
@@ -731,10 +742,6 @@ function EnrollmentSetupGuide({
           className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
           <span className="flex min-w-0 items-center gap-3.5">
-            <span
-              className="bg-moto-green h-2.5 w-2.5 shrink-0 rounded-full"
-              aria-hidden="true"
-            />
             <span className="min-w-0">
               <span className="block text-base font-semibold text-gray-900">
                 Online-Anmeldung eingerichtet
@@ -801,12 +808,14 @@ function EnrollmentSetupGuide({
                     </span>
                     <span>{progressPercent}%</span>
                   </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
-                    <div
-                      className="h-full rounded-full bg-gray-900 transition-[width]"
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
+                  <ProgressBar
+                    value={completedSteps}
+                    max={steps.length}
+                    label={`${completedSteps} von ${steps.length} Schritten erledigt`}
+                    tone="dark"
+                    size="sm"
+                    className="mt-2"
+                  />
                 </div>
               </div>
 
@@ -911,10 +920,15 @@ function EnrollmentSetupGuide({
                         <span className="min-w-0 truncate text-gray-700">
                           {step.title}
                         </span>
-                        <span
-                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${getStepDotClass(step.status)}`}
-                          aria-hidden="true"
-                        />
+                        {isStepComplete(step.status) && (
+                          <>
+                            <Check
+                              className="text-moto-green-strong h-4 w-4 shrink-0"
+                              aria-hidden="true"
+                            />
+                            <span className="sr-only">Erledigt</span>
+                          </>
+                        )}
                       </NavigationLink>
                     ))}
                   </div>
@@ -944,11 +958,6 @@ function getStepIconClass(status: SetupStepStatus) {
     return "border-moto-green/30 bg-moto-green/15 text-moto-green-strong";
   }
   return "border-gray-200 bg-white text-gray-500";
-}
-
-function getStepDotClass(status: SetupStepStatus) {
-  if (isStepComplete(status)) return "bg-moto-green";
-  return "bg-gray-300";
 }
 
 function StatusPill({
@@ -987,10 +996,6 @@ function StepMeta({
     <span
       className={`inline-flex items-center gap-1.5 text-[11px] font-medium whitespace-nowrap ${className}`}
     >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${getStepDotClass(status)}`}
-        aria-hidden="true"
-      />
       {label}
     </span>
   );

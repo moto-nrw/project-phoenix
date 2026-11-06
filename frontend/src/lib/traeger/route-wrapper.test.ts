@@ -314,6 +314,35 @@ describe("Träger file proxy (#4655)", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
+  it("keeps the backend's cache header for a versioned image on request", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(new Uint8Array([0x89, 0x50]), {
+        status: 200,
+        headers: {
+          "Content-Type": "image/png",
+          "Cache-Control": "private, max-age=31536000, immutable",
+        },
+      }),
+    );
+
+    const response = await proxyFile("/traeger/master-data/logo", {
+      backendCacheControl: true,
+    })(
+      new NextRequest(
+        "http://localhost:3000/api/traeger/master-data/logo?v=2026-11-05T00%3A00%3A00Z",
+      ),
+      context,
+    );
+
+    expect(response.headers.get("cache-control")).toBe(
+      "private, max-age=31536000, immutable",
+    );
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/traeger/master-data/logo?v=2026-11-05T00%3A00%3A00Z",
+      expect.anything(),
+    );
+  });
+
   it("keeps the problem body of a refused export", async () => {
     mockFetch.mockResolvedValueOnce(
       Response.json(

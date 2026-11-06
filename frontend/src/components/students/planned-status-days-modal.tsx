@@ -19,7 +19,6 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { DatePicker, ISODatePicker } from "~/components/ui/date-picker";
@@ -55,6 +54,7 @@ import type { StudentPartialAbsence } from "~/lib/student-partial-absences-api";
 import { excusedConcept } from "~/lib/concepts/excused";
 import { classTripConcept } from "~/lib/concepts/classTrip";
 import { sickConcept } from "~/lib/concepts/sick";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 interface PlannedStatusDaysModalProps {
   readonly isOpen: boolean;
@@ -798,18 +798,17 @@ export function PlannedStatusDaysModal({
           <SlideOverBody error={submitErrors.error}>
             <div className="space-y-5">
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100">
-                  <MotoConceptIcon
-                    concept={
-                      isClassTrip
-                        ? classTripConcept
-                        : isSick
-                          ? sickConcept
-                          : excusedConcept
-                    }
-                    size={22}
-                  />
-                </div>
+                <ConceptIconTile
+                  concept={
+                    isClassTrip
+                      ? classTripConcept
+                      : isSick
+                        ? sickConcept
+                        : excusedConcept
+                  }
+                  size="section"
+                  className="mt-0.5"
+                />
                 <div>
                   <p className="text-sm font-medium text-gray-900">
                     {studentName}
@@ -1223,27 +1222,19 @@ export function PlannedStatusDaysModal({
               ) : null}
 
               {(isSick || isClassTrip) && (
-                <div>
-                  <label
-                    htmlFor="planned-sick-reason"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    {isSick ? "Grund (optional)" : "Hinweis (optional)"}
-                  </label>
-                  <textarea
-                    id="planned-sick-reason"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    rows={2}
-                    maxLength={2000}
-                    placeholder={
-                      isSick
-                        ? "z. B. Fieber, beim Arzt"
-                        : "z. B. Ziel oder Kontakt vor Ort"
-                    }
-                    className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-                  />
-                </div>
+                <Textarea
+                  id="planned-sick-reason"
+                  label={isSick ? "Grund (optional)" : "Hinweis (optional)"}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  rows={2}
+                  maxLength={2000}
+                  placeholder={
+                    isSick
+                      ? "z. B. Fieber, beim Arzt"
+                      : "z. B. Ziel oder Kontakt vor Ort"
+                  }
+                />
               )}
             </div>
           </SlideOverBody>

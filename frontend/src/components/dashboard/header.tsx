@@ -145,13 +145,15 @@ function catererTitleForPath(pathname: string): string | null {
 const TRAEGER_PAGE_TITLES: ReadonlyArray<
   readonly [path: string, title: string]
 > = [
-  ["/ferien", "Ferien"],
-  ["/beitraege", "Ermäßigungen"],
+  ["/schulen", "Schulen"],
+  ["/uebersicht", "Dashboard"],
+  ["/ferien", "Ferienbetreuung"],
   ["/abrechnung", "Abrechnung"],
-  ["/accounts", "Personen"],
-  ["/access-log", "Zugriffsprotokoll"],
-  ["/briefkopf", "Briefkopf"],
-  ["/einstellungen", "Einstellungen"],
+  ["/einstellungen/mitglieder", "Mitglieder und Rollen"],
+  ["/einstellungen/briefkopf", "Briefkopf und Vorlagen"],
+  ["/einstellungen/abrechnung", "Abrechnungsvorgaben"],
+  ["/einstellungen/zugriffsprotokoll", "Zugriffsprotokoll"],
+  ["/einstellungen", "Allgemein"],
 ];
 
 function traegerTitleForPath(pathname: string): string | null {

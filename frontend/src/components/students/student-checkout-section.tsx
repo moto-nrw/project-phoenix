@@ -30,7 +30,7 @@ export function StudentCheckoutSection({
       <div className="text-center">
         <p className="text-base font-semibold text-gray-900">Abmelden</p>
         <p className="mt-0.5 hidden text-xs text-gray-400 sm:block">
-          Für heute aus der OGS abmelden
+          Aus der OGS abmelden
         </p>
       </div>
     </button>

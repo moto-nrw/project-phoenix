@@ -104,19 +104,42 @@ func (s *StudentTemplateDays) runningSchedules(ctx context.Context, schedules []
 // scheduleRunsFrom reports whether the schedule is valid on a date of its
 // weekday within the projection horizon from the date on and plans at least
 // one enrollment on that same date.
+//
+// A date no active period covers yet is not an end (#5365): a schedule and a
+// row pinned to no period are planned by whichever period the school creates
+// later, so they count as running there. A date outside the period a schedule
+// or template is pinned to does not count.
 func scheduleRunsFrom(template *activityContract.Group, sch *activityContract.Schedule, from calendar.Date, periods []*schedule.CalendarPeriod, rows []*activityContract.StudentEnrollment) bool {
+	open := schedulePinnedPeriodID(template, sch) == nil
 	last := from.AddDays(timetable.MaxOccurrenceProjectionDays)
 	for date := timetable.NextWeekdayOnOrAfter(from, sch.Weekday); !date.After(last); date = date.AddDays(7) {
 		period, skip := scheduleValidOn(template, sch, date, periods, nil)
 		switch skip {
 		case candidateKept:
-			for _, row := range rows {
-				if row.ActivityGroupID == sch.ActivityGroupID && isEnrollmentValidOn(row, date, period.ID, sch.Weekday) {
-					return true
-				}
+			if rowsPlanOn(rows, sch, date, period.ID) {
+				return true
+			}
+		case candidateNoPeriod:
+			if open && rowsPlanOn(rows, sch, date, noPeriodID) {
+				return true
 			}
 		case candidateEnded:
 			return false
+		}
+	}
+	return false
+}
+
+// noPeriodID stands for a date no period covers: only rows pinned to no
+// period match it in isEnrollmentValidOn, since stored IDs are positive.
+const noPeriodID int64 = 0
+
+// rowsPlanOn reports whether a row of the schedule's template plans the
+// student on the date in the period.
+func rowsPlanOn(rows []*activityContract.StudentEnrollment, sch *activityContract.Schedule, date calendar.Date, periodID int64) bool {
+	for _, row := range rows {
+		if row.ActivityGroupID == sch.ActivityGroupID && isEnrollmentValidOn(row, date, periodID, sch.Weekday) {
+			return true
 		}
 	}
 	return false

@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
@@ -18,6 +18,9 @@ import (
 const (
 	tenantTagIndex     = "idx_persons_tenant_tag"
 	tenantAccountIndex = "idx_persons_tenant_account"
+	// Scalar and name-set imports share exact NFC equality, not fuzzy unaccent search.
+	firstNameEqualsSQL = `LOWER(NORMALIZE(BTRIM("person".first_name), NFC)) = LOWER(NORMALIZE(BTRIM(?), NFC))`
+	lastNameEqualsSQL  = `LOWER(NORMALIZE(BTRIM("person".last_name), NFC)) = LOWER(NORMALIZE(BTRIM(?), NFC))`
 )
 
 // Database resolves the transaction and the tenant of the current request.
@@ -222,19 +225,19 @@ func (s *Store) Search(ctx context.Context, filter peopledirectory.PersonFilter)
 	rows := []personRow{}
 	query := withTenant(personSelect(db, &rows).Where(`"person".deleted_at IS NULL`), scope)
 	if filter.FirstNamePrefix != "" {
-		query = query.Where(`"person".first_name ILIKE ?`, escapeLike(filter.FirstNamePrefix)+"%")
+		query = query.Where(`public.f_unaccent("person".first_name) ILIKE `+collation.UnaccentLikePatternSQL+` || '%' ESCAPE '\'`, filter.FirstNamePrefix)
 	}
 	if filter.LastNamePrefix != "" {
-		query = query.Where(`"person".last_name ILIKE ?`, escapeLike(filter.LastNamePrefix)+"%")
+		query = query.Where(`public.f_unaccent("person".last_name) ILIKE `+collation.UnaccentLikePatternSQL+` || '%' ESCAPE '\'`, filter.LastNamePrefix)
 	}
 	if filter.FirstNameEquals != "" {
-		query = query.Where(`LOWER(BTRIM("person".first_name)) = LOWER(BTRIM(?))`, filter.FirstNameEquals)
+		query = query.Where(firstNameEqualsSQL, filter.FirstNameEquals)
 	}
 	if filter.LastNameEquals != "" {
-		query = query.Where(`LOWER(BTRIM("person".last_name)) = LOWER(BTRIM(?))`, filter.LastNameEquals)
+		query = query.Where(lastNameEqualsSQL, filter.LastNameEquals)
 	}
 	if filter.FullNameContains != "" {
-		query = query.Where(`("person".first_name || ' ' || "person".last_name) ILIKE ?`, "%"+escapeLike(filter.FullNameContains)+"%")
+		query = query.Where(`public.f_unaccent("person".first_name || ' ' || "person".last_name) ILIKE '%' || `+collation.UnaccentLikePatternSQL+` || '%' ESCAPE '\'`, filter.FullNameContains)
 	}
 	if filter.TagID != "" {
 		query = query.Where(`"person".tag_id = ?`, filter.TagID)
@@ -245,7 +248,7 @@ func (s *Store) Search(ctx context.Context, filter peopledirectory.PersonFilter)
 	if len(filter.Names) > 0 {
 		query = query.WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
 			for _, name := range filter.Names {
-				q = q.WhereOr(`(LOWER(BTRIM("person".first_name)) = LOWER(BTRIM(?)) AND LOWER(BTRIM("person".last_name)) = LOWER(BTRIM(?)))`, name.FirstName, name.LastName)
+				q = q.WhereOr(`(`+firstNameEqualsSQL+` AND `+lastNameEqualsSQL+`)`, name.FirstName, name.LastName)
 			}
 			return q
 		})
@@ -548,10 +551,6 @@ func withTenant[Q interface {
 		return query
 	}
 	return query.Where(`"person".tenant_id = ?`, scope.TenantID)
-}
-
-func escapeLike(value string) string {
-	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(value)
 }
 
 func toDomain(row personRow) peopledirectory.Person {

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { StatCard } from "~/components/ui/stat-card";
 import { BackLink } from "~/components/ui/back-link";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
@@ -9,7 +10,11 @@ import type { MotoConcept } from "~/lib/moto-concepts";
 
 interface EntityHeaderStat {
   label: string;
-  value: ReactNode;
+  value: string | number;
+  /** Färbt die Zahl, wenn sie mehr sagt als ihre Höhe (Kontingent überschritten). */
+  tone?: "neutral" | "orange";
+  /** Erklärt den Rechenweg als Titel-Hinweis. */
+  title?: string;
 }
 
 interface EntityHeaderCardProps {
@@ -66,9 +71,7 @@ export function EntityHeaderCard({
       ) : null}
       <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
         <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
-          {concept ? (
-            <ConceptIconTile concept={concept} variant="page" />
-          ) : null}
+          {concept ? <ConceptIconTile concept={concept} size="page" /> : null}
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
@@ -94,16 +97,15 @@ export function EntityHeaderCard({
       </div>
 
       {combinedStats.length > 0 ? (
-        <div className="mt-6 flex flex-wrap gap-x-10 gap-y-4">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {combinedStats.map((stat) => (
-            <div key={stat.label} className="min-w-0">
-              <div className="text-2xl font-bold text-gray-900">
-                {stat.value}
-              </div>
-              <div className="text-xs tracking-wider text-gray-500 uppercase">
-                {stat.label}
-              </div>
-            </div>
+            <StatCard
+              key={stat.label}
+              label={stat.label}
+              value={stat.value}
+              tone={stat.tone ?? "neutral"}
+              title={stat.title}
+            />
           ))}
         </div>
       ) : null}

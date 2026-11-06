@@ -57,10 +57,14 @@ export const operatorProvisioningKeys = {
     `operator-org-persons-${encodeURIComponent(id ?? "")}`,
   orgTraegerMembers: (id: string | undefined) =>
     `operator-org-traeger-members-${encodeURIComponent(id ?? "")}`,
+  orgTraegerInvitations: (id: string | undefined) =>
+    `operator-org-traeger-invitations-${encodeURIComponent(id ?? "")}`,
   schoolPwaUsage: (id: string | undefined) =>
     `operator-school-pwa-usage-${encodeURIComponent(id ?? "")}`,
   orgErasureOrder: (id: string | undefined) =>
     `operator-org-erasure-order-${encodeURIComponent(id ?? "")}`,
+  orgTraegerSettings: (id: string | undefined) =>
+    `operator-org-traeger-settings-${encodeURIComponent(id ?? "")}`,
   provisioningStats: () => "operator-provisioning-stats",
   caterers: () => "operator-caterers",
   unregisteredTags: (
@@ -270,11 +274,14 @@ export const timeTrackingKeys = {
 /** Träger metadata only. Registrations, people and audit logs are never cached. */
 export const traegerKeys = {
   schools: () => "traeger-schools",
+  school: (id: string) => `traeger-school-${encodeURIComponent(id)}`,
+  schoolsToday: () => "traeger-schools-today",
   periodsFamily: "traeger-holiday-period-",
   periods: () => "traeger-holiday-period-list",
   period: (id: string) =>
     `traeger-holiday-period-detail-${encodeURIComponent(id)}`,
   settings: () => "traeger-settings-schema",
+  billingRuns: () => "traeger-billing-run-list",
   periodPreview(data: unknown, id: string): ListPreview | undefined {
     const row = previewRow(data, id);
     const name = previewText(row?.name);

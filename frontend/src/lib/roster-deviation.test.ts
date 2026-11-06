@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   connectionBody,
   describeSelectionFilter,
+  droppedChildReason,
   laterSegmentSentence,
   mapOfferingPreview,
   mapRosterDeviations,
@@ -366,6 +367,86 @@ describe("mapOfferingPreview and laterSegmentSentence", () => {
     expect(
       laterSegmentSentence({ ...preview, segments: [preview.segments[1]!] }),
     ).toBeNull();
+  });
+});
+
+describe("mapOfferingPreview other offerings", () => {
+  it("maps the offerings that keep dropped children", () => {
+    const preview = mapOfferingPreview({
+      from: "2026-11-04",
+      other_offerings: [{ offering_id: 6, name: "Ganztag", child_count: 5 }],
+    });
+    expect(preview.otherOfferings).toEqual([
+      { offeringId: "6", name: "Ganztag", childCount: 5 },
+    ]);
+    expect(mapOfferingPreview({ from: "2026-11-04" }).otherOfferings).toEqual(
+      [],
+    );
+  });
+});
+
+describe("dropped children", () => {
+  it("maps the days the selection books each dropped child", () => {
+    const preview = mapOfferingPreview({
+      from: "2026-11-10",
+      weekdays: [
+        {
+          weekday: 2,
+          removed: [
+            { student_id: 8, name: "Matilda W.", booked_weekdays: [1] },
+            {
+              student_id: 9,
+              name: "Lina R.",
+              booked_weekdays: [],
+              excluded_by: "school_class",
+            },
+          ],
+          kept_count: 19,
+        },
+      ],
+    });
+    expect(preview.weekdays[0]?.removed).toEqual([
+      { studentId: "8", name: "Matilda W.", bookedWeekdays: [1] },
+      {
+        studentId: "9",
+        name: "Lina R.",
+        bookedWeekdays: [],
+        excludedBy: "school_class",
+      },
+    ]);
+  });
+
+  // Schule am Berg asked why children still dropped after connecting all
+  // offerings: they were booked on other days than the Regeltermin's.
+  it("names why a child drops", () => {
+    const child = { studentId: "1", name: "Matilda W." };
+    expect(droppedChildReason({ ...child, bookedWeekdays: [1] })).toBe(
+      "nur Mo angemeldet",
+    );
+    expect(droppedChildReason({ ...child, bookedWeekdays: [1, 2, 3, 4] })).toBe(
+      "nur Mo–Do angemeldet",
+    );
+    expect(droppedChildReason({ ...child, bookedWeekdays: [1, 3] })).toBe(
+      "nur Mo, Mi angemeldet",
+    );
+    expect(droppedChildReason({ ...child, bookedWeekdays: [] })).toBe(
+      "in keinem gewählten Angebot angemeldet",
+    );
+    expect(
+      droppedChildReason({
+        ...child,
+        bookedWeekdays: [],
+        excludedBy: "school_class",
+      }),
+    ).toBe("Klasse nicht ausgewählt");
+    expect(
+      droppedChildReason({
+        ...child,
+        bookedWeekdays: [],
+        excludedBy: "grade_level",
+      }),
+    ).toBe("Jahrgang nicht ausgewählt");
+    expect(droppedChildReason(child)).toBeNull();
   });
 });
 

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -43,6 +44,7 @@ var (
 // "Einstellungen".
 type MasterDataResource struct {
 	masterData    organizationtenancy.TraegerMasterData
+	templates     organizationtenancy.TraegerDocumentTemplates
 	requireRead   common.Middleware
 	requireManage common.Middleware
 }
@@ -50,14 +52,16 @@ type MasterDataResource struct {
 // NewMasterDataResource builds the resource. The root binds requireRead and
 // requireManage to the rights Identity & Access bundles into the Träger roles
 // (ADR 0084 section 4).
-func NewMasterDataResource(masterData organizationtenancy.TraegerMasterData, requireRead, requireManage common.Middleware) *MasterDataResource {
-	if masterData == nil || requireRead == nil || requireManage == nil {
-		panic("organization tenancy traeger: the master data and the right checks are required")
+func NewMasterDataResource(masterData organizationtenancy.TraegerMasterData, templates organizationtenancy.TraegerDocumentTemplates, requireRead, requireManage common.Middleware) *MasterDataResource {
+	if masterData == nil || templates == nil || requireRead == nil || requireManage == nil {
+		panic("organization tenancy traeger: the master data, the document templates and the right checks are required")
 	}
-	return &MasterDataResource{masterData: masterData, requireRead: requireRead, requireManage: requireManage}
+	return &MasterDataResource{masterData: masterData, templates: templates, requireRead: requireRead, requireManage: requireManage}
 }
 
-// TraegerRouter returns the routes mounted at /traeger/master-data.
+// TraegerRouter returns the routes mounted at /traeger/master-data. The
+// document templates of the Träger (#4677) sit below it at
+// /document-templates.
 func (rs *MasterDataResource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -74,6 +78,12 @@ func (rs *MasterDataResource) TraegerRouter(protectedTraegerRoutes func(chi.Rout
 		manage.Post("/bank-accounts", rs.createBankAccount)
 		manage.Put("/bank-accounts/{id}", rs.updateBankAccount)
 		manage.Delete("/bank-accounts/{id}", rs.deleteBankAccount)
+		read.Get("/document-templates", rs.listTemplates)
+		read.Get("/document-templates/{kind}", rs.templateDetail)
+		manage.Post("/document-templates/{kind}/versions", rs.saveTemplate)
+		// The preview fills sample data and stores nothing, so every
+		// reader of the templates may see it.
+		read.Post("/document-templates/{kind}/preview", rs.previewTemplate)
 	})
 	return r
 }
@@ -129,6 +139,17 @@ func (rs *MasterDataResource) profile(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, profile, "Träger master data retrieved successfully")
 }
 
+// logoCacheControl lets the browser keep the logo for a year when the
+// request's v names the stored logo's updated_at, as the master data hand it
+// out. A new upload moves updated_at and with it the address, so the old
+// entry is never asked for again. Any other request is not stored.
+func logoCacheControl(version string, updatedAt time.Time) string {
+	if v, err := time.Parse(time.RFC3339Nano, version); err == nil && v.Equal(updatedAt) {
+		return "private, max-age=31536000, immutable"
+	}
+	return "private, no-store"
+}
+
 // logo serves the stored image. Only PNG and JPEG are ever stored, and the
 // type comes from the stored content check, never from the request.
 func (rs *MasterDataResource) logo(w http.ResponseWriter, r *http.Request) {
@@ -143,7 +164,7 @@ func (rs *MasterDataResource) logo(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", logo.ContentType)
 	w.Header().Set("Content-Length", strconv.Itoa(len(logo.Data)))
-	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Cache-Control", logoCacheControl(r.URL.Query().Get("v"), logo.UpdatedAt))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Disposition", "inline")
 	w.WriteHeader(http.StatusOK)

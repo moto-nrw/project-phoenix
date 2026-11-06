@@ -68,6 +68,7 @@
   "pickup_proof_not_found": "Për këtë kërkesë nuk ka dëshmi me nënshkrimin tuaj.",
   "pickup_signature_invalid": "Nënshkrimi nuk lexohet. Ju lutemi nënshkruani përsëri.",
   "pickup_signature_required": "Ju lutemi nënshkruani lejen dhe konfirmoni nënshkrimin.",
+  "pickup_signature_too_large": "Nënshkrimi është shumë i madh. Ju lutemi prekni „Nënshkruani përsëri“ dhe pastaj „Shkruani emrin“.",
   "poll_closed": "Nuk është më i hapur: {object}. Pyetni personin tuaj të kontaktit.",
   "primary_guardian_protected": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
   "remove_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",

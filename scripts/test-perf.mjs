@@ -2,7 +2,7 @@
 // Fixed workloads and execution inventories over the existing resource meter.
 // See docs/research/test-performance-hill-climb.md for the acceptance protocol.
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { homedir, loadavg, totalmem, cpus, platform, arch, release } from 'node:os';
@@ -197,6 +197,89 @@ function backendGitReferenceInputs(root) {
   return { target, basis: { targetResolutionExit: target.exit, mergeBases, selectedBase } };
 }
 
+
+// The Postgres test server runs in a container outside the measured process
+// tree. Attribute its cgroup CPU delta and sampled memory to backend trials;
+// use a privately owned TEST_DB_PORT, or other sessions' load is counted too.
+export function pgContainer(dsn) {
+  const port = new URL(dsn).port || '5432';
+  const ids = execFileSync('docker', ['ps', '-q', '--filter', `publish=${port}`,
+    '--filter', 'label=com.docker.compose.service=postgres-test'], { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+  assert.ok(ids.length <= 1, `Several postgres-test containers publish port ${port}`);
+  return ids[0] ?? null;
+}
+
+const pgCpuUsec = id => +execFileSync('docker', ['exec', id, 'cat', '/sys/fs/cgroup/cpu.stat'], { encoding: 'utf8' })
+  .match(/^usage_usec (\d+)$/m)[1];
+
+export function parsePgSample(text) {
+  const value = key => +(text.match(new RegExp(`^${key} (\\d+)$`, 'm'))?.[1] ?? NaN);
+  return { current: value('current'), anon: value('anon') + value('shmem') };
+}
+
+async function startPgMeter(id) {
+  const cpu0 = pgCpuUsec(id);
+  const peak = { current: 0, anon: 0, samples: 0 };
+  const stopFile = `/tmp/test-perf-pg-${randomUUID()}.stop`;
+  // Stop the loop inside the container, not just the docker exec client.
+  // A unique control file confines shutdown to this invocation's sampler.
+  const child = spawn('docker', ['exec', id, 'sh', '-c',
+    'trap \'rm -f "$1" "$1.running"\' EXIT; trap \'exit 143\' HUP INT TERM; : > "$1.running"; cd /sys/fs/cgroup || exit; while [ ! -e "$1" ]; do echo "current $(cat memory.current)"; grep -E "^(anon|shmem) " memory.stat; echo; sleep 0.5; done',
+    'sh', stopFile],
+  { stdio: ['ignore', 'pipe', 'ignore'] });
+  const exited = new Promise(resolve => {
+    child.once('error', error => resolve({ error }));
+    child.once('close', (code, signal) => resolve({ code, signal }));
+  });
+  let sampled;
+  const ready = new Promise(resolve => { sampled = resolve; });
+  let pending = '';
+  let measuring = true;
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', chunk => {
+    if (!measuring) return;
+    const blocks = (pending + chunk).split('\n\n');
+    pending = blocks.pop();
+    for (const block of blocks) {
+      const sample = parsePgSample(block);
+      if (!Number.isFinite(sample.current) || !Number.isFinite(sample.anon)) continue;
+      peak.current = Math.max(peak.current, sample.current);
+      peak.anon = Math.max(peak.anon, sample.anon);
+      peak.samples++;
+      sampled();
+    }
+  });
+  const stop = async () => {
+    measuring = false;
+    // Capture CPU at the workload boundary, excluding the stop handshake.
+    let cpu1;
+    try {
+      cpu1 = pgCpuUsec(id);
+    } finally {
+      // The client might already have exited on interrupt. Wait for the
+      // container's acknowledgement as well, so that cannot leave its loop.
+      execFileSync('docker', ['exec', id, 'sh', '-c',
+        'touch "$1"; while [ -e "$1.running" ]; do sleep 0.1; done; rm -f "$1"', 'sh', stopFile]);
+      const exit = await exited;
+      if (exit.error) throw exit.error;
+      assert.equal(exit.code, 0, `Postgres sampler failed (${exit.code ?? exit.signal})`);
+    }
+    assert.ok(peak.samples > 0, 'No Postgres memory samples');
+    return {
+      pgCpuSeconds: Math.round((cpu1 - cpu0) / 1e5) / 10,
+      pgPeakMB: Math.round(peak.current / 1048576),
+      pgPeakAnonShmemMB: Math.round(peak.anon / 1048576),
+    };
+  };
+  try {
+    await Promise.race([ready, exited.then(() => { throw new Error('Postgres sampler exited before sampling'); })]);
+    return stop;
+  } catch (error) {
+    await stop();
+    throw error;
+  }
+}
+
 async function execute(command, args, cwd, env = process.env) {
   const child = spawn(command, args, { cwd, env, stdio: 'inherit' });
   const forward = signal => child.kill(signal);
@@ -243,14 +326,25 @@ async function run(profile, label, root, cacheState) {
   const meter = join(out, 'measure');
   const gate = process.env.AGENT_HEAVY || join(homedir(), 'bin/agent-heavy');
   // One trial per meter invocation keeps logs distinct even for paired runs.
-  const bench = ['--root', root, '--out', meter, ...(existsSync(gate) ? [profile === 'quick' || (backend && profile !== 'backend-full') ? '--light' : '--heavy'] : []), '--', profile, ...metadata.command];
+  const bench = ['--root', root, '--out', meter, ...(existsSync(gate) ? [profile === 'quick' || (backend && profile !== 'backend-full') ? '--light' : '--heavy'] : []), '--', profile];
   const summary = { ...metadata, valid: false };
   try {
     if (backend) assert.ok(process.env.TEST_DB_DSN?.trim(), 'Backend trials require inherited TEST_DB_DSN');
-    const exit = await execute('bash', [join(here, 'dev-bench.sh'), ...bench], root,
+    // Without a running container (non-loopback DSN, test fixtures) the trial
+    // has no Postgres metrics, and compare() then omits them for every side.
+    let pg = null;
+    try { pg = backend ? pgContainer(process.env.TEST_DB_DSN) : null; } catch { pg = null; }
+    summary.pgMeter = backend ? (pg ? 'container' : 'unavailable') : undefined;
+    // dev-bench admits this helper along with the workload. Queueing therefore
+    // contributes neither container CPU nor pre-workload memory samples.
+    const pgReport = join(out, 'postgres.json');
+    const command = pg ? [process.execPath, fileURLToPath(import.meta.url), 'pg-measure', pg, pgReport, ...metadata.command]
+      : metadata.command;
+    const exit = await execute('bash', [join(here, 'dev-bench.sh'), ...bench, ...command], root,
       backend ? { ...process.env, GOTESTSUM_JSONFILE: report } : process.env);
     summary.exit = exit;
     assert.equal(exit.code, 0, `Measurement failed (${exit.code ?? exit.signal})`);
+    const pgMetrics = pg ? json(pgReport) : null;
     assert.deepEqual(sourceState(root), state, 'Checkout changed during trial');
     if (backend) summary.gitReferenceObservationAfter = backendGitReferenceInputs(root);
     assert.deepEqual(trialContext(), metadata.context, 'Environment changed during trial');
@@ -262,6 +356,12 @@ async function run(profile, label, root, cacheState) {
     summary.metrics = { wallSeconds: +wall, queueSeconds: +queue, cpuSeconds: +cpu, peakTreeMB: +rss };
     assert.ok(Object.values(summary.metrics).every(n => Number.isFinite(n) && n >= 0), 'Invalid metrics');
     assert.ok(summary.metrics.wallSeconds > 0, 'Trial below meter resolution');
+    if (pgMetrics) {
+      summary.metrics = { ...summary.metrics, ...pgMetrics,
+        // Sum of separately sampled peaks: an upper bound of the joint peak.
+        cpuTotalSeconds: Math.round((summary.metrics.cpuSeconds + pgMetrics.pgCpuSeconds) * 10) / 10,
+        peakTotalMB: summary.metrics.peakTreeMB + pgMetrics.pgPeakMB };
+    }
     if (backend) {
       // The wrapper may fall back to plain go test. Exit 0 without a fresh
       // gotestsum report is not execution evidence and must remain invalid.
@@ -316,7 +416,9 @@ export function compare(baselines, candidates) {
     }
   }
   const metrics = {};
-  for (const key of ['wallSeconds', 'queueSeconds', 'cpuSeconds', 'peakTreeMB']) {
+  const optional = ['pgCpuSeconds', 'pgPeakMB', 'pgPeakAnonShmemMB', 'cpuTotalSeconds', 'peakTotalMB']
+    .filter(key => all.every(sample => Number.isFinite(sample.metrics[key])));
+  for (const key of ['wallSeconds', 'queueSeconds', 'cpuSeconds', 'peakTreeMB', ...optional]) {
     const stats = samples => {
       const values = samples.map(sample => sample.metrics[key]);
       return { median: median(values), min: Math.min(...values), max: Math.max(...values) };
@@ -334,6 +436,28 @@ export function compare(baselines, candidates) {
 }
 
 async function main(args) {
+  if (args[0] === 'pg-measure') {
+    const [, id, report, command, ...commandArgs] = args;
+    // Keep cleanup reachable if a signal arrives during sampler startup or
+    // shutdown, outside execute()'s command-forwarding window.
+    let signal, stop;
+    const interrupt = () => { signal = 'SIGINT'; };
+    const terminate = () => { signal = 'SIGTERM'; };
+    process.on('SIGINT', interrupt);
+    process.on('SIGTERM', terminate);
+    try {
+      stop = await startPgMeter(id);
+      const exit = signal ? { signal } : await execute(command, commandArgs, process.cwd());
+      return exit.code ?? (exit.signal === 'SIGINT' ? 130 : 143);
+    } finally {
+      try {
+        if (stop) save(report, await stop());
+      } finally {
+        process.off('SIGINT', interrupt);
+        process.off('SIGTERM', terminate);
+      }
+    }
+  }
   if (args[0] === 'compare') {
     const separator = args.indexOf('--');
     assert.ok(separator > 1 && separator < args.length - 1, 'compare BASE_DIR... -- CANDIDATE_DIR...');

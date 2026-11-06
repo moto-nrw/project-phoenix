@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // Soll und Ist je Kind (#4774): the comparison of one child on the child
@@ -94,7 +95,7 @@ func (rs *Resource) exportCareTimeOverruns(w http.ResponseWriter, r *http.Reques
 
 func writeExportFile(w http.ResponseWriter, file ExportFile) {
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)
@@ -143,6 +144,14 @@ type careTimeDayResponse struct {
 	DeviationMinutes *int    `json:"deviation_minutes"`
 	EarlyMinutes     int     `json:"early_minutes"`
 	LateMinutes      int     `json:"late_minutes"`
+	// ClassTimes are the day's stretches in class (#5656); the end is null when
+	// the child did not come back. They change none of the minutes.
+	ClassTimes []careTimeClassTimeResponse `json:"class_times"`
+}
+
+type careTimeClassTimeResponse struct {
+	Start *string `json:"start"`
+	End   *string `json:"end"`
 }
 
 type studentCareTimesResponse struct {
@@ -188,6 +197,14 @@ func formatClock(clock *calendar.WallClock) *string {
 	return &value
 }
 
+func toCareTimeClassTimes(classTimes []studentpresence.CareTimeClassTime) []careTimeClassTimeResponse {
+	out := make([]careTimeClassTimeResponse, 0, len(classTimes))
+	for _, classTime := range classTimes {
+		out = append(out, careTimeClassTimeResponse{Start: formatClock(&classTime.Start), End: formatClock(classTime.End)})
+	}
+	return out
+}
+
 func toStudentCareTimesResponse(result *studentpresence.StudentCareTimes) studentCareTimesResponse {
 	days := make([]careTimeDayResponse, 0, len(result.Days))
 	for _, day := range result.Days {
@@ -196,7 +213,7 @@ func toStudentCareTimesResponse(result *studentpresence.StudentCareTimes) studen
 			PlannedStart: formatClock(day.PlannedStart), PlannedEnd: formatClock(day.PlannedEnd),
 			ActualStart: formatClock(day.ActualStart), ActualEnd: formatClock(day.ActualEnd),
 			PlannedMinutes: day.PlannedMinutes, ActualMinutes: day.ActualMinutes, DeviationMinutes: day.DeviationMinutes,
-			EarlyMinutes: day.EarlyMinutes, LateMinutes: day.LateMinutes,
+			EarlyMinutes: day.EarlyMinutes, LateMinutes: day.LateMinutes, ClassTimes: toCareTimeClassTimes(day.ClassTimes),
 		})
 	}
 	return studentCareTimesResponse{

@@ -1,1 +1,3 @@
 GET /traeger/schools/
+GET /traeger/schools/today
+GET /traeger/schools/{id}

@@ -17,15 +17,3 @@ func reviewedDemoUploadsRule(rule Rule) bool {
 		rule.TargetPackage == demoUploadsTargetPackage && rule.TargetClass == "" && !rule.SameOwner &&
 		len(rule.Scopes) == 1 && rule.Scopes[0] == string(ScopeProduction)
 }
-
-// firstPartyAllowedByReviewedDemoUploadsRule reports whether the single rule
-// that admits this first-party import in the candidate policy is the reviewed
-// demo uploads rule. The import loosening it implies is then the intended
-// effect of that rule, not a separate widening.
-func firstPartyAllowedByReviewedDemoUploadsRule(base, candidate *Policy, scope Scope, source, target Package) bool {
-	if candidate.PolicyEpoch <= base.PolicyEpoch {
-		return false
-	}
-	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
-	return decision.Allowed != nil && len(decision.Overlaps) == 0 && reviewedDemoUploadsRule(*decision.Allowed)
-}

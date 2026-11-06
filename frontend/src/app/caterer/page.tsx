@@ -558,7 +558,7 @@ export default function CatererOverviewPage() {
   // Eine sichtbare Aktion neben dem Zeitraum, die Formate im Menü (wie
   // Tagesauswertung und Statistik): Drucken ist der tägliche Griff, die
   // Dateien sind der seltene. Vorher standen vier Knöpfe in der Kopfzeile.
-  const exportMenuItems: OverflowMenuEntry[] = [
+  const exportActions: OverflowMenuEntry[] = [
     { kind: "header", label: "Herunterladen" },
     ...(
       [
@@ -616,7 +616,7 @@ export default function CatererOverviewPage() {
                 {exporting === "print" ? "Wird geöffnet…" : "Drucken"}
               </Button>
               <OverflowMenu
-                items={exportMenuItems}
+                items={exportActions}
                 ariaLabel="Weitere Aktionen"
               />
             </div>

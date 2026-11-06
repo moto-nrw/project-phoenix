@@ -6,6 +6,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { stateChange } from "~/test/wait-for-state";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 import {
@@ -1541,7 +1542,9 @@ describe("BetreuungsplanView", () => {
     setupSWR({ allTemplates: [template], rosterDeviations: [deviation] });
     render(<BetreuungsplanView />);
 
-    await waitFor(() => expect(urlParams().has("verbinden")).toBe(false));
+    await stateChange.waitFor(() =>
+      expect(urlParams().has("verbinden")).toBe(false),
+    );
     expect(mockShowMessage).toHaveBeenCalledWith(
       "Den Regeltermin gibt es nicht mehr.",
     );
@@ -1690,7 +1693,9 @@ describe("BetreuungsplanView", () => {
     setupSWR({ rosterDeviations: [] });
     render(<BetreuungsplanView />);
 
-    await waitFor(() => expect(urlParams().has("verbinden")).toBe(false));
+    await stateChange.waitFor(() =>
+      expect(urlParams().has("verbinden")).toBe(false),
+    );
     expect(mockShowMessage).toHaveBeenCalledWith(
       "moto findet für „Yoga“ kein passendes Angebot. Wählen Sie es selbst: „Bearbeiten“, dann „Personal und Kinder“.",
     );
@@ -1713,7 +1718,9 @@ describe("BetreuungsplanView", () => {
     setupSWR({ rosterDeviations: [deviation] });
     render(<BetreuungsplanView />);
 
-    await waitFor(() => expect(urlParams().has("verbinden")).toBe(false));
+    await stateChange.waitFor(() =>
+      expect(urlParams().has("verbinden")).toBe(false),
+    );
     // Leseansicht: die Woche statt der Serienansicht, kein Dialog.
     expect(screen.getByText("week-grid")).toBeVisible();
     expect(
@@ -1734,7 +1741,9 @@ describe("BetreuungsplanView", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Termine behalten" }),
     );
-    await waitFor(() => expect(urlParams().has("absagen")).toBe(false));
+    await stateChange.waitFor(() =>
+      expect(urlParams().has("absagen")).toBe(false),
+    );
     expect(urlParams().has("absagenBis")).toBe(false);
     expect(
       screen.queryByRole("dialog", { name: "Termine im Zeitraum absagen" }),
@@ -2197,7 +2206,7 @@ describe("BetreuungsplanView", () => {
         // dieselbe Referenz, und es gibt keine zusätzliche SSE-Benachrichtigung.
         note = "Neue Notiz";
         fireEvent.click(screen.getByText("detail-attendance"));
-        await waitFor(() =>
+        await stateChange.waitFor(() =>
           expect(mockPatchAttendance).toHaveBeenCalledWith("42", "21", {
             status: "present",
           }),
@@ -2447,7 +2456,7 @@ describe("BetreuungsplanView", () => {
 
     fireEvent.click(screen.getByText("conflict-hide"));
 
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(
         catalogText("general.permission", "das Ausblenden des Konflikts"),
         undefined,
@@ -2524,7 +2533,7 @@ describe("BetreuungsplanView", () => {
 
     fireEvent.click(screen.getByText("create-period"));
     fireEvent.click(screen.getByText("period-save"));
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       expect(mockTenantMutate).toHaveBeenCalledWith(
         "database-calendar-periods-list",
       ),
@@ -2536,20 +2545,28 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     fireEvent.click(screen.getByText("detail-start"));
-    await waitFor(() => expect(mockStart).toHaveBeenCalledWith("42"));
+    await stateChange.waitFor(() =>
+      expect(mockStart).toHaveBeenCalledWith("42"),
+    );
     fireEvent.click(screen.getByText("detail-complete"));
-    await waitFor(() => expect(mockComplete).toHaveBeenCalledWith("42", []));
+    await stateChange.waitFor(() =>
+      expect(mockComplete).toHaveBeenCalledWith("42", []),
+    );
     fireEvent.click(screen.getByText("detail-cancel"));
-    await waitFor(() => expect(mockCancel).toHaveBeenCalledWith("42"));
+    await stateChange.waitFor(() =>
+      expect(mockCancel).toHaveBeenCalledWith("42"),
+    );
     fireEvent.click(screen.getByText("detail-attendance"));
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       expect(mockPatchAttendance).toHaveBeenCalledWith("42", "21", {
         status: "present",
       }),
     );
 
     fireEvent.click(screen.getByText("detail-delete"));
-    await waitFor(() => expect(mockDeleteCancelled).toHaveBeenCalledWith("42"));
+    await stateChange.waitFor(() =>
+      expect(mockDeleteCancelled).toHaveBeenCalledWith("42"),
+    );
   });
 
   it("names the full room from the details when reopening is refused (#3633)", async () => {
@@ -2580,7 +2597,7 @@ describe("BetreuungsplanView", () => {
       (text, [key, value]) => text.replace(`{${key}}`, String(value)),
       catalogText("presence.room_capacity_exceeded", ""),
     );
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(expected, undefined),
     );
     expect(mockToastError).not.toHaveBeenCalledWith(
@@ -2604,7 +2621,7 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     fireEvent.click(screen.getByText("detail-start"));
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(
         catalogText("timetable.start_window_expired", "die Aktivität"),
         undefined,
@@ -2612,7 +2629,9 @@ describe("BetreuungsplanView", () => {
     );
 
     fireEvent.click(screen.getByText("detail-start"));
-    await waitFor(() => expect(mockToastError).toHaveBeenCalledTimes(2));
+    await stateChange.waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledTimes(2),
+    );
     const [message, options] = mockToastError.mock.calls[1] as [
       string,
       { action: { label: string; onClick: () => void } },
@@ -2621,7 +2640,7 @@ describe("BetreuungsplanView", () => {
     expect(options.action.label).toBe("Wiederholen");
 
     options.action.onClick();
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       expect(mockToastSuccess).toHaveBeenCalledWith(
         "Die Aktivität ist gestartet.",
       ),
@@ -2641,7 +2660,7 @@ describe("BetreuungsplanView", () => {
 
     fireEvent.click(screen.getByText("detail-attendance"));
 
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(
         catalogText("attendance.web_disabled", "die Anwesenheit"),
         undefined,
@@ -2659,8 +2678,10 @@ describe("BetreuungsplanView", () => {
 
     fireEvent.click(screen.getByText("detail-delete"));
 
-    await waitFor(() => expect(mockDeleteCancelled).toHaveBeenCalledWith("42"));
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
+      expect(mockDeleteCancelled).toHaveBeenCalledWith("42"),
+    );
+    await stateChange.waitFor(() =>
       expect(mockLoggerError).toHaveBeenCalledWith(
         "instance_delete_failed",
         expect.objectContaining({ instance_id: "42" }),
@@ -2678,7 +2699,7 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     fireEvent.click(screen.getByText("detail-delete-following"));
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       expect(mockEndTemplate).toHaveBeenCalledWith("7", {
         effective_date: "2026-05-04",
       }),
@@ -2694,7 +2715,7 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     fireEvent.click(screen.getByText("detail-delete-following"));
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       expect(mockLoggerWarn).toHaveBeenCalledWith(
         "template_end_in_past_refused",
         expect.objectContaining({ effective_date: "2026-05-04" }),
@@ -2711,7 +2732,9 @@ describe("BetreuungsplanView", () => {
     fireEvent.click(screen.getByText("detail-repeat"));
     expect(screen.getByText("event-save-series")).toBeInTheDocument();
     fireEvent.click(screen.getByText("event-save-series"));
-    await waitFor(() => expect(mockTenantMutate).toHaveBeenCalled());
+    await stateChange.waitFor(() =>
+      expect(mockTenantMutate).toHaveBeenCalled(),
+    );
   });
 
   it("handles series create, edit, apply, delete and archive", async () => {
@@ -2726,7 +2749,7 @@ describe("BetreuungsplanView", () => {
     fireEvent.click(screen.getByText("edit-template"));
     expect(screen.getByText("event-close")).toBeInTheDocument();
     fireEvent.click(screen.getByText("event-delete-series"));
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       expect(mockEndTemplate).toHaveBeenCalledWith("7", {
         effective_date: "2026-05-06",
       }),
@@ -2740,7 +2763,7 @@ describe("BetreuungsplanView", () => {
     fireEvent.click(screen.getByText("event-close"));
 
     fireEvent.click(screen.getByText("apply-template"));
-    await waitFor(() => expect(mockMaterialize).toHaveBeenCalled());
+    await stateChange.waitFor(() => expect(mockMaterialize).toHaveBeenCalled());
 
     fireEvent.click(screen.getByText("archive-template"));
     expect(
@@ -2751,7 +2774,9 @@ describe("BetreuungsplanView", () => {
 
     fireEvent.click(screen.getByText("archive-template"));
     fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
-    await waitFor(() => expect(mockArchiveTemplate).toHaveBeenCalledWith("7"));
+    await stateChange.waitFor(() =>
+      expect(mockArchiveTemplate).toHaveBeenCalledWith("7"),
+    );
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Der Regeltermin „Yoga“ ist archiviert.",
     );
@@ -2792,7 +2817,9 @@ describe("BetreuungsplanView", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Wiederholen" }),
     );
-    await waitFor(() => expect(mockArchiveTemplate).toHaveBeenCalledTimes(2));
+    await stateChange.waitFor(() =>
+      expect(mockArchiveTemplate).toHaveBeenCalledTimes(2),
+    );
     await waitFor(() =>
       expect(
         screen.queryByRole("dialog", { name: "Regeltermin archivieren?" }),
@@ -2809,7 +2836,7 @@ describe("BetreuungsplanView", () => {
 
     fireEvent.click(screen.getByText("apply-template"));
 
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(
         catalogText("general.unavailable", "das Eintragen des Regeltermins"),
         expect.objectContaining({
@@ -2822,7 +2849,7 @@ describe("BetreuungsplanView", () => {
       { action: { onClick: () => void } },
     ];
     options.action.onClick();
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       // Der Mock legt je 56-Tage-Abschnitt des Zeitraums zwei Termine an.
       expect(mockToastSuccess).toHaveBeenCalledWith(
         expect.stringMatching(/^Für „Yoga“ sind \d+ Termine angelegt\.$/),
@@ -2879,8 +2906,10 @@ describe("BetreuungsplanView", () => {
 
     const { rerender } = render(<BetreuungsplanView />);
 
-    await waitFor(() => expect(mockBootstrap).toHaveBeenCalledTimes(1));
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
+      expect(mockBootstrap).toHaveBeenCalledTimes(1),
+    );
+    await stateChange.waitFor(() =>
       expect(mockTenantMutate).toHaveBeenCalledWith(
         "database-calendar-periods-list",
       ),
@@ -2971,7 +3000,7 @@ describe("BetreuungsplanView", () => {
 
     fireEvent.click(screen.getByText("apply-template"));
 
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       expect(mockMaterialize).toHaveBeenNthCalledWith(
         1,
         "2027-08-01",
@@ -3037,7 +3066,7 @@ describe("BetreuungsplanView", () => {
 
     render(<BetreuungsplanView />);
 
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       expect(mockLoggerWarn).toHaveBeenCalledWith("periods_bootstrap_failed", {
         error: "permission denied",
         status: 403,
@@ -3055,7 +3084,7 @@ describe("BetreuungsplanView", () => {
 
     render(<BetreuungsplanView />);
 
-    await waitFor(() =>
+    await stateChange.waitFor(() =>
       expect(mockLoggerError).toHaveBeenCalledWith("periods_bootstrap_failed", {
         error: "backend down",
       }),

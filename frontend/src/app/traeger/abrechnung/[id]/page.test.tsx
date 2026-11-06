@@ -25,12 +25,23 @@ const { api } = vi.hoisted(() => ({
     printBillingLetters: vi.fn(),
     downloadBillingRunOverview: vi.fn(),
     cancelBillingDocument: vi.fn(),
+    changeCarriedCorrection: vi.fn(),
+    removeCarriedCorrection: vi.fn(),
     creditBillingDocument: vi.fn(),
     fetchBillingRuns: vi.fn(),
     startBillingRun: vi.fn(),
   },
 }));
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+const { session } = vi.hoisted(() => ({
+  session: { permissions: [] as string[] },
+}));
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { permissions: session.permissions } },
+    status: "authenticated",
+  }),
+}));
 const { downloadBlob } = vi.hoisted(() => ({ downloadBlob: vi.fn() }));
 vi.mock("~/lib/file-download", () => ({ downloadBlob }));
 
@@ -73,6 +84,7 @@ const PREVIEW: BillingRunDetail = {
       referenceNumber: "",
       reason: "",
       history: [],
+      replacedCredits: [],
       number: "",
       issuedOn: null,
       registrationId: "31",
@@ -90,6 +102,7 @@ const PREVIEW: BillingRunDetail = {
           lastName: "Muster",
           totalCents: 6750,
           corrections: [],
+          carriedCorrections: [],
           positions: [
             {
               kind: "base",
@@ -110,6 +123,7 @@ const PREVIEW: BillingRunDetail = {
           lastName: "Muster",
           totalCents: 4500,
           corrections: [],
+          carriedCorrections: [],
           positions: [
             {
               kind: "base",
@@ -162,6 +176,7 @@ const CORRECTED: BillingRunDetail = {
               totalAfterCents: 5250,
               reason: "Erster Tag krank",
               createdAt: "2026-09-09T10:00:00Z",
+              carriedFromNumber: "",
             },
           ],
         },
@@ -202,6 +217,30 @@ describe("TraegerBillingRunPage", () => {
     downloadBlob.mockReset();
     api.fetchBillingRun.mockResolvedValue(PREVIEW);
     api.fetchLetterMailings.mockResolvedValue([]);
+    session.permissions = ["traeger_billing:manage"];
+  });
+
+  it("leads back to its holiday period for whoever may open it (#5688)", async () => {
+    session.permissions = [
+      "traeger_billing:manage",
+      "traeger_enrollment:manage",
+    ];
+    renderPage();
+
+    expect(
+      await screen.findByRole("link", { name: "Zum Ferienzeitraum" }),
+    ).toHaveAttribute("href", "/ferien/5");
+  });
+
+  it("shows no link to a holiday period the person cannot open", async () => {
+    renderPage();
+
+    // Anker: der Lauf ist geladen, seine Statuszeile steht.
+    expect((await screen.findAllByText("Muster, Eva"))[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Vorschau")[0]).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Zum Ferienzeitraum" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the preview of every family with its positions", async () => {
@@ -261,6 +300,131 @@ describe("TraegerBillingRunPage", () => {
       within(panel).getByText("Korrektur: Erster Tag krank"),
     ).toBeInTheDocument();
     expect(within(panel).getByText("Korrekturen für Lia")).toBeInTheDocument();
+  });
+
+  it("changes a correction taken over from the cancelled invoice (#5663)", async () => {
+    const child = PREVIEW.documents[0]!.children[0]!;
+    const carried = {
+      positionId: "61",
+      sourceNumber: "FE-0001",
+      amountCents: -1500,
+      sourceAmountCents: -1500,
+      reason: "Erster Tag krank",
+    };
+    api.fetchBillingRun.mockResolvedValue({
+      ...PREVIEW,
+      documents: [
+        {
+          ...PREVIEW.documents[0]!,
+          referenceNumber: "FE-0001",
+          children: [
+            { ...child, totalCents: 5250, carriedCorrections: [carried] },
+            PREVIEW.documents[0]!.children[1]!,
+          ],
+        },
+      ],
+    });
+    api.changeCarriedCorrection.mockResolvedValue(CORRECTED);
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /^Aktionen für die Korrektur von Lia über /,
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Ändern" }));
+    const amount = await screen.findByLabelText("Neuer Betrag in Euro");
+    expect(amount).toHaveValue("52,50");
+    expect(screen.getByLabelText("Begründung")).toHaveValue("Erster Tag krank");
+
+    // The amount without the correction is what removing it does.
+    fireEvent.change(amount, { target: { value: "67,50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ändern" }));
+    expect(
+      await screen.findByText(/Das ist der Betrag ohne Korrektur/),
+    ).toBeInTheDocument();
+    expect(api.changeCarriedCorrection).not.toHaveBeenCalled();
+
+    fireEvent.change(amount, { target: { value: "60,00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ändern" }));
+    await waitFor(() =>
+      expect(api.changeCarriedCorrection).toHaveBeenCalledWith("9", "61", {
+        totalCents: 6000,
+        reason: "Erster Tag krank",
+      }),
+    );
+  });
+
+  it("uses the recalculated amount without a carried correction (#5663)", async () => {
+    const child = PREVIEW.documents[0]!.children[0]!;
+    const carried = [
+      {
+        positionId: "61",
+        sourceNumber: "FE-0001",
+        amountCents: -8000,
+        sourceAmountCents: -8000,
+        reason: "Erster Tag krank",
+      },
+      {
+        positionId: "62",
+        sourceNumber: "FE-0001",
+        amountCents: -2000,
+        sourceAmountCents: -12000,
+        reason: "Zweiter Tag krank",
+      },
+    ];
+    api.fetchBillingRun.mockResolvedValue({
+      ...PREVIEW,
+      documents: [
+        {
+          ...PREVIEW.documents[0]!,
+          referenceNumber: "FE-0001",
+          children: [
+            {
+              ...child,
+              totalCents: 5000,
+              positions: [{ ...child.positions[0]!, amountCents: 10000 }],
+              corrections: [
+                {
+                  id: "1",
+                  amountCents: 5000,
+                  totalBeforeCents: 0,
+                  totalAfterCents: 5000,
+                  reason: "Nachberechnung",
+                  createdAt: "2026-09-01T08:00:00Z",
+                  carriedFromNumber: "",
+                },
+              ],
+              carriedCorrections: carried,
+            },
+            PREVIEW.documents[0]!.children[1]!,
+          ],
+        },
+      ],
+    });
+    api.changeCarriedCorrection.mockResolvedValue(CORRECTED);
+    renderPage();
+    const [menu] = await screen.findAllByRole("button", {
+      name: /^Aktionen für die Korrektur von Lia über /,
+    });
+    fireEvent.click(menu!);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Ändern" }));
+    const amount = await screen.findByLabelText("Neuer Betrag in Euro");
+
+    fireEvent.change(amount, { target: { value: "50,00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ändern" }));
+    expect(
+      await screen.findByText(/Das ist der Betrag ohne Korrektur/),
+    ).toBeInTheDocument();
+    expect(api.changeCarriedCorrection).not.toHaveBeenCalled();
+
+    fireEvent.change(amount, { target: { value: "80,00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ändern" }));
+    await waitFor(() =>
+      expect(api.changeCarriedCorrection).toHaveBeenCalledWith("9", "61", {
+        totalCents: 8000,
+        reason: "Erster Tag krank",
+      }),
+    );
   });
 
   it("releases with the checked preview and reports a changed run", async () => {
@@ -363,7 +527,7 @@ describe("TraegerBillingRunPage", () => {
 
     expect(
       await screen.findByText(
-        "1 Rechnung mit Betrag hat keine Debitorennummer. Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext. Tragen Sie die Nummern vor dem Freigeben bei den Anmeldungen ein. Das Feld dafür erscheint, wenn unter „Einstellungen“ im Bereich „Ferienbetreuung“ „Debitorennummer beim Bestätigen abfragen“ an ist.",
+        "1 Rechnung mit Betrag hat keine Debitorennummer. Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext. Tragen Sie die Nummern vor dem Freigeben bei den Anmeldungen ein. Das Feld dafür erscheint, wenn in den Einstellungen unter „Allgemein“ im Bereich „Ferienbetreuung“ „Debitorennummer beim Bestätigen abfragen“ an ist.",
       ),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Lauf freigeben" }));
@@ -439,7 +603,15 @@ describe("TraegerBillingRunPage", () => {
       await screen.findByRole("button", { name: "Schreiben erstellen" }),
     );
     fireEvent.change(
-      await screen.findByLabelText("Hinweise für die Eltern (freiwillig)"),
+      await screen.findByLabelText(
+        "Hinweise für die Eltern (freiwillig)",
+        {},
+        {
+          // The form is lazy-loaded after the click. Its first import can take
+          // longer than Testing Library's one-second default in the full suite.
+          timeout: 5_000,
+        },
+      ),
       { target: { value: "Hausschuhe mitbringen." } },
     );
     fireEvent.change(screen.getByLabelText("Betreuung"), {

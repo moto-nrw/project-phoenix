@@ -170,3 +170,25 @@ func TestStudentPreviewNameSetKeepsExactPairsAndTenantScope(t *testing.T) {
 	}
 	require.ElementsMatch(t, []int64{first.ID, second.ID, namesake.ID}, ids)
 }
+
+func TestStudentPreviewNameSetPreservesCanonicalEquivalenceAndAccents(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	_, people, _, err := api.NewImportTestModuleWithOwners(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.ImportTestOptions{})
+	require.NoError(t, err)
+	testpkg.CreateTestStudent(t, db, "José", "Müller", "1A")
+	request := dataimport.ImportRequest[dataimport.StudentImportRow]{Mode: dataimport.ImportModeUpdate, DryRun: true, Rows: []dataimport.StudentImportRow{
+		// Canonically equivalent macOS input must find the composed stored name.
+		{FirstName: "Jose\u0301", LastName: "Mu\u0308ller", SchoolClass: "1A", DataRetentionDays: 30},
+		// Exact import matching must not inherit accent-insensitive prefix search.
+		{FirstName: "Jose", LastName: "Muller", SchoolClass: "1A", DataRetentionDays: 30},
+	}}
+	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
+		want := runPreviewForTest(t, ctx, scalarStudentPreview{previewConfigForTest(people, people)}, request)
+		require.Equal(t, 1, want.UpdatedCount)
+		require.Equal(t, 1, want.ErrorCount)
+		got := runPreviewForTest(t, ctx, previewConfigForTest(people, people), request)
+		require.Equal(t, want, got)
+		return nil
+	}))
+}

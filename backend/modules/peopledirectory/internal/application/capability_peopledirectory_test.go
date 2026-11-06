@@ -120,3 +120,24 @@ func TestTagCommandsNormalizeAndValidate(t *testing.T) {
 		t.Fatalf("lookup must normalize the tag, got %q err=%v", engine.tag, err)
 	}
 }
+
+// A search typed or pasted in decomposed form finds the names stored
+// composed (#4949).
+func TestSearchPersonsComposesNameFilters(t *testing.T) {
+	t.Parallel()
+	engine := &recordingEngine{}
+	module := newValidationService(engine)
+
+	_, err := module.SearchPersons(context.Background(), peopledirectory.PersonFilter{
+		FirstNamePrefix: "Jose\u0301", LastNamePrefix: " C\u0327el", FirstNameEquals: "Zoe\u0308",
+		LastNameEquals: "Go\u0301mez", FullNameContains: "Jose\u0301 C\u0327",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := engine.searched
+	if got.FirstNamePrefix != "José" || got.LastNamePrefix != "Çel" || got.FirstNameEquals != "Zoë" ||
+		got.LastNameEquals != "Gómez" || got.FullNameContains != "José Ç" {
+		t.Fatalf("name filters were not composed: %+v", got)
+	}
+}

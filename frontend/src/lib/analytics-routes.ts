@@ -195,11 +195,15 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/",
   "/abrechnung",
   "/abrechnung/:id",
-  "/access-log",
-  "/accounts",
-  "/beitraege",
-  "/briefkopf",
+  "/abrechnung/familien",
+  "/abrechnung/familien/:id",
   "/einstellungen",
+  "/einstellungen/abrechnung",
+  "/einstellungen/briefkopf",
+  "/einstellungen/briefkopf/vorlagen",
+  "/einstellungen/briefkopf/vorlagen/:kind",
+  "/einstellungen/mitglieder",
+  "/einstellungen/zugriffsprotokoll",
   "/ferien",
   "/ferien/:id",
   "/ferien/:id/anmeldungen",
@@ -209,6 +213,8 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/invite",
   "/login",
   "/reset-password",
+  "/schulen/:id",
+  "/uebersicht",
 ] as const;
 
 /** Public pages of the bare domain: school choice, start, demo, help. */

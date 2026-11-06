@@ -32,5 +32,7 @@
   "unreadCount": "Непрочитані: {count}",
   "openCount": "Відкрито: {count}",
   "noticeCount": "Підказки: {count}",
-  "documents": "Документи"
+  "documents": "Документи",
+  "privacy": "Конфіденційність",
+  "backToApp": "Назад до застосунку"
 }

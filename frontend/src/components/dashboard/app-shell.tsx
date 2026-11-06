@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { PortalShell } from "~/components/ui/portal-shell";
 import { DemoBanner, useDemoBannerShown } from "~/components/demo/demo-banner";
 import { useDemoEveningActive } from "~/components/demo/demo-evening-notice";
@@ -7,6 +8,7 @@ import { StaffPreviewBanner } from "~/components/staff-preview/staff-preview-ban
 import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import { Header } from "./header";
 import { Sidebar } from "./sidebar";
+import { StaffSettingsReturnPathMemory } from "./staff-settings-nav";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 import { MobilePageHelpPortal } from "~/components/help/mobile-page-help-portal";
 
@@ -78,6 +80,9 @@ export function AppShell({ children }: AppShellProps) {
           sidebar={<Sidebar className="hidden min-h-0! lg:block" />}
           bottomNav={<MobileBottomNav />}
         >
+          <Suspense fallback={null}>
+            <StaffSettingsReturnPathMemory />
+          </Suspense>
           {children}
         </PortalShell>
       </MobilePageHelpPortal>

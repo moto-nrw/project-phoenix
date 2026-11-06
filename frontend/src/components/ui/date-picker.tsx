@@ -25,6 +25,7 @@ import { Input } from "~/components/ui/input";
 import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import { cn } from "~/lib/utils";
 import {
+  DAY_PICKER_CLASSNAMES,
   DayPickerSkeleton,
   LazyDayPicker,
   preloadDayPicker,
@@ -647,7 +648,7 @@ function DatePickerCalendar({
         locale={locale}
         labels={labels}
       />
-      <Suspense fallback={<CalendarGridSkeleton month={month} />}>
+      <Suspense fallback={<DayPickerSkeleton month={month} />}>
         <LazyDayPicker
           today={parseISODate(today)}
           mode="single"
@@ -661,48 +662,10 @@ function DatePickerCalendar({
           weekStartsOn={1}
           showOutsideDays
           hideNavigation
-          classNames={{
-            root: "text-sm",
-            months: "flex flex-col",
-            month: "",
-            month_caption: "hidden",
-            month_grid: "w-full border-collapse",
-            weekdays: "flex",
-            // flex-1 + min-w-0 lets the seven columns take exactly the width the
-            // card has, in both directions: a wide field gets a wide grid, a
-            // narrow one gets narrow cells rather than forcing the card wider
-            // than the field it belongs to.
-            weekday:
-              "text-gray-500 flex-1 min-w-0 font-normal text-xs text-center pb-1",
-            week: "flex w-full mt-1.5",
-            // px-1 on the cell keeps a 8px gutter between two columns, and the
-            // selection is painted on the inner button rather than the cell —
-            // otherwise the cell background bleeds into its own padding and two
-            // neighbouring selected days fuse into one continuous dark bar.
-            day: "flex-1 min-w-0 h-9 px-1 text-center text-sm py-0 relative",
-            day_button:
-              "w-full h-9 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
-            selected:
-              "text-white [&>button]:bg-gray-900 [&>button:hover]:bg-gray-800",
-            today: "font-bold text-moto-blue-strong",
-            outside: "text-gray-300",
-            disabled: "text-gray-300 cursor-not-allowed",
-          }}
+          classNames={DAY_PICKER_CLASSNAMES}
         />
       </Suspense>
     </div>
-  );
-}
-
-// Footprint of the grid below while react-day-picker loads; the sizes mirror
-// the `weekdays`/`weekday` and `week`/`day` class names of both calendars.
-function CalendarGridSkeleton({ month }: { readonly month: Date }) {
-  return (
-    <DayPickerSkeleton
-      month={month}
-      weekdaysClassName="mb-1 h-4"
-      weekClassName="mt-1.5 h-9 rounded-lg"
-    />
   );
 }
 
@@ -719,7 +682,7 @@ function MultipleDatePickerCalendar({
   return (
     <div className={getCalendarContainerClass(calendarLayout, compact)}>
       <CalendarNavHeader month={month} onMonthChange={setMonth} />
-      <Suspense fallback={<CalendarGridSkeleton month={month} />}>
+      <Suspense fallback={<DayPickerSkeleton month={month} />}>
         <LazyDayPicker
           today={parseISODate(today)}
           mode="multiple"
@@ -732,33 +695,7 @@ function MultipleDatePickerCalendar({
           weekStartsOn={1}
           showOutsideDays
           hideNavigation
-          classNames={{
-            root: "text-sm",
-            months: "flex flex-col",
-            month: "",
-            month_caption: "hidden",
-            month_grid: "w-full border-collapse",
-            weekdays: "flex",
-            // flex-1 + min-w-0 lets the seven columns take exactly the width the
-            // card has, in both directions: a wide field gets a wide grid, a
-            // narrow one gets narrow cells rather than forcing the card wider
-            // than the field it belongs to.
-            weekday:
-              "text-gray-500 flex-1 min-w-0 font-normal text-xs text-center pb-1",
-            week: "flex w-full mt-1.5",
-            // px-1 on the cell keeps a 8px gutter between two columns, and the
-            // selection is painted on the inner button rather than the cell —
-            // otherwise the cell background bleeds into its own padding and two
-            // neighbouring selected days fuse into one continuous dark bar.
-            day: "flex-1 min-w-0 h-9 px-1 text-center text-sm py-0 relative",
-            day_button:
-              "w-full h-9 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
-            selected:
-              "text-white [&>button]:bg-gray-900 [&>button:hover]:bg-gray-800",
-            today: "font-bold text-moto-blue-strong",
-            outside: "text-gray-300",
-            disabled: "text-gray-300 cursor-not-allowed",
-          }}
+          classNames={DAY_PICKER_CLASSNAMES}
         />
       </Suspense>
     </div>
@@ -1085,18 +1022,12 @@ const DEFAULT_YEARS_AHEAD = 5;
 // menu opens on top of the calendar surface instead of behind it.
 const NAV_MENU_Z_INDEX = Z_INDEX.popoverMenu;
 
-// The menu surface is the caller's job in this kit component — without these it
-// renders as unstyled text floating over the calendar. min-w keeps a 46px-wide
-// year trigger from producing an unclickably narrow list.
-const NAV_MENU_CLASS =
-  "scrollbar-thin min-w-24 overflow-y-auto moto-popover-surface rounded-xl border py-1";
-const NAV_OPTION_CLASS =
-  "flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50";
-const NAV_OPTION_ACTIVE_CLASS =
-  "flex w-full cursor-pointer items-center gap-2 bg-gray-50 px-4 py-2 text-left text-sm font-medium text-gray-900 transition-colors";
+// min-w keeps a 46px-wide year trigger from producing an unclickably narrow
+// list. Surface and options are the kit listbox's own.
+const NAV_MENU_CLASS = "min-w-24";
 
 const NAV_SELECT_CLASS =
-  "inline-flex h-9 w-full min-w-0 cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-lg border border-gray-200 bg-white px-2.5 text-sm leading-5 font-medium text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
+  "w-full min-w-0 cursor-pointer gap-1.5 overflow-hidden px-2.5 leading-5 font-medium";
 
 // The offered years always include the month currently on screen, so a value
 // outside the caller's bounds (legacy data) still shows its own year instead of
@@ -1186,10 +1117,9 @@ function CalendarNavHeader({
               onMonthChange(new Date(month.getFullYear(), Number(next), 1))
             }
             containerClassName="relative min-w-0"
+            size="compact"
             className={NAV_SELECT_CLASS}
             menuClassName={NAV_MENU_CLASS}
-            optionClassName={NAV_OPTION_CLASS}
-            activeOptionClassName={NAV_OPTION_ACTIVE_CLASS}
             menuZIndex={NAV_MENU_Z_INDEX}
             portalScopeSelector="[data-date-picker-panel]"
             triggerRole="combobox"
@@ -1205,10 +1135,9 @@ function CalendarNavHeader({
               onMonthChange(new Date(Number(next), month.getMonth(), 1))
             }
             containerClassName="relative min-w-0"
+            size="compact"
             className={NAV_SELECT_CLASS}
             menuClassName={NAV_MENU_CLASS}
-            optionClassName={NAV_OPTION_CLASS}
-            activeOptionClassName={NAV_OPTION_ACTIVE_CLASS}
             menuZIndex={NAV_MENU_Z_INDEX}
             portalScopeSelector="[data-date-picker-panel]"
             triggerRole="combobox"

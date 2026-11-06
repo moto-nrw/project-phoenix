@@ -260,6 +260,35 @@ func (s *HolidayPeriodStore) PublishHolidayPeriod(ctx context.Context, organizat
 	return nil
 }
 
+const holidayWeeksBookedTogetherQuery = `SELECT DISTINCT first.holiday_period_week_id AS first_week_id,
+		second.holiday_period_week_id AS second_week_id
+	FROM enrollment.holiday_registration_bookings AS first
+	JOIN enrollment.holiday_registration_bookings AS second
+		ON second.holiday_registration_child_id = first.holiday_registration_child_id
+		AND second.holiday_period_week_id > first.holiday_period_week_id
+	WHERE first.organization_id = ? AND first.holiday_period_id = ?`
+
+// HolidayWeeksBookedTogether lists the pairs of weeks of the period one child
+// has booked.
+func (s *HolidayPeriodStore) HolidayWeeksBookedTogether(ctx context.Context, organizationID, periodID int64) ([][2]int64, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		FirstWeekID  int64 `bun:"first_week_id"`
+		SecondWeekID int64 `bun:"second_week_id"`
+	}
+	if err := db.NewRaw(holidayWeeksBookedTogetherQuery, organizationID, periodID).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read weeks booked together: %w", err)
+	}
+	pairs := make([][2]int64, len(rows))
+	for i, row := range rows {
+		pairs[i] = [2]int64{row.FirstWeekID, row.SecondWeekID}
+	}
+	return pairs, nil
+}
+
 const (
 	deleteHolidayWeeksQuery = `DELETE FROM enrollment.holiday_period_weeks
 		WHERE organization_id = ? AND holiday_period_id = ? AND NOT (id = ANY(?))`

@@ -186,3 +186,38 @@ Was anders ist als beim Assistenten der Schule:
    Zeile an. Offene Einladungen bekommen keine: Diese Personen fangen erst an.
    Die Checkliste erscheint nur Konten, die den Assistenten der Schule nicht
    sehen (ohne `config:update`), sodass nie beide gleichzeitig stehen.
+
+## Nachtrag: Onboarding über Schulgrenzen (#5659)
+
+Wer mehrere OGS betreut, bekam dieselbe Checkliste in jeder OGS erneut. Beim
+Absprung aus dem Träger-Portal ist das der Assistent der Schule, nicht die
+ersten Schritte: Die Sitzung trägt die Rolle Verwaltung und damit
+`config:update`.
+
+1. **Die ersten Schritte gehören der Person, auch über Schulen.** Punkt 1 des
+   vorigen Nachtrags bleibt: eine Zeile je Schule und Konto. Jetzt trägt jedes
+   Schreiben den ganzen Stand der Person in die Schule der Anfrage, und jede
+   Schule liest die neueste Zeile der Person. So wirken auch „wieder offen“ und
+   Einblenden überall. Die Migration führt vorhandene Zeilen einer Person
+   einmalig zusammen: alle erledigten Schritte, übersprungen nur, was nirgends
+   erledigt ist, ausgeblendet, wenn irgendwo ausgeblendet.
+2. **Der Assistent bleibt bei der Schule; nur beim Absprung folgt das Ausblenden
+   der Person.** Fortschritt und Abschluss gelten weiter für die Schule. Hat
+   eine Person den Assistenten in einer OGS ausgeblendet, sieht sie ihn in einer
+   Absprung-Sitzung in keiner OGS desselben Trägers mehr, auch nicht in später
+   hinzukommenden. Die Leitung vor Ort sieht ihn weiter. Wer einen eigenen
+   Zugang hat, entscheidet dort je Schule, weil die Person dort tatsächlich
+   einrichtet. Die Kennzeichnung `via_traeger` im Token entscheidet.
+3. **Der Lesezugriff bleibt eng.** RLS verbirgt die Zeilen anderer Schulen zu
+   Recht. Keine neue Tabelle und keine weitere Policy: Zwei Funktionen mit
+   `SECURITY DEFINER` (`config.staff_onboarding_across_schools`,
+   `config.school_setup_dismissed_in_traeger`) liefern nur den Onboarding-Stand
+   einer Person und prüfen die Beziehung selbst: den aktiven Zugang zur Schule
+   der Sitzung oder die aktive Mitgliedschaft beim Träger der Schule. Außerhalb
+   einer Schul-Transaktion liefern sie nichts. Das Löschen von Schule und Konto
+   bleibt unverändert, weil die Zeilen bleiben, wo sie waren.
+
+Folgen: Verlässt eine Schule den Träger oder wird gelöscht, zählt ihr
+Ausblenden nicht mehr. Wer den Assistenten in einer OGS abschließt statt
+ausblendet, sieht ihn in der nächsten noch nicht eingerichteten OGS wieder: Dort
+ist er echte Arbeit.

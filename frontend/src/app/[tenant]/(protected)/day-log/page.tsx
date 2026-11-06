@@ -17,6 +17,7 @@ import {
   FileText,
   Printer,
 } from "lucide-react";
+import { StatCard } from "~/components/ui/stat-card";
 import Link from "~/components/ui/navigation-link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -155,10 +156,19 @@ function studentDetailLine(student: DayLogStudent): string {
     const until = student.check_out_time
       ? formatClock(student.check_out_time)
       : "";
-    const range = until
-      ? `Ankunft ${from} · gegangen ${until}`
-      : `Ankunft ${from} · noch anwesend`;
-    const parts = [range];
+    // Ohne Rückkehr endet der Tag mit dem Weg zum Unterricht, nicht mit „gegangen“.
+    const leftForClass = student.class_periods?.some((p) => !p.until);
+    const departure = leftForClass ? "zum Unterricht" : "gegangen";
+    const parts = [
+      `Ankunft ${from} · ${until ? `${departure} ${until}` : "noch anwesend"}`,
+    ];
+    for (const period of student.class_periods ?? []) {
+      if (period.until) {
+        parts.push(
+          `im Unterricht ${formatClock(period.from)} bis ${formatClock(period.until)} Uhr`,
+        );
+      }
+    }
     if (student.check_out_note) {
       parts.push(`Grund für das frühe Gehen: ${student.check_out_note}`);
     }
@@ -174,27 +184,12 @@ function studentDetailLine(student: DayLogStudent): string {
   return parts.join(" · ");
 }
 
-// Stat is the calm gray value block used across the Anmeldungen section
-// (PhaseStat recipe): value on top, muted label below, no chart-style color.
-function Stat({
-  label,
-  value,
-  highlight = false,
-}: Readonly<{ label: string; value: number; highlight?: boolean }>) {
-  return (
-    <div className="rounded-xl bg-gray-50 px-3 py-2">
-      <span
-        className={`block text-sm font-semibold ${
-          highlight && value > 0 ? "text-moto-red-strong" : "text-gray-900"
-        }`}
-      >
-        {value}
-      </span>
-      <span className="block text-[11px] font-medium text-gray-500">
-        {label}
-      </span>
-    </div>
-  );
+// Nur „Ohne Meldung“ färbt, und nur, wenn jemand nachfassen muss.
+function counterTone(
+  status: (typeof DAY_LOG_STATUS_ORDER)[number],
+  value: number,
+) {
+  return status === "absent" && value > 0 ? "red" : "neutral";
 }
 
 function GroupCard({
@@ -229,11 +224,12 @@ function GroupCard({
       </div>
       <div className="mt-4 grid grid-cols-3 gap-2">
         {DAY_LOG_STATUS_ORDER.map((status) => (
-          <Stat
+          <StatCard
+            variant="tile"
             key={status}
             label={STATUS_LABELS[status]}
             value={counterFor(c, status)}
-            highlight={status === "absent"}
+            tone={counterTone(status, counterFor(c, status))}
           />
         ))}
       </div>
@@ -452,7 +448,7 @@ export default function DayLogPage() {
   // der tägliche Griff, PDF und Excel sind der seltene. Vorher standen alle
   // drei nebeneinander und füllten die halbe Kopfzeile -- dieselbe Reihe, die
   // die Statistik hatte.
-  const exportMenuItems = (groupId?: string): OverflowMenuEntry[] => [
+  const exportActions = (groupId?: string): OverflowMenuEntry[] => [
     { kind: "header", label: "Herunterladen" },
     {
       label:
@@ -493,7 +489,7 @@ export default function DayLogPage() {
           : "Drucken"}
       </Button>
       <OverflowMenu
-        items={exportMenuItems(groupId)}
+        items={exportActions(groupId)}
         ariaLabel="Weitere Aktionen"
       />
     </>
@@ -575,11 +571,15 @@ export default function DayLogPage() {
                   <>
                     <div className="mb-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
                       {DAY_LOG_STATUS_ORDER.map((status) => (
-                        <Stat
+                        <StatCard
+                          variant="tile"
                           key={status}
                           label={STATUS_LABELS[status]}
                           value={counterFor(openGroup.counters, status)}
-                          highlight={status === "absent"}
+                          tone={counterTone(
+                            status,
+                            counterFor(openGroup.counters, status),
+                          )}
                         />
                       ))}
                     </div>
@@ -602,14 +602,18 @@ export default function DayLogPage() {
       <SectionCard>
         {data && (
           <>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-7">
-              <Stat label="Kinder gesamt" value={data.counters.total} />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 2xl:grid-cols-7">
+              <StatCard
+                label="Kinder gesamt"
+                value={data.counters.total}
+                tone="neutral"
+              />
               {DAY_LOG_STATUS_ORDER.map((status) => (
-                <Stat
+                <StatCard
                   key={status}
                   label={STATUS_LABELS[status]}
                   value={counterFor(data.counters, status)}
-                  highlight={status === "absent"}
+                  tone={counterTone(status, counterFor(data.counters, status))}
                 />
               ))}
             </div>

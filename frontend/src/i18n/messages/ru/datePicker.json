@@ -4,5 +4,11 @@
   "previousMonth": "Предыдущий месяц",
   "nextMonth": "Следующий месяц",
   "month": "Месяц",
-  "year": "Год"
+  "year": "Год",
+  "timePicker": {
+    "selectTime": "Выбрать время",
+    "hour": "Час",
+    "minute": "Минута",
+    "minimum": "Не раньше {time}"
+  }
 }

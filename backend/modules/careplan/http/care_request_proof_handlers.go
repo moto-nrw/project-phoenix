@@ -3,7 +3,6 @@ package careplanhttp
 import (
 	context "context"
 	errors "errors"
-	fmt "fmt"
 	http "net/http"
 	strconv "strconv"
 	strings "strings"
@@ -11,6 +10,7 @@ import (
 
 	common "github.com/moto-nrw/project-phoenix/api/common"
 	carerequests "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // The OGS proof of a signed parent request (#4780): a pickup permission, a
@@ -131,7 +131,7 @@ func (rs *Resource) getCareScheduleChangeRequestProof(w http.ResponseWriter, r *
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)

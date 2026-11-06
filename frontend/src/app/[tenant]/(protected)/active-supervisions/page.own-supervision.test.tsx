@@ -428,7 +428,8 @@ describe("MeinRaumPage without groups:read (#4573)", () => {
     render(<MeinRaumPage />);
 
     expect(await screen.findByText("Marie Muster")).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toBeInTheDocument();
+    // The load error renders after the roster.
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() => expect(retry).toHaveBeenCalledOnce());
   });
@@ -452,6 +453,48 @@ describe("MeinRaumPage without groups:read (#4573)", () => {
     ).toBeInTheDocument();
     expect(swrKeys.some((key) => key?.startsWith("timetable-roster-"))).toBe(
       false,
+    );
+  });
+
+  it("reopens a block ended by mistake from the past blocks list (#5676)", async () => {
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key === "active-supervisions-own-sessions") return swr([]);
+      if (key === "active-supervisions-own-day") return swr([]);
+      if (key === "active-supervisions-own-planned-now") return swr([]);
+      return swr(undefined);
+    }) as never);
+    vi.mocked(timetableOperationsApi.plannedNow).mockResolvedValue([
+      {
+        ...runningBlock,
+        status: "completed",
+        activeGroupId: null,
+        canReopen: true,
+        // Testuhr 12:00 Berlin; das geplante Ende ist 13:00.
+        reopenUntil: "2026-09-09T11:00:00Z",
+      },
+    ] as never);
+    vi.mocked(timetableOperationsApi.reopen).mockResolvedValue({
+      instanceId: "99",
+      activeGroupId: "500",
+      status: "active",
+    });
+
+    render(<MeinRaumPage />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /Beendete und abgelaufene Blöcke/,
+      }),
+    );
+    expect(timetableOperationsApi.plannedNow).toHaveBeenCalledWith({
+      scope: "past",
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "AG Musik wieder öffnen" }),
+    );
+
+    await waitFor(() =>
+      expect(timetableOperationsApi.reopen).toHaveBeenCalledWith("99"),
     );
   });
 

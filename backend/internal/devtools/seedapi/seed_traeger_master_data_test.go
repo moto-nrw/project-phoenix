@@ -44,6 +44,10 @@ func TestSeedTraegerMasterDataStepKeepsTheBrandingThroughTheTraegerPortal(t *tes
 			// The Träger already has one of the two bank accounts.
 			_, _ = w.Write([]byte(`{"status":"success","data":{"bank_accounts":[{"label":"Ferienbetreuung"}]}}`))
 			return
+		case "/traeger/master-data/document-templates/bestaetigung":
+			// The Träger still writes with the standard template.
+			_, _ = w.Write([]byte(`{"status":"success","data":{"current":{"standard":true}}}`))
+			return
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"success"}`))
@@ -64,7 +68,9 @@ func TestSeedTraegerMasterDataStepKeepsTheBrandingThroughTheTraegerPortal(t *tes
 		"PUT /traeger/master-data/logo",
 		"GET /traeger/master-data/",
 		"POST /traeger/master-data/bank-accounts",
-	}, calls, "only the missing bank account is added")
+		"GET /traeger/master-data/document-templates/bestaetigung",
+		"POST /traeger/master-data/document-templates/bestaetigung/versions",
+	}, calls, "only the missing bank account is added, and the template while the standard one applies")
 	_, err := png.Decode(bytes.NewReader(logo))
 	assert.NoError(t, err, "the logo is a real PNG")
 }
@@ -110,4 +116,34 @@ func TestSeedTraegerBankAccountsFailOnOtherRefusals(t *testing.T) {
 
 	client := newTestClient(srv.URL, false)
 	require.ErrorContains(t, seedTraegerBankAccountsOnce(client, AuthRef{Kind: AuthBearer, Token: "traeger-token"}), "add the Träger bank account Elternbeiträge")
+}
+
+// A Träger with a template of its own keeps it; a save that another demo
+// school made first is refused as unchanged and kept (#4677).
+func TestSeedTraegerLetterTemplateKeepsAnExistingTemplate(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		current string
+		posts   int
+	}{
+		"own template":         {current: `{"standard":false}`, posts: 0},
+		"saved by a neighbour": {current: `{"standard":true}`, posts: 1},
+	} {
+		posts := 0
+		srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+			w.Header().Set("Content-Type", "application/json")
+			if r.Method == http.MethodGet {
+				_, _ = w.Write([]byte(`{"status":"success","data":{"current":` + tc.current + `}}`))
+				return
+			}
+			posts++
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"status":409,"code":"traeger.document_template_unchanged","detail":"the template equals its current version"}`))
+		})
+		client := newTestClient(srv.URL, false)
+		require.NoError(t, seedTraegerLetterTemplateOnce(client, AuthRef{Kind: AuthBearer, Token: "traeger-token"}), name)
+		assert.Equal(t, tc.posts, posts, name)
+		srv.Close()
+	}
 }

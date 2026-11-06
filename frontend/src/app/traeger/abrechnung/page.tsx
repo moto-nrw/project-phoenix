@@ -1,25 +1,33 @@
 "use client";
 
-// Abrechnung des Trägers (#4668): Rechnungsnummern und Abrechnungsläufe der
-// Ferienbetreuung. Ein Lauf rechnet einen Ferienzeitraum im Voraus ab; nach
+// Abrechnung des Trägers (#4668): Abrechnungsläufe der Ferienbetreuung. Das
+// Muster der Rechnungsnummern liegt in den Abrechnungsvorgaben (#5685). Ein Lauf rechnet einen Ferienzeitraum im Voraus ab; nach
 // der Prüfung gibt die Abrechnung ihn frei. Nur die Rolle mit dem Recht
-// „Abrechnung“ sieht die Seite.
+// „Abrechnung“ sieht die Seite. Der Filter „Ferienzeitraum“ steht in der
+// Adresse (`?ferienzeitraum=`), damit „Zur Abrechnung“ im Kopf eines
+// Ferienzeitraums hierher führen kann (#5688). Der Reiter „Familien“ führt
+// zu den Rechnungen und Beträgen je Familie (#4691).
 
 import { Plus, Receipt } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { BillingRunStartModal } from "~/components/traeger/billing-run-start-modal";
+import { billingTabs } from "~/components/traeger/billing-family-format";
 import {
   BILLING_RUN_STATUS_LABELS,
   BILLING_RUN_STATUS_TONES,
 } from "~/components/traeger/billing-format";
+import { BILLING_PERIOD_PARAM } from "~/components/traeger/use-holiday-period-billing-href";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { formatDateRange } from "~/components/traeger/holiday-period-format";
-import { NumberRangeCard } from "~/components/traeger/number-range-card";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Alert } from "~/components/ui/alert";
+import type {
+  ActiveFilter,
+  FilterConfig,
+} from "~/components/ui/page-header/types";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -30,8 +38,6 @@ import {
   type BillingRun,
   fetchBillingPeriods,
   fetchBillingRuns,
-  fetchHolidayNumberRange,
-  type NumberRange,
 } from "~/lib/traeger-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -83,11 +89,55 @@ const COLUMNS: DataTableColumn<BillingRun>[] = [
 interface PageData {
   readonly runs: BillingRun[];
   readonly periods: BillingPeriod[];
-  readonly numberRange: NumberRange;
+}
+
+interface PeriodOption {
+  readonly value: string;
+  readonly label: string;
+}
+
+/**
+ * Die Ferienzeiträume, nach denen sich die Liste filtern lässt: die mit einem
+ * Lauf und die, für die sich einer starten lässt, je einmal.
+ */
+function periodOptions(data: PageData): PeriodOption[] {
+  const names = new Map<string, string>();
+  for (const run of data.runs) names.set(run.holidayPeriodId, run.periodName);
+  for (const period of data.periods) names.set(period.id, period.name);
+  return [...names].map(([value, label]) => ({ value, label }));
+}
+
+/** Leerzustand der Liste; gefiltert nennt er den Zeitraum und den nächsten Schritt. */
+function filteredEmptyText(
+  periodFilter: string,
+  filterName: string | undefined,
+  canStart: boolean | undefined,
+): { title: string; description?: string } {
+  if (!periodFilter) return { title: "Noch kein Abrechnungslauf." };
+  return {
+    title: filterName
+      ? `Noch kein Abrechnungslauf für ${filterName}.`
+      : "Noch kein Abrechnungslauf für diesen Ferienzeitraum.",
+    description: canStart
+      ? "Starten Sie ihn oben mit „Lauf starten“. Der Zeitraum ist dort schon gewählt."
+      : "Einen Lauf gibt es erst, wenn der Ferienzeitraum veröffentlicht ist.",
+  };
 }
 
 export default function TraegerAbrechnungPage() {
+  // `useSearchParams` braucht eine Suspense-Grenze; bis dahin lädt die Seite.
+  return (
+    <Suspense fallback={<TenantPage title="Abrechnung" loading />}>
+      <BillingRunsPage />
+    </Suspense>
+  );
+}
+
+function BillingRunsPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const periodFilter = searchParams?.get(BILLING_PERIOD_PARAM) ?? "";
   const [data, setData] = useState<PageData | null>(null);
   const [starting, setStarting] = useState(false);
   const pageLoad = useApiLoadError();
@@ -95,12 +145,11 @@ export default function TraegerAbrechnungPage() {
 
   const load = useCallback(async () => {
     try {
-      const [runs, periods, numberRange] = await Promise.all([
+      const [runs, periods] = await Promise.all([
         fetchBillingRuns(),
         fetchBillingPeriods(),
-        fetchHolidayNumberRange(),
       ]);
-      setData({ runs, periods, numberRange });
+      setData({ runs, periods });
       clearLoadError();
     } catch (err) {
       logger.error("traeger_billing_runs_load_failed", {
@@ -120,22 +169,66 @@ export default function TraegerAbrechnungPage() {
   const openRun = (run: BillingRun) =>
     router.push(traegerPath(`/traeger/abrechnung/${run.id}`));
 
-  const released =
-    data?.runs.filter((run) => run.status === "released").length ?? 0;
+  const setPeriodFilter = (periodId: string) => {
+    const next = new URLSearchParams(searchParams?.toString());
+    if (periodId) next.set(BILLING_PERIOD_PARAM, periodId);
+    else next.delete(BILLING_PERIOD_PARAM);
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  };
+
   const noPeriod = data !== null && data.periods.length === 0;
+  const options = data ? periodOptions(data) : [];
+  const filterName = options.find(
+    (option) => option.value === periodFilter,
+  )?.label;
+  const shownRuns = periodFilter
+    ? (data?.runs.filter((run) => run.holidayPeriodId === periodFilter) ?? [])
+    : (data?.runs ?? []);
+  // Die Statuszeile zählt, was die Liste zeigt.
+  const released = shownRuns.filter((run) => run.status === "released").length;
+  // Ein gefilterter Zeitraum, für den sich ein Lauf starten lässt.
+  const canStartFilteredPeriod = data?.periods.some(
+    (period) => period.id === periodFilter,
+  );
+
+  const filters: FilterConfig[] =
+    options.length > 0
+      ? [
+          {
+            id: "period",
+            label: "Ferienzeitraum",
+            type: "dropdown",
+            value: periodFilter,
+            onChange: (value) => setPeriodFilter(value as string),
+            options: [{ value: "", label: "Alle Ferienzeiträume" }, ...options],
+          },
+        ]
+      : [];
+  const activeFilters: ActiveFilter[] = periodFilter
+    ? [
+        {
+          id: "period",
+          label: filterName ?? "Ausgewählter Ferienzeitraum",
+          onRemove: () => setPeriodFilter(""),
+        },
+      ]
+    : [];
 
   return (
     <TenantPage
       title="Abrechnung"
       info="Hier rechnen Sie die Ferienbetreuung im Voraus ab, nach den bestätigten Buchungen. Ein Lauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau und geben den Lauf dann frei."
       stats={
-        data && data.runs.length > 0 ? (
+        shownRuns.length > 0 ? (
           <TenantPageStats
             items={[
               {
-                value: data.runs.length,
+                value: shownRuns.length,
                 label:
-                  data.runs.length === 1
+                  shownRuns.length === 1
                     ? "Abrechnungslauf"
                     : "Abrechnungsläufe",
               },
@@ -145,6 +238,10 @@ export default function TraegerAbrechnungPage() {
         ) : null
       }
       statsLoading={!data && !pageLoad.error}
+      tabs={billingTabs("laeufe")}
+      filters={filters}
+      activeFilters={activeFilters}
+      onClearAllFilters={() => setPeriodFilter("")}
       actions={
         <Button
           type="button"
@@ -165,6 +262,7 @@ export default function TraegerAbrechnungPage() {
           <BillingRunStartModal
             isOpen={starting}
             periods={data.periods}
+            initialPeriodId={periodFilter}
             onClose={() => setStarting(false)}
             onStarted={(run) => {
               setStarting(false);
@@ -180,12 +278,12 @@ export default function TraegerAbrechnungPage() {
             <Alert
               id="billing-run-needs-period"
               type="info"
-              message="Es gibt noch keinen veröffentlichten Ferienzeitraum. Ein Lauf braucht einen. Ferienzeiträume legt die Verwaltung unter „Ferien“ an."
+              message="Es gibt noch keinen veröffentlichten Ferienzeitraum. Ein Lauf braucht einen. Ferienzeiträume legt die Verwaltung unter „Ferienbetreuung“ an."
             />
           ) : null}
           <DataTable
             columns={COLUMNS}
-            rows={data.runs}
+            rows={shownRuns}
             getRowKey={(run) => run.id}
             stackedOnMobile
             stackedLayout="row"
@@ -193,11 +291,14 @@ export default function TraegerAbrechnungPage() {
             emptyState={
               <EmptyState
                 icon={<Receipt className="h-12 w-12" aria-hidden="true" />}
-                title="Noch kein Abrechnungslauf."
+                {...filteredEmptyText(
+                  periodFilter,
+                  filterName,
+                  canStartFilteredPeriod,
+                )}
               />
             }
           />
-          <NumberRangeCard numberRange={data.numberRange} onChanged={load} />
         </>
       ) : null}
     </TenantPage>

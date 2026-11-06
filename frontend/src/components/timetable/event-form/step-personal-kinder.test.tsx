@@ -308,10 +308,10 @@ describe("StepPersonalKinder — Angebots-Quelle", () => {
     expect(trigger).toBeEnabled();
     fireEvent.click(trigger);
 
-    const entry = screen.getByRole("checkbox", {
+    const entry = screen.getByRole("option", {
       name: "Nicht mehr verfügbares Angebot (ID 42)",
     });
-    expect(entry).toBeChecked();
+    expect(entry).toHaveAttribute("aria-selected", "true");
     fireEvent.click(entry);
     expect(changeSourceOfferings).toHaveBeenCalledWith([]);
   });
@@ -371,8 +371,8 @@ describe("StepPersonalKinder — Angebots-Quelle", () => {
       screen.queryByText(/Nicht mehr verfügbares Angebot/),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("checkbox", { name: /Betreuung bis 14:30/ }),
-    ).toBeChecked();
+      screen.getByRole("option", { name: /Betreuung bis 14:30/ }),
+    ).toHaveAttribute("aria-selected", "true");
   });
 
   it("renders the phase-start warning supplied by the form", () => {
@@ -716,7 +716,8 @@ describe("StepPersonalKinder — Vorschau pro Wochentag (#5103)", () => {
     });
 
     expect(await screen.findByText("Montag")).toBeInTheDocument();
-    expect(screen.getByText("Fällt weg (1): Ben Kurz")).toBeInTheDocument();
+    expect(screen.getByText("Fällt weg (1)")).toBeInTheDocument();
+    expect(screen.getByText("Ben Kurz")).toBeInTheDocument();
     expect(getOfferingPreview).toHaveBeenCalledWith(
       "9",
       { offeringIds: ["42"], gradeLevels: [], schoolClasses: ["1b"] },
@@ -823,6 +824,7 @@ describe("StepPersonalKinder — Vorschlag „Angebot übernehmen“ (#5104)", (
       { offeringIds: ["7"], gradeLevels: [], schoolClasses: ["1b"] },
       { 1: ["11", "12", "13"], 3: ["11", "12", "13"] },
       "2026-09-14",
+      { type: "care", listKind: "edge_hours" },
     );
     expect(screen.queryByText(suggestionLine)).not.toBeInTheDocument();
   });

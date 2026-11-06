@@ -16,7 +16,8 @@ import { NotificationBadge } from "~/components/ui/notification-badge";
 import { PortalNavSheetLink } from "~/components/ui/portal-bottom-nav";
 import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { parentPath } from "~/lib/parent-url";
-import { isParentNavActive } from "./parent-nav-active";
+import { isParentNavActive, isParentSettingsPath } from "./parent-nav-active";
+import { ParentSettingsBottomNav } from "./parent-settings-nav";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import {
   PARENT_MORE_BADGE_SOURCES,
@@ -74,11 +75,17 @@ function NavBadge({
  */
 const PINNED_GROUP_START = "help";
 
-export function ParentBottomNav({
-  badges,
-  gates,
-  childCount,
-}: ParentNavCounts) {
+export function ParentBottomNav(props: ParentNavCounts) {
+  const pathname = usePathname();
+  // In den Einstellungen folgt die Leiste der Seitenleiste (#5750).
+  return isParentSettingsPath(pathname) ? (
+    <ParentSettingsBottomNav />
+  ) : (
+    <ParentMainBottomNav {...props} />
+  );
+}
+
+function ParentMainBottomNav({ badges, gates, childCount }: ParentNavCounts) {
   const t = useTranslations("parentNav");
   const pathname = usePathname();
   const isCompact = useMediaQuery(BELOW_LG);

@@ -152,6 +152,27 @@ func ValidatePushEndpoint(endpoint string) error {
 	return errors.New("endpoint host is not a trusted push service")
 }
 
+// PushSubscriptionExpired reports a push service status that retires the
+// subscription itself (RFC 8030 section 7.3, autopush 404/410).
+func PushSubscriptionExpired(status int) bool {
+	return status == 404 || status == 410
+}
+
+// PushRejectedPermanently reports a push service status that a retry of the
+// same request cannot change: a malformed request or invalid subscription keys
+// (400), missing or invalid VAPID authentication (401, 403; RFC 8292 sections 2
+// and 4.2) and an oversized payload (413). 403 also answers an invalid JWT
+// signature or claims, which affects every subscription, so it must not prune
+// the subscription the way an expiry does.
+func PushRejectedPermanently(status int) bool {
+	switch status {
+	case 400, 401, 403, 413:
+		return true
+	default:
+		return false
+	}
+}
+
 type Enqueued struct {
 	ID        int64
 	Transport Transport
@@ -159,8 +180,11 @@ type Enqueued struct {
 }
 
 var (
-	ErrCancelled           = errors.New("delivery: provider cancelled the intent")
-	ErrDeferred            = errors.New("delivery: provider deferred the intent")
+	ErrCancelled = errors.New("delivery: provider cancelled the intent")
+	ErrDeferred  = errors.New("delivery: provider deferred the intent")
+	// ErrPermanent marks a rejection that no retry can change. The intent
+	// dead-letters on this attempt, so the failure is still reported.
+	ErrPermanent           = errors.New("delivery: provider rejected the intent permanently")
 	ErrIdempotencyConflict = errors.New("delivery: idempotency key reused with different intent")
 )
 

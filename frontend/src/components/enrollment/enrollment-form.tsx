@@ -1,6 +1,6 @@
 "use client";
 
-import { AttachmentList } from "~/components/enrollment/attachment-list";
+import { DocumentAttachmentList } from "~/components/enrollment/attachment-list";
 import {
   EnrollmentUploadScope,
   fileValueMissing,
@@ -2656,7 +2656,7 @@ export function EnrollmentForm({
                     tr={tr}
                   />
                 )}
-                <AttachmentList attachments={block.attachments} />
+                <DocumentAttachmentList attachments={block.attachments} />
               </div>
             ))}
           </section>

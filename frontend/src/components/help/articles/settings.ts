@@ -2,7 +2,7 @@ import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
 /**
- * `/settings`. Die Reiter kommen aus dem Schema des Servers und sind je Schule
+ * `/settings`. Die Bereiche kommen aus dem Schema des Servers und sind je Schule
  * verschieden (settings/page.tsx:32) -- deshalb nennt der Artikel keine feste
  * Liste, sondern den Weg und die Regeln. Die wichtigsten Einstellungen stehen
  * in `settingsGuideTopic`.
@@ -18,12 +18,13 @@ export function settingsTopic(): HelpTopic {
     icon: "Settings",
     steps: [
       "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
-      "Wählen Sie oben den Bereich.",
+      "Die Seitenleiste zeigt jetzt die Bereiche. Wählen Sie einen Bereich. Am Handy stehen sie unten, ein Teil davon hinter `Mehr`.",
       "Ändern Sie die gewünschte Einstellung.",
+      "Mit `Zurück zur App` kommen Sie wieder zur Seite, auf der Sie vorher waren.",
     ],
     result: "Die Änderung gilt sofort für alle in Ihrer OGS.",
     notes: [
-      "Oben steht, wie viele Einstellungen von der Vorgabe abweichen.",
+      "Oben steht, wie viele Einstellungen dieses Bereichs von der Vorgabe abweichen.",
       "Jede Einstellung hat einen Satz darunter, der sagt, was sie bewirkt.",
       "Unter `Datenschutz` können Sie die `Nutzungsanalyse` ausschalten. Dann erhält moto keine Nutzungsstatistiken Ihrer Schule mehr.",
       "Damit enden auch Sitzungsaufzeichnungen. Die Fehlerdiagnose bleibt davon getrennt.",

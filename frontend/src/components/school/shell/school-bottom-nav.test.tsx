@@ -6,9 +6,11 @@ import { SchoolBottomNav } from "./school-bottom-nav";
 const teamChat = { unreadCount: 0, available: false } as const;
 
 const mockPathname = vi.hoisted(() => ({ value: "/" }));
+const mockSearch = vi.hoisted(() => ({ value: "" }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname.value,
+  useSearchParams: () => new URLSearchParams(mockSearch.value),
 }));
 
 vi.mock("~/lib/school-url", () => ({
@@ -96,6 +98,26 @@ describe("SchoolBottomNav", () => {
     expect(
       screen.getByLabelText("3 offene Tagesinformationen"),
     ).toBeInTheDocument();
+  });
+
+  it("zeigt in den Einstellungen Rückweg und beide Bereiche ohne Mehr", () => {
+    mockPathname.value = "/einstellungen";
+    mockSearch.value = "tab=privacy";
+    render(<SchoolBottomNav teamChat={teamChat} />);
+
+    expect(
+      screen.getByRole("link", { name: "Zurück zur App" }),
+    ).toHaveAttribute("href", "/");
+    expect(
+      screen.getByRole("link", { name: "Benachrichtigungen" }),
+    ).toHaveAttribute("href", "/einstellungen?tab=notifications");
+    expect(screen.getByRole("link", { name: "Datenschutz" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.queryByRole("button", { name: "Mehr" })).toBeNull();
+    mockPathname.value = "/";
+    mockSearch.value = "";
   });
 
   it("verschwindet ab der Sidebar-Breite", () => {

@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -126,8 +126,9 @@ type declarationSubmissionResponse struct {
 	PasswordConfirmed bool      `json:"password_confirmed"`
 }
 
-// declarationBodyLimit bounds a declaration request including its signature.
-const declarationBodyLimit = 320 << 10
+// signedBodyLimit bounds a request that carries a signature. A signature PNG
+// is at most 200 KB, about 273 KB as base64 (#4785).
+const signedBodyLimit = 320 << 10
 
 func parsePositiveID(raw string) (int64, bool) {
 	id, err := strconv.ParseInt(raw, 10, 64)
@@ -146,8 +147,7 @@ func (rs *Resource) submitDeclaration(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// A signature PNG is at most 200 KB, about 273 KB as base64 (#4785).
-	r.Body = http.MaxBytesReader(w, r.Body, declarationBodyLimit)
+	r.Body = http.MaxBytesReader(w, r.Body, signedBodyLimit)
 	var req declarationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
@@ -353,7 +353,7 @@ func (rs *Resource) writeDeclarationProofPDF(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)

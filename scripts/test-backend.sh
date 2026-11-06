@@ -19,6 +19,13 @@ cd "$repo_root/backend"
 # shellcheck source=scripts/go-test-workspace.sh
 source "$repo_root/scripts/go-test-workspace.sh"
 
+# The full-suite preset runs package binaries concurrently, but gives each Go
+# process one runtime worker. On macOS this avoids expensive parallel-GC work
+# in links, source ratchets and their child tools. Keep -p and -parallel below:
+# this is not serial package or test execution. Explicit -cpu still controls
+# the test runtime; other pinned commands and the native app loop are unchanged.
+export GOMAXPROCS=1
+
 sweep() {
   status=$?
   if ! go run ./internal/testdb/cmd/sweep && [ "$status" -eq 0 ]; then
@@ -53,7 +60,40 @@ fi
 # still overrides this budget. Keep -parallel 8 fixed: it sizes the DB pool
 # (13 connections per binary including its keeper) and is a test-cache input.
 package_workers=$("$repo_root/scripts/go-package-workers.sh")
-CONCURRENCY=(-p "$package_workers" -parallel 8 -tags=testhooks)
+# Test failures and panic stacks use Go's runtime line tables, not DWARF.
+# Go already strips ordinary disposable test binaries. Also omit DWARF when
+# a profile retains the binary; an explicit caller -ldflags still wins.
+# Inherit the GC target in both the test driver and its test processes.
+# An -exec wrapper disables Go's successful-test result cache. Preserve an
+# explicit caller GOGC without changing Go's normal result-cache decisions.
+export GOGC=${GOGC-50}
+CONCURRENCY=(-p "$package_workers" -parallel 8 -tags=testhooks -ldflags=-w)
+
+# Reuse native test links even with -count=1. Keep Go's own compile/vet and
+# result-cache decisions, plus caller-provided -toolexec and forced rebuilds.
+link_cache=true
+if [[ " ${GOFLAGS:-} " =~ [[:space:]]-(a|toolexec)(=|[[:space:]]|$) ]]; then
+  link_cache=false
+fi
+for argument in "$@"; do
+  case "$argument" in -a|-a=*|-toolexec|-toolexec=*) link_cache=false ;; esac
+done
+if "$link_cache"; then
+  go_cache=$(go env GOCACHE)
+  # cmd/go's quoted argument parser cannot represent paths containing both
+  # quote types. Conservatively leave apostrophe-containing paths uncached.
+  if [[ "$repo_root$go_cache" != *"'"* && ${CGO_ENABLED:-} == 0 ]]; then
+    link_cache_root="$go_cache/phoenix-test-links-v2"
+    key_source="$repo_root/scripts/go-test-link-key.go"
+    key_tool="$link_cache_root/key-$(git hash-object --no-filters -- "$key_source")"
+    # Build one small native helper, not a go process per archive or link.
+    # Cache preparation must never prevent the actual tests from running.
+    if mkdir -p "$link_cache_root" 2>/dev/null &&
+      GOOS= GOARCH= CGO_ENABLED=0 go build -o "$key_tool" "$key_source" >/dev/null 2>&1; then
+      CONCURRENCY+=(-toolexec "'$repo_root/scripts/go-test-link-cache.sh' '$link_cache_root' '$key_tool'")
+    fi
+  fi
+fi
 
 if go tool gotestsum --help >/dev/null 2>&1; then
   go tool gotestsum --format pkgname-and-test-fails -- "${CONCURRENCY[@]}" "$@"

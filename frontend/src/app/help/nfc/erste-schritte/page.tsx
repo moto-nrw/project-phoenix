@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { OnepagerHeader } from "~/components/help/onepager-header";
 import { buttonStyles } from "~/components/ui/button-styles";
+import { IconTile } from "~/components/ui/icon-tile";
 
 const quickstartPdf = {
   href: "/help/pdfs/nfc-erste-schritte.pdf",
@@ -111,10 +112,6 @@ export default function NfcQuickstartPage() {
 
           <div className="flex flex-1 flex-col px-10 py-9 print:px-8 print:py-6">
             <div className="relative grid gap-4 print:gap-3">
-              <div
-                className="absolute top-10 bottom-10 left-1/2 hidden w-[2px] -translate-x-1/2 rounded-full bg-gray-300 md:block print:block"
-                aria-hidden="true"
-              />
               {steps.map((step, index) => {
                 const Icon = step.icon;
                 const isRight = index === 1;
@@ -165,16 +162,6 @@ export default function NfcQuickstartPage() {
                       isRight ? "justify-end" : "justify-start",
                     ].join(" ")}
                   >
-                    <div
-                      className={[
-                        "bg-moto-green absolute top-8 hidden h-3 w-3 items-center justify-center rounded-full md:flex print:flex",
-                        isRight
-                          ? "left-1/2 -translate-x-[calc(100%+2px)]"
-                          : "left-1/2 translate-x-2",
-                      ].join(" ")}
-                      aria-hidden="true"
-                    />
-
                     <div
                       className={[
                         // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- printed guide step card: inside .moto-dotted-background--guide the print rules turn moto-content-surface transparent, which would let the dotted page background show through this bordered card in the PDF
@@ -239,12 +226,12 @@ export default function NfcQuickstartPage() {
 
             <section className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-5 print:mt-4 print:p-4">
               <div className="flex items-start gap-4 print:gap-3">
-                <span className="bg-moto-green/16 text-moto-green-strong flex h-12 w-12 shrink-0 items-center justify-center rounded-xl print:h-10 print:w-10">
-                  <BookOpen
-                    className="h-6 w-6 print:h-5 print:w-5"
-                    aria-hidden="true"
-                  />
-                </span>
+                <IconTile
+                  size="page"
+                  tone="green"
+                  className="print:h-10 print:w-10 print:[&>svg]:size-5"
+                  icon={<BookOpen aria-hidden="true" />}
+                />
                 <div className="min-w-0 flex-1">
                   <h2 className="text-[19px] leading-tight font-semibold tracking-normal print:text-[17px]">
                     Weiter zu den NFC-Anleitungen

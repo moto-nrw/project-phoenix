@@ -42,6 +42,7 @@ import {
   regenerateDisplayToken,
   deleteDisplay,
 } from "~/lib/display-api";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "InfoDisplaysPage" });
 
@@ -110,9 +111,11 @@ function InfoDisplaysPageContent() {
   const [tokenModal, setTokenModal] = useState<TokenModalState | null>(null);
 
   const filtered = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = foldForSearch(searchQuery.trim());
     if (!query) return displays ?? [];
-    return (displays ?? []).filter((d) => d.name.toLowerCase().includes(query));
+    return (displays ?? []).filter((d) =>
+      foldForSearch(d.name).includes(query),
+    );
   }, [displays, searchQuery]);
 
   const run = async <T,>(

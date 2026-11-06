@@ -83,7 +83,7 @@ export function DeliveryStatusBadge({ status }: { readonly status: string }) {
   );
 }
 
-export function EmptyState({
+export function ProvisioningEmptyState({
   title,
   description,
   buttonLabel,

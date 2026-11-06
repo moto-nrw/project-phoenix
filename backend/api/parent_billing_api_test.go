@@ -73,6 +73,12 @@ func holidayConfirmPath(periodID, registrationID int64) string {
 	return holidayContributionPath(periodID, registrationID) + "/confirm"
 }
 
+// holidayCancelPath is the cancellation, which the Elternabrechnung serves
+// so it can compute the sibling group again (#5662).
+func holidayCancelPath(periodID, registrationID int64) string {
+	return holidayContributionPath(periodID, registrationID) + "/cancel"
+}
+
 func holidayQuotePath(token string) string { return "/traeger/holiday-quotes/" + token }
 
 // traegerColleague signs in a further person of the Träger-Büro of office

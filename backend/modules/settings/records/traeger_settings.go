@@ -27,7 +27,10 @@ type TraegerSettingAuditEntry struct {
 	NewValue       json.RawMessage `bun:"new_value,type:jsonb,nullzero" json:"new_value,omitempty"`
 	Action         string          `bun:"action,notnull" json:"action"` // set, reset
 	ChangedBy      *int64          `bun:"changed_by" json:"changed_by,omitempty"`
-	ChangedAt      time.Time       `bun:"changed_at,notnull,default:current_timestamp" json:"changed_at"`
+	// ChangedByOperator names the operator of a change from the operator
+	// dashboard (#5748); ChangedBy is then nil.
+	ChangedByOperator *int64    `bun:"changed_by_operator" json:"changed_by_operator,omitempty"`
+	ChangedAt         time.Time `bun:"changed_at,notnull,default:current_timestamp" json:"changed_at"`
 }
 
 // TraegerSettingRepository is the Settings Platform's store of the Träger

@@ -3,6 +3,7 @@ import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { StatCard } from "~/components/ui/stat-card";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -209,17 +210,15 @@ export function ArbeitszeitmodellTab({
       >
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {schedule.weeklyTotals.map((total, idx) => (
-            <div
-              key={WEEK_BADGE_LETTERS[idx] ?? `week-${idx}`}
-              className="moto-content-surface rounded-xl border p-4"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-                  Woche {WEEK_BADGE_LETTERS[idx] ?? idx + 1}
-                </span>
-                <span className="text-sm font-bold text-gray-700 tabular-nums">
-                  {formatDuration(total)}
-                </span>
+            <div key={WEEK_BADGE_LETTERS[idx] ?? `week-${idx}`}>
+              {/* Eigene Hülle: `h-full` der Kachel soll sich nicht auf die Höhe
+                  samt Tageszeile darunter beziehen. */}
+              <div>
+                <StatCard
+                  label={`Woche ${WEEK_BADGE_LETTERS[idx] ?? idx + 1}`}
+                  value={formatDuration(total)}
+                  tone="neutral"
+                />
               </div>
               <div className="mt-3 grid grid-cols-5 gap-1 text-center text-xs">
                 {WORK_DAYS.map((d) => {

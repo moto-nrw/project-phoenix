@@ -1,5 +1,7 @@
 "use client";
 
+import { Textarea } from "~/components/ui/textarea";
+
 interface TextareaFieldProps {
   readonly ariaLabel?: string;
   readonly value: string;
@@ -8,6 +10,8 @@ interface TextareaFieldProps {
   readonly disabled?: boolean;
   /** Example text of an empty field. */
   readonly placeholder?: string;
+  /** Visible lines; long texts such as the AGB keep the default. */
+  readonly rows?: number;
   /** id of the hint that explains why the value is refused. */
   readonly errorId?: string;
 }
@@ -28,20 +32,23 @@ export function TextareaField({
   onBlur,
   disabled = false,
   placeholder,
+  rows = 10,
   errorId,
 }: TextareaFieldProps) {
   return (
-    <textarea
-      aria-label={ariaLabel}
-      aria-invalid={errorId ? true : undefined}
-      aria-describedby={errorId}
-      placeholder={placeholder}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onBlur={onBlur}
-      disabled={disabled}
-      rows={10}
-      className="aria-[invalid=true]:ring-moto-red block w-full min-w-0 resize-y rounded-lg border-0 bg-white px-3 py-2.5 font-mono text-sm leading-6 text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 sm:w-96"
-    />
+    <div className="w-full min-w-0 sm:w-96">
+      <Textarea
+        aria-label={ariaLabel}
+        aria-invalid={errorId ? true : undefined}
+        aria-describedby={errorId}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        disabled={disabled}
+        rows={rows}
+        className="resize-y py-2.5 font-mono leading-6"
+      />
+    </div>
   );
 }

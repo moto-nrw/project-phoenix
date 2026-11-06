@@ -45,6 +45,7 @@ import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { staffConcept } from "~/lib/concepts/staff";
+import { foldForSearch } from "~/lib/search-fold";
 
 type StaffGroupingMode = "none" | "role";
 
@@ -65,7 +66,7 @@ function parseStaffGrouping(value: string | null): StaffGroupingMode {
 
 // Search-match helper extracted so the page-level useMemo stays under
 // the cognitive-complexity cap. Checks all teacher-display fields
-// against a lowercased needle.
+// against a needle folded with foldForSearch.
 function matchesTeacherSearch(teacher: Teacher, searchLower: string): boolean {
   const haystacks = [
     teacher.first_name,
@@ -76,7 +77,7 @@ function matchesTeacherSearch(teacher: Teacher, searchLower: string): boolean {
     teacher.specialization,
     teacher.email,
   ];
-  return haystacks.some((h) => h?.toLowerCase().includes(searchLower) ?? false);
+  return haystacks.some((h) => foldForSearch(h).includes(searchLower));
 }
 
 export default function TeachersPage() {
@@ -182,7 +183,7 @@ function TeachersPageContent() {
     let filtered = [...teachers];
 
     if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
+      const searchLower = foldForSearch(searchTerm);
       filtered = filtered.filter((teacher) =>
         matchesTeacherSearch(teacher, searchLower),
       );

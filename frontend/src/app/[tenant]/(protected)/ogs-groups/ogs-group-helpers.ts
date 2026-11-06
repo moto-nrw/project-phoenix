@@ -2,11 +2,13 @@ import type { Student } from "~/lib/api";
 import {
   isPresentLocation,
   isAtSchoolLocation,
+  isInClassLocation,
   isHomeLocation,
   isSchoolyardLocation,
   isTransitLocation,
   parseLocation,
 } from "~/lib/location-helper";
+import { foldForSearch } from "~/lib/search-fold";
 
 // Define OGSGroup type based on EducationalGroup with additional fields
 export interface OGSGroup {
@@ -83,12 +85,12 @@ export function matchesSearchFilter(
 ): boolean {
   if (!searchTerm) return true;
 
-  const searchLower = searchTerm.toLowerCase();
+  const searchLower = foldForSearch(searchTerm);
   return (
-    (student.name?.toLowerCase().includes(searchLower) ?? false) ||
-    (student.first_name?.toLowerCase().includes(searchLower) ?? false) ||
-    (student.second_name?.toLowerCase().includes(searchLower) ?? false) ||
-    (student.school_class?.toLowerCase().includes(searchLower) ?? false)
+    foldForSearch(student.name).includes(searchLower) ||
+    foldForSearch(student.first_name).includes(searchLower) ||
+    foldForSearch(student.second_name).includes(searchLower) ||
+    foldForSearch(student.school_class).includes(searchLower)
   );
 }
 
@@ -115,6 +117,8 @@ export function matchesAttendanceFilter(
       return isSchoolyardLocation(student.current_location);
     case "at_school":
       return isAtSchoolLocation(student.current_location);
+    case "in_class":
+      return isInClassLocation(student.current_location);
     case "at_home":
       return isHomeLocation(student.current_location);
     default:

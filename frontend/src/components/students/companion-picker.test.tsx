@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { act, render, screen, fireEvent } from "@testing-library/react";
 
 import { CompanionPicker } from "./companion-picker";
 import { ApiError } from "~/lib/api-error";
+import { releaseFakeTimers } from "~/test/clock";
 import { fetchStudents } from "~/lib/student-api";
 import type { StudentCompanion } from "~/lib/student-companion-api";
 
@@ -152,6 +153,9 @@ describe("CompanionPicker search", () => {
       <CompanionPicker value={[]} onChange={vi.fn()} allowedDays={["mon"]} />,
     );
 
+    // Fake timers skip the search debounce (300 ms) before each search; the
+    // real event loop then sees the answer through.
+    vi.useFakeTimers();
     fireEvent.click(screen.getByRole("button", { name: /Kind hinzufügen/ }));
     fireEvent.change(
       screen.getByRole("textbox", {
@@ -159,6 +163,8 @@ describe("CompanionPicker search", () => {
       }),
       { target: { value: "Lin" } },
     );
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    releaseFakeTimers();
 
     expect(
       await screen.findByText(
@@ -167,7 +173,10 @@ describe("CompanionPicker search", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("Kein Kind gefunden.")).not.toBeInTheDocument();
 
+    vi.useFakeTimers();
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await act(() => vi.advanceTimersByTimeAsync(300));
+    releaseFakeTimers();
 
     expect(await screen.findByText("Lina Lustig")).toBeInTheDocument();
   });

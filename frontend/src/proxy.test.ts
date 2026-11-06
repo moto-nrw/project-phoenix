@@ -184,6 +184,23 @@ describe("CSP security boundaries", () => {
     );
   });
 
+  it.each([
+    ["school-a.localhost:3000", "/dashboard"],
+    [SCHOOL_HOSTNAME, "/login"],
+    [OPERATOR_HOSTNAME, "/login"],
+  ])(
+    "frames only the own origin and loaded PDFs on %s%s (#5692)",
+    (host, path) => {
+      const res = proxy(makeRequest(`http://${host}${path}`, host));
+      const directives = res.headers
+        .get("Content-Security-Policy")
+        ?.split("; ");
+      expect(
+        directives?.filter((value) => value.startsWith("frame-src ")),
+      ).toEqual(["frame-src 'self' blob:"]);
+    },
+  );
+
   it.each(["production", "development"])(
     "keeps the expected script sources in %s",
     async (environment) => {
@@ -1249,14 +1266,25 @@ describe("proxy", () => {
       );
     });
 
-    it("rewrites /access-log to /traeger/access-log (#4655)", () => {
+    it("rewrites the view of a school to /traeger/schulen (#5686)", () => {
       const res = proxy(
-        makeRequest(`http://${TRAEGER_HOSTNAME}/access-log`, TRAEGER_HOSTNAME),
+        makeRequest(`http://${TRAEGER_HOSTNAME}/schulen/2`, TRAEGER_HOSTNAME),
       );
 
       expect(res.headers.get("location")).toBeNull();
       expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/traeger/access-log",
+        "/traeger/schulen/2",
+      );
+    });
+
+    it("rewrites the dashboard to /traeger/uebersicht (#4674)", () => {
+      const res = proxy(
+        makeRequest(`http://${TRAEGER_HOSTNAME}/uebersicht`, TRAEGER_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/uebersicht",
       );
     });
 
@@ -1287,14 +1315,52 @@ describe("proxy", () => {
       );
     });
 
-    it("rewrites /beitraege to /traeger/beitraege (#4664)", () => {
+    it("rewrites the settings pages to /traeger/einstellungen/… (#5685)", () => {
+      for (const path of [
+        "/einstellungen/mitglieder",
+        "/einstellungen/briefkopf",
+        "/einstellungen/abrechnung",
+        "/einstellungen/zugriffsprotokoll",
+      ]) {
+        const res = proxy(
+          makeRequest(`http://${TRAEGER_HOSTNAME}${path}`, TRAEGER_HOSTNAME),
+        );
+
+        expect(res.headers.get("location")).toBeNull();
+        expect(res.headers.get("x-middleware-rewrite")).toContain(
+          `/traeger${path}`,
+        );
+      }
+    });
+
+    it.each([
+      ["/accounts", "/einstellungen/mitglieder"],
+      ["/traeger/accounts", "/einstellungen/mitglieder"],
+      ["/accounts/", "/einstellungen/mitglieder"],
+      ["/traeger/accounts/", "/einstellungen/mitglieder"],
+      ["/access-log", "/einstellungen/zugriffsprotokoll"],
+      ["/traeger/access-log", "/einstellungen/zugriffsprotokoll"],
+      ["/access-log/", "/einstellungen/zugriffsprotokoll"],
+      ["/traeger/access-log/", "/einstellungen/zugriffsprotokoll"],
+      ["/briefkopf", "/einstellungen/briefkopf"],
+      ["/traeger/briefkopf", "/einstellungen/briefkopf"],
+      ["/briefkopf/", "/einstellungen/briefkopf"],
+      ["/traeger/briefkopf/", "/einstellungen/briefkopf"],
+      ["/beitraege", "/einstellungen/abrechnung"],
+      ["/traeger/beitraege", "/einstellungen/abrechnung"],
+      ["/beitraege/", "/einstellungen/abrechnung"],
+      ["/traeger/beitraege/", "/einstellungen/abrechnung"],
+    ])("redirects the old path %s to %s (#5685)", (from, to) => {
       const res = proxy(
-        makeRequest(`http://${TRAEGER_HOSTNAME}/beitraege`, TRAEGER_HOSTNAME),
+        makeRequest(
+          `http://${TRAEGER_HOSTNAME}${from}?von=mail`,
+          TRAEGER_HOSTNAME,
+        ),
       );
 
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/traeger/beitraege",
+      expect(res.status).toBe(308);
+      expect(res.headers.get("location")).toBe(
+        `http://${TRAEGER_HOSTNAME}${to}?von=mail`,
       );
     });
 
@@ -1310,6 +1376,22 @@ describe("proxy", () => {
       expect(res.headers.get("x-middleware-rewrite")).toContain(
         "/traeger/abrechnung/7",
       );
+    });
+
+    it("rewrites the templates in the settings area to /traeger (#4677, #5685)", () => {
+      for (const path of [
+        "/einstellungen/briefkopf/vorlagen",
+        "/einstellungen/briefkopf/vorlagen/bestaetigung",
+      ]) {
+        const res = proxy(
+          makeRequest(`http://${TRAEGER_HOSTNAME}${path}`, TRAEGER_HOSTNAME),
+        );
+
+        expect(res.headers.get("location")).toBeNull();
+        expect(res.headers.get("x-middleware-rewrite")).toContain(
+          `/traeger${path}`,
+        );
+      }
     });
 
     it("passes through /api/traeger/* without rewriting", () => {

@@ -7,7 +7,8 @@ import { LogoutModal } from "~/components/ui/logout-modal";
 import { NavLink } from "~/components/ui/nav-link";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { parentPath } from "~/lib/parent-url";
-import { isParentNavActive } from "./parent-nav-active";
+import { isParentNavActive, isParentSettingsPath } from "./parent-nav-active";
+import { ParentSettingsSidebarEntries } from "./parent-settings-nav";
 import type { ParentNavCounts } from "./parent-bottom-nav";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import {
@@ -108,7 +109,8 @@ export function ParentSidebar({
     );
   };
 
-  const settingsActive = isParentNavActive("/parents/settings", pathname);
+  // In den Einstellungen wechselt der Inhalt derselben Leiste (#5750).
+  const inSettings = isParentSettingsPath(pathname);
   const enrollActive = isParentNavActive("/parents/anmeldung", pathname);
 
   return (
@@ -124,91 +126,100 @@ export function ParentSidebar({
           }`}
         >
           <nav
-            aria-label={t("mainNav")}
+            aria-label={inSettings ? t("settings") : t("mainNav")}
             className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3"
           >
-            <ul>{PARENT_PRIMARY_NAV.map(renderItem)}</ul>
-            {secondary.length > 0 && <ul>{secondary.map(renderItem)}</ul>}
+            {inSettings ? (
+              <ul>
+                <ParentSettingsSidebarEntries />
+              </ul>
+            ) : (
+              <>
+                <ul>{PARENT_PRIMARY_NAV.map(renderItem)}</ul>
+                {secondary.length > 0 && <ul>{secondary.map(renderItem)}</ul>}
+              </>
+            )}
           </nav>
 
-          <nav
-            aria-label={t("accountNav")}
-            className="border-t border-gray-200 p-3 lg:p-4 xl:p-3"
-          >
-            <ul className="space-y-1">
-              <li>
-                {/* Die Anleitung liegt ausserhalb des Portals: eigener Tab,
-                    nie ein Aktivzustand. `role=parent` erspart den Eltern
-                    die Frage, fuer wen die Anleitung ist. */}
-                <NavLink
-                  href="/help?role=parent"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  data-parent-nav-item="help"
-                  data-active="false"
-                  className={portalSidebarRowClasses(false)}
-                >
-                  <MotoNavIcon
-                    scene
-                    concept={helpConcept}
-                    active={false}
-                    className={`${PORTAL_ICON_CLASSES} text-gray-400`}
-                  />
-                  <span className="flex-1">{t("help")}</span>
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
-                  href={parentPath("/parents/settings")}
-                  data-parent-nav-item="settings"
-                  data-active={settingsActive ? "true" : "false"}
-                  aria-current={settingsActive ? "page" : undefined}
-                  className={portalSidebarRowClasses(settingsActive)}
-                >
-                  <MotoNavIcon
-                    scene
-                    concept={settingsConcept}
-                    active={settingsActive}
-                    className={`${PORTAL_ICON_CLASSES} ${settingsActive ? "" : "text-gray-400"}`}
-                  />
-                  <span className="flex-1">{t("settings")}</span>
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
-                  href={parentPath("/parents/anmeldung")}
-                  data-parent-nav-item="enroll"
-                  data-active={enrollActive ? "true" : "false"}
-                  aria-current={enrollActive ? "page" : undefined}
-                  className={portalSidebarRowClasses(enrollActive)}
-                >
-                  <MotoNavIcon
-                    scene
-                    concept={enrollmentsConcept}
-                    active={enrollActive}
-                    className={`${PORTAL_ICON_CLASSES} ${enrollActive ? "" : "text-gray-400"}`}
-                  />
-                  <span className="flex-1">{t("enroll")}</span>
-                </NavLink>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  data-parent-nav-item="logout"
-                  onClick={() => setLogoutModalOpen(true)}
-                  className={`${portalSidebarRowClasses(false)} w-full text-left`}
-                >
-                  <MotoNavIcon
-                    scene
-                    concept={logoutConcept}
-                    active={false}
-                    className={`${PORTAL_ICON_CLASSES} text-gray-400`}
-                  />
-                  <span className="flex-1">{t("logout")}</span>
-                </button>
-              </li>
-            </ul>
-          </nav>
+          {inSettings ? null : (
+            <nav
+              aria-label={t("accountNav")}
+              className="border-t border-gray-200 p-3 lg:p-4 xl:p-3"
+            >
+              <ul className="space-y-1">
+                <li>
+                  {/* Die Anleitung liegt ausserhalb des Portals: eigener Tab,
+                      nie ein Aktivzustand. `role=parent` erspart den Eltern
+                      die Frage, fuer wen die Anleitung ist. */}
+                  <NavLink
+                    href="/help?role=parent"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-parent-nav-item="help"
+                    data-active="false"
+                    className={portalSidebarRowClasses(false)}
+                  >
+                    <MotoNavIcon
+                      scene
+                      concept={helpConcept}
+                      active={false}
+                      className={`${PORTAL_ICON_CLASSES} text-gray-400`}
+                    />
+                    <span className="flex-1">{t("help")}</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    href={parentPath("/parents/settings")}
+                    data-parent-nav-item="settings"
+                    data-active="false"
+                    className={portalSidebarRowClasses(false)}
+                  >
+                    <MotoNavIcon
+                      scene
+                      concept={settingsConcept}
+                      active={false}
+                      className={`${PORTAL_ICON_CLASSES} text-gray-400`}
+                    />
+                    <span className="flex-1">{t("settings")}</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    href={parentPath("/parents/anmeldung")}
+                    data-parent-nav-item="enroll"
+                    data-active={enrollActive ? "true" : "false"}
+                    aria-current={enrollActive ? "page" : undefined}
+                    className={portalSidebarRowClasses(enrollActive)}
+                  >
+                    <MotoNavIcon
+                      scene
+                      concept={enrollmentsConcept}
+                      active={enrollActive}
+                      className={`${PORTAL_ICON_CLASSES} ${enrollActive ? "" : "text-gray-400"}`}
+                    />
+                    <span className="flex-1">{t("enroll")}</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    data-parent-nav-item="logout"
+                    onClick={() => setLogoutModalOpen(true)}
+                    className={`${portalSidebarRowClasses(false)} w-full text-left`}
+                  >
+                    <MotoNavIcon
+                      scene
+                      concept={logoutConcept}
+                      active={false}
+                      className={`${PORTAL_ICON_CLASSES} text-gray-400`}
+                    />
+                    <span className="flex-1">{t("logout")}</span>
+                  </button>
+                </li>
+              </ul>
+            </nav>
+          )}
         </div>
       </aside>
       <LogoutModal

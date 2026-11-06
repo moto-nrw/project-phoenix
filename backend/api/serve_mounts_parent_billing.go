@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -36,7 +37,8 @@ import (
 // Träger (#4669, ADR 0121), its overview for the Kämmerei (#4672, ADR 0122)
 // and the list for the reimbursement by a cost bearer (#5627), and the mail
 // of the letters as mails of the Träger on Delivery's outbox and their
-// print in one file (#4670, ADR 0123).
+// print in one file (#4670, ADR 0123), and the invoices and amounts per
+// family at /traeger/billing-families behind the right "Abrechnung" (#4691).
 func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, settings, delivery, healthData, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
@@ -46,6 +48,9 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	runs := NewBillingRunHTTP(settings, delivery, healthData)
 	root.Mount("/traeger/billing-runs", runs.RunRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/number-ranges", runs.NumberRangeRouter(ProtectedTraegerRoutes))
+	families := parentBillingHTTP.NewBillingFamilyResource(parentBillingCompose.NewBillingFamilies(),
+		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+	root.Mount("/traeger/billing-families", families.Router(ProtectedTraegerRoutes))
 }
 
 // NewBillingRunHTTP binds the billing runs to the right "Abrechnung", to
@@ -56,7 +61,8 @@ func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntim
 	registrations := parentBillingBillingRegistrations{
 		periods: enrollmentCompose.NewHolidayPeriods(), review: enrollmentCompose.NewHolidayRegistrationReview(healthData),
 	}
-	letterheads := parentBillingLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(), settings: settings}
+	letterheads := parentBillingLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(),
+		templates: organizationTenancyCompose.NewTraegerDocumentTemplates(), settings: settings}
 	return parentBillingHTTP.NewBillingRunResource(parentBillingCompose.NewBillingRuns(registrations, parentBillingSettings{settings: settings}),
 		parentBillingCompose.NewBillingLetters(letterheads),
 		parentBillingCompose.NewBillingLetterMail(parentBillingLetterPost{settings: settings, delivery: delivery}),
@@ -158,8 +164,9 @@ type TraegerBrandingSettings interface {
 
 // parentBillingSettings binds the Elternabrechnung's settings port to the
 // Träger level of the settings system: whether the Träger enters the debtor
-// number of the family when it confirms a holiday registration (#5621), and
-// its payment text, which the billing run checks before the release (#5622).
+// number of the family when it confirms a holiday registration (#5621), its
+// payment text, which the billing run checks before the release (#5622), and
+// its choices in the chain of the holiday contribution (#5664).
 type parentBillingSettings struct {
 	settings TraegerBrandingSettings
 }
@@ -180,12 +187,28 @@ func (s parentBillingSettings) PaymentText(ctx context.Context, organizationID i
 	return texts[configModels.KeyParentBillingPaymentText], nil
 }
 
+func (s parentBillingSettings) HolidayChain(ctx context.Context, organizationID int64) (parentbilling.HolidayChainSettings, error) {
+	texts, err := s.settings.TraegerTexts(ctx, organizationID, []string{
+		configModels.KeyParentBillingSiblingRank, configModels.KeyParentBillingCostTakeoverOrder,
+	})
+	if err != nil {
+		return parentbilling.HolidayChainSettings{}, err
+	}
+	return parentbilling.HolidayChainSettings{
+		SiblingRank:       texts[configModels.KeyParentBillingSiblingRank],
+		CostTakeoverOrder: texts[configModels.KeyParentBillingCostTakeoverOrder],
+	}, nil
+}
+
 // parentBillingLetterheads binds the letterhead of the letters to the
 // master data of Organisation & Tenancy, which logs the read of the
-// contact person and the bank accounts, and to the branding settings and
-// the payment text of the Träger (ADR 0112, ADR 0121, #5622).
+// contact person and the bank accounts, to the branding settings and the
+// payment text of the Träger (ADR 0112, ADR 0121, #5622), and the template
+// of the confirmation letter to the document templates of the Träger
+// (#4677, ADR 0152).
 type parentBillingLetterheads struct {
 	masterData organizationtenancy.TraegerMasterData
+	templates  organizationtenancy.TraegerDocumentTemplates
 	settings   TraegerBrandingSettings
 }
 
@@ -206,6 +229,15 @@ func (b parentBillingLetterheads) Letterhead(ctx context.Context, reviewer paren
 		FooterText: texts[configModels.KeyBrandingFooterText], ContactName: profile.Contact.Name,
 		ContactPhone: profile.Contact.Phone, ContactEmail: profile.Contact.Email,
 		PaymentText: texts[configModels.KeyParentBillingPaymentText],
+	}
+	template, err := b.templates.Current(ctx, reviewer.OrganizationID, templates.KindConfirmation)
+	if err != nil {
+		return parentbilling.Letterhead{}, err
+	}
+	head.Template = parentbilling.LetterTemplate{
+		Version: template.Version, Subject: template.Subject, Salutation: template.Salutation,
+		Body: template.Body, Closing: template.Closing,
+		GroupByChild: template.Invoice.GroupByChild, HideTimeModels: template.Invoice.HideTimeModels,
 	}
 	for _, account := range profile.BankAccounts {
 		if account.IsDefault {
@@ -291,6 +323,17 @@ func (b parentBillingHolidayRegistrations) ConfirmHolidayRegistration(ctx contex
 
 func (b parentBillingHolidayRegistrations) SetHolidayDebtorNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, debtorNumber string) (parentbilling.HolidayRegistration, error) {
 	detail, err := b.review.SetHolidayDebtorNumber(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, debtorNumber)
+	if err != nil {
+		return parentbilling.HolidayRegistration{}, parentBillingHolidayError(err)
+	}
+	return parentBillingRegistration(detail), nil
+}
+
+// CancelHolidayRegistration cancels the registration through the review,
+// which checks the Träger and the deadline and records the cancellation
+// (#5662).
+func (b parentBillingHolidayRegistrations) CancelHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64) (parentbilling.HolidayRegistration, error) {
+	detail, err := b.review.ChangeHolidayRegistration(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, enrollmentOwner.HolidayAuditCancel)
 	if err != nil {
 		return parentbilling.HolidayRegistration{}, parentBillingHolidayError(err)
 	}
@@ -405,7 +448,7 @@ func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail)
 			}
 		}
 		registration.Children[i] = parentbilling.HolidayChild{
-			ID: child.ID, Position: i + 1, FirstName: child.FirstName, LastName: child.LastName, Bookings: bookings,
+			ID: child.ID, Position: i + 1, FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate, Bookings: bookings,
 		}
 	}
 	return registration
@@ -419,6 +462,7 @@ func parentBillingHolidayError(err error) error {
 		{enrollmentOwner.ErrHolidayPeriodNotFound, parentbilling.ErrHolidayPeriodNotFound},
 		{enrollmentOwner.ErrHolidayRegistrationEntryNotFound, parentbilling.ErrHolidayRegistrationNotFound},
 		{enrollmentOwner.ErrHolidayRegistrationStateConflict, parentbilling.ErrHolidayRegistrationStateConflict},
+		{enrollmentOwner.ErrHolidayRegistrationFrozen, parentbilling.ErrHolidayRegistrationFrozen},
 	} {
 		if errors.Is(err, known.from) {
 			return fmt.Errorf("%w: %w", known.to, err)

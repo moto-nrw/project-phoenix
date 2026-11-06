@@ -185,7 +185,8 @@ func (t *TraegerSettings) resolve(key string, definition *config.Definition, sna
 		return nil, err
 	}
 	return &config.ResolvedSetting{
-		Key: key, Label: definition.Label, Description: definition.Description, Type: definition.Type,
+		Key: key, Label: definition.Label, Description: definition.Description, Placeholder: definition.Placeholder,
+		Type:    definition.Type,
 		Default: definition.Default, Value: value, IsDefault: source == config.SourceDefault,
 		Writable: slices.Contains(rights, t.deps.Rights[definition.TraegerWriteRight]), Visible: true,
 		SortOrder: definition.SortOrder, AccessPolicy: definition.AccessPolicy, Levels: definition.Levels,
@@ -213,6 +214,66 @@ func (t *TraegerSettings) writeDefinition(key string, rights []string, operation
 // change (ADR 0086 section 7). It opens its own Träger transaction and
 // rejects an ambient one of another kind.
 func (t *TraegerSettings) SetValue(ctx context.Context, organizationID, accountID int64, rights []string, key string, value any) error {
+	return t.setValue(ctx, organizationID, traegerActor{account: &accountID}, rights, key, value)
+}
+
+// ResetValue removes the Träger's value of key: its schools return to the
+// registry default unless they keep an override of their own.
+func (t *TraegerSettings) ResetValue(ctx context.Context, organizationID, accountID int64, rights []string, key string) error {
+	return t.resetValue(ctx, organizationID, traegerActor{account: &accountID}, rights, key)
+}
+
+// operatorRights are the Träger rights of an operator: every right a
+// definition can name. The operator dashboard thereby shows and writes the
+// same Träger-level keys as the Träger-Büro with every right; the registry
+// and its write rights stay the source (#5748).
+func (t *TraegerSettings) operatorRights() []string {
+	rights := make([]string, 0, len(t.deps.Rights))
+	for _, right := range t.deps.Rights {
+		rights = append(rights, right)
+	}
+	return rights
+}
+
+// OperatorSchema returns the Träger settings of organizationID for the
+// operator dashboard (#5748): the schema of the Träger-Portal, every item
+// writable.
+func (t *TraegerSettings) OperatorSchema(ctx context.Context, organizationID int64) (any, error) {
+	return t.Schema(ctx, organizationID, t.operatorRights())
+}
+
+// OperatorSetValue stores a Träger value an operator set. beforeChange runs
+// after the key and the value passed the registry's checks and before the
+// Träger transaction opens; the operator dashboard records its operator audit
+// there, so a refused value leaves no entry and no change happens without
+// one. The change log names the operator in changed_by_operator; the value
+// keeps no account.
+func (t *TraegerSettings) OperatorSetValue(ctx context.Context, organizationID, operatorID int64, key string, value any, beforeChange func(context.Context) error) error {
+	if operatorID <= 0 || beforeChange == nil {
+		return &config.SettingsError{Op: "traeger_set_value", Err: errors.New("operator and audit are required")}
+	}
+	return t.setValue(ctx, organizationID, traegerActor{operator: &operatorID, beforeChange: beforeChange}, t.operatorRights(), key, value)
+}
+
+// OperatorResetValue removes a Träger value on behalf of an operator, with
+// beforeChange as in OperatorSetValue.
+func (t *TraegerSettings) OperatorResetValue(ctx context.Context, organizationID, operatorID int64, key string, beforeChange func(context.Context) error) error {
+	if operatorID <= 0 || beforeChange == nil {
+		return &config.SettingsError{Op: "traeger_reset_value", Err: errors.New("operator and audit are required")}
+	}
+	return t.resetValue(ctx, organizationID, traegerActor{operator: &operatorID, beforeChange: beforeChange}, t.operatorRights(), key)
+}
+
+// traegerActor is who changes a Träger value: an account of the Träger-Büro
+// or an operator, never both. beforeChange, set for an operator, runs after
+// the checks and before the Träger transaction.
+type traegerActor struct {
+	account      *int64
+	operator     *int64
+	beforeChange func(context.Context) error
+}
+
+func (t *TraegerSettings) setValue(ctx context.Context, organizationID int64, actor traegerActor, rights []string, key string, value any) error {
 	definition, err := t.writeDefinition(key, rights, "traeger_set_value")
 	if err != nil {
 		return err
@@ -224,54 +285,24 @@ func (t *TraegerSettings) SetValue(ctx context.Context, organizationID, accountI
 	if err != nil {
 		return &config.SettingsError{Op: "traeger_set_value", Err: fmt.Errorf("marshal value: %w", err)}
 	}
-	return t.change(ctx, organizationID, accountID, key, "set", encoded)
+	return t.change(ctx, organizationID, actor, key, "set", encoded)
 }
 
-// ResetValue removes the Träger's value of key: its schools return to the
-// registry default unless they keep an override of their own.
-func (t *TraegerSettings) ResetValue(ctx context.Context, organizationID, accountID int64, rights []string, key string) error {
+func (t *TraegerSettings) resetValue(ctx context.Context, organizationID int64, actor traegerActor, rights []string, key string) error {
 	if _, err := t.writeDefinition(key, rights, "traeger_reset_value"); err != nil {
 		return err
 	}
-	return t.change(ctx, organizationID, accountID, key, "reset", nil)
+	return t.change(ctx, organizationID, actor, key, "reset", nil)
 }
 
-func (t *TraegerSettings) change(ctx context.Context, organizationID, accountID int64, key, action string, value json.RawMessage) error {
-	changedBy := &accountID
+func (t *TraegerSettings) change(ctx context.Context, organizationID int64, actor traegerActor, key, action string, value json.RawMessage) error {
+	if actor.beforeChange != nil {
+		if err := actor.beforeChange(ctx); err != nil {
+			return &config.SettingsError{Op: "traeger_" + action + "_value", Err: err}
+		}
+	}
 	err := t.deps.Runtime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
-		// The row lock below cannot hold a value that does not exist yet: two
-		// first writes, or a first write and a reset, would both log no old
-		// value. The advisory lock orders every change of this Träger and key.
-		if err := t.deps.Runtime.AcquireLock(txCtx, traegerSettingLockKey(organizationID, key), false); err != nil {
-			return err
-		}
-		existing, err := t.deps.Values.LockByOrganizationAndKey(txCtx, organizationID, key)
-		if err != nil {
-			return err
-		}
-		if action == "set" {
-			err = t.deps.Values.Upsert(txCtx, &config.TraegerSettingValue{OrganizationID: organizationID, SettingKey: key, Value: value, UpdatedBy: changedBy})
-		} else {
-			err = t.deps.Values.Delete(txCtx, organizationID, key)
-		}
-		if err != nil {
-			return err
-		}
-		var old json.RawMessage
-		if existing != nil {
-			old = existing.Value
-		}
-		now := t.deps.Now()
-		entry := &config.TraegerSettingAuditEntry{
-			OrganizationID: organizationID, SettingKey: key, OldValue: old, NewValue: value,
-			Action: action, ChangedBy: changedBy, ChangedAt: now,
-		}
-		// Retention: changes are kept as long as the school's setting
-		// changes; each change of the Träger drops older ones.
-		if err := t.deps.Values.RecordChange(txCtx, entry, now.AddDate(-t.deps.AuditRetentionYears, 0, 0)); err != nil {
-			return err
-		}
-		return nil
+		return t.writeChange(txCtx, organizationID, actor, key, action, value)
 	})
 	if err != nil {
 		return &config.SettingsError{Op: "traeger_" + action + "_value", Err: err}
@@ -280,9 +311,48 @@ func (t *TraegerSettings) change(ctx context.Context, organizationID, accountID 
 		"key", key,
 		"organization_id", organizationID,
 		"action", action,
+		"by_operator", actor.operator != nil,
 	)
 	// The command owns its Träger transaction, so it has committed here.
 	t.notifySchools(ctx, organizationID, key)
+	return nil
+}
+
+// writeChange writes the Träger value of key and its change-log entry in the
+// caller's Träger transaction.
+func (t *TraegerSettings) writeChange(txCtx context.Context, organizationID int64, actor traegerActor, key, action string, value json.RawMessage) error {
+	// The row lock below cannot hold a value that does not exist yet: two
+	// first writes, or a first write and a reset, would both log no old
+	// value. The advisory lock orders every change of this Träger and key.
+	if err := t.deps.Runtime.AcquireLock(txCtx, traegerSettingLockKey(organizationID, key), false); err != nil {
+		return err
+	}
+	existing, err := t.deps.Values.LockByOrganizationAndKey(txCtx, organizationID, key)
+	if err != nil {
+		return err
+	}
+	if action == "set" {
+		err = t.deps.Values.Upsert(txCtx, &config.TraegerSettingValue{OrganizationID: organizationID, SettingKey: key, Value: value, UpdatedBy: actor.account})
+	} else {
+		err = t.deps.Values.Delete(txCtx, organizationID, key)
+	}
+	if err != nil {
+		return err
+	}
+	var old json.RawMessage
+	if existing != nil {
+		old = existing.Value
+	}
+	now := t.deps.Now()
+	entry := &config.TraegerSettingAuditEntry{
+		OrganizationID: organizationID, SettingKey: key, OldValue: old, NewValue: value,
+		Action: action, ChangedBy: actor.account, ChangedByOperator: actor.operator, ChangedAt: now,
+	}
+	// Retention: changes are kept as long as the school's setting
+	// changes; each change of the Träger drops older ones.
+	if err := t.deps.Values.RecordChange(txCtx, entry, now.AddDate(-t.deps.AuditRetentionYears, 0, 0)); err != nil {
+		return err
+	}
 	return nil
 }
 

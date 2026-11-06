@@ -40,21 +40,9 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/ui/page-header/DesktopFilters.tsx",
-    lines: [171],
-    reason: "Auslöser eines Filter-Auswahlfelds, sieht aus wie ein Select",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [441],
+    lines: [442],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/ui/date-range-picker.tsx",
-    lines: [82],
-    reason: "Auslöser des Zeitraumfelds (Eingabefeld)",
   },
   {
     rule: "no-hand-rolled-button",
@@ -71,7 +59,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/parent/shell/parent-bottom-nav.tsx",
-    lines: [177, 215, 262],
+    lines: [184, 222, 269],
     reason: "Navigationszeilen der unteren Leiste im Elternportal",
   },
   {
@@ -89,7 +77,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/messaging/new-team-message-modal.tsx",
-    lines: [161],
+    lines: [162],
     reason: "Person in der Empfängerliste wählen: Auswahlzeile",
   },
   {
@@ -107,13 +95,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/help/help-view.tsx",
-    lines: [1076],
+    lines: [1069],
     reason: "Artikel-Navigation der Hilfe (aria-current), Navigationszeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/auth/auth-shell.tsx",
-    lines: [360],
+    lines: [361],
     reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
   },
   {
@@ -125,7 +113,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3150],
+    lines: [3112],
     reason: "Schalter (role=switch)",
   },
   {
@@ -137,39 +125,39 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/timetable/weekly-calendar-grid.tsx",
-    lines: [388],
+    lines: [389],
     reason: "Tagesauswahl (aria-pressed), Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/staff/dienstplan-resource-grid.tsx",
-    lines: [718],
+    lines: [719],
     reason: "Tagesauswahl (aria-pressed), Auswahlzeile",
   },
   {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [855, 888, 988, 1157],
+    lines: [856, 889, 989, 1158],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
   {
     rule: "no-button-override",
     file: "src/components/parent/calendar/parent-calendar-page.tsx",
-    lines: [548, 797],
+    lines: [549, 799],
     reason:
       "Termin-Zeilen und Monats-Chips im Elternkalender, optisch Listeneinträge (#5529: nicht angleichen)",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/active-supervisions/spontaneous-activity-start.tsx",
-    lines: [376],
+    lines: [378],
     reason: "Startkachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1059],
+    lines: [1062],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
@@ -182,7 +170,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1302, 1503, 1538],
+    lines: [1343, 1544, 1579],
     reason: "Navigationszeilen der Seitenleiste und der unteren Leiste",
   },
   {
@@ -194,7 +182,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/home/home-block-content.tsx",
-    lines: [202, 274],
+    lines: [218, 292],
     reason: "Listenzeilen der Startseite, verlinken weiter",
   },
   {
@@ -206,7 +194,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/home/my-group-block.tsx",
-    lines: [253, 284, 316],
+    lines: [257, 288, 320],
     reason: "Listenzeilen der Startseite, verlinken weiter",
   },
   {
@@ -230,13 +218,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1318],
+    lines: [1319],
     reason: "Tagesauswahl mit Auswahlzustand: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1561],
+    lines: [1560],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
@@ -254,13 +242,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/planned-status-days-modal.tsx",
-    lines: [947],
+    lines: [946],
     reason: "Kalendertag zum Umschalten: Kalender-/Auswahlzelle",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/student-detail-components.tsx",
-    lines: [1175],
+    lines: [1166],
     reason: "Verlaufskachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
@@ -279,7 +267,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [277],
+    lines: [275],
     reason: "Zeitraum-Option im Auswahlmenü: Menüeintrag",
   },
   // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder
@@ -287,27 +275,27 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1318],
+    lines: [1319],
     reason: "Tageskachel: grau markiert den gewählten Tag, kein Knopf",
   },
   {
     rule: "no-grey-button-fill",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [277],
+    lines: [275],
     reason:
       "Auswahlzeile im Zeitraum-Menü: grau markiert den gewählten Zeitraum",
   },
   {
     rule: "no-grey-button-fill",
     file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1538],
+    lines: [1579],
     reason:
       "Mehr-Eintrag der Handy-Navigation: grau markiert den aktiven Bereich",
   },
   {
     rule: "no-grey-button-fill",
     file: "src/components/parent/shell/parent-bottom-nav.tsx",
-    lines: [215],
+    lines: [222],
     reason:
       "Mehr-Eintrag der Eltern-Navigation: grau markiert den aktiven Bereich",
   },

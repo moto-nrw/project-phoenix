@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { _resetTraegerHostCache } from "~/lib/traeger-url";
 import type { HolidayRegistrationDetail } from "~/lib/traeger-holiday-registrations-api";
 import type { HolidayContribution } from "~/lib/traeger-contributions-api";
 import {
@@ -11,11 +12,13 @@ import {
 
 const {
   mockChange,
+  mockCancel,
   mockConfirm,
   mockConfirmDebtorNumber,
   mockChangeDebtorNumber,
 } = vi.hoisted(() => ({
   mockChange: vi.fn(),
+  mockCancel: vi.fn(),
   mockConfirm: vi.fn(),
   mockConfirmDebtorNumber: vi.fn(),
   mockChangeDebtorNumber: vi.fn(),
@@ -27,6 +30,8 @@ vi.mock("~/lib/traeger-holiday-registrations-api", () => ({
 }));
 
 vi.mock("~/lib/traeger-contributions-api", () => ({
+  cancelHolidayRegistration: (periodId: string, id: string) =>
+    mockCancel(periodId, id),
   confirmHolidayRegistration: (
     periodId: string,
     id: string,
@@ -52,7 +57,8 @@ function renderCard(
   registration: HolidayRegistrationDetail,
   onChanged = vi.fn(),
   contribution: HolidayContribution = HOLIDAY_CONTRIBUTION,
-  onConfirmed = vi.fn(() => Promise.resolve()),
+  onReload = vi.fn(() => Promise.resolve()),
+  canManageBillingSettings = false,
 ) {
   const onExemptionChange = vi.fn();
   render(
@@ -61,20 +67,22 @@ function renderCard(
         periodId="5"
         registration={registration}
         contribution={contribution}
+        canManageBillingSettings={canManageBillingSettings}
         exemption={registration.benefitsDeclared}
         onExemptionChange={onExemptionChange}
         onChanged={onChanged}
-        onConfirmed={onConfirmed}
+        onReload={onReload}
         onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
       />
     </ToastProvider>,
   );
-  return { onChanged, onConfirmed, onExemptionChange };
+  return { onChanged, onReload, onExemptionChange };
 }
 
 describe("HolidayRegistrationStatusCard", () => {
   beforeEach(() => {
     mockChange.mockReset();
+    mockCancel.mockReset();
     mockConfirm.mockReset();
     mockConfirmDebtorNumber.mockReset();
     mockChangeDebtorNumber.mockReset();
@@ -82,7 +90,7 @@ describe("HolidayRegistrationStatusCard", () => {
 
   it("confirms a received registration through the contribution and says parents get no message yet", async () => {
     mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
-    const { onConfirmed, onExemptionChange } = renderCard(HOLIDAY_REGISTRATION);
+    const { onReload, onExemptionChange } = renderCard(HOLIDAY_REGISTRATION);
 
     expect(
       screen.getByText(
@@ -95,12 +103,17 @@ describe("HolidayRegistrationStatusCard", () => {
     const exemptionChoice = screen.getByRole("radio", {
       name: /Von der Zahlung befreien \(Leistungsbezug\)/,
     });
+    expect(
+      screen.getByText(
+        "Dann gilt die Befreiungsregel. Niemand bezahlt den Betrag.",
+      ),
+    ).toBeInTheDocument();
     expect(exemptionChoice).not.toBeChecked();
     fireEvent.click(exemptionChoice);
     expect(onExemptionChange).toHaveBeenCalledWith(true);
     fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
 
-    await waitFor(() => expect(onConfirmed).toHaveBeenCalled());
+    await waitFor(() => expect(onReload).toHaveBeenCalled());
     expect(mockConfirm).toHaveBeenCalledWith("5", "7", false);
     expect(mockChange).not.toHaveBeenCalled();
   });
@@ -137,7 +150,7 @@ describe("HolidayRegistrationStatusCard", () => {
           exemption
           onExemptionChange={vi.fn()}
           onChanged={vi.fn()}
-          onConfirmed={vi.fn(() => Promise.resolve())}
+          onReload={vi.fn(() => Promise.resolve())}
           onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
         />
       </ToastProvider>,
@@ -167,7 +180,7 @@ describe("HolidayRegistrationStatusCard", () => {
       ],
       onCostBearerChange,
       onChanged: vi.fn(),
-      onConfirmed: vi.fn(() => Promise.resolve()),
+      onReload: vi.fn(() => Promise.resolve()),
       onDebtorNumberChanged: vi.fn(() => Promise.resolve()),
     };
     const { rerender } = render(
@@ -207,38 +220,93 @@ describe("HolidayRegistrationStatusCard", () => {
   });
 
   it("names the missing rule when the parents state benefits", () => {
+    vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", window.location.host);
+    _resetTraegerHostCache();
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+      _resetTraegerHostCache();
+    });
+    renderCard(
+      { ...HOLIDAY_REGISTRATION, benefitsDeclared: true },
+      vi.fn(),
+      {
+        ...HOLIDAY_CONTRIBUTION,
+        exemptionAvailable: false,
+      },
+      undefined,
+      true,
+    );
+
+    expect(
+      screen.getByText(
+        /Die Eltern geben an, dass sie Leistungen beziehen\. Am ersten gebuchten Tag gilt keine Befreiungsregel\. Sie legen sie unter/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).toHaveAttribute("href", "/einstellungen/abrechnung");
+    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
+    expect(screen.queryByRole("radio")).toBeNull();
+  });
+
+  it("names the missing rule without a link when billing settings are unavailable", () => {
     renderCard({ ...HOLIDAY_REGISTRATION, benefitsDeclared: true }, vi.fn(), {
       ...HOLIDAY_CONTRIBUTION,
       exemptionAvailable: false,
     });
 
+    // Anker: Der Hinweis zur fehlenden Befreiungsregel ist sichtbar.
     expect(
       screen.getByText(
-        "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung braucht es eine Regel unter „Ermäßigungen“.",
+        "Die Eltern geben an, dass sie Leistungen beziehen. Am ersten gebuchten Tag gilt keine Befreiungsregel. Die Rolle „Abrechnung“ legt sie an.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
-    expect(screen.queryByRole("radio")).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: "Abrechnungsvorgaben" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("cancels only after the confirmation", async () => {
-    mockChange.mockResolvedValue({
-      ...HOLIDAY_REGISTRATION,
-      status: "cancelled",
-    });
-    renderCard(HOLIDAY_REGISTRATION);
+  it("cancels only after the confirmation, through the contribution, and reads the page again", async () => {
+    mockCancel.mockResolvedValue(undefined);
+    const { onReload, onChanged } = renderCard(HOLIDAY_REGISTRATION);
 
     fireEvent.click(screen.getByRole("button", { name: "Stornieren" }));
-    expect(mockChange).not.toHaveBeenCalled();
+    expect(mockCancel).not.toHaveBeenCalled();
     expect(
       await screen.findByText("Anmeldung stornieren?"),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/berechnet den Ferienbeitrag der Geschwister neu/),
+    ).not.toBeInTheDocument();
     const buttons = screen.getAllByRole("button", { name: "Stornieren" });
     fireEvent.click(buttons[buttons.length - 1]!);
 
-    await waitFor(() =>
-      expect(mockChange).toHaveBeenCalledWith("5", "7", "cancel"),
-    );
+    await waitFor(() => expect(mockCancel).toHaveBeenCalledWith("5", "7"));
+    await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1));
+    expect(mockChange).not.toHaveBeenCalled();
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it("says before a cancellation that the siblings are computed again (#5662)", async () => {
+    renderCard(HOLIDAY_REGISTRATION, vi.fn(), {
+      ...HOLIDAY_CONTRIBUTION,
+      siblings: [
+        {
+          registrationId: "8",
+          cancelled: false,
+          children: [{ id: "81", name: "Tom Muster" }],
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Stornieren" }));
+
+    expect(
+      await screen.findByText(
+        "Die Anmeldung zählt dann nicht mehr zu den Geschwistern. moto berechnet den Ferienbeitrag der Geschwister neu.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockCancel).not.toHaveBeenCalled();
   });
 
   it("offers only reopening for a frozen registration and names why", () => {
@@ -303,7 +371,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
           />
         </ToastProvider>,
@@ -357,7 +425,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
           />
         </ToastProvider>,
@@ -382,7 +450,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
           />
         </ToastProvider>
@@ -459,7 +527,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
           />
         </ToastProvider>,
@@ -521,7 +589,7 @@ describe("HolidayRegistrationStatusCard", () => {
             exemption={false}
             onExemptionChange={vi.fn()}
             onChanged={vi.fn()}
-            onConfirmed={vi.fn(() => Promise.resolve())}
+            onReload={vi.fn(() => Promise.resolve())}
             onDebtorNumberChanged={onDebtorNumberChanged}
           />
         </ToastProvider>,

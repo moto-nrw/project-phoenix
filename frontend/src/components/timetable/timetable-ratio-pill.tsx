@@ -14,6 +14,7 @@
 import type { ReactNode } from "react";
 
 import { timetableToneColors, type TimetableTone } from "./timetable-style";
+import { StatusDot } from "~/components/ui/status-dot";
 
 /** Subtracts `amount` (0-255) from each RGB channel, clamped at 0 — a
  * simple, dependency-free darken so tone text/icons stay legible on the
@@ -56,24 +57,13 @@ export function TimetableRatioPill({
   const accessibleName = title ?? `${label}: ${value}`;
 
   if (variant === "dot") {
-    return (
-      <span
-        className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full"
-        style={{ backgroundColor: color }}
-      >
-        <span className="sr-only">{accessibleName}</span>
-      </span>
-    );
+    return <StatusDot color={color} label={accessibleName} />;
   }
 
   if (variant === "compact") {
     return (
       <span className="inline-flex items-center gap-1" title={accessibleName}>
-        <span
-          aria-hidden
-          className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-          style={{ backgroundColor: color }}
-        />
+        <StatusDot color={color} decorative />
         <span className="sr-only">{label}: </span>
         <span className="tabular-nums">{value}</span>
       </span>

@@ -118,12 +118,8 @@ func (p *Provisioning) InviteTraegerMember(ctx context.Context, input organizati
 		return organizationtenancy.TraegerInvitation{}, err
 	}
 	invitation, err := adminValue(ctx, p, func(adminCtx context.Context) (organizationtenancy.TraegerInvitation, error) {
-		organization, err := p.organizations.FindOrganization(adminCtx, input.OrganizationID)
-		if err != nil {
-			return organizationtenancy.TraegerInvitation{}, mapOrganizationError(err, input.OrganizationID)
-		}
-		if !organization.Active || organization.IsDeleted() {
-			return organizationtenancy.TraegerInvitation{}, organizationtenancy.ErrOrganizationInactive
+		if err := p.requireLiveTraeger(adminCtx, input.OrganizationID); err != nil {
+			return organizationtenancy.TraegerInvitation{}, err
 		}
 		invitation, err := p.identity.InviteTraegerAccount(adminCtx, input.OrganizationID, email, roles)
 		if err != nil {
@@ -143,6 +139,84 @@ func (p *Provisioning) InviteTraegerMember(ctx context.Context, input organizati
 		slog.Int64("invitation_id", invitation.ID),
 		slog.Int64("operator_id", input.OperatorID))
 	return invitation, nil
+}
+
+// ListTraegerInvitations lists the open invitations of the Träger-Büro,
+// the expired ones marked (#5749).
+func (p *Provisioning) ListTraegerInvitations(ctx context.Context, organizationID int64) ([]organizationtenancy.TraegerInvitation, error) {
+	return adminValue(ctx, p, func(adminCtx context.Context) ([]organizationtenancy.TraegerInvitation, error) {
+		if _, err := p.organizations.FindOrganization(adminCtx, organizationID); err != nil {
+			return nil, mapOrganizationError(err, organizationID)
+		}
+		return p.identity.ListTraegerInvitations(adminCtx, organizationID)
+	})
+}
+
+// ResendTraegerInvitation sends the invitation again with a new link; the
+// operator audit records it in the same unit (#5749).
+func (p *Provisioning) ResendTraegerInvitation(ctx context.Context, input organizationtenancy.TraegerInvitationCommand) (organizationtenancy.TraegerInvitation, error) {
+	invitation, err := adminValue(ctx, p, func(adminCtx context.Context) (organizationtenancy.TraegerInvitation, error) {
+		if err := p.requireLiveTraeger(adminCtx, input.OrganizationID); err != nil {
+			return organizationtenancy.TraegerInvitation{}, err
+		}
+		invitation, err := p.identity.ResendTraegerInvitation(adminCtx, input.OrganizationID, input.InvitationID)
+		if err != nil {
+			return organizationtenancy.TraegerInvitation{}, err
+		}
+		return invitation, p.recordAction(adminCtx, input.OperatorID, domain.AuditActionResend, domain.AuditResourceTraegerInvitation, &invitation.ID, input.ClientIP, map[string]any{
+			"organization_id":     input.OrganizationID,
+			"replaced_invitation": input.InvitationID,
+			"email":               invitation.Email,
+			"roles":               invitation.Roles,
+		})
+	})
+	if err != nil {
+		return organizationtenancy.TraegerInvitation{}, err
+	}
+	p.logger.Info("traeger_invitation_resent",
+		slog.Int64("organization_id", input.OrganizationID),
+		slog.Int64("invitation_id", invitation.ID),
+		slog.Int64("operator_id", input.OperatorID))
+	return invitation, nil
+}
+
+// RevokeTraegerInvitation withdraws the invitation; the operator audit
+// records it in the same unit (#5749).
+func (p *Provisioning) RevokeTraegerInvitation(ctx context.Context, input organizationtenancy.TraegerInvitationCommand) error {
+	_, err := adminValue(ctx, p, func(adminCtx context.Context) (struct{}, error) {
+		if err := p.requireLiveTraeger(adminCtx, input.OrganizationID); err != nil {
+			return struct{}{}, err
+		}
+		invitation, err := p.identity.RevokeTraegerInvitation(adminCtx, input.OrganizationID, input.InvitationID)
+		if err != nil {
+			return struct{}{}, err
+		}
+		return struct{}{}, p.recordAction(adminCtx, input.OperatorID, domain.AuditActionRevoke, domain.AuditResourceTraegerInvitation, &invitation.ID, input.ClientIP, map[string]any{
+			"organization_id": input.OrganizationID,
+			"email":           invitation.Email,
+			"roles":           invitation.Roles,
+		})
+	})
+	if err != nil {
+		return err
+	}
+	p.logger.Info("traeger_invitation_revoked",
+		slog.Int64("organization_id", input.OrganizationID),
+		slog.Int64("invitation_id", input.InvitationID),
+		slog.Int64("operator_id", input.OperatorID))
+	return nil
+}
+
+// requireLiveTraeger refuses an unknown, deactivated or deleted Träger.
+func (p *Provisioning) requireLiveTraeger(adminCtx context.Context, organizationID int64) error {
+	organization, err := p.organizations.FindOrganization(adminCtx, organizationID)
+	if err != nil {
+		return mapOrganizationError(err, organizationID)
+	}
+	if !organization.Active || organization.IsDeleted() {
+		return organizationtenancy.ErrOrganizationInactive
+	}
+	return nil
 }
 
 // traegerRoleSet deduplicates the requested roles and refuses an empty set;

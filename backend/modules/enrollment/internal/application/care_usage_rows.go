@@ -12,6 +12,7 @@ import (
 	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 func normalizeCareUsageFilters(filters enrollmentNative.CareUsageFilters) enrollmentNative.CareUsageFilters {
@@ -260,14 +261,14 @@ func careUsageRowMatchesSearch(row enrollmentNative.CareUsageRow, search string)
 	if search == "" {
 		return true
 	}
-	haystack := strings.ToLower(strings.Join([]string{
+	haystack := collation.FoldForSearch(strings.Join([]string{
 		row.ChildFirstName,
 		row.ChildLastName,
 		row.GuardianFirstName,
 		row.GuardianLastName,
 		row.GuardianEmail,
 	}, " "))
-	return strings.Contains(haystack, strings.ToLower(search))
+	return strings.Contains(haystack, collation.FoldForSearch(search))
 }
 
 func careUsageRowHasAnyOffering(row enrollmentNative.CareUsageRow, offeringIDs []int64) bool {

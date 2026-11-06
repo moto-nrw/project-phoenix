@@ -54,6 +54,7 @@ import { roomsConcept } from "~/lib/concepts/rooms";
 import { sickConcept } from "~/lib/concepts/sick";
 import { staffPlanConcept } from "~/lib/concepts/staffPlan";
 import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
+import { StatusDot } from "~/components/ui/status-dot";
 
 // Week matrix built on the generic kit ResourceGrid: rows are staff, columns
 // the weekdays Mo–Fr. All domain-to-block mapping lives here in the screen
@@ -738,9 +739,10 @@ export function DienstplanResourceGrid({
                     </span>
                     {column.headerNote}
                     {column.isCurrent && !isSelected && (
-                      <span
-                        aria-hidden
-                        className="bg-moto-red h-1 w-1 rounded-full"
+                      <StatusDot
+                        className="bg-moto-red"
+                        size="xs"
+                        label="heute"
                       />
                     )}
                   </button>

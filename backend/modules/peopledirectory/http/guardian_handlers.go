@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 var validPhoneTypes = map[string]bool{"mobile": true, "home": true, "work": true, "other": true}
@@ -29,8 +31,24 @@ func (rs *GuardianResource) listGuardians(w http.ResponseWriter, r *http.Request
 
 // minGuardianPickerQueryLength is the server-side floor for picker searches
 // so a non-admin cannot enumerate the guardian pool one character at a
-// time. A shorter query returns an empty page, not a 400.
+// time. A shorter query returns an empty page, not a 400. It counts the
+// characters left after accents are folded away, as the name search matches
+// them, so accent marks alone do not clear it (#4949).
 const minGuardianPickerQueryLength = 3
+
+// pickerQueryLength counts the characters of a picker query that the name
+// search can match: accents are folded away and every combining mark,
+// enclosing ones included, and all white space are left out, as unaccent
+// drops them in the database (#4949).
+func pickerQueryLength(search string) int {
+	length := 0
+	for _, r := range collation.FoldForSearch(search) {
+		if !unicode.IsMark(r) && !unicode.IsSpace(r) {
+			length++
+		}
+	}
+	return length
+}
 
 // maxGuardianPickerResults is the hard ceiling of one picker search: the
 // picker is a type-to-narrow lookup, never real pages, so there is no OFFSET
@@ -40,7 +58,7 @@ const maxGuardianPickerResults = 50
 func (rs *GuardianResource) searchGuardiansForPicker(w http.ResponseWriter, r *http.Request) {
 	page, pageSize := rs.runtime.ParsePagination(r)
 	search := strings.TrimSpace(r.URL.Query().Get("q"))
-	if len([]rune(search)) < minGuardianPickerQueryLength {
+	if pickerQueryLength(search) < minGuardianPickerQueryLength {
 		rs.runtime.SuccessPaginated(w, r, http.StatusOK, []*GuardianPickerResponse{}, Pagination{Page: page, PageSize: pageSize, Total: 0}, "Guardians retrieved successfully")
 		rs.runtime.ObserveResponse(http.StatusOK, "none")
 		return

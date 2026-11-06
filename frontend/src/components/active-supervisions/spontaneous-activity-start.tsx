@@ -26,6 +26,8 @@ import { StatusBadge } from "~/components/ui/status-badge";
 
 import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-entry";
 import { staffConcept } from "~/lib/concepts/staff";
+import { IconTile } from "~/components/ui/icon-tile";
+import { foldForSearch } from "~/lib/search-fold";
 
 const logger = createLogger({ component: "SpontaneousActivityStart" });
 const EMPTY_OCCUPIED_ROOM_IDS: readonly string[] = [];
@@ -275,10 +277,10 @@ export function SpontaneousActivityStart({
     !isStarting;
   const suggestedActivities = activities.slice(0, 5);
   const filteredActivities = useMemo(() => {
-    const query = activityInput.trim().toLocaleLowerCase("de");
+    const query = foldForSearch(activityInput.trim());
     const matches = query
       ? activities.filter((activity) =>
-          activity.name.toLocaleLowerCase("de").includes(query),
+          foldForSearch(activity.name).includes(query),
         )
       : activities;
     return matches.slice(0, 8);
@@ -379,9 +381,11 @@ export function SpontaneousActivityStart({
           onClick={() => setIsOpen(true)}
           className="border-moto-green/40 bg-moto-green/10 hover:border-moto-green hover:bg-moto-green/15 flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <span className="bg-moto-green-fill flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white">
-            <Plus className="h-5 w-5" aria-hidden="true" />
-          </span>
+          <IconTile
+            shape="round"
+            tone="greenFill"
+            icon={<Plus aria-hidden="true" />}
+          />
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold text-gray-900">
               Spontane Aktivität starten
@@ -586,26 +590,19 @@ export function SpontaneousActivityStart({
             </div>
           ) : null}
 
-          <div>
-            <span className="mb-2 block text-sm font-medium text-gray-700">
-              Raum
-            </span>
-            <CustomSelect
-              value={roomId}
-              options={roomOptions}
-              onChange={setRoomId}
-              ariaLabel="Raum"
-              disabled={isLoadingRefs}
-              required
-              invalid={isSelectedRoomOccupied}
-              placeholder={isLoadingRefs ? "Lade Räume ..." : "Raum auswählen"}
-            />
-            {isSelectedRoomOccupied ? (
-              <span className="text-moto-red-hover mt-1 block text-xs">
-                Dieser Raum ist bereits belegt.
-              </span>
-            ) : null}
-          </div>
+          <CustomSelect
+            label="Raum"
+            value={roomId}
+            options={roomOptions}
+            onChange={setRoomId}
+            disabled={isLoadingRefs}
+            required
+            error={
+              isSelectedRoomOccupied ? "Dieser Raum ist bereits belegt." : null
+            }
+            errorLive
+            placeholder={isLoadingRefs ? "Lade Räume ..." : "Raum auswählen"}
+          />
 
           {isLoadingRefs || !staffLoaded ? null : (
             <div className="space-y-2">

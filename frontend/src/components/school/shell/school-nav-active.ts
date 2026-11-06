@@ -32,6 +32,14 @@ export function isSchoolNavActive(href: string, pathname: string): boolean {
   return false;
 }
 
+/** Ob die Adresse in den Einstellungen liegt, mit oder ohne /school (#5750). */
+export function isSchoolSettingsPath(pathname: string): boolean {
+  return (
+    matchesPath("/school/einstellungen", pathname) ||
+    matchesPath("/einstellungen", pathname)
+  );
+}
+
 function matchesPath(href: string, pathname: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }

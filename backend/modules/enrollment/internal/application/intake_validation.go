@@ -10,6 +10,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // validateSubmission checks the guardian, the consents and the children of a
@@ -131,8 +133,8 @@ func normalizeAdditionalGuardians(req *SubmitRequest) error {
 // normalizeAdditionalGuardian trims and validates one co-guardian card. A
 // fully blank card is dropped; only the names are required.
 func normalizeAdditionalGuardian(index int, g SubmitGuardian) (SubmitGuardian, bool, error) {
-	first := strings.TrimSpace(g.FirstName)
-	last := strings.TrimSpace(g.LastName)
+	first := textnorm.Name(g.FirstName)
+	last := textnorm.Name(g.LastName)
 	email := strings.ToLower(strings.TrimSpace(optionalString(g.Email)))
 	phone := strings.TrimSpace(optionalString(g.Phone))
 	if first == "" && last == "" && email == "" && phone == "" {

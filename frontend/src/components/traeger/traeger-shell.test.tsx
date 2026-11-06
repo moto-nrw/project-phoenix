@@ -143,7 +143,7 @@ describe("TraegerShell", () => {
 
     const header = within(screen.getByRole("banner"));
     expect(header.getByText("Ganztag gGmbH")).toBeInTheDocument();
-    expect(header.getAllByText("Einstellungen").length).toBeGreaterThan(0);
+    expect(header.getAllByText("Allgemein").length).toBeGreaterThan(0);
     expect(header.getByText("Träger-Büro")).toBeInTheDocument();
   });
 
@@ -151,23 +151,30 @@ describe("TraegerShell", () => {
     sessionUser.permissions = ["traeger_overview:read"];
     const { unmount } = renderPortal();
     expect(sidebar().getByRole("link", { name: "Hilfe" })).toBeInTheDocument();
-    expect(sidebar().queryByRole("link", { name: "Ferien" })).toBeNull();
+    expect(
+      sidebar().queryByRole("link", { name: "Ferienbetreuung" }),
+    ).toBeNull();
     unmount();
 
     sessionUser.permissions = ["traeger_enrollment:manage"];
     renderPortal();
-    expect(sidebar().getByRole("link", { name: "Ferien" })).toHaveAttribute(
-      "href",
-      "/ferien",
-    );
+    expect(
+      sidebar().getByRole("link", { name: "Ferienbetreuung" }),
+    ).toHaveAttribute("href", "/ferien");
   });
 
-  // #4650: the page "Personen" exists only for the right to manage accounts.
-  it("offers the page Personen only with the right to manage accounts", () => {
+  // #4650, #5685: the members live in the settings, only with the right to
+  // manage accounts.
+  it("offers the members only with the right to manage accounts", () => {
+    mockPathname.mockReturnValue("/einstellungen");
     sessionUser.permissions = ["traeger_overview:read"];
     const { unmount } = renderPortal();
-    expect(sidebar().getByRole("link", { name: "Hilfe" })).toBeInTheDocument();
-    expect(sidebar().queryByRole("link", { name: "Personen" })).toBeNull();
+    expect(
+      sidebar().getByRole("link", { name: "Allgemein" }),
+    ).toBeInTheDocument();
+    expect(
+      sidebar().queryByRole("link", { name: "Mitglieder und Rollen" }),
+    ).toBeNull();
     unmount();
 
     sessionUser.permissions = [
@@ -175,21 +182,22 @@ describe("TraegerShell", () => {
       "traeger_accounts:manage",
     ];
     renderPortal();
-    expect(sidebar().getByRole("link", { name: "Personen" })).toHaveAttribute(
-      "href",
-      "/accounts",
-    );
-    expect(sidebar().queryByRole("link", { name: "Ferien" })).toBeNull();
+    expect(
+      sidebar().getByRole("link", { name: "Mitglieder und Rollen" }),
+    ).toHaveAttribute("href", "/einstellungen/mitglieder");
   });
 
-  // #4655: the access log is a page only for those who may read it.
+  // #4655, #5685: the access log is a page only for those who may read it.
   it("offers the access log only with the right to read it", () => {
+    mockPathname.mockReturnValue("/einstellungen");
     sessionUser.permissions = [
       "traeger_overview:read",
       "traeger_enrollment:manage",
     ];
     const { unmount } = renderPortal();
-    expect(sidebar().getByRole("link", { name: "Ferien" })).toBeInTheDocument();
+    expect(
+      sidebar().getByRole("link", { name: "Allgemein" }),
+    ).toBeInTheDocument();
     expect(
       sidebar().queryByRole("link", { name: "Zugriffsprotokoll" }),
     ).toBeNull();
@@ -202,7 +210,45 @@ describe("TraegerShell", () => {
     renderPortal();
     expect(
       sidebar().getByRole("link", { name: "Zugriffsprotokoll" }),
-    ).toHaveAttribute("href", "/access-log");
+    ).toHaveAttribute("href", "/einstellungen/zugriffsprotokoll");
+  });
+
+  // #5685: every settings page has its title and its own help article.
+  it.each([
+    ["/einstellungen", "Allgemein", "traeger-einstellungen"],
+    [
+      "/einstellungen/mitglieder",
+      "Mitglieder und Rollen",
+      "personen-ins-traeger-buero-einladen",
+    ],
+    [
+      "/einstellungen/briefkopf",
+      "Briefkopf und Vorlagen",
+      "briefkopf-des-traegers",
+    ],
+    [
+      "/einstellungen/abrechnung",
+      "Abrechnungsvorgaben",
+      "traeger-ferienbeitrag",
+    ],
+    [
+      "/einstellungen/zugriffsprotokoll",
+      "Zugriffsprotokoll",
+      "zugriffsprotokoll-des-traegers-lesen",
+    ],
+  ])("titles %s and opens its help article", (path, title, article) => {
+    mockPathname.mockReturnValue(path);
+    sessionUser.permissions = ["traeger_overview:read"];
+    renderPortal();
+
+    expect(
+      within(screen.getByRole("banner")).getAllByText(title).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen
+        .getByRole("link", { name: "Hilfe zu dieser Seite" })
+        .getAttribute("href"),
+    ).toContain(`/help/${article}?`);
   });
 
   // #4652: the settings open with the right to read the overview, and the
@@ -237,10 +283,9 @@ describe("TraegerShell", () => {
     ];
     renderPortal();
 
-    expect(sidebar().getByRole("link", { name: "Ferien" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    expect(
+      sidebar().getByRole("link", { name: "Ferienbetreuung" }),
+    ).toHaveAttribute("aria-current", "page");
     expect(
       sidebar().getByRole("link", { name: "Schulen" }),
     ).not.toHaveAttribute("aria-current");

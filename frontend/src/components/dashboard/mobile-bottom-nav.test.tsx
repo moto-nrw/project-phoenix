@@ -107,6 +107,10 @@ vi.mock("~/lib/shell-auth-context", () => ({
   })),
 }));
 
+vi.mock("~/env.client", () => ({
+  clientEnv: { NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.test" },
+}));
+
 vi.mock("~/lib/hooks/use-change-request-access", () => ({
   useChangeRequestAccess: vi.fn(),
 }));
@@ -526,6 +530,34 @@ describe("MobileBottomNav", () => {
         "href",
         "/test-tenant/team-chat",
       );
+    });
+  });
+
+  describe("way back to the Träger portal (#5687)", () => {
+    it("offers the way back in the Mehr menu of a session opened through the Träger", () => {
+      mockUseShellAuth.mockReturnValue({
+        ...mockUseShellAuth(),
+        isViaTraeger: true,
+      });
+      render(<MobileBottomNav />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(
+        screen.getByRole("link", { name: "Zurück zur Träger-App" }),
+      ).toHaveAttribute("href", "http://traeger.test/");
+    });
+
+    it("shows nothing to a school user without the Träger origin", () => {
+      render(<MobileBottomNav />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      // Anker: das geöffnete Mehr-Menü.
+      expect(screen.getByText("Abmelden")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: "Zurück zur Träger-App" }),
+      ).toBeNull();
     });
   });
 
@@ -1674,7 +1706,7 @@ describe("MobileBottomNav", () => {
     it("highlights More button when additional nav item route is active", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
-      mockUsePathname.mockReturnValue("/settings");
+      mockUsePathname.mockReturnValue("/database");
 
       render(<MobileBottomNav />);
 
@@ -1759,7 +1791,7 @@ describe("MobileBottomNav", () => {
       vi.useFakeTimers();
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
-      mockUsePathname.mockReturnValue("/settings");
+      mockUsePathname.mockReturnValue("/database");
 
       render(<MobileBottomNav />);
 
