@@ -1,6 +1,6 @@
-import { SWRConfig } from "~/lib/swr/testing";
+import { SWRConfig, useSWRConfig } from "~/lib/swr/testing";
 vi.unmock("swr");
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -79,10 +79,25 @@ const OCCUPANCY: TraegerOccupancy = {
   ],
 };
 
+let revalidateAll: () => Promise<unknown> = async () => undefined;
+
+/** Hands the test a way to refetch every key, as a focus or interval would. */
+function Revalidator() {
+  const { mutate } = useSWRConfig();
+  revalidateAll = () => mutate(() => true);
+  return null;
+}
+
 function renderPage() {
   return render(
-    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+    <SWRConfig
+      value={{
+        provider: () => new Map(),
+        dedupingInterval: 0,
+      }}
+    >
       <ToastProvider>
+        <Revalidator />
         <TraegerOccupancyPage />
       </ToastProvider>
     </SWRConfig>,
@@ -267,6 +282,39 @@ describe("TraegerOccupancyPage", () => {
         "belegung-2026-09-09.csv",
       ),
     );
+  });
+
+  it("hides loaded figures when a refresh is refused", async () => {
+    mockFetchOccupancy.mockResolvedValueOnce(OCCUPANCY);
+    renderPage();
+    await screen.findByText("14 von 16");
+
+    mockFetchOccupancy.mockRejectedValue(
+      new ApiError("forbidden", 403, { code: "general.forbidden" }),
+    );
+    await act(async () => {
+      await revalidateAll();
+    });
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText("14 von 16")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bären")).not.toBeInTheDocument();
+  });
+
+  it("keeps loaded figures when a refresh fails for a moment", async () => {
+    mockFetchOccupancy.mockResolvedValueOnce(OCCUPANCY);
+    renderPage();
+    await screen.findByText("14 von 16");
+
+    mockFetchOccupancy.mockRejectedValue(
+      new ApiError("Request failed (500)", 500),
+    );
+    await act(async () => {
+      await revalidateAll();
+    });
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.getByText("14 von 16")).toBeInTheDocument();
   });
 
   it("shows the load error without figures", async () => {
