@@ -9,8 +9,6 @@ paths:
 
 This kit is the de-facto MOTO design system for project-phoenix (much by Florian / `fl0r14n28`). It encodes the correct radii, brand colors, shadows, and interaction patterns. Hand-rolling chrome is the drift.
 
-> `globals.css` imports only the package's CSS/tokens. Until the team migrates, the local `ui/` kit is the single source of truth.
-
 Read this rule before frontend UI changes; the root entry point and `frontend/CLAUDE.md` route here. [ADR 0149](../../docs/adr/0149-ui-kit-entscheidet-jede-konkurrierende-variante-einmal.md) decides between competing kit variants, including pieces not built yet; read it before adding or migrating kit pieces.
 
 ## Source of truth
@@ -70,8 +68,6 @@ Prose cannot transfer taste, density, spacing judgment, or restraint. Examples c
 | Page scaffold     | `frontend/src/components/ui/tenant-page.tsx`                   | the root every tenant page renders                                                                                                                          |
 | Card primitive    | `frontend/src/components/ui/section-card.tsx`                  | the canonical card surface                                                                                                                                  |
 | Table primitive   | `frontend/src/components/ui/data-table.tsx`                    | the canonical table                                                                                                                                         |
-
-Keep this list current: replace a deleted or rewritten reference.
 
 ## Visual references — look at the real UI
 
@@ -136,8 +132,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Legend, also with counts | `PlanLegend` — entries with `value`, `variant="dot"`, `size="md"` | `~/components/ui/planning/plan-legend` |
 | Empty / no-results state | `EmptyState` — optional icon, title, description, action slot | `~/components/ui/empty-state` |
 | Back navigation (Unterseite → Sammlung) | `TenantPage` mit `back` / `backHref` / `backLabel`; außerhalb des Gerüsts `TenantBackLink` (Tenant) oder `BackLink` (anderes Portal, fertiger Pfad). Ein Link mit Pfeil und Ziel als Text („Zurück zu den Räumen"), auf jeder Breite, über dem Titel; nie ein eigener Knopf im Inhalt (#4364). Eine Ansicht ohne eigene Adresse (Editor → Übersicht derselben Seite) nimmt `BackAction`, denselben Rückweg als Knopf (#4397) | `~/components/ui/tenant-page`, `~/components/ui/back-link` |
-| Sidebar of a portal | `PortalSidebar` with `PortalSidebarLink` (`iconConcept`), `PortalSidebarButton`, `PortalSidebarGroup`, `topOffset`, translated `navLabel`/`secondaryLabel`. Own rows with accordions (Tenant): only the shell `PortalSidebarFrame` (`collapsed`) | `~/components/ui/portal-sidebar` |
-| Bottom bar of a portal and its „Mehr“ sheet | `PortalBottomNav` (`label`, `indicator` from `usePortalBottomNavIndicator`) with `PortalBottomNavLink`, `PortalBottomNavButton`; sheet rows `PortalNavSheetLink`, `PortalNavSheetButton`; a list of unknown length: `PortalOverflowBottomNav` | `~/components/ui/portal-bottom-nav`, `~/components/ui/portal-overflow-bottom-nav` |
+| Portal sidebar, bottom bar | `PortalSidebar`, `PortalSidebarFrame`; `PortalBottomNav`. Lint: `no-hand-rolled-portal-nav` | `~/components/ui/portal-sidebar`, `~/components/ui/portal-bottom-nav` |
 | Icon in a sidebar row (any portal) | `MotoNavIcon` with `scene` / `NavSceneIcon`: the glyph's animated scene; a glyph new to a sidebar needs a scene: `.claude/rules/sidebar-icon-scenes.md` | `~/components/ui/moto-nav-icon`, `~/components/ui/nav-scene-icon/nav-scene-icon` |
 | Link in the app shell (sidebar, bottom nav, breadcrumbs, header menus) | `NavLink` — `next/link` without viewport prefetch; prefetches on hover, focus, or touch start instead (#2976). | `~/components/ui/nav-link` |
 | Interner Link im Seiteninhalt | `NavigationLink` — meldet den Wechsel an die Portalhülle und verwirft die Meldung bei abgebrochenem Klick. `ButtonLink` nutzt dieselbe Meldung bei String-Zielen. Plain `next/link` bleibt richtig für externe Ziele, Downloads, neue Tabs und Bereiche ohne `PortalShell`. | `~/components/ui/navigation-link` |
@@ -305,8 +300,6 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 The tenant page scaffold (#2619) adds four more rules in the same plugin: `ui-kit/no-tenant-kicker` (no mini-heading in the tenant portal), `ui-kit/no-hand-rolled-page-card` (`moto-content-surface` + `rounded-2xl` spelled out in a tenant or Träger page/loading file instead of a kit card), `ui-kit/no-tabs-as-value-switcher` (`ui/Tabs` carrying a value choice), and `ui-kit/no-tiny-text` (sub-12px text utilities; shrink-only per-file baseline). `ui-kit/green-fill-white-text` (#5141, hard-zero) keeps text on opaque green surfaces white and on the dark fill steps. #5577: `no-dynamic-color-class`, `no-white-on-warm-fill` (white on orange only `-strong`). `ui-kit/no-hand-rolled-button` and `ui-kit/no-button-override` (#5531) are the button ratchet with a shrink-only per-file baseline and a reasoned allowlist ([Buttons](#buttons)). #5579: `no-shadcn-tokens`, `no-raw-z-index` (`z-[n]`). #5580: `no-select-override` (no look classes on selects, `DateRangePicker`). #5581: `no-important-override` (`!` on kit components, baseline), `no-section-card-bleed`. #5582: `no-hand-rolled-icon-tile` (also in `ui/`). #5583: `no-shadow-kit-name` (no local name equal to a kit export). #5584 (shrink-only): `no-hand-rolled-pill`, `no-pill-dot`, `no-hex-alpha-tint`. `ui-kit/no-raw-input` (#5217, hard-zero) fails a hand-built `<input>`/`<textarea>` except in the primitives of `RAW_INPUT_KIT_PRIMITIVES`; `type="hidden"` and `type="file"` stay native. A field with no kit counterpart (OTP grid) stays behind `oxlint-disable-next-line ui-kit/no-raw-input -- <reason>`. A form jumps to its first failed field only through `FormErrorAlert`; there is no second scroll hook.
 
 `ui-kit/no-kit-domain-import` (#5586, hard-zero): `components/ui/` imports no other component folder and calls no `fetch`/`useSWR*`; context comes through props and slots. Planning pieces live in `ui/planning/`. `no-hand-rolled-surface` applies in `ui/` too.
-
-`ui-kit/no-hand-rolled-portal-nav` (#5603, hard-zero) fails the shell classes of the sidebar and the bottom bar in any string outside `ui/`, and importing the kit's sidebar row classes there.
 
 `ui-kit/no-hand-rolled-dot` fails a hand-built dot or colour bar outside `ui/` (hard-zero); `ui-kit/no-status-dot-outside-plans` keeps `StatusDot` to the legends and plans listed in the plugin (ADR 0149).
 
