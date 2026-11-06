@@ -335,12 +335,9 @@ describe("time picker", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it.each([
-    ["a modal", "data-modal-focus-scope"],
-    ["a slide-over", "data-date-picker-focus-trap"],
-  ])("stays inside the focus trap of %s", async (_name, attribute) => {
+  it("stays inside a modal focus trap", async () => {
     render(
-      <div {...{ [attribute]: "true" }} data-testid="focus-trap">
+      <div data-modal-focus-scope="true" data-testid="focus-trap">
         <TimeFieldDemo initialValue="15:30" />
       </div>,
     );
@@ -352,6 +349,26 @@ describe("time picker", () => {
         name: "Uhrzeit auswählen",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("portals a slide-over picker to the body and keeps its focus", async () => {
+    const user = userEvent.setup();
+    render(
+      <div data-date-picker-focus-trap="true" data-testid="focus-trap">
+        <TimeFieldDemo initialValue="15:30" />
+      </div>,
+    );
+
+    await openPicker();
+
+    expect(
+      screen
+        .getByRole("dialog", { name: "Uhrzeit auswählen" })
+        .closest("[data-date-picker-focus-trap]"),
+    ).toBeNull();
+    expect(hourOption("15")).toHaveFocus();
+    await user.tab();
+    expect(minuteOption("30")).toHaveFocus();
   });
 
   it("reports leaving only when focus left field, clock and picker", async () => {

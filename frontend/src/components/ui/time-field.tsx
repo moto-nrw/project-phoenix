@@ -2,16 +2,18 @@
 
 import { Clock } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
+import { FocusScope } from "@radix-ui/react-focus-scope";
 
 import { AnchoredPopover } from "./anchored-popover";
 import { Button } from "./button";
 import { RequiredMark } from "./field-label";
 import { TimePickerPanel } from "./time-picker-panel";
 
-// Ein Dialog oder Slide-over zieht den Fokus aus allem heraus, was nach
-// document.body portaliert ist; die Auswahl muss deshalb in seinem Baum liegen.
-const PICKER_PORTAL_SCOPE =
-  '[data-modal-focus-scope="true"], [data-date-picker-focus-trap="true"]';
+// Ein Modal kann das Popover in seiner Fokusfalle aufnehmen. Ein Vaul-Slide-over
+// transformiert seinen Inhalt dagegen; dessen Auswahl bleibt am Body und
+// bekommt dort eine eigene Fokusfalle.
+const PICKER_PORTAL_SCOPE = '[data-modal-focus-scope="true"]';
+const SLIDE_OVER_FOCUS_TRAP = '[data-date-picker-focus-trap="true"]';
 const PICKER_WIDTH = 168;
 
 /**
@@ -126,6 +128,9 @@ export function TimeField({
   const [pickerOpen, setPickerOpen] = useState(false);
   const open = pickerOpen && !disabled;
   const pressedInput = useRef(false);
+  const needsPortalledFocusScope =
+    typeof document !== "undefined" &&
+    fieldRef.current?.closest(SLIDE_OVER_FOCUS_TRAP) !== null;
 
   // Ein Feld, das gesperrt wurde, geht danach nicht von selbst wieder auf.
   useEffect(() => {
@@ -248,15 +253,24 @@ export function TimeField({
             </Button>
           )}
         >
-          {({ close }) => (
-            <TimePickerPanel
-              value={value}
-              minTime={minTime}
-              onChange={onChange}
-              close={close}
-              initialFocusRef={initialOptionRef}
-            />
-          )}
+          {({ close }) => {
+            const picker = (
+              <TimePickerPanel
+                value={value}
+                minTime={minTime}
+                onChange={onChange}
+                close={close}
+                initialFocusRef={initialOptionRef}
+              />
+            );
+            return needsPortalledFocusScope ? (
+              <FocusScope asChild loop trapped>
+                <div>{picker}</div>
+              </FocusScope>
+            ) : (
+              picker
+            );
+          }}
         </AnchoredPopover>
       </div>
       <span
