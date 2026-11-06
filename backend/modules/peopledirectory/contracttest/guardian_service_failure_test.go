@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
@@ -16,9 +17,47 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestAddGuardianPhone_CreateFailureRollsBackPrimary(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "phone-create-rollback")
+	service := setupGuardianService(t, db)
+	first, err := testpkg.TenantQuery2(t, ctx, db, service.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
+		PhoneNumber: "0171 1234567", PhoneType: "mobile",
+	})
+	require.NoError(t, err)
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	failure := errors.New("phone insert failed")
+	failedService := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
+		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianPhoneNumberRepo: failingPhoneCreate{
+			GuardianPhoneNumberRepository: repos.GuardianPhoneNumber,
+			failure:                       failure,
+		},
+	}, db)
+	_, err = testpkg.TenantQuery2(t, ctx, db, failedService.AddPhoneNumber, guardian.ID, peoplePorts.PhoneNumberCreateRequest{
+		PhoneNumber: "0171 7654321", PhoneType: "work", IsPrimary: true,
+	})
+	require.ErrorIs(t, err, failure)
+	phones, err := testpkg.TenantQuery1(t, ctx, db, service.GuardianPhoneNumbers().FindByGuardianID, guardian.ID)
+	require.NoError(t, err)
+	require.Equal(t, []*peopleValues.GuardianProfilePhoneSnapshot{first}, phones, "the failed add must roll back unsetting the existing primary")
+}
+
+type failingPhoneCreate struct {
+	peoplePorts.GuardianPhoneNumberRepository
+	failure error
+}
+
+func (r failingPhoneCreate) Create(context.Context, *peopleValues.GuardianProfilePhoneSnapshot) error {
+	return r.failure
+}
 
 func guardianAmbientTxContext() context.Context {
 	return tenant.WithTransactionForTest(context.Background(), struct{}{})
@@ -101,6 +140,15 @@ func (f *fakeProfileRepo) Create(ctx context.Context, p *peopleValues.GuardianPr
 	return f.createFn(ctx, p)
 }
 func (f *fakeProfileRepo) FindByID(ctx context.Context, id int64) (*peopleValues.GuardianProfileSnapshot, error) {
+	return f.findByIDFn(ctx, id)
+}
+
+// The combined port can fail while acquiring the lock or reading the profile.
+// Keep both injected failures and their existing ordering assertions.
+func (f *fakeProfileRepo) FindByIDForUpdate(ctx context.Context, id int64) (*peopleValues.GuardianProfileSnapshot, error) {
+	if err := f.lockFn(ctx, id); err != nil {
+		return nil, err
+	}
 	return f.findByIDFn(ctx, id)
 }
 func (f *fakeProfileRepo) Update(ctx context.Context, p *peopleValues.GuardianProfileSnapshot) error {

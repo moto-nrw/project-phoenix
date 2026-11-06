@@ -18,11 +18,8 @@ func (s *RetainedGuardianService) AddPhoneNumber(ctx context.Context, guardianID
 	// phone replace (delete-all + re-insert) — see UpdateGuardian. Without this a
 	// staff phone add could land between the parent's read-old-phones and its
 	// replace, then be wiped by the replace. Held for the request transaction.
-	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, guardianID); err != nil {
-		return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
-	}
-	// Verify guardian exists
-	if _, err := s.GuardianProfileRepo.FindByID(ctx, guardianID); err != nil {
+	// Keep the full profile read, including its failures, under that same lock.
+	if _, err := s.GuardianProfileRepo.FindByIDForUpdate(ctx, guardianID); err != nil {
 		return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
 	}
 

@@ -69,6 +69,7 @@ type rawGuardianProfileRepository interface {
 	directory.GuardianProfileReads
 	Create(ctx context.Context, profile *models.GuardianProfile) error
 	FindByID(ctx context.Context, id int64) (*models.GuardianProfile, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*directory.GuardianProfileSnapshot, error)
 	LockByIDForUpdate(ctx context.Context, id int64) error
 	FindByEmail(ctx context.Context, email string) (*models.GuardianProfile, error)
 	FindByAccountID(ctx context.Context, accountID int64) (*models.GuardianProfile, error)

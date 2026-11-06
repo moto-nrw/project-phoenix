@@ -479,6 +479,10 @@ type GuardianProfileRepository interface {
 	// FindByID retrieves a guardian profile by their ID
 	FindByID(ctx context.Context, id int64) (*peopledirectory.GuardianProfileSnapshot, error)
 
+	// FindByIDForUpdate reads the complete guardian profile while locking its
+	// row for the current transaction, before phone-list validation or writes.
+	FindByIDForUpdate(ctx context.Context, id int64) (*peopledirectory.GuardianProfileSnapshot, error)
+
 	// LockByIDForUpdate locks a guardian profile row for the current
 	// transaction. Used by full-delete flows to block concurrent link inserts.
 	LockByIDForUpdate(ctx context.Context, id int64) error

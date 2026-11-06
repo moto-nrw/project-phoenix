@@ -103,6 +103,11 @@ func TestAddGuardianPhone_CreatedProfileFact(t *testing.T) {
 					require.EqualError(t, validation.Err, "Telefonnummer ist erforderlich")
 				} else {
 					require.ErrorIs(t, err, tc.err)
+					var validation *userscontract.ValidationError
+					require.False(t, errors.As(err, &validation), "lock, lookup and count failures must not become invalid input")
+					if tc.lockErr != nil || tc.lookupErr != nil {
+						require.ErrorIs(t, err, people.ErrGuardianNotFound)
+					}
 				}
 				require.Nil(t, phone)
 			} else {
