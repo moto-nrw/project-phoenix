@@ -888,7 +888,15 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       backHref={overviewPath}
       backLabel="Zurück zur Anmeldungs-Übersicht"
       stats={`${formatDate(phase.service_start_date)} bis ${formatDate(phase.service_end_date)} · ${stats.total} ${stats.total === 1 ? "Eingang" : "Eingänge"} · ${stats.open} offen`}
-      leading={<ConceptIconTile concept={enrollmentsConcept} size="page" />}
+      leading={
+        /* Unter sm gibt das Symbol dem Titel die Breite, die das Menü neben
+           ihm belegt: „Wiederanmeldung“ bräche sonst mitten im Wort. */
+        <ConceptIconTile
+          concept={enrollmentsConcept}
+          size="page"
+          className="max-sm:hidden"
+        />
+      }
       actions={
         <>
           {/* Unter sm steht diese Gruppe in einer eigenen Zeile; das Menü
