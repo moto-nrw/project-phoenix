@@ -243,7 +243,12 @@ func (a *Authenticator) authenticateDevice(ctx context.Context, c credentials) (
 	if err != nil {
 		return nil, ErrDeviceUnauthorized(ErrInvalidAPIKey)
 	}
-	if errResp := a.validateDevicePIN(ctx, device, c.devicePIN); errResp != nil {
+	if c.devicePIN == "" {
+		return nil, a.validateDevicePIN(ctx, device, c.devicePIN)
+	}
+	if errResp := a.deps.LastSeen.authenticateAndObserve(tenantCtx, a.deps.Devices, device, func(pinCtx context.Context) *ErrResponse {
+		return a.validateDevicePIN(pinCtx, device, c.devicePIN)
+	}); errResp != nil {
 		return nil, errResp
 	}
 
@@ -252,7 +257,6 @@ func (a *Authenticator) authenticateDevice(ctx context.Context, c credentials) (
 	slog.Debug("device authentication successful",
 		slog.String("device_id", device.DeviceID),
 	)
-	a.deps.LastSeen.updateDeviceLastSeen(tenantCtx, a.deps.Devices, device)
 	return tenantCtx, nil
 }
 
@@ -454,27 +458,36 @@ func NewLastSeenDebouncer() *LastSeenDebouncer {
 // Uses device.ID (PK, globally unique) for the debounce cache key and DB update
 // to avoid cross-tenant collisions when device_id strings overlap.
 func (d *LastSeenDebouncer) updateDeviceLastSeen(ctx context.Context, devices DeviceDirectory, device *AuthenticatedDevice) {
+	observedAt, state, writing := d.observeDevice(ctx, devices, device)
+	if writing {
+		d.persistLastSeen(ctx, devices, device.ID, observedAt, state)
+	}
+}
+
+func (d *LastSeenDebouncer) observeDevice(ctx context.Context, devices DeviceDirectory, device *AuthenticatedDevice) (time.Time, *lastSeenDebounceState, bool) {
 	now := time.Now()
 	device.LastSeen = &now
 
 	state := d.getOrCreateLastSeenState(device.ID)
 	state.mu.Lock()
+	defer state.mu.Unlock()
 	state.latestSeen = now
 	// Deferred heartbeats retain the authenticated school/runtime, not the request cancellation.
 	d.pendingContexts.Store(device.ID, d.flushContext(ctx))
 
-	shouldWriteNow := !state.writeInFlight && (state.lastPersisted.IsZero() || (now.Sub(state.lastPersisted) >= lastSeenDebounceWindow && state.flushTimer == nil))
-	if shouldWriteNow {
+	if heartbeatDue(state, now) {
 		state.writeInFlight = true
-		state.mu.Unlock()
-		d.persistLastSeen(ctx, devices, device.ID, now, state)
-		return
+		return now, state, true
 	}
-
 	if !state.writeInFlight {
 		d.scheduleDeferredFlushLocked(devices, device.ID, state, now)
 	}
-	state.mu.Unlock()
+	return now, state, false
+}
+
+// heartbeatDue requires state.mu.
+func heartbeatDue(state *lastSeenDebounceState, now time.Time) bool {
+	return !state.writeInFlight && (state.lastPersisted.IsZero() || (now.Sub(state.lastPersisted) >= lastSeenDebounceWindow && state.flushTimer == nil))
 }
 
 func (d *LastSeenDebouncer) getOrCreateLastSeenState(id int64) *lastSeenDebounceState {
@@ -491,7 +504,11 @@ func (d *LastSeenDebouncer) getOrCreateLastSeenState(id int64) *lastSeenDebounce
 }
 
 func (d *LastSeenDebouncer) persistLastSeen(ctx context.Context, devices DeviceDirectory, id int64, observedAt time.Time, state *lastSeenDebounceState) {
-	if err := devices.RecordLastSeen(ctx, id, observedAt); err != nil {
+	d.completeLastSeen(devices, id, observedAt, state, devices.RecordLastSeen(ctx, id, observedAt))
+}
+
+func (d *LastSeenDebouncer) completeLastSeen(devices DeviceDirectory, id int64, observedAt time.Time, state *lastSeenDebounceState, err error) {
+	if err != nil {
 		slog.Warn("failed to update device last seen time",
 			slog.Int64("device_pk", id),
 			slog.String("error", err.Error()),

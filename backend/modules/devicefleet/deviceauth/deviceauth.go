@@ -186,6 +186,28 @@ func (d fleetDirectory) RecordLastSeen(ctx context.Context, deviceID int64, seen
 	return d.fleet.UpdateDeviceLastSeen(tenant.ContextWithoutTransaction(ctx), deviceID, seenAt)
 }
 
+// RecordLastSeenChecked keeps PIN validation and a due heartbeat in the same
+// existing owner unit. Ambient callers retain their original PIN transaction;
+// only the heartbeat is detached, as on the uncombined path.
+func (d fleetDirectory) RecordLastSeenChecked(ctx context.Context, deviceID int64, check func(context.Context) (time.Time, bool, error)) error {
+	checked, available := d.fleet.(devicefleet.CheckedDeviceHeartbeat)
+	_, participating := tenant.TransactionFromContext(ctx)
+	if available && !participating {
+		return checked.UpdateDeviceLastSeenChecked(ctx, deviceID, heartbeatCheck(check))
+	}
+	seenAt, write, err := check(ctx)
+	if err != nil || !write {
+		return err
+	}
+	return d.RecordLastSeen(ctx, deviceID, seenAt)
+}
+
+type heartbeatCheck func(context.Context) (time.Time, bool, error)
+
+func (c heartbeatCheck) CheckDeviceHeartbeat(ctx context.Context) (time.Time, bool, error) {
+	return c(ctx)
+}
+
 // schoolLookup classifies the pre-tenant school-directory capability.
 // Its owner supplies the explicit discovery unit before tenant middleware.
 type schoolLookup struct {

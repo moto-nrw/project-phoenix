@@ -179,6 +179,20 @@ type DeviceCredentialSchoolCheck interface {
 	CheckDeviceSchool(context.Context, int64) error
 }
 
+// DeviceHeartbeatCheck authorizes one heartbeat in its existing tenant unit.
+// The check returns the accepted observation and whether debounce permits a
+// write. Rejections must return an error before any device mutation.
+type DeviceHeartbeatCheck interface {
+	CheckDeviceHeartbeat(context.Context) (time.Time, bool, error)
+}
+
+// CheckedDeviceHeartbeat records activity only after its authentication guard.
+// Callers must supply the authenticated school and no ambient transaction, so
+// the heartbeat commits independently before the request handler starts.
+type CheckedDeviceHeartbeat interface {
+	UpdateDeviceLastSeenChecked(context.Context, int64, DeviceHeartbeatCheck) error
+}
+
 // DeviceLookup resolves device records and fleet listings.
 type DeviceLookup interface {
 	FindDevice(context.Context, int64) (Device, error)

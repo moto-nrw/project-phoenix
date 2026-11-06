@@ -123,6 +123,30 @@ func (s *Service) UpdateDeviceLastSeen(ctx context.Context, id int64, lastSeen t
 		domain.UpdateDevice{ID: id, LastSeen: &lastSeen}, []string{"last_seen"})
 }
 
+// UpdateDeviceLastSeenChecked shares the heartbeat unit with its read-only
+// authentication guard. A rejected guard rolls back without updating the device.
+func (s *Service) UpdateDeviceLastSeenChecked(ctx context.Context, id int64, check devicefleet.DeviceHeartbeatCheck) error {
+	if id <= 0 || check == nil {
+		return s.reject("update_device_last_seen", devicefleet.ErrInvalidDevice)
+	}
+	return s.runWrite(ctx, "update_device_last_seen", func(ctx context.Context, stats *domain.OperationStats) error {
+		seenAt, write, err := check.CheckDeviceHeartbeat(ctx)
+		if err != nil || !write {
+			return err
+		}
+		affected, queryStats, err := s.deps.Devices.UpdateColumns(ctx,
+			domain.UpdateDevice{ID: id, LastSeen: &seenAt}, []string{"last_seen"})
+		stats.Add(queryStats)
+		if err != nil {
+			return err
+		}
+		if affected != 1 {
+			return fmt.Errorf("devicefleet: expected 1 rows affected, got %d", affected)
+		}
+		return nil
+	})
+}
+
 // UpdateRoomID moves one device into a room.
 func (s *Service) UpdateRoomID(ctx context.Context, id, roomID int64) error {
 	if id <= 0 || roomID <= 0 {

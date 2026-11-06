@@ -64,7 +64,7 @@ func TestDeviceAuthenticationPersistsSchoolScopedHeartbeat(t *testing.T) {
 			require.Equal(t, http.StatusNoContent, response.Code)
 			wantQueries := 9
 			if withPIN {
-				wantQueries = 13
+				wantQueries = 10
 			}
 			require.Len(t, counter.Queries(), wantQueries, "cold auth includes fresh school discovery and independent heartbeat")
 			found, err := fleet.FindDevice(ownCtx, own.ID)
@@ -214,4 +214,57 @@ func TestDeviceAuthenticationSchoolReadFailureIsIsolated(t *testing.T) {
 			t.Logf("school failure SQL: %q", counter.Queries())
 		})
 	}
+}
+
+// A valid PIN heartbeat must already be visible before a handler opens its own
+// write unit. Rolling that unit back must undo its writes, not the heartbeat.
+func TestDevicePINHeartbeatSurvivesHandlerRollback(t *testing.T) {
+	t.Parallel()
+	db, settings := setupIoTSettingsModule(t)
+	database := testpkg.NewDatabase(t, db)
+	fleet, err := owners.NewDeviceFleet(database)
+	require.NoError(t, err)
+	schools, err := NewDeviceSchools(database, database.UnitOfWork())
+	require.NoError(t, err)
+	own := testpkg.CreateTestDevice(t, db, "pin-heartbeat-rollback")
+	room := testpkg.CreateTestRoom(t, db, "rolled-back-device-room")
+	base := testpkg.ContextWithTenantRuntime(context.Background(), database.UnitOfWork())
+	ownCtx := testpkg.ContextForTenant(base, own.TenantID)
+	auth := testutil.NewDeviceAuthenticators(fleet, schools, settings)
+	request := func(pin string) *http.Request {
+		r := httptest.NewRequest(http.MethodGet, "/heartbeat", nil).WithContext(base)
+		r.Header.Set("Authorization", "Bearer "+*own.APIKey)
+		r.Header.Set("X-Staff-PIN", pin)
+		return r
+	}
+	response := httptest.NewRecorder()
+	auth.Device()(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("wrong PIN admitted")
+	})).ServeHTTP(response, request("wrong"))
+	require.Equal(t, http.StatusUnauthorized, response.Code, response.Body.String())
+	require.Contains(t, response.Body.String(), `"code":"iot.device_pin_invalid"`)
+	found, err := fleet.FindDevice(ownCtx, own.ID)
+	require.NoError(t, err)
+	require.Nil(t, found.LastSeen, "a rejected PIN must not persist a heartbeat")
+	var committed *time.Time
+	handlerFailure := errors.New("handler rolled back")
+	response = httptest.NewRecorder()
+	auth.Device()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		found, readErr := fleet.FindDevice(ownCtx, own.ID)
+		require.NoError(t, readErr)
+		require.NotNil(t, found.LastSeen, "heartbeat commits before entering the handler")
+		committed = found.LastSeen
+		writeErr := testpkg.WithinTenantContext(t, r.Context(), db, own.TenantID, func(ctx context.Context) error {
+			require.NoError(t, fleet.UpdateRoomID(ctx, own.ID, room.ID))
+			return handlerFailure
+		})
+		require.ErrorIs(t, writeErr, handlerFailure)
+		w.WriteHeader(http.StatusUnprocessableEntity)
+	})).ServeHTTP(response, request("1234"))
+	require.Equal(t, http.StatusUnprocessableEntity, response.Code, response.Body.String())
+	found, err = fleet.FindDevice(ownCtx, own.ID)
+	require.NoError(t, err)
+	require.NotNil(t, committed, "the valid request must reach the handler after the rejected attempt")
+	require.Equal(t, committed, found.LastSeen)
+	require.Nil(t, found.RoomID, "the handler's mutation must roll back independently")
 }

@@ -743,3 +743,65 @@ func TestNewAuthenticator_UsesSuppliedDebouncer(t *testing.T) {
 	require.Nil(t, errResp)
 	assert.False(t, directory.wasUpdated(), "authenticators built over one debouncer share its state")
 }
+
+// The checked port can fail before its guard (unit setup) or after a valid PIN
+// (heartbeat write). Neither failure may turn a bad PIN into an accepted one,
+// and heartbeat failures must remain best effort for a valid PIN.
+type checkedFailureDirectory struct {
+	*mockDeviceDirectory
+	setupErr error
+}
+
+func (d checkedFailureDirectory) RecordLastSeenChecked(ctx context.Context, id int64, check func(context.Context) (time.Time, bool, error)) error {
+	if d.setupErr != nil {
+		return d.setupErr
+	}
+	seenAt, write, err := check(ctx)
+	if err != nil || !write {
+		return err
+	}
+	return d.RecordLastSeen(ctx, id, seenAt)
+}
+
+func TestDevice_CheckedHeartbeatFailurePolicy(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("heartbeat unavailable")
+	for _, tc := range []struct {
+		name     string
+		setupErr error
+		pinErr   error
+		writes   int
+	}{
+		{"setup failure, valid PIN", failure, nil, 1},
+		{"setup failure, unreadable PIN", failure, failure, 0},
+		{"write failure, valid PIN", nil, nil, 1},
+		{"guard failure, unreadable PIN", nil, failure, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			directory := checkedFailureDirectory{mockDeviceDirectory: newMockDeviceDirectory(), setupErr: tc.setupErr}
+			directory.addDevice("checked-key", activeDevice("checked-device"))
+			directory.updateError = failure
+			auth := newTestAuthenticator(directory, func(deps *Dependencies) {
+				deps.PIN = func(context.Context, int64) (string, error) { return "correct-pin", tc.pinErr }
+			})
+			_, rejected := auth.authenticateDevice(context.Background(), pinCredentials("checked-key", "correct-pin"))
+			if tc.pinErr != nil {
+				require.NotNil(t, rejected)
+				require.Equal(t, statusUnauthorized, rejected.HTTPStatusCode)
+				require.Equal(t, ErrInvalidPIN.Error(), rejected.Detail)
+				_, cached := auth.deps.LastSeen.cache.Load(int64(0))
+				require.False(t, cached, "a rejected PIN must not enter the heartbeat debounce state")
+			} else {
+				require.Nil(t, rejected, "heartbeat infrastructure failures remain fail-open after a valid PIN")
+				// A failed cold write must not consume the successful debounce window.
+				directory.updateError = nil
+				_, rejected = auth.authenticateDevice(context.Background(), pinCredentials("checked-key", "correct-pin"))
+				require.Nil(t, rejected)
+				require.Equal(t, tc.writes+1, directory.updateCount)
+				return
+			}
+			require.Equal(t, tc.writes, directory.updateCount)
+		})
+	}
+}

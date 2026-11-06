@@ -171,3 +171,4 @@ func toPublicDisplay(value domain.Display) devicefleet.Display {
 }
 
 var _ devicefleet.Capability = (*Service)(nil)
+var _ devicefleet.CheckedDeviceHeartbeat = (*Service)(nil)
