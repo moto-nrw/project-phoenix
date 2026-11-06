@@ -228,7 +228,7 @@ function PhaseRow({
           </span>
           <StatusBadge tone="gray" compact label={kindLabel} />
           {audienceLabel && (
-            <StatusBadge tone="blue" compact label={audienceLabel} />
+            <StatusBadge tone="blue" compact wrap label={audienceLabel} />
           )}
         </div>
         <p className="mt-1 text-sm text-gray-600">{range}</p>

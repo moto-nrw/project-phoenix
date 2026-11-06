@@ -790,15 +790,17 @@ function EnrollmentSetupGuide({
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs">
-                    <StatusPill
+                    <StatusBadge
+                      compact
                       label={
                         readyForPreview ? "Eingerichtet" : "In Vorbereitung"
                       }
-                      tone={readyForPreview ? "success" : "neutral"}
+                      tone={readyForPreview ? "green" : "gray"}
                     />
-                    <StatusPill
+                    <StatusBadge
+                      compact
                       label={`${requestCount} Anmeldungen`}
-                      tone={requestCount > 0 ? "info" : "neutral"}
+                      tone={requestCount > 0 ? "blue" : "gray"}
                     />
                   </div>
                 </div>
@@ -959,18 +961,6 @@ function getStepIconClass(status: SetupStepStatus) {
     return "border-moto-green/30 bg-moto-green/15 text-moto-green-strong";
   }
   return "border-gray-200 bg-white text-gray-500";
-}
-
-function StatusPill({
-  label,
-  tone,
-}: Readonly<{
-  label: string;
-  tone: "success" | "info" | "neutral";
-}>) {
-  const badgeTone =
-    tone === "success" ? "green" : tone === "info" ? "blue" : "gray";
-  return <StatusBadge tone={badgeTone} compact label={label} />;
 }
 
 function StepMeta({

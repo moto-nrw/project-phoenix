@@ -7,5 +7,5 @@ import { StatusBadge } from "~/components/ui/status-badge";
 // Always gray: these are facts about the offering, not a status with a semantic
 // tone, and a tinted pill per attribute would drown the row.
 export function FeaturePill({ label }: Readonly<{ label: string }>) {
-  return <StatusBadge tone="gray" compact label={label} />;
+  return <StatusBadge tone="gray" compact wrap label={label} />;
 }

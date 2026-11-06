@@ -437,19 +437,21 @@ export function FieldEditorRow({
                   {isInfo ? "Infotext" : "Frage"} {index + 1}
                 </p>
                 {isInfo ? (
-                  <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium">
-                    <Info className="h-3 w-3" aria-hidden="true" />
-                    Hinweis
-                  </span>
+                  <StatusBadge
+                    tone="blue"
+                    icon={Info}
+                    compact
+                    label="Hinweis"
+                  />
                 ) : isTargetField ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
-                    <Lock className="h-3 w-3" aria-hidden="true" />
-                    Fester Vorschlag
-                  </span>
+                  <StatusBadge
+                    tone="gray"
+                    icon={Lock}
+                    compact
+                    label="Fester Vorschlag"
+                  />
                 ) : (
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
-                    Freie Zusatzfrage
-                  </span>
+                  <StatusBadge tone="gray" compact label="Freie Zusatzfrage" />
                 )}
               </div>
               <h3 className="mt-1 text-sm font-semibold text-gray-900">
@@ -1270,11 +1272,7 @@ export function PreviewSection({
 
 function ConditionalBadge({ field }: Readonly<{ field: FormField }>) {
   if (!field.visible_when) return null;
-  return (
-    <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium">
-      bedingt
-    </span>
-  );
+  return <StatusBadge tone="blue" compact label="bedingt" />;
 }
 
 export function PreviewAttachmentNames({
@@ -1333,9 +1331,7 @@ function PreviewCustomField({
           {badge}
           <ConditionalBadge field={field} />
           {field.required ? (
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
-              Pflicht
-            </span>
+            <StatusBadge tone="gray" compact label="Pflicht" />
           ) : null}
         </div>
       </div>

@@ -693,6 +693,7 @@ function ConnectedAccountRow({
             />
           ) : null}
           <StatusBadge
+            compact
             label={t(`guardians.access.status.${account.status}`)}
             tone={accessTone(account.status)}
           />

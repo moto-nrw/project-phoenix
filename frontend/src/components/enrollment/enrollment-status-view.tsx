@@ -49,7 +49,7 @@ import {
   StatusBadge,
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
-import { CHILD_STATUS_TONES } from "~/components/enrollment/child-status-badge";
+import { ChildStatusBadge } from "~/components/enrollment/child-status-badge";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 import { EnrollmentSignatureStatus } from "~/components/enrollment/enrollment-signature-status";
 import { childrenConcept } from "~/lib/concepts/children";
@@ -1032,7 +1032,10 @@ function EnrollmentChildRow({
             ) : null}
           </div>
         </div>
-        <StatusPill status={child.status} label={t(`status.${child.status}`)} />
+        <ChildStatusBadge
+          status={child.status}
+          label={t(`status.${child.status}`)}
+        />
       </div>
       <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-gray-500">
@@ -1618,16 +1621,6 @@ function StepNumber({ children }: { readonly children: React.ReactNode }) {
       {children}
     </span>
   );
-}
-
-function StatusPill({
-  status,
-  label,
-}: {
-  readonly status: StatusChild["status"];
-  readonly label: string;
-}) {
-  return <StatusBadge tone={CHILD_STATUS_TONES[status]} label={label} />;
 }
 
 function StatusSummaryCard({

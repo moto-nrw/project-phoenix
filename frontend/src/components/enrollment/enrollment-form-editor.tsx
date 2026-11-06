@@ -38,7 +38,10 @@ import {
 } from "~/components/enrollment/file-field-editor";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
-import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
 import { StatCard } from "~/components/ui/stat-card";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
@@ -2210,15 +2213,15 @@ function BuilderTemplateSummary({
           />
           {!isCreating ? (
             <div className="flex flex-wrap content-start gap-2 text-xs text-gray-600">
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-                {fields.length} Zusatzfragen
-              </span>
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-                {requiredCount} Pflicht-Zusatzfragen
-              </span>
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-                {childFieldCount} pro Kind
-              </span>
+              <StatusBadge
+                tone="gray"
+                label={`${fields.length} Zusatzfragen`}
+              />
+              <StatusBadge
+                tone="gray"
+                label={`${requiredCount} Pflicht-Zusatzfragen`}
+              />
+              <StatusBadge tone="gray" label={`${childFieldCount} pro Kind`} />
             </div>
           ) : null}
         </div>
@@ -2226,11 +2229,12 @@ function BuilderTemplateSummary({
 
       {currentSchema ? (
         <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-600">
-          <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-            {new Date(currentSchema.created_at).toLocaleString("de-DE", {
+          <StatusBadge
+            tone="gray"
+            label={new Date(currentSchema.created_at).toLocaleString("de-DE", {
               timeZone: "Europe/Berlin",
             })}
-          </span>
+          />
         </div>
       ) : null}
     </section>
@@ -3296,8 +3300,12 @@ function TargetSuggestions({
                 <span className="mt-1 block text-xs leading-5 text-gray-500">
                   {targetSuggestionDescriptions[target]}
                 </span>
-                <span className="mt-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
-                  {selected ? "Ist drin" : "Hinzufügen"}
+                <span className="mt-2 block">
+                  <StatusBadge
+                    tone="gray"
+                    compact
+                    label={selected ? "Ist drin" : "Hinzufügen"}
+                  />
                 </span>
               </span>
             </ChoiceTile>
@@ -3477,12 +3485,18 @@ function FormPreview({
                         <span className="text-sm font-medium text-gray-900">
                           {block.title.trim() || block.label}
                         </span>
-                        <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
-                          {block.kind === "notice"
-                            ? "Hinweis"
-                            : block.required
-                              ? "Pflicht"
-                              : "Optional"}
+                        <span className="shrink-0">
+                          <StatusBadge
+                            tone="gray"
+                            compact
+                            label={
+                              block.kind === "notice"
+                                ? "Hinweis"
+                                : block.required
+                                  ? "Pflicht"
+                                  : "Optional"
+                            }
+                          />
                         </span>
                       </div>
                       <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
@@ -3514,12 +3528,12 @@ function getPreviewStatus({
   assignedPhaseCount: number;
   isActive: boolean;
   isSaved: boolean;
-}>) {
+}>): { label: string; hint: string; tone: StatusBadgeTone } {
   if (assignedPhaseCount > 0) {
     return {
       label: "In Phase verwendet",
       hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
-      tone: "green" as const,
+      tone: "green",
     };
   }
 
@@ -3527,7 +3541,7 @@ function getPreviewStatus({
     return {
       label: "Bereit zur Zuordnung",
       hint: "Eltern sehen diese Vorlage erst, wenn sie einer Anmeldephase zugeordnet ist.",
-      tone: "green" as const,
+      tone: "green",
     };
   }
 
@@ -3535,14 +3549,14 @@ function getPreviewStatus({
     return {
       label: "Gespeichert",
       hint: "Ordne die Vorlage in einer Anmeldephase zu, damit Eltern sie verwenden.",
-      tone: "gray" as const,
+      tone: "gray",
     };
   }
 
   return {
     label: "Entwurf",
     hint: "Speichern Sie die Vorlage zuerst. Danach können Sie sie in einer Anmeldephase auswählen.",
-    tone: "gray" as const,
+    tone: "gray",
   };
 }
 
