@@ -1,6 +1,6 @@
 {
   "scenario": "modules.dataimport.student_batch.import_110",
-  "max": 2885,
+  "max": 2775,
   "exact": false,
-  "description": "110-row create import in two write transactions. Each attempt batches name matches and consumes names before subsequent rows; 104 fewer statements than the scalar write matching path. Measured by TestStudentImportBatchQueryBudget. Newly inserted guardian profiles are passed to the link command in the same transaction instead of being read again. Newly created children also carry the enrollment command result to the link, avoiding the repeated child read while its insert remains protected by the same transaction."
+  "description": "110-row create import in two write transactions. Each attempt batches name matches and consumes names before subsequent rows; 104 fewer statements than the scalar write matching path. Measured by TestStudentImportBatchQueryBudget. Newly inserted guardian profiles are passed to the link command in the same transaction instead of being read again. Newly created children also carry the enrollment command result to the link, avoiding the repeated child read while its insert remains protected by the same transaction. The first phone of a newly created guardian uses the same-transaction create fact instead of re-reading count and maximum priority; later phones and reused guardians retain the read."
 }

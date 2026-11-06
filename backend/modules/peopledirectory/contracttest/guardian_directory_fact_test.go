@@ -66,11 +66,46 @@ func TestGuardianDirectory_CreatedStudentNeedsAmbientTransaction(t *testing.T) {
 
 type guardianFactService struct {
 	peoplePorts.GuardianService
-	link func(context.Context, peoplePorts.StudentGuardianCreateRequest) (*peopledirectory.GuardianRelationshipSnapshot, error)
+	link  func(context.Context, peoplePorts.StudentGuardianCreateRequest) (*peopledirectory.GuardianRelationshipSnapshot, error)
+	phone func(context.Context, int64, peoplePorts.PhoneNumberCreateRequest) (*peopledirectory.GuardianProfilePhoneSnapshot, error)
 }
 
 func (s guardianFactService) LinkGuardianToStudent(ctx context.Context, req peoplePorts.StudentGuardianCreateRequest) (*peopledirectory.GuardianRelationshipSnapshot, error) {
 	return s.link(ctx, req)
+}
+
+func (s guardianFactService) AddPhoneNumber(ctx context.Context, id int64, req peoplePorts.PhoneNumberCreateRequest) (*peopledirectory.GuardianProfilePhoneSnapshot, error) {
+	return s.phone(ctx, id, req)
+}
+
+func TestGuardianDirectory_FirstPhoneNeedsAmbientTransaction(t *testing.T) {
+	t.Parallel()
+	for _, ambient := range []bool{false, true} {
+		t.Run(map[bool]string{false: "top level", true: "ambient"}[ambient], func(t *testing.T) {
+			t.Parallel()
+			created := &peopledirectory.Guardian{ID: 12, TenantID: 13}
+			ctx := tenant.WithTenantID(context.Background(), created.TenantID)
+			if ambient {
+				ctx = tenant.WithTransactionForTest(ctx, struct{}{})
+			}
+			stop := errors.New("stop before phone mutation")
+			service := guardianFactService{phone: func(txCtx context.Context, id int64, req peoplePorts.PhoneNumberCreateRequest) (*peopledirectory.GuardianProfilePhoneSnapshot, error) {
+				require.True(t, (RepositoryRuntime{}).InTransaction(txCtx))
+				require.Equal(t, created.ID, id)
+				if ambient {
+					require.Same(t, created, req.CreatedGuardian)
+				} else {
+					require.Nil(t, req.CreatedGuardian)
+				}
+				return nil, stop
+			}}
+			directory := NewGuardianDirectory(service, guardianFactRuntime{}, nil)
+			_, err := directory.AddGuardianPhone(ctx, created.ID, peopledirectory.GuardianPhoneInput{
+				CreatedGuardian: created, PhoneNumber: "0171 1234567",
+			})
+			require.ErrorIs(t, err, stop)
+		})
+	}
 }
 
 type guardianFactRuntime struct{}

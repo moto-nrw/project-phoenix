@@ -233,11 +233,15 @@ func (p *GuardianDirectory) DeleteGuardian(ctx context.Context, input peopledire
 }
 
 func (p *GuardianDirectory) AddGuardianPhone(ctx context.Context, guardianID int64, input peopledirectory.GuardianPhoneInput) (peopledirectory.GuardianPhone, error) {
+	if !(RepositoryRuntime{}).InTransaction(ctx) {
+		input.CreatedGuardian = nil
+	}
 	var phone *peopledirectory.GuardianProfilePhoneSnapshot
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
 		phone, txErr = p.guardians.AddPhoneNumber(txCtx, guardianID, peoplePorts.PhoneNumberCreateRequest{
-			PhoneNumber: input.PhoneNumber, PhoneType: input.PhoneType, Label: input.Label, IsPrimary: input.IsPrimary,
+			CreatedGuardian: input.CreatedGuardian,
+			PhoneNumber:     input.PhoneNumber, PhoneType: input.PhoneType, Label: input.Label, IsPrimary: input.IsPrimary,
 		})
 		return txErr
 	})

@@ -204,10 +204,14 @@ type GuardianDelete struct {
 }
 
 type GuardianPhoneInput struct {
-	PhoneNumber string
-	PhoneType   string
-	Label       *string
-	IsPrimary   bool
+	// CreatedGuardian is a successful new-profile create in this ambient
+	// transaction, with no intervening phone writes. Pass it only for the first
+	// phone; reused profiles and later phones must read the stored list facts.
+	CreatedGuardian *Guardian `json:"-"`
+	PhoneNumber     string
+	PhoneType       string
+	Label           *string
+	IsPrimary       bool
 }
 
 type GuardianPhoneUpdate struct {

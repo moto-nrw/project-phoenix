@@ -80,12 +80,12 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 		if err := c.updateExistingGuardianProfile(ctx, guardian, data); err != nil {
 			return ports.Guardian{}, copyErrorf("existing guardian profile aktualisieren: %w", err)
 		}
-		if err := c.createGuardianPhoneNumbers(ctx, guardian.ID, data.PhoneNumbers); err != nil {
+		if err := c.createGuardianPhoneNumbers(ctx, guardian.ID, data.PhoneNumbers, nil); err != nil {
 			return guardian, fmt.Errorf("add phone numbers to existing guardian: %w", err)
 		}
 		return guardian, nil
 	}
-	if err := c.createGuardianPhoneNumbers(ctx, guardian.ID, data.PhoneNumbers); err != nil {
+	if err := c.createGuardianPhoneNumbers(ctx, guardian.ID, data.PhoneNumbers, &guardian); err != nil {
 		return ports.Guardian{}, fmt.Errorf("create phone numbers: %w", err)
 	}
 	return guardian, nil
@@ -135,13 +135,16 @@ func (c *StudentImportConfig) updateExistingGuardianProfile(ctx context.Context,
 
 // createGuardianPhoneNumbers adds the phone numbers of the row the guardian
 // does not have yet. Priority and the primary flag are the owner's decision.
-func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, guardianID int64, phones []importModels.PhoneImportData) error {
+func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, guardianID int64, phones []importModels.PhoneImportData, created *ports.Guardian) error {
 	if len(phones) == 0 {
 		return nil
 	}
 	existing, err := c.Guardians.ListGuardianPhones(ctx, guardianID)
 	if err != nil {
 		return copyErrorf("Telefonnummern laden: %w", err)
+	}
+	if len(existing) != 0 || !c.Transactions.HasTransaction(ctx) {
+		created = nil
 	}
 	existingNumbers := make(map[string]struct{}, len(existing))
 	for _, phone := range existing {
@@ -159,13 +162,15 @@ func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, gu
 			label = &phoneData.Label
 		}
 		if _, err := c.Guardians.AddGuardianPhone(ctx, guardianID, ports.GuardianPhoneInput{
-			PhoneNumber: phoneData.PhoneNumber,
-			PhoneType:   string(mapPhoneType(phoneData.PhoneType)),
-			Label:       label,
-			IsPrimary:   phoneData.IsPrimary,
+			CreatedGuardian: created,
+			PhoneNumber:     phoneData.PhoneNumber,
+			PhoneType:       string(mapPhoneType(phoneData.PhoneType)),
+			Label:           label,
+			IsPrimary:       phoneData.IsPrimary,
 		}); err != nil {
 			return fmt.Errorf("phone %d: %w", i+1, err)
 		}
+		created = nil
 		existingNumbers[phoneData.PhoneNumber] = struct{}{}
 	}
 	return nil
@@ -228,7 +233,7 @@ func (c *StudentImportConfig) resolveLinkedGuardian(ctx context.Context, linked 
 	if err := c.updateExistingGuardianProfile(ctx, *match, data); err != nil {
 		return 0, copyErrorf("existing guardian profile aktualisieren: %w", err)
 	}
-	if err := c.createGuardianPhoneNumbers(ctx, match.ID, data.PhoneNumbers); err != nil {
+	if err := c.createGuardianPhoneNumbers(ctx, match.ID, data.PhoneNumbers, nil); err != nil {
 		return 0, fmt.Errorf("add phone numbers to existing guardian: %w", err)
 	}
 	return match.ID, nil

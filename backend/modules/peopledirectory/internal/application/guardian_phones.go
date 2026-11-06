@@ -26,10 +26,16 @@ func (s *RetainedGuardianService) AddPhoneNumber(ctx context.Context, guardianID
 		return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
 	}
 
-	// Read the count and next priority under the guardian lock.
-	count, priority, err := s.GuardianPhoneNumberRepo.CountAndNextPriority(ctx, guardianID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to count existing phone numbers: %w", err)
+	// A profile just created in this transaction has no phones. Only its
+	// first add may carry that fact; all other adds read under the same lock.
+	count, priority := 0, 1
+	created := req.CreatedGuardian
+	if !s.createdGuardianExists(ctx, guardianID, created) || len(created.PhoneNumbers) != 0 {
+		var err error
+		count, priority, err = s.GuardianPhoneNumberRepo.CountAndNextPriority(ctx, guardianID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to count existing phone numbers: %w", err)
+		}
 	}
 
 	phone := s.newGuardianPhone(ctx, guardianID, req, count, priority)

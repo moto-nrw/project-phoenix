@@ -64,3 +64,49 @@ func TestStudentImportResolvesGuardiansFromEarlierWritesWithinEachTenant(t *test
 	require.Len(t, guardianIDs, 2)
 	require.NotEqual(t, guardianIDs[0], guardianIDs[1], "the same e-mail must resolve independently in each tenant")
 }
+
+func TestStudentImportNewGuardianPhoneOrder(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	actor := newImporter(t, db)
+	rows := studentBatch(0, 2)
+	for i := range rows {
+		rows[i].Guardians[0].Email = "phone-order@example.test"
+	}
+	rows[0].Guardians[0].PhoneNumbers = []importModels.PhoneImportData{
+		{},
+		{PhoneNumber: "0171 1234567", PhoneType: "unknown"},
+		{PhoneNumber: "0171 1234567", PhoneType: "home", IsPrimary: true},
+		{PhoneNumber: "0221 7654321", PhoneType: "home"},
+		{PhoneNumber: "0221 1234567", PhoneType: "work", IsPrimary: true},
+	}
+	rows[1].Guardians[0].PhoneNumbers = []importModels.PhoneImportData{
+		{PhoneNumber: "0171 1234567", IsPrimary: true},
+		{PhoneNumber: "0172 7654321", PhoneType: "mobile"},
+	}
+	result, err := runStudentImport(t, db, module, actor, importModels.ImportModeCreate, rows, nil)
+	require.NoError(t, err)
+	requireNoRowErrors(t, result)
+	require.Equal(t, len(rows), result.CreatedCount)
+	var phones []struct {
+		PhoneNumber string
+		PhoneType   string
+		Priority    int
+		IsPrimary   bool
+	}
+	require.NoError(t, db.NewSelect().Table("users.guardian_phone_numbers").
+		Column("phone_number", "phone_type", "priority", "is_primary").
+		Where("tenant_id = ?", testpkg.Tenant(t)).OrderExpr("priority ASC").Scan(testpkg.Ctx(t), &phones))
+	require.Len(t, phones, 4)
+	for i, number := range []string{"0171 1234567", "0221 7654321", "0221 1234567", "0172 7654321"} {
+		require.Equal(t, number, phones[i].PhoneNumber)
+		require.Equal(t, i+1, phones[i].Priority)
+		require.Equal(t, i == 2, phones[i].IsPrimary, "duplicates must not change primary; later adds must preserve it")
+	}
+	require.Equal(t, "other", phones[0].PhoneType)
+	require.Equal(t, "home", phones[1].PhoneType)
+	require.Equal(t, "work", phones[2].PhoneType)
+	require.Equal(t, "mobile", phones[3].PhoneType)
+}
