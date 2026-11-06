@@ -195,7 +195,7 @@ describe("Länger als gebucht", () => {
       within(table).getAllByText("Keine Check-ins mehr gespeichert").length,
     ).toBeGreaterThan(0);
     expect(
-      within(table).getAllByText(", keine Check-ins im Zeitraum").length,
+      within(table).getAllByText(", nichts verglichen").length,
     ).toBeGreaterThan(0);
     // No zero that reads as "nobody stayed longer", anywhere on the page.
     expect(within(table).queryByText("0")).not.toBeInTheDocument();
@@ -275,5 +275,68 @@ describe("Länger als gebucht", () => {
     expect(
       screen.queryByText("In diesem Monat passen alle Zeiten zur Buchung."),
     ).not.toBeInTheDocument();
+  });
+
+  it("names check-ins it could not compare instead of claiming none", async () => {
+    mockUseSession.mockReturnValue(
+      session(["traeger_reports:read", "traeger_contracts:manage"]),
+    );
+    const none = {
+      children: 0,
+      overrunDays: 0,
+      unbookedDays: 0,
+      extraMinutes: 0,
+    };
+    api.fetchOverrunChildren.mockResolvedValue({
+      ...EVALUATION,
+      total: none,
+      schools: [
+        {
+          ...EVALUATION.schools[0]!,
+          comparedDays: 0,
+          uncomparedDays: 6,
+          figures: none,
+        },
+        {
+          ...EVALUATION.schools[1]!,
+          dataFrom: "2026-09-01",
+          comparedDays: 0,
+          uncomparedDays: 0,
+          figures: none,
+        },
+      ],
+      children: [],
+    });
+    renderPage();
+
+    expect(
+      (
+        await screen.findAllByText(
+          "Die Check-ins in diesem Zeitraum ließen sich nicht vergleichen.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    const table = screen.getAllByRole("table")[0] as HTMLElement;
+    const lindenhof = within(table)
+      .getAllByText("OGS Am Lindenhof")[0]!
+      .closest("tr") as HTMLElement;
+    expect(
+      within(lindenhof).getByText(
+        "6 Tage nicht verglichen: ohne Plan oder ohne Auschecken",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(lindenhof).queryByText("Keine Check-ins im Zeitraum"),
+    ).not.toBeInTheDocument();
+    const sued = within(table)
+      .getAllByText("OGS Süd")[0]!
+      .closest("tr") as HTMLElement;
+    expect(
+      within(sued).getByText("Keine Check-ins im Zeitraum"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Für diesen Zeitraum gibt es keine Check-ins."),
+    ).not.toBeInTheDocument();
+    expect(within(table).queryByText("0")).not.toBeInTheDocument();
   });
 });

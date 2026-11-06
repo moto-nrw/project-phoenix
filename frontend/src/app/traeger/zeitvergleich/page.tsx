@@ -70,6 +70,18 @@ const MONTH_NAMES = [
   "Dezember",
 ];
 const NO_DATA_TITLE = "Für diesen Zeitraum gibt es keine Check-ins.";
+const UNCOMPARED_TITLE =
+  "Die Check-ins in diesem Zeitraum ließen sich nicht vergleichen.";
+
+/**
+ * Warum nichts verglichen ist: Check-ins fehlen ganz, oder sie sind da,
+ * aber ohne Plan oder ohne Auschecken. Beides lässt die Zahlen offen.
+ */
+function noDataTitle(evaluation: OverrunEvaluation): string {
+  return evaluation.schools.some((school) => school.uncomparedDays > 0)
+    ? UNCOMPARED_TITLE
+    : NO_DATA_TITLE;
+}
 const OVERRUN_TEXT = { color: getAccessibleTextColor(LOCATION_COLORS.DANGER) };
 
 /** "2026-11" aus "2026-11-06". */
@@ -110,7 +122,7 @@ function monthWindow(
 function NoData() {
   return (
     <span className="text-sm text-gray-500">
-      –<span className="sr-only">, keine Check-ins im Zeitraum</span>
+      –<span className="sr-only">, nichts verglichen</span>
     </span>
   );
 }
@@ -171,7 +183,7 @@ function schoolColumns(
             <span className="block text-xs text-gray-500">
               Keine Check-ins mehr gespeichert
             </span>
-          ) : school.comparedDays === 0 ? (
+          ) : school.comparedDays === 0 && school.uncomparedDays === 0 ? (
             <span className="block text-xs text-gray-500">
               Keine Check-ins im Zeitraum
             </span>
@@ -313,8 +325,12 @@ function ChildrenEmptyState({
     return (
       <EmptyState
         icon={<CalendarOff className="h-12 w-12" aria-hidden="true" />}
-        title={NO_DATA_TITLE}
-        description="Ohne Check-ins kann moto nicht vergleichen. Die Schulen löschen Check-ins nach ihrer Frist."
+        title={evaluation ? noDataTitle(evaluation) : NO_DATA_TITLE}
+        description={
+          evaluation && noDataTitle(evaluation) === UNCOMPARED_TITLE
+            ? "Es fehlt ein Betreuungsplan oder das Auschecken. Die Schulen sehen die Tage bei den Kindern unter Soll und Ist."
+            : "Ohne Check-ins kann moto nicht vergleichen. Die Schulen löschen Check-ins nach ihrer Frist."
+        }
       />
     );
   }
@@ -344,7 +360,7 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
         tone={!noData && total.children > 0 ? "red" : "neutral"}
         hint={
           noData
-            ? NO_DATA_TITLE
+            ? noDataTitle(evaluation)
             : total.children === 1
               ? "Ein Kind war länger da als gebucht."
               : `${total.children} Kinder waren länger da als gebucht.`
@@ -357,7 +373,7 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
         tone={!noData && days > 0 ? "red" : "neutral"}
         hint={
           noData
-            ? "Ohne Check-ins zählt moto keine Tage."
+            ? "Ohne verglichene Check-ins zählt moto keine Tage."
             : total.unbookedDays > 0
               ? `Davon ${total.unbookedDays} an Tagen ohne Buchung.`
               : "Tage, an denen ein Kind länger da war."
