@@ -404,16 +404,20 @@ function ReadinessCard({
     >
       <ul className="space-y-2">
         {items.map((item) => (
-          <li key={item.label} className="flex items-start gap-2 text-sm">
-            <span
-              aria-hidden
-              className={`mt-0.5 inline-block h-2.5 w-2.5 shrink-0 rounded-full ${
-                item.ok ? "bg-moto-green" : "bg-moto-orange"
-              }`}
-            />
+          <li
+            key={item.label}
+            className="flex items-start justify-between gap-3 text-sm"
+          >
             <span>
               <span className="font-medium text-gray-800">{item.label}:</span>{" "}
               <span className="text-gray-600">{item.detail}</span>
+            </span>
+            <span className="shrink-0">
+              <StatusBadge
+                size="xs"
+                tone={item.ok ? "green" : "orange"}
+                label={item.ok ? "Erledigt" : "Fehlt"}
+              />
             </span>
           </li>
         ))}

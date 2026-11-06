@@ -168,16 +168,6 @@ export default function NfcQuickstartPage() {
                   >
                     <div
                       className={[
-                        "bg-moto-green absolute top-8 hidden h-3 w-3 items-center justify-center rounded-full md:flex print:flex",
-                        isRight
-                          ? "left-1/2 -translate-x-[calc(100%+2px)]"
-                          : "left-1/2 translate-x-2",
-                      ].join(" ")}
-                      aria-hidden="true"
-                    />
-
-                    <div
-                      className={[
                         // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- printed guide step card: inside .moto-dotted-background--guide the print rules turn moto-content-surface transparent, which would let the dotted page background show through this bordered card in the PDF
                         "relative w-full rounded-2xl border border-gray-200 bg-white p-5 md:w-[78%] print:w-[78%] print:p-4",
                         isRight ? "md:mr-0 print:mr-0" : "",

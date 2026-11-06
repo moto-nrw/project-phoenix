@@ -460,16 +460,14 @@ describe("Kopf der Kindakte", () => {
       expect(pickup.getByText(/geplant: 15:30, \+12 min/)).toBeInTheDocument();
     });
 
-    it("renders the exception dot in the affected row only", () => {
+    it("names the exception in the affected row only", () => {
       renderHeaderWithTimes({
         todayPickupPlannedTime: "15:30",
         isPickupException: true,
       });
 
-      // The dot uses the German tooltip "Ausnahme" via title= attribute —
-      // assert via title rather than class so we're not coupled to styling.
-      expect(rowFor("pickup").getByTitle("Ausnahme")).toBeInTheDocument();
-      expect(rowFor("arrival").queryByTitle("Ausnahme")).toBeNull();
+      expect(rowFor("pickup").getByText("Ausnahme")).toBeInTheDocument();
+      expect(rowFor("arrival").queryByText("Ausnahme")).toBeNull();
     });
 
     it("does not render the exception dot when isPickupException is false", () => {

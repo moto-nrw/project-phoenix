@@ -325,9 +325,6 @@ function StatusBadge({ status }: StatusBadgeProps) {
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase ${text}`}
       style={{ backgroundColor: bg }}
     >
-      {status === "active" && (
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-      )}
       {getStatusLabel(status)}
     </span>
   );

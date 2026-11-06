@@ -397,15 +397,6 @@ function StudentFeedbackHistoryPageContent() {
                                 className="flex items-center gap-3 py-2.5"
                                 data-testid={`feedback-indicator-${feedback.feedback_type}`}
                               >
-                                <span
-                                  className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                                  style={{
-                                    backgroundColor:
-                                      feedbackToneColors[
-                                        feedback.feedback_type
-                                      ],
-                                  }}
-                                />
                                 <span className="text-sm text-gray-900">
                                   {feedbackTypeLabels[feedback.feedback_type]}
                                 </span>
