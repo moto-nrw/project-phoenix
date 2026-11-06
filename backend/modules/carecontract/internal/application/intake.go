@@ -440,20 +440,7 @@ func (in *Intake) offerings(ctx context.Context, ids []int64) ([]carecontract.Of
 	if err != nil || len(offerings) == 0 {
 		return offerings, err
 	}
-	phaseIDs := []int64{}
-	for _, offering := range offerings {
-		if !slices.Contains(phaseIDs, offering.PhaseID) {
-			phaseIDs = append(phaseIDs, offering.PhaseID)
-		}
-	}
-	names, err := in.applications.PhaseNames(ctx, phaseIDs)
-	if err != nil {
-		return nil, err
-	}
-	for i := range offerings {
-		offerings[i].PhaseName = names[offerings[i].PhaseID]
-	}
-	return offerings, nil
+	return in.applications.NamePhases(ctx, offerings)
 }
 
 func (in *Intake) templatedOfferings(ctx context.Context, organizationID int64) (map[[2]int64]bool, error) {

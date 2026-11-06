@@ -128,8 +128,22 @@ func (a careContractApplications) AcceptedApplications(ctx context.Context, requ
 	return result, nil
 }
 
-func (a careContractApplications) PhaseNames(ctx context.Context, phaseIDs []int64) (map[int64]string, error) {
-	return a.applications.ContractPhaseNames(ctx, phaseIDs)
+func (a careContractApplications) NamePhases(ctx context.Context, offerings []carecontract.Offering) ([]carecontract.Offering, error) {
+	phaseIDs := []int64{}
+	for _, offering := range offerings {
+		if !slices.Contains(phaseIDs, offering.PhaseID) {
+			phaseIDs = append(phaseIDs, offering.PhaseID)
+		}
+	}
+	names, err := a.applications.ContractPhaseNames(ctx, phaseIDs)
+	if err != nil {
+		return nil, err
+	}
+	named := slices.Clone(offerings)
+	for i := range named {
+		named[i].PhaseName = names[named[i].PhaseID]
+	}
+	return named, nil
 }
 
 // careContractBookings reads the bookings and offerings of a school from

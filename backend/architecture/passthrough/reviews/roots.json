@@ -416,6 +416,21 @@
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
     },
     {
+      "decision": "0153",
+      "id": "api/careContractAccessLog.RecordAccess",
+      "reason": "ADR 0153 (#4678): Consumer-port adapter of the Betreuungsvertrag's access log; it writes the Träger-Büro's read of the accepted applications into the access log of the school in that school's tenant transaction (ADR 0084 section 7)."
+    },
+    {
+      "decision": "0153",
+      "id": "api/careContractBookings.Bookings",
+      "reason": "ADR 0153 (#4678): Consumer-port adapter that reads the bookings of the application children through Care Plan and translates them into the Betreuungsvertrag's bookings by child."
+    },
+    {
+      "decision": "0153",
+      "id": "api/careContractBookings.Offerings",
+      "reason": "ADR 0153 (#4678): Consumer-port adapter that reads the school's offerings through Care Plan and translates them into the Betreuungsvertrag's offerings."
+    },
+    {
       "decision": "0090",
       "id": "api/childQuotaStudentsReader.ChildQuotaUsage",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -4419,6 +4434,11 @@
       "decision": "0090",
       "id": "roots/owners/parentChildReads.ListByAccount",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0153",
+      "id": "roots/owners/parentContractDocuments.ContractDocumentFile",
+      "reason": "ADR 0153 (#4678): Consumer-port adapter of the parents' inbox; it reads the stored PDF of a sent contract through the Betreuungsvertrag in the caller's Träger transaction and maps a contract outside the inbox to the workflow's not-found error."
     },
     {
       "decision": "0090",

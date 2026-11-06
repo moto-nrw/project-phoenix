@@ -72,8 +72,8 @@ type SchoolApplications interface {
 	// AcceptedApplications lists the accepted application children without
 	// their bookings; a non-empty requestChildIDs keeps only those.
 	AcceptedApplications(ctx context.Context, requestChildIDs []int64) ([]Application, error)
-	// PhaseNames names the school's enrollment phases by ID.
-	PhaseNames(ctx context.Context, phaseIDs []int64) (map[int64]string, error)
+	// NamePhases fills in the name of each offering's enrollment phase.
+	NamePhases(ctx context.Context, offerings []Offering) ([]Offering, error)
 }
 
 // SchoolBookings reads the bookings and the offerings of the school whose
