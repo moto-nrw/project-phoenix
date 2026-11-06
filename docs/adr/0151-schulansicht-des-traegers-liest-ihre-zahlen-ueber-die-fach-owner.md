@@ -68,3 +68,17 @@ Preis dieser Entscheidung (siehe Folgen).
   Zugriffsprotokoll.
 - `Betreuungskräfte anwesend` hängt an der Zeiterfassung. Eine Schule ohne
   Zeiterfassung zeigt 0 und keinen Schlüssel; die Seite sagt das.
+
+## Nachtrag 06.11.2026: Stichtagszahlen ([#4673](https://github.com/moto-nrw/project-phoenix/issues/4673))
+
+Das Träger-Portal zeigt die festgehaltenen Stichtagszahlen je Schule. Es liest sie
+nach demselben Muster über ihren Owner: Organisation & Tenancy bietet
+`TraegerMembershipQuery.ListTraegerBillingKeyDateCounts`. Die Fähigkeit prüft den
+Träger wie `ListTraegerSchoolIDs` und liest die Zeilen des Operator-Berichts
+(`platform.live_billing_key_date_counts`) nur für die nicht gelöschten Schulen
+dieses Trägers, mit derselben Spaltenliste und derselben Zeilenabbildung wie der
+Bericht. Sie läuft in `runRead` und damit in der Admin-Einheit der Projektion;
+es entsteht keine neue Transaktionsstelle und keine Compose-Zeile. Die Projektion
+behält nur Zeilen der Schulmenge, die sie selbst aufgelöst hat. Dass beide Ansichten
+dieselben Zahlen zeigen, belegt `api/traeger_key_date_counts_test.go` mit einer
+echten Erfassung über zwei Monate und einer Schule eines anderen Trägers.
