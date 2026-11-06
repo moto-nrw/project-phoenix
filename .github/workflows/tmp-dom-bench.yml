@@ -1,0 +1,63 @@
+name: TEMP dom runner benchmark
+
+# Temporary measurement for the DOM test runner size. Removed before merge.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/tmp-dom-bench.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    name: dom ${{ matrix.cfg.runner }} w${{ matrix.cfg.workers }} shard ${{ matrix.cfg.shard }} rep ${{ matrix.rep }}
+    strategy:
+      fail-fast: false
+      matrix:
+        rep: [1, 2]
+        cfg:
+          - { runner: 8vcpu, workers: 4, shard: '1/2' }
+          - { runner: 8vcpu, workers: 4, shard: '2/2' }
+          - { runner: 4vcpu, workers: 2, shard: '1/2' }
+          - { runner: 4vcpu, workers: 2, shard: '2/2' }
+          - { runner: 4vcpu, workers: 3, shard: '1/2' }
+          - { runner: 4vcpu, workers: 3, shard: '2/2' }
+          - { runner: 4vcpu, workers: 4, shard: '1/2' }
+          - { runner: 4vcpu, workers: 4, shard: '2/2' }
+          - { runner: 4vcpu, workers: 4, shard: 'none' }
+          - { runner: 8vcpu, workers: 4, shard: 'none' }
+    runs-on: blacksmith-${{ matrix.cfg.runner }}-ubuntu-2404
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Run frontend tests
+        working-directory: frontend
+        env:
+          SHARD: ${{ matrix.cfg.shard }}
+          WORKERS: ${{ matrix.cfg.workers }}
+        run: |
+          args=(--project app-dom --project school-date-dom --maxWorkers "$WORKERS")
+          if [ "$SHARD" != none ]; then args+=(--shard "$SHARD"); fi
+          start=$(date +%s)
+          /usr/bin/time -v pnpm vitest run --disableConsoleIntercept "${args[@]}" 2> time.txt
+          echo "BENCH wall=$(( $(date +%s) - start ))s $(grep -E 'Maximum resident|Percent of CPU' time.txt | tr -s ' ' | tr '\n' ' ')"
