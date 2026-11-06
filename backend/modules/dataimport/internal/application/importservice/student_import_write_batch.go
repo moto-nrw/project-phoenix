@@ -48,7 +48,8 @@ type studentCreateBatchConfig struct {
 }
 
 func (c studentCreateBatchConfig) FindExisting(ctx context.Context, row importModels.StudentImportRow) (*int64, error) {
-	defer delete(c.matches.Persons.(previewPersons).names,
+	persons := c.matches.Persons.(previewPersons)
+	defer delete(persons.names,
 		previewName(strings.TrimSpace(row.FirstName), strings.TrimSpace(row.LastName)))
 	if row.TagID != "" {
 		return c.StudentImportConfig.FindExisting(ctx, row)

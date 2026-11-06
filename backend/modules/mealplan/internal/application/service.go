@@ -360,24 +360,8 @@ func (s *Service) dailyParticipants(ctx context.Context, date, through domain.Da
 		}
 		deadline := rules.FreezeAt(date)
 		list = domain.DailyList{Date: date, CutoffTime: deadline.In(calendarZone).Format("15:04"), Deadline: deadline, Participants: []domain.DailyParticipant{}}
-		var days domain.CalendarDays
-		var stats domain.OperationStats
-		var calendarErr error
-		loaded = prepared
-		if prepared != nil {
-			days = *prepared
-		} else {
-			days, stats, calendarErr = s.calendar.Days(txCtx, date, through)
-			if calendarErr == nil {
-				loaded = &days
-			} else if through != date {
-				// A later day's malformed calendar must not preempt the current
-				// day's roster or participation failure. Keep the scalar path.
-				var dayStats domain.OperationStats
-				days, dayStats, calendarErr = s.calendar.Days(txCtx, date, date)
-				stats = addStats(stats, dayStats)
-			}
-		}
+		days, calendar, stats, calendarErr := s.participantCalendar(txCtx, date, through, prepared)
+		loaded = calendar
 		list.Closed = days.Closed[date]
 		if calendarErr != nil || list.Closed {
 			return stats, calendarErr
