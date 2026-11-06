@@ -497,7 +497,7 @@ function WeekBody({
 
       {/* Mobile: day-strip selector + selected day */}
       <div className="xl:hidden">
-        <div className="mb-3 flex gap-1">
+        <div className="mb-3 flex gap-1 overflow-x-auto">
           {weekDates.map((date, i) => (
             <PlanningDayChip
               key={toISODate(date)}
@@ -506,6 +506,7 @@ function WeekBody({
               dateLabel={shortDate(date)}
               selected={i === selectedIndex}
               onClick={() => onSelectMobileDay(i)}
+              className="min-w-13 shrink-0"
             />
           ))}
         </div>

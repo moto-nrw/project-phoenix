@@ -3045,6 +3045,19 @@ function actionHoldsIcon(element, iconNames) {
   );
 }
 
+/** Das Kreuz als Symbol oder als Textzeichen „×“. */
+function actionRemoves(element) {
+  return (
+    actionHoldsIcon(element, REMOVE_ICONS) ||
+    (isActionElement(element) &&
+      element.children.some(
+        (child) => child.type === "JSXText" && child.value.trim() === "×",
+      ))
+  );
+}
+
+const REMOVE_ICONS = new Set(["X", "XIcon", "CloseIcon"]);
+
 function kitInputRule({ description, message, kitFile, visitors }) {
   return {
     meta: {
@@ -3078,8 +3091,6 @@ function kitInputRule({ description, message, kitFile, visitors }) {
   };
 }
 
-const REMOVE_ICONS = new Set(["X", "XIcon", "CloseIcon"]);
-
 const noHandRolledRemovableChip = kitInputRule({
   description:
     "A chip with its own remove button is RemovableChip; do not rebuild it.",
@@ -3100,10 +3111,7 @@ const noHandRolledRemovableChip = kitInputRule({
         /(?:^|\s)rounded(?:-[a-z0-9]+)?(?:\s|$)/.test(text) &&
         /(?:^|\s)(?:border|bg-[a-z])/.test(text);
       if (!isChip) return;
-      const removes = flatJsxChildren(node).some((child) =>
-        actionHoldsIcon(child, REMOVE_ICONS),
-      );
-      if (removes) found(opening);
+      if (flatJsxChildren(node).some(actionRemoves)) found(opening);
     },
   }),
 });
@@ -3124,7 +3132,7 @@ const noHandRolledNumberStepper = kitInputRule({
   }),
 });
 
-const WEEKDAY_LIST_RE = /week_?days?$|^week_?days|dayOptions$/i;
+const WEEKDAY_LIST_RE = /week_?(?:days?|dates)|dayOptions$/i;
 
 /** Das Element, das der `.map`-Callback direkt zurückgibt. */
 function returnedJsxElement(body) {
@@ -3142,7 +3150,7 @@ const noHandRolledWeekdayToggle = kitInputRule({
   description:
     "A row of weekday toggles is WeekdayToggleGroup; do not rebuild it from checkboxes or pressed buttons.",
   message:
-    "Keine eigene Wochentagsauswahl: WeekdayToggleGroup aus ~/components/ui/weekday-toggle-group nehmen (#5596, .claude/rules/frontend-ui-kit.md).",
+    "Keine eigene Wochentagsauswahl: WeekdayToggleGroup aus ~/components/ui/weekday-toggle-group nehmen, für einen Tagesstreifen PlanningDayChip stacked (#5596, .claude/rules/frontend-ui-kit.md).",
   kitFile: "src/components/ui/weekday-toggle-group.tsx",
   visitors: ({ found }) => ({
     CallExpression(node) {

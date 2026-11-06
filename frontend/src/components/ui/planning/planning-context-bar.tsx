@@ -379,7 +379,7 @@ export function PlanningDayChip({
           {statusLabel ? (
             <span
               className={cn(
-                "w-full truncate text-center text-xs leading-tight",
+                "w-full text-center text-xs leading-tight wrap-break-word hyphens-auto",
                 quietText,
               )}
             >

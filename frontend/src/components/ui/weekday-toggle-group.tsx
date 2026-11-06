@@ -1,7 +1,6 @@
 "use client";
 
 import { ToggleChip } from "~/components/ui/toggle-chip";
-import { cn } from "~/lib/utils";
 
 export interface WeekdayToggleOption<T extends string | number> {
   readonly value: T;
@@ -24,7 +23,6 @@ export function WeekdayToggleGroup<T extends string | number>({
   value,
   onToggle,
   disabled = false,
-  className,
 }: Readonly<{
   /** Name der Gruppe für Screenreader, z. B. „Wochentage“. */
   ariaLabel: string;
@@ -32,13 +30,12 @@ export function WeekdayToggleGroup<T extends string | number>({
   value: readonly T[];
   onToggle: (day: T) => void;
   disabled?: boolean;
-  className?: string;
 }>) {
   return (
     <div
       role="group"
       aria-label={ariaLabel}
-      className={cn("flex w-full flex-wrap gap-1.5", className)}
+      className="flex w-full flex-wrap gap-1.5"
     >
       {days.map((day) => (
         <ToggleChip

@@ -2095,6 +2095,13 @@ describe.concurrent("ui-kit Eingabe-Bausteine (#5596)", () => {
       </span>`,
     ],
     [
+      "no-hand-rolled-removable-chip",
+      `<span className="inline-flex rounded-full bg-gray-50">
+        {label}
+        <button type="button" onClick={remove} aria-label="Weg">×</button>
+      </span>`,
+    ],
+    [
       "no-hand-rolled-number-stepper",
       `<div className="flex">
         <Button onClick={remove} aria-label="Weniger"><Minus /></Button>

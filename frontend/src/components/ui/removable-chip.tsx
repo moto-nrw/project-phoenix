@@ -20,7 +20,6 @@ export function RemovableChip({
   onRemove,
   removeLabel,
   disabled = false,
-  className,
 }: Readonly<
   {
     label: string;
@@ -28,7 +27,6 @@ export function RemovableChip({
     detail?: string;
     icon?: ReactNode;
     disabled?: boolean;
-    className?: string;
   } & (
     | { onRemove: () => void; removeLabel: string }
     | { onRemove?: never; removeLabel?: never }
@@ -39,7 +37,6 @@ export function RemovableChip({
       className={cn(
         "inline-flex max-w-full items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 py-1 pl-3 text-sm font-medium text-gray-700",
         onRemove ? "pr-1" : "pr-3",
-        className,
       )}
     >
       {icon}
