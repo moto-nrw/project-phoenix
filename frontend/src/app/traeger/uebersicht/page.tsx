@@ -57,6 +57,7 @@ import type {
   TraegerSchoolAlerts,
   TraegerSchoolFigures,
   TraegerSchoolToday,
+  TraegerSchoolsToday,
 } from "~/lib/traeger-api";
 import { TRAEGER_HANDOFF_OPEN } from "~/lib/traeger-handoff";
 import { traegerPath } from "~/lib/traeger-url";
@@ -418,23 +419,50 @@ export default function TraegerDashboardPage() {
     : alertRows.slice(0, INITIAL_ROW_COUNT);
   const quiet = !alertsLoading && affected.length === 0;
 
-  const loading = today === null && !error;
-  const schools = today?.schools ?? [];
+  // Once hints are confirmed, every figure and the timestamp belong to that
+  // snapshot, even when only /today refreshes successfully afterwards.
+  const snapshot = useMemo<TraegerSchoolsToday | null>(() => {
+    if (!alerts) return today;
+    const total = alerts.schools.reduce(
+      (sum, { figures }) => ({
+        childrenTotal: sum.childrenTotal + figures.childrenTotal,
+        childrenPresent: sum.childrenPresent + figures.childrenPresent,
+        childrenSick: sum.childrenSick + figures.childrenSick,
+        staffTotal: sum.staffTotal + figures.staffTotal,
+        staffPresent: sum.staffPresent + figures.staffPresent,
+      }),
+      {
+        childrenTotal: 0,
+        childrenPresent: 0,
+        childrenSick: 0,
+        staffTotal: 0,
+        staffPresent: 0,
+      },
+    );
+    return {
+      schools: alerts.schools,
+      total: {
+        ...total,
+        careRatio:
+          total.staffPresent > 0
+            ? total.childrenPresent / total.staffPresent
+            : null,
+        asOf: alerts.asOf,
+      },
+    };
+  }, [alerts, today]);
+  const loading = snapshot === null && !error;
+  const schools = snapshot?.schools ?? [];
   const alertsBySchool = useMemo<AlertsBySchool>(
     () => new Map((alerts?.schools ?? []).map((school) => [school.id, school])),
     [alerts],
   );
   const rows = useMemo(
     () =>
-      (today?.schools ?? [])
-        .filter((school) => matchesSearch(school, search))
-        .map((school) => ({
-          ...school,
-          // Keep figures and warning markers on the same confirmed snapshot,
-          // including when only one of the two requests refreshes successfully.
-          figures: alertsBySchool.get(school.id)?.figures ?? school.figures,
-        })),
-    [today, search, alertsBySchool],
+      (snapshot?.schools ?? []).filter((school) =>
+        matchesSearch(school, search),
+      ),
+    [snapshot, search],
   );
   const canChangeThresholds = hasPermission(session, SETTINGS_RIGHT);
 
@@ -493,11 +521,11 @@ export default function TraegerDashboardPage() {
         </>
       }
       stats={
-        today ? (
+        snapshot ? (
           <TenantPageStats
             items={[
               {
-                value: `Stand ${formatBerlinTime(today.total.asOf)} Uhr`,
+                value: `Stand ${formatBerlinTime(snapshot.total.asOf)} Uhr`,
                 label: "",
               },
             ]}
@@ -516,7 +544,10 @@ export default function TraegerDashboardPage() {
           : undefined
       }
     >
-      <TotalFigures total={today?.total ?? null} schoolCount={schools.length} />
+      <TotalFigures
+        total={snapshot?.total ?? null}
+        schoolCount={schools.length}
+      />
       {alertsError ? (
         <LoadErrorAlert error={alertsError} actionLayout="responsive" />
       ) : alerts?.schools.length === 0 ? null : (

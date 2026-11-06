@@ -1,10 +1,10 @@
 import { SWRConfig } from "~/lib/swr/testing";
 vi.unmock("swr");
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
-import { TEST_CLOCK_INSTANT } from "~/test/clock";
+import { releaseFakeTimers, TEST_CLOCK_INSTANT } from "~/test/clock";
 import type {
   TraegerAlertKind,
   TraegerSchoolAlerts,
@@ -322,10 +322,11 @@ describe("TraegerDashboardPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("uses the alert snapshot for both table figures and warning markers", async () => {
+  it("uses the alert snapshot for table figures, warning markers, totals and timestamp", async () => {
     mockFetchToday.mockResolvedValue(TODAY);
     mockFetchAlerts.mockResolvedValue({
       ...ALERTS,
+      asOf: new Date(TEST_CLOCK_INSTANT.getTime() - 60_000).toISOString(),
       schools: [
         {
           ...ALERTS.schools[0]!,
@@ -364,6 +365,54 @@ describe("TraegerDashboardPage", () => {
     expect(
       within(lindenweg).getAllByText(", erreicht Ihre Grenze"),
     ).toHaveLength(1);
+    expect(screen.getByText("120")).toBeInTheDocument();
+    expect(screen.getByText("50")).toBeInTheDocument();
+    expect(screen.getByText("9")).toBeInTheDocument();
+    expect(screen.getByText("3 von 9")).toBeInTheDocument();
+    expect(screen.getByText("1 : 16,7")).toBeInTheDocument();
+    expect(screen.getByText("Stand 11:59 Uhr")).toBeInTheDocument();
+
+    const [field] = screen.getAllByPlaceholderText("Schule oder Ort suchen…");
+    fireEvent.change(field!, { target: { value: "melle" } });
+    expect(screen.getByText("50")).toBeInTheDocument();
+  });
+
+  it("keeps the whole alert snapshot when only today's figures refresh", async () => {
+    vi.useFakeTimers();
+    mockFetchToday.mockResolvedValue(TODAY);
+    await act(async () => {
+      renderPage();
+    });
+    expect(screen.getByText("Stand 12:00 Uhr")).toBeInTheDocument();
+
+    mockFetchToday.mockResolvedValue({
+      ...TODAY,
+      schools: [TODAY.schools[0]!],
+      total: {
+        ...figures(120, 60, 2, 12, 3),
+        asOf: new Date(TEST_CLOCK_INSTANT.getTime() + 60_000).toISOString(),
+      },
+    } satisfies TraegerSchoolsToday);
+    mockFetchAlerts.mockRejectedValue(
+      new ApiError("boom", 500, { code: "general.internal" }),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    releaseFakeTimers();
+
+    expect(mockFetchToday).toHaveBeenCalledTimes(2);
+    expect(mockFetchAlerts).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Stand 12:00 Uhr")).toBeInTheDocument();
+    expect(screen.getByText("80")).toBeInTheDocument();
+    expect(screen.getByText("6 von 17")).toBeInTheDocument();
+    const table = screen.getByRole("table");
+    expect(
+      within(table).getByRole("link", { name: "OGS Lindenweg" }),
+    ).toBeInTheDocument();
+    expect(within(table).getAllByText(", erreicht Ihre Grenze")).toHaveLength(
+      2,
+    );
   });
 
   it("keeps the figures when the hints fail", async () => {
@@ -398,7 +447,7 @@ function renderAlerts(
   return options.error
     ? screen.findByRole("alert")
     : alerts?.schools.length === 0
-      ? screen.findByRole("table")
+      ? screen.findAllByText("Ihrem Träger sind noch keine Schulen zugeordnet.")
       : screen.findByRole("link", {
           name: options.canChange ? "Grenzen ändern" : "Grenzen ansehen",
         });
@@ -532,6 +581,13 @@ describe("school alerts", () => {
   it("stays away while the Träger has no school", async () => {
     await renderAlerts(alertsOf([]));
     expect(screen.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+    expect(screen.getByText("Stand 12:00 Uhr")).toBeInTheDocument();
+    expect(screen.getByText("0 von 0")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Gerade ist an keiner Schule eine Betreuungskraft in der Zeiterfassung angemeldet.",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.queryByTestId("traeger-school-alerts"),
     ).not.toBeInTheDocument();
