@@ -160,7 +160,7 @@
     "capacityFull": "Seçtiğiniz tekliflerden birinde boş yer kalmadı. Lütfen başka bir teklif seçin veya okulla iletişime geçin.",
     "alreadyPending": "Çocuğunuz için zaten bir talep var. Lütfen incelemenin bitmesini bekleyin.",
     "withdrawalConfirmTitle": "Bakım tamamen sonlandırılsın mı?",
-    "withdrawalConfirmBody": "Bundan sonra {name} için kayıtlı hiçbir bakım günü kalmaz. Bu talebi gerçekten göndermek istiyor musunuz?",
+    "withdrawalConfirmBody": "{date} tarihinden itibaren {name} için kayıtlı hiçbir bakım günü kalmaz. Bu talebi gerçekten göndermek istiyor musunuz?",
     "withdrawalConfirmBack": "Geri",
     "withdrawalConfirmSubmit": "Talebi gönder",
     "errorObjectCatalog": "teklif listesi",

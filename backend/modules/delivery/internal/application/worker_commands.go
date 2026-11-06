@@ -17,6 +17,7 @@ type WorkerRecords interface {
 	ports.RealtimeNotificationStore
 	targetedEmailStore
 	targetedPushStore
+	ports.EmailDeliveryEventStore
 	DeleteExpiredSystemEmails(context.Context, time.Time, int) (int, error)
 }
 
@@ -140,6 +141,22 @@ func (c *WorkerCommands) RecordEmailRetry(ctx context.Context, id int64, token s
 func (c *WorkerCommands) DeleteExpiredSystemEmails(ctx context.Context, before time.Time, limit int) (result0 int, err error) {
 	err = c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
 		result0, err = c.WorkerRecords.DeleteExpiredSystemEmails(txCtx, before, limit)
+		return err
+	})
+	return
+}
+
+func (c *WorkerCommands) RecordEmailDeliveryEvent(ctx context.Context, event domain.EmailDeliveryEvent) (result0 domain.EmailDeliveryEventResult, err error) {
+	err = c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+		result0, err = c.WorkerRecords.RecordEmailDeliveryEvent(txCtx, event)
+		return err
+	})
+	return
+}
+
+func (c *WorkerCommands) EmailAddressSuppressed(ctx context.Context, tenantID int64, address string) (result0 bool, err error) {
+	err = c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+		result0, err = c.WorkerRecords.EmailAddressSuppressed(txCtx, tenantID, address)
 		return err
 	})
 	return

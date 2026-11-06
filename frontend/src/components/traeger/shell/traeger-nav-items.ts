@@ -13,6 +13,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { backConcept } from "~/lib/concepts/back";
 import { billingConcept } from "~/lib/concepts/billing";
+import { careContractsConcept } from "~/lib/concepts/careContracts";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { contributionsConcept } from "~/lib/concepts/contributions";
 import { dashboardConcept } from "~/lib/concepts/dashboard";
@@ -29,6 +30,8 @@ import { utilizationConcept } from "~/lib/concepts/utilization";
 const ACCOUNTS_RIGHT = "traeger_accounts:manage";
 /** Das Recht, das die Ferienzeiträume öffnet (#4659). */
 const ENROLLMENT_RIGHT = "traeger_enrollment:manage";
+/** Das Recht, das die Betreuungsverträge öffnet (#4678). */
+const CONTRACTS_RIGHT = "traeger_contracts:manage";
 /** Das Recht, das die Abrechnungsläufe öffnet (#4668). */
 const BILLING_RIGHT = "traeger_billing:manage";
 /** Das Recht, das das Zugriffsprotokoll öffnet (#4655). */
@@ -107,6 +110,14 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         label: "Ferienbetreuung",
         concept: holidayWeeksConcept,
         right: ENROLLMENT_RIGHT,
+      },
+      {
+        // Betreuungsverträge aus angenommenen Anmeldungen (#4678).
+        key: "vertraege",
+        href: "/traeger/vertraege",
+        label: "Verträge",
+        concept: careContractsConcept,
+        right: CONTRACTS_RIGHT,
       },
     ],
   },

@@ -49,6 +49,12 @@ gehören keiner Schule und werden nicht zurückgegeben.
 Ferienfenster bewusst Betreuung, mit dem bestätigenden Konto) ist `tenant`,
 wird zurückgegeben und mit der Schule gelöscht.
 
+Migration 1.15.758 ergänzt `platform.email_delivery_events` und
+`platform.email_suppressions` (#5932): Zustellereignisse einer Mail und die
+Adressen einer Schule mit endgültigem Fehler oder Beschwerde. Beide sind
+`tenant`, werden nicht zurückgegeben (kein Schuldatensatz, nur Zustellhilfe) und
+mit der Schule gelöscht; die nächtliche Delivery-Aufbewahrung löscht sie vorher.
+
 Migration 1.15.727 ergänzt `platform.realtime_notifications` (#5504): eine
 Kopie eines In-App-Hinweises mit Empfängern, die andere API-Prozesse zwei
 Minuten lang lesen. Bei Eltern-Hinweisen enthält das JSON zusätzlich die

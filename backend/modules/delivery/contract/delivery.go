@@ -61,6 +61,9 @@ type EmailIntent struct {
 	IdempotencyKey string
 	Related        RelatedEntity
 	DeliverAfter   time.Time
+	// Security marks a sign-in code, password reset or staff invitation: it is
+	// sent before other mail and the suppression list never holds it back.
+	Security bool
 }
 
 type EmailDelivery struct {
@@ -184,7 +187,10 @@ var (
 	ErrDeferred  = errors.New("delivery: provider deferred the intent")
 	// ErrPermanent marks a rejection that no retry can change. The intent
 	// dead-letters on this attempt, so the failure is still reported.
-	ErrPermanent           = errors.New("delivery: provider rejected the intent permanently")
+	ErrPermanent = errors.New("delivery: provider rejected the intent permanently")
+	// ErrRecipientRejected refines ErrPermanent: the server refused this
+	// address, so it goes on the school's suppression list.
+	ErrRecipientRejected   = errors.New("delivery: provider rejected the recipient permanently")
 	ErrIdempotencyConflict = errors.New("delivery: idempotency key reused with different intent")
 )
 
@@ -200,7 +206,22 @@ type Status struct {
 	SentAt         *time.Time
 	DeadLetterAt   *time.Time
 	CancelledAt    *time.Time
+	// DeliveryState is what the mail provider reported after it accepted
+	// the mail (#5932): one of the DeliveryState values, empty while
+	// nothing was reported. A sent mail can still bounce.
+	DeliveryState string
 }
+
+// The provider outcomes of a sent mail (#5932). DeliveryFailed is a bounce
+// for good, DeliverySuppressed a mail the provider withheld for a known bad
+// address; neither reached the recipient.
+const (
+	DeliveryDelayed    = "delayed"
+	DeliveryDelivered  = "delivered"
+	DeliverySuppressed = "suppressed"
+	DeliveryFailed     = "failed"
+	DeliveryComplained = "complained"
+)
 
 type Observation struct {
 	Operation string
@@ -210,3 +231,25 @@ type Observation struct {
 	Count     int
 	Err       error
 }
+
+// parentMailTemplates are the mails a school sends to parents, the only mail the
+// suppression list holds back so far (#5932). An unlisted template goes out.
+var parentMailTemplates = map[string]bool{
+	"guardian_invitation":                true,
+	"guardian_welcome":                   true,
+	"parent_announcement":                true,
+	"parent_message":                     true,
+	"enrollment_submitted":               true,
+	"enrollment_approved":                true,
+	"enrollment_waitlisted":              true,
+	"enrollment_rejected":                true,
+	"enrollment_rollover_opt_in":         true,
+	"enrollment_rollover_opt_out":        true,
+	"enrollment_change_request_question": true,
+	"enrollment_change_request_approved": true,
+	"enrollment_change_request_rejected": true,
+	"holiday_registration_received":      true,
+}
+
+// IsParentMail reports whether a mail template goes to parents.
+func IsParentMail(template string) bool { return parentMailTemplates[template] }

@@ -1,0 +1,204 @@
+{
+  "packages": [
+    {
+      "path": "modules/carecontract",
+      "owner": "care-contract",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/carecontract/compose",
+      "owner": "care-contract",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/carecontract/http",
+      "owner": "care-contract",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/carecontract/internal/application",
+      "owner": "care-contract",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/carecontract/internal/ports",
+      "owner": "care-contract",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/carecontract/internal/adapters/rendering",
+      "owner": "care-contract",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/carecontract/internal/adapters/postgres",
+      "owner": "care-contract",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "care_contract.contract_documents",
+      "write_owner": "care-contract"
+    },
+    {
+      "name": "care_contract.contract_events",
+      "write_owner": "care-contract"
+    },
+    {
+      "name": "care_contract.contract_mailings",
+      "write_owner": "care-contract"
+    },
+    {
+      "name": "care_contract.contract_parties",
+      "write_owner": "care-contract"
+    },
+    {
+      "name": "care_contract.contract_templates",
+      "write_owner": "care-contract"
+    },
+    {
+      "name": "care_contract.contract_version_services",
+      "write_owner": "care-contract"
+    },
+    {
+      "name": "care_contract.contract_versions",
+      "write_owner": "care-contract"
+    },
+    {
+      "name": "care_contract.contracts",
+      "write_owner": "care-contract"
+    }
+  ],
+  "rules": [
+    {
+      "id": "care-contract.http.public",
+      "description": "The Betreuungsvertrag routes drive the owner through its public capability (ADR 0088, ADR 0153, #4678).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-contract",
+      "source_role": "http",
+      "target_owner": "care-contract",
+      "target_role": "public"
+    },
+    {
+      "id": "care-contract.http.tenant-runtime.common",
+      "description": "The Betreuungsvertrag routes reuse the shared HTTP runtime of api/common: the Träger route group, the permission gate, request parsing, response rendering and the shared error codes (#4678).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-contract",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "care-contract.http.tenant-runtime",
+      "description": "A failed read or write of a contract marks the request's Träger transaction for rollback (ADR 0105, ADR 0153).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-contract",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "care-contract.adapter.document-rendering-lists",
+      "description": "The rendering adapter lays out the contract letter through the letter of the Document Rendering contract; the owner writes every text (ADR 0121, ADR 0153).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-contract",
+      "source_role": "adapter",
+      "target_owner": "document-rendering",
+      "target_role": "contract",
+      "target_package": "modules/documentrendering/lists"
+    },
+    {
+      "id": "care-contract.adapter.application",
+      "description": "The rendering adapter implements the letter renderer port of the application over its native values (ADR 0153).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-contract",
+      "source_role": "adapter",
+      "target_owner": "care-contract",
+      "target_role": "application"
+    },
+    {
+      "id": "care-contract.adapter.public",
+      "description": "The rendering adapter answers in the public file of the Betreuungsvertrag (ADR 0153).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-contract",
+      "source_role": "adapter",
+      "target_owner": "care-contract",
+      "target_role": "public"
+    },
+    {
+      "id": "care-contract.postgres.tenant-runtime",
+      "description": "The Betreuungsvertrag's persistence resolves the Träger transaction of the tenant runtime and refuses any other (ADR 0105, ADR 0153).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-contract",
+      "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "care-contract.application.document-rendering-templates",
+      "description": "The Betreuungsvertrag fills the Träger's template of the kind Vertrag with the frozen version through the pure template contract of Document Rendering (#4677, ADR 0152, ADR 0153).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-contract",
+      "source_role": "application",
+      "target_owner": "document-rendering",
+      "target_role": "contract",
+      "target_package": "modules/documentrendering/templates"
+    },
+    {
+      "id": "care-contract.postgres.port",
+      "description": "The Betreuungsvertrag's persistence implements the owner's persistence port and stores its values (ADR 0153).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-contract",
+      "source_role": "postgres",
+      "target_owner": "care-contract",
+      "target_role": "port"
+    },
+    {
+      "id": "care-contract.behaviour-test.tenant-runtime",
+      "description": "The Betreuungsvertrag's public contract suite runs its commands inside the Träger transaction of the tenant runtime (ADR 0105, ADR 0153).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-contract",
+      "source_role": "module-behavior-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    }
+  ]
+}

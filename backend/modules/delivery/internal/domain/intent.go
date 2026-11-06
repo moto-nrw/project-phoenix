@@ -7,9 +7,11 @@ import (
 )
 
 var (
-	ErrCancelled           = errors.New("delivery provider cancelled the intent")
-	ErrDeferred            = errors.New("delivery provider deferred the intent")
-	ErrPermanent           = errors.New("delivery provider rejected the intent permanently")
+	ErrCancelled = errors.New("delivery provider cancelled the intent")
+	ErrDeferred  = errors.New("delivery provider deferred the intent")
+	ErrPermanent = errors.New("delivery provider rejected the intent permanently")
+	// ErrRecipientRejected refines ErrPermanent: the server refused this address.
+	ErrRecipientRejected   = errors.New("delivery provider rejected the recipient permanently")
 	ErrIdempotencyConflict = errors.New("delivery idempotency key reused with different intent")
 )
 
@@ -45,11 +47,17 @@ type EmailDelivery struct {
 }
 
 type Intent struct {
-	ID                int64
-	TenantID          int64
-	OrganizationID    int64
-	Transport         Transport
-	Template          string
+	ID             int64
+	TenantID       int64
+	OrganizationID int64
+	Transport      Transport
+	Template       string
+	// Security marks sign-in codes, password resets and staff invitations: they
+	// are claimed first and the suppression list never holds them back.
+	Security bool
+	// DeliveryToken names this mail in its Message-ID and X-Moto-Outbox-Id
+	// header. Recipients see it, so it reveals nothing.
+	DeliveryToken     string
 	IdempotencyKey    *string
 	RelatedEntityType *string
 	RelatedEntityID   *int64
@@ -65,8 +73,11 @@ type Intent struct {
 	SentAt            *time.Time
 	DeadLetterAt      *time.Time
 	CancelledAt       *time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	// DeliveryState is what the mail provider reported after acceptance
+	// (EmailDeliveryState); empty while nothing was reported.
+	DeliveryState string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type Enqueued struct {

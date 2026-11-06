@@ -108,6 +108,9 @@
   "api/parent/me/documents": [
     "GET parent /parent/me/documents"
   ],
+  "api/parent/me/documents/contracts": [
+    "GET parent /parent/me/documents/contracts"
+  ],
   "api/parent/me/enrollments": [
     "GET parent /parent/me/enrollments"
   ],

@@ -963,6 +963,19 @@ export const NAV_SCENES: Readonly<Record<string, NavScene>> = {
       </>
     ),
   },
+  SignatureIcon: {
+    description: "die Unterschrift wird über der Linie gezogen",
+    render: () => (
+      <>
+        <path d="M24,176H232" />
+        <path
+          className="ns-draw"
+          pathLength="1"
+          d="M24,216c18-30,58-102,68-134c9-30,4-50-14-50c-24,0-38,58-20,106c18,10,44-4,68-34c6,22,16,42,32,42c12,0,22-10,32-24c8,14,24,22,42,22"
+        />
+      </>
+    ),
+  },
   SunIcon: {
     description: "die Strahlen drehen sich, die Sonne glüht",
     render: () => (

@@ -1673,7 +1673,7 @@ export function ChildOfferingAdjustment({
       {withdrawalCreated ? (
         <Alert
           type="warning"
-          message="Abmeldung noch abschließen. Die Betreuungstage sind entfernt. Eine berechtigte Person muss die Betreuung jetzt beenden."
+          message="Abmeldung noch abschließen. Die Betreuungstage sind entfernt. Eine berechtigte Person muss noch das Ende der Betreuung eintragen."
         />
       ) : null}
       {careOfferingsEnabled ? (

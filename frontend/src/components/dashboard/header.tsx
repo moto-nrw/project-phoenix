@@ -151,6 +151,7 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
   ["/belegung", "Belegung"],
   ["/ferien", "Ferienbetreuung"],
   ["/abrechnung", "Abrechnung"],
+  ["/vertraege", "Verträge"],
   ["/einstellungen/mitglieder", "Mitglieder und Rollen"],
   ["/einstellungen/briefkopf", "Briefkopf und Vorlagen"],
   ["/einstellungen/abrechnung", "Abrechnungsvorgaben"],

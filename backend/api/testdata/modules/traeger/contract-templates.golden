@@ -1,0 +1,2 @@
+GET /traeger/contract-templates/ -> basis
+PUT /traeger/contract-templates/{schoolId}/{offeringId} -> basis

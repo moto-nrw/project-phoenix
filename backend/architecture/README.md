@@ -60,10 +60,12 @@ records Export Transfer as the tenth platform module, for
 [ADR 0088](../../docs/adr/0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)
 adds the Elternabrechnung (`parent-billing`) as the nineteenth domain, built
 first by [ADR 0115](../../docs/adr/0115-ferienbeitrag-entsteht-in-der-elternabrechnung-und-wird-bei-bestaetigung-festgehalten.md)
-in policy epoch 95.
+in policy epoch 95, and the Betreuungsvertrag (`care-contract`) as the
+twentieth, built first by [ADR 0153](../../docs/adr/0153-betreuungsvertrag-entsteht-im-traeger-buero-aus-der-angenommenen-anmeldung.md)
+in policy epoch 98.
 The canonical owner lists are:
 
-| Domain (19) | Policy owner |
+| Domain (20) | Policy owner |
 |---|---|
 | Identity & Access | `identity-access` |
 | People Directory | `people-directory` |
@@ -84,6 +86,7 @@ The canonical owner lists are:
 | Feedback | `feedback` |
 | File Storage | `file-storage` |
 | Elternabrechnung (Parent Billing, ADR 0088, ADR 0115) | `parent-billing` |
+| Betreuungsvertrag (Care Contract, ADR 0088, ADR 0153) | `care-contract` |
 
 | Platform (10) | Policy owner |
 |---|---|

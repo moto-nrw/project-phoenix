@@ -26,8 +26,8 @@ const emailEnqueueSQL = `
 	WITH inserted AS (
 		INSERT INTO platform.email_outbox (
 			tenant_id, organization_id, kind, idempotency_key, related_entity_type,
-			related_entity_id, recipient, payload, status, next_retry_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+			related_entity_id, recipient, payload, security, status, next_retry_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
 		ON CONFLICT (tenant_id, organization_id, idempotency_key)
 			WHERE idempotency_key IS NOT NULL DO NOTHING
 		RETURNING id
@@ -82,7 +82,10 @@ const pushStartDeliverySQL = `UPDATE platform.push_outbox
 	RETURNING lease_token`
 
 const emailFinalizeSentSQL = `UPDATE platform.email_outbox
-	SET status = 'sent', provider_result = ?, sent_at = ?, last_error = NULL,
+	SET status = 'sent', provider_result = ?,
+		message_id = ?::jsonb->>'message_id',
+		provider_message_id = ?::jsonb->>'provider_message_id',
+		sent_at = ?, last_error = NULL,
 		lease_token = NULL, lease_expires_at = NULL, updated_at = ?
 	WHERE id = ? AND status = 'claimed' AND lease_token = ?`
 
@@ -153,6 +156,12 @@ type intentRow struct {
 	TenantID          int64           `bun:"tenant_id"`
 	OrganizationID    *int64          `bun:"organization_id"`
 	Kind              string          `bun:"kind"`
+	Security          bool            `bun:"security"`
+	DeliveryToken     string          `bun:"delivery_token"`
+	MessageID         *string         `bun:"message_id"`
+	ProviderMessageID *string         `bun:"provider_message_id"`
+	DeliveryState     *string         `bun:"delivery_state"`
+	DeliveryStateAt   *time.Time      `bun:"delivery_state_at"`
 	IdempotencyKey    *string         `bun:"idempotency_key"`
 	RelatedEntityType *string         `bun:"related_entity_type"`
 	RelatedEntityID   *int64          `bun:"related_entity_id"`
@@ -246,7 +255,7 @@ func enqueueEmailIntent(ctx context.Context, db bun.IDB, intent domain.Intent) (
 	var result domain.Enqueued
 	err := db.NewRaw(emailEnqueueSQL,
 		scope, organization, intent.Template, intent.IdempotencyKey, intent.RelatedEntityType,
-		intent.RelatedEntityID, intent.Recipient, intent.Payload, intent.NextRetryAt,
+		intent.RelatedEntityID, intent.Recipient, intent.Payload, intent.Security, intent.NextRetryAt,
 		intent.Template, intent.Recipient, intent.Payload, intent.RelatedEntityType, intent.RelatedEntityID,
 		intent.IdempotencyKey, scope, organization, intent.IdempotencyKey,
 	).Scan(ctx, &result)
@@ -367,7 +376,7 @@ func (s *Store) FinalizeSent(ctx context.Context, transport domain.Transport, id
 		var execErr error
 		switch transport {
 		case domain.TransportEmail:
-			resultResult, execErr = db.NewRaw(emailFinalizeSentSQL, providerResult, sentAt, sentAt, id, token).Exec(txCtx)
+			resultResult, execErr = db.NewRaw(emailFinalizeSentSQL, providerResult, providerResult, providerResult, sentAt, sentAt, id, token).Exec(txCtx)
 		case domain.TransportPush:
 			resultResult, execErr = db.NewRaw(pushFinalizeSentSQL, providerResult, sentAt, sentAt, id, token).Exec(txCtx)
 		default:
@@ -710,8 +719,14 @@ func toDomainRows(transport domain.Transport, rows []intentRow) []domain.Intent 
 		if row.OrganizationID != nil {
 			organizationID = *row.OrganizationID
 		}
+		deliveryState := ""
+		if row.DeliveryState != nil {
+			deliveryState = *row.DeliveryState
+		}
 		result = append(result, domain.Intent{
 			ID: row.ID, TenantID: row.TenantID, OrganizationID: organizationID, Transport: transport, Template: row.Kind,
+			DeliveryState: deliveryState,
+			Security:      row.Security, DeliveryToken: row.DeliveryToken,
 			IdempotencyKey: row.IdempotencyKey, RelatedEntityType: row.RelatedEntityType,
 			RelatedEntityID: row.RelatedEntityID, Recipient: row.Recipient, Payload: row.Payload,
 			Status: row.Status, Attempts: row.Attempts, NextRetryAt: row.NextRetryAt,

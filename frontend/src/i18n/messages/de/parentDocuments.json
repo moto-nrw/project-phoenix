@@ -1,6 +1,6 @@
 {
   "title": "Dokumente",
-  "description": "Hier finden Sie Schreiben, die Ihnen der Träger geschickt hat. Zum Beispiel die Bestätigung der Ferienbetreuung.",
+  "description": "Hier finden Sie Schreiben und Verträge, die Ihnen der Träger geschickt hat. Zum Beispiel die Bestätigung der Ferienbetreuung.",
   "emptyTitle": "Noch keine Dokumente",
   "emptyDescription": "Schickt Ihnen der Träger ein Schreiben, finden Sie es hier. Sie bekommen es auch per Mail.",
   "confirmationLetter": "Bestätigungsschreiben {period}",
@@ -14,5 +14,10 @@
   "download": "Als PDF laden",
   "downloading": "Wird geladen …",
   "errorObject": "die Dokumente",
-  "downloadErrorObject": "das Dokument"
+  "downloadErrorObject": "das Dokument",
+  "careContract": "Betreuungsvertrag",
+  "bookedCare": "Gebuchte Betreuung",
+  "startsOn": "Beginn",
+  "lettersErrorObject": "die Briefe",
+  "contractsErrorObject": "die Betreuungsverträge"
 }

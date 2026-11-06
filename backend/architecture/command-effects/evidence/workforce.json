@@ -2650,7 +2650,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollMailOutbox.Enqueue",
-      "binding_digest": "8bb993c3f53eaa6e62f3689e82453b7f",
+      "binding_digest": "747098602cd41a23393166201d80d1a9",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PayrollMail.Enqueue",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
@@ -2658,7 +2658,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollMailOutbox.Enqueue",
-      "binding_digest": "bef170ccde2bcc7eb1ca38cf1ac61582",
+      "binding_digest": "0c477fff3cb9fc94b286750636ebea10",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PayrollMail.Enqueue",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",
@@ -2810,7 +2810,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationMailOutbox.Enqueue",
-      "binding_digest": "50f5c89c2844b667d5ea5fe00c1e674c",
+      "binding_digest": "af799dfbd95ee424bd397ec3ea29704a",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationMail.Enqueue",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
@@ -2818,7 +2818,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.qualificationMailOutbox.Enqueue",
-      "binding_digest": "54734c6dc7153f14c65b440b9014af1b",
+      "binding_digest": "ff01ffc3559022ac0d4d9d9f95cb445d",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationMail.Enqueue",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",
@@ -8674,7 +8674,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.AbsenceEmailDispatcher.Enqueue",
-      "binding_digest": "3ec4bcbfc0ffd67b82fba9682d0e976f",
+      "binding_digest": "0ef832429335ee5adb47be00332989d9",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.absenceEmailDispatcher.Enqueue",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
@@ -8682,7 +8682,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.AbsenceEmailDispatcher.Enqueue",
-      "binding_digest": "c14d4b9445cfe677101656c4cfed7780",
+      "binding_digest": "730fc34faf31c660614ae3abc7c2c7ce",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.absenceEmailDispatcher.Enqueue",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",

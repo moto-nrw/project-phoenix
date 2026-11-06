@@ -119,8 +119,12 @@ a missing tool or failed command is not a passed check.
 ## Git and skills
 
 PRs target `development`, or the branch of the PR below them when stacking;
-the `stacked-pr` skill owns that flow. Commit types: `feat`, `fix`,
-`refactor`, `chore`, `docs`, `test`, `style`. Use descriptive titles and names,
+the `stacked-pr` skill owns that flow. Open every PR as a draft
+(`gh pr create --draft`) and push to it as often as the work needs; drafts run
+no CI and no review. Mark it ready (`gh pr ready`) once the branch is complete
+and `scripts/check-changed.mjs` is green: every push to a ready PR runs the
+full CI. Push each review round or CI fix as one batch. Commit types: `feat`,
+`fix`, `refactor`, `chore`, `docs`, `test`, `style`. Use descriptive titles and names,
 without AI/tool branding or `Co-Authored-By: Claude`. PR bodies follow
 [the PR template](.github/PULL_REQUEST_TEMPLATE.md) also with `gh pr create --body`;
 they open with its user TL;DR: who notices what, or „Keine Änderung für Nutzer“.

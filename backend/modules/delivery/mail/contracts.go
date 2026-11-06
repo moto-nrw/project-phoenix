@@ -21,6 +21,28 @@ type ContextMailer interface {
 	SendContext(context.Context, Message) error
 }
 
+// Receipt is what the transport knows about a mail it handed over.
+type Receipt struct {
+	MessageID         string
+	ProviderMessageID string
+}
+
+// ReceiptMailer is implemented by transports that report the identity of an
+// accepted mail. A transport without it leaves the mail without a stored
+// Message-ID; its events still match through the delivery token.
+type ReceiptMailer interface {
+	SendWithReceipt(context.Context, Message) (Receipt, error)
+}
+
+var (
+	// ErrPermanentRejection marks a mail the server refused for good: a retry
+	// cannot change the answer.
+	ErrPermanentRejection = errors.New("mail server rejected the mail permanently")
+	// ErrRecipientRejected refines ErrPermanentRejection: the server refused
+	// this address.
+	ErrRecipientRejected = errors.New("mail server rejected the recipient permanently")
+)
+
 // Message struct holds all parts of a specific email Message.
 type Message struct {
 	From Email
@@ -37,6 +59,10 @@ type Message struct {
 	// Attachments are files the mail carries, such as the PDF of a
 	// confirmation letter of a Träger (#4670). Most mails carry none.
 	Attachments []Attachment
+	// DeliveryToken is set by the outbox just before sending. It becomes the
+	// local part of the Message-ID and the X-Moto-Outbox-Id header, so a later
+	// delivery event finds this mail. It never travels in a stored snapshot.
+	DeliveryToken string `json:"-"`
 }
 
 // Attachment is one file of a mail.
