@@ -23,6 +23,7 @@ type Intent struct {
 	ID                int64
 	TenantID          int64
 	Kind              string
+	DeliveryToken     string
 	RelatedEntityType string
 	RelatedEntityID   int64
 	Payload           map[string]any

@@ -349,6 +349,37 @@ func TestDispatcher_Dispatch_RetryOnFailure(t *testing.T) {
 	assert.Nil(t, results[2].Err)
 }
 
+func TestDispatcher_Dispatch_PermanentRejectionIsFinal(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		refused := errors.Join(mailcontract.ErrPermanentRejection, errors.New("554 refused"))
+		mailer := newMockMailer()
+		mailer.sendError = refused
+		mailer.alwaysFail = true
+		dispatcher := NewDispatcher(mailer, slog.Default())
+		tracker := newCallbackTracker()
+
+		dispatcher.Dispatch(context.Background(), mailcontract.DeliveryRequest{
+			Message:     mailcontract.Message{Subject: "Test"},
+			MaxAttempts: 3,
+			Callback:    tracker.callback,
+		})
+		synctest.Wait()
+
+		results := tracker.getResults()
+		require.Len(t, results, 1)
+		assert.Equal(t, mailcontract.DeliveryStatusFailed, results[0].Status)
+		assert.ErrorIs(t, results[0].Err, mailcontract.ErrPermanentRejection)
+		assert.Equal(t, 1, results[0].Attempt)
+		assert.Equal(t, 3, results[0].MaxAttempt)
+		assert.True(t, results[0].Final)
+		mailer.mu.Lock()
+		defer mailer.mu.Unlock()
+		assert.Equal(t, 1, mailer.sendAttempts)
+	})
+}
+
 func TestDispatcher_Dispatch_AllRetriesFail(t *testing.T) {
 	t.Parallel()
 
