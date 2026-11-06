@@ -15,13 +15,13 @@ import (
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func guardianAmbientTxContext() context.Context {
-	return tenant.WithTransactionForTest(context.Background(), struct{}{})
+	return tenanttest.WithTransaction(context.Background(), struct{}{})
 }
 
 // --- fakes -----------------------------------------------------------------

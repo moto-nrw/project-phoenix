@@ -30,7 +30,8 @@ func TestDefaultGuardianRolePresetMatchesThePolicy(t *testing.T) {
 	for _, relationshipType := range []string{"parent", "guardian", "grandparent", ""} {
 		for _, flags := range [][3]bool{{}, {true, false, false}, {false, true, false}, {false, false, true}} {
 			want := &guardianRoleRecord{relationshipType: relationshipType, primary: flags[0], emergency: flags[1], canPickup: flags[2]}
-			authorize.ApplyDefaultStudentGuardianRole(want)
+			defaultRole := authorize.NormalizeGuardianRole(authorize.DefaultStudentGuardianRole(relationshipType, flags[0], flags[1], flags[2]))
+			want.SetGuardianAuthorizationData(defaultRole, authorize.StudentGuardianPermissionSet(defaultRole))
 
 			role, granted := StudentGuardianRolePreset(DefaultStudentGuardianRole(relationshipType, flags[0], flags[1], flags[2]))
 			if role != want.role {

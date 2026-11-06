@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -135,7 +135,7 @@ func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "staff-contact")
-	link := &peopledirectory.GuardianLinkFixture{
+	link := &parentfixture.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "guardian",
@@ -166,7 +166,7 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "pending-contact")
-	link := &peopledirectory.GuardianLinkFixture{
+	link := &parentfixture.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "guardian",
@@ -209,7 +209,7 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, "sibling-pending-contact")
 	otherStudent := testpkg.CreateTestStudent(t, db, "Other", "Child", "9z")
-	link := &peopledirectory.GuardianLinkFixture{
+	link := &parentfixture.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "guardian",
@@ -599,7 +599,7 @@ func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) 
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccess", "Account")
 	require.NoError(t, repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	// Restrictive contact role → empty permission set, no parent_portal.access.
-	link := &peopledirectory.GuardianLinkFixture{
+	link := &parentfixture.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "other",
@@ -634,7 +634,7 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 	profile := testpkg.CreateTestGuardianProfile(t, db, "no-access-pending")
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "NoAccessPending", "Account")
 	require.NoError(t, repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
-	link := &peopledirectory.GuardianLinkFixture{
+	link := &parentfixture.GuardianLinkFixture{
 		StudentID:         chain.StudentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "other",

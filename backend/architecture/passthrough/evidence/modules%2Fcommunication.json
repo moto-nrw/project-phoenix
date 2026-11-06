@@ -1465,7 +1465,7 @@
     },
     {
       "build": "testhooks",
-      "evidence": "func (f ParentAnnouncementFixtures) Create(ctx context.Context, value *communication.ParentAnnouncementFixture) error {\n\trow := announcementFixtureToRow(value)\n\tif err := f.repo.Create(ctx, row); err != nil {\n\t\treturn err\n\t}\n\t*value = *announcementFixtureFromRow(row)\n\treturn nil\n}",
+      "evidence": "func (f ParentAnnouncementFixtures) Create(ctx context.Context, value *ParentAnnouncementFixture) error {\n\trow := announcementFixtureToRow(value)\n\tif err := f.repo.Create(ctx, row); err != nil {\n\t\treturn err\n\t}\n\t*value = *announcementFixtureFromRow(row)\n\treturn nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/parentstore/ParentAnnouncementFixtures.Create",
       "owner": "modules/communication"
@@ -1479,7 +1479,7 @@
     },
     {
       "build": "testhooks",
-      "evidence": "func (f ParentAnnouncementFixtures) FindByID(ctx context.Context, id int64) (*communication.ParentAnnouncementFixture, error) {\n\trow, err := f.repo.FindByID(ctx, id)\n\treturn announcementFixtureFromRow(row), err\n}",
+      "evidence": "func (f ParentAnnouncementFixtures) FindByID(ctx context.Context, id int64) (*ParentAnnouncementFixture, error) {\n\trow, err := f.repo.FindByID(ctx, id)\n\treturn announcementFixtureFromRow(row), err\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/parentstore/ParentAnnouncementFixtures.FindByID",
       "owner": "modules/communication"
@@ -1500,21 +1500,21 @@
     },
     {
       "build": "testhooks",
-      "evidence": "func (f ParentAnnouncementFixtures) ListOptions(ctx context.Context, id int64) ([]*communication.ParentAnnouncementOptionFixture, error) {\n\trows, err := f.repo.ListOptions(ctx, id)\n\tif rows == nil {\n\t\treturn nil, err\n\t}\n\tvalues := make([]*communication.ParentAnnouncementOptionFixture, len(rows))\n\tfor i, row := range rows {\n\t\tvalues[i] = announcementOptionFixture(row)\n\t}\n\treturn values, err\n}",
+      "evidence": "func (f ParentAnnouncementFixtures) ListOptions(ctx context.Context, id int64) ([]*ParentAnnouncementOptionFixture, error) {\n\trows, err := f.repo.ListOptions(ctx, id)\n\tif rows == nil {\n\t\treturn nil, err\n\t}\n\tvalues := make([]*ParentAnnouncementOptionFixture, len(rows))\n\tfor i, row := range rows {\n\t\tvalues[i] = announcementOptionFixture(row)\n\t}\n\treturn values, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/parentstore/ParentAnnouncementFixtures.ListOptions",
       "owner": "modules/communication"
     },
     {
       "build": "testhooks",
-      "evidence": "func (f ParentAnnouncementFixtures) ReplaceOptions(ctx context.Context, tenantID, id int64, values []*communication.ParentAnnouncementOptionFixture) error {\n\trows := announcementOptionFixtureRows(values)\n\terr := f.repo.ReplaceOptions(ctx, tenantID, id, rows)\n\tfor i, row := range rows {\n\t\tif row != nil {\n\t\t\t*values[i] = *announcementOptionFixture(row)\n\t\t}\n\t}\n\treturn err\n}",
+      "evidence": "func (f ParentAnnouncementFixtures) ReplaceOptions(ctx context.Context, tenantID, id int64, values []*ParentAnnouncementOptionFixture) error {\n\trows := announcementOptionFixtureRows(values)\n\terr := f.repo.ReplaceOptions(ctx, tenantID, id, rows)\n\tfor i, row := range rows {\n\t\tif row != nil {\n\t\t\t*values[i] = *announcementOptionFixture(row)\n\t\t}\n\t}\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/parentstore/ParentAnnouncementFixtures.ReplaceOptions",
       "owner": "modules/communication"
     },
     {
       "build": "testhooks",
-      "evidence": "func (f ParentAnnouncementFixtures) ReplaceTargets(ctx context.Context, tenantID, id int64, values []*communication.ParentAnnouncementTargetFixture) error {\n\trows := announcementTargetFixtureRows(values)\n\terr := f.repo.ReplaceTargets(ctx, tenantID, id, rows)\n\tfor i, row := range rows {\n\t\tif row != nil {\n\t\t\t*values[i] = *announcementTargetFixture(row)\n\t\t}\n\t}\n\treturn err\n}",
+      "evidence": "func (f ParentAnnouncementFixtures) ReplaceTargets(ctx context.Context, tenantID, id int64, values []*ParentAnnouncementTargetFixture) error {\n\trows := announcementTargetFixtureRows(values)\n\terr := f.repo.ReplaceTargets(ctx, tenantID, id, rows)\n\tfor i, row := range rows {\n\t\tif row != nil {\n\t\t\t*values[i] = *announcementTargetFixture(row)\n\t\t}\n\t}\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/parentstore/ParentAnnouncementFixtures.ReplaceTargets",
       "owner": "modules/communication"

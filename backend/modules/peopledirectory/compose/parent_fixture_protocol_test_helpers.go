@@ -2,8 +2,8 @@
 
 package compose
 
-import "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+import "github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
 
-func (d *Directory) ParentFixtureProtocol() peopledirectory.ParentFixtureProtocol {
-	return d.Owner.(peopledirectory.ParentFixtureProtocols).ParentFixtureProtocol()
+func (d *Directory) ParentFixtureProtocol() parentfixture.ParentFixtureProtocol {
+	return d.Owner.(parentfixture.ParentFixtureProtocols).ParentFixtureProtocol()
 }

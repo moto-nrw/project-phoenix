@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
 	"github.com/stretchr/testify/assert"
@@ -73,7 +75,7 @@ func linkContactOnlyGuardian(t *testing.T, db *bun.DB, studentID int64, emailSee
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
-	link := &peopledirectory.GuardianLinkFixture{
+	link := &parentfixture.GuardianLinkFixture{
 		StudentID:         studentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "relative",
@@ -92,7 +94,7 @@ func linkPickupContact(t *testing.T, db *bun.DB, studentID int64, emailSeed stri
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
-	link := &peopledirectory.GuardianLinkFixture{
+	link := &parentfixture.GuardianLinkFixture{
 		StudentID:         studentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "relative",
@@ -405,7 +407,7 @@ func TestUpdateGuardianContact_RejectsCrossFamilySharedProfile(t *testing.T) {
 	// the caller is not a guardian of. Editing the profile would propagate to that
 	// other family, so the edit must be refused.
 	other := testpkg.CreateTestStudent(t, db, "Fremd", "Kind", "3c")
-	otherLink := &peopledirectory.GuardianLinkFixture{
+	otherLink := &parentfixture.GuardianLinkFixture{
 		StudentID:         other.ID,
 		GuardianProfileID: contactID,
 		RelationshipType:  "relative",
@@ -871,7 +873,7 @@ func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role
 	profile.AddressStreet = ptr("Amtsstr. 5")
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.GuardianProfile.Update, profile))
 
-	phone := &peopledirectory.GuardianPhoneFixture{
+	phone := &parentfixture.GuardianPhoneFixture{
 		GuardianProfileID: profile.ID,
 		PhoneNumber:       "0151 99999999",
 		PhoneType:         peopledirectory.PhoneTypeMobile,
@@ -881,7 +883,7 @@ func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role
 	phone.TenantID = testpkg.Tenant(t)
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.CreateGuardianPhoneFixture, phone))
 
-	link := &peopledirectory.GuardianLinkFixture{
+	link := &parentfixture.GuardianLinkFixture{
 		StudentID:         studentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "relative",

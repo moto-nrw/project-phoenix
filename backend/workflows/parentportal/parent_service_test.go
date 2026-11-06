@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
@@ -212,7 +214,7 @@ func TestService_ListEnrollmentsForAccount_KeepsReasonWhenPhaseEnablesIt(t *test
 // Only FindByAccountID and UpdatePortalLocaleByAccountID carry behaviour; the
 // rest satisfy the interface and are never exercised by the profile tests.
 type stubGuardianProfileRepo struct {
-	findResult *peopledirectory.GuardianProfileFixture
+	findResult *parentfixture.GuardianProfileFixture
 	findErr    error
 
 	updateErr           error
@@ -222,7 +224,7 @@ type stubGuardianProfileRepo struct {
 	gotFindAccountIDArg int64
 }
 
-func (s *stubGuardianProfileRepo) FindByAccountID(_ context.Context, accountID int64) (*peopledirectory.GuardianProfileFixture, error) {
+func (s *stubGuardianProfileRepo) FindByAccountID(_ context.Context, accountID int64) (*parentfixture.GuardianProfileFixture, error) {
 	s.gotFindAccountIDArg = accountID
 	return s.findResult, s.findErr
 }
@@ -287,7 +289,7 @@ func TestService_GetProfile_ExplicitLocale(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubGuardianProfileRepo{
-		findResult: &peopledirectory.GuardianProfileFixture{
+		findResult: &parentfixture.GuardianProfileFixture{
 			FirstName:    "Karin",
 			LastName:     "Klein",
 			PortalLocale: localePtr("en"),
@@ -309,7 +311,7 @@ func TestService_GetProfile_NormalizesRegionSubtag(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubGuardianProfileRepo{
-		findResult: &peopledirectory.GuardianProfileFixture{PortalLocale: localePtr("en-US")},
+		findResult: &parentfixture.GuardianProfileFixture{PortalLocale: localePtr("en-US")},
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -323,7 +325,7 @@ func TestService_GetProfile_NullLocaleIsNotExplicit(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubGuardianProfileRepo{
-		findResult: &peopledirectory.GuardianProfileFixture{PortalLocale: nil},
+		findResult: &parentfixture.GuardianProfileFixture{PortalLocale: nil},
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -339,7 +341,7 @@ func TestService_GetProfile_EmptyLocaleIsNotExplicit(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubGuardianProfileRepo{
-		findResult: &peopledirectory.GuardianProfileFixture{PortalLocale: localePtr("")},
+		findResult: &parentfixture.GuardianProfileFixture{PortalLocale: localePtr("")},
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 

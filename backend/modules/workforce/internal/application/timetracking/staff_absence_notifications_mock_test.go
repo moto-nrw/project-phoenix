@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -349,7 +349,7 @@ func TestNotifyAbsenceRequested_DispatchesOnlyAfterCommit(t *testing.T) {
 		},
 	}
 	svc, mailer := newAbsenceNotificationTestService(t, absSettingsMock{enabled: true}, staffRepo)
-	ctx, commit := tenant.WithAfterCommitHooksForTest(context.Background())
+	ctx, commit := tenanttest.WithAfterCommitHooks(context.Background())
 
 	_ = svc.notifyAbsenceRequested(ctx, notificationTestAbsence(AbsenceStatusRequested))
 
@@ -376,7 +376,7 @@ func TestNotifyAbsenceRequested_DropsDispatchOnRollback(t *testing.T) {
 		},
 	}
 	svc, mailer := newAbsenceNotificationTestService(t, absSettingsMock{enabled: true}, staffRepo)
-	ctx, _ := tenant.WithAfterCommitHooksForTest(context.Background())
+	ctx, _ := tenanttest.WithAfterCommitHooks(context.Background())
 
 	_ = svc.notifyAbsenceRequested(ctx, notificationTestAbsence(AbsenceStatusRequested))
 

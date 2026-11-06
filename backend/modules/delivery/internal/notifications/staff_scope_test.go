@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,7 +49,7 @@ const testTenantID int64 = 7
 // the assertions see what delivery actually did rather than what was queued.
 func dispatch(t *testing.T, fn func(ctx context.Context) error) error {
 	t.Helper()
-	ctx, drain := tenant.WithAfterCommitHooksForTest(context.Background())
+	ctx, drain := tenanttest.WithAfterCommitHooks(context.Background())
 	err := fn(ctx)
 	drain()
 	return err
