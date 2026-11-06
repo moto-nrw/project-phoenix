@@ -1,6 +1,6 @@
 {
   "scenario": "api.groups.presence20.students.n8",
-  "max": 15,
+  "max": 8,
   "exact": true,
   "description": "Production group-student resource with real presence settings, positive N8 children; full tenant SQL."
 }
