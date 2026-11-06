@@ -138,6 +138,9 @@ function bottomNavItemShrink(active: boolean): string {
   return active ? "min-w-0" : "shrink-0";
 }
 
+/** Ein `<button>` füllt sein `<li>` nicht von selbst, sonst schrumpft er nicht mit. */
+const BUTTON_FILLS_ITEM = "w-full";
+
 function PortalNavIcon({
   concept,
   iconConcept,
@@ -353,12 +356,12 @@ export function PortalBottomNavButton({
         type="button"
         data-active={active ? "true" : "false"}
         aria-label={label}
-        className={bottomNavItemClassName({
+        className={`${bottomNavItemClassName({
           active,
           paddingClassName,
           quiet,
           shrinkActive,
-        })}
+        })} ${BUTTON_FILLS_ITEM}`}
       >
         <BottomNavItemContent
           {...({ concept, iconConcept, icon } as PortalNavIconProps)}
