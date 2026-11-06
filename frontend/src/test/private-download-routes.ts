@@ -64,6 +64,7 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["traeger/billing-runs/[id]/letters/preview", "POST"],
   ["traeger/billing-runs/[id]/letters/print", "GET"],
   ["traeger/contracts/[id]/document", "GET"],
+  ["traeger/contracts/[id]/versions/[number]/document", "GET"],
   ["traeger/holiday-periods/[id]/form/documents/[documentId]", "GET"],
   ["traeger/holiday-periods/[id]/registrations/export", "GET"],
   [
