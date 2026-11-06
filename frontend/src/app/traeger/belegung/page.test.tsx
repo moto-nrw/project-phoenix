@@ -144,7 +144,7 @@ describe("TraegerOccupancyPage", () => {
     renderPage();
     await screen.findByText("14 von 16");
 
-    openTab("Je Gruppe");
+    openTab("Gruppen");
 
     const table = await screen.findByRole("table");
     expect(within(rowOf(table, "Bären")).getByText("5")).toBeInTheDocument();
@@ -159,7 +159,7 @@ describe("TraegerOccupancyPage", () => {
     renderPage();
     await screen.findByText("14 von 16");
 
-    openTab("Je Betreuungsform");
+    openTab("Betreuungsformen");
 
     const [sums, perSchool] = (await screen.findAllByRole(
       "table",

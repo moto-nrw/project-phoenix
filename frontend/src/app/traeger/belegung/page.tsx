@@ -18,7 +18,6 @@ import {
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import NavigationLink from "~/components/ui/navigation-link";
 import { ProgressBar } from "~/components/ui/progress-bar";
-import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
@@ -58,9 +57,9 @@ const EXPORT_FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
 type View = "schulen" | "gruppen" | "betreuungsformen";
 
 const VIEWS: readonly { value: View; label: string }[] = [
-  { value: "schulen", label: "Je Schule" },
-  { value: "gruppen", label: "Je Gruppe" },
-  { value: "betreuungsformen", label: "Je Betreuungsform" },
+  { value: "schulen", label: "Schulen" },
+  { value: "gruppen", label: "Gruppen" },
+  { value: "betreuungsformen", label: "Betreuungsformen" },
 ];
 
 function SchoolCell({ school }: Readonly<{ school: TraegerSchoolOccupancy }>) {
@@ -225,10 +224,7 @@ const GROUP_COLUMNS: DataTableColumn<OccupancyGroupRow>[] = [
       row.name === null ? (
         <WithoutLabel>Ohne Gruppe</WithoutLabel>
       ) : (
-        <span className="inline-flex items-center gap-2 font-medium text-gray-900">
-          <MotoConceptIcon concept={groupsConcept} className="size-4" />
-          {row.name}
-        </span>
+        <span className="font-medium text-gray-900">{row.name}</span>
       ),
     sortValue: (row) => row.name ?? "",
     stacked: "title",
@@ -341,8 +337,8 @@ function TotalFigures({
   loading,
 }: Readonly<{ totals: OccupancyTotals; loading: boolean }>) {
   return (
-    <div className="grid grid-cols-2 gap-4 max-sm:gap-3 lg:grid-cols-3">
-      <div className="col-span-2 lg:col-span-1">
+    <div className="grid gap-4 max-sm:gap-3 sm:grid-cols-3">
+      <div>
         <StatCard
           label="Kinder heute"
           value={totals.children}
@@ -443,21 +439,19 @@ function ViewContent({
   if (view === "betreuungsformen") {
     return (
       <>
-        {sums.length > 1 ? (
-          <SectionCard
-            title="Über alle Schulen"
-            description="Angebote mit gleichem Namen an mehreren Schulen sind zusammengezählt."
-            padding="none"
-          >
-            <DataTable
-              columns={SUM_COLUMNS}
-              rows={sums}
-              getRowKey={(sum) => sum.name}
-              defaultSortKey="children"
-              defaultSortDirection="desc"
-              stackedOnMobile
-            />
-          </SectionCard>
+        {sums.some((sum) => sum.schools > 1) ? (
+          <DataTable
+            heading={{
+              title: "Gleiche Angebote über alle Schulen",
+              count: sums.length,
+            }}
+            columns={SUM_COLUMNS}
+            rows={sums}
+            getRowKey={(sum) => sum.name}
+            defaultSortKey="children"
+            defaultSortDirection="desc"
+            stackedOnMobile
+          />
         ) : null}
         <DataTable
           heading={{
@@ -531,10 +525,11 @@ export default function TraegerOccupancyPage() {
           Hier sehen Sie, wie viele Kinder Ihre Schulen heute betreuen. Die
           Zahlen stehen je Schule, je OGS-Gruppe und je Betreuungsform. Eine
           Betreuungsform ist ein Betreuungsangebot der Schule, das als Betreuung
-          zählt, zum Beispiel „OGS bis 16 Uhr“. Mittagessen zählt nicht. Es
-          zählen dieselben Kinder wie bei der Stichtagszahl. moto zeigt hier
-          keine Namen von Kindern. Mit „Herunterladen“ bekommen Sie alle Zahlen
-          als Tabelle.
+          zählt, zum Beispiel „OGS bis 16 Uhr“. Mittagessen zählt nicht. Gibt es
+          ein Angebot mit gleichem Namen an mehreren Schulen, steht es unter
+          „Betreuungsformen“ auch zusammengezählt. Es zählen dieselben Kinder
+          wie bei der Stichtagszahl. moto zeigt hier keine Namen von Kindern.
+          Mit „Herunterladen“ bekommen Sie alle Zahlen als Tabelle.
         </>
       }
       actions={

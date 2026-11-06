@@ -10766,7 +10766,7 @@ export const traegerOccupancyTopic =
       steps: [
         "Wählen Sie in der Navigation `Belegung`.",
         "Lesen Sie oben die Summe für alle Schulen.",
-        "Wählen Sie einen Reiter: `Je Schule`, `Je Gruppe` oder `Je Betreuungsform`.",
+        "Wählen Sie einen Reiter: `Schulen`, `Gruppen` oder `Betreuungsformen`.",
         "Wählen Sie `Herunterladen` und dann `CSV`, um alle Zahlen als Tabelle zu speichern.",
       ],
       result:
@@ -10775,7 +10775,7 @@ export const traegerOccupancyTopic =
         "Suchen Sie oben nach einer Schule oder einem Ort. Die Summe zählt dann nur diese Schulen.",
         "Es zählen dieselben Kinder wie bei der Stichtagszahl, aber von heute.",
         "Eine Betreuungsform ist ein Betreuungsangebot, das als Betreuung zählt, zum Beispiel „OGS bis 16 Uhr“. Mittagessen zählt nicht.",
-        "Unter `Je Betreuungsform` stehen Angebote mit gleichem Namen an mehreren Schulen auch zusammengezählt.",
+        "Unter `Betreuungsformen` stehen Angebote mit gleichem Namen an mehreren Schulen auch zusammengezählt.",
         "Sie sehen nur Zahlen, keine Namen von Kindern.",
       ],
       differences: [
