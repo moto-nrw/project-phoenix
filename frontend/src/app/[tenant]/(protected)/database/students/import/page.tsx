@@ -621,12 +621,14 @@ export default function StudentImportPage() {
       </SectionCard>
 
       {/* Upload Section */}
-      <UploadSection
-        title="Schritt 3: Datei hochladen"
-        isLoading={isLoading}
-        uploadedFile={uploadedFile}
-        onFileSelect={handleFileChosen}
-      />
+      <div data-setup-tour="student-import-upload">
+        <UploadSection
+          title="Schritt 3: Datei hochladen"
+          isLoading={isLoading}
+          uploadedFile={uploadedFile}
+          onFileSelect={handleFileChosen}
+        />
+      </div>
 
       {/* Preview Section */}
       {(previewData.length > 0 || importInterrupted) && !importComplete && (

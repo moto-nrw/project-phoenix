@@ -158,12 +158,10 @@ function visibleModeCard(): HTMLElement {
   return section;
 }
 
-/** Die Karte „Datei hochladen“ mit ihrem versteckten Dateifeld. */
+/** Die Karte „Datei hochladen“ mit ihrem stabilen Tour-Anker. */
 function visibleUploadCard(): HTMLElement {
   const card = measured(document.createElement("div"));
-  const input = document.createElement("input");
-  input.type = "file";
-  card.appendChild(input);
+  card.dataset.setupTour = "student-import-upload";
   return card;
 }
 

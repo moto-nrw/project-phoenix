@@ -195,7 +195,12 @@ describe("StudentImportPage", () => {
   it("renders the upload section", () => {
     render(<StudentImportPage />);
 
-    expect(screen.getByTestId("upload-section")).toBeInTheDocument();
+    const uploadSection = screen.getByTestId("upload-section");
+    expect(uploadSection).toBeInTheDocument();
+    expect(uploadSection.parentElement).toHaveAttribute(
+      "data-setup-tour",
+      "student-import-upload",
+    );
   });
 
   it("allows selecting template format", () => {
