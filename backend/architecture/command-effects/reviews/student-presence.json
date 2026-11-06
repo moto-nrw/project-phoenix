@@ -14298,7 +14298,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.ContractCareDays.ContractCareDays",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/carecontract.BookedCare.BookedCare: reads the booked services of the school's sent care contracts in its tenant transaction, the Soll of Soll und Ist (ADR 0155, #4683).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/carecontract.BookedCare.BookedCare: reads the booked services of the school's sent care contracts in its tenant transaction, the Soll of Soll und Ist (ADR 0156, #4683).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.BookedCare.BookedCare",
       "target_owner": "care-contract"
@@ -14308,7 +14308,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.ContractCareDays.ContractCareDays",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/carecontract.BookedContract.Day: pure value method that answers what a contract books on one date (ADR 0155, #4683).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/carecontract.BookedContract.Day: pure value method that answers what a contract books on one date (ADR 0156, #4683).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.BookedContract.Day",
       "target_owner": "care-contract"
@@ -14498,7 +14498,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.PlannedCareDays.PlannedCareDays",
-      "reason": "Reviewed read: the root binding roots/owners.StatisticsPlannedCareDays maps Care Plan's planned care days for the occupancy by time of day (#4764) and, since #4774, also states whether a day has no plan or was cancelled for Soll und Ist (ADR 0138), and since #4683 names the care plan as the source of the verdict (ADR 0155). Target modules/careplan.CareDayQuery.ResolvePlannedForRange; modules/careplan/care_days.go. No owned-row mutation or locking read.",
+      "reason": "Reviewed read: the root binding roots/owners.StatisticsPlannedCareDays maps Care Plan's planned care days for the occupancy by time of day (#4764) and, since #4774, also states whether a day has no plan or was cancelled for Soll und Ist (ADR 0138), and since #4683 names the care plan as the source of the verdict (ADR 0156). Target modules/careplan.CareDayQuery.ResolvePlannedForRange; modules/careplan/care_days.go. No owned-row mutation or locking read.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
       "target_owner": "care-plan"
@@ -14508,7 +14508,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.PlannedCareDays.PlannedCareDays",
-      "reason": "Reviewed value method: CareDayStatus.Expected is a pure derivation on the returned verdict (modules/careplan/care_days.go); the binding also compares the verdict with CareDayUnknown and CareDayCancelled for Soll und Ist (#4774, ADR 0138) and names the care plan as its source (#4683, ADR 0155). No persistent, lock or scope effect (#4764).",
+      "reason": "Reviewed value method: CareDayStatus.Expected is a pure derivation on the returned verdict (modules/careplan/care_days.go); the binding also compares the verdict with CareDayUnknown and CareDayCancelled for Soll und Ist (#4774, ADR 0138) and names the care plan as its source (#4683, ADR 0156). No persistent, lock or scope effect (#4764).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayStatus.Expected",
       "target_owner": "care-plan"
@@ -14633,7 +14633,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsRetention.OccupancyRetentionDays",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings.StatisticsRetention.OccupancyRetentionDays: resolves the status day and the attendance retention windows of the tenant in one settings read (#4683, ADR 0155).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings.StatisticsRetention.OccupancyRetentionDays: resolves the status day and the attendance retention windows of the tenant in one settings read (#4683, ADR 0156).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.OccupancyRetentionDays",
       "target_owner": "settings-platform"

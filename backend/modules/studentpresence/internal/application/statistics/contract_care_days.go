@@ -8,7 +8,7 @@ import (
 )
 
 // WithContractCareDays lets the care contract decide the Soll on the days it
-// covers (#4683, ADR 0155): its modules say whether the day is booked and
+// covers (#4683, ADR 0156): its modules say whether the day is booked and
 // the latest module end is the pickup. The contract names no arrival, so
 // the care plan's arrival and a cancellation of the day ("Kommt heute
 // nicht") stay. Without contracts the care plan decides alone.

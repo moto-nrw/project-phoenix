@@ -1,6 +1,6 @@
 "use client";
 
-// Länger als gebucht (#4683, ADR 0155): je Schule, wie oft Kinder länger da
+// Länger als gebucht (#4683, ADR 0156): je Schule, wie oft Kinder länger da
 // waren, als ihr Vertrag bucht. moto vergleicht die gebuchten Zeiten mit dem
 // Ein- und Auschecken (Soll und Ist, ADR 0139). Die Zahlen je Schule sieht
 // jede Rolle mit „Berichte lesen“, die Kinder mit Namen nur „Verträge

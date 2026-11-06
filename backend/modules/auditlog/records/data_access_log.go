@@ -170,7 +170,7 @@ const (
 	ResourceTypeCareContracts = "care_contracts"
 	// ResourceTypeCareTimeOverruns records the Träger-Büro reading the
 	// children of a school with overruns of their booked care time by name
-	// (#4683, ADR 0155). StudentID is NULL; RangeStart and RangeEnd span the
+	// (#4683, ADR 0156). StudentID is NULL; RangeStart and RangeEnd span the
 	// window; metadata carries the view, the row count and the student IDs.
 	// One row per school and read.
 	ResourceTypeCareTimeOverruns = "care_time_overruns"

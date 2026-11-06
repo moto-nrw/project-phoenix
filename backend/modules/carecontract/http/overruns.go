@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// OverrunResource serves /traeger/care-time-overruns (#4683, ADR 0155): the
+// OverrunResource serves /traeger/care-time-overruns (#4683, ADR 0156): the
 // figures per school behind the right "Berichte lesen", the children by name
 // only behind the right "Verträge verwalten". Both read each school in its
 // own tenant transaction, so the routes carry no transaction.

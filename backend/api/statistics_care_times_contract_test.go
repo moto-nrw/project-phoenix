@@ -16,7 +16,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// Soll und Ist with a care contract (#4683, ADR 0155): where a sent contract
+// Soll und Ist with a care contract (#4683, ADR 0156): where a sent contract
 // of the Träger is in force, its booked services are the Soll; a draft and a
 // contract of another school are not.
 

@@ -13,8 +13,8 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// TestCareContractSchoolReadIsReadOnly pins migration 1.15.775 (#4683, ADR
-// 0155): a school reads the booked care of its sent contracts but changes
+// TestCareContractSchoolReadIsReadOnly pins migration 1.15.778 (#4683, ADR
+// 0156): a school reads the booked care of its sent contracts but changes
 // nothing; every write stays with the Träger policy.
 func TestCareContractSchoolReadIsReadOnly(t *testing.T) {
 	t.Parallel()
