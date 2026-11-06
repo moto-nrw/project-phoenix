@@ -71,6 +71,14 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //   ui-kit/no-white-on-warm-fill    — no white text on orange (SCHOOLYARD) or
 //                                     amber (WARNING) fills
 //
+// Two more keep uploads and copyable values on the kit (#5599), hard-zero:
+//
+//   ui-kit/no-hand-rolled-dropzone  — no onDrop outside ui/dropzone.tsx; use
+//                                     Dropzone
+//   ui-kit/no-hand-rolled-copy-field — no framed <code> value and no
+//                                     navigator.clipboard outside the kit and
+//                                     useClipboardCopy; use CopyField
+//
 // One more keeps form fields on the kit (#5217):
 //
 //   ui-kit/no-kit-domain-import     — files in components/ui import no other
@@ -3045,6 +3053,87 @@ const noShadowKitName = {
   },
 };
 
+// ui-kit/no-hand-rolled-dropzone und ui-kit/no-hand-rolled-copy-field (#5599).
+// Eine Ablagefläche besteht aus Zieh-Zustand, Dateiauswahl und Tastaturweg; die
+// sechs Eigenbauten unterschieden sich genau darin. Ein Kopierfeld hat zwei
+// Erkennungszeichen: der gerahmte <code>-Wert und der direkte Griff zur
+// Zwischenablage, an dem Rückmeldung und Fehlerweg hängen.
+const DROPZONE_FILE = "src/components/ui/dropzone.tsx";
+const CLIPBOARD_ALLOWED_RE =
+  /^src\/(?:components\/ui\/copy-field\.tsx|lib\/use-clipboard-copy\.ts)$/;
+
+const noHandRolledDropzone = {
+  meta: {
+    type: "problem",
+    docs: {
+      description: "Disallow hand-built drop areas; use the kit Dropzone.",
+    },
+    messages: {
+      handRolled:
+        "Eine Ablagefläche kommt aus dem Kit: Dropzone aus ~/components/ui/dropzone (#5599).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || key === DROPZONE_FILE) return {};
+    return {
+      JSXAttribute(node) {
+        if (node.name?.name === "onDrop") {
+          context.report({ node, messageId: "handRolled" });
+        }
+      },
+    };
+  },
+};
+
+const noHandRolledCopyField = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow hand-built copy fields and direct clipboard writes; use CopyField or useClipboardCopy.",
+    },
+    messages: {
+      framedCode:
+        "Ein gerahmter Wert zum Kopieren kommt aus dem Kit: CopyField aus ~/components/ui/copy-field (#5599).",
+      rawClipboard:
+        "Kein direkter Griff zur Zwischenablage: CopyField oder useClipboardCopy, dort hängen Rückmeldung und Fehlerweg (#5599).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || CLIPBOARD_ALLOWED_RE.test(key)) return {};
+    return {
+      JSXOpeningElement(node) {
+        if (node.name?.name !== "code") return;
+        const className = node.attributes.find(
+          (attribute) => attribute.name?.name === "className",
+        )?.value?.value;
+        if (
+          typeof className === "string" &&
+          /(?:^|\s)border(?:\s|$)/.test(className) &&
+          /(?:^|\s)rounded(?:-\w+)?(?:\s|$)/.test(className)
+        ) {
+          context.report({ node, messageId: "framedCode" });
+        }
+      },
+      MemberExpression(node) {
+        const owner = node.object?.property ?? node.object;
+        if (
+          owner?.name === "navigator" &&
+          node.property?.name === "clipboard"
+        ) {
+          context.report({ node, messageId: "rawClipboard" });
+        }
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
@@ -3055,7 +3144,9 @@ export default {
     "no-generic-brand-colors": noGenericBrandColors,
     "no-grey-button-fill": noGreyButtonFill,
     "no-hand-rolled-button": noHandRolledButton,
+    "no-hand-rolled-copy-field": noHandRolledCopyField,
     "no-hand-rolled-dot": noHandRolledDot,
+    "no-hand-rolled-dropzone": noHandRolledDropzone,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,

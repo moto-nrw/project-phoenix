@@ -80,7 +80,7 @@ describe("TraegerBottomNav", () => {
       bar()
         .getAllByRole("link")
         .map((link) => link.getAttribute("aria-label")),
-    ).toEqual(["Dashboard", "Schulen", "Stichtagszahlen", "Ferienbetreuung"]);
+    ).toEqual(["Dashboard", "Schulen", "Stichtagszahlen", "Belegung"]);
     expect(bar().getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",
       "/uebersicht",

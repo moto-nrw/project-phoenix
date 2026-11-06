@@ -2,6 +2,7 @@ import { API_KEY_COPY_FAILED_MESSAGE } from "~/lib/operator/provisioning-helpers
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
+import { CopyField } from "~/components/ui/copy-field";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
@@ -41,7 +42,6 @@ export function CreateDeviceModal({
   const [createdDevice, setCreatedDevice] = useState<OperatorDevice | null>(
     null,
   );
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setCreatedDevice(null);
@@ -52,7 +52,6 @@ export function CreateDeviceModal({
       setName("");
       clearError();
       setCreatedDevice(null);
-      setCopied(false);
     }
     // schools is intentionally omitted: callers pass a fresh array reference on
     // every render, and onCreated handlers refetch summaries which re-creates
@@ -114,19 +113,12 @@ export function CreateDeviceModal({
     ],
   );
 
-  const handleCopyApiKey = useCallback(async () => {
-    if (!createdDevice?.apiKey) return;
-    try {
-      await navigator.clipboard.writeText(createdDevice.apiKey);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      logger.error("clipboard_copy_failed", {
-        error: "Failed to copy API key to clipboard",
-      });
-      showMessage(API_KEY_COPY_FAILED_MESSAGE);
-    }
-  }, [createdDevice, showMessage]);
+  const handleCopyFailed = useCallback(() => {
+    logger.error("clipboard_copy_failed", {
+      error: "Failed to copy API key to clipboard",
+    });
+    showMessage(API_KEY_COPY_FAILED_MESSAGE);
+  }, [showMessage]);
 
   if (createdDevice) {
     return (
@@ -151,20 +143,11 @@ export function CreateDeviceModal({
           {createdDevice.apiKey && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-700">API-Key:</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-xs break-all">
-                  {createdDevice.apiKey}
-                </code>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={() => void handleCopyApiKey()}
-                  className="shrink-0"
-                >
-                  {copied ? "Kopiert!" : "Kopieren"}
-                </Button>
-              </div>
+              <CopyField
+                value={createdDevice.apiKey}
+                monospace
+                onCopyFailed={handleCopyFailed}
+              />
             </div>
           )}
 
