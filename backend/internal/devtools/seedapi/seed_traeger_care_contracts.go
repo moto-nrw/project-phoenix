@@ -14,10 +14,9 @@ import (
 // second draft sent. The last few candidates of one school get no draft:
 // that school then concludes its contracts at the acceptance (#4680), so the
 // Worker's conclusion checks their acceptance evidence. Legacy demo
-// submissions without a ticked, checksummed conditions block stay candidates;
-// the seed never fabricates retrospective parental consent.
-// Every step is idempotent, so several demo schools may seed the same
-// Träger at once.
+// submissions without a ticked, checksummed conditions block stay candidates.
+// A fresh submission accepts the saved conditions before its approval; the
+// seed never fabricates retrospective parental consent.
 type seedTraegerCareContractsStep struct{}
 
 func (seedTraegerCareContractsStep) Name() string { return "Seeding the Träger care contracts" }
@@ -27,7 +26,8 @@ var seedCareContractTemplate = map[string]any{
 	"term_kind": "school_year", "notice_months": 1, "notice_to": "month_end",
 	"special_termination": true, "special_termination_note": "Bei Umzug, Schulwechsel oder Verlust des Arbeitsplatzes können Sie zum Ende des Folgemonats kündigen.",
 	"statute_required": true, "statute_title": "Satzung über die Elternbeiträge für die Offene Ganztagsschule",
-	"statute_url": "https://ganztag-quartier.example.test/satzung",
+	"statute_url":      "https://ganztag-quartier.example.test/satzung",
+	"contract_partner": "Ganztag im Quartier e. V.",
 }
 
 type seedCareContractCandidate struct {
@@ -164,7 +164,10 @@ func seedConclusionAtAcceptance(rt *Runtime, schoolID int64) error {
 	if _, err := rt.Client.PutWithAuth(rt.OperatorAuth, path, map[string]any{"value": "bei_annahme"}); err != nil {
 		return fmt.Errorf("let school %d conclude at the acceptance: %w", schoolID, err)
 	}
-	return nil
+	if schoolID != rt.Bootstrap.SchoolID {
+		return nil // This runtime only holds the enrollment and school session of its own school.
+	}
+	return seedConclusionEnrollment(rt)
 }
 
 // seedCareContractSends sends every second draft, so the list shows both
