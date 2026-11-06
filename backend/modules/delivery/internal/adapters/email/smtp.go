@@ -90,7 +90,7 @@ func (m *SMTPMailer) buildMessage(message mailcontract.Message) (*mail.Msg, erro
 		}
 	}
 	msg.Subject(email.Subject)
-	msg.SetMessageID()
+	setDeliveryIdentity(msg, email.Message)
 	// No List-Unsubscribe: the mail is transactional, and a mailto on the
 	// central noreply sender would lead nowhere (#2872).
 	msg.SetBodyString(mail.TypeTextPlain, email.text)
@@ -117,13 +117,19 @@ func (m *SMTPMailer) Send(email mailcontract.Message) error {
 
 // SendContext terminates an in-flight SMTP exchange when the caller cancels.
 func (m *SMTPMailer) SendContext(ctx context.Context, email mailcontract.Message) error {
+	_, err := m.SendWithReceipt(ctx, email)
+	return err
+}
+
+// SendWithReceipt sends the mail and reports the Message-ID it carried.
+func (m *SMTPMailer) SendWithReceipt(ctx context.Context, email mailcontract.Message) (mailcontract.Receipt, error) {
 	if email.From.Address == "" {
 		email.From = m.defaultFrom
 	}
 
 	msg, err := m.buildMessage(email)
 	if err != nil {
-		return redactAddresses(err, email.To.Address)
+		return mailcontract.Receipt{}, redactAddresses(err, email.To.Address)
 	}
 	recipientAddresses, recipientErr := msg.GetRecipients()
 	if recipientErr != nil {
@@ -148,13 +154,13 @@ func (m *SMTPMailer) SendContext(ctx context.Context, email mailcontract.Message
 			slog.String("template", email.Template),
 			slog.Any("error", err),
 		)
-		return err
+		return mailcontract.Receipt{}, classifySendError(err)
 	}
 	m.logger.Info("email sent successfully",
 		slog.String("message_id", messageID),
 		slog.String("template", email.Template))
 
-	return nil
+	return mailcontract.Receipt{MessageID: strings.Trim(messageID, "<>")}, nil
 }
 
 func (m *SMTPMailer) sendMessageContext(ctx context.Context, msg *mail.Msg) error {

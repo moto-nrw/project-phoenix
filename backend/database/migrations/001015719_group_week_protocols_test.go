@@ -25,6 +25,7 @@ func TestGroupWeekProtocolsMigrationRoundTrip(t *testing.T) {
 	// #5504), the Nachweisarten (1.15.724, #4808), the school vacations
 	// (1.15.721, #5345) and the Elternsprechtag (1.15.720, #4801) extend this
 	// erasure; they go first.
+	require.NoError(t, emailDeliveryEventsDown(ctx, db))
 	require.NoError(t, payrollWageTypesDown(ctx, db))
 	require.NoError(t, realtimeNotificationsDown(ctx, db))
 	require.NoError(t, staffQualificationTypesDown(ctx, db))

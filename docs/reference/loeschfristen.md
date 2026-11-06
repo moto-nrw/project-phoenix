@@ -100,6 +100,8 @@ offene Abhilfe: [Risikobewertung gespeicherter Daten](schutz-gespeicherter-daten
 | Löschprotokoll | 3 Jahre | Löschung | Audit Platform | BayLDA: Nachweis bis 3 Jahre | umgesetzt (#3956) |
 | Mail- und Push-Warteschlange, Zustellprotokolle | 30 Tage | Zustellung, endgültiger Fehlschlag oder Abbruch; Zustellprotokoll ohne Mail: Eintrag | Delivery | Inhalt ohne Zweck nach Zustellung | umgesetzt (#3955) |
 | In-App-Hinweise für andere API-Prozesse (`platform.realtime_notifications`) | 2 Minuten lesbar, gelöscht beim nächsten nächtlichen Lauf | Hinweis | Delivery | Nur für die Zustellung an gerade geöffnete Browser anderer API-Prozesse nötig | umgesetzt (#5504) |
+| Zustellereignisse je Mail (`platform.email_delivery_events`) | Mit der Mail, 30 Tage nach ihrem Ende | Mail | Delivery | Zeigt, ob eine Mail angekommen ist | umgesetzt (#5932) |
+| Sperrliste für Mailadressen (`platform.email_suppressions`) | 1 Jahr nach dem letzten endgültigen Fehler oder der letzten Beschwerde; beim nächsten nächtlichen Lauf, sobald kein Elternkontakt und kein Konto der Schule die Adresse mehr hat | Eintrag | Delivery | Verhindert weitere Mails an Adressen, die nicht erreichbar sind oder sich beschwert haben | umgesetzt (#5932) |
 | Einladungen für Eltern | 30 Tage | Einlösung, sonst Ablauf | Identity Access | Link ohne Zweck nach Ablauf oder Einlösung | umgesetzt (#3954) |
 | MFA-Codes per E-Mail, Passkey-Sitzungen (Konten und Operatoren) | 7 Tage | Ablauf | Identity Access | IP-Bezug höchstens 7 Tage | umgesetzt (#3954) |
 | Abgelaufene Refresh-Tokens, auch für Operatoren | höchstens 7 Tage; gelöscht bei Ablauf | Ablauf | Identity Access | Sitzung ohne Zweck nach Ablauf | umgesetzt (#3954) |

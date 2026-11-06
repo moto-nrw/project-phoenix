@@ -23,9 +23,14 @@ type RetentionResult struct {
 	// RealtimeNotifications are in-app notifications stored for other API
 	// processes (#5504).
 	RealtimeNotifications int
+	// DeliveryEvents are the reported events of the expired mails (#5932).
+	DeliveryEvents int
+	// Suppressions are addresses without an event for SuppressionRetention.
+	Suppressions int
 }
 
 // Total is the number of rows the retention deleted or cleared.
 func (r RetentionResult) Total() int {
-	return r.EmailIntents + r.ClearedEmails + r.DeliveryLogs + r.PushIntents + r.RealtimeNotifications
+	return r.EmailIntents + r.ClearedEmails + r.DeliveryLogs + r.PushIntents + r.RealtimeNotifications +
+		r.DeliveryEvents + r.Suppressions
 }

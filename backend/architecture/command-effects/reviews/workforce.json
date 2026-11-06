@@ -3723,7 +3723,7 @@
       "classification": "platform",
       "effect": "durable",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PayrollMail.Enqueue",
-      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through roots/owners.payrollMailOutbox.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through roots/owners.payrollMailOutbox.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #5932: EmailIntent gained the optional Security flag, and the binding's effect is unchanged.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
       "target_owner": "delivery-platform"
@@ -3734,7 +3734,7 @@
       "classification": "platform",
       "effect": "durable",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PayrollMail.Enqueue",
-      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueSystemEmail (delivery-platform) through roots/owners.payrollMailOutbox.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueSystemEmail (delivery-platform) through roots/owners.payrollMailOutbox.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #5932: EmailIntent gained the optional Security flag, and the binding's effect is unchanged.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",
       "target_owner": "delivery-platform"
@@ -3928,7 +3928,7 @@
       "classification": "platform",
       "effect": "durable",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationMail.Enqueue",
-      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through roots/owners.qualificationMailOutbox.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through roots/owners.qualificationMailOutbox.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #5932: EmailIntent gained the optional Security flag, and the binding's effect is unchanged.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
       "target_owner": "delivery-platform"
@@ -3939,7 +3939,7 @@
       "classification": "platform",
       "effect": "durable",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.QualificationMail.Enqueue",
-      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueSystemEmail (delivery-platform) through roots/owners.qualificationMailOutbox.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueSystemEmail (delivery-platform) through roots/owners.qualificationMailOutbox.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #5932: EmailIntent gained the optional Security flag, and the binding's effect is unchanged.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",
       "target_owner": "delivery-platform"
@@ -12240,7 +12240,7 @@
       "classification": "platform",
       "effect": "durable",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.absenceEmailDispatcher.Enqueue",
-      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through roots/owners.AbsenceEmailDispatcher.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through roots/owners.AbsenceEmailDispatcher.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #5932: EmailIntent gained the optional Security flag, and the binding's effect is unchanged.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
       "target_owner": "delivery-platform"
@@ -12251,7 +12251,7 @@
       "classification": "platform",
       "effect": "durable",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.absenceEmailDispatcher.Enqueue",
-      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueSystemEmail (delivery-platform) through roots/owners.AbsenceEmailDispatcher.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueSystemEmail (delivery-platform) through roots/owners.AbsenceEmailDispatcher.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #5932: EmailIntent gained the optional Security flag, and the binding's effect is unchanged.",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",
       "target_owner": "delivery-platform"
