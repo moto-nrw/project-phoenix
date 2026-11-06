@@ -18,7 +18,7 @@ Throughout, **parent** is the branch and PR directly below the one being worked 
 
 1. Branch from the parent branch: `git switch <parent-branch> && git switch -c <new-branch>`.
    Branching from `development` puts the parent's commits into the new PR's diff.
-2. Open the PR against the parent: `gh pr create --base <parent-branch> …`.
+2. Open the PR against the parent: `gh pr create --draft --base <parent-branch> …`.
    Name the parent PR in the body and say it merges first.
 3. Create the stack object, bottom PR first:
    ```bash
