@@ -251,7 +251,22 @@ describe("OperatorAnnouncementsPage", () => {
     render(<OperatorAnnouncementsPage />);
 
     expect(screen.getByText("Keine Ankündigungen")).toBeInTheDocument();
-    expect(screen.getByText("Neue Ankündigung")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Neue Ankündigung" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps one create action in the header when filters find nothing", () => {
+    render(<OperatorAnnouncementsPage />);
+
+    fireEvent.change(screen.getByTestId("filter-status"), {
+      target: { value: "published" },
+    });
+
+    expect(screen.getByText("Keine Ankündigungen")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Neue Ankündigung" }),
+    ).toHaveLength(1);
   });
 
   it("renders announcements list", () => {

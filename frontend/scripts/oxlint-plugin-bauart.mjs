@@ -310,8 +310,8 @@ const ROW_ACTION_BASELINE = new Map(
     "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1355"],
     // Ziele einer Ankündigung, die es nicht mehr gibt (#5604, Formularwert).
     "src/app/operator/announcements/page.tsx": [
-      "aus Zielen entfernen@803",
-      "aus Zielen entfernen@836",
+      "aus Zielen entfernen@801",
+      "aus Zielen entfernen@834",
     ],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
       "Gericht entfernen@797",
@@ -1596,7 +1596,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // haben keine eigene Objektroute; ein Umbau geht über das Seitengerüst
     // hinaus und ist nicht Teil von #5604.
     "src/app/operator/announcements/page.tsx": [
-      "Ankündigung bearbeiten Neue Ankündigung@510",
+      "Ankündigung bearbeiten Neue Ankündigung@508",
     ],
     "src/app/operator/provisioning/edit-organization-modal.tsx": [
       "Träger bearbeiten@83",

@@ -302,13 +302,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/app/operator/announcements/page.tsx",
-    lines: [618],
+    lines: [616],
     reason: "Auslöser des Dringlichkeits-Felds, sieht aus wie ein Select",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/app/operator/announcements/page.tsx",
-    lines: [735, 883, 976],
+    lines: [733, 881, 974],
     reason: "Auswahlzeilen mit Häkchen (Rollen, Träger, Schulen), kein Knopf",
   },
 ];

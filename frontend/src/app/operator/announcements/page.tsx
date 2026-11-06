@@ -491,16 +491,14 @@ export default function OperatorAnnouncementsPage() {
       }
       filters={filterConfigs}
       actions={
-        announcements && announcements.length > 0 ? (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={openCreateForm}
-          >
-            Neue Ankündigung
-          </Button>
-        ) : undefined
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={openCreateForm}
+        >
+          Neue Ankündigung
+        </Button>
       }
       loading={isLoading && !announcementsError}
       loadingLabel="Ankündigungen werden geladen"
@@ -1103,15 +1101,6 @@ export default function OperatorAnnouncementsPage() {
             <p className="text-sm text-gray-500">
               Erstellen Sie eine neue Ankündigung, um Nutzer zu informieren.
             </p>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={openCreateForm}
-              className="mt-2"
-            >
-              Neue Ankündigung
-            </Button>
           </div>
         )}
 
