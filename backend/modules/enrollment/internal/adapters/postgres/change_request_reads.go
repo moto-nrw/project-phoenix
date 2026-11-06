@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/uptrace/bun"
@@ -176,14 +175,17 @@ func applyChangeRequestReviewFilters(q *bun.SelectQuery, filters enrollment.Chan
 		// The affected child is the pinned one when the request targets a
 		// single child, and every child of the enrollment otherwise — the same
 		// rule the response's child names follow, so a name that shows up in
-		// the list is also a name that finds it.
+		// the list is also a name that finds it. LIKE metacharacters are
+		// escaped after unaccent, which turns fullwidth ％, ＿ and ＼ into
+		// %, _ and \ (#5791).
 		q = q.Where(`EXISTS (
 			SELECT 1 FROM enrollment.request_children AS rc
 			WHERE rc.request_id = "change_request".request_id
 			  AND rc.tenant_id = "change_request".tenant_id
 			  AND ("change_request".request_child_id IS NULL OR rc.id = "change_request".request_child_id)
-			  AND public.f_unaccent(rc.first_name || ' ' || rc.last_name) ILIKE public.f_unaccent(?) ESCAPE '\'
-		)`, "%"+strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(filters.Search)+"%")
+			  AND public.f_unaccent(rc.first_name || ' ' || rc.last_name)
+			      ILIKE '%' || replace(replace(replace(public.f_unaccent(?), '\', '\\'), '%', '\%'), '_', '\_') || '%' ESCAPE '\'
+		)`, filters.Search)
 	}
 	if filters.History {
 		if !filters.From.IsZero() {

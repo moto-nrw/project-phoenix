@@ -33,6 +33,26 @@ func TestRequestQueueStudentNameSearchIgnoresAccents(t *testing.T) {
 	}
 }
 
+// A fullwidth ％ folds to "%"; the search escapes after folding, so it
+// matches literally instead of every student (#5791).
+func TestRequestQueueStudentNameSearchTreatsFullwidthLikeCharactersLiterally(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	testpkg.CreateTestStudent(t, db, "Zoë", "Gómez", "1a")
+
+	for _, search := range []string{"％", "＿", "＼"} {
+		var ids []int64
+		query := db.NewSelect().
+			TableExpr(`(SELECT id AS student_id, tenant_id FROM users.student_profiles) AS "request"`).
+			ColumnExpr(`"request".student_id`).
+			Where(`"request".tenant_id = ?`, testpkg.Tenant(t))
+		require.NoError(t, filterRequestQueueStudentName(testpkg.StudentDirectory{}, query, "request", search).Scan(ctx, &ids), search)
+		assert.Empty(t, ids, search)
+	}
+}
+
 // The withdrawal queue's search finds "Özdemir" for "ozdem" (#4949).
 func TestWithdrawalSearchIgnoresAccents(t *testing.T) {
 	t.Parallel()

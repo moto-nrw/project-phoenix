@@ -3,11 +3,11 @@ package staffshifts
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // planExportRequest is the shared body of both plan export routes (#2079).
@@ -54,7 +54,7 @@ func (rs *Resource) exportPlan(w http.ResponseWriter, r *http.Request) {
 // how every other export route in this codebase answers.
 func writePlanExportFile(w http.ResponseWriter, contentType, filename string, data []byte) {
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/modules/dataimport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 func (rs *Resource) downloadTemplate(w http.ResponseWriter, r *http.Request, kind dataimport.TemplateKind, filename string) {
@@ -20,7 +21,7 @@ func (rs *Resource) downloadTemplate(w http.ResponseWriter, r *http.Request, kin
 		return
 	}
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Disposition", "attachment; filename="+filename+"."+string(format))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", filename+"."+string(format)))
 	if _, err := w.Write(contents); err != nil {
 		slog.Default().Error("Error writing import template", slog.String("error", err.Error()))
 	}

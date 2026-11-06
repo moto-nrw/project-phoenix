@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"io"
-	"mime"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -102,7 +102,7 @@ func (rs *HolidayRegistrationResource) document(w http.ResponseWriter, r *http.R
 
 func writeHolidayPDF(w http.ResponseWriter, doc capability.HolidayFormDocument) {
 	w.Header().Set("Content-Type", "application/pdf")
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": doc.Filename}))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("inline", doc.Filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(doc.Content)))
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")

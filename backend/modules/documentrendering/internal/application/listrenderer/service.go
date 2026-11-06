@@ -3,6 +3,7 @@ package listexport
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
@@ -65,12 +66,15 @@ func (s *RendererService) RenderLetter(letter listrecords.Letter, filenameBase s
 	return listrecords.File{Data: data, ContentType: "application/pdf", Filename: base + ".pdf"}, nil
 }
 
+// safeFilename turns a title into a file name: lower case, letters and
+// digits of any script, everything else one dash. Accents stay (#5791); the
+// HTTP edge adds the ASCII spelling for clients that need one.
 func safeFilename(input string) string {
-	input = strings.TrimSpace(strings.ToLower(textnorm.ASCII(input)))
+	input = strings.ToLower(textnorm.Name(input))
 	var b strings.Builder
 	lastDash := false
 	for _, r := range input {
-		ok := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+		ok := unicode.IsLetter(r) || unicode.IsDigit(r) || (unicode.Is(unicode.Mn, r) && !lastDash && b.Len() > 0)
 		if ok {
 			b.WriteRune(r)
 			lastDash = false
