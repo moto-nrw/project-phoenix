@@ -14,7 +14,7 @@ func init() {
 		Version:     traegerSharedDocumentsVersion,
 		Description: "Träger-Portal: vorhandene Dokumente für Eltern und Schulen freigeben (#4692)",
 		DependsOn: []string{
-			careContractDraftsVersion,       // the last migration before this one
+			emailDeliveryFallbackVersion,    // the last migration before this one
 			traegerDocumentTemplatesVersion, // the Träger tables of ADR 0105 it follows
 		},
 	})

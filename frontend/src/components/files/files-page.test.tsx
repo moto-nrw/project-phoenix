@@ -67,7 +67,14 @@ function renderPage(staffUploadEnabled: boolean) {
   const folderFiles: FolderFiles = { folder, files: [] };
 
   useSWRAuth.mockImplementation((key: string) => ({
-    data: key === "files-folders" ? overview : folderFiles,
+    // Die Karte „Vom Träger“ (#4692) lädt ihre Dokumente unter eigenem
+    // Schlüssel; dieser Träger hat keine freigegeben.
+    data:
+      key === "files-folders"
+        ? overview
+        : key === "traeger-documents-school"
+          ? []
+          : folderFiles,
     error: undefined,
     isLoading: false,
     mutate,
@@ -286,5 +293,61 @@ describe("FilesPage file list on narrow screens (#4975)", () => {
     const name = within(table).getByRole("link", { name: longName });
     expect(name).toHaveAttribute("title", expect.stringContaining(longName));
     expect(name.closest("td")).toHaveClass("w-full", "max-w-0");
+  });
+});
+
+describe("FilesPage documents of the Träger (#4692)", () => {
+  it("shows the documents the Träger released for the school", async () => {
+    useSession.mockReturnValue({
+      data: { user: { permissions: ["files:manage"] } },
+    });
+    useSWRAuth.mockImplementation((key: string) => ({
+      data:
+        key === "traeger-documents-school"
+          ? [
+              {
+                id: "4",
+                title: "Hausordnung 2026/27",
+                fileName: "hausordnung.pdf",
+                contentType: "application/pdf",
+                sizeBytes: 2048,
+                releasedAt: "2026-09-02T10:00:00Z",
+                releases: [
+                  {
+                    id: "1",
+                    audience: "parents",
+                    schoolId: "7",
+                    groupId: null,
+                    groupName: "",
+                    releasedAt: "2026-09-02T10:00:00Z",
+                  },
+                ],
+              },
+            ]
+          : {
+              folders: [folder],
+              canManage: true,
+              canUpload: true,
+              staffUploadEnabled: true,
+              usedBytes: 0,
+              maxBytes: 1024,
+            },
+      error: undefined,
+      isLoading: false,
+      mutate,
+    }));
+
+    renderWithToasts(<FilesPage />);
+
+    expect(
+      await screen.findByRole("heading", { name: /Vom Träger/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Hausordnung 2026/27")).toBeInTheDocument();
+    expect(screen.getByText("Eltern Ihrer Schule")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Herunterladen: Hausordnung 2026/27",
+      }),
+    ).toBeInTheDocument();
   });
 });
