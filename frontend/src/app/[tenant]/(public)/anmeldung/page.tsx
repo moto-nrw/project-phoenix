@@ -1,5 +1,6 @@
 "use client";
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import { ApiError } from "~/lib/api-error";
 import { useEffect, useState } from "react";
 import { Check, Clock, RefreshCw, UserPlus } from "lucide-react";
@@ -148,31 +149,38 @@ export default function EnrollPhasePickerPage() {
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
-                              {t(`kind.${phase.kind}`)}
-                            </span>
+                            <StatusBadge
+                              tone="gray"
+                              label={t(`kind.${phase.kind}`)}
+                            />
                             {phase.enrollment_close_at && (
-                              <span className="bg-moto-green/15 text-moto-green-strong inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold">
-                                <Clock className="h-3.5 w-3.5" />
-                                {t("openUntil", {
+                              <StatusBadge
+                                tone="green"
+                                icon={Clock}
+                                wrap
+                                label={t("openUntil", {
                                   date: formatDateTime(
                                     phase.enrollment_close_at,
                                     locale,
                                   ),
                                 })}
-                              </span>
+                              />
                             )}
                             {phase.audience === "new_students" && (
-                              <span className="bg-moto-blue/10 text-moto-blue-strong inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold">
-                                <UserPlus className="h-3.5 w-3.5" />
-                                {t("audienceNewStudents")}
-                              </span>
+                              <StatusBadge
+                                tone="blue"
+                                icon={UserPlus}
+                                wrap
+                                label={t("audienceNewStudents")}
+                              />
                             )}
                             {phase.audience === "existing_students" && (
-                              <span className="bg-moto-blue/10 text-moto-blue-strong inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold">
-                                <RefreshCw className="h-3.5 w-3.5" />
-                                {t("audienceExistingStudents")}
-                              </span>
+                              <StatusBadge
+                                tone="blue"
+                                icon={RefreshCw}
+                                wrap
+                                label={t("audienceExistingStudents")}
+                              />
                             )}
                           </div>
                           <h2 className="mt-3 text-lg font-semibold break-words text-gray-900 sm:text-xl">

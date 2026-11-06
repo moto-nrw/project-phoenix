@@ -9,6 +9,9 @@ import {
   useRef,
   useState,
 } from "react";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import { ApiError } from "~/lib/api-error";
 import { useLocale, useTranslations } from "next-intl";
@@ -1965,9 +1968,11 @@ export function SickStatusSummary({
             <p className="text-sm font-semibold text-gray-900">
               {requestLabel(r)}: {rangeLabel(r.dates)}
             </p>
-            <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
-              {t("summary.pendingLabel")}
-            </span>
+            <StatusColorBadge
+              color={LOCATION_COLORS.WARNING}
+              compact
+              label={t("summary.pendingLabel")}
+            />
             {studentId && canEdit && r.is_self && (
               <Button
                 type="button"
@@ -1995,9 +2000,11 @@ export function SickStatusSummary({
             <p className="text-sm font-semibold text-gray-900">
               {requestLabel(r)}: {rangeLabel(r.dates)}
             </p>
-            <span className="bg-moto-red/10 text-moto-red-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
-              {t("summary.rejectedLabel")}
-            </span>
+            <StatusBadge
+              tone="red"
+              compact
+              label={t("summary.rejectedLabel")}
+            />
           </div>
           {r.decision_reason && (
             <p className="text-xs text-gray-500">

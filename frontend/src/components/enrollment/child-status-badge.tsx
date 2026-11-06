@@ -52,11 +52,11 @@ export function ChildQuotaHeldBadge() {
 
 export function ChildStatusBadge({
   status,
-}: Readonly<{ status: ChildStatus }>) {
-  return (
-    <StatusBadge
-      label={CHILD_STATUS_LABELS[status]}
-      tone={CHILD_STATUS_TONES[status]}
-    />
-  );
+  label = CHILD_STATUS_LABELS[status],
+}: Readonly<{
+  status: ChildStatus;
+  /** Translated label on public pages; staff pages use the German default. */
+  label?: string;
+}>) {
+  return <StatusBadge label={label} tone={CHILD_STATUS_TONES[status]} />;
 }

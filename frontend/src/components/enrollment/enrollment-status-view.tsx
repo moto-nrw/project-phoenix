@@ -45,7 +45,11 @@ import { SectionCard } from "~/components/ui/section-card";
 import { BackLink } from "~/components/ui/back-link";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
+import { ChildStatusBadge } from "~/components/enrollment/child-status-badge";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 import { EnrollmentSignatureStatus } from "~/components/enrollment/enrollment-signature-status";
 import { childrenConcept } from "~/lib/concepts/children";
@@ -54,92 +58,21 @@ import { IconTile } from "~/components/ui/icon-tile";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
 
-const STATUS_STYLES: Record<
-  StatusChild["status"],
-  { dot: string; text: string; bg: string }
-> = {
-  submitted: {
-    dot: MOTO_COLOR_PALETTE.blue.base,
-    text: MOTO_COLOR_PALETTE.neutral.strong,
-    bg: MOTO_COLOR_PALETTE.neutral.soft,
-  },
-  under_review: {
-    dot: MOTO_COLOR_PALETTE.blue.base,
-    text: MOTO_COLOR_PALETTE.neutral.strong,
-    bg: MOTO_COLOR_PALETTE.neutral.soft,
-  },
-  approved: {
-    dot: MOTO_COLOR_PALETTE.green.base,
-    text: MOTO_COLOR_PALETTE.green.strong,
-    bg: MOTO_COLOR_PALETTE.green.soft,
-  },
-  waitlisted: {
-    dot: MOTO_COLOR_PALETTE.orange.base,
-    text: MOTO_COLOR_PALETTE.orange.strong,
-    bg: MOTO_COLOR_PALETTE.orange.soft,
-  },
-  rejected: {
-    dot: MOTO_COLOR_PALETTE.red.base,
-    text: MOTO_COLOR_PALETTE.red.strong,
-    bg: MOTO_COLOR_PALETTE.red.soft,
-  },
-  withdrawn: {
-    dot: MOTO_COLOR_PALETTE.neutral.base,
-    text: MOTO_COLOR_PALETTE.neutral.strong,
-    bg: MOTO_COLOR_PALETTE.neutral.soft,
-  },
-  pending_renewal: {
-    dot: MOTO_COLOR_PALETTE.orange.base,
-    text: MOTO_COLOR_PALETTE.orange.strong,
-    bg: MOTO_COLOR_PALETTE.orange.soft,
-  },
-  auto_renewed: {
-    dot: MOTO_COLOR_PALETTE.blue.base,
-    text: MOTO_COLOR_PALETTE.neutral.strong,
-    bg: MOTO_COLOR_PALETTE.neutral.soft,
-  },
-  pending_admin_review: {
-    dot: MOTO_COLOR_PALETTE.neutral.base,
-    text: MOTO_COLOR_PALETTE.neutral.strong,
-    bg: MOTO_COLOR_PALETTE.neutral.soft,
-  },
-};
-
 const TERMINAL_STATUSES = new Set<StatusChild["status"]>([
   "approved",
   "rejected",
   "withdrawn",
 ]);
 
-const CHANGE_REQUEST_STYLES: Record<
+const CHANGE_REQUEST_TONES: Record<
   EnrollmentChangeRequest["status"],
-  { bg: string; dot: string; text: string }
+  StatusBadgeTone
 > = {
-  pending_review: {
-    bg: MOTO_COLOR_PALETTE.blue.soft,
-    dot: MOTO_COLOR_PALETTE.blue.base,
-    text: MOTO_COLOR_PALETTE.blue.strong,
-  },
-  needs_parent_response: {
-    bg: MOTO_COLOR_PALETTE.orange.soft,
-    dot: MOTO_COLOR_PALETTE.orange.base,
-    text: MOTO_COLOR_PALETTE.orange.strong,
-  },
-  approved: {
-    bg: MOTO_COLOR_PALETTE.green.soft,
-    dot: MOTO_COLOR_PALETTE.green.base,
-    text: MOTO_COLOR_PALETTE.green.strong,
-  },
-  rejected: {
-    bg: MOTO_COLOR_PALETTE.red.soft,
-    dot: MOTO_COLOR_PALETTE.red.base,
-    text: MOTO_COLOR_PALETTE.red.strong,
-  },
-  cancelled: {
-    bg: MOTO_COLOR_PALETTE.neutral.soft,
-    dot: MOTO_COLOR_PALETTE.neutral.light,
-    text: MOTO_COLOR_PALETTE.neutral.strong,
-  },
+  pending_review: "blue",
+  needs_parent_response: "orange",
+  approved: "green",
+  rejected: "red",
+  cancelled: "gray",
 };
 
 const OPEN_CHANGE_REQUEST_STATUSES = new Set<EnrollmentChangeRequest["status"]>(
@@ -1099,7 +1032,10 @@ function EnrollmentChildRow({
             ) : null}
           </div>
         </div>
-        <StatusPill status={child.status} label={t(`status.${child.status}`)} />
+        <ChildStatusBadge
+          status={child.status}
+          label={t(`status.${child.status}`)}
+        />
       </div>
       <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-gray-500">
@@ -1660,21 +1596,11 @@ function ChangeRequestPill({
   readonly status: EnrollmentChangeRequest["status"];
 }) {
   const t = useTranslations("enrollmentStatus");
-  const styles = CHANGE_REQUEST_STYLES[status];
   return (
-    <span
-      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
-      style={{
-        backgroundColor: styles.bg,
-        color: styles.text,
-      }}
-    >
-      <span
-        className="h-2 w-2 rounded-full"
-        style={{ backgroundColor: styles.dot }}
-      />
-      {t(`changeRequestStatus.${status}`)}
-    </span>
+    <StatusBadge
+      tone={CHANGE_REQUEST_TONES[status]}
+      label={t(`changeRequestStatus.${status}`)}
+    />
   );
 }
 
@@ -1693,31 +1619,6 @@ function StepNumber({ children }: { readonly children: React.ReactNode }) {
   return (
     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white">
       {children}
-    </span>
-  );
-}
-
-function StatusPill({
-  status,
-  label,
-}: {
-  readonly status: StatusChild["status"];
-  readonly label: string;
-}) {
-  const styles = STATUS_STYLES[status];
-  return (
-    <span
-      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
-      style={{
-        backgroundColor: styles.bg,
-        color: styles.text,
-      }}
-    >
-      <span
-        className="h-2 w-2 rounded-full"
-        style={{ backgroundColor: styles.dot }}
-      />
-      {label}
     </span>
   );
 }

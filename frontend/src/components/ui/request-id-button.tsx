@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
+import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 
 interface RequestIdButtonProps {
   readonly requestId: string;
@@ -24,14 +25,11 @@ export function RequestIdButton({
   copyFailedLabel,
 }: RequestIdButtonProps) {
   const [feedback, setFeedback] = useState<string | null>(null);
+  const { copy } = useClipboardCopy("RequestIdButton");
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(requestId);
-      setFeedback(copiedLabel);
-    } catch {
-      setFeedback(copyFailedLabel);
-    }
+    const copied = await copy(requestId);
+    setFeedback(copied ? copiedLabel : copyFailedLabel);
   };
 
   return (
