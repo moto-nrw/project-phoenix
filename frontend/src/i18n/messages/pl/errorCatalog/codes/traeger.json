@@ -21,5 +21,5 @@
   "no_membership": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
   "school_not_found": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
   "second_factor_required": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
-  "shared_document_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
+  "shared_document_not_found": "Organizator nie udostępnia już tego dokumentu. Odśwież stronę."
 }

@@ -30,8 +30,8 @@ var _ organizationtenancy.TraegerDocuments = (*TraegerDocuments)(nil)
 
 // NewTraegerDocuments builds the Träger-Büro's service.
 func NewTraegerDocuments(store ports.TraegerDocumentStore, dependencies organizationtenancy.TraegerDocumentPorts) *TraegerDocuments {
-	if store == nil || dependencies.Schools == nil || dependencies.Groups == nil || dependencies.Runtime == nil {
-		panic("organization tenancy: the document store, the schools, the groups and the runtime are required")
+	if store == nil || dependencies.Schools == nil || dependencies.Groups == nil || dependencies.Runtime == nil || dependencies.Access == nil {
+		panic("organization tenancy: the document store, the schools, the groups, the runtime and the access log are required")
 	}
 	return &TraegerDocuments{store: store, ports: dependencies}
 }
@@ -90,21 +90,74 @@ func documentFileError(err error) error {
 	return err
 }
 
-// File reads the stored file of a document of the Träger.
-func (d *TraegerDocuments) File(ctx context.Context, organizationID, documentID int64) (organizationtenancy.TraegerDocumentFile, error) {
+// File reads the stored file of a document of the Träger and writes the
+// download into the access log of each school the document reaches (ADR 0084
+// section 7). A document that reaches no school is logged at every school of
+// the Träger. A failed entry fails the download: no file leaves without it.
+func (d *TraegerDocuments) File(ctx context.Context, organizationID, accountID, documentID int64) (organizationtenancy.TraegerDocumentFile, error) {
 	if organizationID <= 0 {
 		return organizationtenancy.TraegerDocumentFile{}, errTraegerRequired
 	}
 	var file organizationtenancy.TraegerDocumentFile
+	var reached []int64
+	var everySchool bool
 	err := d.ports.Runtime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
 		found, ok, readErr := d.store.DocumentFile(txCtx, organizationID, documentID)
 		if readErr == nil && !ok {
 			readErr = organizationtenancy.ErrTraegerDocumentNotFound
 		}
+		if readErr != nil {
+			return readErr
+		}
 		file = found
+		reached, everySchool, readErr = d.store.ReachedSchools(txCtx, organizationID, documentID)
 		return readErr
 	})
-	return file, err
+	if err != nil {
+		return organizationtenancy.TraegerDocumentFile{}, err
+	}
+	schools, err := d.loggedSchools(ctx, organizationID, reached, everySchool)
+	if err != nil {
+		return organizationtenancy.TraegerDocumentFile{}, err
+	}
+	access := organizationtenancy.TraegerDocumentAccess{OrganizationID: organizationID, AccountID: accountID, DocumentID: documentID}
+	if err := d.logSchools(ctx, access, schools); err != nil {
+		return organizationtenancy.TraegerDocumentFile{}, err
+	}
+	return file, nil
+}
+
+// loggedSchools are the schools a download is logged at: those the document
+// reaches, or every school of the Träger while it reaches none or all.
+func (d *TraegerDocuments) loggedSchools(ctx context.Context, organizationID int64, reached []int64, everySchool bool) ([]int64, error) {
+	if !everySchool && len(reached) > 0 {
+		return reached, nil
+	}
+	schools, err := d.ports.Schools.TraegerSchools(ctx, organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("organization tenancy: list schools of the Träger: %w", err)
+	}
+	ids := make([]int64, 0, len(schools))
+	for _, school := range schools {
+		ids = append(ids, school.ID)
+	}
+	return ids, nil
+}
+
+// logSchools writes one entry per school into that school's access log, in
+// the school's own tenant transaction, after the Träger transaction ended.
+func (d *TraegerDocuments) logSchools(ctx context.Context, access organizationtenancy.TraegerDocumentAccess, schools []int64) error {
+	sorted := slices.Clone(schools)
+	slices.Sort(sorted)
+	for _, school := range slices.Compact(sorted) {
+		err := d.ports.Runtime.WithinSchool(ctx, school, func(txCtx context.Context) error {
+			return d.ports.Access.RecordAccess(txCtx, access)
+		})
+		if err != nil {
+			return fmt.Errorf("organization tenancy: access log of school %d: %w", school, err)
+		}
+	}
+	return nil
 }
 
 // Audiences lists the schools of the Träger with their groups, each read in

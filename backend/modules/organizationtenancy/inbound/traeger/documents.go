@@ -111,7 +111,7 @@ func (rs *DocumentsResource) upload(w http.ResponseWriter, r *http.Request) {
 // file serves the stored file as a download. no-store keeps a revoked or
 // replaced document out of caches the application does not control.
 func (rs *DocumentsResource) file(w http.ResponseWriter, r *http.Request) {
-	organizationID, _, ok := session(w, r)
+	organizationID, accountID, ok := session(w, r)
 	if !ok {
 		return
 	}
@@ -120,7 +120,7 @@ func (rs *DocumentsResource) file(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	file, err := rs.documents.File(r.Context(), organizationID, documentID)
+	file, err := rs.documents.File(r.Context(), organizationID, accountID, documentID)
 	if err != nil {
 		renderDocumentError(w, r, err)
 		return

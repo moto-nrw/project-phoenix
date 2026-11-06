@@ -57,6 +57,38 @@
       "target_owner": "security-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentAccessLog.RecordAccess",
+      "binding_digest": "16015509a1fe659e3f5369b2c846101a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentAccessLog.RecordAccess",
+      "source_owner": "organization-tenancy",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentAccessLog.RecordAccess",
+      "binding_digest": "f9c5181419d8d63d5fdc38131a9b98d3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentAccessLog.RecordAccess",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentAccessLog.RecordAccess",
+      "binding_digest": "1dcab0e67baa6e90a9d71a141ad533c7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentAccessLog.RecordAccess",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentAccessLog.RecordAccess",
+      "binding_digest": "3a2fa87296d0fad1c0d1c26a4603b35f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentAccessLog.RecordAccess",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
+      "target_owner": "audit-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentGroups.SchoolGroups",
       "binding_digest": "31ea4eea2bf949593a4273b0585e0c56",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentGroups.SchoolGroups",

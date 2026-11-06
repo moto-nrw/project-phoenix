@@ -23,6 +23,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	organizationtenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
@@ -84,7 +85,9 @@ func newTraegerDocumentsFixture(t *testing.T) traegerDocumentsFixture {
 		})
 	})
 	tenantRouter := chi.NewRouter()
-	require.NoError(t, mountTraegerDocumentRoutes(router, tenantRouter, testpkg.NewDatabase(t, db), organizations))
+	audit, err := auditCompose.NewTenantPersistence(db)
+	require.NoError(t, err)
+	require.NoError(t, mountTraegerDocumentRoutes(router, tenantRouter, testpkg.NewDatabase(t, db), organizations, audit.DataAccessLog))
 	router.Mount("/api", tenantRouter)
 	f := traegerDocumentsFixture{db: db, portal: portal, router: testpkg.SessionVerifier(router)}
 	f.office = f.newOffice(t, "Träger Dokumente", identityaccess.TraegerRoleAdministration)
@@ -409,4 +412,39 @@ func TestTraegerDocumentReleaseKeepsAnyGroupName(t *testing.T) {
 	document := f.uploaded(t, f.office.token, "Elternbrief")
 	release := f.released(t, f.office.token, document.ID, map[string]any{"audience": "parents", "school_id": school, "group_id": group})
 	assert.Equal(t, strings.TrimSpace(name), strings.TrimSpace(release.GroupName))
+}
+
+// TestTraegerDocumentDownloadsAreLoggedAtTheReachedSchools pins the access
+// log of the Träger-Büro's downloads (ADR 0084 section 7, ADR 0088 section
+// 7): every download writes an entry into audit.data_access_log of each
+// school the document reaches through an active release; a document that
+// reaches no school is logged at every school of the Träger, so no download
+// leaves without an entry.
+func TestTraegerDocumentDownloadsAreLoggedAtTheReachedSchools(t *testing.T) {
+	t.Parallel()
+	f := newTraegerDocumentsFixture(t)
+	document := f.uploaded(t, f.office.token, "Elternliste")
+	download := func() {
+		t.Helper()
+		rec := traegerJSON(t, f.router, f.office.token, http.MethodGet, fmt.Sprintf("/traeger/documents/%d/file", document.ID), nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	}
+	logged := func() []int64 {
+		t.Helper()
+		var schools []int64
+		require.NoError(t, f.db.NewRaw(`SELECT tenant_id FROM audit.data_access_log
+			WHERE resource_type = 'traeger_document_download' AND metadata->>'document_id' = ?
+				AND metadata->>'channel' = 'traeger_portal' AND actor_role = 'traeger'
+			ORDER BY id`, fmt.Sprint(document.ID)).Scan(t.Context(), &schools))
+		return schools
+	}
+
+	download()
+	assert.ElementsMatch(t, f.office.schools, logged(), "an unreleased document is logged at every school of the Träger")
+
+	f.released(t, f.office.token, document.ID, map[string]any{"audience": "schools", "school_id": f.office.schools[0]})
+	download()
+	entries := logged()
+	require.Len(t, entries, len(f.office.schools)+1, "the second download writes one entry")
+	assert.Equal(t, f.office.schools[0], entries[len(entries)-1], "a released document is logged where it reaches")
 }

@@ -210,6 +210,30 @@ func TestAccountAvatarJobOwnsItsTransactionAndReportsPartialFailure(t *testing.T
 	require.True(t, retention.caterers, "a file failure does not stop the caterer deletion")
 }
 
+// transactionalTraegerDocumentReadRetention records whether the hourly
+// cleanup handed it the scheduler's administrative transaction.
+type transactionalTraegerDocumentReadRetention struct{ inAdmin []bool }
+
+func (r *transactionalTraegerDocumentReadRetention) DeleteExpiredTraegerDocumentReads(ctx context.Context) (int, error) {
+	r.inAdmin = append(r.inAdmin, ctx.Value(cleanupTransactionKey{}) == true)
+	return 0, nil
+}
+
+// The Träger document reads expire across every Träger, which only the
+// administrative transaction may do (#4692): the job runs inside the
+// scheduler's WithinAdmin, never with an own transaction.
+func TestTraegerDocumentReadRetentionRunsInTheAdministrativeTransaction(t *testing.T) {
+	t.Parallel()
+	deps := minimalWorkerDependencies(t)
+	deps.TenantRuntime = markingCleanupRuntime{unitTenantRuntime()}
+	retention := &transactionalTraegerDocumentReadRetention{}
+	deps.TraegerDocumentReadRetention = retention
+
+	require.NoError(t, newScheduler(deps).runCleanupJobs(t.Context()))
+
+	require.Equal(t, []bool{true}, retention.inAdmin, "the job runs once, inside the administrative transaction")
+}
+
 func TestNewWorkerRejectsMissingSettings(t *testing.T) {
 	t.Parallel()
 	deps := minimalWorkerDependencies(t)

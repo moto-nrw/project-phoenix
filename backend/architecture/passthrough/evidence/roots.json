@@ -1612,6 +1612,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (l traegerDocumentAccessLog) RecordAccess(ctx context.Context, access organizationtenancy.TraegerDocumentAccess) error {\n\tnow := time.Now()\n\treturn l.log.Create(ctx, \u0026auditModels.DataAccessLog{ActorAccountID: access.AccountID, ActorRole: traegerAccessActorRole, ResourceType: auditModels.ResourceTypeTraegerDocumentDownload, RangeStart: now, RangeEnd: now, Metadata: map[string]any{\"channel\": \"traeger_portal\", \"organization_id\": access.OrganizationID, \"document_id\": access.DocumentID}})\n}",
+      "form": "unclassified-evidence",
+      "id": "api/traegerDocumentAccessLog.RecordAccess",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (g traegerDocumentGroups) SchoolGroups(ctx context.Context) ([]organizationtenancy.TraegerDocumentGroup, error) {\n\tgroups, err := g.groups.ListGroups(ctx, traegerDocumentGroupLimit)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]organizationtenancy.TraegerDocumentGroup, 0, len(groups))\n\tfor _, group := range groups {\n\t\tresult = append(result, organizationtenancy.TraegerDocumentGroup{ID: group.ID, Name: group.Name})\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/traegerDocumentGroups.SchoolGroups",

@@ -11,7 +11,7 @@ import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
-import { problemResponse } from "~/lib/api-helpers.server";
+import { handleApiError, problemResponse } from "~/lib/api-helpers.server";
 import { clientIdentityHeaders } from "~/lib/client-headers.server";
 
 const logger = createLogger({ component: "TraegerDocumentDownloadRoute" });
@@ -38,12 +38,19 @@ async function GETHandler(
       },
     });
 
-  let upstream = await makeRequest(token);
-  if (upstream.status === 401) {
-    const refreshed = await uncachedAuth();
-    if (refreshed?.user?.token && refreshed.user.token !== token) {
-      upstream = await makeRequest(refreshed.user.token);
+  let upstream: Response;
+  try {
+    upstream = await makeRequest(token);
+    if (upstream.status === 401) {
+      const refreshed = await uncachedAuth();
+      if (refreshed?.user?.token && refreshed.user.token !== token) {
+        upstream = await makeRequest(refreshed.user.token);
+      }
     }
+  } catch (error) {
+    // An unreachable backend still answers through the wrappers, so the
+    // download keeps no-store and a refreshed session cookie.
+    return handleApiError(error, request);
   }
 
   if (!upstream.ok) {

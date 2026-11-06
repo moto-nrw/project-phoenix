@@ -71,6 +71,50 @@
       "target_owner": "security-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentAccessLog.RecordAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentAccessLog.RecordAccess",
+      "reason": "Platform protocol participation (mutation): organization-tenancy reaches *modules/auditlog/compose.Command.Append (audit-platform) through api.traegerDocumentAccessLog.RecordAccess. A download of a shared document by the Träger-Büro lands in the access log of each school the document reaches, in that school's tenant transaction (ADR 0084 section 7, ADR 0157). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentAccessLog.RecordAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentAccessLog.RecordAccess",
+      "reason": "Platform protocol participation (mutation): organization-tenancy reaches modules/auditlog/records.AppendStore.Append (audit-platform) through api.traegerDocumentAccessLog.RecordAccess. A download of a shared document by the Träger-Büro lands in the access log of each school the document reaches, in that school's tenant transaction (ADR 0084 section 7, ADR 0157). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentAccessLog.RecordAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentAccessLog.RecordAccess",
+      "reason": "Platform protocol participation (mutation): organization-tenancy reaches modules/auditlog/records.Command.Append (audit-platform) through api.traegerDocumentAccessLog.RecordAccess. A download of a shared document by the Träger-Büro lands in the access log of each school the document reaches, in that school's tenant transaction (ADR 0084 section 7, ADR 0157). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentAccessLog.RecordAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentAccessLog.RecordAccess",
+      "reason": "Platform protocol participation (mutation): organization-tenancy reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through api.traegerDocumentAccessLog.RecordAccess. A download of a shared document by the Träger-Büro lands in the access log of each school the document reaches, in that school's tenant transaction (ADR 0084 section 7, ADR 0157). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
+      "target_owner": "audit-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentGroups.SchoolGroups",
       "classification": "query",
       "effect": "query",

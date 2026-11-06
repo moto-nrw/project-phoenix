@@ -172,6 +172,32 @@ func (s *TraegerDocumentStore) DocumentFile(ctx context.Context, organizationID,
 	return rows[0].toDomain(), true, nil
 }
 
+// ReachedSchools lists the schools the active releases of a document name;
+// everySchool is true while a release has no school, which covers all
+// schools of the Träger.
+func (s *TraegerDocumentStore) ReachedSchools(ctx context.Context, organizationID, documentID int64) ([]int64, bool, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, false, err
+	}
+	var rows []struct {
+		SchoolID *int64 `bun:"school_id"`
+	}
+	if err := db.NewRaw(`SELECT DISTINCT school_id FROM platform.traeger_document_releases
+		WHERE organization_id = ? AND document_id = ? AND revoked_at IS NULL`,
+		organizationID, documentID).Scan(ctx, &rows); err != nil {
+		return nil, false, fmt.Errorf("organization tenancy postgres: read schools of a Träger document: %w", err)
+	}
+	schools := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row.SchoolID == nil {
+			return nil, true, nil
+		}
+		schools = append(schools, *row.SchoolID)
+	}
+	return schools, false, nil
+}
+
 // activeReleaseIndex is the unique index of the active releases; a second
 // active release of the same audience violates it.
 const activeReleaseIndex = "uq_traeger_document_releases_active"

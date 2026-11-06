@@ -168,6 +168,12 @@ const (
 	// services and fee. StudentID is NULL; metadata carries the view, the
 	// row count and the contract IDs. One row per school and read.
 	ResourceTypeCareContracts = "care_contracts"
+	// ResourceTypeTraegerDocumentDownload records the Träger-Büro
+	// downloading one of its shared documents (#4692, ADR 0084 section 7):
+	// written at each school the document reaches through an active release,
+	// at every school of the Träger while it reaches none. StudentID is NULL;
+	// metadata carries the channel, organization_id and document_id.
+	ResourceTypeTraegerDocumentDownload = "traeger_document_download"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

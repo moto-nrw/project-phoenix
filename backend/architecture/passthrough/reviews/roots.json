@@ -1152,6 +1152,11 @@
     },
     {
       "decision": "0084",
+      "id": "api/traegerDocumentAccessLog.RecordAccess",
+      "reason": "ADR 0084 (#4692): Consumer-port adapter that writes a download of the Träger-Büro into the access log of a school as audit.data_access_log entry of the Träger portal (ADR 0084 section 7)."
+    },
+    {
+      "decision": "0084",
       "id": "api/traegerDocumentGroups.SchoolGroups",
       "reason": "ADR 0084 (#4692): Consumer-port adapter that lists the groups of the school of the tenant transaction through School Structure and translates them into the groups a Träger document release may name."
     },

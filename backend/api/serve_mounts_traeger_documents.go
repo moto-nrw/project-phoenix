@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
@@ -18,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -27,8 +30,8 @@ const traegerDocumentGroupLimit = 500
 // mountTraegerDocumentRoutes serves the documents a Träger shares (#4692):
 // the Träger-Büro's routes at /traeger/documents and the school's at
 // /api/traeger-documents. The parents read them through the parents portal.
-func mountTraegerDocumentRoutes(root, tenantRouter chi.Router, db transactionruntime.Database, organizations HolidayOrganizations) error {
-	traegerDocuments, err := NewTraegerDocumentsHTTP(db, organizations)
+func mountTraegerDocumentRoutes(root, tenantRouter chi.Router, db transactionruntime.Database, organizations HolidayOrganizations, accessLog owners.DataAccessAppender) error {
+	traegerDocuments, err := NewTraegerDocumentsHTTP(db, organizations, accessLog)
 	if err != nil {
 		return err
 	}
@@ -40,7 +43,7 @@ func mountTraegerDocumentRoutes(root, tenantRouter chi.Router, db transactionrun
 // NewTraegerDocumentsHTTP binds the Träger-Büro's documents: the schools to
 // Organisation & Tenancy and the groups of a school to School Structure in
 // that school's tenant transaction.
-func NewTraegerDocumentsHTTP(db transactionruntime.Database, organizations HolidayOrganizations) (*organizationTenancyTraeger.DocumentsResource, error) {
+func NewTraegerDocumentsHTTP(db transactionruntime.Database, organizations HolidayOrganizations, accessLog owners.DataAccessAppender) (*organizationTenancyTraeger.DocumentsResource, error) {
 	groups, err := schoolStructureCompose.New(schoolStructureCompose.Dependencies{DB: db.Pool(), Observe: func(schoolStructureCompose.Observation) {}})
 	if err != nil {
 		return nil, fmt.Errorf("traeger documents: school groups: %w", err)
@@ -49,6 +52,7 @@ func NewTraegerDocumentsHTTP(db transactionruntime.Database, organizations Holid
 		Schools: traegerDocumentSchools{organizations: organizations},
 		Groups:  traegerDocumentGroups{groups: groups},
 		Runtime: traegerDocumentRuntime{},
+		Access:  traegerDocumentAccessLog{log: accessLog},
 	})
 	return organizationTenancyTraeger.NewDocumentsResource(documents,
 		common.RequiresPermission(identityaccess.TraegerRightOverviewRead), common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage)), nil
@@ -118,4 +122,21 @@ func (traegerDocumentRuntime) WithinSchool(ctx context.Context, schoolID int64, 
 
 func (traegerDocumentRuntime) WithinTraeger(ctx context.Context, organizationID int64, fn func(context.Context) error) error {
 	return tenant.WithinTraeger(ctx, organizationID, fn)
+}
+
+// traegerDocumentAccessLog writes a download of the Träger-Büro into the
+// access log of a school (ADR 0084 section 7).
+type traegerDocumentAccessLog struct {
+	log owners.DataAccessAppender
+}
+
+func (l traegerDocumentAccessLog) RecordAccess(ctx context.Context, access organizationtenancy.TraegerDocumentAccess) error {
+	now := time.Now()
+	return l.log.Create(ctx, &auditModels.DataAccessLog{
+		ActorAccountID: access.AccountID, ActorRole: traegerAccessActorRole,
+		ResourceType: auditModels.ResourceTypeTraegerDocumentDownload, RangeStart: now, RangeEnd: now,
+		Metadata: map[string]any{
+			"channel": "traeger_portal", "organization_id": access.OrganizationID, "document_id": access.DocumentID,
+		},
+	})
 }

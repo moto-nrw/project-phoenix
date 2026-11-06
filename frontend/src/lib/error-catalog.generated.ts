@@ -2584,6 +2584,8 @@ export const ERROR_CATALOG = {
         "Бронирование изменилось. Обновите страницу.",
       "traeger.access_log_export_too_large":
         "В экспорте больше {limit} записей. Выберите более короткий период или другие фильтры.",
+      "traeger.shared_document_not_found":
+        "Организация больше не открывает доступ к этому документу. Обновите страницу.",
       "workforce.payroll_wage_type_name_taken":
         "Не удалось сохранить: {object}. Проверьте введённые данные.",
     },
@@ -3030,6 +3032,8 @@ export const ERROR_CATALOG = {
         "Rezervimi ka ndryshuar. Ju lutemi ngarkoni përsëri faqen.",
       "traeger.access_log_export_too_large":
         "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
+      "traeger.shared_document_not_found":
+        "Ofruesi nuk e ndan më këtë dokument. Ju lutemi rifreskoni faqen.",
       "workforce.payroll_wage_type_name_taken":
         "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
     },
@@ -3463,6 +3467,8 @@ export const ERROR_CATALOG = {
         "Rezerwacja została zmieniona. Odśwież stronę.",
       "traeger.access_log_export_too_large":
         "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
+      "traeger.shared_document_not_found":
+        "Organizator nie udostępnia już tego dokumentu. Odśwież stronę.",
       "workforce.payroll_wage_type_name_taken":
         "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
     },
@@ -3902,6 +3908,8 @@ export const ERROR_CATALOG = {
         "Rezervasyon değişti. Lütfen sayfayı yeniden yükleyin.",
       "traeger.access_log_export_too_large":
         "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
+      "traeger.shared_document_not_found":
+        "Kurum bu belgeyi artık paylaşmıyor. Lütfen sayfayı yenileyin.",
       "workforce.payroll_wage_type_name_taken":
         "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
     },
@@ -4332,6 +4340,8 @@ export const ERROR_CATALOG = {
         "Бронювання змінилося. Оновіть сторінку.",
       "traeger.access_log_export_too_large":
         "В експорті понад {limit} записів. Виберіть коротший період або інші фільтри.",
+      "traeger.shared_document_not_found":
+        "Організація більше не відкриває доступ до цього документа. Оновіть сторінку.",
       "workforce.payroll_wage_type_name_taken":
         "Не вдалося зберегти: {object}. Перевірте введені дані.",
     },

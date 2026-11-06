@@ -19,6 +19,9 @@ type TraegerDocumentStore interface {
 	// DocumentFile reads the file; found is false for a document that is
 	// not the Träger's.
 	DocumentFile(ctx context.Context, organizationID, documentID int64) (organizationtenancy.TraegerDocumentFile, bool, error)
+	// ReachedSchools lists the schools the active releases of a document
+	// name; everySchool is true while a release covers all schools.
+	ReachedSchools(ctx context.Context, organizationID, documentID int64) (schools []int64, everySchool bool, err error)
 	// InsertRelease adds an active release; ErrTraegerDocumentNotFound for
 	// a document that is not the Träger's, ErrTraegerDocumentAlreadyReleased
 	// for an active release of the same audience and

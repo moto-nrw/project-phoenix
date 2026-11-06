@@ -128,7 +128,9 @@ type TraegerDocuments interface {
 	// Upload checks the title and the file and stores the document.
 	Upload(ctx context.Context, organizationID, accountID int64, upload TraegerDocumentUpload) (TraegerDocument, error)
 	// File reads the stored file of a document of the Träger.
-	File(ctx context.Context, organizationID, documentID int64) (TraegerDocumentFile, error)
+	// File reads the file for a member of the Träger-Büro and writes the
+	// download into the access log of each school the document reaches.
+	File(ctx context.Context, organizationID, accountID, documentID int64) (TraegerDocumentFile, error)
 	// Audiences lists the schools of the Träger with their groups.
 	Audiences(ctx context.Context, organizationID int64) ([]TraegerDocumentSchool, error)
 	// Release releases a document for an audience.
@@ -144,6 +146,20 @@ type TraegerDocumentPorts struct {
 	Schools TraegerDocumentSchools
 	Groups  TraegerDocumentGroups
 	Runtime TraegerDocumentRuntime
+	Access  TraegerDocumentAccessLog
+}
+
+// TraegerDocumentAccess is a download of the Träger-Büro.
+type TraegerDocumentAccess struct {
+	OrganizationID int64
+	AccountID      int64
+	DocumentID     int64
+}
+
+// TraegerDocumentAccessLog appends a download to the access log of the
+// school whose tenant transaction the caller holds (ADR 0084 section 7).
+type TraegerDocumentAccessLog interface {
+	RecordAccess(ctx context.Context, access TraegerDocumentAccess) error
 }
 
 // TraegerDocumentSchools lists the undeleted schools of a Träger, without

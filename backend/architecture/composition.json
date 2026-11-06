@@ -92,8 +92,8 @@
       "declaration": "TestNewWorkerRejectsMissingSettings",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        217,
-        221
+        241,
+        245
       ],
       "tables": []
     },
