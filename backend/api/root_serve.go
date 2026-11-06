@@ -524,7 +524,7 @@ func composeServeRoot(
 		func() error {
 			return mountDemoAccess(router, authAPI.ComposedDemoAccess(identity.DemoAccess()), viper.GetString("app_env"), config.FrontendURL, viper.GetString("tenant_domain"))
 		},
-		func() error { mountPublicRoutes(router, metricsToken, db.Pool().PingContext); return nil },
+		func() error { return mountPublic(router, metricsToken, db, delivery.Runtime.EmailWebhooks) },
 		func() error { return mountRequestFeed(router, tenant, db, logger, config.FrontendURL) },
 		func() error { return mountModuleRoutes(tenant, settings.Service) },
 		func() error {

@@ -43,6 +43,7 @@ var moduleRouteRules = []moduleRouteRule{
 	{"/public/calendar", moduleRouteBasis},
 	{"/public/login-image", moduleRouteBasis},
 	{"/public/request-feed", moduleRouteBasis},
+	{"/webhooks", moduleRouteBasis},
 	// #4805: the payroll office's one-time link. The file was already sent;
 	// only a close of a school that books Zeiterfassung queues one.
 	{"/public/payroll-download", moduleRouteBasis},

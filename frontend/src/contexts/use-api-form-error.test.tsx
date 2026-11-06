@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { ModuleNotBookedSlots } from "~/components/tenant/module-not-booked-state";
 import { describe, expect, it, vi } from "vitest";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
@@ -57,7 +58,9 @@ function TestForm({
 function renderForm(error: unknown, retry?: () => void) {
   return render(
     <ToastProvider>
-      <TestForm error={error} retry={retry} />
+      <ModuleNotBookedSlots>
+        <TestForm error={error} retry={retry} />
+      </ModuleNotBookedSlots>
     </ToastProvider>,
   );
 }

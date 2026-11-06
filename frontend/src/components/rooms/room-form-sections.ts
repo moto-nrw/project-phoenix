@@ -9,7 +9,7 @@ import {
   isToiletRoom,
   type Room,
 } from "@/lib/room-helpers";
-import type { FormSection } from "~/components/ui/database/database-form";
+import type { FormSection } from "~/components/database/database-form";
 
 /**
  * Preview and hint for the schoolyard's colour picker (#2405): without a

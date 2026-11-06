@@ -1,7 +1,21 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { SearchBar } from "./SearchBar";
+import { SearchBarDraftProvider, SharedSearchBar } from "./SearchBar";
+import type { SearchBarProps } from "./types";
+
+function SearchBar(props: Readonly<SearchBarProps>) {
+  return (
+    <SearchBarDraftProvider
+      value={props.value}
+      onChange={props.onChange}
+      debounceMs={props.debounceMs}
+      resetKey={props.resetKey}
+    >
+      <SharedSearchBar {...props} />
+    </SearchBarDraftProvider>
+  );
+}
 
 function ControlledSearchBar(props: React.ComponentProps<typeof SearchBar>) {
   const [value, setValue] = useState(props.value);

@@ -11,6 +11,7 @@ import {
 
 import { NotBookedPageProvider } from "~/lib/not-booked-page-context";
 
+import { ModuleNotBookedSlots } from "~/components/tenant/module-not-booked-state";
 import { TenantPage } from "./tenant-page";
 
 const navigation = vi.hoisted(() => ({ pathname: "/time-tracking" }));
@@ -33,14 +34,16 @@ const TENANT = { tenantId: 1, slug: "demo" } as TenantInfo;
 
 function renderGate(title = "Zeiterfassung") {
   return render(
-    <NotBookedPageProvider>
-      <TenantPage
-        title={title}
-        actions={<button type="button">Anlegen</button>}
-      >
-        <div>Inhalt der Seite</div>
-      </TenantPage>
-    </NotBookedPageProvider>,
+    <ModuleNotBookedSlots>
+      <NotBookedPageProvider>
+        <TenantPage
+          title={title}
+          actions={<button type="button">Anlegen</button>}
+        >
+          <div>Inhalt der Seite</div>
+        </TenantPage>
+      </NotBookedPageProvider>
+    </ModuleNotBookedSlots>,
   );
 }
 

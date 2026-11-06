@@ -176,25 +176,9 @@ function SearchBarContent({
   );
 }
 
-function SearchBarWithOwnDraft(props: Readonly<SearchBarProps>) {
-  const draftState = useDebouncedSearchValue(
-    props.value,
-    props.onChange,
-    props.debounceMs,
-    props.resetKey,
-  );
-
-  return <SearchBarContent {...props} draftState={draftState} />;
-}
-
-export function SearchBar(props: Readonly<SearchBarProps>) {
-  return <SearchBarWithOwnDraft {...props} />;
-}
-
 /**
  * Renders a responsive copy that uses the draft supplied by
- * `SearchBarDraftProvider`. Kept separate from `SearchBar` so a search field
- * inside a filter or action stays independent of the page header.
+ * `SearchBarDraftProvider`.
  */
 export function SharedSearchBar(props: Readonly<SearchBarProps>) {
   const sharedDraftState = React.useContext(DebouncedSearchValueContext);

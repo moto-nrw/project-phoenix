@@ -5,7 +5,7 @@
  *
  * Die Block-Rezeptur (weiße Fläche, 3px Farbkante, 10-Prozent-Tönung,
  * `cancelled`-Rendering, genau ein Status-Icon) lebt ausschließlich im
- * Kit-Baustein `ui/plan-block.tsx` (siehe plan-design-guards.test.ts). InstanceBlock baut keine eigene
+ * Kit-Baustein `ui/planning/plan-block.tsx` (siehe plan-design-guards.test.ts). InstanceBlock baut keine eigene
  * Farbfläche mehr: es leitet nur die Kategoriefarbe ab, komponiert den
  * datenreichen Fuß (Besetzung als `CoverageIndicator`, Personen-/Kinderzahlen,
  * Spontan-, Abwesend- und Ersatz-Marker) und positioniert den Block absolut in
@@ -22,10 +22,10 @@ import {
   blockPlaceLine,
   blockStaffEntries,
 } from "~/components/timetable/block-staff-names";
-import { CoverageIndicator } from "~/components/ui/coverage-indicator";
-import { PlanBlock } from "~/components/ui/plan-block";
+import { CoverageIndicator } from "~/components/ui/planning/coverage-indicator";
+import { PlanBlock } from "~/components/ui/planning/plan-block";
 import { TIMETABLE_NEUTRAL_COLOR } from "~/components/timetable/timetable-style";
-import { OverbookedBadge } from "~/components/ui/occupancy-badges";
+import { OverbookedBadge } from "~/components/ui/planning/occupancy-badges";
 import {
   formatPresentAgainstLimit,
   type Occupancy,

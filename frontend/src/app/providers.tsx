@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { ModalProvider } from "@/components/dashboard/modal-context";
+import { ModalProvider } from "@/components/ui/modal-context";
 import { NotificationBridge } from "~/components/notifications/notification-bridge";
 import { ServiceWorkerRegistrar } from "~/components/notifications/service-worker-registrar";
+import { ModuleNotBookedSlots } from "~/components/tenant/module-not-booked-state";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { schedulePostHogInitialization } from "~/lib/posthog-client";
 
@@ -26,7 +27,7 @@ export function Providers({
       <ToastProvider>
         <NotificationBridge />
         <ServiceWorkerRegistrar />
-        {children}
+        <ModuleNotBookedSlots>{children}</ModuleNotBookedSlots>
       </ToastProvider>
     </ModalProvider>
   );

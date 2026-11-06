@@ -22,7 +22,7 @@ function blockEdgeColor(block: BlockColorFields): string {
 
 /**
  * Die Tönung des eigenen Blocks in seiner Farbe, dieselbe wie bei PlanBlock
- * (ui/plan-block.tsx); eine Absage bleibt ungetönt. `mine` setzt nur, wer
+ * (ui/planning/plan-block.tsx); eine Absage bleibt ungetönt. `mine` setzt nur, wer
  * eigene und fremde Blöcke nebeneinander zeigt: wo alles eigen ist, sagte
  * die Tönung nichts. Ohne Kante für die Startseite und „Als Nächstes“ (#4413).
  */

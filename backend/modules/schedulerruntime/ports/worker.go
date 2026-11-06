@@ -85,6 +85,7 @@ type WorkerDependencies struct {
 	StudentLifecycleAudit     StudentLifecycleAuditor
 	CareExitEffector          CareExitEffector
 	OutboxWorker              OutboxWorkerRunner
+	EmailReconciliation       EmailDeliveryReconciler
 	// SettleExpiredTransfers terminalizes ambiguous manual uploads, never retries them.
 	SettleExpiredTransfers func(context.Context, int) (int, error)
 	RolloverDeadlineRunner RolloverDeadlineRunner

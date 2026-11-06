@@ -21,7 +21,7 @@ import type {
 import { createCrudService } from "@/lib/database/service-factory";
 import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { formatFloor, type Room } from "@/lib/room-helpers";
-import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
+import { DatabaseFormModal } from "~/components/database/database-form-modal";
 import { RoomsList } from "@/components/rooms/rooms-list";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";

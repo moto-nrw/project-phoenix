@@ -12,7 +12,7 @@ import { RoomStammdatenTab } from "./room-stammdaten-tab";
 
 // The form remounts (new key) after save, cancel and room switch so a stale
 // draft never survives. The stand-in records each mount with a nonce.
-vi.mock("~/components/ui/database/database-form", () => ({
+vi.mock("~/components/database/database-form", () => ({
   DatabaseForm: ({
     onSubmit,
     onCancel,

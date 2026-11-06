@@ -1,0 +1,137 @@
+apiVersion: 1
+
+# Mail delivery over the provider (#5933). Both lines exist only with
+# EMAIL_PROVIDER=lettermint; on plain SMTP the rules stay silent.
+
+groups:
+  - orgId: 1
+    name: Phoenix Email Delivery
+    folder: Phoenix Alerts
+    interval: 1m
+    rules:
+      - uid: email-delivery-alarm
+        title: Email delivery alarm
+        condition: C
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: >-
+                sum(count_over_time({env="prod",service="server"} |= "email delivery alarm" | json | msg="email delivery alarm" [15m])) or vector(0)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: Der Abgleich meldet einen deaktivierten Webhook oder fehlende Zustellereignisse.
+          description: Webhook bei Lettermint prüfen und das Feld error der Logzeile lesen.
+          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
+        labels:
+          env: prod
+          issue: "5933"
+          service: email-delivery
+          severity: critical
+        isPaused: false
+      - uid: email-delivery-fallback-used
+        title: Security mail over fallback
+        condition: C
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: >-
+                sum(count_over_time({env="prod",service="server"} |= "security mail sent over fallback transport" | json | msg="security mail sent over fallback transport" [15m])) or vector(0)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: Sicherheitsmails laufen über den Notweg.
+          description: Status von Lettermint und Blocklisten prüfen. Das Postfach ist nur für wenige Mails gedacht.
+          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
+        labels:
+          env: prod
+          issue: "5933"
+          service: email-delivery
+          severity: warning
+        isPaused: false

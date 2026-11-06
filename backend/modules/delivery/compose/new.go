@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/uptrace/bun"
 )
@@ -15,9 +16,10 @@ import (
 // ModuleDependencies are the enqueue and state side of Delivery, which the
 // producers and Identity & Access need before the mail renderers exist.
 type ModuleDependencies struct {
-	DB      *bun.DB
-	People  GuardianDisplayResolver
-	Observe func(deliveryContract.Observation)
+	DB            *bun.DB
+	People        GuardianDisplayResolver
+	Observe       func(deliveryContract.Observation)
+	EmailProvider mail.ProviderConfig
 }
 
 type Runtime application.Runtime
@@ -41,7 +43,7 @@ func NewModule(dependencies ModuleDependencies) (*Runtime, error) {
 		return nil, errors.New("delivery compose: all dependencies are required")
 	}
 	raw := postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase)
-	store := application.NewWorkerCommands(raw, NewTenantTransactions(dependencies.DB).WithinSystem)
+	store := application.NewWorkerCommands(raw, NewTenantTransactions(dependencies.DB).WithinSystem, NewTenantTransactions(dependencies.DB).WithinTenant)
 	observe := application.NewObservationAdapter(dependencies.Observe)
-	return &Runtime{Module: application.NewService(store, dependencies.People, observe), Store: store, Observe: observe, EmailWakeups: postgres.EmailWakeups(dependencies.DB)}, nil
+	return (*Runtime)(application.NewRuntime(application.NewService(store, dependencies.People, observe), store, observe, postgres.EmailWakeups(dependencies.DB), dependencies.EmailProvider)), nil
 }
