@@ -379,10 +379,6 @@ export default function TraegerZeitvergleichPage() {
                 value: `${formatDate(evaluation.from)} bis ${formatDate(evaluation.to)}`,
                 label: "",
               },
-              {
-                value: evaluation.schools.length,
-                label: evaluation.schools.length === 1 ? "Schule" : "Schulen",
-              },
             ]}
           />
         ) : null

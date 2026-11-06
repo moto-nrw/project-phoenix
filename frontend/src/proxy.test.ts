@@ -1305,6 +1305,20 @@ describe("proxy", () => {
       }
     });
 
+    it("rewrites the overruns to /traeger/zeitvergleich (#4683)", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TRAEGER_HOSTNAME}/zeitvergleich`,
+          TRAEGER_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/zeitvergleich",
+      );
+    });
+
     it("rewrites the Stichtagszahlen to /traeger/stichtagszahlen (#4673)", () => {
       const res = proxy(
         makeRequest(

@@ -195,7 +195,7 @@ export function StudentCareTimesSection({
   return (
     <SectionCard
       title="Soll und Ist"
-      description={`Gebucht ist die hinterlegte Betreuungszeit. Tatsächlich ist die Zeit von der ersten Anmeldung bis zur letzten Abmeldung. Zeit im Unterricht steht als Hinweis in der Zeile und wird nicht abgezogen. Mehr als ${tolerance} Minuten früher oder später zählt als Überschreitung, ebenso ein Tag ohne Buchung.`}
+      description={`Gebucht ist die hinterlegte Betreuungszeit, mit Vertrag die Zeit laut Vertrag. Tatsächlich ist die Zeit von der ersten Anmeldung bis zur letzten Abmeldung. Zeit im Unterricht steht als Hinweis in der Zeile und wird nicht abgezogen. Mehr als ${tolerance} Minuten früher oder später zählt als Überschreitung, ebenso ein Tag ohne Buchung.`}
       actions={
         <DateRangePicker
           value={range}
