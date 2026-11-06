@@ -258,7 +258,7 @@ function MonthFigures({
 }>) {
   const missing = schoolCount - month.schools;
   return (
-    <div className="grid grid-cols-1 gap-4 max-sm:gap-3 sm:grid-cols-3">
+    <div className="grid grid-cols-2 gap-4 max-sm:gap-3 lg:grid-cols-3">
       <StatCard
         label="Aktive Kinder"
         value={month.activeStudents}
@@ -283,17 +283,19 @@ function MonthFigures({
         icon={<MotoConceptIcon concept={devicesConcept} />}
         tone="neutral"
       />
-      <StatCard
-        label="Schulen mit Zahlen"
-        value={`${month.schools} von ${schoolCount}`}
-        hint={
-          missing > 0
-            ? `${missing === 1 ? "Eine Schule hat" : `${missing} Schulen haben`} zu diesem Stichtag keine Zahlen.`
-            : "Für jede Schule gibt es Zahlen zu diesem Stichtag."
-        }
-        icon={<MotoConceptIcon concept={schoolsConcept} />}
-        tone="neutral"
-      />
+      <div className="col-span-2 lg:col-span-1">
+        <StatCard
+          label="Schulen mit Zahlen"
+          value={`${month.schools} von ${schoolCount}`}
+          hint={
+            missing > 0
+              ? `${missing === 1 ? "Eine Schule hat" : `${missing} Schulen haben`} zu diesem Stichtag keine Zahlen.`
+              : "Für jede Schule gibt es Zahlen zu diesem Stichtag."
+          }
+          icon={<MotoConceptIcon concept={schoolsConcept} />}
+          tone="neutral"
+        />
+      </div>
     </div>
   );
 }
