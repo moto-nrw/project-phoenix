@@ -20,11 +20,11 @@ import (
 // and does not stop the other Träger.
 func CareContractConclusionJob(logger *slog.Logger) owners.CareContractConclusionBuilder {
 	return func(organizations organizationtenancy.Capability, settings owners.SettingsOwner,
-		delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) schedulerPorts.CareContractConclusion {
-		if organizations == nil || settings.Traeger == nil || settings.Service == nil || delivery == nil || accessLog == nil {
-			panic("care contract conclusion: organizations, settings, delivery and the access log are required")
+		delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) schedulerPorts.CareContractConclusion {
+		if organizations == nil || settings.Traeger == nil || settings.Service == nil || delivery == nil || outcomes == nil || accessLog == nil {
+			panic("care contract conclusion: organizations, settings, delivery, the mail outcomes and the access log are required")
 		}
-		conclusion := NewCareContractConclusion(organizations, settings.Traeger, settings.Service, delivery, accessLog)
+		conclusion := NewCareContractConclusion(organizations, settings.Traeger, settings.Service, delivery, outcomes, accessLog)
 		return func(ctx context.Context) (int, error) {
 			return concludeEveryTraeger(ctx, organizations, conclusion, logger)
 		}

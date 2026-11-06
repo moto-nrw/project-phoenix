@@ -12,7 +12,8 @@ import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
 import type { CareDayStatus } from "~/lib/timetable-types";
-import type { DepartureMode, TeacherHint } from "~/lib/student-helpers";
+import type { DepartureMode } from "~/lib/departure-plan";
+import type { TeacherHint } from "~/lib/student-helpers";
 
 // ===== Wire types (Go: backend/modules/supervisiondashboard) =====
 

@@ -36,7 +36,7 @@ import { CareExitModal } from "~/components/students/care-exit-modal";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/components/database/configs/students.config";
-import type { Student } from "@/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import type { StudentGuardianPayload } from "@/lib/guardian-helpers";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
@@ -366,38 +366,7 @@ function StudentsPageContent() {
         guardians?: StudentGuardianPayload[];
       } & CreateStudentSchedules,
     ) => {
-      // Run the config transform, then re-attach guardians and weekly schedules
-      // from the original input. transformBeforeSubmit is typed Partial<Student>
-      // and drops these extra fields from the static type; re-attaching here
-      // makes the contract explicit so a future transform change can't silently
-      // strip them (see issue #1500 atomic create flow, #1502 schedules).
-      let payload: Partial<Student> & {
-        guardians?: StudentGuardianPayload[];
-      } & CreateStudentSchedules = studentsConfig.form.transformBeforeSubmit
-        ? studentsConfig.form.transformBeforeSubmit(studentData)
-        : studentData;
-      if (studentData.guardians && studentData.guardians.length > 0) {
-        payload = { ...payload, guardians: studentData.guardians };
-      }
-      if (
-        studentData.arrival_schedules &&
-        studentData.arrival_schedules.length > 0
-      ) {
-        payload = {
-          ...payload,
-          arrival_schedules: studentData.arrival_schedules,
-        };
-      }
-      if (
-        studentData.pickup_schedules &&
-        studentData.pickup_schedules.length > 0
-      ) {
-        payload = {
-          ...payload,
-          pickup_schedules: studentData.pickup_schedules,
-        };
-      }
-      const newStudent = await service.create(payload);
+      const newStudent = await service.create(studentData);
       const displayName = studentsConfig.list.item.title(newStudent);
       toastSuccess(
         getDbOperationMessage(

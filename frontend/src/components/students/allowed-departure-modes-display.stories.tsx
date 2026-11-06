@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import type { AllowedDepartureModes } from "~/lib/student-helpers";
+import type { AllowedDepartureModes } from "~/lib/departure-plan";
 
 import { AllowedDepartureModesDisplay } from "./allowed-departure-modes-display";
 

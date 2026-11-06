@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { StudentPhotoSection } from "./student-photo-section";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 
 // PhotoSection is a *controlled component* — picking a file just calls
 // onPickPhoto(blob); removing calls onMarkRemoved(). The actual upload

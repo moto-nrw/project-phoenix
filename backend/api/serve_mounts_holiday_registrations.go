@@ -24,14 +24,14 @@ import (
 // Betreuungsvertrag (#4678) mount beside them.
 func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.Capability,
 	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerSettings, schoolSettings CareContractSchoolSettings,
-	delivery deliveryRuntime.Capability, keys TurnstileKeys,
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, keys TurnstileKeys,
 	healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) error {
 	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData); err != nil {
 		return err
 	}
 	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, logger).Router())
-	mountParentBillingRoutes(root, organizations, settings, delivery, healthData, logger)
-	mountCareContractRoutes(root, organizations, settings, schoolSettings, delivery, audit.Log)
+	mountParentBillingRoutes(root, organizations, settings, delivery, outcomes, healthData, logger)
+	mountCareContractRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, audit.Log)
 	return nil
 }
 

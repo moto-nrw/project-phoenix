@@ -1,4 +1,4 @@
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import {
   isPresentLocation,
   isAtSchoolLocation,

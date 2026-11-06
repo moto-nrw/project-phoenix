@@ -68,7 +68,7 @@ func TestLettermintParseMapsEveryEvent(t *testing.T) {
 		"suppressed":          {event: "message.suppressed", extra: `,"reason":"hard_bounce","scope":"team"`, state: domain.EmailDeliverySuppressed, reroute: true},
 		"complaint":           {event: "message.spam_complaint", state: domain.EmailDeliveryComplained},
 		"policy rejected":     {event: "message.policy_rejected", extra: `,"reason":"spam score"`, state: domain.EmailDeliveryFailed, keepsAddress: true, reroute: true},
-		"unsubscribed":        {event: "message.unsubscribed", state: domain.EmailDeliverySuppressed},
+		"unsubscribed":        {event: "message.unsubscribed", state: domain.EmailDeliveryUnsubscribed},
 		"name without prefix": {event: "delivered", state: domain.EmailDeliveryDelivered},
 	} {
 		t.Run(name, func(t *testing.T) {

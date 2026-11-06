@@ -169,6 +169,17 @@ var (
 	// ErrGuardianAccessMailNotQueued reports an access mail the outbox did not
 	// take; the access it announces rolls back with it (#4602).
 	ErrGuardianAccessMailNotQueued = errors.New("guardian access email could not be queued")
+	// ErrGuardianEmailAddressBlocked reports an invitation the school's list
+	// would hold back.
+	ErrGuardianEmailAddressBlocked = errors.New("the guardian's email address is blocked")
+	// ErrMailBlockedAtProvider reports a mail the provider would withhold now. The
+	// reason stays out: it may belong to another school.
+	ErrMailBlockedAtProvider = errors.New("the mail provider withholds mail to this address")
+	// ErrMailBlockUnreadable reports a block moto could not read just now.
+	ErrMailBlockUnreadable = errors.New("the mail provider's block could not be read")
+	// ErrInvitationMailDelayed reports a send while the mail server still tries
+	// to deliver the last mail.
+	ErrInvitationMailDelayed = errors.New("the last invitation mail is delayed")
 )
 
 // GuardianInvitationValidationError marks input rejected by the guardian
@@ -292,6 +303,7 @@ type InviteToStudentResult struct {
 	GuardianProfileID int64
 	InvitationID      *int64
 	ExistingRole      string
+	MailHeld          bool
 }
 
 // RevokeAccessRequest removes one account's access to one child.
@@ -317,3 +329,18 @@ type PendingApprovalView struct {
 	ExpiresAt         time.Time
 	RoleUpgrade       bool
 }
+
+// Why a new mail to a guardian would change nothing.
+const (
+	// GuardianMailBlockAddress: the school's list holds the mail back.
+	GuardianMailBlockAddress = "address"
+	// GuardianMailBlockDelayed: the mail server still tries the last mail.
+	GuardianMailBlockDelayed = "delayed"
+	// GuardianMailBlockProvider: the mail provider withholds mail to the address now.
+	GuardianMailBlockProvider = "provider"
+	// GuardianMailBlockUnreadable: the provider's state could not be read.
+	GuardianMailBlockUnreadable = "provider_unknown"
+)
+
+// InvitationMailOutcomeDelayed is the outcome that stops a resend.
+const InvitationMailOutcomeDelayed = "delayed"

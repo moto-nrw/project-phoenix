@@ -49,6 +49,11 @@ func (p *waitingPost) EnqueueContractMail(context.Context, carecontract.Contract
 	return p.next, nil
 }
 
+// ContractMailBlock holds no address back.
+func (p *waitingPost) ContractMailBlock(context.Context, int64, string, string) (string, error) {
+	return "", nil
+}
+
 func (p *waitingPost) ContractMailStates(context.Context, int64, int64) ([]carecontract.MailState, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

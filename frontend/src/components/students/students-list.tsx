@@ -15,7 +15,7 @@ import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { hasPlannedCareExit } from "~/lib/care-exit-api";
 import { formatDate } from "~/lib/date-helpers";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import type { BulkArrivalFilter } from "~/lib/student-arrival-api";
 import { FilteredBulkArrivalModal } from "./class-bulk-arrival-modal";
 import { ClassTripBulkStatusModal } from "./class-trip-bulk-status-modal";

@@ -4,14 +4,12 @@
 // student_documents:legal, rest → users:update) and returns only what the
 // caller may see plus the caller's visible categories.
 
-import { ApiError, apiErrorFromResponse, transportFetch } from "./api-error";
+import { bffJson } from "./bff-fetch";
 import {
   mapAccidentReport,
   type AccidentReportDetails,
   type BackendAccidentReport,
 } from "./student-accident-reports-api";
-import { hasSessionAccess } from "./session-access";
-import { getCachedSession, sessionFetch } from "./session-cache";
 
 interface StudentDocumentCategoryOption {
   value: string;
@@ -84,25 +82,19 @@ function mapDocument(data: BackendStudentDocument): StudentDocument {
   };
 }
 
-async function throwDocumentError(
-  response: Response,
-  fallback: string,
-): Promise<never> {
-  throw await apiErrorFromResponse(response, fallback);
+function documentsPath(studentId: string, documentId?: string): string {
+  const base = `/api/students/${encodeURIComponent(studentId)}/documents`;
+  return documentId ? `${base}/${encodeURIComponent(documentId)}` : base;
 }
 
 class StudentDocumentsService {
   async list(studentId: string): Promise<StudentDocumentList> {
-    const response = await sessionFetch(`/api/students/${studentId}/documents`);
-    if (!response.ok) {
-      await throwDocumentError(response, "Failed to fetch student documents");
-    }
-    const json = (await response.json()) as {
-      data: BackendStudentDocumentList;
-    };
+    const list = await bffJson<BackendStudentDocumentList>(
+      documentsPath(studentId),
+    );
     return {
-      documents: json.data.documents.map(mapDocument),
-      visibleCategories: json.data.visible_categories,
+      documents: list.documents.map(mapDocument),
+      visibleCategories: list.visible_categories,
     };
   }
 
@@ -110,47 +102,21 @@ class StudentDocumentsService {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("category", category);
-
-    if (!hasSessionAccess(await getCachedSession())) {
-      // Ohne Sitzung führt der gemeinsame Fehlerweg zur Anmeldung.
-      throw new ApiError("Authentifizierung erforderlich", 401);
-    }
-
-    // Raw fetch on purpose — sessionFetch forces Content-Type
-    // application/json, which would clobber the multipart boundary the
-    // browser sets for FormData bodies (same pattern as the staff document
-    // and student photo uploads).
-    const response = await transportFetch(
-      `/api/students/${studentId}/documents`,
-      {
-        method: "POST",
-        body: formData,
-      },
-    );
-    if (!response.ok) {
-      await throwDocumentError(
-        response,
-        "Dokument konnte nicht hochgeladen werden.",
-      );
-    }
+    await bffJson<unknown>(documentsPath(studentId), {
+      method: "POST",
+      body: formData,
+    });
   }
 
   async delete(studentId: string, documentId: string): Promise<void> {
-    const response = await sessionFetch(
-      `/api/students/${studentId}/documents/${documentId}`,
-      { method: "DELETE" },
-    );
-    if (!response.ok) {
-      await throwDocumentError(
-        response,
-        "Dokument konnte nicht gelöscht werden.",
-      );
-    }
+    await bffJson<unknown>(documentsPath(studentId, documentId), {
+      method: "DELETE",
+    });
   }
 
   /** Same-origin proxy URL for the authenticated download. */
   downloadUrl(studentId: string, documentId: string): string {
-    return `/api/students/${studentId}/documents/${documentId}/download`;
+    return `${documentsPath(studentId, documentId)}/download`;
   }
 }
 

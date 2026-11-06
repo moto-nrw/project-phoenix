@@ -1,3 +1,8 @@
+import type {
+  EmailAddressMark,
+  MailOutcome,
+  MailProviderBlock,
+} from "~/lib/email-delivery-status";
 import { type ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 // Guardian API Client
 // Calls Next.js API routes which proxy to the Go backend
@@ -154,6 +159,113 @@ export async function fetchStudentGuardians(
   >;
 
   return (result.data ?? []).map(mapGuardianWithRelationshipResponse);
+}
+
+type GuardianSendBlock =
+  "address" | "delayed" | "stopped" | "provider" | "provider_unknown";
+
+/** What the school knows about mail to one guardian's address (#5934). */
+export interface GuardianEmailState {
+  readonly mailOutcome?: MailOutcome;
+  readonly addressMark?: EmailAddressMark;
+  /** The school stopped mail to this person; a mark stays beside it. */
+  readonly emailsStopped?: boolean;
+  /** Another holder of the address carries no stop: mail to it still goes out. */
+  readonly stopShared?: boolean;
+  readonly providerBlock?: MailProviderBlock;
+  /** Why a new invitation would change nothing. */
+  readonly sendBlock?: GuardianSendBlock;
+  readonly outcomeAt?: string;
+}
+
+interface BackendGuardianEmailState {
+  guardian_profile_id: number;
+  mail_outcome?: MailOutcome;
+  address_mark?: EmailAddressMark;
+  emails_stopped?: boolean;
+  stop_shared?: boolean;
+  provider_block?: MailProviderBlock;
+  send_block?: GuardianSendBlock;
+  outcome_at?: string;
+}
+
+/** The mail state of every guardian of a student, keyed by guardian ID. */
+export async function fetchStudentGuardianEmailStates(
+  studentId: string,
+): Promise<Record<string, GuardianEmailState>> {
+  const response = await transportFetch(
+    `/api/guardians/students/${studentId}/email-status`,
+  );
+  if (!response.ok) {
+    throw await guardianApiError(
+      response,
+      "fetch_guardian_email_status",
+      "Failed to fetch the guardian email status",
+    );
+  }
+  const result = (await response.json()) as ApiResponse<
+    BackendGuardianEmailState[]
+  >;
+  const states: Record<string, GuardianEmailState> = {};
+  for (const line of result.data ?? []) {
+    states[String(line.guardian_profile_id)] = {
+      mailOutcome: line.mail_outcome,
+      addressMark: line.address_mark,
+      emailsStopped: line.emails_stopped,
+      stopShared: line.stop_shared,
+      providerBlock: line.provider_block,
+      sendBlock: line.send_block,
+      outcomeAt: line.outcome_at,
+    };
+  }
+  return states;
+}
+
+/** The school stops mail to this person, whatever address they hold later. */
+export async function stopGuardianEmails(guardianId: string): Promise<void> {
+  const response = await transportFetch(
+    `/api/guardians/${guardianId}/email-stop`,
+    { method: "POST" },
+  );
+  if (!response.ok) {
+    throw await guardianApiError(
+      response,
+      "stop_guardian_emails",
+      "Failed to stop the guardian emails",
+    );
+  }
+}
+
+/** The school takes its stop back. */
+export async function resumeGuardianEmails(guardianId: string): Promise<void> {
+  const response = await transportFetch(
+    `/api/guardians/${guardianId}/email-stop`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) {
+    throw await guardianApiError(
+      response,
+      "resume_guardian_emails",
+      "Failed to resume the guardian emails",
+    );
+  }
+}
+
+/** Someone checked the address after a mail bounced. */
+export async function liftGuardianEmailBlock(
+  guardianId: string,
+): Promise<void> {
+  const response = await transportFetch(
+    `/api/guardians/${guardianId}/email-block`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) {
+    throw await guardianApiError(
+      response,
+      "lift_guardian_email_block",
+      "Failed to lift the guardian email block",
+    );
+  }
 }
 
 /**
@@ -493,6 +605,8 @@ export interface InviteGuardianResult {
   outcome: InviteGuardianOutcome;
   guardian_profile_id: string;
   invitation_id?: string;
+  // The access exists, but no mail will reach the person.
+  mail_held?: boolean;
   // Current guardian role for the existing_contact_restricted outcome, so the
   // UI can name it in the upgrade confirmation (#2172).
   existing_role?: string;

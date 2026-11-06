@@ -217,17 +217,20 @@ func (c *Contracts) mailings(ctx context.Context, organizationID, contractID int
 	if err != nil {
 		return nil, fmt.Errorf("care contract: mail states: %w", err)
 	}
-	byOutbox := make(map[int64]string, len(states))
+	byOutbox := make(map[int64]carecontract.MailState, len(states))
 	for _, state := range states {
-		byOutbox[state.OutboxID] = state.State
+		byOutbox[state.OutboxID] = state
 	}
 	mailings := make([]carecontract.Mailing, len(stored))
 	for i, mailing := range stored {
 		state, ok := byOutbox[mailing.OutboxID]
 		if !ok {
-			state = carecontract.MailUnknown
+			state = carecontract.MailState{State: carecontract.MailUnknown}
 		}
-		mailings[i] = carecontract.Mailing{Recipient: mailing.Recipient, SentAt: mailing.SentAt, State: state, OutboxID: mailing.OutboxID}
+		mailings[i] = carecontract.Mailing{Recipient: mailing.Recipient, SentAt: mailing.SentAt, State: state.State, Outcome: state.Outcome, OutboxID: mailing.OutboxID}
+	}
+	if mailings[0].SendBlock, err = c.post.ContractMailBlock(ctx, organizationID, mailings[0].Recipient, mailings[0].Outcome); err != nil {
+		return nil, fmt.Errorf("care contract: mail block: %w", err)
 	}
 	return mailings, nil
 }
@@ -319,6 +322,12 @@ func (c *Contracts) sendContracts(ctx context.Context, reviewer carecontract.Rev
 			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipRecipientMissing})
 		case errors.Is(err, carecontract.ErrMailPending):
 			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipMailPending})
+		case errors.Is(err, carecontract.ErrMailDelayed):
+			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipMailDelayed})
+		case errors.Is(err, carecontract.ErrMailBlocked):
+			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipMailBlocked})
+		case errors.Is(err, carecontract.ErrMailBlockUnreadable):
+			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipMailBlockUnreadable})
 		case errors.Is(err, carecontract.ErrContractNotSendable):
 			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipNotSendable})
 		default:
@@ -411,7 +420,35 @@ func (c *Contracts) deliveryParty(ctx context.Context, organizationID int64, rec
 	if destination != "" {
 		party.Email = destination
 	}
+	if err := c.refuseHeldMail(ctx, organizationID, party.Email, mailings, destination); err != nil {
+		return carecontract.Party{}, 0, err
+	}
 	return party, len(mailings), nil
+}
+
+// refuseHeldMail stops a mail that would stay back or arrive twice. The state of the
+// address now decides, not what became of an older mail: a new destination has no
+// history of its own, so the last mail's result does not count for it.
+func (c *Contracts) refuseHeldMail(ctx context.Context, organizationID int64, address string, mailings []carecontract.Mailing, destination string) error {
+	block := ""
+	if len(mailings) > 0 && destination == "" {
+		block = mailings[0].SendBlock
+	} else {
+		var err error
+		if block, err = c.post.ContractMailBlock(ctx, organizationID, address, ""); err != nil {
+			return fmt.Errorf("care contract: mail block: %w", err)
+		}
+	}
+	switch block {
+	case "":
+		return nil
+	case carecontract.MailBlockDelayed:
+		return carecontract.ErrMailDelayed
+	case carecontract.MailBlockUnreadable:
+		return carecontract.ErrMailBlockUnreadable
+	default:
+		return carecontract.ErrMailBlocked
+	}
 }
 
 // frozenDocument is the stored PDF, rendered and stored at the first send.

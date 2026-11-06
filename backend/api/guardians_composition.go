@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -26,6 +28,16 @@ func renderPeopleDirectoryFailure(w http.ResponseWriter, r *http.Request, kind u
 	// Nothing of the invitation was kept; the school can send it again (#4602).
 	if errors.Is(err, identityaccess.ErrGuardianAccessMailNotQueued) {
 		apiCommon.RenderError(w, r, apiCommon.ErrorServiceUnavailableWithCode(err, apiCommon.CodeIdentityGuardianInvitationEmailNotQueued))
+		return
+	}
+	for _, rule := range guardianConflictCodes {
+		if errors.Is(err, rule.sentinel) {
+			apiCommon.RenderError(w, r, apiCommon.ErrorConflictWithCode(err, rule.code))
+			return
+		}
+	}
+	if errors.Is(err, errGuardianEmailBlockLiftFailed) {
+		apiCommon.RenderError(w, r, apiCommon.ErrorServiceUnavailableWithCode(err, apiCommon.CodeStudentsGuardianEmailBlockLiftFailed))
 		return
 	}
 	for _, rule := range guardianInputCodes {
@@ -66,6 +78,19 @@ var guardianInputCodes = []struct {
 	{peopleModule.ErrGuardianAccountHolderTooLong, apiCommon.CodeStudentsGuardianAccountHolderTooLong, "account_holder"},
 }
 
+// guardianConflictCodes are the mails nobody should read as sent (#5934).
+var guardianConflictCodes = []struct {
+	sentinel error
+	code     string
+}{
+	{identityaccess.ErrGuardianEmailAddressBlocked, apiCommon.CodeIdentityGuardianEmailAddressBlocked},
+	{identityaccess.ErrInvitationMailDelayed, apiCommon.CodeIdentityInvitationMailDelayed},
+	{identityaccess.ErrMailBlockedAtProvider, apiCommon.CodeIdentityMailBlockedAtProvider},
+	{identityaccess.ErrMailBlockUnreadable, apiCommon.CodeIdentityMailBlockUnreadable},
+	{deliveryContract.ErrEmailSuppressionNeedsReview, apiCommon.CodeStudentsGuardianEmailBlockNeedsReview},
+	{deliveryContract.ErrEmailSuppressionStaysAtProvider, apiCommon.CodeStudentsGuardianEmailBlockStays},
+}
+
 func guardianFailureKind(kind GuardianFailureKind) usersAPI.FailureKind {
 	switch kind {
 	case GuardianFailureConflict:
@@ -79,14 +104,22 @@ func guardianFailureKind(kind GuardianFailureKind) usersAPI.FailureKind {
 	}
 }
 
+func guardianActorRole(roles []string) string { return strings.Join(roles, ",") }
+
+func guardianActorID(r *http.Request) int64 {
+	return int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
+}
+
+func guardianProtectedRoutes(router chi.Router, register func(chi.Router, usersAPI.Middleware)) {
+	ProtectedTenantRoutes(router, register)
+}
+
 // newGuardiansResource binds the guardian HTTP adapter over the People
 // Directory and the legacy-service runtime. appEnv gates the seed-only raw
 // invitation token.
 func newGuardiansResource(module peopleModule.Capability, runtime GuardianDirectoryRuntime, appEnv string, logger *slog.Logger) *usersAPI.GuardianResource {
 	return usersAPI.NewGuardianResource(module, usersAPI.GuardianRuntime{
-		Protected: func(router chi.Router, register func(chi.Router, usersAPI.Middleware)) {
-			ProtectedTenantRoutes(router, register)
-		},
+		Protected: guardianProtectedRoutes,
 		Permission: func(permission string) usersAPI.Middleware {
 			return apiCommon.RequiresPermission(permission)
 		},
@@ -99,12 +132,8 @@ func newGuardiansResource(module peopleModule.Capability, runtime GuardianDirect
 		ObserveResponse: observability.ObserveGuardianDirectoryHTTPResponse,
 		ParseIDParam:    apiCommon.ParseIDParam,
 
-		ActorID: func(r *http.Request) int64 {
-			return int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
-		},
-		ActorRole: func(r *http.Request) string {
-			return strings.Join(sessiontoken.ClaimsFromCtx(r.Context()).Roles, ",")
-		},
+		ActorID:   guardianActorID,
+		ActorRole: func(r *http.Request) string { return guardianActorRole(sessiontoken.ClaimsFromCtx(r.Context()).Roles) },
 		HasPermission: func(r *http.Request, permission string) bool {
 			return apiCommon.HasPermission(permission, sessiontoken.PermissionsFromCtx(r.Context()))
 		},
@@ -152,7 +181,7 @@ func newGuardiansResource(module peopleModule.Capability, runtime GuardianDirect
 			}
 			return usersAPI.GuardianInviteResult{
 				Outcome: result.Outcome, GuardianProfileID: result.GuardianProfileID,
-				InvitationID: result.InvitationID, ExistingRole: result.ExistingRole,
+				InvitationID: result.InvitationID, ExistingRole: result.ExistingRole, MailHeld: result.MailHeld,
 			}, nil
 		},
 		BulkInviteGuardians: bulkInviteGuardians(runtime),
@@ -179,6 +208,10 @@ func newGuardiansResource(module peopleModule.Capability, runtime GuardianDirect
 		ApproveInvitation:          runtime.ApproveInvitation,
 		RejectInvitation:           runtime.RejectInvitation,
 
+		GuardianEmailStates:      runtime.GuardianEmailStates,
+		SetGuardianEmailsStopped: runtime.SetGuardianEmailsStopped,
+		LiftGuardianEmailBlock:   runtime.LiftGuardianEmailBlock,
+		InTenantTx:               runtime.InTenantTx,
 		RenderPaymentExport: func(rows []peopleModule.GuardianPaymentRow, format string) (usersAPI.ExportFile, error) {
 			file, err := runtime.RenderPaymentExport(rows, format)
 			if err != nil {

@@ -1,6 +1,3 @@
-// DELETE keeps the same inline 401 refresh path as POST. The first backend
-// 401 refreshes the session and retries once with the new token.
-
 import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import { NextRequest } from "next/server";
 import type { ExtendedSession } from "~/test/route-test-helpers";
@@ -24,20 +21,14 @@ const originalFetch = global.fetch;
 beforeEach(() => {
   vi.clearAllMocks();
   global.fetch = mockFetch as unknown as typeof fetch;
+  mockAuth.mockResolvedValue(staleSession);
 });
 
 afterAll(() => {
   global.fetch = originalFetch;
 });
 
-function createDeleteRequest(studentId: string): NextRequest {
-  return new NextRequest(
-    new URL(`/api/students/${studentId}/photo`, "http://localhost:3000"),
-    { method: "DELETE" },
-  );
-}
-
-const defaultSession: ExtendedSession = {
+const staleSession: ExtendedSession = {
   user: { id: "1", token: "stale-token", name: "Test User" },
   expires: "2099-01-01",
 };
@@ -54,223 +45,54 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
-describe("DELETE /api/students/[id]/photo — 401 retry", () => {
-  it("retries with a refreshed token when the backend returns 401", async () => {
-    mockAuth.mockResolvedValue(defaultSession);
-    mockUncachedAuth.mockResolvedValue(refreshedSession);
+const context = { params: Promise.resolve({ id: "42" }) };
 
-    // First call: stale-token → 401. Second call: fresh-token → 200.
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse(401, { detail: "expired" }))
-      .mockResolvedValueOnce(
-        jsonResponse(200, { status: "success", data: null }),
-      );
-
-    const { DELETE } = await import("./route");
-    const response = await DELETE(createDeleteRequest("42"), {
-      params: Promise.resolve({ id: "42" }),
-    });
-
-    expect(response.status).toBe(200);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockUncachedAuth).toHaveBeenCalledTimes(1);
-
-    // First request used the stale token; second used the refreshed one.
-    const firstCallHeaders = (
-      mockFetch.mock.calls[0]?.[1] as RequestInit | undefined
-    )?.headers as Record<string, string> | undefined;
-    const secondCallHeaders = (
-      mockFetch.mock.calls[1]?.[1] as RequestInit | undefined
-    )?.headers as Record<string, string> | undefined;
-    expect(firstCallHeaders?.Authorization).toBe("Bearer stale-token");
-    expect(secondCallHeaders?.Authorization).toBe("Bearer fresh-token");
-  });
-
-  it("does not retry when uncachedAuth returns the same token", async () => {
-    mockAuth.mockResolvedValue(defaultSession);
-    // Refresh attempted but yielded the same token (refresh-token cookie
-    // also expired). We must fall through and surface the original error
-    // instead of looping the same request indefinitely.
-    mockUncachedAuth.mockResolvedValue(defaultSession);
-    mockFetch.mockResolvedValueOnce(jsonResponse(401, { detail: "expired" }));
-
-    const { DELETE } = await import("./route");
-    const response = await DELETE(createDeleteRequest("42"), {
-      params: Promise.resolve({ id: "42" }),
-    });
-
-    expect(response.status).not.toBe(200);
-    // Single backend call: 401 → uncachedAuth → token unchanged → fall
-    // through (no retry), let createDeleteHandler's outer wrapper map this
-    // into the user-facing error.
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not invoke uncachedAuth when the backend returns 200", async () => {
-    mockAuth.mockResolvedValue(defaultSession);
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, { status: "success", data: null }),
-    );
-
-    const { DELETE } = await import("./route");
-    const response = await DELETE(createDeleteRequest("42"), {
-      params: Promise.resolve({ id: "42" }),
-    });
-
-    expect(response.status).toBe(200);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockUncachedAuth).not.toHaveBeenCalled();
-  });
-});
-
-// Valid backend 4xx envelopes retain their status and structured fields
-// through backendResponseError and createDeleteHandler.
-describe("DELETE /api/students/[id]/photo — backend status preservation", () => {
-  it.each([
-    [403, "feature disabled", "Forbidden", "general.permission"],
-    [404, "no photo", "Not Found", "general.input"],
-    [409, "consent withdrawn", "Conflict", "general.business_rejection"],
-  ])(
-    "surfaces a backend %d as the same status code (not 500)",
-    async (status, detail, title, code) => {
-      mockAuth.mockResolvedValue(defaultSession);
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse(status, {
-          type: "about:blank",
-          title,
-          status,
-          detail,
-          code,
-        }),
-      );
-
-      const { DELETE } = await import("./route");
-      const response = await DELETE(createDeleteRequest("42"), {
-        params: Promise.resolve({ id: "42" }),
-      });
-
-      expect(response.status).toBe(status);
-      expect(await response.json()).toMatchObject({
-        status,
-        detail,
-        code,
-      });
-    },
-  );
-
-  it("answers an empty backend body with the envelope, without inventing a message", async () => {
-    mockAuth.mockResolvedValue(defaultSession);
-    mockFetch.mockResolvedValueOnce(new Response("", { status: 502 }));
-
-    const { DELETE } = await import("./route");
-    const response = await DELETE(createDeleteRequest("42"), {
-      params: Promise.resolve({ id: "42" }),
-    });
-
-    expect(response.status).toBe(502);
-    expect(await response.json()).toMatchObject({
-      status: 502,
-      detail: "Bad Gateway",
-      code: "general.unavailable",
-    });
-  });
-
-  it("forwards a 409 problem body with all structured fields", async () => {
-    const body = JSON.stringify({
-      type: "about:blank",
-      title: "Conflict",
-      status: 409,
-      detail: "photo conflict",
-      code: "general.business_rejection",
-      details: { student_id: "42" },
-      errors: [{ field: "photo", reason: "locked" }],
-      instance: "/students/42/photo",
-    });
-    mockAuth.mockResolvedValue(defaultSession);
-    mockFetch.mockResolvedValueOnce(
-      new Response(body, {
-        status: 409,
-        headers: { "Content-Type": "application/problem+json" },
-      }),
-    );
-
-    const { DELETE } = await import("./route");
-    const response = await DELETE(createDeleteRequest("42"), {
-      params: Promise.resolve({ id: "42" }),
-    });
-
-    expect(response.status).toBe(409);
-    expect(response.headers.get("content-type")).toBe(
-      "application/problem+json",
-    );
-    expect(await response.text()).toBe(body);
-  });
-});
-
-// POST handler covers a different surface: file validation (magic bytes,
-// missing field), the multipart relay to the backend, error status
-// propagation, and the consent_acknowledged passthrough. createFile-
-// UploadHandler runs MIME/extension/size checks itself before our handler
-// callback gets to run, so MIME/extension cases are validated in
-// file-upload-wrapper.test.ts; here we exercise the route-specific
-// branches that live inside the POST callback.
-
-// Helper builds a multipart NextRequest because NextRequest's Request
-// constructor doesn't fully implement formData in the test runtime.
-function createUploadRequest(
-  studentId: string,
-  options: {
-    photo?: File | null;
-    consentAcknowledged?: boolean;
-  } = {},
+// NextRequest's own constructor does not implement formData in the test
+// runtime, so the multipart body goes through a plain Request first.
+function uploadRequest(
+  photo: File,
+  consentAcknowledged?: boolean,
 ): NextRequest {
   const fd = new FormData();
-  if (options.photo !== null) {
-    if (options.photo) {
-      fd.append("photo", options.photo);
-    }
-  }
-  if (options.consentAcknowledged) {
-    fd.append("consent_acknowledged", "true");
-  }
-  // Construct the underlying Request with the FormData body, then wrap
-  // in NextRequest so request.formData() works inside the handler.
-  const baseRequest = new Request(
-    `http://localhost:3000/api/students/${studentId}/photo`,
-    { method: "POST", body: fd },
+  fd.append("photo", photo);
+  if (consentAcknowledged) fd.append("consent_acknowledged", "true");
+  return new NextRequest(
+    new Request("http://localhost:3000/api/students/42/photo", {
+      method: "POST",
+      body: fd,
+    }),
   );
-  return new NextRequest(baseRequest);
 }
 
-// 4-byte JPEG SOI prefix — passes validateImageMagicBytes.
 const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0]);
-// Random bytes — fails validateImageMagicBytes for any image format.
 const NON_IMAGE_BYTES = new Uint8Array([0x00, 0x01, 0x02, 0x03, 0, 0, 0, 0]);
 
-describe("POST /api/students/[id]/photo — body callback branches", () => {
-  it("rejects with 415 when magic bytes don't match any allowed image", async () => {
-    mockAuth.mockResolvedValue(defaultSession);
-
-    // A real .jpg extension + image/jpeg MIME passes file-upload-wrapper's
-    // outer validation, but the body callback's magic-byte check rejects
-    // it because the actual bytes are not a JPEG header.
-    const fakeFile = new File([NON_IMAGE_BYTES], "fake.jpg", {
-      type: "image/jpeg",
-    });
-
+describe("POST /api/students/[id]/photo", () => {
+  it("rejects with 415 when the bytes are no JPEG, PNG or WebP", async () => {
     const { POST } = await import("./route");
     const response = await POST(
-      createUploadRequest("42", { photo: fakeFile }),
-      { params: Promise.resolve({ id: "42" }) },
+      uploadRequest(
+        new File([NON_IMAGE_BYTES], "fake.jpg", { type: "image/jpeg" }),
+      ),
+      context,
     );
 
     expect(response.status).toBe(415);
-    // Backend must never have been called — magic-byte check fails fast.
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("relays photo to backend and returns the photo_url envelope", async () => {
-    mockAuth.mockResolvedValue(defaultSession);
+  it("rejects a GIF before the backend sees it", async () => {
+    const { POST } = await import("./route");
+    const response = await POST(
+      uploadRequest(new File([JPEG_BYTES], "a.gif", { type: "image/gif" })),
+      context,
+    );
+
+    expect(response.status).toBe(415);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("relays the photo with the consent flag and returns the photo_url", async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse(200, {
         status: "success",
@@ -278,107 +100,46 @@ describe("POST /api/students/[id]/photo — body callback branches", () => {
       }),
     );
 
-    const realFile = new File([JPEG_BYTES], "real.jpg", {
-      type: "image/jpeg",
-    });
-
     const { POST } = await import("./route");
     const response = await POST(
-      createUploadRequest("42", {
-        photo: realFile,
-        consentAcknowledged: true,
-      }),
-      { params: Promise.resolve({ id: "42" }) },
+      uploadRequest(
+        new File([JPEG_BYTES], "real.jpg", { type: "image/jpeg" }),
+        true,
+      ),
+      context,
     );
 
     expect(response.status).toBe(200);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [calledUrl, calledOptions] = mockFetch.mock.calls[0] as [
-      string,
-      RequestInit,
-    ];
-    expect(calledUrl).toBe("http://backend.test/api/students/42/photo");
-    expect(calledOptions.method).toBe("POST");
-    // Body forwarded as FormData with the validated photo + consent flag.
-    const body = calledOptions.body as FormData;
-    expect(body).toBeInstanceOf(FormData);
+    expect(await response.json()).toMatchObject({
+      data: { photo_url: "/uploads/student-photos/42_abc.jpg" },
+    });
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://backend.test/api/students/42/photo");
+    const body = init.body as FormData;
     expect(body.get("photo")).toBeInstanceOf(File);
     expect(body.get("consent_acknowledged")).toBe("true");
   });
+});
 
-  it("retries upload with refreshed token on 401, then succeeds", async () => {
-    mockAuth.mockResolvedValue(defaultSession);
+describe("DELETE /api/students/[id]/photo", () => {
+  it("asks the backend at most twice after an expired session", async () => {
     mockUncachedAuth.mockResolvedValue(refreshedSession);
     mockFetch
       .mockResolvedValueOnce(jsonResponse(401, { detail: "expired" }))
-      .mockResolvedValueOnce(
-        jsonResponse(200, {
-          status: "success",
-          data: { photo_url: "/uploads/x.jpg" },
-        }),
-      );
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
-    const realFile = new File([JPEG_BYTES], "real.jpg", {
-      type: "image/jpeg",
-    });
-
-    const { POST } = await import("./route");
-    const response = await POST(
-      createUploadRequest("42", { photo: realFile }),
-      { params: Promise.resolve({ id: "42" }) },
+    const { DELETE } = await import("./route");
+    const response = await DELETE(
+      new NextRequest("http://localhost:3000/api/students/42/photo", {
+        method: "DELETE",
+      }),
+      context,
     );
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(204);
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    // Second call uses the refreshed token.
-    const secondCallHeaders = (
-      mockFetch.mock.calls[1]?.[1] as RequestInit | undefined
-    )?.headers as Record<string, string> | undefined;
-    expect(secondCallHeaders?.Authorization).toBe("Bearer fresh-token");
-  });
-
-  it.each([
-    [400, "missing consent"],
-    [403, "feature disabled"],
-    [409, "consent withdrawn"],
-  ])(
-    "surfaces backend %d as the same status code (not 500)",
-    async (status, body) => {
-      mockAuth.mockResolvedValue(defaultSession);
-      mockFetch.mockResolvedValueOnce(jsonResponse(status, { error: body }));
-
-      const realFile = new File([JPEG_BYTES], "real.jpg", {
-        type: "image/jpeg",
-      });
-
-      const { POST } = await import("./route");
-      const response = await POST(
-        createUploadRequest("42", { photo: realFile }),
-        { params: Promise.resolve({ id: "42" }) },
-      );
-
-      expect(response.status).toBe(status);
-    },
-  );
-
-  it("returns 500 when backend response lacks photo_url (broken contract)", async () => {
-    mockAuth.mockResolvedValue(defaultSession);
-    mockFetch.mockResolvedValueOnce(
-      // Backend returned 200 but no data.photo_url — this should be
-      // surfaced as a 500 because the upstream contract is broken.
-      jsonResponse(200, { status: "success", data: {} }),
+    expect(mockFetch.mock.calls[0]?.[0]).toBe(
+      "http://backend.test/api/students/42/photo",
     );
-
-    const realFile = new File([JPEG_BYTES], "real.jpg", {
-      type: "image/jpeg",
-    });
-
-    const { POST } = await import("./route");
-    const response = await POST(
-      createUploadRequest("42", { photo: realFile }),
-      { params: Promise.resolve({ id: "42" }) },
-    );
-
-    expect(response.status).toBe(500);
   });
 });

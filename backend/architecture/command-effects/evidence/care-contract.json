@@ -41,8 +41,32 @@
       "target_owner": "organization-tenancy"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.ContractMailBlock",
+      "binding_digest": "ccd298ec68e6e499f7376cbacaaf5102",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Post.ContractMailBlock",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.ContractMailBlock",
+      "binding_digest": "707889fe559ac7f90f30e34005ef36a4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Post.ContractMailBlock",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.ContractMailBlock",
+      "binding_digest": "67f64689902483e6e10e3274e1d51b5a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Post.ContractMailBlock",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.TraegerMailHolds",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.ContractMailStates",
-      "binding_digest": "8a34bb64805de20c693a2d0e99059ec5",
+      "binding_digest": "c595c039659736a9ab5445a7c6bf47b3",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Post.ContractMailStates",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",

@@ -76,5 +76,6 @@
   "request_not_open": "Больше не открыто: {object}. Обратитесь к контактному лицу.",
   "request_sharing_invalid": "Указаны неверные данные: {object}. Проверьте введённые данные.",
   "sick_note_disabled": "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
-  "staff_managed_guardian_protected": "У вас нет доступа к: {object}. Обратитесь в школу."
+  "staff_managed_guardian_protected": "У вас нет доступа к: {object}. Обратитесь в школу.",
+  "guardian_invite_unavailable": "Сейчас не удалось отправить это приглашение. Обратитесь, пожалуйста, в группу продлённого дня."
 }

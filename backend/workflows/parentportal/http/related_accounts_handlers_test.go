@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -307,6 +308,31 @@ func (relAcctMailNotQueuedInvites) InviteToStudent(_ context.Context, _ parentSe
 
 func (relAcctMailNotQueuedInvites) RevokeAccess(context.Context, parentService.GuardianAccessRevocation) error {
 	return nil
+}
+
+// relAcctMailUnavailableInvites fails the way a blocked or delayed address does.
+type relAcctMailUnavailableInvites struct{ relAcctMailNotQueuedInvites }
+
+func (relAcctMailUnavailableInvites) InviteToStudent(context.Context, parentService.GuardianInviteRequest) (parentService.GuardianInviteOutcome, error) {
+	return parentService.GuardianInviteOutcome{}, parentService.ErrInviteMailUnavailable
+}
+
+func TestRelatedAccountsEndpoint_UnavailableMailDoesNotNameTheBlock(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	router := newRelAcctRouterWithInvites(t, db, relAcctMailUnavailableInvites{})
+	token := parentToken(t, chain.AccountID)
+	sid := strconv.FormatInt(chain.StudentID, 10)
+
+	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/related-accounts", token,
+		map[string]any{"email": "oma@example.test"})
+	require.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"code":"care.guardian_invite_unavailable"`)
+	assert.NotContains(t, strings.ToLower(rr.Body.String()), "suppress")
+	assert.NotContains(t, rr.Body.String(), "oma@example.test")
 }
 
 func TestRelatedAccountsEndpoint_MailNotQueuedAnswersWithCode(t *testing.T) {

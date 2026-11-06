@@ -104,6 +104,7 @@ func (l *AccountLifecycle) requeueRoleUpgrade(ctx context.Context, req domain.In
 	if roleUpgrade &&
 		approvalStatus == domain.GuardianInvitationApprovalPending &&
 		openInvitation.ApprovalStatus != domain.GuardianInvitationApprovalPending {
+		readStatus := openInvitation.ApprovalStatus
 		openInvitation.ApprovalStatus = domain.GuardianInvitationApprovalPending
 		openInvitation.ApprovedBy = nil
 		openInvitation.ApprovedAt = nil
@@ -119,7 +120,7 @@ func (l *AccountLifecycle) requeueRoleUpgrade(ctx context.Context, req domain.In
 		if req.RequestedByParentAccountID != nil {
 			openInvitation.RequestedByAccountID = req.RequestedByParentAccountID
 		}
-		if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation); err != nil {
+		if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation, readStatus); err != nil {
 			return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
 		}
 	}

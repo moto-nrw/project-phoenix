@@ -34,6 +34,7 @@ import {
 import { ChildStatusBadge } from "~/components/enrollment/child-status-badge";
 import { createLogger } from "~/lib/logger";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { studentKeys } from "~/lib/swr/portal-keys";
 
 const logger = createLogger({ component: "StudentEnrollmentsTab" });
 
@@ -63,7 +64,7 @@ export function StudentEnrollmentsTab({
     error,
     isLoading,
     mutate,
-  } = useSWRAuth(`student-enrollments-${studentId}`, () =>
+  } = useSWRAuth(studentKeys.enrollments(studentId), () =>
     listStudentEnrollmentRequests(studentId),
   );
 

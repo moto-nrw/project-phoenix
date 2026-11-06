@@ -101,7 +101,10 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "createOperatorJsonProxy",
     "createTenantApiAdapter",
   ],
-  "~/lib/file-upload-wrapper.server": ["createFileUploadHandler"],
+  "~/lib/file-upload-wrapper.server": [
+    "createFileUploadHandler",
+    "proxyFileUpload",
+  ],
 };
 
 /**

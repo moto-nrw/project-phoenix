@@ -32,7 +32,10 @@ import { Input } from "~/components/ui/input";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { PdfPreview } from "~/components/ui/pdf-preview";
 import { SectionCard } from "~/components/ui/section-card";
-import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   useApiErrorDisplay,
@@ -47,6 +50,7 @@ import {
   formatBerlinTime,
   formatDate,
 } from "~/lib/date-helpers";
+import { mailStatusCopy } from "~/lib/email-delivery-status";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
@@ -278,7 +282,12 @@ export default function TraegerVertragPage() {
                 type="button"
                 variant={isDraft ? "success" : "outline"}
                 size="md"
-                disabled={sending || refreshing || lastMail?.state === "queued"}
+                disabled={
+                  sending ||
+                  refreshing ||
+                  lastMail?.state === "queued" ||
+                  (!isDraft && !!lastMail?.sendBlock)
+                }
                 onClick={() => void send()}
               >
                 {isDraft ? (
@@ -469,14 +478,17 @@ export default function TraegerVertragPage() {
                           </span>
                         </span>
                         <StatusBadge
-                          label={MAIL_STATE_LABELS[mailing.state]}
-                          tone={MAIL_STATE_TONES[mailing.state]}
+                          label={contractMailBadge(mailing).label}
+                          tone={contractMailBadge(mailing).tone}
                         />
                       </li>
                     ))}
                   </ol>
                 ) : null}
-                {!isDraft && canSend && lastMail?.state === "failed" ? (
+                {!isDraft &&
+                canSend &&
+                lastMail?.state === "failed" &&
+                lastMail.sendBlock !== "stopped" ? (
                   <form
                     ref={recipientForm}
                     noValidate
@@ -536,6 +548,62 @@ export default function TraegerVertragPage() {
   );
 }
 
+type ContractMailing = CareContractDetail["mailings"][number];
+
+// The same words as the Abrechnung's letters: only a delivery report reads as
+// delivered, and an outcome outranks the plain state of the mail.
+function contractMailBadge(mailing: ContractMailing): {
+  readonly label: string;
+  readonly tone: StatusBadgeTone;
+} {
+  const copy =
+    mailing.sendBlock === "provider"
+      ? mailStatusCopy("provider_blocked", "", false, "active")
+      : mailing.sendBlock === "provider_unknown"
+        ? mailStatusCopy(mailing.outcome, "", false, "unreadable")
+        : mailing.state === "queued" || mailing.outcome === "accepted"
+          ? null
+          : mailStatusCopy(mailing.outcome);
+  return (
+    copy ?? {
+      label: MAIL_STATE_LABELS[mailing.state],
+      tone: MAIL_STATE_TONES[mailing.state],
+    }
+  );
+}
+
+// The reason and the next step as they are now. "Prüfen Sie die Adresse" only
+// fits a mail that came back; a stop or a block has another way out.
+function contractHoldNotice(mailing: ContractMailing): string | null {
+  const other = "Unter „Versand“ können Sie eine andere Adresse verwenden.";
+  switch (mailing.sendBlock) {
+    case "stopped":
+      return "Die Schule hat die Mails an diese Person gestoppt. Klären Sie das mit der Schule, oder geben Sie den Vertrag anders weiter.";
+    case "address":
+      return `Die Adresse ${mailing.recipient} ist bei einer Ihrer Schulen gesperrt. Die Schule kann sie prüfen. ${other}`;
+    case "provider":
+      return `Die Adresse ${mailing.recipient} ist gesperrt. Der moto-Support muss das klären. ${other}`;
+    case "provider_unknown":
+      return "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal.";
+    case "delayed":
+      return "Die Mail kommt später an, es wird weiter versucht. Bitte senden Sie sie nicht noch einmal, sonst kommt sie doppelt an.";
+  }
+  switch (mailing.outcome) {
+    case "unsubscribed":
+      return `${mailing.recipient} hat sich von den Mails abgemeldet. Sprechen Sie die Person direkt an. ${other}`;
+    case "complained":
+      return `${mailing.recipient} hat eine Mail als unerwünscht gemeldet. Sprechen Sie die Person direkt an. ${other}`;
+    case "held_by_stop":
+    case "blocked":
+    case "provider_blocked":
+      return "Die Mail ging damals nicht raus. Die Sperre besteht nicht mehr. Sie können neu senden.";
+    case "overdue":
+      return "Die Mail ist seit Tagen verzögert. Sie können sie noch einmal senden.";
+    default:
+      return null;
+  }
+}
+
 function StatusNotice({
   contract,
 }: Readonly<{ contract: CareContractDetail }>) {
@@ -547,6 +615,10 @@ function StatusNotice({
         message="Entwurf. Die Eltern sehen den Vertrag erst, wenn Sie ihn senden. Prüfen Sie die gebuchte Betreuung, den Beginn und den Beitrag."
       />
     );
+  }
+  const held = last ? contractHoldNotice(last) : null;
+  if (held) {
+    return <Alert type="warning" message={held} />;
   }
   if (last?.state === "failed") {
     return (

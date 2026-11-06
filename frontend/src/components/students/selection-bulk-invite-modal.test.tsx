@@ -85,6 +85,33 @@ describe("SelectionBulkInviteModal", () => {
     expect(screen.getByRole("button", { name: "Schließen" })).toBeVisible();
   });
 
+  it("allows submitting a preview containing only existing accounts", async () => {
+    bulkInvite
+      .mockResolvedValueOnce(result({ linkedExistingAccount: 1 }))
+      .mockResolvedValueOnce(
+        result({ dryRun: false, linkedExistingAccount: 1 }),
+      );
+    renderModal();
+
+    const send = await screen.findByRole("button", {
+      name: "1 Elternteil einladen",
+    });
+    expect(send).toBeEnabled();
+    expect(
+      screen.getByText("Vorhandenes moto-Konto wird verbunden"),
+    ).toBeVisible();
+    fireEvent.click(send);
+    await waitFor(() =>
+      expect(bulkInvite).toHaveBeenLastCalledWith(["4", "9"], {
+        dryRun: false,
+        resendOpen: false,
+      }),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Schließen" }),
+    ).toBeVisible();
+  });
+
   it("offers to resend open invitations and recounts", async () => {
     let resolvePreview: (value: BulkInviteResult) => void;
     const reloadingPreview = new Promise<BulkInviteResult>((resolve) => {

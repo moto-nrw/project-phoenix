@@ -169,6 +169,7 @@ export const HELP_TOPIC_AUDIENCE = {
   [HELP_TOPICS.leadManageStudent]: "lead",
   [HELP_TOPICS.studentNotes]: ["caregiver", "lead"],
   [HELP_TOPICS.leadInviteGuardians]: "lead",
+  [HELP_TOPICS.leadEmailDelivery]: "lead",
   [HELP_TOPICS.leadEndCare]: "lead",
   [HELP_TOPICS.leadAccidentReport]: "lead",
   [HELP_TOPICS.leadDeleteStudent]: "lead",

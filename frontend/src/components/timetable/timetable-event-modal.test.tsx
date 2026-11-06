@@ -1078,11 +1078,11 @@ describe("TimetableEventModal", () => {
     expect(await screen.findByText("Mila Zweite Seite")).toBeInTheDocument();
     expect(mockFetchStudents).toHaveBeenCalledWith({
       page: 1,
-      page_size: 500,
+      pageSize: 500,
     });
     expect(mockFetchStudents).toHaveBeenCalledWith({
       page: 2,
-      page_size: 500,
+      pageSize: 500,
     });
   });
 
