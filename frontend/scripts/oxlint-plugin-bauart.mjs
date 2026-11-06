@@ -336,7 +336,7 @@ const ROW_ACTION_BASELINE = new Map(
       "Erziehungsberechtigte/n entfernen@725",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
-      "Rückgängig Entfernen@804",
+      "Rückgängig Entfernen@816",
     ],
   }),
 );
