@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { DataTableStatusBadge } from "./data-table";
 import { LocationBadge } from "./location-badge";
+import { OriginChip } from "./planning/origin-chip";
 import { PresenceBadge } from "./presence-badge";
 import { StatusBadge } from "./status-badge";
 import { StatusColorBadge } from "./status-color-badge";
@@ -218,4 +219,14 @@ describe("StatusBadge, StatusColorBadge, DataTableStatusBadge without decorative
       view.unmount();
     },
   );
+});
+
+describe("OriginChip without decorative dot", () => {
+  it("renders the source label as a plain kit pill", () => {
+    render(<OriginChip label="Soll aus Arbeitszeitmodell" />);
+    expectPlainPill(
+      screen.getByText("Soll aus Arbeitszeitmodell"),
+      "Soll aus Arbeitszeitmodell",
+    );
+  });
 });

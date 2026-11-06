@@ -3,11 +3,11 @@ import type {
   StudentLocationContext,
 } from "@/lib/location-helper";
 import { PresenceHint } from "./presence-hint";
+import { StatusColorBadge } from "./status-color-badge";
 import {
   LOCATION_COLORS,
   LOCATION_STATUSES,
   canSeeDetailedLocation,
-  getLocationBadgeTone,
   getLocationColor,
   getLocationDisplay,
   isNotCheckedInLocation,
@@ -114,23 +114,17 @@ interface LocationBadgeProps {
   readonly showLocationSince?: boolean;
 }
 
-const MODERN_BASE_CLASS = "inline-flex items-center rounded-full font-semibold";
-const SIMPLE_BASE_CLASS = "inline-flex items-center rounded-full font-semibold";
+type LocationPillSize = NonNullable<LocationBadgeProps["size"]>;
+type LocationPillVariant = NonNullable<LocationBadgeProps["variant"]>;
 
-const SIZE_MAP = {
-  sm: {
-    modern: "px-2 py-0.5 text-[11px]",
-    simple: "px-2 py-0.5 text-[11px]",
-  },
-  md: {
-    modern: "px-3 py-1.5 text-xs",
-    simple: "px-2.5 py-0.5 text-xs",
-  },
-  lg: {
-    modern: "px-4 py-2 text-sm",
-    simple: "px-3 py-1 text-sm",
-  },
-} as const;
+/** The kit pill shape for the badge's own size and variant props. */
+export function locationPillShape(
+  size: LocationPillSize,
+  variant: LocationPillVariant,
+): { size?: "xs"; compact?: boolean } {
+  if (size === "sm") return { size: "xs" };
+  return size === "md" && variant === "simple" ? { compact: true } : {};
+}
 
 const DEFAULT_SIZE = "md";
 
@@ -226,10 +220,7 @@ export function LocationBadge({
     label = LOCATION_STATUSES.NOT_ARRIVAL;
   }
 
-  const locationTone = getLocationBadgeTone(color);
-
   const sizeKey = size ?? DEFAULT_SIZE;
-  const sizeConfig = SIZE_MAP[sizeKey] ?? SIZE_MAP[DEFAULT_SIZE];
 
   // Determine if we should show "seit XX:XX" for this status.
   // For sick/excused at home, prefer the dedicated *_since timestamp but fall
@@ -273,51 +264,19 @@ export function LocationBadge({
       />
     ) : null;
 
-  if (variant === "simple") {
-    return (
-      <div className="flex flex-col items-end">
-        <span
-          className={`${SIMPLE_BASE_CLASS} ${sizeConfig.simple}`}
-          style={{
-            backgroundColor: locationTone.backgroundColor,
-            color: locationTone.textColor,
-          }}
-          data-location-status={parsed.status}
-          title={
-            notArrivalMode === "replace"
-              ? (student.not_arrival_reason ?? undefined)
-              : undefined
-          }
-        >
-          {label}
-        </span>
-        {showSinceTime && (
-          <span className="mt-0.5 text-[10px] text-gray-500">
-            seit {formattedTime} Uhr
-          </span>
-        )}
-        {hint}
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col items-end">
-      <span
-        className={`${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
-        style={{
-          backgroundColor: locationTone.backgroundColor,
-          color: locationTone.textColor,
-        }}
+      <StatusColorBadge
+        {...locationPillShape(sizeKey, variant)}
+        label={label}
+        color={color}
         data-location-status={parsed.status}
         title={
           notArrivalMode === "replace"
             ? (student.not_arrival_reason ?? undefined)
             : undefined
         }
-      >
-        {label}
-      </span>
+      />
       {showSinceTime && (
         <span className="mt-0.5 text-[10px] text-gray-500">
           seit {formattedTime} Uhr
