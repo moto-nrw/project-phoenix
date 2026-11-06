@@ -48,4 +48,22 @@ describe("CopyField", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("wert")).toBeInTheDocument();
   });
+
+  it("removes successful copy feedback when a later copy is refused", async () => {
+    writeText
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("denied"));
+    const onCopyFailed = vi.fn();
+    render(<CopyField value="wert" onCopyFailed={onCopyFailed} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Kopieren" }));
+    await screen.findByRole("button", { name: "Kopiert" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Kopiert" }));
+
+    await waitFor(() => expect(onCopyFailed).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByRole("button", { name: "Kopieren" }),
+    ).toBeInTheDocument();
+  });
 });
