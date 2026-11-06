@@ -104,9 +104,10 @@ func emailEventCurrentState(mail emailEventMailRow) domain.EmailDeliveryState {
 }
 
 func applyEmailEvent(ctx context.Context, db bun.IDB, mail emailEventMailRow, event domain.EmailDeliveryEvent, result *domain.EmailDeliveryEventResult) error {
-	if mail.Fallback != nil {
+	if mail.Fallback != nil && event.Provider != "moto" {
 		// The mail left over the fallback: the event stays in the history, and
-		// the provider no longer speaks for it.
+		// the original provider no longer speaks for it. Local SMTP rejections
+		// still describe the fallback's outcome.
 		if event.State == domain.EmailDeliveryComplained {
 			return suppressEmailEventAddress(ctx, db, mail, event)
 		}
@@ -114,9 +115,9 @@ func applyEmailEvent(ctx context.Context, db bun.IDB, mail emailEventMailRow, ev
 	}
 	// What arrived or drew a complaint is not sent again. Every other state leaves
 	// the outcome for the recipient open: a bounce the reconciliation read without
-	// its reason can still turn out as a blocklist. fallback_requested_at, checked
-	// above, makes this happen once per mail.
-	if event.Reroute && mail.Security && result.State != domain.EmailDeliveryDelivered && result.State != domain.EmailDeliveryComplained {
+	// its reason can still turn out as a blocklist. fallback_requested_at makes
+	// this happen once per mail.
+	if event.Reroute && mail.Fallback == nil && mail.Security && result.State != domain.EmailDeliveryDelivered && result.State != domain.EmailDeliveryComplained {
 		if _, err := db.ExecContext(ctx, emailEventRerouteSQL, time.Now(), mail.ID); err != nil {
 			return err
 		}
