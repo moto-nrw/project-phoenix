@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // Wochenprotokolle (#4769) — HTTP-Fläche unter /api/week-protocols im
@@ -279,7 +280,7 @@ func (rs *WeekProtocolResource) pdf(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(file.Data); err != nil {

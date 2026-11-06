@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // Soll und Ist je Kind (#4774): the comparison of one child on the child
@@ -94,7 +95,7 @@ func (rs *Resource) exportCareTimeOverruns(w http.ResponseWriter, r *http.Reques
 
 func writeExportFile(w http.ResponseWriter, file ExportFile) {
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)

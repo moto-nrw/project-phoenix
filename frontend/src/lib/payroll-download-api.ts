@@ -8,9 +8,9 @@ import { downloadBlob, filenameFromDisposition } from "./file-download";
 const FALLBACK_FILENAME = "monatsdatei";
 
 /**
- * Der Dateiname aus Content-Disposition. Go setzt einen schlichten Namen wie
- * `zeitkonten_2026-09.csv` ohne Anführungszeichen; den liest der gemeinsame
- * Helfer bewusst nicht.
+ * Der Dateiname aus Content-Disposition. Das Backend setzt ihn seit #5791 in
+ * Anführungszeichen; ältere Antworten trugen einen schlichten Namen wie
+ * `zeitkonten_2026-09.csv` ohne sie, den der gemeinsame Helfer nicht liest.
  */
 function payrollFilename(response: Response): string {
   const quoted = filenameFromDisposition(response);

@@ -412,7 +412,7 @@ func TestUploadDownloadDeleteLifecycle(t *testing.T) {
 	// Download serves the original name as an attachment.
 	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download", folder, uploaded.Data.ID.Int64()), nil, "", c.member, permissions.UsersRead)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Header().Get("Content-Disposition"), "filename=Elternbrief.pdf")
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), `filename="Elternbrief.pdf"`)
 	assert.Equal(t, "application/pdf", rec.Header().Get("Content-Type"))
 	assert.Equal(t, fakePDF, rec.Body.Bytes())
 
@@ -420,7 +420,7 @@ func TestUploadDownloadDeleteLifecycle(t *testing.T) {
 	// download regardless of the flag.
 	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download?inline=1", folder, uploaded.Data.ID.Int64()), nil, "", c.member, permissions.UsersRead)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.Equal(t, "inline; filename=Elternbrief.pdf", rec.Header().Get("Content-Disposition"))
+	assert.Equal(t, `inline; filename="Elternbrief.pdf"`, rec.Header().Get("Content-Disposition"))
 	assert.Contains(t, rec.Header().Get("Content-Security-Policy"), "sandbox")
 	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
 

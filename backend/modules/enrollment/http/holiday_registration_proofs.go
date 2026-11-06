@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"mime"
 	"net/http"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -111,7 +111,7 @@ func (rs *HolidayPeriodResource) openProof(w http.ResponseWriter, r *http.Reques
 	// the sandbox denies it scripts, forms and same-origin access, and no
 	// cache keeps it.
 	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'")
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": file.Filename}))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("inline", file.Filename))
 	w.Header().Set("Content-Type", file.ContentType)
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")

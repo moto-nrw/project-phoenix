@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // BillingResource serves the operator billing report (#2791): the key day
@@ -169,7 +170,7 @@ func (rs *BillingResource) ExportKeyDateCounts(w http.ResponseWriter, r *http.Re
 		filename = "stichtagszahlen-" + month + ".csv"
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", filename))
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)

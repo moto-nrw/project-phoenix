@@ -44,7 +44,7 @@ func TestPayrollDownloadOpensOnceAndOnlyByPost(t *testing.T) {
 	first := request(http.MethodPost, "4805.abcdefghijklmnopqrstuvwxyz")
 	require.Equal(t, http.StatusOK, first.Code)
 	assert.Equal(t, "Zeiten", first.Body.String())
-	assert.Equal(t, `attachment; filename=zeiterfassung_alle_2026-09.csv`, first.Header().Get("Content-Disposition"))
+	assert.Equal(t, `attachment; filename="zeiterfassung_alle_2026-09.csv"`, first.Header().Get("Content-Disposition"))
 	assert.Equal(t, "no-store", first.Header().Get("Cache-Control"))
 
 	for _, link := range []string{"4805.abcdefghijklmnopqrstuvwxyz", "4806.abcdefghijklmnopqrstuvwxyz", "kein-link", "0.abc", "4805."} {

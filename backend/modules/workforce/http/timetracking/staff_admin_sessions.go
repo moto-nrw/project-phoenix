@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -115,7 +116,7 @@ func (rs *StaffAdminResource) exportStaffSessions(w http.ResponseWriter, r *http
 	}
 
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+file.Filename+"\"")
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	if _, err := w.Write(file.Data); err != nil {
 		rs.logger.Error("failed to write export response", "error", err.Error())

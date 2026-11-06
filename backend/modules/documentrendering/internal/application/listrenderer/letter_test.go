@@ -151,7 +151,7 @@ func TestRenderLetterWritesAPDFWithLogo(t *testing.T) {
 		if !bytes.HasPrefix(file.Data, []byte("%PDF")) || file.ContentType != "application/pdf" {
 			t.Fatalf("%s: not a PDF: %q", name, file.ContentType)
 		}
-		if file.Filename != "bestaetigung-fe-2027-0001.pdf" {
+		if file.Filename != "bestätigung-fe-2027-0001.pdf" {
 			t.Fatalf("%s: filename = %q", name, file.Filename)
 		}
 		if pages := countRenderedPDFPages(file.Data); pages != 1 {
