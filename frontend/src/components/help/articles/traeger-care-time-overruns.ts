@@ -39,6 +39,7 @@ export function traegerCareTimeOverrunsTopic(): HelpTopic {
     differences: [
       "Fehlt der Bereich mit den Namen? Ihre Rolle hat das Recht `Verträge verwalten` nicht. Dann sehen Sie nur die Zahlen je Schule.",
       "Steht bei einer Schule `Check-ins erst ab` mit einem Datum? Die Schule bewahrt Check-ins nicht so lange auf. Verglichen wird ab diesem Tag.",
+      "Steht bei einer Schule `–` und `Keine Check-ins im Zeitraum`? Die Schule hat in diesem Zeitraum keine Check-ins. Dann kann moto nicht vergleichen. Das heißt nicht, dass alle Zeiten passen.",
     ],
     related: [HELP_TOPICS.traegerCareContracts, HELP_TOPICS.traegerAccessLog],
   };

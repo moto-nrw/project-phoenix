@@ -34,8 +34,9 @@ type overrunEvaluationBody struct {
 	ToleranceMinutes int                `json:"tolerance_minutes"`
 	Total            overrunFiguresBody `json:"total"`
 	Schools          []struct {
-		SchoolID int64              `json:"school_id"`
-		Figures  overrunFiguresBody `json:"figures"`
+		SchoolID     int64              `json:"school_id"`
+		AttendedDays int                `json:"attended_days"`
+		Figures      overrunFiguresBody `json:"figures"`
 	} `json:"schools"`
 	Children []struct {
 		SchoolID     int64  `json:"school_id"`
@@ -140,11 +141,15 @@ func TestCareTimeOverrunsSummariseEverySchoolFromTheContract(t *testing.T) {
 	assert.Equal(t, want, body.Total)
 	assert.Equal(t, 15, body.ToleranceMinutes)
 	figures := map[int64]overrunFiguresBody{}
+	attended := map[int64]int{}
 	for _, school := range body.Schools {
 		figures[school.SchoolID] = school.Figures
+		attended[school.SchoolID] = school.AttendedDays
 	}
 	assert.Equal(t, want, figures[f.school])
+	assert.Equal(t, 3, attended[f.school], "the child checked in on three days of the window")
 	assert.Equal(t, overrunFiguresBody{}, figures[f.other], "the other school is listed with nothing")
+	assert.Zero(t, attended[f.other], "no check-in at the other school: its zeros are missing data, not an all-clear")
 	assert.Empty(t, body.Children, "the summary names no child")
 	assert.NotContains(t, raw, "Sina")
 }

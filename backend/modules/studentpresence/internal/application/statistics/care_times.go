@@ -87,7 +87,9 @@ func (s *service) careTimeOverruns(ctx context.Context, filters studentpresence.
 		return nil, err
 	}
 	rows := make([]studentpresence.CareTimeOverrunRow, 0)
+	attended := 0
 	for _, student := range students {
+		attended += attendedDays(compared[student.ID].days)
 		summary := compared[student.ID].summary
 		if summary.OverrunCount() == 0 {
 			continue
@@ -108,8 +110,19 @@ func (s *service) careTimeOverruns(ctx context.Context, filters studentpresence.
 	})
 	return &studentpresence.CareTimeOverruns{
 		From: filters.From, To: filters.To, DataFrom: dataFrom,
-		ToleranceMinutes: studentpresence.CareTimeToleranceMinutes, Students: rows,
+		ToleranceMinutes: studentpresence.CareTimeToleranceMinutes, AttendedDays: attended, Students: rows,
 	}, nil
+}
+
+// attendedDays counts the days with a check-in.
+func attendedDays(days []studentpresence.CareTimeDay) int {
+	count := 0
+	for _, day := range days {
+		if day.ActualStart != nil {
+			count++
+		}
+	}
+	return count
 }
 
 func enrolledStudents(students []*ports.StatisticsStudent) []*ports.StatisticsStudent {

@@ -146,7 +146,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractCareTimes.Overruns",
-      "binding_digest": "41d408e2a3305607b39ef1c0c40def7c",
+      "binding_digest": "aa46af1342b0212427fc7ddcebd55dbd",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolCareTimes.Overruns",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.CareTimeOverruns",

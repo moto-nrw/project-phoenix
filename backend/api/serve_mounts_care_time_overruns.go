@@ -60,5 +60,6 @@ func (c careContractCareTimes) Overruns(ctx context.Context, reviewer carecontra
 			UnbookedDays: student.Summary.UnbookedDays, ExtraMinutes: student.Summary.ExtraMinutes,
 		}
 	}
-	return carecontract.SchoolOverrunList{DataFrom: result.DataFrom, ToleranceMinutes: result.ToleranceMinutes, Rows: rows}, nil
+	return carecontract.SchoolOverrunList{DataFrom: result.DataFrom, ToleranceMinutes: result.ToleranceMinutes,
+		AttendedDays: result.AttendedDays, Rows: rows}, nil
 }

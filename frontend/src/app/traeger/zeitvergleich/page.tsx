@@ -41,6 +41,7 @@ import {
   fetchOverrunSummary,
   formatExtraTime,
   overrunCoverage,
+  schoolHasData,
   OVERRUN_NAMES_RIGHT,
   overrunDayCount,
   type OverrunChild,
@@ -68,6 +69,7 @@ const MONTH_NAMES = [
   "November",
   "Dezember",
 ];
+const NO_DATA_TITLE = "Für diesen Zeitraum gibt es keine Check-ins.";
 const OVERRUN_TEXT = { color: getAccessibleTextColor(LOCATION_COLORS.DANGER) };
 
 /** "2026-11" aus "2026-11-06". */
@@ -102,6 +104,15 @@ function monthWindow(
   const lastDay = new Date(year ?? 0, index ?? 1, 0).getDate();
   const to = `${month}-${String(lastDay).padStart(2, "0")}`;
   return { from: `${month}-01`, to: to > today ? today : to };
+}
+
+/** Ohne Check-ins gibt es keine Zahl: „–“ statt einer Null, die nach Entwarnung aussieht. */
+function NoData() {
+  return (
+    <span className="text-sm text-gray-500">
+      –<span className="sr-only">, keine Check-ins im Zeitraum</span>
+    </span>
+  );
 }
 
 /** Eine Zahl in Rot, sobald sie eine Überschreitung zählt. */
@@ -160,6 +171,10 @@ function schoolColumns(
             <span className="block text-xs text-gray-500">
               Keine Check-ins mehr gespeichert
             </span>
+          ) : school.attendedDays === 0 ? (
+            <span className="block text-xs text-gray-500">
+              Keine Check-ins im Zeitraum
+            </span>
           ) : school.dataFrom > from ? (
             <span className="block text-xs text-gray-500">
               Check-ins erst ab {formatDate(school.dataFrom)} gespeichert
@@ -174,41 +189,55 @@ function schoolColumns(
       key: "children",
       header: "Kinder",
       align: "right",
-      render: (school) => <OverrunFigure value={school.figures.children} />,
-      sortValue: (school) => school.figures.children,
+      render: (school) =>
+        schoolHasData(school, to) ? (
+          <OverrunFigure value={school.figures.children} />
+        ) : (
+          <NoData />
+        ),
+      sortValue: (school) =>
+        schoolHasData(school, to) ? school.figures.children : null,
     },
     {
       key: "days",
       header: "Tage",
       align: "right",
-      render: (school) => (
-        <DaysCell
-          overrunDays={school.figures.overrunDays}
-          unbookedDays={school.figures.unbookedDays}
-        />
-      ),
-      sortValue: (school) => overrunDayCount(school.figures),
+      render: (school) =>
+        schoolHasData(school, to) ? (
+          <DaysCell
+            overrunDays={school.figures.overrunDays}
+            unbookedDays={school.figures.unbookedDays}
+          />
+        ) : (
+          <NoData />
+        ),
+      sortValue: (school) =>
+        schoolHasData(school, to) ? overrunDayCount(school.figures) : null,
     },
     {
       key: "extra",
       header: "Zusätzliche Zeit",
       align: "right",
-      render: (school) => (
-        <span className="ml-auto flex w-full max-w-56 flex-col items-end gap-1.5">
-          <OverrunFigure value={school.figures.extraMinutes}>
-            {formatExtraTime(school.figures.extraMinutes)}
-          </OverrunFigure>
-          <ProgressBar
-            value={school.figures.extraMinutes}
-            max={Math.max(maxMinutes, 1)}
-            color={LOCATION_COLORS.DANGER}
-            size="sm"
-            className="w-full"
-            label={`${formatExtraTime(school.figures.extraMinutes)} zusätzliche Zeit an ${school.schoolName}`}
-          />
-        </span>
-      ),
-      sortValue: (school) => school.figures.extraMinutes,
+      render: (school) =>
+        !schoolHasData(school, to) ? (
+          <NoData />
+        ) : (
+          <span className="ml-auto flex w-full max-w-56 flex-col items-end gap-1.5">
+            <OverrunFigure value={school.figures.extraMinutes}>
+              {formatExtraTime(school.figures.extraMinutes)}
+            </OverrunFigure>
+            <ProgressBar
+              value={school.figures.extraMinutes}
+              max={Math.max(maxMinutes, 1)}
+              color={LOCATION_COLORS.DANGER}
+              size="sm"
+              className="w-full"
+              label={`${formatExtraTime(school.figures.extraMinutes)} zusätzliche Zeit an ${school.schoolName}`}
+            />
+          </span>
+        ),
+      sortValue: (school) =>
+        schoolHasData(school, to) ? school.figures.extraMinutes : null,
     },
   ];
 }
@@ -277,8 +306,8 @@ function ChildrenEmptyState({
     return (
       <EmptyState
         icon={<CalendarOff className="h-12 w-12" aria-hidden="true" />}
-        title="Für diesen Monat sind keine Check-ins mehr gespeichert."
-        description="Die Schulen löschen Check-ins nach ihrer Frist. Wählen Sie einen späteren Monat."
+        title={NO_DATA_TITLE}
+        description="Ohne Check-ins kann moto nicht vergleichen. Die Schulen löschen Check-ins nach ihrer Frist."
       />
     );
   }
@@ -288,7 +317,7 @@ function ChildrenEmptyState({
       title="Kein Kind war länger da als gebucht."
       description={
         coverage === "partial"
-          ? "Verglichen sind nur die Tage, für die noch Check-ins gespeichert sind."
+          ? "Verglichen sind nur Schulen und Tage mit Check-ins."
           : "In diesem Monat passen alle Zeiten zur Buchung."
       }
     />
@@ -298,15 +327,17 @@ function ChildrenEmptyState({
 function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
   const { total } = evaluation;
   const days = overrunDayCount(total);
+  // Without any check-in the figures are unknown, not zero.
+  const noData = overrunCoverage(evaluation) === "none";
   return (
     <div className="grid grid-cols-2 gap-4 max-sm:gap-3 lg:grid-cols-3">
       <StatCard
         label="Kinder"
-        value={total.children}
-        tone={total.children > 0 ? "red" : "neutral"}
+        value={noData ? "–" : total.children}
+        tone={!noData && total.children > 0 ? "red" : "neutral"}
         hint={
-          overrunCoverage(evaluation) === "none"
-            ? "Für diesen Monat sind keine Check-ins mehr gespeichert."
+          noData
+            ? NO_DATA_TITLE
             : total.children === 1
               ? "Ein Kind war länger da als gebucht."
               : `${total.children} Kinder waren länger da als gebucht.`
@@ -315,20 +346,22 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
       />
       <StatCard
         label="Tage"
-        value={days}
-        tone={days > 0 ? "red" : "neutral"}
+        value={noData ? "–" : days}
+        tone={!noData && days > 0 ? "red" : "neutral"}
         hint={
-          total.unbookedDays > 0
-            ? `Davon ${total.unbookedDays} an Tagen ohne Buchung.`
-            : "Tage, an denen ein Kind länger da war."
+          noData
+            ? "Ohne Check-ins zählt moto keine Tage."
+            : total.unbookedDays > 0
+              ? `Davon ${total.unbookedDays} an Tagen ohne Buchung.`
+              : "Tage, an denen ein Kind länger da war."
         }
         icon={<MotoConceptIcon concept={calendarConcept} />}
       />
       <div className="col-span-2 lg:col-span-1">
         <StatCard
           label="Zusätzliche Zeit"
-          value={formatExtraTime(total.extraMinutes)}
-          tone={total.extraMinutes > 0 ? "red" : "neutral"}
+          value={noData ? "–" : formatExtraTime(total.extraMinutes)}
+          tone={!noData && total.extraMinutes > 0 ? "red" : "neutral"}
           hint={`Zählt ab ${evaluation.toleranceMinutes || 15} Minuten früher oder später.`}
           icon={<MotoConceptIcon concept={careTimesConcept} />}
         />

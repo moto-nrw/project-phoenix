@@ -43,10 +43,14 @@ type OverrunFigures struct {
 // SchoolOverruns are the figures of one school. DataFrom is the first day
 // the school compared: its retention of check-ins may cut the window short.
 type SchoolOverruns struct {
-	SchoolID   int64          `json:"school_id"`
-	SchoolName string         `json:"school_name"`
-	DataFrom   calendar.Date  `json:"data_from"`
-	Figures    OverrunFigures `json:"figures"`
+	SchoolID   int64         `json:"school_id"`
+	SchoolName string        `json:"school_name"`
+	DataFrom   calendar.Date `json:"data_from"`
+	// AttendedDays counts the compared child-days with a check-in. Zero
+	// means the school has no attendance data in the window; its zero
+	// figures then say nothing about overruns.
+	AttendedDays int            `json:"attended_days"`
+	Figures      OverrunFigures `json:"figures"`
 }
 
 // OverrunChild is one child with at least one overrun in the window.
@@ -87,7 +91,9 @@ type SchoolOverrunRow struct {
 type SchoolOverrunList struct {
 	DataFrom         calendar.Date
 	ToleranceMinutes int
-	Rows             []SchoolOverrunRow
+	// AttendedDays counts the compared child-days with a check-in.
+	AttendedDays int
+	Rows         []SchoolOverrunRow
 }
 
 // SchoolCareTimes reads the overrun list of the school whose tenant

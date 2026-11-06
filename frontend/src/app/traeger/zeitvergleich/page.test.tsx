@@ -40,6 +40,7 @@ const EVALUATION: OverrunEvaluation = {
       schoolId: "3",
       schoolName: "OGS Am Lindenhof",
       dataFrom: "2026-09-01",
+      attendedDays: 40,
       figures: {
         children: 1,
         overrunDays: 2,
@@ -51,6 +52,7 @@ const EVALUATION: OverrunEvaluation = {
       schoolId: "4",
       schoolName: "OGS Süd",
       dataFrom: "2026-09-03",
+      attendedDays: 12,
       figures: {
         children: 0,
         overrunDays: 0,
@@ -147,28 +149,76 @@ describe("Länger als gebucht", () => {
     mockUseSession.mockReturnValue(session(["traeger_reports:read"]));
     api.fetchOverrunSummary.mockResolvedValue(EVALUATION);
     renderPage();
-    const table = await screen.findByRole("table");
+    await screen.findAllByText("OGS Süd");
+    const table = screen.getAllByRole("table")[0] as HTMLElement;
     const zero = within(table).getAllByText("0 Min.")[0];
     expect(zero?.getAttribute("style")).toBeNull();
   });
 
-  it("claims no all-clear when the checks-ins of the month are gone", async () => {
+  it("never shows missing check-ins as no deviation", async () => {
+    mockUseSession.mockReturnValue(
+      session(["traeger_reports:read", "traeger_contracts:manage"]),
+    );
+    const none = {
+      children: 0,
+      overrunDays: 0,
+      unbookedDays: 0,
+      extraMinutes: 0,
+    };
+    api.fetchOverrunChildren.mockResolvedValue({
+      ...EVALUATION,
+      total: none,
+      schools: [
+        { ...EVALUATION.schools[0]!, attendedDays: 0, figures: none },
+        {
+          ...EVALUATION.schools[1]!,
+          dataFrom: "2026-09-20",
+          attendedDays: 0,
+          figures: none,
+        },
+      ],
+      children: [],
+    });
+    renderPage();
+
+    const titles = await screen.findAllByText(
+      "Für diesen Zeitraum gibt es keine Check-ins.",
+    );
+    expect(titles.length).toBeGreaterThan(0);
+    const table = screen.getAllByRole("table")[0] as HTMLElement;
+    expect(
+      within(table).getAllByText("Keine Check-ins im Zeitraum").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(table).getAllByText("Keine Check-ins mehr gespeichert").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(table).getAllByText(", keine Check-ins im Zeitraum").length,
+    ).toBeGreaterThan(0);
+    // No zero that reads as "nobody stayed longer", anywhere on the page.
+    expect(within(table).queryByText("0")).not.toBeInTheDocument();
+    expect(within(table).queryByText("0 Min.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("0 Kinder waren länger da als gebucht."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Kein Kind war länger da als gebucht."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("In diesem Monat passen alle Zeiten zur Buchung."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("marks a school without check-ins and claims no full all-clear", async () => {
     mockUseSession.mockReturnValue(
       session(["traeger_reports:read", "traeger_contracts:manage"]),
     );
     api.fetchOverrunChildren.mockResolvedValue({
       ...EVALUATION,
-      total: { children: 0, overrunDays: 0, unbookedDays: 0, extraMinutes: 0 },
-      schools: EVALUATION.schools.map((school) => ({
-        ...school,
-        dataFrom: "2026-09-20",
-        figures: {
-          children: 0,
-          overrunDays: 0,
-          unbookedDays: 0,
-          extraMinutes: 0,
-        },
-      })),
+      schools: [
+        EVALUATION.schools[0]!,
+        { ...EVALUATION.schools[1]!, dataFrom: "2026-09-01", attendedDays: 0 },
+      ],
       children: [],
     });
     renderPage();
@@ -176,28 +226,13 @@ describe("Länger als gebucht", () => {
     expect(
       (
         await screen.findAllByText(
-          "Für diesen Monat sind keine Check-ins mehr gespeichert.",
+          "Verglichen sind nur Schulen und Tage mit Check-ins.",
         )
       ).length,
     ).toBeGreaterThan(0);
+    const table = screen.getAllByRole("table")[0] as HTMLElement;
     expect(
-      screen.queryByText("In diesem Monat passen alle Zeiten zur Buchung."),
-    ).not.toBeInTheDocument();
-  });
-
-  it("names a partial comparison instead of an all-clear", async () => {
-    mockUseSession.mockReturnValue(
-      session(["traeger_reports:read", "traeger_contracts:manage"]),
-    );
-    api.fetchOverrunChildren.mockResolvedValue({ ...EVALUATION, children: [] });
-    renderPage();
-
-    expect(
-      (
-        await screen.findAllByText(
-          "Verglichen sind nur die Tage, für die noch Check-ins gespeichert sind.",
-        )
-      ).length,
+      within(table).getAllByText("Keine Check-ins im Zeitraum").length,
     ).toBeGreaterThan(0);
     expect(
       screen.queryByText("In diesem Monat passen alle Zeiten zur Buchung."),
