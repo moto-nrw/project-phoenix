@@ -30,6 +30,7 @@ export {
 } from "./hooks";
 export {
   authGeneration,
+  onSWRScopeReset,
   scopedSWRKey,
   tenantSWRScope,
   useSWRSessionRefresh,

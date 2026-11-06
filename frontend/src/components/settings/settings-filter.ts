@@ -21,6 +21,8 @@ export const TAB_LABELS: Record<string, string> = {
   branding: "Briefkopf",
   // Ferienbetreuung des Trägers (#5621); nur im Träger-Portal.
   ferien: "Ferienbetreuung",
+  // Grenzen der Auffälligkeiten im Dashboard (#4675); nur im Träger-Portal.
+  dashboard: "Dashboard",
 };
 
 export function displayTabLabel(tab: SchemaTab): string {
@@ -39,6 +41,7 @@ export const categoryLabels: Record<string, string> = {
   anmeldung: "Anmeldungen",
   "anmeldung-essen": "Anmeldung der Eltern",
   anwesenheit: "Aktivitäten am Computer und Handy",
+  auffaelligkeiten: "Grenzen für Auffälligkeiten",
   "anwesenheit-erfassen": "Anwesenheit erfassen",
   aufsicht: "Klassen und moto schule",
   benachrichtigung: "E-Mails zur Anmeldung",

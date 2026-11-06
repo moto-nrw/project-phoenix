@@ -145,6 +145,20 @@ export function resumeSWRSession(): void {
   for (const listener of refreshListeners) listener();
 }
 
+const scopeResetListeners = new Set<() => void>();
+
+/**
+ * Runs `listener` on every session boundary resetSWRScope marks (login,
+ * logout, another account, also from another tab), before the cache goes.
+ * For state that belongs to the cache's session but lives outside it, such
+ * as the refusals of use-traeger-confirmed-resource. Returns the
+ * unsubscribe.
+ */
+export function onSWRScopeReset(listener: () => void): () => void {
+  scopeResetListeners.add(listener);
+  return () => scopeResetListeners.delete(listener);
+}
+
 /**
  * Ends the scope generation (generation.ts), then drops the whole cache of
  * this tab: every entry including the
@@ -157,6 +171,7 @@ export function resumeSWRSession(): void {
  */
 export function resetSWRScope({ revalidate }: { revalidate: boolean }): void {
   bumpScopeGeneration();
+  for (const listener of scopeResetListeners) listener();
   if (!cleanupEnabled) return;
   clearListOverlays();
   unload({ revalidate });
