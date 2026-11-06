@@ -401,6 +401,8 @@ func classifyAttendedBookedDay(day *studentpresence.CareTimeDay) {
 		day.Kind = studentpresence.CareTimeDayOverrun
 	case day.ActualEnd == nil:
 		day.Kind = studentpresence.CareTimeDayOpen
+	case day.PlannedEnd == nil:
+		day.Kind = studentpresence.CareTimeDayEndUnknown
 	default:
 		day.Kind = studentpresence.CareTimeDayWithinPlan
 	}

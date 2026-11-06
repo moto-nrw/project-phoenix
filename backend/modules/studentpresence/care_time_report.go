@@ -67,6 +67,11 @@ const (
 	CareTimeDayOpen CareTimeDayKind = "open"
 	// CareTimeDayNoPlan — present, but no care plan is on file at all.
 	CareTimeDayNoPlan CareTimeDayKind = "no_plan"
+	// CareTimeDayEndUnknown — booked and present, but the booking names no
+	// pickup (a contract module without an end time): the departure cannot
+	// be compared, so the day is neither within the booking nor an overrun
+	// at its end (#4683). An early arrival still makes it an overrun.
+	CareTimeDayEndUnknown CareTimeDayKind = "end_unknown"
 )
 
 // IsOverrun reports whether the day is marked as an overrun.

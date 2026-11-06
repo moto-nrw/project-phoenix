@@ -1247,6 +1247,7 @@ export const careTimeComparisonTopic =
       differences: [
         "Steht `Keine Zeiten hinterlegt`? Für das Kind ist kein Wochenplan eingetragen. Dann gibt es nichts zu vergleichen.",
         "Steht `Noch nicht abgemeldet`? Das Kind ist noch da, oder die Abmeldung fehlt.",
+        "Steht `Abholzeit fehlt`? Für diesen Tag ist keine Abholzeit gebucht, zum Beispiel ein Modul im Vertrag ohne Endzeit. Dann lässt sich das Gehen nicht vergleichen.",
       ],
       troubleshootingDetails: [
         "Fehlt `Soll und Ist` beim Kind? Ihr Konto darf die Kinderdaten nicht lesen.",

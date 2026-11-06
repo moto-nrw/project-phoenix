@@ -358,3 +358,22 @@ func TestComparedDayCountsKeepsOpenDaysIncomplete(t *testing.T) {
 	assert.Equal(t, 3, compared, "only days with a check-in, a check-out and a known booked end are compared")
 	assert.Equal(t, 5, uncompared, "open days, days without a plan and days without a booked end stay incomplete")
 }
+
+// A booked day whose pickup is unknown is never shown as within the
+// booking: its departure cannot be compared (#4683).
+func TestClassifyCareTimeDayWithoutABookedEnd(t *testing.T) {
+	t.Parallel()
+	date := calendar.NewDate(2026, 6, 8)
+	checkIn := date.BerlinMidnight().Add(8 * time.Hour)
+	checkOut := date.BerlinMidnight().Add(17 * time.Hour)
+	planned := studentpresence.PlannedCareDay{Expected: true, Arrival: wallClockAt(8, 0)}
+
+	day, listed := classifyCareTimeDay(date, planned, &attendanceSpan{firstCheckIn: checkIn, lastCheckOut: &checkOut}, "", true)
+	require.True(t, listed)
+	assert.Equal(t, studentpresence.CareTimeDayEndUnknown, day.Kind)
+	assert.False(t, day.Kind.IsOverrun())
+
+	early := date.BerlinMidnight().Add(7 * time.Hour)
+	day, _ = classifyCareTimeDay(date, planned, &attendanceSpan{firstCheckIn: early, lastCheckOut: &checkOut}, "", true)
+	assert.Equal(t, studentpresence.CareTimeDayOverrun, day.Kind, "an early arrival is an overrun even without a booked end")
+}
