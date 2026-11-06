@@ -53,14 +53,8 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/portal-bottom-nav.tsx",
-    lines: [134],
-    reason: "Navigationszeile der unteren Leiste",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/parent/shell/parent-bottom-nav.tsx",
-    lines: [184, 222, 269],
-    reason: "Navigationszeilen der unteren Leiste im Elternportal",
+    lines: [393, 432],
+    reason: "Navigationszeilen im „Mehr“-Blatt der unteren Leiste",
   },
   {
     rule: "no-hand-rolled-button",
@@ -83,7 +77,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/announcements/parent-target-picker.tsx",
-    lines: [46],
+    lines: [47],
     reason: "Zielgruppe ankreuzen (Häkchen-Zeile): Auswahlzeile",
   },
   {
@@ -137,7 +131,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [856, 889, 989, 1158],
+    lines: [852, 885, 985, 1154],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
@@ -157,7 +151,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1065],
+    lines: [1070],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
@@ -166,12 +160,6 @@ export const buttonRatchetAllowlist = [
     lines: [172],
     reason:
       "Klassenkarte: Kachel. Bleibt ButtonLink, weil TileCard den Seitenwechsel nicht an die Portalhülle meldet",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1343, 1544, 1579],
-    reason: "Navigationszeilen der Seitenleiste und der unteren Leiste",
   },
   {
     rule: "no-hand-rolled-button",
@@ -212,19 +200,19 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-plan-view.tsx",
-    lines: [503],
+    lines: [504],
     reason: "Mobile Tagesauswahl mit Auswahlzustand: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1322],
+    lines: [1323],
     reason: "Tagesauswahl mit Auswahlzustand: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1565],
+    lines: [1566],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
@@ -248,7 +236,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/student-detail-components.tsx",
-    lines: [1167],
+    lines: [1155],
     reason: "Verlaufskachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
@@ -275,7 +263,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1322],
+    lines: [1323],
     reason: "Tageskachel: grau markiert den gewählten Tag, kein Knopf",
   },
   {
@@ -284,20 +272,6 @@ export const buttonRatchetAllowlist = [
     lines: [275],
     reason:
       "Auswahlzeile im Zeitraum-Menü: grau markiert den gewählten Zeitraum",
-  },
-  {
-    rule: "no-grey-button-fill",
-    file: "src/components/dashboard/mobile-bottom-nav.tsx",
-    lines: [1579],
-    reason:
-      "Mehr-Eintrag der Handy-Navigation: grau markiert den aktiven Bereich",
-  },
-  {
-    rule: "no-grey-button-fill",
-    file: "src/components/parent/shell/parent-bottom-nav.tsx",
-    lines: [222],
-    reason:
-      "Mehr-Eintrag der Eltern-Navigation: grau markiert den aktiven Bereich",
   },
   {
     rule: "no-hand-rolled-button",

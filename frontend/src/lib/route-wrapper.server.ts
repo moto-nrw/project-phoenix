@@ -16,13 +16,13 @@ import { isApiResponseError } from "./api-response-error.server";
 export { isStringParam } from "./route-wrapper-utils.server";
 
 /**
- * Attempts to retry a request with a refreshed token
- * Returns null if retry should not be attempted
+ * Repeats a request with a refreshed token. Null means no new token; the
+ * result is boxed because a handler may itself answer null (a DELETE's 204).
  */
 async function tryRetryWithRefreshedToken<T>(
   originalToken: string,
   retryFn: (token: string) => Promise<T>,
-): Promise<T | null> {
+): Promise<{ data: T } | null> {
   const updatedSession = await uncachedAuth();
 
   // Only retry if token was actually refreshed
@@ -33,7 +33,7 @@ async function tryRetryWithRefreshedToken<T>(
     return null;
   }
 
-  return retryFn(updatedSession.user.token);
+  return { data: await retryFn(updatedSession.user.token) };
 }
 
 /**
@@ -116,12 +116,16 @@ async function executeWithRetry<T>(
     }
 
     try {
-      const retryData = await tryRetryWithRefreshedToken(token, executeHandler);
-      if (retryData !== null) {
-        return formatResponse(retryData);
+      const retried = await tryRetryWithRefreshedToken(token, executeHandler);
+      if (retried !== null) {
+        return formatResponse(retried.data);
       }
-    } catch {
-      // Retry failed, fall through to token expired
+    } catch (retryError) {
+      // A backend answer other than 401 is the real result (403, 404, ...);
+      // only a failed authentication means the session has expired.
+      if (isApiResponseError(retryError) && retryError.status !== 401) {
+        throw retryError;
+      }
     }
 
     return createTokenExpiredResponse(request);

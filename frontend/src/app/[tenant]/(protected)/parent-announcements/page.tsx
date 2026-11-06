@@ -111,7 +111,8 @@ import {
   insertPastedOptions,
 } from "~/lib/announcement-poll-options";
 import { useSWRAuth } from "~/lib/swr";
-import { studentService, type Group } from "~/lib/api";
+import { type Group } from "~/lib/api";
+import { fetchSchoolClasses } from "~/lib/student-api";
 import { fetchActivities } from "~/lib/activity-api";
 import type { Activity } from "~/lib/activity-helpers";
 import {
@@ -331,7 +332,7 @@ function ParentAnnouncementsContent() {
     mutate: reloadClasses,
   } = useSWRAuth<string[]>(
     isFormOpen ? "parent-announcements-classes" : null,
-    () => studentService.getSchoolClasses(),
+    () => fetchSchoolClasses(),
     { revalidateOnFocus: false },
   );
   // Ohne geladene Auswahllisten stünde in den Feldern „Keine Gruppen“, obwohl

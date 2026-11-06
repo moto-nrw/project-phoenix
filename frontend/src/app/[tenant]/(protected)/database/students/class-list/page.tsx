@@ -53,6 +53,7 @@ import { schoolClassName } from "~/lib/school-class-label";
 import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { fetchSchoolClasses } from "~/lib/student-api";
 
 const logger = createLogger({ component: "ClassListEntriesPage" });
 
@@ -77,17 +78,7 @@ function errorMessage(err: unknown): string {
 // Bewusst still: die Klassen sind nur Vorschläge im Eingabefeld. Ohne sie
 // tippt man die Klasse selbst; Speichern und Liste hängen nicht daran.
 async function fetchClassSuggestions(): Promise<string[]> {
-  try {
-    const response = await fetch("/api/students/school-classes", {
-      credentials: "include",
-      cache: "no-store",
-    });
-    if (!response.ok) return [];
-    const payload = (await response.json()) as { data?: string[] };
-    return payload.data ?? [];
-  } catch {
-    return [];
-  }
+  return fetchSchoolClasses().catch(() => []);
 }
 
 // Minimal projection of a regular student for the roster view: this page

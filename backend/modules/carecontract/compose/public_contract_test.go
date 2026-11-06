@@ -143,6 +143,10 @@ func (p *postDouble) EnqueueContractMail(_ context.Context, mail carecontract.Co
 	return p.next, nil
 }
 
+func (p *postDouble) ContractMailBlock(context.Context, int64, string, string) (string, error) {
+	return "", nil
+}
+
 func (p *postDouble) ContractMailStates(context.Context, int64, int64) ([]carecontract.MailState, error) {
 	return nil, nil
 }

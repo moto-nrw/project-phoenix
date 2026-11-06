@@ -2,9 +2,11 @@ package studentpresencehttp_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -227,4 +229,32 @@ func TestPrivacyConsentRejectsUnreadableRetention(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code, rr.Body.String())
 	assert.NotContains(t, rr.Body.String(), `"data_retention_days"`)
 	assert.NotContains(t, rr.Body.String(), "private retention read failure")
+}
+
+func TestGetPrivacyConsentDefaults(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t)
+	creator := testpkg.CreateTestAccount(t, tc.db, "privacy-defaults-creator@example.com")
+	get := func(perms ...string) *httptest.ResponseRecorder {
+		req := testutil.NewRequest(http.MethodGet, "/privacy-consent/defaults", nil)
+		return authExec(t, tc, req, testutil.TeacherTestClaims(int(creator.ID)), perms)
+	}
+	data := func(rr *httptest.ResponseRecorder) string {
+		var body struct {
+			Data json.RawMessage `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+		return string(body.Data)
+	}
+
+	rr := get("users:create")
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.JSONEq(t, `{"policy_version":"1.0","accepted":false,"data_retention_days":30}`, data(rr))
+
+	require.NoError(t, tc.settings().SetValue(testpkg.Ctx(t), settings.KeyPrivacyConsentRetentionDays, 12, nil, nil))
+	rr = get("users:create")
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.JSONEq(t, `{"policy_version":"1.0","accepted":false,"data_retention_days":12}`, data(rr))
+
+	testutil.AssertForbidden(t, get("users:read", "users:update"))
 }

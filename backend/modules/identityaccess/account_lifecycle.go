@@ -44,6 +44,17 @@ var (
 	// outbox did not take. Nothing of the access was kept; the school can try
 	// again (#4602).
 	ErrGuardianAccessMailNotQueued = errors.New("guardian access email could not be queued")
+	// ErrGuardianEmailAddressBlocked reports an invitation the school's list
+	// would hold back: nothing was kept, and the school checks the address first.
+	ErrGuardianEmailAddressBlocked = errors.New("the guardian's email address is blocked")
+	// ErrMailBlockedAtProvider reports a mail the provider would withhold now. The
+	// reason stays out: it may belong to another school.
+	ErrMailBlockedAtProvider = errors.New("the mail provider withholds mail to this address")
+	// ErrMailBlockUnreadable reports a block moto could not read just now.
+	ErrMailBlockUnreadable = errors.New("the mail provider's block could not be read")
+	// ErrInvitationMailDelayed reports a send while the mail server still tries
+	// to deliver the last mail: a second one would only arrive twice.
+	ErrInvitationMailDelayed = errors.New("the last invitation mail is delayed")
 
 	// ErrAccountLifecycleUnavailable reports a module composed without the
 	// account-lifecycle dependencies (repository fixtures, CLI roots that
@@ -334,6 +345,8 @@ type InviteToStudentResult struct {
 	GuardianProfileID int64
 	InvitationID      *int64
 	ExistingRole      string
+	// MailHeld says the access exists but no mail will reach the person (#5934).
+	MailHeld bool
 }
 
 // RevokeAccessRequest removes one account's access to one child by deleting

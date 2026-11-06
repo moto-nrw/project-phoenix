@@ -1,12 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockSessionFetch = vi.hoisted(() => vi.fn());
-const mockGetCachedSession = vi.hoisted(() => vi.fn());
 
-vi.mock("./session-cache", () => ({
-  sessionFetch: mockSessionFetch,
-  getCachedSession: mockGetCachedSession,
-}));
+vi.mock("./session-cache", () => ({ sessionFetch: mockSessionFetch }));
 
 import { studentDocumentsService } from "./student-documents-api";
 
@@ -53,7 +49,10 @@ describe("studentDocumentsService.list", () => {
 
     const result = await studentDocumentsService.list("42");
 
-    expect(mockSessionFetch).toHaveBeenCalledWith("/api/students/42/documents");
+    expect(mockSessionFetch).toHaveBeenCalledWith(
+      "/api/students/42/documents",
+      expect.objectContaining({ method: "GET" }),
+    );
     // Backend int64 IDs arrive as numbers and have to reach the UI as strings.
     expect(result.documents).toEqual([
       {
@@ -155,30 +154,22 @@ describe("studentDocumentsService.list", () => {
 });
 
 describe("studentDocumentsService.upload", () => {
-  const fetchMock = vi.fn();
-
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubGlobal("fetch", fetchMock);
-    mockGetCachedSession.mockResolvedValue({ user: { id: "1" } });
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
   });
 
   // The route reads the session cookie; the browser holds no token (#5005).
+  // Setting Content-Type here would clobber the multipart boundary the
+  // browser generates for a FormData body.
   it("posts multipart form data without Authorization or Content-Type", async () => {
-    fetchMock.mockResolvedValueOnce(new Response(null, { status: 201 }));
+    mockSessionFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     await studentDocumentsService.upload("42", pdf(), "attest");
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(mockSessionFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = mockSessionFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/students/42/documents");
     expect(init.method).toBe("POST");
-    // Setting Content-Type here would clobber the multipart boundary the
-    // browser generates for a FormData body.
     expect(init.headers).toBeUndefined();
 
     const body = init.body as FormData;
@@ -187,72 +178,35 @@ describe("studentDocumentsService.upload", () => {
     expect(body.get("category")).toBe("attest");
   });
 
-  it("refuses to upload without a session token", async () => {
-    mockGetCachedSession.mockResolvedValueOnce(null);
-
-    await expect(
-      studentDocumentsService.upload("42", pdf(), "attest"),
-    ).rejects.toMatchObject({ status: 401 });
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("refuses to upload when the callback stripped the session", async () => {
-    mockGetCachedSession.mockResolvedValueOnce({
-      user: {},
-      error: "RefreshTokenError",
-    });
-
-    await expect(
-      studentDocumentsService.upload("42", pdf(), "attest"),
-    ).rejects.toMatchObject({ status: 401 });
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   // ADR 0006: the backend sentence is diagnosis only; the code is what the
   // display path reads.
   it("carries the code and request ID of a refused upload", async () => {
-    fetchMock.mockResolvedValueOnce(
+    mockSessionFetch.mockResolvedValueOnce(
       Response.json(
         { error: "Datei zu groß.", code: "general.input", instance: "req-1" },
         { status: 400 },
       ),
     );
 
-    await expect(
-      studentDocumentsService.upload("42", pdf(), "attest"),
-    ).rejects.toMatchObject({
-      message: "Dokument konnte nicht hochgeladen werden.",
-      code: "general.input",
-      requestId: "req-1",
-    });
-  });
-
-  it("falls back to the generic message when the body carries no error", async () => {
-    fetchMock.mockResolvedValueOnce(Response.json({}, { status: 400 }));
-
-    await expect(
-      studentDocumentsService.upload("42", pdf(), "attest"),
-    ).rejects.toMatchObject({
-      message: "Dokument konnte nicht hochgeladen werden.",
-      code: "general.input",
-    });
+    const error = await studentDocumentsService
+      .upload("42", pdf(), "attest")
+      .catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: "general.input", requestId: "req-1" });
+    expect((error as Error).message).not.toContain("Datei zu groß");
   });
 
   it("classifies a non-JSON body by its status", async () => {
-    fetchMock.mockResolvedValueOnce(
+    mockSessionFetch.mockResolvedValueOnce(
       new Response("<html>502</html>", { status: 502 }),
     );
 
     await expect(
       studentDocumentsService.upload("42", pdf(), "attest"),
-    ).rejects.toMatchObject({
-      message: "Dokument konnte nicht hochgeladen werden.",
-      code: "general.unavailable",
-    });
+    ).rejects.toMatchObject({ code: "general.unavailable" });
   });
 
   it("reports a missing category permission as the permission class", async () => {
-    fetchMock.mockResolvedValueOnce(
+    mockSessionFetch.mockResolvedValueOnce(
       Response.json({ error: "forbidden" }, { status: 403 }),
     );
 
@@ -275,7 +229,7 @@ describe("studentDocumentsService.delete", () => {
     ).resolves.toBeUndefined();
     expect(mockSessionFetch).toHaveBeenCalledWith(
       "/api/students/42/documents/91",
-      { method: "DELETE" },
+      expect.objectContaining({ method: "DELETE" }),
     );
   });
 
@@ -284,22 +238,21 @@ describe("studentDocumentsService.delete", () => {
       Response.json({ error: "Dokument nicht gefunden." }, { status: 404 }),
     );
 
-    await expect(
-      studentDocumentsService.delete("42", "91"),
-    ).rejects.toMatchObject({
-      message: "Dokument konnte nicht gelöscht werden.",
-      status: 404,
-    });
+    const error = await studentDocumentsService
+      .delete("42", "91")
+      .catch((e: unknown) => e);
+    expect(error).toMatchObject({ status: 404 });
+    expect((error as Error).message).not.toContain("Dokument nicht gefunden");
   });
 
-  it("falls back to the generic delete message", async () => {
+  it("classifies a failed delete by its status", async () => {
     mockSessionFetch.mockResolvedValueOnce(
       new Response("nope", { status: 500 }),
     );
 
-    await expect(studentDocumentsService.delete("42", "91")).rejects.toThrow(
-      "Dokument konnte nicht gelöscht werden.",
-    );
+    await expect(
+      studentDocumentsService.delete("42", "91"),
+    ).rejects.toMatchObject({ status: 500, code: "general.server" });
   });
 
   it("reports a missing category permission as such", async () => {

@@ -24,6 +24,7 @@ import (
 // related entity and the PDF in its payload (ADR 0123).
 type CareContractPost struct {
 	Delivery deliveryRuntime.Capability
+	Outcomes deliveryRuntime.EmailOutcomes
 }
 
 func (p CareContractPost) EnqueueContractMail(ctx context.Context, mail carecontract.ContractMail) (int64, error) {
@@ -43,6 +44,41 @@ func (p CareContractPost) EnqueueContractMail(ctx context.Context, mail carecont
 	return enqueued.ID, nil
 }
 
+// contractMailState names Delivery's outcome in the contract's words. Only a mail
+// that left and did not come back counts as sent: an unsubscribe or a complaint is
+// no sent contract (#5934).
+func contractMailState(outcome deliveryContract.EmailOutcome) string {
+	switch outcome {
+	case deliveryContract.EmailQueued:
+		return carecontract.MailQueued
+	case deliveryContract.EmailAccepted, deliveryContract.EmailDelivered, deliveryContract.EmailDelayed, deliveryContract.EmailOverdue:
+		return carecontract.MailSent
+	case deliveryContract.EmailOutcomeUnknown:
+		return carecontract.MailUnknown
+	default:
+		return carecontract.MailFailed
+	}
+}
+
+// ContractMailBlock reads what would hold a mail to the address now: a stop or a
+// list of a school of the Träger, or the provider if the last mail to it left a block.
+func (p CareContractPost) ContractMailBlock(ctx context.Context, organizationID int64, address, outcome string) (string, error) {
+	listed, stopped, err := p.Outcomes.TraegerMailHolds(ctx, organizationID, address)
+	if err != nil {
+		return "", err
+	}
+	mark := deliveryContract.EmailAddressMark("")
+	if listed {
+		mark = deliveryContract.EmailMarkFailed
+	}
+	latest := deliveryContract.EmailOutcome(outcome)
+	var provider deliveryContract.EmailProviderBlock
+	if latest.HeldAtProvider() {
+		provider = p.Outcomes.ProviderEmailBlocks(ctx, []string{address})[deliveryContract.NormalizedEmailAddress(address)]
+	}
+	return string(deliveryContract.EmailSendBlockOf(mark, stopped, latest, provider)), nil
+}
+
 func (p CareContractPost) ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]carecontract.MailState, error) {
 	statuses, err := p.Delivery.TraegerEmailStatuses(ctx, organizationID,
 		deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: contractID})
@@ -51,22 +87,7 @@ func (p CareContractPost) ContractMailStates(ctx context.Context, organizationID
 	}
 	states := make([]carecontract.MailState, len(statuses))
 	for i, status := range statuses {
-		state := carecontract.MailQueued
-		switch {
-		case status.State == deliveryContract.StateSent && (status.DeliveryState == deliveryContract.DeliveryFailed ||
-			status.DeliveryState == deliveryContract.DeliverySuppressed):
-			// Accepted, then bounced for good or withheld for a bad
-			// address: the parents never got it (#5932).
-			state = carecontract.MailFailed
-		case status.State == deliveryContract.StateSent:
-			state = carecontract.MailSent
-		case status.State == deliveryContract.StateDeadLetter && status.LastError != nil &&
-			*status.LastError == deliveryContract.DispatchOutcomeUnknown:
-			state = carecontract.MailUnknown
-		case status.State == deliveryContract.StateDeadLetter, status.State == deliveryContract.StateCancelled:
-			state = carecontract.MailFailed
-		}
-		states[i] = carecontract.MailState{OutboxID: status.ID, State: state}
+		states[i] = carecontract.MailState{OutboxID: status.ID, State: contractMailState(status.Outcome), Outcome: string(status.Outcome)}
 	}
 	return states, nil
 }
@@ -131,12 +152,12 @@ type CareContractSettings interface {
 // The Worker's context carries no unit of work; the job attaches unit, as the
 // HTTP middleware does for a request.
 func CareContractRemindersJob(unit tenant.UnitOfWork, organizations CareContractOrganizations, settings CareContractSettings,
-	delivery deliveryRuntime.Capability, parentsURL string) schedulerPorts.CareContractReminders {
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, parentsURL string) schedulerPorts.CareContractReminders {
 	reminders := careContractCompose.NewReminders(careContractCompose.ReminderPorts{
 		Organizations: careContractTraeger{organizations: organizations},
 		Settings:      careContractReminderSettings{settings: settings},
 		Sender:        CareContractSender{Settings: settings},
-		Post:          CareContractPost{Delivery: delivery}, Runtime: CareContractRuntime{}, Links: CareContractLinks(parentsURL),
+		Post:          CareContractPost{Delivery: delivery, Outcomes: outcomes}, Runtime: CareContractRuntime{}, Links: CareContractLinks(parentsURL),
 	})
 	return func(ctx context.Context) error {
 		return reminders.RemindDue(tenant.WithUnitOfWork(ctx, unit))

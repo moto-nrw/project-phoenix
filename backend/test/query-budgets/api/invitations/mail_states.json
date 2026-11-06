@@ -1,0 +1,6 @@
+{
+  "scenario": "api.invitations.mail_states",
+  "max": 1,
+  "exact": true,
+  "description": "api/auth/invitations (#5934): what Delivery knows about the last mail of the listed invitations, in one read for the whole list."
+}

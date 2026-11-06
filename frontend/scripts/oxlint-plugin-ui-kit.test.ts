@@ -46,6 +46,82 @@ describe.concurrent("ui-kit/no-hand-rolled-overlay", () => {
   });
 });
 
+describe.concurrent("ui-kit/no-hand-rolled-portal-nav", () => {
+  const RULE = "ui-kit(no-hand-rolled-portal-nav)";
+
+  it.each([
+    "rounded-full bg-white/95 shadow-[0_-2px_20px_rgba(0,0,0,0.08)]",
+    "absolute top-0 h-full rounded-full bg-gray-100",
+    "relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full",
+    "w-64 border-r border-gray-200/70 bg-white/95",
+    "top-[73px] h-[calc(100vh-73px)]",
+    "top-[121px] h-[calc(100vh-121px)]",
+    "top-[153px] h-[calc(100vh-153px)]",
+  ])("rejects the shell classes %s outside the kit", async (classes) => {
+    const { output } = await lintSource(
+      `export const Probe = () => <div className="${classes}" />;`,
+      "src/components/parent/shell/probe-nav.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it("finds the classes in a template string too", async () => {
+    const { output } = await lintSource(
+      "const width = 'w-64 border-r';\nexport const aside = `${width} border-gray-200/70 bg-white/95`;",
+      "src/components/dashboard/probe-nav.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it("finds shell classes when conditional combinations overflow", async () => {
+    const { output } = await lintSource(
+      [
+        "declare const a: boolean;",
+        "declare const b: boolean;",
+        "declare const c: boolean;",
+        "declare const d: boolean;",
+        "declare const e: boolean;",
+        "declare const f: boolean;",
+        "declare const g: boolean;",
+        'export const aside = `${a ? "border-r" : "border-l"} ${b ? "border-gray-200/70" : "border-gray-100"} ${c ? "bg-white/95" : "bg-gray-50"} ${d ? "p-1" : "p-2"} ${e ? "m-1" : "m-2"} ${f ? "gap-1" : "gap-2"} ${g ? "h-8" : "h-9"}`;',
+      ].join("\n"),
+      "src/components/dashboard/probe-nav.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it("finds shell classes combined by cn", async () => {
+    const { output } = await lintSource(
+      `declare function cn(...classes: string[]): string;
+      export const Probe = () => <aside className={cn("border-r border-gray-200/70", "bg-white/95")} />;`,
+      "src/components/dashboard/probe-nav.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it("rejects the kit's sidebar row classes outside the kit", async () => {
+    const { output } = await lintSource(
+      `import { portalSidebarRowClasses } from "~/components/ui/sidebar-geometry";
+      void portalSidebarRowClasses;`,
+      "src/components/parent/shell/probe-nav.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it("allows the kit itself and unrelated sticky headers", async () => {
+    const shell = await lintSource(
+      `const aside = "border-r border-gray-200/70 bg-white/95"; void aside;`,
+      "src/components/ui/probe-nav.tsx",
+    );
+    expect(shell.output).not.toContain(RULE);
+    const other = await lintSource(
+      `const head = "sticky top-0 border-r bg-white/95"; void head;`,
+      "src/components/dashboard/probe-nav.tsx",
+    );
+    expect(other.output).not.toContain(RULE);
+  });
+});
+
 describe.concurrent("ui-kit/no-hand-rolled-dropzone", () => {
   const source = `function Probe() {
     return <div onDrop={() => undefined}>Ablegen</div>;

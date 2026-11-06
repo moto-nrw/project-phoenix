@@ -7,6 +7,8 @@ export type GroupFilters = {
 };
 export const groupKeys = {
   family: SWR_FAMILIES.groups,
+  /** Prefix of every group's live student list; SSE invalidates by it. */
+  liveFamily: "ogs-students-",
   live: (id: string | null) => `ogs-students-${id ?? "auto"}`,
   key: (params: GroupFilters = {}) => resourceKey("groups-list-", params),
 } as const;

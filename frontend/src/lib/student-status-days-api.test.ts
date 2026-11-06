@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api-error";
+
+// The session gate is sessionFetch's own concern; here it hands straight to
+// fetch so the tests can stand in for the BFF route.
+vi.mock("./session-cache", async () => {
+  const { transportFetch } =
+    await vi.importActual<typeof import("./api-error")>("./api-error");
+  return { sessionFetch: transportFetch };
+});
 import {
   bulkCreateStudentStatusDays,
   createStudentStatusDays,
@@ -31,14 +39,14 @@ describe("student-status-days-api", () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(
-        Response.json({ status: "success", data: [backendDay] }),
+        Response.json({ success: true, data: [backendDay] }),
       );
 
     const days = await fetchStudentStatusDays("42", "2026-05-25", "2026-05-29");
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/students/42/status-days?from=2026-05-25&to=2026-05-29",
-      undefined,
+      expect.objectContaining({ method: "GET" }),
     );
     expect(days).toEqual([
       expect.objectContaining({
@@ -53,7 +61,7 @@ describe("student-status-days-api", () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(
-        Response.json({ status: "success", data: [backendDay] }),
+        Response.json({ success: true, data: [backendDay] }),
       );
 
     const days = await createStudentStatusDays("42", "sick", [
@@ -63,7 +71,6 @@ describe("student-status-days-api", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/api/students/42/status-days", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         status: "sick",
         dates: ["2026-05-26", "2026-05-27"],
@@ -143,15 +150,16 @@ describe("student-status-days-api", () => {
 
     await deleteStudentStatusDay("42", "7");
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/students/42/status-days/7", {
-      method: "DELETE",
-    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/students/42/status-days/7",
+      expect.objectContaining({ method: "DELETE" }),
+    );
   });
 
   it("posts bulk class trip ranges with numeric student ids and reason", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       Response.json({
-        status: "success",
+        success: true,
         data: { student_count: 2, date_count: 3 },
       }),
     );
@@ -166,7 +174,6 @@ describe("student-status-days-api", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/api/students/status-days/bulk", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         student_ids: [42, 43],
         status: "class_trip",
@@ -181,7 +188,7 @@ describe("student-status-days-api", () => {
   it("omits empty bulk reasons and throws fallback messages on failure", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       Response.json({
-        status: "success",
+        success: true,
         data: { student_count: 1, date_count: 1 },
       }),
     );
@@ -195,7 +202,6 @@ describe("student-status-days-api", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/api/students/status-days/bulk", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         student_ids: [42],
         status: "class_trip",
@@ -249,25 +255,6 @@ describe("student-status-days-api", () => {
     expect((error as StudentStatusDayConflictError).totalCount).toBe(48);
   });
 
-  it("throws backend errors from successful HTTP responses as ApiError with their code", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      Response.json({
-        detail: "Bereits geplant",
-        code: "general.business_rejection",
-      }),
-    );
-
-    const error = await fetchStudentStatusDays(
-      "42",
-      "2026-05-25",
-      "2026-05-29",
-    ).catch((caught: unknown) => caught);
-
-    // The backend sentence is diagnosis only (ADR 0006); the code is the identity.
-    expect(error).toBeInstanceOf(ApiError);
-    expect((error as ApiError).code).toBe("general.business_rejection");
-  });
-
   it("keeps code and request ID of a failed write", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       Response.json(
@@ -295,22 +282,23 @@ describe("student-status-days-api", () => {
     );
   });
 
-  it("throws fallback messages when fetch or delete fail", async () => {
+  it("classifies a failed read or delete by its status", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response("nope", { status: 500 }),
     );
 
     await expect(
       fetchStudentStatusDays("42", "2026-05-25", "2026-05-29"),
-    ).rejects.toThrow("Geplante Einträge konnten nicht geladen werden");
+    ).rejects.toMatchObject({ status: 500, code: "general.server" });
 
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response("nope", { status: 500 }),
     );
 
-    await expect(deleteStudentStatusDay("42", "7")).rejects.toThrow(
-      "Geplanter Eintrag konnte nicht gelöscht werden",
-    );
+    await expect(deleteStudentStatusDay("42", "7")).rejects.toMatchObject({
+      status: 500,
+      code: "general.server",
+    });
   });
 
   it("fetches the tenant-wide status day overview", async () => {
@@ -340,9 +328,7 @@ describe("student-status-days-api", () => {
     };
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
-        Response.json({ status: "success", data: overview }),
-      );
+      .mockResolvedValueOnce(Response.json({ success: true, data: overview }));
 
     const result = await fetchStatusDayOverview("2026-05-25", "2026-05-29", {
       page: 1,
@@ -353,7 +339,7 @@ describe("student-status-days-api", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/students/status-days?from=2026-05-25&to=2026-05-29&page=1&page_size=50",
-      undefined,
+      expect.objectContaining({ method: "GET" }),
     );
     expect(result).toEqual(overview);
   });
@@ -394,7 +380,7 @@ describe("student-status-days-api", () => {
     ).rejects.toMatchObject({ code: "general.unavailable" });
   });
 
-  it("throws a fallback message when the overview request fails", async () => {
+  it("classifies a failed overview by its status", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response("nope", { status: 500 }),
     );
@@ -406,6 +392,6 @@ describe("student-status-days-api", () => {
         status: "all",
         groupId: "all",
       }),
-    ).rejects.toThrow("Abwesenheiten konnten nicht geladen werden");
+    ).rejects.toMatchObject({ status: 500, code: "general.server" });
   });
 });

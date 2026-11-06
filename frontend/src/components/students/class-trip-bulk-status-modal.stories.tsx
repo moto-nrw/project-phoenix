@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { fn } from "storybook/test";
 import { ClassTripBulkStatusModal } from "./class-trip-bulk-status-modal";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 
 function makeStudent(id: string, name: string): Student {
   return {

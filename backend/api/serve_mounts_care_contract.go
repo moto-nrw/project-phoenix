@@ -31,12 +31,12 @@ import (
 // /traeger/contracts and the templates of the offerings at
 // /traeger/contract-templates.
 func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender, parentsURL string) {
-	resource := NewCareContractHTTP(organizations, settings, delivery, accessLog, parentsURL)
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) {
+	resource := NewCareContractHTTP(organizations, settings, delivery, outcomes, accessLog, parentsURL)
 	root.Mount("/traeger/contracts", resource.ContractRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/contract-templates", resource.TemplateRouter(ProtectedTraegerRoutes))
 	// The one-time link of a contract mail (#4679), without an account.
-	signing := careContractCompose.NewSigning(careContractSignaturePorts(organizations, settings, delivery, parentsURL))
+	signing := careContractCompose.NewSigning(careContractSignaturePorts(organizations, settings, delivery, outcomes, parentsURL))
 	root.Mount("/public/care-contract-signing", careContractHTTP.NewSigningResource(signing).PublicRouter())
 }
 
@@ -45,11 +45,11 @@ func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations
 // base of the parents portal, the name and letterhead of the Träger and
 // Delivery's outbox.
 func careContractSignaturePorts(organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	delivery deliveryRuntime.Capability, parentsURL string) careContractCompose.SignaturePorts {
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, parentsURL string) careContractCompose.SignaturePorts {
 	return careContractCompose.SignaturePorts{
 		Ledger: owners.NewCareContractSignatures(), Links: owners.CareContractLinks(parentsURL),
 		Sender: owners.CareContractSender{Settings: settings},
-		Post:   owners.CareContractPost{Delivery: delivery}, Runtime: owners.CareContractRuntime{},
+		Post:   owners.CareContractPost{Delivery: delivery, Outcomes: outcomes}, Runtime: owners.CareContractRuntime{},
 	}
 }
 
@@ -59,16 +59,16 @@ func careContractSignaturePorts(organizations HolidayOrganizations, settings Tra
 // tenant transaction, the letterhead and the contract template to the
 // master data and the branding of the Träger, and the mail to Delivery.
 func NewCareContractHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender, parentsURL string) *careContractHTTP.Resource {
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) *careContractHTTP.Resource {
 	letterheads := careContractLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(),
 		templates: organizationTenancyCompose.NewTraegerDocumentTemplates(), settings: settings}
 	contractPorts := careContractCompose.ContractPorts{
-		Letterheads: letterheads, Post: owners.CareContractPost{Delivery: delivery},
+		Letterheads: letterheads, Post: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes},
 		Runtime: owners.CareContractRuntime{}, Access: careContractAccessLog{log: accessLog},
 		Ledger: owners.NewCareContractSignatures(), Links: owners.CareContractLinks(parentsURL),
 	}
 	contracts := careContractCompose.NewContracts(contractPorts)
-	paper := careContractCompose.NewPaperSignatures(contractPorts, careContractSignaturePorts(organizations, settings, delivery, parentsURL))
+	paper := careContractCompose.NewPaperSignatures(contractPorts, careContractSignaturePorts(organizations, settings, delivery, outcomes, parentsURL))
 	intake := careContractCompose.NewIntake(careContractCompose.IntakePorts{
 		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications()},
 		Bookings: careContractBookings{offerings: carePlanCompose.NewContractOfferings(), bookings: carePlanCompose.NewOfferingBookings()},

@@ -53,6 +53,7 @@ func (f *fakeProfileRepo) FindByID(ctx context.Context, id int64) (*peopleValues
 func (f *fakeProfileRepo) Update(ctx context.Context, p *peopleValues.GuardianProfileSnapshot) error {
 	return f.updateFn(ctx, p)
 }
+func (f *fakeProfileRepo) SetEmailsStopped(context.Context, int64, bool) error { return nil }
 func (f *fakeProfileRepo) LockByIDForUpdate(ctx context.Context, id int64) error {
 	return f.lockFn(ctx, id)
 }

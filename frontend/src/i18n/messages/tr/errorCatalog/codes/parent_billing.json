@@ -40,5 +40,8 @@
   "recipient_email_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "sibling_group_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "sibling_group_invoiced": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-  "sibling_group_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+  "sibling_group_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "letter_mail_delayed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "letter_mail_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "letter_mail_block_unreadable": "Bu adresin engelli olup olmadığı şu anda kontrol edilemiyor. Lütfen daha sonra tekrar deneyin."
 }

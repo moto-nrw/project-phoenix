@@ -28,6 +28,11 @@ func (m *CareContractTestMails) ContractMailStates(context.Context, int64, int64
 	return nil, nil
 }
 
+// ContractMailBlock holds no address back.
+func (m *CareContractTestMails) ContractMailBlock(context.Context, int64, string, string) (string, error) {
+	return "", nil
+}
+
 // Purposes lists the purposes of the recorded mails.
 func (m *CareContractTestMails) Purposes() []string {
 	m.mu.Lock()

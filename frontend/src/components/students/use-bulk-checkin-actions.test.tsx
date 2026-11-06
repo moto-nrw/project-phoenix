@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import type {
   SchoolCheckinAction,
   SchoolCheckinBatchOutcome,

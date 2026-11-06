@@ -674,7 +674,7 @@ function TimetablesContent() {
       ? "timetable-student-list"
       : null,
     // Nur Name und ID werden gebraucht: die Namens-Projektion (#4996).
-    () => fetchStudents({ page_size: 500, view: "names" }),
+    () => fetchStudents({ pageSize: 500, view: "names" }),
   );
   // Auswahl des Gruppenfilters (#4766). Die Serienansicht filtert nicht.
   const { data: filterGroups } = useSWRAuth(

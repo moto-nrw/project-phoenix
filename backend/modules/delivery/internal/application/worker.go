@@ -159,20 +159,19 @@ func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts 
 	w.observe(domain.Observation{Operation: "sent", Transport: string(intent.Transport), Template: intent.Template, Count: 1})
 }
 
-// heldBackBySuppression ends a mail to a suppressed address before it is sent.
-// A failed read keeps the mail for a later attempt: the list decides, so it
-// must be known.
+// heldBackBySuppression ends a mail that stays back before it is sent. A failed
+// read keeps the mail for a later attempt: the holds decide, so they must be known.
 func (w *Worker) heldBackBySuppression(ctx context.Context, intent domain.Intent, stats *deliveryContract.WorkerStats) bool {
-	suppressed, err := w.addressSuppressed(ctx, intent)
+	hold, err := w.mailHold(ctx, intent)
 	if err != nil {
 		w.finalizeDeferred(ctx, intent, leaseToken(intent), err, stats)
 		return true
 	}
-	if suppressed {
-		w.finalizeCancelled(ctx, intent, leaseToken(intent), errAddressSuppressed, stats)
-		w.recordSuppressedSend(ctx, intent)
+	if hold != nil {
+		w.finalizeCancelled(ctx, intent, leaseToken(intent), hold, stats)
+		w.recordHeldSend(ctx, intent, hold)
 	}
-	return suppressed
+	return hold != nil
 }
 
 func (w *Worker) finalizeCancelled(ctx context.Context, intent domain.Intent, token string, reason error, stats *deliveryContract.WorkerStats) {

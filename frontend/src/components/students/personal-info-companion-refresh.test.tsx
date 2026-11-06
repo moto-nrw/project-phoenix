@@ -31,9 +31,9 @@ vi.mock("~/lib/tenant-router", () => ({
 
 import { PersonalInfoReadOnly } from "./student-detail-components";
 import { notifyStudentCompanionsChanged } from "~/lib/student-companion-api";
-import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import type { Student } from "~/lib/student-helpers";
 
-const student: ExtendedStudent = {
+const student: Student = {
   id: "1",
   first_name: "Max",
   second_name: "Mustermann",
@@ -42,7 +42,6 @@ const student: ExtendedStudent = {
   school_class: "3a",
   group_id: "g1",
   group_name: "Gruppe 1",
-  buskind: false,
   pickup_status: "selbst",
   health_info: undefined,
   address_street: undefined,

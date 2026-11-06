@@ -63,6 +63,9 @@ const CodeStudentsExcusedRequestStatusConflict = "students.excused_request_statu
 const CodeStudentsExportSelectionTooLarge = "students.export_selection_too_large"
 const CodeStudentsGuardianAccessRevoked = "students.guardian_access_revoked"
 const CodeStudentsGuardianAccountHolderTooLong = "students.guardian_account_holder_too_long"
+const CodeStudentsGuardianEmailBlockLiftFailed = "students.guardian_email_block_lift_failed"
+const CodeStudentsGuardianEmailBlockNeedsReview = "students.guardian_email_block_needs_review"
+const CodeStudentsGuardianEmailBlockStays = "students.guardian_email_block_stays"
 const CodeStudentsGuardianEmailTaken = "students.guardian_email_taken"
 const CodeStudentsGuardianIbanInvalid = "students.guardian_iban_invalid"
 const CodeStudentsOfferingChangeCapacityFull = "students.offering_change_capacity_full"
@@ -154,6 +157,9 @@ var errorCodeClassesStudents = []errorCodeClass{
 	{CodeStudentsExportSelectionTooLarge, "input"},
 	{CodeStudentsGuardianAccessRevoked, "business_rejection"},
 	{CodeStudentsGuardianAccountHolderTooLong, "input"},
+	{CodeStudentsGuardianEmailBlockLiftFailed, "unavailable"},
+	{CodeStudentsGuardianEmailBlockNeedsReview, "business_rejection"},
+	{CodeStudentsGuardianEmailBlockStays, "business_rejection"},
 	{CodeStudentsGuardianEmailTaken, "input"},
 	{CodeStudentsGuardianIbanInvalid, "input"},
 	{CodeStudentsOfferingChangeCapacityFull, "business_rejection"},

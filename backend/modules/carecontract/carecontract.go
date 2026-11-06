@@ -87,6 +87,12 @@ var (
 	ErrRecipientMissing = errors.New("the contract party has no e-mail address")
 	// ErrMailPending reports a send while the last mail still waits.
 	ErrMailPending = errors.New("the last mail of the contract still waits")
+	// ErrMailDelayed reports a send while the server still tries the last mail.
+	ErrMailDelayed = errors.New("the last mail of the contract is delayed")
+	// ErrMailBlocked reports a send a stop, a list or the provider would hold back.
+	ErrMailBlocked = errors.New("a mail to this address would stay back")
+	// ErrMailBlockUnreadable reports a block moto could not read just now.
+	ErrMailBlockUnreadable = errors.New("the mail provider's block could not be read")
 	// ErrLetterheadTooLong reports a letterhead or footer that leaves too
 	// little room for the contract.
 	ErrLetterheadTooLong = errors.New("the letterhead leaves too little room for the contract")
@@ -272,6 +278,11 @@ type Mailing struct {
 	Recipient string    `json:"recipient"`
 	SentAt    time.Time `json:"sent_at"`
 	State     string    `json:"state"`
+	// Outcome is what Delivery knows about the mail, as with the Abrechnung's letters.
+	Outcome string `json:"outcome,omitempty"`
+	// SendBlock says why another mail to this address would stay back now. Only the
+	// newest mailing carries it.
+	SendBlock string `json:"send_block,omitempty"`
 	// OutboxID is the mail in Delivery's outbox; the wire never shows it.
 	OutboxID int64 `json:"-"`
 }
@@ -282,6 +293,15 @@ const (
 	MailSent    = "sent"
 	MailFailed  = "failed"
 	MailUnknown = "unknown"
+)
+
+// Why another mail would stay back now, in Delivery's words.
+const (
+	MailBlockDelayed    = "delayed"
+	MailBlockStopped    = "stopped"
+	MailBlockAddress    = "address"
+	MailBlockProvider   = "provider"
+	MailBlockUnreadable = "provider_unknown"
 )
 
 // ContractDetail is one contract with its version, parties and sends.
@@ -320,10 +340,13 @@ type SendSkip struct {
 
 // The reasons of a SendSkip.
 const (
-	SkipRecipientMissing = "recipient_missing"
-	SkipPartnerMissing   = "partner_missing"
-	SkipMailPending      = "mail_pending"
-	SkipNotSendable      = "not_sendable"
+	SkipRecipientMissing    = "recipient_missing"
+	SkipPartnerMissing      = "partner_missing"
+	SkipMailPending         = "mail_pending"
+	SkipMailDelayed         = "mail_delayed"
+	SkipMailBlocked         = "mail_blocked"
+	SkipMailBlockUnreadable = "mail_block_unreadable"
+	SkipNotSendable         = "not_sendable"
 )
 
 // Contracts serves the contracts of a Träger to its Träger-Büro. Every

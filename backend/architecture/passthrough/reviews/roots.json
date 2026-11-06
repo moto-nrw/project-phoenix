@@ -851,9 +851,9 @@
       "reason": "ADR 0126 (#4671): Consumer-port adapter of the post of the confirmation letters; it marshals the notice and enqueues the Träger's deferred push that a letter is in the inbox of the parents portal through Delivery in the caller's Träger transaction, keyed by the letter."
     },
     {
-      "decision": "0123",
-      "id": "api/parentBillingLetterPost.LetterMailStates",
-      "reason": "ADR 0123 (#4670): Consumer-port adapter of the post of the confirmation letters; it reads the mails of a billing run of the session's Träger through Delivery in the caller's Träger transaction and names their state in the Elternabrechnung's words."
+      "decision": "0090",
+      "id": "api/parentBillingLetterPost.LetterMailBlocks",
+      "reason": "#5934: Consumer-port adapter of the post of the letters; it turns the provider's current block into the Elternabrechnung's words."
     },
     {
       "decision": "0123",
@@ -1424,6 +1424,11 @@
       "decision": "0090",
       "id": "roots/owners/CallerRows.TeacherRow",
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
+    },
+    {
+      "decision": "0090",
+      "id": "roots/owners/CareContractPost.ContractMailStates",
+      "reason": "#5934: Consumer-port adapter of the contract's post; it names Delivery's outcome of each mail in the contract's words."
     },
     {
       "decision": "0155",
