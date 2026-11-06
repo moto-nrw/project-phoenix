@@ -26,6 +26,7 @@
   "cost_takeover_with_exemption": "{object} could not be changed. Please check its current status.",
   "debtor_number_invalid": "{object} could not be saved. Please check your entries.",
   "debtor_number_locked": "{object} could not be changed. Please check its current status.",
+  "family_not_found": "{object} could not be changed. Please check its current status.",
   "holiday_quote_invalid": "The fee cannot be calculated for these weeks. Please reload the page.",
   "invoice_cancelled": "{object} could not be changed. Please check its current status.",
   "invoice_credited": "{object} could not be changed. Please check its current status.",

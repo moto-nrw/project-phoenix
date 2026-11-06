@@ -13,25 +13,25 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 	if limit <= 0 || limit > 50 {
 		limit = 25
 	}
-	query = normalizeRecipientQuery(query)
+	search := recipientQueryFor(query)
 
-	staffOptions, err := s.staffRecipientOptions(ctx, query, limit)
+	staffOptions, err := s.staffRecipientOptions(ctx, search.folded, limit)
 	if err != nil {
 		return nil, err
 	}
-	parentOptions, err := s.parentRecipientOptions(ctx, query, limit)
+	parentOptions, err := s.parentRecipientOptions(ctx, search, limit)
 	if err != nil {
 		return nil, err
 	}
-	groupOptions, err := s.groupRecipientOptions(ctx, query, limit)
+	groupOptions, err := s.groupRecipientOptions(ctx, search.folded, limit)
 	if err != nil {
 		return nil, err
 	}
-	classOptions, err := s.classRecipientOptions(ctx, query, limit)
+	classOptions, err := s.classRecipientOptions(ctx, search.folded, limit)
 	if err != nil {
 		return nil, err
 	}
-	studentOptions, err := s.studentRecipientOptions(ctx, query, limit)
+	studentOptions, err := s.studentRecipientOptions(ctx, search.folded, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -43,6 +43,19 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 		Classes:  classOptions,
 		Students: studentOptions,
 	}, nil
+}
+
+// recipientQuery is the search as typed, for the database search that folds
+// on its own, and folded, for the in-memory lists (#5791). Folding before the
+// database misses e-mail addresses with umlauts and letters Go folds but
+// PostgreSQL keeps, such as й.
+type recipientQuery struct {
+	text   string
+	folded string
+}
+
+func recipientQueryFor(query string) recipientQuery {
+	return recipientQuery{text: strings.TrimSpace(query), folded: normalizeRecipientQuery(query)}
 }
 
 // normalizeRecipientQuery trims the search query and folds it for
@@ -86,13 +99,13 @@ func (s *service) staffRecipientOptions(ctx context.Context, query string, limit
 	return staffOptions, nil
 }
 
-func (s *service) parentRecipientOptions(ctx context.Context, query string, limit int) ([]ParentOption, error) {
+func (s *service) parentRecipientOptions(ctx context.Context, query recipientQuery, limit int) ([]ParentOption, error) {
 	// Over-fetch text matches before filtering: reachability (active portal
 	// account + guardian role) and student visibility are applied below, so
 	// capping SearchByText at `limit` would let unreachable matches consume the
 	// budget and hide reachable parents ranked later. Fetch a larger candidate
 	// pool, then cap the filtered result at `limit`.
-	parents, err := s.cfg.GuardianProfileRepo.SearchByText(ctx, query, limit*parentSearchCandidateFactor)
+	parents, err := s.cfg.GuardianProfileRepo.SearchByText(ctx, query.text, limit*parentSearchCandidateFactor)
 	if err != nil {
 		return nil, err
 	}

@@ -54,6 +54,7 @@ import {
   errorAlertActions,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
+import { Textarea } from "~/components/ui/textarea";
 import {
   useApiErrorDisplay,
   useApiLoadError,
@@ -1182,17 +1183,13 @@ function StaffCalendarPageInner() {
                       </span>
                     </label>
 
-                    <label className="block">
-                      <span className="mb-2 block text-sm font-medium text-gray-700">
-                        Beschreibung
-                      </span>
-                      <textarea
-                        className="block min-h-24 w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
-                        value={description}
-                        onChange={(event) => setDescription(event.target.value)}
-                        disabled={submitting}
-                      />
-                    </label>
+                    <Textarea
+                      label="Beschreibung"
+                      className="min-h-24 resize-y px-4 py-3 text-base"
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      disabled={submitting}
+                    />
 
                     <div
                       className={`grid gap-4 ${editingId ? "" : "md:grid-cols-2"}`}

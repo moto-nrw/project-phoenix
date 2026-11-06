@@ -14,6 +14,7 @@ import (
 	common "github.com/moto-nrw/project-phoenix/api/common"
 	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // Accident reports (Unfallanzeige, #4771). The routes mirror the document
@@ -345,7 +346,7 @@ func (rs *Resource) downloadAccidentReportPDF(w http.ResponseWriter, r *http.Req
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", rendered.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, rendered.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", rendered.Filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(rendered.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(rendered.Data)

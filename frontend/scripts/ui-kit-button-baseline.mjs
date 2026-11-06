@@ -40,22 +40,9 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/ui/listbox-dropdown.tsx",
-    lines: [1010],
-    reason:
-      "Auslöser des Kit-Auswahlfelds (ListboxDropdown), Eingabefeld, kein Knopf (#5580)",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [441],
+    lines: [442],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/ui/date-range-picker.tsx",
-    lines: [82],
-    reason: "Auslöser des Zeitraumfelds (Eingabefeld)",
   },
   {
     rule: "no-hand-rolled-button",
@@ -126,7 +113,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3140],
+    lines: [3133],
     reason: "Schalter (role=switch)",
   },
   {

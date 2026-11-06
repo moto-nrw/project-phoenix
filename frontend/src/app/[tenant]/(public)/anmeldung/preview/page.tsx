@@ -107,27 +107,23 @@ function EnrollmentPreviewPageContent() {
         label: "Vorschau wird geladen",
         hint: "Die Formularvorschau wird geladen.",
         className: "bg-gray-100 text-gray-600",
-        dotClassName: "bg-gray-300",
       }
     : activeAssignedPhaseCount > 0
       ? {
           label: "Aktiv in Anmeldephase",
           hint: `Diese Vorlage wird in ${activeAssignedPhaseCount} aktiver Anmeldephase verwendet.`,
           className: "bg-moto-green/10 text-moto-green-strong",
-          dotClassName: "bg-moto-green",
         }
       : assignedPhaseCount > 0
         ? {
             label: "In Phase verwendet",
             hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
             className: "bg-moto-green/10 text-moto-green-strong",
-            dotClassName: "bg-moto-green",
           }
         : {
             label: "Nicht live",
             hint: "Diese Formularvorschau ist nicht an eine aktive Anmeldephase gebunden.",
             className: "bg-gray-100 text-gray-600",
-            dotClassName: "bg-gray-300",
           };
   const previewTitle = loading
     ? "Formularvorschau wird geladen"
@@ -159,10 +155,6 @@ function EnrollmentPreviewPageContent() {
             <span
               className={`mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium ${previewStatus.className}`}
             >
-              <span
-                className={`h-2 w-2 rounded-full ${previewStatus.dotClassName}`}
-                aria-hidden="true"
-              />
               {previewStatus.label}
             </span>
             <p className="mt-4 max-w-3xl text-base leading-7 text-gray-600">

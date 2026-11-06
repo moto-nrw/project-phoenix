@@ -12,9 +12,6 @@ export const timetableMutedSurface =
 export const timetablePopoverSurface =
   "moto-popover-surface overflow-hidden rounded-xl border";
 
-export const timetableTextAreaClass =
-  "w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset transition-colors hover:ring-gray-300 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400";
-
 export const timetableDangerPanel =
   "rounded-xl border border-moto-red/20 bg-moto-red/5 p-3";
 

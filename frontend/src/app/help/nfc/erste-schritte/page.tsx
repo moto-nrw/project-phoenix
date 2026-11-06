@@ -112,10 +112,6 @@ export default function NfcQuickstartPage() {
 
           <div className="flex flex-1 flex-col px-10 py-9 print:px-8 print:py-6">
             <div className="relative grid gap-4 print:gap-3">
-              <div
-                className="absolute top-10 bottom-10 left-1/2 hidden w-[2px] -translate-x-1/2 rounded-full bg-gray-300 md:block print:block"
-                aria-hidden="true"
-              />
               {steps.map((step, index) => {
                 const Icon = step.icon;
                 const isRight = index === 1;
@@ -166,16 +162,6 @@ export default function NfcQuickstartPage() {
                       isRight ? "justify-end" : "justify-start",
                     ].join(" ")}
                   >
-                    <div
-                      className={[
-                        "bg-moto-green absolute top-8 hidden h-3 w-3 items-center justify-center rounded-full md:flex print:flex",
-                        isRight
-                          ? "left-1/2 -translate-x-[calc(100%+2px)]"
-                          : "left-1/2 translate-x-2",
-                      ].join(" ")}
-                      aria-hidden="true"
-                    />
-
                     <div
                       className={[
                         // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- printed guide step card: inside .moto-dotted-background--guide the print rules turn moto-content-surface transparent, which would let the dotted page background show through this bordered card in the PDF

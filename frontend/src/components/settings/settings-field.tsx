@@ -1297,20 +1297,16 @@ export function SettingsField({
               textOnly: audience === "traeger",
             })
           ) : (
-            <label className="block">
-              <span className="text-sm font-medium text-gray-800">
-                Rechtstext
-              </span>
-              <textarea
-                value={legalActivationText}
-                onChange={(event) => {
-                  setLegalActivationText(event.target.value);
-                  activationErrors.clear();
-                }}
-                rows={8}
-                className="mt-1 block w-full resize-y rounded-lg border-0 bg-white px-3 py-2.5 font-mono text-sm leading-6 text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
-              />
-            </label>
+            <Textarea
+              label="Rechtstext"
+              value={legalActivationText}
+              onChange={(event) => {
+                setLegalActivationText(event.target.value);
+                activationErrors.clear();
+              }}
+              rows={8}
+              className="resize-y py-2.5 font-mono leading-6"
+            />
           )}
         </div>
       </ConfirmationModal>
@@ -1368,20 +1364,16 @@ export function SettingsField({
               textOnly: audience === "traeger",
             })
           ) : (
-            <label className="block">
-              <span className="text-sm font-medium text-gray-800">
-                Rechtstext
-              </span>
-              <textarea
-                value={legalTextEditDraft}
-                onChange={(event) => {
-                  setLegalTextEditDraft(event.target.value);
-                  textEditErrors.clear();
-                }}
-                rows={10}
-                className="mt-1 block w-full resize-y rounded-lg border-0 bg-white px-3 py-2.5 font-mono text-sm leading-6 text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
-              />
-            </label>
+            <Textarea
+              label="Rechtstext"
+              value={legalTextEditDraft}
+              onChange={(event) => {
+                setLegalTextEditDraft(event.target.value);
+                textEditErrors.clear();
+              }}
+              rows={10}
+              className="resize-y py-2.5 font-mono leading-6"
+            />
           )}
           {/* Was noch fehlt, steht dauerhaft da: Speichern ist bis dahin
               gesperrt. */}
@@ -1609,15 +1601,13 @@ function renderAGBSourceEditor({
 
       {mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT ? (
         <div className="space-y-2">
-          <label className="block">
-            <span className="text-sm font-medium text-gray-800">AGB-Text</span>
-            <textarea
-              value={textValue}
-              onChange={(event) => onTextChange(event.target.value)}
-              rows={10}
-              className="mt-1 block w-full resize-y rounded-lg border-0 bg-white px-3 py-2.5 font-mono text-sm leading-6 text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
-            />
-          </label>
+          <Textarea
+            label="AGB-Text"
+            value={textValue}
+            onChange={(event) => onTextChange(event.target.value)}
+            rows={10}
+            className="resize-y py-2.5 font-mono leading-6"
+          />
           {hasDocument && (
             <p className="text-xs text-gray-500">
               Eine PDF ist gespeichert, wird aber aktuell nicht angezeigt.

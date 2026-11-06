@@ -72,7 +72,6 @@ import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { EnrollmentRequestUploadList } from "~/components/enrollment/admin-enrollment-upload-list";
 import { AdminEnrollmentSignature } from "~/components/enrollment/admin-enrollment-signature";
 import { formatCalendarDate } from "~/lib/localized-date-format";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
@@ -1057,15 +1056,6 @@ export function RequestExtraSection({
           <ul className="mt-1.5 space-y-1 text-sm">
             {Object.entries(request.consent_flags ?? {}).map(([key, val]) => (
               <li key={key} className="flex items-center gap-2">
-                <span
-                  className="inline-block h-2 w-2 rounded-full"
-                  style={{
-                    backgroundColor:
-                      val === true
-                        ? MOTO_COLOR_PALETTE.green.base
-                        : MOTO_COLOR_PALETTE.neutral.base,
-                  }}
-                />
                 <span className="text-gray-700">
                   {consentTitles.get(key) ?? CONSENT_LABELS[key] ?? key}:
                 </span>

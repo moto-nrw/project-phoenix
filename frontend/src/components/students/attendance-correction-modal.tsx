@@ -16,8 +16,8 @@ import {
 } from "react";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
@@ -298,62 +298,31 @@ export function AttendanceCorrectionModal({
           ) : null}
         </div>
 
-        <div>
-          <label
-            htmlFor="correction-note"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Bemerkung
-          </label>
-          <textarea
-            id="correction-note"
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            maxLength={NOTE_MAX_LENGTH}
-            rows={3}
-            className="moto-content-surface w-full rounded-md border px-4 py-3 text-sm"
-            placeholder="Keine Bemerkung"
-          />
-        </div>
+        <Textarea
+          id="correction-note"
+          label="Bemerkung"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          maxLength={NOTE_MAX_LENGTH}
+          rows={3}
+          className="resize-y"
+          placeholder="Keine Bemerkung"
+        />
 
-        <div>
-          <FieldLabel
-            htmlFor="correction-reason"
-            required
-            invalid={Boolean(reasonError)}
-            className="mb-1"
-          >
-            Grund der Korrektur
-          </FieldLabel>
-          <textarea
-            id="correction-reason"
-            name="reason"
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            maxLength={REASON_MAX_LENGTH}
-            rows={2}
-            required
-            aria-invalid={reasonError ? true : undefined}
-            aria-describedby={
-              reasonError
-                ? "correction-reason-error correction-reason-help"
-                : "correction-reason-help"
-            }
-            className="moto-content-surface w-full rounded-md border px-4 py-3 text-sm"
-            placeholder="Warum wird der Eintrag geändert?"
-          />
-          {reasonError ? (
-            <p
-              id="correction-reason-error"
-              className="text-moto-red-strong mt-1 text-xs"
-            >
-              {reasonError}
-            </p>
-          ) : null}
-          <p id="correction-reason-help" className="mt-1 text-xs text-gray-500">
-            Bitte ausfüllen. Der Grund bleibt dauerhaft gespeichert.
-          </p>
-        </div>
+        <Textarea
+          id="correction-reason"
+          name="reason"
+          label="Grund der Korrektur"
+          hint="Bitte ausfüllen. Der Grund bleibt dauerhaft gespeichert."
+          error={reasonError ?? undefined}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          maxLength={REASON_MAX_LENGTH}
+          rows={2}
+          required
+          className="resize-y"
+          placeholder="Warum wird der Eintrag geändert?"
+        />
 
         {history.length > 0 ? (
           <div className="border-t border-gray-100 pt-3">

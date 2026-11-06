@@ -9,9 +9,10 @@ import (
 
 // searchLetters maps the letters that carry their accent without a Unicode
 // decomposition, so stripping combining marks leaves them unchanged. ß has
-// no single-letter base and folds to "ss", as PostgreSQL's unaccent does.
+// no single-letter base and folds to "ss", the ligatures æ and œ to "ae" and
+// "oe" (#5791), as PostgreSQL's unaccent does; ǽ decomposes to æ first.
 var searchLetters = strings.NewReplacer(
-	"ł", "l", "ø", "o", "đ", "d", "ı", "i", "ß", "ss",
+	"ł", "l", "ø", "o", "đ", "d", "ı", "i", "ß", "ss", "æ", "ae", "œ", "oe",
 )
 
 // FoldForSearch reduces s to the form a name search compares: lowercase and

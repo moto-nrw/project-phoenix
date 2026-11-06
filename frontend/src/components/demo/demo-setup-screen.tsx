@@ -25,7 +25,7 @@ function LineIcon({ state }: { readonly state: LineState }) {
       <SpinnerIcon className="h-4 w-4 text-gray-600 motion-reduce:animate-none" />
     );
   }
-  return <span className="h-2 w-2 rounded-full bg-gray-300" />;
+  return null;
 }
 
 // Setup screen of the public demo (#3464): names the visitor's OGS and shows

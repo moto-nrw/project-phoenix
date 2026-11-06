@@ -55,6 +55,29 @@ func (seedTraegerBillingCreditStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("credit the invoice: %w", err)
 	}
 	fmt.Println("  Abrechnung: one invoice of the holiday run credited")
+	return seedReadBillingFamilies(rt, auth)
+}
+
+// seedReadBillingFamilies reads the families of the Träger once the run has
+// an invoice, a cancellation and a credit (#4691), so the seed proves the
+// contract of the page "Familien".
+func seedReadBillingFamilies(rt *Runtime, auth AuthRef) error {
+	raw, err := rt.Client.GetWithAuth(auth, "/traeger/billing-families")
+	if err != nil {
+		return fmt.Errorf("read the families of the billing: %w", err)
+	}
+	var envelope struct {
+		Data []struct {
+			ID int64 `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return fmt.Errorf("decode the families of the billing: %w", err)
+	}
+	if len(envelope.Data) == 0 {
+		return fmt.Errorf("the families of the billing are empty after a released run")
+	}
+	fmt.Printf("  Abrechnung: %d families with invoices\n", len(envelope.Data))
 	return nil
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // PublicFeeds are the subscription feeds a calendar token opens.
@@ -45,7 +46,7 @@ func PublicFeed(feeds PublicFeeds) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
-		w.Header().Set("Content-Disposition", "inline; filename=\""+filename+"\"")
+		w.Header().Set("Content-Disposition", textnorm.ContentDisposition("inline", filename))
 		w.Header().Set("Cache-Control", "private, max-age=3600")
 		_, _ = w.Write([]byte(content))
 	}
