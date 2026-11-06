@@ -792,7 +792,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
-      "reason": "Pure classification of a mail outcome in the delivery contract (#5934). No persistent, lock or scope effect.",
+      "reason": "Pure classification of a mail outcome in the delivery contract (#5934); since #5957 the adapter also asks about an earlier refusal of the current address. No persistent, lock or scope effect.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
       "target_owner": "delivery-platform"
@@ -812,7 +812,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
-      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect.",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934); since #5957 also for an earlier refusal of the current address of the same letter. No persistent, lock or scope effect.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
       "target_owner": "delivery-platform"
