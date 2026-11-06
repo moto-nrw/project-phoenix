@@ -434,7 +434,11 @@ function RoomDetailPageContent() {
       actions={
         <>
           {hasOccupancy ? (
-            <RoomStatusBadge isOccupied={room.isOccupied} />
+            // Am Telefon streckt der Kopf seine Aktionen auf volle Breite; die
+            // Pille behält ihre eigene.
+            <span className="inline-flex">
+              <RoomStatusBadge isOccupied={room.isOccupied} />
+            </span>
           ) : null}
           {hasOccupancy && room.isOpenRoom && canOpenSupervision ? (
             <ButtonLink
