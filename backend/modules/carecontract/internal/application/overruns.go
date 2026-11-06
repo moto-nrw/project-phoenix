@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// Overruns serves carecontract.OverrunEvaluations (#4683, ADR 0154). It
+// Overruns serves carecontract.OverrunEvaluations (#4683, ADR 0155). It
 // lists the schools of the Träger, then reads each school's overrun list in
 // that school's tenant transaction, one after the other; no transaction
 // holds the Träger and a school at once (ADR 0105).

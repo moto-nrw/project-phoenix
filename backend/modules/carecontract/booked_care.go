@@ -9,7 +9,7 @@ import (
 )
 
 // The booked care of the contracts as the school reads it (#4683, ADR
-// 0154): the Soll of Soll und Ist. A school reads, in its own tenant
+// 0155): the Soll of Soll und Ist. A school reads, in its own tenant
 // transaction, the contracts whose place of care it is and that left the
 // draft; their versions say from when to when which modules are booked on
 // which weekday and until when the child stays.

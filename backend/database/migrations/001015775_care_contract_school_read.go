@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const careContractSchoolReadVersion = "1.15.760"
+const careContractSchoolReadVersion = "1.15.775"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -21,12 +21,12 @@ func init() {
 }
 
 // careContractSchoolReadUpSQL lets a school read the contracts whose place of
-// care it is (ADR 0088 section 7, ADR 0153 point 9, ADR 0154): the booked
+// care it is (ADR 0088 section 7, ADR 0153 point 9, ADR 0155): the booked
 // services per weekday become the Soll of Soll und Ist (#4683). The school
 // reads only in its own tenant transaction (app.current_tenant_id) and only
 // contracts past the draft: a draft is the Träger-Büro's work in progress and
 // promises nothing yet. The policies are SELECT only; every write stays with
-// the Träger policy of migration 1.15.759. A version and its services carry
+// the Träger policy of migration 1.15.770. A version and its services carry
 // no school, so their policies reach the school through their contract.
 const careContractSchoolReadUpSQL = `
 CREATE POLICY school_read_care_contract_contracts ON care_contract.contracts FOR SELECT

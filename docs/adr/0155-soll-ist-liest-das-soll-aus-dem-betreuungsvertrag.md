@@ -27,7 +27,7 @@ User Stories 56, 57 und 118. Er baut auf
 
 ## Entscheidung
 
-1. **Schule liest ihre Verträge.** Migration 1.15.760 gibt der Schule in
+1. **Schule liest ihre Verträge.** Migration 1.15.775 gibt der Schule in
    ihrer Tenant-Transaktion `SELECT` auf `contracts`, `contract_versions` und
    `contract_version_services` ihrer Verträge, die kein Entwurf mehr sind.
    Ein Entwurf ist Arbeitsstand des Träger-Büros und verspricht nichts.

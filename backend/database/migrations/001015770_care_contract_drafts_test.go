@@ -81,7 +81,7 @@ func TestCareContractsStayWithTheirTraeger(t *testing.T) {
 		return visible
 	}
 	// The school reads the booked care of its sent contract, never the draft
-	// and never a document (#4683, migration 1.15.760).
+	// and never a document (#4683, migration 1.15.775).
 	schoolReads := map[string]int{"care_contract.contracts": 1, "care_contract.contract_versions": 1,
 		"care_contract.contract_version_services": 2, "care_contract.contract_documents": 0}
 	for _, table := range []string{"care_contract.contracts", "care_contract.contract_versions", "care_contract.contract_version_services", "care_contract.contract_documents"} {

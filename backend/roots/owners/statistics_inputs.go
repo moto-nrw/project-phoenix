@@ -159,7 +159,7 @@ func (a StatisticsPlannedCareDays) PlannedCareDays(ctx context.Context, studentI
 
 // StatisticsContractCareDays reads the days the care contracts of the
 // Träger cover at the school, the Soll of Soll und Ist where a contract is
-// in force (#4683, ADR 0154).
+// in force (#4683, ADR 0155).
 type StatisticsContractCareDays struct {
 	Contracts carecontract.BookedCare
 }

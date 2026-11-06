@@ -35,7 +35,7 @@ type PlannedCareDay struct {
 }
 
 // ContractCareDay is what the care contract in force on a day books for the
-// child (#4683, ADR 0154), the input the composition root supplies. Booked
+// child (#4683, ADR 0155), the input the composition root supplies. Booked
 // is false for a weekday the contract books no module on; Pickup is the
 // latest module end, nil when a module of the day names none.
 type ContractCareDay struct {
@@ -50,7 +50,7 @@ const (
 	// PlannedCareSourceCarePlan is the school's care plan (Care Plan).
 	PlannedCareSourceCarePlan PlannedCareSource = "care_plan"
 	// PlannedCareSourceContract is the booked service of the care contract
-	// in force on the day (#4683, ADR 0154): its modules decide whether the
+	// in force on the day (#4683, ADR 0155): its modules decide whether the
 	// day is booked and the latest module end is the pickup.
 	PlannedCareSourceContract PlannedCareSource = "contract"
 )

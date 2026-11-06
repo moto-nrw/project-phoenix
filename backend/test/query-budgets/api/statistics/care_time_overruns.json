@@ -2,5 +2,5 @@
   "scenario": "api.statistics.care_time_overruns",
   "max": 21,
   "exact": false,
-  "description": "GET /statistics/care-time-overruns: fixed tenant and comparison batches plus the access-log lookup, without per-child SQL. TestCareTimesQueryBudgets compares one with four children. Since #4683 one more statement reads the booked care of the school's sent contracts, the Soll where a contract is in force (ADR 0154)."
+  "description": "GET /statistics/care-time-overruns: fixed tenant and comparison batches plus the access-log lookup, without per-child SQL. TestCareTimesQueryBudgets compares one with four children. Since #4683 one more statement reads the booked care of the school's sent contracts, the Soll where a contract is in force (ADR 0155)."
 }
