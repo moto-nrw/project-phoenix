@@ -498,18 +498,16 @@ function WeekBody({
       {/* Mobile: day-strip selector + selected day */}
       <div className="xl:hidden">
         <div className="mb-3 flex gap-1">
-          {weekDates.map((date, i) => {
-            return (
-              <PlanningDayChip
-                key={toISODate(date)}
-                stacked
-                weekdayLabel={WEEKDAY_LABELS[i] ?? ""}
-                dateLabel={shortDate(date)}
-                selected={i === selectedIndex}
-                onClick={() => onSelectMobileDay(i)}
-              />
-            );
-          })}
+          {weekDates.map((date, i) => (
+            <PlanningDayChip
+              key={toISODate(date)}
+              stacked
+              weekdayLabel={WEEKDAY_LABELS[i] ?? ""}
+              dateLabel={shortDate(date)}
+              selected={i === selectedIndex}
+              onClick={() => onSelectMobileDay(i)}
+            />
+          ))}
         </div>
         <CarePlanDayTimeline
           day={selectedDay}
