@@ -9,7 +9,7 @@ import { StatCard } from "~/components/ui/stat-card";
 import type { BillingAmounts } from "~/lib/traeger-billing-families-api";
 import { formatEuro } from "./contribution-format";
 
-export const OPEN_AMOUNT_HINT =
+const OPEN_AMOUNT_HINT =
   "Ohne Storno und Gutschrift. Zahlungen prüft moto nicht.";
 
 export function BillingAmountCards({

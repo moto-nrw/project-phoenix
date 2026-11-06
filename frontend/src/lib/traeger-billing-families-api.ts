@@ -10,7 +10,7 @@ import type { BillingDocumentKind } from "./traeger-billing-api";
 import { traegerRequest } from "./traeger-api";
 
 /** Who pays an invoice. */
-export type BillingPaymentKind = "family" | "cost_bearer" | "exempt";
+type BillingPaymentKind = "family" | "cost_bearer" | "exempt";
 
 export interface BillingPayment {
   readonly kind: BillingPaymentKind;

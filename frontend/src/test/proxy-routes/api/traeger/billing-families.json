@@ -1,0 +1,6 @@
+{
+  "api/traeger/billing-families": ["GET traeger /traeger/billing-families"],
+  "api/traeger/billing-families/[id]": [
+    "GET traeger /traeger/billing-families/id%2F1"
+  ]
+}
