@@ -17,7 +17,7 @@ const letterCurrentAddressSQL = `COALESCE((SELECT current_contact.address FROM p
 // address the person no longer has. The refusal stays with that address, so the mail
 // counts as failed for the corrected one and never for the same one.
 const refusedElsewhereSQL = `(outbox.status = 'sent' AND outbox.delivery_state IN ('unsubscribed', 'complained')
-		AND LOWER(TRIM(outbox.recipient->>'address')) IS DISTINCT FROM ` + letterCurrentAddressSQL + `)`
+		AND COALESCE(LOWER(TRIM(outbox.recipient->>'address')), '') <> COALESCE(` + letterCurrentAddressSQL + `, ''))`
 
 // emailDeliveryStatusesSQL reads a mail's result with the address it went to and,
 // apart from it, the person's current address, where another mail would go.
@@ -47,7 +47,7 @@ const emailDeliveryStatusesSQL = `
 				WHERE earlier.tenant_id = delivery.tenant_id
 					AND earlier.related_entity_type = delivery.related_entity_type
 					AND earlier.related_entity_id = delivery.related_entity_id
-					AND earlier.id IS DISTINCT FROM delivery.outbox_id
+					AND (delivery.outbox_id IS NULL OR earlier.id <> delivery.outbox_id)
 					AND earlier.status = 'sent' AND earlier.delivery_state IN ('unsubscribed', 'complained')
 					AND LOWER(TRIM(earlier.recipient->>'address')) = ` + letterCurrentAddressSQL + `) AS current_address_refused
 		FROM platform.delivery_email_deliveries AS delivery

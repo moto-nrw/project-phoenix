@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"testing/iotest"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -70,6 +69,11 @@ func TestWebhookRefusesAnOversizedBodyBeforeVerifying(t *testing.T) {
 	assert.Empty(t, ingest.provider)
 }
 
+// brokenBody is a connection that broke off while the body was read.
+type brokenBody struct{}
+
+func (brokenBody) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+
 // A body that breaks off is no body too large: the provider must try again.
 func TestWebhookTellsAnInterruptedBodyFromAnOversizedOne(t *testing.T) {
 	t.Parallel()
@@ -79,7 +83,7 @@ func TestWebhookTellsAnInterruptedBodyFromAnOversizedOne(t *testing.T) {
 		failure = err
 		w.WriteHeader(http.StatusTeapot)
 	}
-	request := httptest.NewRequest(http.MethodPost, "/email/delivery/lettermint", iotest.ErrReader(io.ErrUnexpectedEOF))
+	request := httptest.NewRequest(http.MethodPost, "/email/delivery/lettermint", brokenBody{})
 
 	NewResource(ingest, failed, nil).Router().ServeHTTP(httptest.NewRecorder(), request)
 

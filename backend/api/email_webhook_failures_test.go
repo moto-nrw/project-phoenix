@@ -12,7 +12,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"testing/iotest"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/chi/v5"
@@ -123,6 +122,11 @@ func TestEmailWebhookRateLimitWritesTheSecurityEvent(t *testing.T) {
 	assert.Equal(t, rejected, strings.Count(logs.String(), customMiddleware.EventRateLimitExceed))
 }
 
+// failingWebhookBody is a connection that fails while the body is read.
+type failingWebhookBody struct{ err error }
+
+func (b failingWebhookBody) Read([]byte) (int, error) { return 0, b.err }
+
 type noWebhookIngest struct{ calls *int }
 
 func (i noWebhookIngest) IngestEmailWebhook(context.Context, string, func(string) string, []byte) error {
@@ -140,8 +144,8 @@ func TestEmailWebhookRouteAnswersAnInterruptedBodyWithARetry(t *testing.T) {
 		status int
 		code   string
 	}{
-		"broken off": {iotest.ErrReader(io.ErrUnexpectedEOF), http.StatusServiceUnavailable, "general.unavailable"},
-		"timed out":  {iotest.ErrReader(context.DeadlineExceeded), http.StatusServiceUnavailable, "general.unavailable"},
+		"broken off": {failingWebhookBody{io.ErrUnexpectedEOF}, http.StatusServiceUnavailable, "general.unavailable"},
+		"timed out":  {failingWebhookBody{context.DeadlineExceeded}, http.StatusServiceUnavailable, "general.unavailable"},
 		"too large":  {strings.NewReader(strings.Repeat("x", 1<<20+1)), http.StatusRequestEntityTooLarge, "general.request_too_large"},
 	} {
 		t.Run(name, func(t *testing.T) {
