@@ -190,6 +190,7 @@ export function PresenceBadge({
     <div className="flex flex-col items-end">
       <StatusColorBadge
         {...locationPillShape(sizeKey, variant)}
+        wrap
         label={label}
         color={color}
         data-location-status={dataStatus}

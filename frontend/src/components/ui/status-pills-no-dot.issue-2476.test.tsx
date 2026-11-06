@@ -221,6 +221,28 @@ describe("StatusBadge, StatusColorBadge, DataTableStatusBadge without decorative
   );
 });
 
+describe("location pills with a long room name", () => {
+  it("lets the label break instead of squeezing the name beside it", () => {
+    const location = render(
+      <LocationBadge
+        student={{ current_location: "Anwesend - Mehrzweckraum Erdgeschoss" }}
+        displayMode="roomName"
+      />,
+    );
+    expect(
+      location.container.querySelector("[data-location-status]"),
+    ).toHaveClass("whitespace-normal");
+    location.unmount();
+
+    const presence = render(
+      <PresenceBadge student={{ current_location: "Anwesend" }} />,
+    );
+    expect(
+      presence.container.querySelector("[data-presence-state]"),
+    ).toHaveClass("whitespace-normal");
+  });
+});
+
 describe("OriginChip without decorative dot", () => {
   it("renders the source label as a plain kit pill", () => {
     render(<OriginChip label="Soll aus Arbeitszeitmodell" />);
