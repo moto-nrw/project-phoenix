@@ -235,6 +235,20 @@ describe("time picker", () => {
     ).toHaveFocus();
   });
 
+  it("keeps Escape away from a surrounding slide-over or modal", async () => {
+    const user = userEvent.setup();
+    const surroundingOverlay = vi.fn();
+    document.addEventListener("keydown", surroundingOverlay, true);
+    render(<TimeFieldDemo initialValue="15:30" />);
+
+    await openPicker();
+    await user.keyboard("{Escape}");
+    document.removeEventListener("keydown", surroundingOverlay, true);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(surroundingOverlay).not.toHaveBeenCalled();
+  });
+
   it("keeps Tab inside the open picker", async () => {
     const user = userEvent.setup();
     render(<TimeFieldDemo initialValue="15:30" />);

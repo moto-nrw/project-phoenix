@@ -157,6 +157,19 @@ export function TimePickerPanel({
     centerSelectedOption(minuteColumnRef.current);
   }, []);
 
+  // Radix hört im Slide-over schon in der Capture-Phase am Dokument auf Escape
+  // und würde es mitschließen. Nur das Fenster kommt davor.
+  useEffect(() => {
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      close();
+    };
+    window.addEventListener("keydown", closeOnEscape, true);
+    return () => window.removeEventListener("keydown", closeOnEscape, true);
+  }, [close]);
+
   useEffect(() => {
     if (!columnToFocus) return;
     focusColumn(
