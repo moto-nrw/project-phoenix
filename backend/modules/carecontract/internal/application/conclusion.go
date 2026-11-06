@@ -190,31 +190,44 @@ func (c *Conclusions) readConcludingSchools(ctx context.Context, organizationID 
 // transaction: a contract that cannot be sent rolls back whole and stays a
 // candidate, so no half-made draft blocks a later run or the Träger-Büro.
 func (c *Conclusions) concludeOne(ctx context.Context, organizationID int64, draft NewContract) (int64, error) {
-	system := carecontract.Reviewer{OrganizationID: organizationID}
 	var id int64
 	err := c.intake.runtime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
 		var err error
 		if id, err = c.intake.store.InsertContract(txCtx, organizationID, 0, draft); err != nil {
 			return err
 		}
-		record, err := c.intake.store.Contract(txCtx, organizationID, id, true)
-		if err != nil {
+		if err := c.recordAcceptance(txCtx, organizationID, id, draft); err != nil {
 			return err
 		}
-		if err := c.recordAcceptance(txCtx, organizationID, record, draft); err != nil {
-			return err
-		}
-		conclusion := carecontract.Concluded{Method: carecontract.MethodWithApplication, At: *draft.AcceptedAt}
-		record.Concluded = &conclusion
-		if err := c.contracts.deliver(txCtx, system, record, ""); err != nil {
-			return sendHoldBack(err)
-		}
-		if record, err = c.intake.store.Contract(txCtx, organizationID, id, true); err != nil {
-			return err
-		}
-		return concludeContract(txCtx, c.intake.store, organizationID, 0, record, conclusion)
+		return c.concludeRecord(txCtx, organizationID, id,
+			carecontract.Concluded{Method: carecontract.MethodWithApplication, At: *draft.AcceptedAt})
 	})
 	return id, err
+}
+
+// concludeRecord sends and concludes one contract in the caller's Träger
+// transaction. It reads the contract under its row lock first, so a
+// concurrent send, discard or conclusion of the same contract either ran
+// before (and is seen) or waits until this transaction ends: at most one
+// transition per contract wins, and the loser gets a defined error
+// (ErrContractNotFound, ErrContractNotConcludable, ErrMailPending) instead of
+// working on a stale copy (conclusion_race_test.go).
+func (c *Conclusions) concludeRecord(ctx context.Context, organizationID, contractID int64, conclusion carecontract.Concluded) error {
+	record, err := c.intake.store.Contract(ctx, organizationID, contractID, true)
+	if err != nil {
+		return err
+	}
+	if record.Summary.Status != carecontract.StatusDraft && record.Summary.Status != carecontract.StatusSent {
+		return carecontract.ErrContractNotConcludable
+	}
+	record.Concluded = &conclusion
+	if err := c.contracts.deliver(ctx, carecontract.Reviewer{OrganizationID: organizationID}, record, ""); err != nil {
+		return sendHoldBack(err)
+	}
+	if record, err = c.intake.store.Contract(ctx, organizationID, contractID, true); err != nil {
+		return err
+	}
+	return concludeContract(ctx, c.intake.store, organizationID, 0, record, conclusion)
 }
 
 // sendHoldBack names a send failure that the Träger-Büro or the parents can
@@ -276,12 +289,12 @@ func submittedAcceptance(draft NewContract, proof carecontract.AcceptedText) boo
 // recordAcceptance writes the creation of the contract with the proof it
 // rests on into the trail: which conditions block, its checksum, when it was
 // submitted and accepted.
-func (c *Conclusions) recordAcceptance(ctx context.Context, organizationID int64, record ContractRecord, draft NewContract) error {
+func (c *Conclusions) recordAcceptance(ctx context.Context, organizationID, contractID int64, draft NewContract) error {
 	proof, ok := acceptanceProof(draft)
 	if !ok {
 		return errHoldBack{reason: carecontract.SkipAcceptanceMissing}
 	}
-	id, schoolID := record.Summary.ID, draft.Key.SchoolID
+	id, schoolID := contractID, draft.Key.SchoolID
 	return c.intake.store.InsertEvents(ctx, organizationID, []Event{{
 		ContractID: &id, SchoolID: &schoolID, Action: ActionCreate,
 		Details: map[string]any{"request_child_id": draft.Key.RequestChildID, "care_offering_ids": draftOfferings(draft),
