@@ -11,7 +11,7 @@ This kit is the de-facto MOTO design system for project-phoenix (much by Florian
 
 > `globals.css` imports only the package's CSS/tokens. Until the team migrates, the local `ui/` kit is the single source of truth.
 
-Read this rule before frontend UI changes; the root entry point and `frontend/CLAUDE.md` route here. [ADR 0149](../../docs/adr/0149-ui-kit-entscheidet-jede-konkurrierende-variante-einmal.md) decides between competing kit variants, including pieces not built yet; read it before adding or migrating kit pieces.
+[ADR 0149](../../docs/adr/0149-ui-kit-entscheidet-jede-konkurrierende-variante-einmal.md) decides between competing kit variants, including pieces not built yet; read it before adding or migrating kit pieces.
 
 ## Source of truth
 
@@ -127,8 +127,8 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Date / range picker | `DatePicker`, `DateRangePicker` (selection gray-900, today blue); with time: `DateTimePicker` | `~/components/ui/<kebab-name>` |
 | Loading / skeleton | `Loading`, `Skeleton` | `~/components/ui/loading`, `~/components/ui/skeleton` |
 | Avatar | `Avatar` | `~/components/ui/avatar` |
-| Drop or choose a file (`ui-kit/no-hand-rolled-dropzone`) | `Dropzone`; checks beyond `accept` stay with the caller | `~/components/ui/dropzone` |
-| Key or link to copy (`ui-kit/no-hand-rolled-copy-field`) | `CopyField`; button only: `useClipboardCopy` | `~/components/ui/copy-field` |
+| File drop or choice | `Dropzone`; caller checks beyond `accept` | `~/components/ui/dropzone` |
+| Key or link to copy | `CopyField`; button only: `useClipboardCopy` | `~/components/ui/copy-field` |
 | Location / presence badge | `LocationBadge`, `PresenceBadge`, `StudentPresenceBadge` | `~/components/ui/location-badge`, etc. |
 | Status pill | `StatusBadge` (#5584) | `~/components/ui/status-badge` |
 | Pill in a data colour (amber: `WARNING`) | `StatusColorBadge` | `~/components/ui/status-color-badge` |
@@ -267,7 +267,7 @@ Each concept's definition in `lib/concepts/<key>.ts` (collected in `MOTO_CONCEPT
 Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 · `3`=12 · `4`=16 · `5`=20 · `6`=24 · `8`=32 · `10`=40 · `12`=48 · `16`=64 px. Canonical component padding (from the design-system component tokens):
 
 - Card → `p-5` (20px), `p-4` on a phone (`SectionCard`)
-- Button → `md` (default action) `px-4 py-2 text-sm`; `field` `h-10 px-4 text-sm`; `compact` `h-8 px-2.5`; single large actions `px-5 py-3`; under a finger at least 44 px (see [Buttons](#buttons))
+- Button → [Buttons](#buttons)
 - Input → `px-4 py-3`
 
 ### Shadows
@@ -276,7 +276,7 @@ Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 
 
 ## Kit gaps — extend the kit, don't inline a bespoke control
 
-Buttons, `Checkbox`, `OverflowMenu`, `StatusBadge`, `EmptyState`, `SegmentedControl` (a **value** choice; `ui/Tabs` stays for real content panels — Radix tabs activate on **mousedown**, so tests driving a switcher with `fireEvent.click` need `SegmentedControl`) and the selects (no styled native `<select>`) all EXIST — see the table above. When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
+Buttons, `Checkbox`, `OverflowMenu`, `StatusBadge`, `EmptyState`, `SegmentedControl` and the selects (no styled native `<select>`) all EXIST — see the table above. When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
 
 ## Gotchas
 
