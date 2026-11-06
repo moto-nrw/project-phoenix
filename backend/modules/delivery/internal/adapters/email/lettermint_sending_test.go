@@ -134,7 +134,7 @@ func TestOtherMailNeverLeavesOverTheFallback(t *testing.T) {
 func TestFailedFallbackReportsBothTransports(t *testing.T) {
 	t.Parallel()
 	primaryClient, _ := fakeSMTP(t, smtpAnswers{mailFrom: "451 provider down"})
-	fallbackClient, _ := fakeSMTP(t, smtpAnswers{rcptTo: "550 no such mailbox"})
+	fallbackClient, _ := fakeSMTP(t, smtpAnswers{rcptTo: "550 5.1.1 no such mailbox"})
 	mailer := newFallbackMailer(identityMailer(t, primaryClient), identityMailer(t, fallbackClient), slog.New(slog.DiscardHandler))
 
 	_, err := mailer.SendWithReceipt(context.Background(), securityTestMessage())

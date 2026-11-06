@@ -44,6 +44,7 @@ func TestParseMapsEveryEvent(t *testing.T) {
 		"soft bounce":         {event: "message.soft_bounced", extra: `,"response":{"status_code":451,"content":"mailbox busy"}`, state: domain.EmailDeliveryDelayed},
 		"blocked soft bounce": {event: "message.soft_bounced", extra: softBlocked, state: domain.EmailDeliveryDelayed, keepsAddress: true, reroute: true},
 		"hard bounce":         {event: "message.hard_bounced", extra: bounced, state: domain.EmailDeliveryFailed},
+		"policy hard bounce":  {event: "message.hard_bounced", extra: `,"response":{"status_code":550,"enhanced_status_code":"5.7.26","content":"unauthenticated"}`, state: domain.EmailDeliveryFailed, keepsAddress: true},
 		"blocked hard bounce": {event: "message.hard_bounced", extra: blocked, state: domain.EmailDeliveryFailed, keepsAddress: true, reroute: true},
 		"failed":              {event: "message.failed", extra: `,"reason":"TLS","reason_code":"enforced_tls_failed"`, state: domain.EmailDeliveryFailed, keepsAddress: true, reroute: true},
 		"suppressed":          {event: "message.suppressed", extra: `,"reason":"hard_bounce","scope":"team"`, state: domain.EmailDeliverySuppressed, reroute: true},

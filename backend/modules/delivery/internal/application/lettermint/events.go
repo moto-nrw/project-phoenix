@@ -89,6 +89,7 @@ func (*Webhook) Parse(body []byte) (domain.ReportedEmailEvent, error) {
 	}
 	diagnostic := envelope.diagnostic()
 	event := outcome.event(diagnostic)
+	event.KeepsAddress = event.KeepsAddress || envelope.answerClearsAddress()
 	event.ProviderEventID = envelope.ID
 	event.OccurredAt = envelope.Timestamp
 	event.ProviderMessageID = envelope.Data.MessageID
@@ -103,6 +104,17 @@ func (o eventOutcome) event(diagnostic string) domain.EmailDeliveryEvent {
 		Provider: providerName, State: o.state, Diagnostic: diagnostic,
 		KeepsAddress: o.keepsAddress || blocked, Reroute: o.reroute || blocked,
 	}
+}
+
+// answerClearsAddress applies the rule of the school's list to a bounce: only
+// 5.1.x proves a wrong address. An answer without an enhanced code leaves
+// Lettermint's verdict standing.
+func (e webhookEnvelope) answerClearsAddress() bool {
+	if e.Data.Response == nil {
+		return false
+	}
+	enhanced := e.Data.Response.EnhancedCode
+	return strings.HasPrefix(enhanced, "5.") && !strings.HasPrefix(enhanced, "5.1.")
 }
 
 func (e webhookEnvelope) diagnostic() string {
