@@ -30,6 +30,7 @@ import (
 type rbacBudgetFixture struct {
 	db           *bun.DB
 	module       api.AuthTestModule
+	resource     *authAPI.Resource
 	router       chi.Router
 	counter      *testpkg.QueryCounter
 	token        string
@@ -40,7 +41,11 @@ type rbacBudgetFixture struct {
 
 func newRBACBudgetFixture(t *testing.T) *rbacBudgetFixture {
 	t.Helper()
-	db := testpkg.SetupIsolatedTestDB(t)
+	return newRBACBudgetFixtureOn(t, testpkg.SetupIsolatedTestDB(t))
+}
+
+func newRBACBudgetFixtureOn(t *testing.T, db *bun.DB) *rbacBudgetFixture {
+	t.Helper()
 	module := setupAuthModuleOn(t, db)
 	settings := api.NewAuthTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	resource := authAPI.NewResource(module.Auth, module.Invitation,
@@ -49,7 +54,7 @@ func newRBACBudgetFixture(t *testing.T) *rbacBudgetFixture {
 	resource.RoleGrants = api.AccountRoleGrantPolicy()
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/auth", resource.Router(api.TenantSessionChain))
-	f := &rbacBudgetFixture{db: db, module: module, router: router, roleContexts: make(map[int64]context.Context)}
+	f := &rbacBudgetFixture{db: db, module: module, router: router, resource: resource, roleContexts: make(map[int64]context.Context)}
 	f.token, f.actor = f.accountToken(t, "rbac-budget-reader", "roles:read", "permissions:read", "roles:manage")
 	f.foreign = testpkg.NewTenantScope(t, db).Context()
 	f.counter = testpkg.CaptureQueries(t, db)
