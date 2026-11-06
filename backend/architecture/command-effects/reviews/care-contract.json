@@ -42,7 +42,7 @@
       "target_owner": "organization-tenancy"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.ContractMailStates",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractPost.ContractMailStates",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Post.ContractMailStates",
@@ -53,17 +53,27 @@
     },
     {
       "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.EnqueueContractMail",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractPost.EnqueueContractMail",
       "classification": "platform",
       "effect": "durable",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Post.EnqueueContractMail",
-      "reason": "Platform protocol participation (durable): care-contract reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through api.careContractPost.EnqueueContractMail. The mail of a contract is enqueued in the caller's Träger transaction with the record of the send (ADR 0098, ADR 0123, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (durable): care-contract reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through roots/owners.CareContractPost.EnqueueContractMail. The mail of a contract is enqueued in the caller's Träger transaction with the record of the send (ADR 0098, ADR 0123, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
       "target_owner": "delivery-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.careContractRuntime.WithinSchool",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractReminderSettings.SignatureReminderDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.ReminderSettings.SignatureReminderDays",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerInts: reads after how many days the Träger reminds parents of an unsigned contract, in its Träger transaction (#4679).",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerInts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractRuntime.WithinSchool",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Runtime.WithinSchool",
@@ -74,22 +84,22 @@
     },
     {
       "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/api.careContractRuntime.WithinSchool",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractRuntime.WithinSchool",
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Runtime.WithinSchool",
-      "reason": "Platform protocol participation (scope): care-contract reaches tenant.WithinTenant (tenant-runtime) through api.careContractRuntime.WithinSchool. The intake opens the school's tenant transaction and the Träger transaction one after the other, never both at once (ADR 0105, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (scope): care-contract reaches tenant.WithinTenant (tenant-runtime) through roots/owners.CareContractRuntime.WithinSchool. The intake opens the school's tenant transaction and the Träger transaction one after the other, never both at once (ADR 0105, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
       "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/api.careContractRuntime.WithinTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractRuntime.WithinTraeger",
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Runtime.WithinTraeger",
-      "reason": "Platform protocol participation (scope): care-contract reaches tenant.WithinTraeger (tenant-runtime) through api.careContractRuntime.WithinTraeger. The intake opens the school's tenant transaction and the Träger transaction one after the other, never both at once (ADR 0105, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (scope): care-contract reaches tenant.WithinTraeger (tenant-runtime) through roots/owners.CareContractRuntime.WithinTraeger. The intake opens the school's tenant transaction and the Träger transaction one after the other, never both at once (ADR 0105, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
       "target_owner": "tenant-runtime"
@@ -189,6 +199,67 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractSignatures.ContractSignatureProofs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SignatureLedger.ContractSignatureProofs",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/auditlog.TraegerSignatureLedger.TraegerSignatures: reads the stored signature of a contract version with its integrity in the Träger transaction (#4679).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.TraegerSignatureLedger.TraegerSignatures",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractSignatures.RecordContractSignature",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SignatureLedger.RecordContractSignature",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/auditlog.ParseSignatureImage: checks the drawn or typed signature before it is stored (#4785, #4679).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.ParseSignatureImage",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractSignatures.RecordContractSignature",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SignatureLedger.RecordContractSignature",
+      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog.TraegerSignatureLedger.RecordTraegerSignature (audit-platform) through roots/owners.CareContractSignatures.RecordContractSignature. The parents' signature of a contract version is appended to the signature store of the Träger inside the contract's Träger transaction, like the school signatures (#4785, #4679). The caller enters the platform contract inside its own unit (ADR 0098).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.TraegerSignatureLedger.RecordTraegerSignature",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractTokens.Fingerprint",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SigningTokens.Fingerprint",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess/tokenprimitives.OpaqueCapabilityFingerprint: the SHA-256 of a one-time link token; only the fingerprint is stored (#4679).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives.OpaqueCapabilityFingerprint",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractTokens.NewToken",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SigningTokens.NewToken",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess/tokenprimitives.NewOpaqueCapabilityToken: makes the secret of a one-time mail link and its fingerprint (#4679).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives.NewOpaqueCapabilityToken",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractTraeger.ActiveTraegerIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.TraegerOrganizations.ActiveTraegerIDs",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListOrganizations: lists the Träger the reminder run visits, outside any transaction (#4679).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListOrganizations",
+      "target_owner": "organization-tenancy"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractSchools.TraegerSchools",
       "classification": "query",
       "effect": "query",
@@ -217,6 +288,16 @@
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractSender.TraegerLetterhead",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.TraegerSender.TraegerLetterhead",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: reads the letterhead text that names the Träger and its address for the signing page, the withdrawal notice and the mails (#4679).",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.CombineLetters",

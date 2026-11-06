@@ -63,7 +63,7 @@ func (c *Contracts) addSignature(ctx context.Context, organizationID int64, reco
 }
 
 func (c *Contracts) signatureOf(ctx context.Context, organizationID int64, record ContractRecord, stored *StoredSignature) (carecontract.ContractSignature, error) {
-	checksum, err := versionChecksum(record.Version)
+	checksum, err := versionChecksum(c.links.Fingerprint, record.Version)
 	if err != nil {
 		return carecontract.ContractSignature{}, err
 	}

@@ -202,10 +202,12 @@ type SigningTokens interface {
 }
 
 // SigningLinks are the tokens and the base of the parents portal the mail
-// links point to.
+// links point to, and the SHA-256 content identity the signature checks a
+// version with.
 type SigningLinks struct {
-	Tokens     SigningTokens
-	ParentsURL string
+	Tokens      SigningTokens
+	ParentsURL  string
+	Fingerprint func([]byte) string
 }
 
 // TraegerSender reads the letterhead of the Träger in the caller's Träger

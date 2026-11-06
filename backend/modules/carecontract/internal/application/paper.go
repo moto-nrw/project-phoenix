@@ -54,7 +54,7 @@ func (s *Signatures) RecordPaperSignature(ctx context.Context, reviewer carecont
 	if err != nil {
 		return err
 	}
-	checksum, err := versionChecksum(record.Version)
+	checksum, err := versionChecksum(s.ports.Links.Fingerprint, record.Version)
 	if err != nil {
 		return err
 	}

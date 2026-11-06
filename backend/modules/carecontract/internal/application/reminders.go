@@ -38,7 +38,7 @@ var _ carecontract.Reminders = (*Reminders)(nil)
 // NewReminders builds the reminders over the root-bound ports.
 func NewReminders(store ContractStore, ports ReminderPorts, clock Clock) *Reminders {
 	if store == nil || ports.Organizations == nil || ports.Settings == nil || ports.Sender == nil || ports.Post == nil ||
-		ports.Runtime == nil || ports.Links.Tokens == nil {
+		ports.Runtime == nil || ports.Links.Tokens == nil || ports.Links.Fingerprint == nil {
 		panic("care contract: the reminders need the store, the Träger, the settings, the sender, the post, the runtime and the tokens")
 	}
 	return &Reminders{store: store, ports: ports, clock: clock}

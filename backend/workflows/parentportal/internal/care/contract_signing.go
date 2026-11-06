@@ -44,20 +44,17 @@ type ContractSigningView = json.RawMessage
 
 // ContractSigningView reads a contract of the inbox to sign.
 func (s *Service) ContractSigningView(ctx context.Context, accountID, organizationID, contractID int64) (ContractSigningView, error) {
-	return s.contractSigning(ctx, accountID, organizationID, contractID, func(txCtx context.Context, reader BillingDocumentReader) (ContractSigningView, error) {
-		return s.ContractDocuments.ContractSigningView(txCtx, organizationID, contractID, reader)
-	})
+	return s.contractSigning(ctx, accountID, organizationID, contractID, nil)
 }
 
 // SignContract signs a contract of the inbox.
 func (s *Service) SignContract(ctx context.Context, accountID, organizationID, contractID int64, input ContractSignatureInput) (ContractSigningView, error) {
-	return s.contractSigning(ctx, accountID, organizationID, contractID, func(txCtx context.Context, reader BillingDocumentReader) (ContractSigningView, error) {
-		return s.ContractDocuments.SignContract(txCtx, organizationID, contractID, reader, input)
-	})
+	return s.contractSigning(ctx, accountID, organizationID, contractID, &input)
 }
 
-func (s *Service) contractSigning(ctx context.Context, accountID, organizationID, contractID int64,
-	act func(context.Context, BillingDocumentReader) (ContractSigningView, error)) (ContractSigningView, error) {
+// contractSigning checks the access and then reads the contract, or signs
+// it when input is set, in the Träger transaction of organizationID.
+func (s *Service) contractSigning(ctx context.Context, accountID, organizationID, contractID int64, input *ContractSignatureInput) (ContractSigningView, error) {
 	traeger, reader, err := s.contractSigningAccess(ctx, accountID)
 	if err != nil {
 		return nil, err
@@ -68,7 +65,11 @@ func (s *Service) contractSigning(ctx context.Context, accountID, organizationID
 	var view ContractSigningView
 	err = s.TraegerRuntime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
 		var actErr error
-		view, actErr = act(txCtx, reader)
+		if input == nil {
+			view, actErr = s.ContractDocuments.ContractSigningView(txCtx, organizationID, contractID, reader)
+		} else {
+			view, actErr = s.ContractDocuments.SignContract(txCtx, organizationID, contractID, reader, *input)
+		}
 		return actErr
 	})
 	if err != nil {

@@ -59,7 +59,7 @@ var (
 
 // NewSignatures builds the signature over the root-bound ports.
 func NewSignatures(store ContractStore, ports SignaturePorts, clock Clock, contracts *Contracts) *Signatures {
-	if store == nil || ports.Ledger == nil || ports.Links.Tokens == nil || ports.Sender == nil || ports.Post == nil || ports.Runtime == nil {
+	if store == nil || ports.Ledger == nil || ports.Links.Tokens == nil || ports.Links.Fingerprint == nil || ports.Sender == nil || ports.Post == nil || ports.Runtime == nil {
 		panic("care contract: the store, the ledger, the tokens, the sender, the post and the runtime are required")
 	}
 	return &Signatures{store: store, ports: ports, clock: clock, contracts: contracts}
@@ -211,7 +211,7 @@ func (s *Signatures) SignInInbox(ctx context.Context, organizationID, contractID
 		return carecontract.SigningView{}, err
 	}
 	account := reader.AccountID
-	return s.sign(ctx, organizationID, record, document, input, signer{channel: carecontract.ChannelParentAccount, accountID: &account}, s.clock.now())
+	return s.sign(ctx, organizationID, record, document, input, signer{channel: carecontract.ChannelParentAccount, accountID: &account}, s.now())
 }
 
 // inboxContract reads a contract the reader may see and sign: sent to the
@@ -267,7 +267,7 @@ func (s *Signatures) sign(ctx context.Context, organizationID int64, record Cont
 	if signerName == "" {
 		return carecontract.SigningView{}, carecontract.ErrSignatureInvalid
 	}
-	checksum, err := versionChecksum(record.Version)
+	checksum, err := versionChecksum(s.ports.Links.Fingerprint, record.Version)
 	if err != nil {
 		return carecontract.SigningView{}, err
 	}
@@ -379,3 +379,5 @@ func (s *Signatures) event(ctx context.Context, organizationID int64, record Con
 func berlinStamp(at time.Time) string {
 	return at.In(calendar.Berlin).Format("02.01.2006, 15:04") + " Uhr"
 }
+
+func (s *Signatures) now() time.Time { return s.clock.now() }

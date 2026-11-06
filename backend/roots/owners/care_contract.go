@@ -11,6 +11,7 @@ import (
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -84,7 +85,7 @@ func (CareContractRuntime) WithinTraeger(ctx context.Context, organizationID int
 // CareContractLinks are the one-time link tokens with the base of the
 // parents portal the mails link to (#4679).
 func CareContractLinks(parentsURL string) carecontract.SigningLinks {
-	return carecontract.SigningLinks{Tokens: CareContractTokens{}, ParentsURL: parentsURL}
+	return carecontract.SigningLinks{Tokens: CareContractTokens{}, ParentsURL: parentsURL, Fingerprint: securityruntime.Fingerprint}
 }
 
 // CareContractLetterheadText reads the Träger's letterhead text.

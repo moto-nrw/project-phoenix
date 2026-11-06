@@ -33,40 +33,48 @@
       "target_owner": "organization-tenancy"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.ContractMailStates",
-      "binding_digest": "a6714e3acb5d1cfaffebdfbf18a63e51",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractPost.ContractMailStates",
+      "binding_digest": "9c9a2e6d58fb06c919e927e10abd0299",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Post.ContractMailStates",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
       "target_owner": "delivery-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.EnqueueContractMail",
-      "binding_digest": "b4ad1f395e2e2cf1ee30fbeb13d5e25d",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractPost.EnqueueContractMail",
+      "binding_digest": "bb0e324f8a4ec098e07073d1354e435f",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Post.EnqueueContractMail",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
       "target_owner": "delivery-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.careContractRuntime.WithinSchool",
-      "binding_digest": "58fbdb3e6af1a69ffb6c5153719f4f8b",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractReminderSettings.SignatureReminderDays",
+      "binding_digest": "028adf08a28427ba11c1e42ae0a8b02a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.ReminderSettings.SignatureReminderDays",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerInts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractRuntime.WithinSchool",
+      "binding_digest": "1383a47272f339cd8a850aec803a1f49",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Runtime.WithinSchool",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.careContractRuntime.WithinSchool",
-      "binding_digest": "a868defd4b5a2a2bb1233db9f1afc783",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractRuntime.WithinSchool",
+      "binding_digest": "183caab9db9ba49ff3bc976078401115",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Runtime.WithinSchool",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.careContractRuntime.WithinTraeger",
-      "binding_digest": "c74528a5781e24cd8e5ddf7b0354013c",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractRuntime.WithinTraeger",
+      "binding_digest": "52db294af7b85dcd855795cb852060ee",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Runtime.WithinTraeger",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
@@ -145,6 +153,54 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractSignatures.ContractSignatureProofs",
+      "binding_digest": "f2597bb78207322548391013372b932a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SignatureLedger.ContractSignatureProofs",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.TraegerSignatureLedger.TraegerSignatures",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractSignatures.RecordContractSignature",
+      "binding_digest": "bd96e99151e603ce7d0e9a7b2517d0d9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SignatureLedger.RecordContractSignature",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.ParseSignatureImage",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractSignatures.RecordContractSignature",
+      "binding_digest": "ff9779fcb46c76ee0509f208bfc09ab3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SignatureLedger.RecordContractSignature",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.TraegerSignatureLedger.RecordTraegerSignature",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractTokens.Fingerprint",
+      "binding_digest": "bbb88ed0457877ad663ba22e02451b86",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SigningTokens.Fingerprint",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives.OpaqueCapabilityFingerprint",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractTokens.NewToken",
+      "binding_digest": "f72872c2b92d002c588afdc6117dd1d6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SigningTokens.NewToken",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives.NewOpaqueCapabilityToken",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractTraeger.ActiveTraegerIDs",
+      "binding_digest": "3d933aee8c24f591552dbcb2168c606e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.TraegerOrganizations.ActiveTraegerIDs",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListOrganizations",
+      "target_owner": "organization-tenancy"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractSchools.TraegerSchools",
       "binding_digest": "df2b7f6adf13008cabc1114b2df928e2",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.TraegerSchools.TraegerSchools",
@@ -167,6 +223,14 @@
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractSender.TraegerLetterhead",
+      "binding_digest": "08305860cf68a518d371cb1ff58f6e9b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.TraegerSender.TraegerLetterhead",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.CombineLetters",

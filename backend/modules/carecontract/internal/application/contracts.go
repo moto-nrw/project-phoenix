@@ -47,7 +47,7 @@ var _ carecontract.Contracts = (*Contracts)(nil)
 // NewContracts builds the contracts of the Träger-Büro.
 func NewContracts(store ContractStore, renderer LetterRenderer, ports ContractPorts, clock Clock) *Contracts {
 	if store == nil || renderer == nil || ports.Letterheads == nil || ports.Post == nil || ports.Runtime == nil || ports.Access == nil ||
-		ports.Ledger == nil || ports.Links.Tokens == nil {
+		ports.Ledger == nil || ports.Links.Tokens == nil || ports.Links.Fingerprint == nil {
 		panic("care contract: the store, the renderer, the letterhead, the post, the runtime, the access log, the ledger and the link tokens are required")
 	}
 	return &Contracts{store: store, letterheads: ports.Letterheads, renderer: renderer, post: ports.Post, clock: clock,

@@ -2,8 +2,6 @@ package application
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -31,14 +29,13 @@ func concludeSigned(ctx context.Context, store SignatureStore, organizationID in
 // sign: child, place of care, services, price, terms and dates. The state
 // and the number of the version are left out; they change when it takes
 // effect.
-func versionChecksum(version carecontract.Version) (string, error) {
+func versionChecksum(fingerprint func([]byte) string, version carecontract.Version) (string, error) {
 	version.Status = ""
 	encoded, err := json.Marshal(version)
 	if err != nil {
 		return "", fmt.Errorf("care contract: encode version: %w", err)
 	}
-	sum := sha256.Sum256(encoded)
-	return hex.EncodeToString(sum[:]), nil
+	return fingerprint(encoded), nil
 }
 
 // withdrawalEnd is the last day of the 14-day withdrawal period that starts
