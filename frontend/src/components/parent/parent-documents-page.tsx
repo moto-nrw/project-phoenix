@@ -4,9 +4,10 @@
  * Dokumente (#4671): the documents the Träger of the family's OGS sent to
  * this account: the confirmation letters of holiday registrations and the
  * letters of their Storno and Gutschrift (#4690), and the care contracts
- * (#4678).
- * Each one downloads as the stored PDF. The list only reads; the Träger
- * decides what is sent.
+ * (#4678), and the documents the Träger released for the parents, such as a
+ * house rule (#4692).
+ * Each one downloads as the stored file. The list only reads; the Träger
+ * decides what is sent or released.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -22,10 +23,13 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
+import { formatBytes } from "~/lib/files-api";
 import {
   downloadMyDocument,
+  downloadMySharedDocument,
   listMyDocuments,
   type ParentDocument,
+  type ParentSharedDocument,
 } from "~/lib/parent-api";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
 import { documentsConcept } from "~/lib/concepts/documents";
@@ -38,23 +42,57 @@ const DOCUMENT_TITLES = {
   care_contract: "careContract",
 } as const satisfies Record<ParentDocument["kind"], string>;
 
+/** A row of the inbox: a letter or contract, or a released document. */
+type InboxEntry =
+  | {
+      readonly type: "sent";
+      readonly at: string;
+      readonly document: ParentDocument;
+    }
+  | {
+      readonly type: "shared";
+      readonly at: string;
+      readonly document: ParentSharedDocument;
+    };
+
+/** The failed source of the inbox, as the catalog object names it. */
+const FAILED_OBJECTS = {
+  letters: "lettersErrorObject",
+  contracts: "contractsErrorObject",
+  shared: "sharedErrorObject",
+} as const;
+
+function inboxEntries(
+  documents: readonly ParentDocument[],
+  shared: readonly ParentSharedDocument[],
+): InboxEntry[] {
+  return [
+    ...documents.map((document): InboxEntry => ({
+      type: "sent",
+      at: document.sent_at,
+      document,
+    })),
+    ...shared.map((document): InboxEntry => ({
+      type: "shared",
+      at: document.released_at,
+      document,
+    })),
+  ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+}
+
 export function ParentDocumentsPage() {
   const t = useTranslations("parentDocuments");
-  const [documents, setDocuments] = useState<ParentDocument[] | null>(null);
+  const [documents, setDocuments] = useState<InboxEntry[] | null>(null);
   const { error, show: showLoadError, clear } = useApiLoadError();
 
   const load = useCallback(async () => {
     clear();
     try {
       const result = await listMyDocuments();
-      setDocuments(result.documents);
+      setDocuments(inboxEntries(result.documents, result.shared));
       if (result.failedSource) {
         void showLoadError(result.error, {
-          object: t(
-            result.failedSource === "letters"
-              ? "lettersErrorObject"
-              : "contractsErrorObject",
-          ),
+          object: t(FAILED_OBJECTS[result.failedSource]),
           retry: () => void load(),
         });
       }
@@ -87,13 +125,21 @@ export function ParentDocumentsPage() {
         )
       ) : (
         <ul className="space-y-4">
-          {documents.map((document) => (
-            <li
-              key={`${document.kind}-${document.organization_id}-${document.id}`}
-            >
-              <ParentDocumentCard document={document} />
-            </li>
-          ))}
+          {documents.map((entry) =>
+            entry.type === "shared" ? (
+              <li
+                key={`shared-${entry.document.organization_id}-${entry.document.id}`}
+              >
+                <ParentSharedDocumentCard document={entry.document} />
+              </li>
+            ) : (
+              <li
+                key={`${entry.document.kind}-${entry.document.organization_id}-${entry.document.id}`}
+              >
+                <ParentDocumentCard document={entry.document} />
+              </li>
+            ),
+          )}
         </ul>
       )}
     </ParentPage>
@@ -172,6 +218,73 @@ function ParentDocumentCard({
           </DataField>
         </DataGrid>
       )}
+    </ParentSection>
+  );
+}
+
+/** The kind of a released file in one word (#4692). */
+function fileKind(contentType: string): string {
+  if (contentType === "application/pdf") return "PDF";
+  if (contentType.includes("wordprocessingml")) return "Word";
+  if (contentType.includes("spreadsheetml")) return "Excel";
+  if (contentType.includes("presentationml")) return "PowerPoint";
+  if (contentType.startsWith("image/")) return "image";
+  return "";
+}
+
+/** A document a Träger released for the parents (#4692). */
+function ParentSharedDocumentCard({
+  document,
+}: Readonly<{ document: ParentSharedDocument }>) {
+  const t = useTranslations("parentDocuments");
+  const locale = useLocale();
+  const { show } = useApiErrorDisplay();
+  const [downloading, setDownloading] = useState(false);
+
+  const download = async () => {
+    setDownloading(true);
+    try {
+      await downloadMySharedDocument(document);
+    } catch (err) {
+      void show(err, { object: t("downloadErrorObject") });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <ParentSection
+      level={2}
+      concept={documentsConcept}
+      title={document.title}
+      description={t("sharedSender", { traeger: document.traeger_name })}
+      actions={
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={() => void download()}
+          disabled={downloading}
+        >
+          {downloading ? t("downloading") : t("downloadFile")}
+        </Button>
+      }
+    >
+      <DataGrid>
+        <DataField label={t("file")}>
+          {[
+            fileKind(document.content_type) === "image"
+              ? t("image")
+              : fileKind(document.content_type),
+            formatBytes(document.size_bytes),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </DataField>
+        <DataField label={t("releasedAt")}>
+          {formatDate(document.released_at, false, locale)}
+        </DataField>
+      </DataGrid>
     </ParentSection>
   );
 }

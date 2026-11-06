@@ -286,6 +286,40 @@ describe("listMyChildren", () => {
 // --- listEnrollableSchools -------------------------------------------
 
 describe("listMyDocuments", () => {
+  it("keeps the letters and contracts when the shared documents fail (#4692)", async () => {
+    mockFetch(async (input) =>
+      String(input).endsWith("/shared")
+        ? jsonResponse({ code: "general.internal_error" }, { status: 500 })
+        : jsonResponse({
+            data: [{ id: "1", sent_at: "2026-09-01T08:00:00Z" }],
+          }),
+    );
+    const result = await listMyDocuments();
+    expect(result.documents).toHaveLength(2);
+    expect(result.shared).toEqual([]);
+    expect(result.failedSource).toBe("shared");
+  });
+
+  it("returns the documents a Träger released for the parents (#4692)", async () => {
+    const shared = {
+      id: "9",
+      organization_id: "3",
+      traeger_name: "Ganztag Nord",
+      title: "Hausordnung",
+      file_name: "hausordnung.pdf",
+      content_type: "application/pdf",
+      size_bytes: 2048,
+      released_at: "2026-09-02T10:00:00Z",
+    };
+    mockFetch(async (input) =>
+      jsonResponse({ data: String(input).endsWith("/shared") ? [shared] : [] }),
+    );
+    const result = await listMyDocuments();
+    expect(result.documents).toEqual([]);
+    expect(result.shared).toEqual([shared]);
+    expect(result.failedSource).toBeNull();
+  });
+
   it.each(["/contracts", "/documents"])(
     "keeps the available source when %s fails",
     async (suffix) => {
@@ -337,7 +371,11 @@ describe("listMyDocuments", () => {
     const out = await listMyDocuments();
 
     expect(urls.map((url) => new URL(url, "http://x").pathname).sort()).toEqual(
-      ["/api/parent/me/documents", "/api/parent/me/documents/contracts"],
+      [
+        "/api/parent/me/documents",
+        "/api/parent/me/documents/contracts",
+        "/api/parent/me/documents/shared",
+      ],
     );
     expect(out.documents.map((document) => document.id)).toEqual([
       "5",
