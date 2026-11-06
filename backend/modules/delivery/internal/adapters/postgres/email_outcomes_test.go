@@ -541,14 +541,14 @@ func TestTraegerMailHoldsStayWithTheirTraeger(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, tenant.WithinTraeger(ctx, organization, func(txCtx context.Context) error {
-		listed, stopped, err := store.Store.TraegerMailHolds(txCtx, organization, address)
+		listed, stopped, err := store.TraegerMailHolds(txCtx, organization, address)
 		require.NoError(t, err)
 		assert.True(t, listed)
 		assert.True(t, stopped)
 		return nil
 	}))
 	require.NoError(t, tenant.WithinTraeger(ctx, other, func(txCtx context.Context) error {
-		listed, stopped, err := store.Store.TraegerMailHolds(txCtx, other, address)
+		listed, stopped, err := store.TraegerMailHolds(txCtx, other, address)
 		require.NoError(t, err)
 		assert.False(t, listed, "another Träger learns nothing")
 		assert.False(t, stopped)
