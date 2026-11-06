@@ -53,7 +53,7 @@ func (rs *StudentResource) getStudentEnrollmentExtraFields(w http.ResponseWriter
 		return
 	}
 
-	summaries, err := rs.EnrollmentDecision.StudentDecisionRequests(r.Context(), studentID)
+	summaries, err := rs.EnrollmentDecision.StudentExtraFieldRequests(r.Context(), studentID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to load enrollment extra fields", err))
 		return

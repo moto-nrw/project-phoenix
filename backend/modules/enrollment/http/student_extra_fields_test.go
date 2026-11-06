@@ -24,7 +24,7 @@ type fakeEnrollmentDecisionService struct {
 	studentID int64
 }
 
-func (f *fakeEnrollmentDecisionService) StudentDecisionRequests(_ context.Context, studentID int64) ([]*capability.DecisionSummary, error) {
+func (f *fakeEnrollmentDecisionService) StudentExtraFieldRequests(_ context.Context, studentID int64) ([]*capability.DecisionSummary, error) {
 	f.studentID = studentID
 	return f.summaries, nil
 }
