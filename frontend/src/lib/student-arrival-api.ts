@@ -1,4 +1,6 @@
-import { ApiError, apiErrorFromText, unavailableApiError } from "./api-error";
+import { ApiError } from "./api-error";
+import { bffJson } from "./bff-fetch";
+import { DEPARTURE_WEEKDAYS } from "./departure-plan";
 
 /**
  * One care day of a child. The row says the child is in care that weekday;
@@ -6,15 +8,59 @@ import { ApiError, apiErrorFromText, unavailableApiError } from "./api-error";
  * child deviates (#2414).
  */
 export interface ArrivalSchedule {
+  id: string;
+  studentId: string;
+  weekday: number;
+  weekdayName: string;
+  /** HH:MM, empty when neither the child nor its class carries a time. */
+  expectedArrival: string;
+  /** "class_schedule" = taken from the class, "staff" = per-child deviation. */
+  source?: "class_schedule" | "staff";
+  /** The class the time came from, set when source is "class_schedule". */
+  sourceClass?: string;
+  notes?: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ArrivalException {
+  id: string;
+  studentId: string;
+  exceptionDate: string;
+  expectedArrival?: string | null;
+  reason?: string | null;
+  // "staff" or "guardian" — a guardian-sourced row was set by a parent in the
+  // parents portal.
+  source?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ArrivalNote {
+  id: string;
+  studentId: string;
+  noteDate: string;
+  content: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ArrivalData {
+  schedules: ArrivalSchedule[];
+  exceptions: ArrivalException[];
+  notes: ArrivalNote[];
+}
+
+interface BackendArrivalSchedule {
   id: number;
   student_id: number;
   weekday: number;
   weekday_name: string;
-  /** HH:MM, empty when neither the child nor its class carries a time. */
   expected_arrival: string;
-  /** "class_schedule" = taken from the class, "staff" = per-child deviation. */
   source?: "class_schedule" | "staff";
-  /** The class the time came from, set when source is "class_schedule". */
   source_class?: string;
   notes?: string | null;
   created_by: number;
@@ -22,21 +68,19 @@ export interface ArrivalSchedule {
   updated_at: string;
 }
 
-export interface ArrivalException {
+interface BackendArrivalException {
   id: number;
   student_id: number;
   exception_date: string;
   expected_arrival?: string | null;
   reason?: string | null;
-  // "staff" or "guardian" — a guardian-sourced row was set by a parent in the
-  // parents portal.
   source?: string;
   created_by: number;
   created_at: string;
   updated_at: string;
 }
 
-export interface ArrivalNote {
+interface BackendArrivalNote {
   id: number;
   student_id: number;
   note_date: string;
@@ -46,10 +90,52 @@ export interface ArrivalNote {
   updated_at: string;
 }
 
-export interface ArrivalData {
-  schedules: ArrivalSchedule[];
-  exceptions: ArrivalException[];
-  notes: ArrivalNote[];
+interface BackendArrivalData {
+  schedules?: BackendArrivalSchedule[] | null;
+  exceptions?: BackendArrivalException[] | null;
+  notes?: BackendArrivalNote[] | null;
+}
+
+function mapArrivalSchedule(data: BackendArrivalSchedule): ArrivalSchedule {
+  return {
+    id: String(data.id),
+    studentId: String(data.student_id),
+    weekday: data.weekday,
+    weekdayName: data.weekday_name,
+    expectedArrival: data.expected_arrival,
+    source: data.source,
+    sourceClass: data.source_class,
+    notes: data.notes,
+    createdBy: String(data.created_by),
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+  };
+}
+
+function mapArrivalException(data: BackendArrivalException): ArrivalException {
+  return {
+    id: String(data.id),
+    studentId: String(data.student_id),
+    exceptionDate: data.exception_date,
+    expectedArrival: data.expected_arrival,
+    reason: data.reason,
+    source: data.source,
+    createdBy: String(data.created_by),
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+  };
+}
+
+function mapArrivalNote(data: BackendArrivalNote): ArrivalNote {
+  return {
+    id: String(data.id),
+    studentId: String(data.student_id),
+    noteDate: data.note_date,
+    content: data.content,
+    createdBy: String(data.created_by),
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+  };
 }
 
 export type CareDaysSource = "weekly_plan" | "bookings";
@@ -59,22 +145,22 @@ export interface SchoolPeriod {
   /** 1-based number of the lesson. */
   period: number;
   /** "HH:MM" */
-  end_time: string;
+  endTime: string;
 }
 
-export interface ArrivalSettings {
-  care_days_source: CareDaysSource;
+interface ArrivalSettings {
+  careDaysSource: CareDaysSource;
   /** In lesson order; empty when the school maintains no lesson end times. */
-  school_periods: SchoolPeriod[];
+  schoolPeriods: SchoolPeriod[];
   /** "HH:MM", or empty when the school maintains none (#3371). */
   defaultArrivalTime: string;
   /** "HH:MM", or empty when the school maintains none (#3371). */
   defaultPickupTime: string;
 }
 
-interface ArrivalSettingsResponse {
+interface BackendArrivalSettings {
   care_days_source: CareDaysSource;
-  school_periods: SchoolPeriod[];
+  school_periods?: Array<{ period: number; end_time: string }> | null;
   default_arrival_time: string;
   default_pickup_time: string;
 }
@@ -95,10 +181,6 @@ export interface ArrivalScheduleInput {
   notes?: string | null;
 }
 
-interface UpdateArrivalSchedulesBody {
-  schedules: ArrivalScheduleInput[];
-}
-
 interface BulkArrivalRequestBody {
   school_class?: string;
   group_id?: number;
@@ -111,70 +193,13 @@ export type BulkArrivalFilter =
   | { type: "group"; groupId: string }
   | { type: "students"; studentIds: string[] };
 
-interface ApiWrapper<T> {
-  data: T;
-}
-
-export const WEEKDAYS: { value: number; label: string; short: string }[] = [
-  { value: 1, label: "Montag", short: "Mo" },
-  { value: 2, label: "Dienstag", short: "Di" },
-  { value: 3, label: "Mittwoch", short: "Mi" },
-  { value: 4, label: "Donnerstag", short: "Do" },
-  { value: 5, label: "Freitag", short: "Fr" },
-];
-
-function unwrap<T>(value: ApiWrapper<T> | T): T {
-  if (
-    value &&
-    typeof value === "object" &&
-    "data" in (value as ApiWrapper<T>)
-  ) {
-    return (value as ApiWrapper<T>).data;
-  }
-  return value as T;
-}
-
-// BFF routes read the session cookie; the browser holds no token (#5005).
-const JSON_HEADERS: Record<string, string> = {
-  "Content-Type": "application/json",
-};
-
-/** Keeps transport failures on the shared, retryable error path. */
-async function transportFetch(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<Response> {
-  try {
-    return await fetch(input, init);
-  } catch (error) {
-    throw unavailableApiError(error);
-  }
-}
-
-/**
- * The failed response as an ApiError: code, field errors and request ID come
- * from the envelope, so the screen shows the catalog text (#2513). The
- * message stays developer diagnosis.
- */
-async function requestFailed(response: Response): Promise<ApiError> {
-  const text = await response.text().catch(() => "");
-  return apiErrorFromText(
-    text
-      ? `Request failed (${response.status}): ${text}`
-      : `Request failed (${response.status})`,
-    response.status,
-    text,
-  );
-}
-
-async function parseResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) throw await requestFailed(response);
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  const payload = (await response.json()) as ApiWrapper<T> | T;
-  return unwrap<T>(payload);
-}
+/** Mo–Fr with the backend's ISO weekday numbers (1 = Montag). */
+export const WEEKDAYS: { value: number; label: string; short: string }[] =
+  DEPARTURE_WEEKDAYS.map((day, index) => ({
+    value: index + 1,
+    label: day.label,
+    short: day.label.slice(0, 2),
+  }));
 
 export async function fetchArrivalData(
   studentId: string,
@@ -185,45 +210,39 @@ export async function fetchArrivalData(
   if (date) query.set("date", date);
   if (toDate) query.set("to", toDate);
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
-  const response = await transportFetch(
-    `/api/students/${studentId}/arrival-schedules${suffix}`,
-    {
-      method: "GET",
-      headers: JSON_HEADERS,
-      credentials: "include",
-    },
+  const data = await bffJson<BackendArrivalData>(
+    `/api/students/${encodeURIComponent(studentId)}/arrival-schedules${suffix}`,
   );
-  return parseResponse<ArrivalData>(response);
+  return {
+    schedules: (data.schedules ?? []).map(mapArrivalSchedule),
+    exceptions: (data.exceptions ?? []).map(mapArrivalException),
+    notes: (data.notes ?? []).map(mapArrivalNote),
+  };
 }
 
 export async function fetchBulkArrivalScheduleStatus(
   studentIds: string[],
 ): Promise<number> {
-  const response = await transportFetch(
+  const status = await bffJson<{ student_ids: number[] }>(
     "/api/students/arrival-schedules/status",
     {
       method: "POST",
-      headers: JSON_HEADERS,
-      credentials: "include",
-      body: JSON.stringify({
-        student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
-      }),
+      body: { student_ids: studentIds.map((id) => Number.parseInt(id, 10)) },
     },
   );
-  const status = await parseResponse<{ student_ids: number[] }>(response);
   return status.student_ids.length;
 }
 
 export async function fetchArrivalSettings(): Promise<ArrivalSettings> {
-  const response = await transportFetch("/api/students/arrival-settings", {
-    method: "GET",
-    headers: JSON_HEADERS,
-    credentials: "include",
-  });
-  const settings = await parseResponse<ArrivalSettingsResponse>(response);
+  const settings = await bffJson<BackendArrivalSettings>(
+    "/api/students/arrival-settings",
+  );
   return {
-    care_days_source: settings.care_days_source,
-    school_periods: settings.school_periods,
+    careDaysSource: settings.care_days_source,
+    schoolPeriods: (settings.school_periods ?? []).map((period) => ({
+      period: period.period,
+      endTime: period.end_time,
+    })),
     defaultArrivalTime: settings.default_arrival_time,
     defaultPickupTime: settings.default_pickup_time,
   };
@@ -233,17 +252,11 @@ export async function updateArrivalSchedules(
   studentId: string,
   schedules: ArrivalScheduleInput[],
 ): Promise<ArrivalSchedule[]> {
-  const body: UpdateArrivalSchedulesBody = { schedules };
-  const response = await transportFetch(
-    `/api/students/${studentId}/arrival-schedules`,
-    {
-      method: "PUT",
-      headers: JSON_HEADERS,
-      credentials: "include",
-      body: JSON.stringify(body),
-    },
+  const data = await bffJson<BackendArrivalSchedule[]>(
+    `/api/students/${encodeURIComponent(studentId)}/arrival-schedules`,
+    { method: "PUT", body: { schedules } },
   );
-  return parseResponse<ArrivalSchedule[]>(response);
+  return data.map(mapArrivalSchedule);
 }
 
 export async function bulkUpsertArrivalSchedules(
@@ -276,16 +289,10 @@ export async function bulkUpsertArrivalSchedules(
     }
     body.student_ids = studentIds;
   }
-  const response = await transportFetch(
-    "/api/students/arrival-schedules/bulk",
-    {
-      method: "POST",
-      headers: JSON_HEADERS,
-      credentials: "include",
-      body: JSON.stringify(body),
-    },
-  );
-  return parseResponse<unknown>(response);
+  return bffJson<unknown>("/api/students/arrival-schedules/bulk", {
+    method: "POST",
+    body,
+  });
 }
 
 interface ArrivalExceptionInput {
@@ -299,50 +306,33 @@ export async function createArrivalException(
   studentId: string,
   input: ArrivalExceptionInput,
 ): Promise<ArrivalException> {
-  const response = await transportFetch(
-    `/api/students/${studentId}/arrival-exceptions`,
-    {
-      method: "POST",
-      headers: JSON_HEADERS,
-      credentials: "include",
-      body: JSON.stringify(input),
-    },
+  const data = await bffJson<BackendArrivalException>(
+    `/api/students/${encodeURIComponent(studentId)}/arrival-exceptions`,
+    { method: "POST", body: input },
   );
-  return parseResponse<ArrivalException>(response);
+  return mapArrivalException(data);
 }
 
 export async function updateArrivalException(
   studentId: string,
-  exceptionId: number,
+  exceptionId: string,
   input: ArrivalExceptionInput,
 ): Promise<ArrivalException> {
-  const response = await transportFetch(
-    `/api/students/${studentId}/arrival-exceptions/${exceptionId}`,
-    {
-      method: "PUT",
-      headers: JSON_HEADERS,
-      credentials: "include",
-      body: JSON.stringify(input),
-    },
+  const data = await bffJson<BackendArrivalException>(
+    `/api/students/${encodeURIComponent(studentId)}/arrival-exceptions/${encodeURIComponent(exceptionId)}`,
+    { method: "PUT", body: input },
   );
-  return parseResponse<ArrivalException>(response);
+  return mapArrivalException(data);
 }
 
 export async function deleteArrivalException(
   studentId: string,
-  exceptionId: number,
+  exceptionId: string,
 ): Promise<void> {
-  const response = await transportFetch(
-    `/api/students/${studentId}/arrival-exceptions/${exceptionId}`,
-    {
-      method: "DELETE",
-      headers: JSON_HEADERS,
-      credentials: "include",
-    },
+  await bffJson<void>(
+    `/api/students/${encodeURIComponent(studentId)}/arrival-exceptions/${encodeURIComponent(exceptionId)}`,
+    { method: "DELETE" },
   );
-  if (!response.ok && response.status !== 204) {
-    throw await requestFailed(response);
-  }
 }
 
 interface ArrivalNoteInput {
@@ -354,69 +344,39 @@ export async function createArrivalNote(
   studentId: string,
   input: ArrivalNoteInput,
 ): Promise<ArrivalNote> {
-  const response = await transportFetch(
-    `/api/students/${studentId}/arrival-notes`,
-    {
-      method: "POST",
-      headers: JSON_HEADERS,
-      credentials: "include",
-      body: JSON.stringify(input),
-    },
+  const data = await bffJson<BackendArrivalNote>(
+    `/api/students/${encodeURIComponent(studentId)}/arrival-notes`,
+    { method: "POST", body: input },
   );
-  return parseResponse<ArrivalNote>(response);
+  return mapArrivalNote(data);
 }
 
 export async function updateArrivalNote(
   studentId: string,
-  noteId: number,
+  noteId: string,
   input: ArrivalNoteInput,
 ): Promise<ArrivalNote> {
-  const response = await transportFetch(
-    `/api/students/${studentId}/arrival-notes/${noteId}`,
-    {
-      method: "PUT",
-      headers: JSON_HEADERS,
-      credentials: "include",
-      body: JSON.stringify(input),
-    },
+  const data = await bffJson<BackendArrivalNote>(
+    `/api/students/${encodeURIComponent(studentId)}/arrival-notes/${encodeURIComponent(noteId)}`,
+    { method: "PUT", body: input },
   );
-  return parseResponse<ArrivalNote>(response);
+  return mapArrivalNote(data);
 }
 
 export async function deleteArrivalNote(
   studentId: string,
-  noteId: number,
+  noteId: string,
 ): Promise<void> {
-  const response = await transportFetch(
-    `/api/students/${studentId}/arrival-notes/${noteId}`,
+  await bffJson<void>(
+    `/api/students/${encodeURIComponent(studentId)}/arrival-notes/${encodeURIComponent(noteId)}`,
     {
       method: "DELETE",
-      headers: JSON_HEADERS,
-      credentials: "include",
     },
   );
-  if (!response.ok && response.status !== 204) {
-    throw await requestFailed(response);
-  }
-}
-
-interface BulkArrivalDayNote {
-  id: string;
-  content: string;
-}
-
-export interface BulkArrivalTime {
-  studentId: string;
-  date: string;
-  weekdayName: string;
-  expectedArrival?: string;
-  isException: boolean;
-  dayNotes: BulkArrivalDayNote[];
-  notes?: string;
 }
 
 /** The Unterrichtsschluss a school class carries (#2414). */
-export interface ClassArrivalTimes {
+interface ClassArrivalTimes {
   school_class: string;
   /** Day code ("mon" … "fri") to HH:MM. Absent days have no time. */
   times: Record<string, string>;
@@ -426,11 +386,9 @@ export interface ClassArrivalTimes {
 export async function fetchClassArrivalTimes(
   schoolClass: string,
 ): Promise<ClassArrivalTimes> {
-  const response = await transportFetch(
+  return bffJson<ClassArrivalTimes>(
     `/api/students/class-arrival-times/${encodeURIComponent(schoolClass)}`,
-    { headers: JSON_HEADERS },
   );
-  return parseResponse<ClassArrivalTimes>(response);
 }
 
 /**
@@ -471,13 +429,9 @@ function classArrivalExceptionPath(schoolClass: string, date?: string): string {
 export async function fetchClassArrivalExceptions(
   schoolClass: string,
 ): Promise<ClassArrivalExceptionList> {
-  const response = await transportFetch(
+  return bffJson<ClassArrivalExceptionList>(
     classArrivalExceptionPath(schoolClass),
-    {
-      headers: JSON_HEADERS,
-    },
   );
-  return parseResponse<ClassArrivalExceptionList>(response);
 }
 
 export async function upsertClassArrivalException(
@@ -485,29 +439,17 @@ export async function upsertClassArrivalException(
   date: string,
   input: ClassArrivalExceptionInput,
 ): Promise<ClassArrivalException> {
-  const response = await transportFetch(
+  return bffJson<ClassArrivalException>(
     classArrivalExceptionPath(schoolClass, date),
-    {
-      method: "PUT",
-      headers: JSON_HEADERS,
-      credentials: "include",
-      body: JSON.stringify(input),
-    },
+    { method: "PUT", body: input },
   );
-  return parseResponse<ClassArrivalException>(response);
 }
 
 export async function deleteClassArrivalException(
   schoolClass: string,
   date: string,
 ): Promise<void> {
-  const response = await transportFetch(
-    classArrivalExceptionPath(schoolClass, date),
-    {
-      method: "DELETE",
-      headers: JSON_HEADERS,
-      credentials: "include",
-    },
-  );
-  await parseResponse<void>(response);
+  await bffJson<void>(classArrivalExceptionPath(schoolClass, date), {
+    method: "DELETE",
+  });
 }

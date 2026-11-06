@@ -1,8 +1,4 @@
-import {
-  apiErrorFromBody,
-  apiErrorFromResponse,
-  transportFetch,
-} from "~/lib/api-error";
+import { bffJson } from "~/lib/bff-fetch";
 
 export interface StudentPartialAbsence {
   id: string;
@@ -16,11 +12,6 @@ export interface StudentPartialAbsence {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
-}
-
-interface ApiResponse<T> {
-  status: string;
-  data?: T;
 }
 
 interface BackendPartialAbsence {
@@ -51,18 +42,9 @@ function mapPartialAbsence(row: BackendPartialAbsence): StudentPartialAbsence {
   };
 }
 
-async function parseData<T>(response: Response, fallback: string): Promise<T> {
-  let body: ApiResponse<T> | undefined;
-  try {
-    body = (await response.json()) as ApiResponse<T>;
-  } catch {
-    // Not JSON (proxy or gateway page): the status still classifies it.
-    body = undefined;
-  }
-  if (!response.ok || body?.data === undefined) {
-    throw apiErrorFromBody(fallback, response.status, body);
-  }
-  return body.data;
+function partialAbsencesPath(studentId: string, id?: string | null): string {
+  const base = `/api/students/${encodeURIComponent(studentId)}/partial-absences`;
+  return id ? `${base}/${encodeURIComponent(id)}` : base;
 }
 
 export async function fetchStudentPartialAbsences(
@@ -70,12 +52,8 @@ export async function fetchStudentPartialAbsences(
   from: string,
   to: string,
 ): Promise<StudentPartialAbsence[]> {
-  const response = await transportFetch(
-    `/api/students/${studentId}/partial-absences?from=${from}&to=${to}`,
-  );
-  const rows = await parseData<BackendPartialAbsence[]>(
-    response,
-    "Teilentschuldigungen konnten nicht geladen werden",
+  const rows = await bffJson<BackendPartialAbsence[]>(
+    `${partialAbsencesPath(studentId)}?from=${from}&to=${to}`,
   );
   return rows.map(mapPartialAbsence);
 }
@@ -87,23 +65,14 @@ export async function saveStudentPartialAbsence(
   fromTime: string,
   reason?: string,
 ): Promise<StudentPartialAbsence> {
-  const response = await transportFetch(
-    partialAbsenceId
-      ? `/api/students/${studentId}/partial-absences/${partialAbsenceId}`
-      : `/api/students/${studentId}/partial-absences`,
+  const row = await bffJson<BackendPartialAbsence>(
+    partialAbsencesPath(studentId, partialAbsenceId),
     {
       method: partialAbsenceId ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(
-        reason
-          ? { date, from_time: fromTime, reason }
-          : { date, from_time: fromTime },
-      ),
+      body: reason
+        ? { date, from_time: fromTime, reason }
+        : { date, from_time: fromTime },
     },
-  );
-  const row = await parseData<BackendPartialAbsence>(
-    response,
-    "Teilentschuldigung konnte nicht gespeichert werden",
   );
   return mapPartialAbsence(row);
 }
@@ -112,14 +81,7 @@ export async function deleteStudentPartialAbsence(
   studentId: string,
   partialAbsenceId: string,
 ): Promise<void> {
-  const response = await transportFetch(
-    `/api/students/${studentId}/partial-absences/${partialAbsenceId}`,
-    { method: "DELETE" },
-  );
-  if (!response.ok) {
-    throw await apiErrorFromResponse(
-      response,
-      "Teilentschuldigung konnte nicht entfernt werden",
-    );
-  }
+  await bffJson<unknown>(partialAbsencesPath(studentId, partialAbsenceId), {
+    method: "DELETE",
+  });
 }

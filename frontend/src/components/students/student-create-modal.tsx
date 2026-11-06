@@ -22,9 +22,14 @@ import {
 import { Button, ButtonLink } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { createLogger } from "~/lib/logger";
-import type { Student } from "@/lib/api";
-import { PersonalInfoSection, DepartureSection } from "./student-form-fields";
-import { StudentCommonFormSections } from "./student-common-form-sections";
+import type { Student } from "~/lib/student-helpers";
+import {
+  AdditionalInfoSection,
+  DepartureSection,
+  HealthInfoSection,
+  PersonalInfoSection,
+  PrivacyConsentSection,
+} from "./student-form-fields";
 import { validateStudentForm } from "~/lib/student-form-validation";
 import {
   busDaysHaveAny,
@@ -34,7 +39,7 @@ import {
   allowedDepartureToDepartureDays,
   allowedDepartureToPickupDays,
   normalizeAllowedDepartureModes,
-} from "~/lib/student-helpers";
+} from "~/lib/departure-plan";
 import GuardianFormModal, {
   type RelationshipFormData,
 } from "~/components/guardians/guardian-form-modal";
@@ -57,6 +62,7 @@ import {
   type CareTimePresets,
   type SchoolPeriod,
 } from "~/lib/student-arrival-api";
+import { fetchPrivacyConsentDefaults } from "~/lib/student-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   mapBulkPickupScheduleFormToBackend,
@@ -203,8 +209,6 @@ export function StudentCreateModal({
     birthday: "",
     health_info: "",
     extra_info: "",
-    privacy_consent_accepted: false,
-    data_retention_days: 30,
     bus: false,
     // Explicit empty pickup map = "Geht alleine nach Hause". Sending it (not
     // omitting it) keeps the create contract identical to the edit flow and
@@ -241,6 +245,14 @@ export function StudentCreateModal({
   const settingsLoad = useApiLoadError();
   const showSettingsLoadError = settingsLoad.show;
   const clearSettingsLoadError = settingsLoad.clear;
+  // The consent fields start at the school's defaults and are only sent when
+  // the person changed one: the stored consent then follows the school
+  // setting until somebody decides otherwise for this child.
+  const [consentDefaultsReload, setConsentDefaultsReload] = useState(0);
+  const consentDefaultsLoad = useApiLoadError();
+  const showConsentDefaultsError = consentDefaultsLoad.show;
+  const clearConsentDefaultsError = consentDefaultsLoad.clear;
+  const touchedConsentFieldsRef = useRef(new Set<string>());
   const [guardianPickerOpen, setGuardianPickerOpen] = useState(false);
   // The inline picker panel is tall; collapsing it (on add or cancel) shrinks
   // the modal so the kept scroll position lands further down the form. Re-anchor
@@ -268,8 +280,6 @@ export function StudentCreateModal({
         birthday: "",
         health_info: "",
         extra_info: "",
-        privacy_consent_accepted: false,
-        data_retention_days: 30,
         bus: false,
         pickup_days: {},
         departure_days: {},
@@ -287,8 +297,45 @@ export function StudentCreateModal({
       setArrivalSettingsLoading(false);
       setGuardianPickerOpen(false);
       pendingGuardianScrollRef.current = false;
+      touchedConsentFieldsRef.current = new Set();
     }
   }, [isOpen, clearErrors]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    clearConsentDefaultsError();
+    void fetchPrivacyConsentDefaults()
+      .then((defaults) => {
+        if (cancelled) return;
+        const touched = touchedConsentFieldsRef.current;
+        setFormData((prev) => ({
+          ...prev,
+          ...(!touched.has("privacy_consent_accepted") && {
+            privacy_consent_accepted: defaults.accepted,
+          }),
+          ...(!touched.has("data_retention_days") && {
+            data_retention_days: defaults.dataRetentionDays,
+          }),
+        }));
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          void showConsentDefaultsError(error, {
+            object: "die Datenschutz-Voreinstellung",
+            retry: () => setConsentDefaultsReload((count) => count + 1),
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isOpen,
+    consentDefaultsReload,
+    showConsentDefaultsError,
+    clearConsentDefaultsError,
+  ]);
 
   // The tenant decides where care days come from. Resolve that boundary as
   // soon as the dialog opens: in booking mode this direct form must not create
@@ -301,8 +348,8 @@ export function StudentCreateModal({
     void fetchArrivalSettings()
       .then((settings) => {
         if (!cancelled) {
-          setCareDaysSource(settings.care_days_source);
-          setSchoolPeriods(settings.school_periods ?? []);
+          setCareDaysSource(settings.careDaysSource);
+          setSchoolPeriods(settings.schoolPeriods);
           setTimePresets({
             arrival: settings.defaultArrivalTime ?? "",
             pickup: settings.defaultPickupTime ?? "",
@@ -395,8 +442,26 @@ export function StudentCreateModal({
 
   // Prüfung vor dem Senden: gleicher Kasten wie ein Fehler vom Server, die
   // Felder heißen wie in der API, damit Markierung und Fokus sie finden.
+  /**
+   * The form as it is sent. An untouched consent pair stays out, so the
+   * consent follows the school setting; a touched one always travels whole
+   * (the consent write is a full upsert), with "not accepted" as the
+   * unanswered checkbox.
+   */
+  const studentDraft = (): Partial<Student> => {
+    const draft = { ...formData };
+    if (touchedConsentFieldsRef.current.size === 0) {
+      delete draft.privacy_consent_accepted;
+      delete draft.data_retention_days;
+    } else {
+      draft.privacy_consent_accepted = draft.privacy_consent_accepted ?? false;
+      draft.data_retention_days = draft.data_retention_days ?? null;
+    }
+    return draft;
+  };
+
   const validateForm = (): boolean => {
-    const fieldErrors = validateStudentForm(formData, {
+    const fieldErrors = validateStudentForm(studentDraft(), {
       firstName: true,
       lastName: true,
       schoolClass: true,
@@ -436,7 +501,7 @@ export function StudentCreateModal({
     if (careDaysSource !== "weekly_plan" || !validateForm()) return;
     const payload: Partial<Student> & {
       guardians?: StudentGuardianPayload[];
-    } & CreateStudentSchedules = { ...formData };
+    } & CreateStudentSchedules = studentDraft();
     if (guardians.length > 0) {
       payload.guardians = guardians;
     }
@@ -484,6 +549,8 @@ export function StudentCreateModal({
     field: keyof Student,
     value: string | boolean | number | BusDays | null,
   ) => {
+    if (field === "privacy_consent_accepted" || field === "data_retention_days")
+      touchedConsentFieldsRef.current.add(field);
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -557,6 +624,10 @@ export function StudentCreateModal({
 
               {mode === "student" ? (
                 <LoadErrorAlert error={settingsLoad.error} />
+              ) : null}
+
+              {mode === "student" ? (
+                <LoadErrorAlert error={consentDefaultsLoad.error} />
               ) : null}
 
               {mode === "student" && careDaysSource === "bookings" ? (
@@ -837,11 +908,18 @@ export function StudentCreateModal({
                     </Button>
                   </section>
 
-                  {/* Common Form Sections */}
-                  <StudentCommonFormSections
+                  <HealthInfoSection
+                    value={formData.health_info}
+                    onChange={(v) => handleChange("health_info", v)}
+                  />
+                  <AdditionalInfoSection
+                    value={formData.extra_info}
+                    onChange={(v) => handleChange("extra_info", v)}
+                  />
+                  <PrivacyConsentSection
                     formData={formData}
-                    fieldError={errors.fieldError}
                     onChange={handleChange}
+                    fieldError={errors.fieldError}
                   />
 
                   {/* How the child leaves each weekday (alleine / Bus / Abholung) */}

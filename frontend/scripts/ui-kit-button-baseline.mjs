@@ -83,7 +83,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/announcements/parent-target-picker.tsx",
-    lines: [46],
+    lines: [47],
     reason: "Zielgruppe ankreuzen (Häkchen-Zeile): Auswahlzeile",
   },
   {
@@ -212,19 +212,19 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-plan-view.tsx",
-    lines: [503],
+    lines: [504],
     reason: "Mobile Tagesauswahl mit Auswahlzustand: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1322],
+    lines: [1323],
     reason: "Tagesauswahl mit Auswahlzustand: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1565],
+    lines: [1566],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
@@ -248,7 +248,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/student-detail-components.tsx",
-    lines: [1167],
+    lines: [1155],
     reason: "Verlaufskachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
@@ -275,7 +275,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-grey-button-fill",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1322],
+    lines: [1323],
     reason: "Tageskachel: grau markiert den gewählten Tag, kein Knopf",
   },
   {

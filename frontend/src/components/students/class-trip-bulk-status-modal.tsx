@@ -11,7 +11,7 @@ import { MultiSelect } from "~/components/ui/multi-select";
 import { TimeField } from "~/components/ui/time-field";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import {
   formatDate as formatCalendarDate,
   berlinTodayISO,

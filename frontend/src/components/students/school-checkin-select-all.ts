@@ -1,4 +1,4 @@
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import {
   getDayPlanningNotComingLabel,
   hasActualAttendance,
@@ -20,7 +20,7 @@ export function isLeftOutOfSelectAll(student: Student): boolean {
   );
 }
 
-export interface SelectAllPlan {
+interface SelectAllPlan {
   /** The visible children „Alle auswählen“ marks. */
   readonly ids: readonly string[];
   /** Visible children left out because they are absent today. */
