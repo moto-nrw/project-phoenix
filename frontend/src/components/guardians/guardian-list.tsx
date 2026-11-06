@@ -35,8 +35,8 @@ import {
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 
-// Account-status pill: a brand-colored dot + neutral label, matching the
-// app's connection-indicator idiom. Routes color through LOCATION_COLORS.
+// Account-status pill: the tint carries the status (no dot, #2476). Routes
+// color through LOCATION_COLORS.
 const ACCOUNT_STATUS_META: Record<
   GuardianAccountStatus,
   { label: string; color: string }

@@ -1187,6 +1187,7 @@ function StaffPageContent() {
                                       label={info}
                                       tone="gray"
                                       compact
+                                      wrap
                                     />
                                   ))}
                                 </div>

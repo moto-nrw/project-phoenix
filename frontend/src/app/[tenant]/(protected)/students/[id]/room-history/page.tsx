@@ -226,6 +226,7 @@ function DayCard({
               label={statusLabel || "Keine Daten"}
               color={LOCATION_COLORS.WARNING}
               compact
+              wrap
             />
           )}
           <ChevronRight
@@ -439,6 +440,7 @@ function HistoryTable({
                                   label={statusLabel}
                                   color={LOCATION_COLORS.WARNING}
                                   compact
+                                  wrap
                                 />
                               )}
                             </div>

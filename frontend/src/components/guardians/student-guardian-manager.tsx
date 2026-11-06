@@ -675,10 +675,18 @@ export default function StudentGuardianManager({
           {readOnly && (
             <>
               <span className="hidden sm:inline-flex">
-                <StatusBadge label="Nur Ansicht" tone="gray" icon={Eye} />
+                <StatusBadge
+                  label="Nur Ansicht"
+                  tone="gray"
+                  icon={<Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5" />}
+                />
               </span>
               <span className="inline-flex sm:hidden">
-                <StatusBadge label="Ansicht" tone="gray" icon={Eye} />
+                <StatusBadge
+                  label="Ansicht"
+                  tone="gray"
+                  icon={<Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5" />}
+                />
               </span>
             </>
           )}
