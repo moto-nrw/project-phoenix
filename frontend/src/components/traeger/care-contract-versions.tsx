@@ -30,6 +30,7 @@ import {
   type ContractService,
   type ContractVersion,
   downloadCareContractVersion,
+  type Weekday,
 } from "~/lib/traeger-care-contracts-api";
 
 const logger = createLogger({ component: "CareContractVersions" });
@@ -92,36 +93,43 @@ function dayText(services: readonly ContractService[]): string {
 export function changedWeekdays(
   version: ContractVersion,
   previous: ContractVersion | undefined,
-): Set<string> {
-  const changed = new Set<string>();
+): Set<Weekday> {
+  const changed = new Set<Weekday>();
   if (!previous) return changed;
-  const key = (services: readonly ContractService[]) =>
+  const key = (services: readonly ContractService[], weekday: Weekday) =>
     services
+      .filter((service) => service.weekday === weekday)
       .map((service) => `${service.careOfferingId}|${service.endsAt}`)
       .sort()
       .join(",");
-  const before = new Map(
-    serviceDays(previous.services).map((day) => [day.weekday, day.services]),
+  // Every weekday of both versions, so care dropped on a weekend counts too.
+  const weekdays = new Set<Weekday>(
+    [...version.services, ...previous.services].map((s) => s.weekday),
   );
-  for (const day of serviceDays(version.services)) {
-    if (key(day.services) !== key(before.get(day.weekday) ?? [])) {
-      changed.add(day.weekday);
+  for (const weekday of weekdays) {
+    if (key(version.services, weekday) !== key(previous.services, weekday)) {
+      changed.add(weekday);
     }
   }
   return changed;
 }
 
 /**
- * The newest version that is planned but not yet in force, if any: the
- * screen tells the office from when the contract changes.
+ * The next planned change of the care, if any: the earliest version from a
+ * change that is not yet in force. A contract that only starts later is no
+ * change.
  */
 export function plannedVersion(
   versions: readonly ContractVersion[],
   today: string,
 ): ContractVersion | undefined {
-  return [...versions]
-    .reverse()
-    .find((version) => versionPhase(version, today) === "planned");
+  return versions
+    .filter(
+      (version) =>
+        version.source === "buchungsaenderung" &&
+        versionPhase(version, today) === "planned",
+    )
+    .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))[0];
 }
 
 export function CareContractVersions({
@@ -200,7 +208,7 @@ export function CareContractVersions({
                 </p>
                 <div className="mt-3">
                   <DataGrid>
-                    {serviceDays(version.services).map((day) => (
+                    {serviceDays(version.services, [...changed]).map((day) => (
                       <DataField key={day.weekday} label={day.label}>
                         <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
                           {day.services.length === 0 ? (

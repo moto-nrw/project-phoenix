@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { serviceDays } from "~/components/traeger/care-contract-format";
 import type { ContractVersion } from "~/lib/traeger-care-contracts-api";
 import {
   changedWeekdays,
@@ -46,10 +47,35 @@ describe("versionPhase", () => {
     );
   });
 
+  it("names the earliest planned change, never a contract that starts later", () => {
+    const later = [version({ number: 1, effectiveFrom: "2026-10-01" })];
+    expect(plannedVersion(later, "2026-09-09")).toBeUndefined();
+    const two = [
+      version({ number: 1, status: "abgeloest", validUntil: "2027-02-28" }),
+      version({
+        number: 2,
+        status: "abgeloest",
+        source: "buchungsaenderung",
+        effectiveFrom: "2027-03-01",
+        validUntil: "2027-06-30",
+      }),
+      version({
+        number: 3,
+        source: "buchungsaenderung",
+        effectiveFrom: "2027-07-01",
+      }),
+    ];
+    expect(plannedVersion(two, "2026-09-09")?.number).toBe(2);
+  });
+
   it("names the next planned version", () => {
     const versions = [
       version({ number: 1, status: "abgeloest", validUntil: "2027-02-28" }),
-      version({ number: 2, effectiveFrom: "2027-03-01" }),
+      version({
+        number: 2,
+        source: "buchungsaenderung",
+        effectiveFrom: "2027-03-01",
+      }),
     ];
     expect(plannedVersion(versions, "2026-09-09")?.number).toBe(2);
     expect(plannedVersion(versions, "2027-03-01")).toBeUndefined();
@@ -76,5 +102,26 @@ describe("changedWeekdays", () => {
     expect([...changedWeekdays(after, before)]).toEqual(["mon", "fri"]);
     expect(changedWeekdays(before, undefined).size).toBe(0);
     expect(changedWeekdays(before, before).size).toBe(0);
+  });
+});
+
+describe("weekend care", () => {
+  it("counts care dropped on a Saturday as a changed day and still shows the day", () => {
+    const monday = {
+      weekday: "mon" as const,
+      careOfferingId: "5",
+      moduleName: "Ganztag",
+      endsAt: "14:00",
+      lastDay: null,
+    };
+    const before = version({
+      services: [monday, { ...monday, weekday: "sat" }],
+    });
+    const after = version({ number: 2, services: [monday] });
+    const changed = changedWeekdays(after, before);
+    expect([...changed]).toEqual(["sat"]);
+    expect(
+      serviceDays(after.services, [...changed]).map((day) => day.weekday),
+    ).toEqual(["mon", "tue", "wed", "thu", "fri", "sat"]);
   });
 });

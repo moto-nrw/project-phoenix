@@ -481,4 +481,30 @@ describe("TraegerVertragPage", () => {
       expect(api.downloadCareContractVersion).toHaveBeenCalledWith("7", 2),
     );
   });
+
+  it("announces no change for a contract that only starts later", async () => {
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      status: "aktiv",
+      sentAt: "2026-07-20T08:00:00Z",
+      concluded: { method: "mit_anmeldung", at: "2026-07-20T08:00:00Z" },
+      documentFrozen: true,
+      versions: [
+        {
+          number: 1,
+          status: "wirksam",
+          source: "abschluss",
+          effectiveFrom: "2027-08-01",
+          endsOn: null,
+          validUntil: null,
+          services: DRAFT.version.services,
+          createdAt: "2026-07-20T08:00:00Z",
+        },
+      ],
+    } satisfies CareContractDetail);
+    renderPage();
+
+    expect(await screen.findByText("Gilt ab 01.08.2027")).toBeInTheDocument();
+    expect(screen.queryByText(/gilt Version 1/)).not.toBeInTheDocument();
+  });
 });

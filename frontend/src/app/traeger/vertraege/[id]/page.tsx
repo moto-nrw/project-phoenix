@@ -103,13 +103,16 @@ export default function TraegerVertragPage() {
     }
   }, [id, clearLoadError, showLoadError]);
 
+  // A new Berlin day can put another version in force: read the contract
+  // again, so booked care, contribution and PDF follow it (#4681).
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, today]);
 
   // The preview follows the stored PDF once the contract is sent.
   const frozen = contract?.documentFrozen;
   const loaded = contract !== null;
+  const versionInForce = contract?.version.number;
   useEffect(() => {
     if (!loaded) return;
     let url: string | null = null;
@@ -131,9 +134,9 @@ export default function TraegerVertragPage() {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-    // `frozen` is no input of the effect: a new PDF exists only after the
-    // first send, so the preview reloads then.
-  }, [id, frozen, loaded]);
+    // `frozen` and the version in force are no inputs of the effect: a new
+    // PDF exists only after the first send or when another version holds.
+  }, [id, frozen, loaded, versionInForce]);
 
   const refreshDelivery = async () => {
     setRefreshing(true);
