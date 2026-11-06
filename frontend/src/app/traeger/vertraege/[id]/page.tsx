@@ -377,10 +377,7 @@ export default function TraegerVertragPage() {
                     {formatDate(contract.version.effectiveFrom)}
                   </DataField>
                   <DataField label="Laufzeit">
-                    {formatTerm(
-                      contract.version.terms,
-                      contract.version.endsOn,
-                    )}
+                    {formatTerm(contract.version.terms, contractEnd(contract))}
                   </DataField>
                   <DataField label="Beitrag im Monat">
                     {contract.version.priceCents !== null
@@ -566,6 +563,19 @@ export default function TraegerVertragPage() {
       ) : null}
     </TenantPage>
   );
+}
+
+/**
+ * The last day of the contract: the end of its newest effective version.
+ * A version ends the day before a module switch, which is no end of the
+ * contract (#4681).
+ */
+function contractEnd(contract: CareContractDetail): string | null {
+  const effective = contract.versions.filter(
+    (version) => version.status === "wirksam" || version.status === "abgeloest",
+  );
+  const newest = effective.at(-1);
+  return newest ? newest.endsOn : contract.version.endsOn;
 }
 
 function StatusNotice({

@@ -468,6 +468,11 @@ describe("TraegerVertragPage", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Geändert")).toHaveLength(2);
+    // The first version ends the day before the switch; the contract runs on.
+    expect(
+      screen.getByText("Bis zum Ende des Schuljahres"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/endet am 28\.02\.2027/)).not.toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", { name: "PDF von Version 2 herunterladen" }),
