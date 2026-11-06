@@ -39,6 +39,7 @@ import {
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -478,9 +479,12 @@ export function BulkSubstitutionModal({
                                 {", "}
                                 {formatDate(group.date)}
                                 {group.fullyAbsent && (
-                                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
-                                    bereits abwesend gemeldet
-                                  </span>
+                                  <StatusBadge
+                                    label="bereits abwesend gemeldet"
+                                    tone="gray"
+                                    size="xs"
+                                    wrap
+                                  />
                                 )}
                               </span>
                               <span className="mt-0.5 block text-xs text-gray-500">

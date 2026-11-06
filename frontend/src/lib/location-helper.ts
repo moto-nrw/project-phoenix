@@ -293,6 +293,14 @@ const LOCATION_BADGE_TONES: Record<string, LocationBadgeTone> = {
     backgroundColor: MOTO_COLOR_PALETTE.wine.soft,
     textColor: MOTO_COLOR_PALETTE.wine.strong,
   },
+  [MOTO_COLOR_PALETTE.gold.base]: {
+    backgroundColor: MOTO_COLOR_PALETTE.gold.soft,
+    textColor: MOTO_COLOR_PALETTE.gold.strong,
+  },
+  [MOTO_COLOR_PALETTE.teal.base]: {
+    backgroundColor: MOTO_COLOR_PALETTE.teal.soft,
+    textColor: MOTO_COLOR_PALETTE.teal.strong,
+  },
 };
 
 /**
