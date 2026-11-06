@@ -22,6 +22,27 @@ function version(overrides: Partial<ContractVersion>): ContractVersion {
 }
 
 describe("versionPhase", () => {
+  it("never places a replaced version on a day", () => {
+    expect(
+      versionPhase(
+        version({ status: "ersetzt", effectiveFrom: "2026-09-01" }),
+        "2026-09-09",
+      ),
+    ).toBe("replaced");
+    expect(
+      plannedVersion(
+        [
+          version({
+            status: "ersetzt",
+            source: "buchungsaenderung",
+            effectiveFrom: "2027-03-01",
+          }),
+        ],
+        "2026-09-09",
+      ),
+    ).toBeUndefined();
+  });
+
   it("places each version on the day by its dates, not by its status", () => {
     const today = "2026-09-09";
     expect(

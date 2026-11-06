@@ -37,7 +37,7 @@ const logger = createLogger({ component: "CareContractVersions" });
 
 /** Where a version stands on a day, for its badge. */
 export type VersionPhase =
-  "current" | "planned" | "past" | "pending" | "rejected";
+  "current" | "planned" | "past" | "pending" | "rejected" | "replaced";
 
 const PHASE_TONES: Record<VersionPhase, StatusBadgeTone> = {
   current: "green",
@@ -45,6 +45,7 @@ const PHASE_TONES: Record<VersionPhase, StatusBadgeTone> = {
   past: "outline",
   pending: "gray",
   rejected: "red",
+  replaced: "outline",
 };
 
 /** The phase of a version on the Berlin day `today` ("YYYY-MM-DD"). */
@@ -54,6 +55,8 @@ export function versionPhase(
 ): VersionPhase {
   if (version.status === "beantragt") return "pending";
   if (version.status === "abgelehnt") return "rejected";
+  // Replaced by a change on its own first day: it holds on no day.
+  if (version.status === "ersetzt") return "replaced";
   if (version.effectiveFrom > today) return "planned";
   if (version.validUntil !== null && version.validUntil < today) return "past";
   return "current";
@@ -71,11 +74,16 @@ function phaseLabel(version: ContractVersion, phase: VersionPhase): string {
       return "Noch nicht wirksam";
     case "rejected":
       return "Abgelehnt";
+    case "replaced":
+      return "Ersetzt";
   }
 }
 
 /** „01.03.2027 bis 31.07.2027“, or „ab 01.03.2027“ while it holds on. */
 function formatValidity(version: ContractVersion): string {
+  if (version.status === "ersetzt") {
+    return `ab ${formatDate(version.effectiveFrom)} vorgesehen, gilt an keinem Tag`;
+  }
   const until = version.validUntil ?? version.endsOn;
   return until
     ? `${formatDate(version.effectiveFrom)} bis ${formatDate(until)}`
@@ -180,8 +188,14 @@ export function CareContractVersions({
       <ResponsiveActionList>
         {ordered.map((version, index) => {
           const phase = versionPhase(version, today);
-          // Compared with the version that holds before it.
-          const changed = changedWeekdays(version, ordered[index + 1]);
+          // Compared with the version that holds before it; a replaced
+          // version held on no day.
+          const changed = changedWeekdays(
+            version,
+            ordered
+              .slice(index + 1)
+              .find((earlier) => earlier.status !== "ersetzt"),
+          );
           return (
             <li
               key={version.number}

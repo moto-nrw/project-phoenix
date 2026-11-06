@@ -158,7 +158,7 @@ export type ContractMailState = "queued" | "sent" | "failed" | "unknown";
 
 /** The state of a contract version (ADR 0088 section 2, #4681). */
 type ContractVersionStatus =
-  "beantragt" | "wirksam" | "abgeloest" | "abgelehnt";
+  "beantragt" | "wirksam" | "abgeloest" | "abgelehnt" | "ersetzt";
 
 /** Where a version came from: the conclusion or an approved change. */
 type ContractVersionSource = "abschluss" | "buchungsaenderung";

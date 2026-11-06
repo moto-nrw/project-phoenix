@@ -14,8 +14,9 @@ import (
 // TestCareContractVersionsFormOneTimeline pins the invariants of #4681 on
 // the versions of a contract under the request role: the effective versions
 // never overlap (one wirksam version, the newest; no shared start), a change
-// may go in front of a planned version but never before the first one, and
-// a follow-up version never takes effect in the past.
+// may go in front of a planned version, a version replaced on its first day
+// becomes ersetzt and never holds again, and a follow-up version never takes
+// effect in the past.
 func TestCareContractVersionsFormOneTimeline(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -75,10 +76,16 @@ func TestCareContractVersionsFormOneTimeline(t *testing.T) {
 		"a change before the planned version goes in front of it as superseded")
 	require.ErrorContains(t, asTraeger(version(5, "abgeloest", "2099-05-01")), "needs a later effective version",
 		"a superseded version without a later one would leave two newest versions")
-	require.ErrorContains(t, asTraeger(version(5, "abgeloest", "2026-07-15")), "must start after the first version",
-		"no version goes before the contract's first one")
+	require.ErrorContains(t, asTraeger(version(5, "abgeloest", "2026-07-15")), "cannot take effect in the past",
+		"a version before the first one is fine only ahead of today")
 	require.ErrorContains(t, asTraeger(version(5, "abgeloest", "2099-02-01")), "uq_contract_versions_timeline",
 		"two versions never start on the same day")
+	replace := fmt.Sprintf(`UPDATE care_contract.contract_versions SET status = 'ersetzt' WHERE contract_id = %d AND version_number = 4`, contract)
+	require.NoError(t, asTraeger(replace, version(6, "abgeloest", "2099-02-01")),
+		"a change on the first day of a version replaces it: the old one becomes ersetzt, the new one takes its day")
+	require.ErrorContains(t, asTraeger(fmt.Sprintf(`UPDATE care_contract.contract_versions SET status = 'wirksam'
+		WHERE contract_id = %d AND version_number = 4`, contract)), "cannot move from ersetzt",
+		"a replaced version never holds again")
 	require.ErrorContains(t, asTraeger(version(3, "beantragt", "2099-04-01"),
 		fmt.Sprintf(`UPDATE care_contract.contract_versions SET status = 'wirksam' WHERE contract_id = %d AND version_number = 3`, contract)), "uq_contract_versions_effective",
 		"a requested version becomes effective only after its predecessor is superseded")

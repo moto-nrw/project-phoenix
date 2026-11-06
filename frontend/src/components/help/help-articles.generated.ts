@@ -10110,6 +10110,8 @@ export const traegerCareContractsTopic =
         "Mit `PDF herunterladen` bekommen Sie den Vertrag zum Drucken, etwa für Familien ohne Mail.",
         "Frühere Versionen bleiben unter `Versionen` lesbar. `Gilt jetzt` zeigt die Version von heute. Die Abrechnung nimmt für jeden Tag die Version, die an diesem Tag gilt.",
         "Eine neue Version gilt nie rückwirkend. Kommt eine Freigabe zu spät, gilt die Version ab dem Tag, an dem moto sie anlegt.",
+        "Beginnt an einem Tag schon eine Version, und die Schule gibt für denselben Tag eine weitere Änderung frei, ersetzt moto diese Version. Die neue Version enthält beide Änderungen. Die alte steht unter `Versionen` als `Ersetzt` und gilt an keinem Tag.",
+        "Ist schon eine spätere Version geplant, gilt eine frühere Änderung nur bis dahin. Die geplante Version übernimmt sie nicht von selbst.",
       ],
       differences: [
         "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
