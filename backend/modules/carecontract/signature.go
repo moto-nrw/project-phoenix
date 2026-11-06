@@ -154,7 +154,8 @@ type InboxSigning interface {
 }
 
 // PaperSignatures records a contract signed on paper (#4679, option D) in
-// the Träger transaction of the route, and reads its PDF back.
+// the Träger transaction of the route. PDF reads open their own units and
+// log access in the contract's school after the Träger transaction ends.
 type PaperSignatures interface {
 	RecordPaperSignature(ctx context.Context, reviewer Reviewer, contractID int64, input PaperInput) error
 	PaperDocument(ctx context.Context, reviewer Reviewer, contractID int64) (File, error)

@@ -33,7 +33,8 @@ func NewInboxSigning(ports SignaturePorts) carecontract.InboxSigning {
 }
 
 // NewPaperSignatures builds the paper contract of the Träger-Büro over the
-// ports of its contracts, in the Träger transaction of the route.
+// ports of its contracts. Writes use the route's Träger transaction; reads
+// open their own units to log access in the contract's school afterwards.
 func NewPaperSignatures(contractPorts ContractPorts, ports SignaturePorts) carecontract.PaperSignatures {
 	clock := application.Clock{Now: time.Now}
 	store := postgres.NewStore()

@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -36,6 +37,10 @@ func (s signingErrorStore) CurrentDocument(context.Context, int64, int64) (Store
 	return StoredDocument{ID: 1}, nil
 }
 func (s signingErrorStore) InsertEvents(context.Context, int64, []Event) error { return s.failure }
+
+func (signingErrorStore) InboxContractAddressed(context.Context, int64, int64, carecontract.InboxReader) (bool, error) {
+	return true, nil
+}
 
 type signingErrorRuntime struct {
 	carecontract.Runtime
@@ -94,4 +99,36 @@ func TestPaperSignatureRequiresARecorder(t *testing.T) {
 	t.Parallel()
 	s := &Signatures{}
 	require.ErrorContains(t, s.RecordPaperSignature(context.Background(), carecontract.Reviewer{OrganizationID: 1}, 1, carecontract.PaperInput{}), "reviewer needs a Träger and an account")
+}
+
+func TestInboxContractPreservesOperationalErrors(t *testing.T) {
+	t.Parallel()
+	for _, stage := range []string{"contract", "document"} {
+		for _, failure := range []error{context.DeadlineExceeded, errors.New("connection unavailable")} {
+			t.Run(stage+"/"+failure.Error(), func(t *testing.T) {
+				s := &Signatures{store: signingErrorStore{stage: stage, failure: fmt.Errorf("read failed: %w", failure)}}
+				_, _, err := s.inboxContract(context.Background(), 1, 1, carecontract.InboxReader{
+					AccountID: 1, Email: "parent@example.org",
+				}, false)
+				require.ErrorIs(t, err, failure)
+				require.NotErrorIs(t, err, carecontract.ErrInboxDocumentNotFound)
+			})
+		}
+	}
+}
+
+func TestInboxContractHidesMissingRecords(t *testing.T) {
+	t.Parallel()
+	for stage, failure := range map[string]error{
+		"contract": carecontract.ErrContractNotFound,
+		"document": carecontract.ErrContractNotSignable,
+	} {
+		t.Run(stage, func(t *testing.T) {
+			s := &Signatures{store: signingErrorStore{stage: stage, failure: fmt.Errorf("read failed: %w", failure)}}
+			_, _, err := s.inboxContract(context.Background(), 1, 1, carecontract.InboxReader{
+				AccountID: 1, Email: "parent@example.org",
+			}, false)
+			require.ErrorIs(t, err, carecontract.ErrInboxDocumentNotFound)
+		})
+	}
 }

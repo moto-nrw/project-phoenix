@@ -48,12 +48,12 @@ func (rs *Resource) ContractRouter(protectedTraegerRoutes func(chi.Router, func(
 		open.Get("/", rs.list)
 		open.Get("/{id}", rs.detail)
 		open.Get("/{id}/document", rs.document)
+		open.Get("/{id}/paper-signature", rs.paperDocument)
 		inTx := r.With(rs.requireContract, withTx)
 		inTx.Post("/send", rs.send)
 		inTx.Delete("/{id}", rs.discard)
 		// The paper contract (#4679, signing.go).
 		inTx.Post("/{id}/paper-signature", rs.recordPaper)
-		inTx.Get("/{id}/paper-signature", rs.paperDocument)
 	})
 	return r
 }

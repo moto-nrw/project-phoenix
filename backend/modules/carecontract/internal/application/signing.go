@@ -242,12 +242,18 @@ func (s *Signatures) inboxContract(ctx context.Context, organizationID, contract
 		return ContractRecord{}, StoredDocument{}, carecontract.ErrInboxDocumentNotFound
 	}
 	record, err := s.store.Contract(ctx, organizationID, contractID, forUpdate)
-	if err != nil {
+	if errors.Is(err, carecontract.ErrContractNotFound) {
 		return ContractRecord{}, StoredDocument{}, carecontract.ErrInboxDocumentNotFound
 	}
-	document, err := s.store.CurrentDocument(ctx, organizationID, contractID)
 	if err != nil {
+		return ContractRecord{}, StoredDocument{}, err
+	}
+	document, err := s.store.CurrentDocument(ctx, organizationID, contractID)
+	if errors.Is(err, carecontract.ErrContractNotSignable) {
 		return ContractRecord{}, StoredDocument{}, carecontract.ErrInboxDocumentNotFound
+	}
+	if err != nil {
+		return ContractRecord{}, StoredDocument{}, err
 	}
 	return record, document, nil
 }

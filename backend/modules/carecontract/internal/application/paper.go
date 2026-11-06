@@ -77,21 +77,36 @@ func (s *Signatures) RecordPaperSignature(ctx context.Context, reviewer carecont
 	})
 }
 
-// PaperDocument answers the uploaded PDF of a paper contract and records
-// the read.
+// PaperDocument answers the uploaded PDF and logs the read in its school's
+// access log after the Träger transaction has committed.
 func (s *Signatures) PaperDocument(ctx context.Context, reviewer carecontract.Reviewer, contractID int64) (carecontract.File, error) {
 	if err := checkReviewer(reviewer); err != nil {
 		return carecontract.File{}, err
 	}
-	record, err := s.store.Contract(ctx, reviewer.OrganizationID, contractID, false)
+	if s.contracts == nil {
+		return carecontract.File{}, errors.New("care contract: the paper document needs the contracts")
+	}
+	var file carecontract.File
+	var schoolID int64
+	err := s.contracts.runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(txCtx context.Context) error {
+		record, err := s.store.Contract(txCtx, reviewer.OrganizationID, contractID, false)
+		if err != nil {
+			return err
+		}
+		schoolID = record.Summary.SchoolID
+		file, err = s.store.PaperDocument(txCtx, reviewer.OrganizationID, contractID)
+		if err != nil {
+			return err
+		}
+		return s.event(txCtx, reviewer.OrganizationID, record, reviewer.AccountID, ports.ActionRead, map[string]any{"view": "paper"})
+	})
 	if err != nil {
 		return carecontract.File{}, err
 	}
-	file, err := s.store.PaperDocument(ctx, reviewer.OrganizationID, contractID)
-	if err != nil {
+	if err := s.contracts.logSchools(ctx, reviewer, "care_contract_paper_document", map[int64][]int64{schoolID: {contractID}}); err != nil {
 		return carecontract.File{}, err
 	}
-	return file, s.event(ctx, reviewer.OrganizationID, record, reviewer.AccountID, ports.ActionRead, map[string]any{"view": "paper"})
+	return file, nil
 }
 
 // checkPaper validates the upload like every upload (size, extension and

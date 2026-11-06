@@ -263,6 +263,12 @@ func TestCareContractSignedOnPaperNeedsAPDFAndTheRight(t *testing.T) {
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, contractPath(draft, "/paper-signature"), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, pdf, rec.Body.Bytes())
+	var paperReads int
+	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM audit.data_access_log WHERE tenant_id = ?
+		AND resource_type = 'care_contracts' AND actor_role = 'traeger'
+		AND metadata->>'view' = 'care_contract_paper_document'
+		AND metadata->'contract_ids' @> to_jsonb(?::bigint)`, f.school, draft).Scan(context.Background(), &paperReads))
+	assert.Equal(t, 1, paperReads, "the signed scan is in the school's access log")
 
 	rec = paperUpload(t, f, f.office.token, draft, "vertrag.pdf", pdf)
 	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())

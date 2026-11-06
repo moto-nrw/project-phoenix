@@ -52,7 +52,10 @@ und ADR 0088 §3 auf.
    unverändert durch, damit Mail-Link und Eltern-App dieselbe Quelle lesen.
 5. **Papier.** Das Träger-Büro lädt das unterschriebene PDF hoch (Größe,
    Endung, Inhalt). Ein Entwurf wird dabei eingefroren und gilt als
-   übergeben.
+   übergeben. Beim Download öffnet `PaperDocument` die Träger-Transaktion
+   selbst und beendet sie vor dem Eintrag im Schulzugriffsprotokoll über
+   `logSchools` (ADR 0088 Abschnitt 7). Ohne diesen Eintrag wird kein PDF
+   ausgeliefert. Die Grenze steht in beiden Transaktionsregistern.
 6. **Erinnerung.** Träger-Einstellung `care_contract.signature_reminder_days`
    (Standard 7, 0 = keine), höchstens drei Erinnerungen. Der Worker-Job
    läuft je Träger in dessen Transaktion.

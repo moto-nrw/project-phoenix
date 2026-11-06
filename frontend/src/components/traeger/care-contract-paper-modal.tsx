@@ -4,11 +4,11 @@
 // unterschrieben hat, an welchem Tag, und das PDF. Danach ist der Vertrag
 // aktiv.
 
-import { Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
+import { Dropzone } from "~/components/ui/dropzone";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -39,7 +39,6 @@ export function PaperSignatureModal({
   );
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
   const formError = useApiFormError();
   const { success } = useToast();
 
@@ -124,33 +123,23 @@ export function PaperSignatureModal({
         </div>
         <div className="space-y-1.5">
           <span className="block text-sm font-medium text-gray-700">
-            Unterschriebener Vertrag (PDF, höchstens 10 MB)
+            Unterschriebener Vertrag
           </span>
-          <input
-            ref={fileRef}
-            id="care-contract-paper-upload"
-            type="file"
+          <Dropzone
             accept="application/pdf,.pdf"
-            className="sr-only"
-            tabIndex={-1}
-            aria-hidden="true"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            legend="Unterschriebener Vertrag"
+            label="PDF hierher ziehen"
+            dragLabel="PDF hier ablegen"
+            buttonLabel={file ? "Andere Datei wählen" : "PDF wählen"}
+            hint="PDF, höchstens 10 MB"
+            onFile={setFile}
+            disabled={saving}
           />
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              disabled={saving}
-              onClick={() => fileRef.current?.click()}
-            >
-              <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
-              {file ? "Andere Datei wählen" : "PDF wählen"}
-            </Button>
+          {file ? (
             <span className="min-w-0 text-sm break-all text-gray-600">
-              {file ? file.name : "Noch keine Datei gewählt."}
+              {file.name}
             </span>
-          </div>
+          ) : null}
         </div>
       </div>
     </FormModal>
