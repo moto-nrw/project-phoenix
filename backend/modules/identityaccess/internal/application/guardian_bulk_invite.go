@@ -316,6 +316,10 @@ func bulkInviteMailBlock(block string) (string, bool) {
 		return domain.BulkInviteProblemAddressBlocked, true
 	case domain.GuardianMailBlockDelayed:
 		return domain.BulkInviteProblemMailDelayed, true
+	case domain.GuardianMailBlockProvider:
+		return domain.BulkInviteProblemProviderBlocked, true
+	case domain.GuardianMailBlockUnreadable:
+		return domain.BulkInviteProblemBlockUnreadable, true
 	default:
 		return "", false
 	}

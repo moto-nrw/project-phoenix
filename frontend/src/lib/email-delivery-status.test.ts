@@ -71,4 +71,32 @@ describe("mailStatusCopy", () => {
       /noch einmal senden/,
     );
   });
+
+  it("decides by the provider's block as it is now, not by the old mail", () => {
+    expect(
+      mailStatusCopy("provider_blocked", "", false, "active")?.explanation,
+    ).toMatch(/moto-Support/);
+    expect(
+      mailStatusCopy("provider_blocked", "", false, "unreadable")?.explanation,
+    ).toMatch(/später noch einmal/);
+    expect(
+      mailStatusCopy("provider_blocked", "", false, "none")?.explanation,
+    ).toMatch(/Sie können neu senden/);
+    expect(mailStatusCopy("provider_blocked")?.explanation).not.toMatch(
+      /neu senden/,
+    );
+  });
+
+  it("gives no hint at another school", () => {
+    for (const block of ["active", "unreadable", "none"] as const) {
+      expect(
+        mailStatusCopy("provider_blocked", "", false, block)?.explanation,
+      ).not.toMatch(/Schule/);
+    }
+  });
+
+  it("does not blame the address for a mail the stop held back", () => {
+    expect(mailStatusCopy("held_by_stop")?.explanation).toMatch(/gestoppt/);
+    expect(mailStatusCopy("held_by_stop")?.explanation).not.toMatch(/Adresse/);
+  });
 });

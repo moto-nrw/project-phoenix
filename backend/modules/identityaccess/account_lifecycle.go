@@ -47,6 +47,11 @@ var (
 	// ErrGuardianEmailAddressBlocked reports an invitation the school's list
 	// would hold back: nothing was kept, and the school checks the address first.
 	ErrGuardianEmailAddressBlocked = errors.New("the guardian's email address is blocked")
+	// ErrMailBlockedAtProvider reports a mail the provider would withhold now. The
+	// reason stays out: it may belong to another school.
+	ErrMailBlockedAtProvider = errors.New("the mail provider withholds mail to this address")
+	// ErrMailBlockUnreadable reports a block moto could not read just now.
+	ErrMailBlockUnreadable = errors.New("the mail provider's block could not be read")
 	// ErrInvitationMailDelayed reports a send while the mail server still tries
 	// to deliver the last mail: a second one would only arrive twice.
 	ErrInvitationMailDelayed = errors.New("the last invitation mail is delayed")

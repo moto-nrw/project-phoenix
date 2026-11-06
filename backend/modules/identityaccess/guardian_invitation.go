@@ -89,6 +89,10 @@ const (
 	GuardianMailBlockAddress = "address"
 	// GuardianMailBlockDelayed: the mail server still tries the last mail.
 	GuardianMailBlockDelayed = "delayed"
+	// GuardianMailBlockProvider: the mail provider withholds mail to the address now.
+	GuardianMailBlockProvider = "provider"
+	// GuardianMailBlockUnreadable: the provider's state could not be read.
+	GuardianMailBlockUnreadable = "provider_unknown"
 )
 
 // GuardianInvitationPreview is the public-safe view of a redeemable

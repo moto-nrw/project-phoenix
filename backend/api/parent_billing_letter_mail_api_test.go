@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,6 +34,7 @@ type letterMailingBody struct {
 	RequestedAt    *time.Time `json:"requested_at"`
 	SentAt         *time.Time `json:"sent_at"`
 	MailOutcome    string     `json:"mail_outcome"`
+	ProviderBlock  string     `json:"provider_block"`
 }
 
 type letterSeriesBody struct {
@@ -123,6 +125,49 @@ func TestBillingLetterMailShowsTheProvidersWord(t *testing.T) {
 	require.Equal(t, http.StatusConflict, refused.Code, refused.Body.String())
 	code, _ := registrationRefusalOf(t, refused)
 	assert.Equal(t, "parent_billing.letter_mail_delayed", code)
+}
+
+// Only the provider's block as it is now decides about another mail, not the result
+// of the last one: the block can be gone, and the letter can go out again.
+func TestBillingLetterMailFollowsTheCurrentProviderBlock(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Sperre Ferien")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	run := lettersOfRun(t, f, billing)
+	rec := traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/letters"), lettersBody("2099-01-15"))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/mailings"), nil)
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	mails := queuedLetterMails(t, f, run.ID)
+	require.NotEmpty(t, mails)
+	ctx := context.Background()
+	_, err := f.db.ExecContext(ctx, `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW(), delivery_state = 'suppressed', delivery_state_at = NOW()
+		WHERE organization_id = ? AND kind = 'parent_billing_letter'`, f.office.organization)
+	require.NoError(t, err)
+	var mailing letterMailingBody
+	for _, candidate := range letterMailings(t, f, billing, run.ID) {
+		mailing = candidate
+		break
+	}
+	address := strings.ToLower(mailing.RecipientEmail)
+	assert.Equal(t, "provider_blocked", mailing.MailOutcome)
+
+	testProviderBlocks.Store(address, deliveryContract.EmailProviderBlockActive)
+	refused := traegerJSON(t, f.traeger, billing, http.MethodPost, letterMailPath(run.ID, mailing.DocumentID), nil)
+	require.Equal(t, http.StatusConflict, refused.Code, refused.Body.String())
+	code, _ := registrationRefusalOf(t, refused)
+	assert.Equal(t, "parent_billing.letter_mail_blocked", code)
+	assert.Equal(t, "active", letterMailings(t, f, billing, run.ID)[mailing.Number].ProviderBlock)
+
+	testProviderBlocks.Store(address, deliveryContract.EmailProviderBlockUnreadable)
+	refused = traegerJSON(t, f.traeger, billing, http.MethodPost, letterMailPath(run.ID, mailing.DocumentID), nil)
+	require.Equal(t, http.StatusConflict, refused.Code, refused.Body.String())
+	code, _ = registrationRefusalOf(t, refused)
+	assert.Equal(t, "parent_billing.letter_mail_block_unreadable", code)
+
+	testProviderBlocks.Store(address, deliveryContract.EmailProviderBlockNone)
+	sent := traegerJSON(t, f.traeger, billing, http.MethodPost, letterMailPath(run.ID, mailing.DocumentID), nil)
+	assert.Less(t, sent.Code, 300, "the block is gone, the old mail decides nothing: %s", sent.Body.String())
 }
 
 func TestBillingLetterMailsReachEveryFamilyOnceAndShowTheirState(t *testing.T) {

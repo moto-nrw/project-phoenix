@@ -25,14 +25,21 @@ func (s *SchoolInvitation) SchoolInvitationMailStates(ctx context.Context, tenan
 }
 
 // refuseDelayedMail stops a resend while the mail server still tries the last
-// mail: a second one would only arrive twice.
+// mail, as a second one would only arrive twice, and while the provider withholds
+// mail to the address.
 func (s *SchoolInvitation) refuseDelayedMail(ctx context.Context, tenantID, invitationID int64) error {
 	states, err := s.SchoolInvitationMailStates(ctx, tenantID, []int64{invitationID})
 	if err != nil {
 		return err
 	}
-	if states[invitationID].Outcome == domain.InvitationMailOutcomeDelayed {
+	state := states[invitationID]
+	switch {
+	case state.Outcome == domain.InvitationMailOutcomeDelayed:
 		return domain.ErrInvitationMailDelayed
+	case state.ProviderBlock == identityaccess.MailProviderBlockActive:
+		return domain.ErrMailBlockedAtProvider
+	case state.ProviderBlock == identityaccess.MailProviderBlockUnreadable:
+		return domain.ErrMailBlockUnreadable
 	}
 	return nil
 }

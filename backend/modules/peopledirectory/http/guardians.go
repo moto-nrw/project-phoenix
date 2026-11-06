@@ -168,7 +168,7 @@ type GuardianRuntime struct {
 
 	// GuardianEmailStates reports the state of the addresses in the request's
 	// transaction, keyed by the address in lower case (#5934).
-	GuardianEmailStates func(ctx context.Context, addresses []string) (map[string]GuardianEmailState, error)
+	GuardianEmailStates func(ctx context.Context, addresses, stoppedAddresses []string) (map[string]GuardianEmailState, error)
 	// SetGuardianEmailsStopped records the school's decision in the request's
 	// transaction, with its audit row.
 	SetGuardianEmailsStopped func(r *http.Request, guardianID int64, stopped bool) error

@@ -90,10 +90,16 @@ type EmailDeliveryStatus struct {
 	SentAt            *time.Time `json:"sent_at,omitempty"`
 	Attempts          int        `json:"attempts"`
 	// Outcome is empty before a mail exists; AddressMark and Stopped can be set
-	// without one. RecipientEmail is the person's current address.
+	// without one. RecipientEmail is the person's current address, where another
+	// mail goes, and AddressMark belongs to it. MailedTo is where this mail went:
+	// Outcome belongs to that address and to no other.
 	Outcome     EmailOutcome     `json:"outcome,omitempty"`
+	MailedTo    *string          `json:"mailed_to,omitempty"`
 	AddressMark EmailAddressMark `json:"address_mark,omitempty"`
 	Stopped     bool             `json:"stopped,omitempty"`
+	// StopShared says another holder of the address carries no stop, so mail to the
+	// address still goes out.
+	StopShared bool `json:"stop_shared,omitempty"`
 }
 
 type GuardianDisplay struct {

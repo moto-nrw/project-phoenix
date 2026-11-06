@@ -427,6 +427,11 @@
     },
     {
       "decision": "0090",
+      "id": "api/careContractPost.ContractMailStates",
+      "reason": "#5934: Consumer-port adapter of the contract's post; it names Delivery's outcome of each mail in the contract's words."
+    },
+    {
+      "decision": "0090",
       "id": "api/childQuotaStudentsReader.ChildQuotaUsage",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -849,6 +854,11 @@
       "decision": "0126",
       "id": "api/parentBillingLetterPost.EnqueueDocumentNotice",
       "reason": "ADR 0126 (#4671): Consumer-port adapter of the post of the confirmation letters; it marshals the notice and enqueues the Träger's deferred push that a letter is in the inbox of the parents portal through Delivery in the caller's Träger transaction, keyed by the letter."
+    },
+    {
+      "decision": "0090",
+      "id": "api/parentBillingLetterPost.LetterMailBlocks",
+      "reason": "#5934: Consumer-port adapter of the post of the letters; it turns the provider's current block into the Elternabrechnung's words."
     },
     {
       "decision": "0123",

@@ -29,6 +29,7 @@ import { formatDate } from "~/lib/date-helpers";
 import {
   CHECK_ADDRESS_AT_GUARDIAN,
   mailStatusCopy,
+  STOP_SHARED_NOTE,
   TELL_THE_OGS_ABOUT_THE_ADDRESS,
 } from "~/lib/email-delivery-status";
 import {
@@ -67,6 +68,7 @@ const EMAIL_LABELS: Record<
   },
   pending: { label: "Wird gesendet", tone: "blue" },
   failed: { label: "Fehlgeschlagen", tone: "red" },
+  cancelled: { label: "Abgebrochen", tone: "gray" },
   not_sent: { label: "Nicht versendet", tone: "gray" },
 };
 
@@ -329,6 +331,7 @@ export function LetterStatusPanel({
 
       {((s.emails_address_check ?? 0) > 0 ||
         (s.emails_stopped ?? 0) > 0 ||
+        (s.emails_provider_blocked ?? 0) > 0 ||
         (s.emails_delayed ?? 0) > 0) && (
         <Alert
           type="warning"
@@ -338,6 +341,9 @@ export function LetterStatusPanel({
               : null,
             (s.emails_stopped ?? 0) > 0
               ? `An ${s.emails_stopped} ${s.emails_stopped === 1 ? "Person" : "Personen"} gehen keine Mails, weil die Schule sie gestoppt hat.`
+              : null,
+            (s.emails_provider_blocked ?? 0) > 0
+              ? `Bei ${s.emails_provider_blocked} ${s.emails_provider_blocked === 1 ? "Adresse" : "Adressen"} geht eine neue Mail gerade nicht raus. Den Grund sehen Sie beim Empfänger.`
               : null,
             (s.emails_delayed ?? 0) > 0
               ? "Verzögerte Mails kommen später an. Sie werden nicht erneut gesendet."
@@ -465,10 +471,15 @@ function ChildRow({ child }: { readonly child: LetterChild }) {
 function RecipientRow({ recipient }: { readonly recipient: LetterRecipient }) {
   // Fall back rather than crash: the backend may add a status this build does
   // not know yet, and an unknown value must not take the whole page down.
+  const mailedTo = recipient.mailed_to ?? recipient.email;
+  const addressChanged = !!recipient.email && mailedTo !== recipient.email;
+  // The result belongs to the address the mail went to. A mark belongs to the
+  // current address, so it never reads as the result of the old one.
   const mailCopy = mailStatusCopy(
     recipient.mail_outcome,
-    recipient.address_mark,
+    addressChanged ? "" : recipient.address_mark,
     recipient.stopped,
+    recipient.provider_block,
   );
   const email = mailCopy
     ? { label: mailCopy.label, tone: mailCopy.tone, title: undefined }
@@ -486,10 +497,19 @@ function RecipientRow({ recipient }: { readonly recipient: LetterRecipient }) {
         <p className="truncate text-sm text-gray-900">
           {fullName(recipient.first_name, recipient.last_name)}
         </p>
-        {recipient.email && (
-          <p className="truncate text-xs text-gray-500">{recipient.email}</p>
+        {mailedTo && (
+          <p className="truncate text-xs text-gray-500">{mailedTo}</p>
+        )}
+        {addressChanged && (
+          <p className="truncate text-xs text-gray-500">
+            Aktuelle Adresse: {recipient.email}
+            {recipient.address_mark ? " (Adresse prüfen)" : ""}
+          </p>
         )}
         {note && <p className="text-xs text-gray-600">{note}</p>}
+        {recipient.stopped && recipient.stop_shared && (
+          <p className="text-xs text-gray-600">{STOP_SHARED_NOTE}</p>
+        )}
         {recipient.last_error && !mailCopy && (
           <p
             className="truncate text-xs text-gray-500"

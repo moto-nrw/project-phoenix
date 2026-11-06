@@ -34,10 +34,17 @@ type Runtime struct {
 	EmailOutcomes delivery.EmailOutcomes
 }
 
+// emailOutcomeRead answers from the store and, for a block at the provider, from
+// the provider.
+type emailOutcomeRead struct {
+	*WorkerCommands
+	*EmailReconciliation
+}
+
 // NewRuntime composes the module for this deployment's mail provider.
 func NewRuntime(module delivery.Capability, store *WorkerCommands, observe func(domain.Observation), wakeups func(context.Context) <-chan struct{}, provider mail.ProviderConfig) *Runtime {
 	webhooks, reconciliation := NewEmailEvents(provider, store, observe)
-	return &Runtime{Module: module, Store: store, Observe: observe, EmailWakeups: wakeups, EmailWebhooks: webhooks, EmailReconciliation: reconciliation, EmailOutcomes: store}
+	return &Runtime{Module: module, Store: store, Observe: observe, EmailWakeups: wakeups, EmailWebhooks: webhooks, EmailReconciliation: reconciliation, EmailOutcomes: emailOutcomeRead{WorkerCommands: store, EmailReconciliation: reconciliation}}
 }
 
 // NewWorker composes the outbox worker over the store of runtime, sending

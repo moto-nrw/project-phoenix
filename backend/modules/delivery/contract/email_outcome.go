@@ -17,8 +17,14 @@ const (
 	EmailDelivered     EmailOutcome = "delivered"
 	EmailDelayed       EmailOutcome = "delayed"
 	EmailUndeliverable EmailOutcome = "undeliverable"
-	// EmailBlocked is a mail that never left because the address is blocked.
-	EmailBlocked    EmailOutcome = "blocked"
+	// EmailBlocked is a mail that never left because the school's list held it.
+	EmailBlocked EmailOutcome = "blocked"
+	// EmailProviderBlocked is a mail the provider withheld. Its block may come from
+	// any school of the team, and only EmailProviderBlock says whether it still holds.
+	EmailProviderBlocked EmailOutcome = "provider_blocked"
+	// EmailHeldByStop is a mail that stayed back because the school stopped mail to
+	// the person. The address itself is fine.
+	EmailHeldByStop EmailOutcome = "held_by_stop"
 	EmailComplained EmailOutcome = "complained"
 	// EmailUnsubscribed is a person who unsubscribed. The address itself is fine.
 	EmailUnsubscribed EmailOutcome = "unsubscribed"
@@ -43,6 +49,46 @@ const (
 	EmailMarkComplained EmailAddressMark = "complained"
 )
 
+// The reasons a held mail ends with. They are its last error, so a mail still says
+// why it stayed back after its event went missing or the hold ended.
+const (
+	MailHeldByList = "Diese Adresse ist gesperrt, weil eine frühere Mail nicht zugestellt werden konnte."
+	MailHeldByStop = "Die Schule hat die Mails an diese Person gestoppt."
+)
+
+// EmailProviderBlock is the provider's block of an address at this moment, read
+// exactly for that address. Empty means nobody asked.
+type EmailProviderBlock string
+
+const (
+	// EmailProviderBlockNone: the provider holds nothing, or there is no provider.
+	EmailProviderBlockNone EmailProviderBlock = "none"
+	// EmailProviderBlockActive: the provider withholds mail to the address. It does
+	// not say why: the reason may belong to another school.
+	EmailProviderBlockActive EmailProviderBlock = "active"
+	// EmailProviderBlockUnreadable: the state could not be read, so nothing is offered.
+	EmailProviderBlockUnreadable EmailProviderBlock = "unreadable"
+)
+
+// HeldAtProvider reports an outcome that leaves a block at the provider, so that
+// only its current state decides about another mail. It also limits what moto asks:
+// the provider is only asked about an address the asking school's own mail ran into.
+func (o EmailOutcome) HeldAtProvider() bool {
+	return o == EmailProviderBlocked || o == EmailUnsubscribed || o == EmailComplained
+}
+
+// AddressesHeldAtProvider names the addresses whose latest mail makes the provider's
+// current block worth asking about.
+func AddressesHeldAtProvider(latest map[string]EmailOutcomeReport) []string {
+	var addresses []string
+	for address, report := range latest {
+		if report.Outcome.HeldAtProvider() {
+			addresses = append(addresses, address)
+		}
+	}
+	return addresses
+}
+
 // EmailDelayLimit ends the wait for a delayed mail. Mail servers give up after a
 // few days, usually with a bounce (RFC 5321 suggests four to five). If no final
 // event came by then, a new mail is allowed again and an alarm goes off.
@@ -56,6 +102,10 @@ const (
 	EmailSendBlockAddress EmailSendBlock = "address"
 	// EmailSendBlockStopped: the school stopped mail to this person.
 	EmailSendBlockStopped EmailSendBlock = "stopped"
+	// EmailSendBlockProvider: the provider withholds mail to the address now.
+	EmailSendBlockProvider EmailSendBlock = "provider"
+	// EmailSendBlockUnreadable: the provider's state could not be read.
+	EmailSendBlockUnreadable EmailSendBlock = "provider_unknown"
 	// EmailSendBlockDelayed: the server is still trying, a second mail would
 	// only arrive twice.
 	EmailSendBlockDelayed EmailSendBlock = "delayed"
@@ -64,20 +114,12 @@ const (
 // EmailOutcomeOf derives the outcome from the outbox state of a mail, the state
 // its events led to, its last error and the mark of its address.
 func EmailOutcomeOf(status string, deliveryState, lastError *string, mark EmailAddressMark) EmailOutcome {
+	if State(status) == StateCancelled && lastError != nil && *lastError == MailHeldByStop {
+		return EmailHeldByStop
+	}
 	if deliveryState != nil {
-		switch *deliveryState {
-		case "delivered":
-			return EmailDelivered
-		case "delayed":
-			return EmailDelayed
-		case "failed":
-			return EmailUndeliverable
-		case "suppressed":
-			return EmailBlocked
-		case "unsubscribed":
-			return EmailUnsubscribed
-		case "complained":
-			return EmailComplained
+		if outcome, known := reportedOutcome(status, *deliveryState); known {
+			return outcome
 		}
 	}
 	switch State(status) {
@@ -89,14 +131,36 @@ func EmailOutcomeOf(status string, deliveryState, lastError *string, mark EmailA
 		}
 		return EmailSendFailed
 	case StateCancelled:
-		// The list held the mail back, and its own event is still on the way.
-		if mark != "" {
+		// The list held the mail back, and its own event is missing.
+		if mark != "" || (lastError != nil && *lastError == MailHeldByList) {
 			return EmailBlocked
 		}
 		return EmailCancelled
 	default:
 		return EmailQueued
 	}
+}
+
+// reportedOutcome names the state a mail's events led to.
+func reportedOutcome(status, deliveryState string) (EmailOutcome, bool) {
+	switch deliveryState {
+	case "delivered":
+		return EmailDelivered, true
+	case "delayed":
+		return EmailDelayed, true
+	case "failed":
+		return EmailUndeliverable, true
+	case "suppressed":
+		if State(status) == StateSent {
+			return EmailProviderBlocked, true
+		}
+		return EmailBlocked, true
+	case "unsubscribed":
+		return EmailUnsubscribed, true
+	case "complained":
+		return EmailComplained, true
+	}
+	return "", false
 }
 
 // EmailOutcomeAt lets a delayed mail count as overdue once the wait has ended.
@@ -107,14 +171,19 @@ func EmailOutcomeAt(outcome EmailOutcome, stateAt *time.Time, now time.Time) Ema
 	return outcome
 }
 
-// EmailSendBlockOf decides whether a new mail is pointless. It only holds for mail
-// the list and the stop apply to; the caller knows.
-func EmailSendBlockOf(mark EmailAddressMark, stopped bool, latest EmailOutcome) EmailSendBlock {
+// EmailSendBlockOf decides whether a new mail is pointless. Stop and mark only hold
+// for mail the list and the stop apply to; the caller knows. The provider's block is
+// the current one, never the last mail's result.
+func EmailSendBlockOf(mark EmailAddressMark, stopped bool, latest EmailOutcome, provider EmailProviderBlock) EmailSendBlock {
 	switch {
 	case stopped:
 		return EmailSendBlockStopped
 	case mark != "":
 		return EmailSendBlockAddress
+	case provider == EmailProviderBlockActive:
+		return EmailSendBlockProvider
+	case provider == EmailProviderBlockUnreadable:
+		return EmailSendBlockUnreadable
 	case latest == EmailDelayed:
 		return EmailSendBlockDelayed
 	}

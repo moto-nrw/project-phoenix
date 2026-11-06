@@ -49,6 +49,14 @@ type EmailOutcomes interface {
 	// StoppedEmailAddresses reports the addresses among the given ones whose
 	// holders all carry the school's stop. The key is the normalized address.
 	StoppedEmailAddresses(ctx context.Context, tenantID int64, addresses []string) (map[string]bool, error)
+	// TraegerMailHolds reports, in the caller's Träger transaction, whether a school
+	// of the Träger lists the address and whether all its holders there carry a stop.
+	TraegerMailHolds(ctx context.Context, organizationID int64, address string) (listed, stopped bool, err error)
+	// ProviderEmailBlocks reads the provider's current block of each address, exactly
+	// for that address, keyed by normalized address. It is the one read here that
+	// waits for the provider: within a small budget and only for addresses the
+	// caller's own mail ran into. Ask for nothing else.
+	ProviderEmailBlocks(ctx context.Context, addresses []string) map[string]deliveryContract.EmailProviderBlock
 }
 
 // ReconcileEmailDelivery compares open mails with the provider's record. Its

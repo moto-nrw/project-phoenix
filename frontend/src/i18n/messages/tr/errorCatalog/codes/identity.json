@@ -55,5 +55,7 @@
   "caterer_address_taken": "Bu e-posta adresi zaten başka bir moto hesabına ait. Lütfen başka bir adres kullanın.",
   "caterer_without_school": "Şu anda moto üzerinden hiçbir okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
   "guardian_email_address_blocked": "Davet şu anda gönderilemedi. Yeniden deneyin.",
-  "invitation_mail_delayed": "Davet şu anda gönderilemedi. Yeniden deneyin."
+  "invitation_mail_delayed": "Davet şu anda gönderilemedi. Yeniden deneyin.",
+  "mail_blocked_at_provider": "Bu adres engellendi. Yeniden göndermek işe yaramaz. Bunu moto destek ekibi çözmelidir.",
+  "mail_block_unreadable": "Bu adresin engelli olup olmadığı şu anda kontrol edilemiyor. Lütfen daha sonra tekrar deneyin."
 }

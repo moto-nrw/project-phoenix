@@ -30,14 +30,16 @@ export function emailDeliveryTopic(): HelpTopic {
           "`Verzögert`: Die Mail kommt später an. Es wird weiter versucht. Bitte senden Sie sie nicht noch einmal.",
           "`Überfällig`: Die Mail ist seit Tagen verzögert. Sie können sie noch einmal senden.",
           "`Nicht zustellbar`: Die Mail kam nicht an.",
-          "`Nicht gesendet`: Die Mail ging nicht raus, weil die Adresse gesperrt war.",
+          "`Nicht gesendet`: Die Mail ging nicht raus. Der Hinweis nennt den Grund. Besteht er nicht mehr, können Sie neu senden.",
+          "`Gesperrt`: Diese Adresse ist gesperrt. Eine neue Mail hilft nicht. Der moto-Support muss das klären.",
+          "`Stand unklar`: Ob die Adresse gesperrt ist, lässt sich gerade nicht prüfen. Versuchen Sie es später noch einmal.",
           "`Nicht versendet`: Es gab keine Mail, zum Beispiel weil die Adresse fehlt.",
           "`Fehlgeschlagen`: Das Senden hat nicht geklappt. Bitte senden Sie neu.",
           "`Ergebnis unbekannt`: Ob die Mail rausging, ist nicht bekannt.",
           "`Abgebrochen`: Die Mail wurde nicht mehr gesendet.",
           "`Abgemeldet`: Die Person hat sich von den Mails abgemeldet. Sprechen Sie sie direkt an.",
           "`Adresse prüfen`: An diese Adresse geht keine Mail mehr raus, weil sie gesperrt ist.",
-          "`Versand gestoppt`: Ihre Schule hat die Mails an diese Person gestoppt.",
+          "`Versand gestoppt`: Ihre Schule hat die Mails an diese Person gestoppt. Nutzt noch jemand diese Adresse, gehen Mails an die Adresse weiter raus.",
         ],
       },
       {
@@ -81,6 +83,8 @@ export function emailDeliveryTopic(): HelpTopic {
     troubleshootingDetails: [
       "Hat die Person eine Mail als unerwünscht gemeldet? Dann können Sie die Sperre nicht aufheben. Sprechen Sie die Person direkt an. Eine andere Adresse tragen Sie unter `Bearbeiten` ein.",
       "`Erneut einladen` fehlt? Dann ist die Adresse gesperrt oder die letzte Mail noch unterwegs. Der Hinweis bei der Person sagt, was davon zutrifft.",
+      "Steht bei der Person `Gesperrt`? Die Schule kann das nicht aufheben. Wenden Sie sich an den moto-Support. Die Sperre lässt sich nicht weiter zuordnen.",
+      "Ist die Adresse in einem Elternbrief geändert? Die Zeile nennt die Adresse, an die die Mail ging, und darunter die aktuelle Adresse. Das Ergebnis gehört zur ersten.",
       "Kommt nach dem Aufheben wieder eine Mail zurück? Dann sperrt moto die Adresse erneut. Fragen Sie die Familie nach einer anderen Adresse.",
     ],
     related: [

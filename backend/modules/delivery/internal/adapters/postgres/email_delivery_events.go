@@ -187,6 +187,20 @@ func (s *Store) TraegerEmailHolds(ctx context.Context, organizationID int64, add
 	return row.Listed, row.Stopped, nil
 }
 
+// TraegerMailHolds implements ports.EmailOutcomeStore in the caller's Träger
+// transaction.
+func (s *Store) TraegerMailHolds(ctx context.Context, organizationID int64, address string) (bool, bool, error) {
+	db, err := RequireTraegerDatabase(ctx, organizationID)
+	if err != nil {
+		return false, false, err
+	}
+	var row emailHoldsRow
+	if err := db.NewRaw(`SELECT listed, stopped FROM platform.delivery_traeger_email_holds(?)`, address).Scan(ctx, &row); err != nil {
+		return false, false, fmt.Errorf("delivery postgres: read the holds of a Träger's address: %w", err)
+	}
+	return row.Listed, row.Stopped, nil
+}
+
 // DeleteExpiredEmailDeliveryEvents implements ports.RetentionStore.
 func (s *Store) DeleteExpiredEmailDeliveryEvents(ctx context.Context, tenantID int64, before time.Time) (int, error) {
 	db, err := s.tenantDB(ctx, tenantID)
@@ -200,7 +214,8 @@ func (s *Store) DeleteExpiredEmailDeliveryEvents(ctx context.Context, tenantID i
 
 // DeleteUnheldEmailSuppressions implements ports.RetentionStore. An address stays
 // marked until someone at the school checked it, however old the mark is (#5934).
-// An address nobody at the school holds any more goes with the first run: this
+// An address no guardian, account or open application at the school holds any more
+// goes with the first run: this
 // covers every path that deletes an account or a guardian, without each of them
 // knowing the list. A new bounce would put it back.
 func (s *Store) DeleteUnheldEmailSuppressions(ctx context.Context, tenantID int64) (int, error) {

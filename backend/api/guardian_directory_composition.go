@@ -122,7 +122,7 @@ type GuardianDirectoryRuntime struct {
 	RejectInvitation           func(ctx context.Context, invitationID, actorAccountID int64) error
 
 	// The mail state of a guardian's address (#5934).
-	GuardianEmailStates      func(context.Context, []string) (map[string]usersAPI.GuardianEmailState, error)
+	GuardianEmailStates      func(context.Context, []string, []string) (map[string]usersAPI.GuardianEmailState, error)
 	SetGuardianEmailsStopped func(*http.Request, int64, bool) error
 	LiftGuardianEmailBlock   func(*http.Request, int64, string) error
 	InTenantTx               func(context.Context, func(context.Context) error) error

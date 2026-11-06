@@ -95,6 +95,46 @@ describe("LetterStatusPanel mail state (#5934)", () => {
     );
   });
 
+  it("keeps a mail's result with the address it went to", async () => {
+    fetchLetterStatus.mockResolvedValue(
+      status({ emails_delivered: 1 }, [
+        recipient({
+          email: "neu@example.com",
+          mailed_to: "alt@example.com",
+          mail_outcome: "delivered",
+        }),
+      ]),
+    );
+    renderPanel();
+    expect(await screen.findByText("alt@example.com")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Aktuelle Adresse: neu@example.com/),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Zugestellt").length).toBeGreaterThan(0);
+  });
+
+  it("names the support for a block at the provider and offers no resend", async () => {
+    fetchLetterStatus.mockResolvedValue(
+      status(
+        { emails_failed: 1, emails_provider_blocked: 1, emails_resendable: 0 },
+        [
+          recipient({
+            email_status: "failed",
+            mail_outcome: "provider_blocked",
+            provider_block: "active",
+          }),
+        ],
+      ),
+    );
+    renderPanel();
+    expect(await screen.findByText(/moto-Support/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Fehlgeschlagene erneut senden" }),
+      ).toBeDisabled(),
+    );
+  });
+
   it("does not count a stop as an address to check", async () => {
     fetchLetterStatus.mockResolvedValue(
       status({ emails_stopped: 1, emails_resendable: 0 }, [

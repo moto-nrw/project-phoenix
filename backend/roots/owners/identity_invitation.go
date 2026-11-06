@@ -120,8 +120,18 @@ func (d invitationDelivery) InvitationMailStates(ctx context.Context, tenantID i
 	if err != nil {
 		return nil, err
 	}
+	held := make([]string, 0)
 	for _, report := range reports {
-		states[report.RelatedID] = identityaccess.InvitationMailState{Outcome: string(report.Outcome), AddressMark: string(report.Mark)}
+		if report.Outcome.HeldAtProvider() {
+			held = append(held, report.Address)
+		}
+	}
+	blocks := d.outcomes.ProviderEmailBlocks(ctx, held)
+	for _, report := range reports {
+		states[report.RelatedID] = identityaccess.InvitationMailState{
+			Outcome: string(report.Outcome), AddressMark: string(report.Mark),
+			ProviderBlock: string(blocks[deliveryContract.NormalizedEmailAddress(report.Address)]),
+		}
 	}
 	return states, nil
 }

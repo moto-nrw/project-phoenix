@@ -117,7 +117,7 @@ const EMAIL_CHANGE_COPY: Record<
   stop: {
     title: "Mails stoppen?",
     confirm: "Stoppen",
-    text: "Diese Person bekommt dann keine Mails der Schule mehr: keine Einladung, keine Elternbriefe, keine Termine. Das gilt auch nach einer neuen Adresse. Anmeldecodes und Mails zum Passwort kommen weiter an. Abrechnungsbriefe des Trägers auch.",
+    text: "Diese Person bekommt dann keine Mails der Schule mehr: keine Einladung, keine Elternbriefe, keine Termine. Das gilt auch nach einer neuen Adresse. Anmeldecodes und Mails zum Passwort kommen weiter an. Abrechnungsbriefe des Trägers auch. Nutzt noch jemand diese Adresse, gehen Mails an die Adresse weiter raus.",
     object: "der Stopp der Mails",
     run: stopGuardianEmails,
     done: (name) => `Die Mails an ${name} sind gestoppt.`,

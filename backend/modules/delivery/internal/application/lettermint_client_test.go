@@ -301,3 +301,23 @@ func TestLettermintAPIBounceKeepsTheAddress(t *testing.T) {
 	assert.False(t, events[0].Reroute)
 	assert.False(t, events[1].KeepsAddress, "a complaint names the address on its own")
 }
+
+func TestLettermintSuppressionActiveMatchesTheExactAddressOnly(t *testing.T) {
+	t.Parallel()
+	client := lettermintAPIClient(t, func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method, "reading changes nothing")
+		assert.Equal(t, "/v1/suppressions", r.URL.Path)
+		assert.Equal(t, "a@example.com", r.URL.Query().Get("filter[value]"))
+		_, _ = w.Write([]byte(`{"data":[{"id":"1","type":"email","value":"xa@example.com","reason":"hard_bounce"}],"next_cursor":null}`))
+	})
+	active, err := client.SuppressionActive(context.Background(), "a@example.com")
+	require.NoError(t, err)
+	assert.False(t, active, "the filter also names other addresses")
+
+	client = lettermintAPIClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":[{"id":"2","type":"email","value":"A@example.com","reason":"unsubscribe"}],"next_cursor":null}`))
+	})
+	active, err = client.SuppressionActive(context.Background(), "a@example.com")
+	require.NoError(t, err)
+	assert.True(t, active, "whatever the reason")
+}

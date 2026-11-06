@@ -55,7 +55,9 @@ Adressen einer Schule mit endgültigem Fehler oder Beschwerde. Beide sind
 `tenant`, werden nicht zurückgegeben (kein Schuldatensatz, nur Zustellhilfe) und
 mit der Schule gelöscht; die nächtliche Delivery-Aufbewahrung löscht sie vorher:
 die Ereignisse mit ihrer Mail, die Sperrliste ohne feste Frist, sobald niemand an
-der Schule die Adresse mehr hat.
+der Schule die Adresse mehr hat. Eine offene Anmeldung zählt mit (nicht
+zurückgezogen, mindestens ein Kind wartet auf eine Entscheidung); eine
+abgeschlossene nicht.
 
 Migration 1.15.772 ergänzt `users.guardian_profiles.emails_stopped_at` (#5934):
 der Zeitpunkt, zu dem die Schule die Mails an diesen Elternkontakt gestoppt hat.

@@ -243,11 +243,19 @@ type SchoolInvitations interface {
 	SchoolInvitationSubdomain(ctx context.Context, token string) string
 }
 
+// The states of InvitationMailState.ProviderBlock that refuse a resend.
+const (
+	MailProviderBlockActive     = "active"
+	MailProviderBlockUnreadable = "unreadable"
+)
+
 // InvitationMailState is what Delivery knows about the last mail of an
 // invitation (#5934).
 type InvitationMailState struct {
 	Outcome     string
 	AddressMark string
+	// ProviderBlock is the provider's block now; only a mail it withheld asks.
+	ProviderBlock string
 }
 
 // SchoolInvitationMailStates reads what became of the mails of invitations.

@@ -172,6 +172,11 @@ var (
 	// ErrGuardianEmailAddressBlocked reports an invitation the school's list
 	// would hold back.
 	ErrGuardianEmailAddressBlocked = errors.New("the guardian's email address is blocked")
+	// ErrMailBlockedAtProvider reports a mail the provider would withhold now. The
+	// reason stays out: it may belong to another school.
+	ErrMailBlockedAtProvider = errors.New("the mail provider withholds mail to this address")
+	// ErrMailBlockUnreadable reports a block moto could not read just now.
+	ErrMailBlockUnreadable = errors.New("the mail provider's block could not be read")
 	// ErrInvitationMailDelayed reports a send while the mail server still tries
 	// to deliver the last mail.
 	ErrInvitationMailDelayed = errors.New("the last invitation mail is delayed")
@@ -331,6 +336,10 @@ const (
 	GuardianMailBlockAddress = "address"
 	// GuardianMailBlockDelayed: the mail server still tries the last mail.
 	GuardianMailBlockDelayed = "delayed"
+	// GuardianMailBlockProvider: the mail provider withholds mail to the address now.
+	GuardianMailBlockProvider = "provider"
+	// GuardianMailBlockUnreadable: the provider's state could not be read.
+	GuardianMailBlockUnreadable = "provider_unknown"
 )
 
 // InvitationMailOutcomeDelayed is the outcome that stops a resend.

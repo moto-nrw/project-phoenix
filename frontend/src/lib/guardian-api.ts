@@ -1,6 +1,7 @@
 import type {
   EmailAddressMark,
   MailOutcome,
+  MailProviderBlock,
 } from "~/lib/email-delivery-status";
 import { type ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 // Guardian API Client
@@ -160,14 +161,20 @@ export async function fetchStudentGuardians(
   return (result.data ?? []).map(mapGuardianWithRelationshipResponse);
 }
 
+type GuardianSendBlock =
+  "address" | "delayed" | "stopped" | "provider" | "provider_unknown";
+
 /** What the school knows about mail to one guardian's address (#5934). */
 export interface GuardianEmailState {
   readonly mailOutcome?: MailOutcome;
   readonly addressMark?: EmailAddressMark;
   /** The school stopped mail to this person; a mark stays beside it. */
   readonly emailsStopped?: boolean;
+  /** Another holder of the address carries no stop: mail to it still goes out. */
+  readonly stopShared?: boolean;
+  readonly providerBlock?: MailProviderBlock;
   /** Why a new invitation would change nothing. */
-  readonly sendBlock?: "address" | "delayed" | "stopped";
+  readonly sendBlock?: GuardianSendBlock;
   readonly outcomeAt?: string;
 }
 
@@ -176,7 +183,9 @@ interface BackendGuardianEmailState {
   mail_outcome?: MailOutcome;
   address_mark?: EmailAddressMark;
   emails_stopped?: boolean;
-  send_block?: "address" | "delayed" | "stopped";
+  stop_shared?: boolean;
+  provider_block?: MailProviderBlock;
+  send_block?: GuardianSendBlock;
   outcome_at?: string;
 }
 
@@ -203,6 +212,8 @@ export async function fetchStudentGuardianEmailStates(
       mailOutcome: line.mail_outcome,
       addressMark: line.address_mark,
       emailsStopped: line.emails_stopped,
+      stopShared: line.stop_shared,
+      providerBlock: line.provider_block,
       sendBlock: line.send_block,
       outcomeAt: line.outcome_at,
     };

@@ -39,6 +39,14 @@ func (NoEmailOutcomes) LatestEmailOutcomes(context.Context, int64, []string, []s
 	return nil, nil
 }
 
+func (NoEmailOutcomes) TraegerMailHolds(context.Context, int64, string) (bool, bool, error) {
+	return false, false, nil
+}
+
+func (NoEmailOutcomes) ProviderEmailBlocks(context.Context, []string) map[string]deliveryContract.EmailProviderBlock {
+	return nil
+}
+
 func (NoEmailOutcomes) StoppedEmailAddresses(context.Context, int64, []string) (map[string]bool, error) {
 	return nil, nil
 }

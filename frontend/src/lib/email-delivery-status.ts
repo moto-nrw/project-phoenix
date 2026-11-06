@@ -10,6 +10,8 @@ export type MailOutcome =
   | "delayed"
   | "undeliverable"
   | "blocked"
+  | "provider_blocked"
+  | "held_by_stop"
   | "unsubscribed"
   | "overdue"
   | "complained"
@@ -19,6 +21,12 @@ export type MailOutcome =
 
 /** Why the school's list holds an address. It stays until someone checked it. */
 export type EmailAddressMark = "failed" | "complained";
+
+/**
+ * The mail provider's block of an address right now, read exactly for it. Unset
+ * means nobody asked: an old mail alone says nothing about it.
+ */
+export type MailProviderBlock = "none" | "active" | "unreadable";
 
 export interface MailStatusCopy {
   readonly label: string;
@@ -53,6 +61,31 @@ export const GUARDIAN_STOPPED_COPY: MailStatusCopy = {
     "Ihre Schule hat die Mails an diese Person gestoppt. Anmeldecodes, Mails zum Passwort und Abrechnungsbriefe des Trägers kommen weiter an.",
 };
 
+/** Mails still go out to an address someone else holds without a stop. */
+export const STOP_SHARED_NOTE =
+  "Diese Adresse nutzt noch eine andere Person. Mails an die Adresse gehen deshalb weiter raus.";
+
+const PROVIDER_ACTIVE_COPY: MailStatusCopy = {
+  label: "Gesperrt",
+  tone: "red",
+  explanation:
+    "Diese Adresse ist gesperrt. Eine neue Mail hilft nicht. Der moto-Support muss das klären.",
+};
+
+const PROVIDER_UNREADABLE_COPY: MailStatusCopy = {
+  label: "Stand unklar",
+  tone: "gray",
+  explanation:
+    "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal.",
+};
+
+const PROVIDER_GONE_COPY: MailStatusCopy = {
+  label: "Nicht gesendet",
+  tone: "gray",
+  explanation:
+    "Die Mail ging nicht raus. Die Sperre besteht nicht mehr. Sie können neu senden.",
+};
+
 const OUTCOME_COPY: Record<MailOutcome, MailStatusCopy> = {
   queued: { label: "Wird gesendet", tone: "blue" },
   accepted: {
@@ -77,7 +110,19 @@ const OUTCOME_COPY: Record<MailOutcome, MailStatusCopy> = {
     label: "Nicht gesendet",
     tone: "gray",
     explanation:
-      "Die Mail ging nicht raus, weil die Adresse gesperrt war. Sie können es noch einmal versuchen.",
+      "Die Mail ging nicht raus, weil die Adresse gesperrt war. Sie können sie neu senden.",
+  },
+  provider_blocked: {
+    label: "Nicht gesendet",
+    tone: "gray",
+    explanation:
+      "Diese Adresse war beim Versand gesperrt. Besteht die Sperre noch, klärt das der moto-Support.",
+  },
+  held_by_stop: {
+    label: "Nicht gesendet",
+    tone: "gray",
+    explanation:
+      "Die Mail ging nicht raus, weil die Mails an diese Person gestoppt waren. Sie können sie neu senden.",
   },
   unsubscribed: {
     label: "Abgemeldet",
@@ -112,16 +157,23 @@ const OUTCOME_COPY: Record<MailOutcome, MailStatusCopy> = {
 /**
  * The words for one mail and its address. A mark outranks the mail: while the
  * address is held, the next step is to check it, whatever the last mail did. A
- * stop outranks the mail too, since no next mail goes out either.
+ * stop outranks the mail too, since no next mail goes out either. So does what the
+ * provider says about the address now: the last mail's result is history.
  * Returns null when nothing is known yet, so a caller shows no status at all.
  */
 export function mailStatusCopy(
   outcome?: MailOutcome | "",
   mark?: EmailAddressMark | "",
   stopped?: boolean,
+  providerBlock?: MailProviderBlock,
 ): MailStatusCopy | null {
   if (mark) return ADDRESS_COPY[mark];
   if (stopped) return GUARDIAN_STOPPED_COPY;
+  if (providerBlock === "unreadable") return PROVIDER_UNREADABLE_COPY;
+  if (outcome === "provider_blocked") {
+    if (providerBlock === "active") return PROVIDER_ACTIVE_COPY;
+    if (providerBlock === "none") return PROVIDER_GONE_COPY;
+  }
   if (!outcome) return null;
   return OUTCOME_COPY[outcome] ?? null;
 }

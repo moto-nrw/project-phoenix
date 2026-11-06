@@ -42,5 +42,6 @@
   "sibling_group_invoiced": "Für diese Anmeldung gibt es schon eine Rechnung. Geschwister können Sie jetzt nicht mehr ändern.",
   "sibling_group_not_found": "Diese Anmeldung gehört nicht mehr zu Geschwistern. Bitte laden Sie die Seite neu.",
   "letter_mail_delayed": "Die letzte Mail an diese Familie ist noch unterwegs. Bitte warten Sie, sonst kommt sie doppelt an.",
-  "letter_mail_blocked": "An diese Adresse geht keine Mail mehr raus. Bitte drucken Sie das Schreiben."
+  "letter_mail_blocked": "Diese Adresse ist gesperrt. Bitte drucken Sie das Schreiben. Der moto-Support klärt die Sperre.",
+  "letter_mail_block_unreadable": "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal."
 }

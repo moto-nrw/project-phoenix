@@ -13,6 +13,8 @@ type BulkInviteProblemReason =
   | "duplicate_email"
   | "email_not_queued"
   | "address_blocked"
+  | "provider_blocked"
+  | "block_unreadable"
   | "mail_delayed";
 
 export interface BulkInviteProblem {

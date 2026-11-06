@@ -48,7 +48,7 @@ func (l *AccountLifecycle) InviteToStudent(ctx context.Context, req identityacce
 		}
 		public := identityaccess.InviteToStudentResult{
 			Outcome: identityaccess.InviteToStudentOutcome(result.Outcome), GuardianProfileID: result.GuardianProfileID,
-			InvitationID: result.InvitationID, ExistingRole: result.ExistingRole,
+			InvitationID: result.InvitationID, ExistingRole: result.ExistingRole, MailHeld: result.MailHeld,
 		}
 		return &public, nil
 	}
@@ -250,7 +250,7 @@ func (l *AccountLifecycle) resolveInviteNow(ctx context.Context, req domain.Invi
 		if err := l.mailExistingAccountAccess(ctx, profile, tenantID); err != nil {
 			return nil, failed(opGuardianInviteToStudent, err)
 		}
-		mailHeld := errors.Is(l.refuseBlockedMail(ctx, tenantID, profile), domain.ErrGuardianEmailAddressBlocked)
+		mailHeld := mailWouldStayBack(l.refuseBlockedMail(ctx, tenantID, profile))
 		outcome := domain.InviteOutcomeLinkedExistingAccount
 		if !linkCreated {
 			outcome = domain.InviteOutcomeAlreadyLinked

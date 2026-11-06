@@ -5,12 +5,14 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
@@ -282,4 +284,102 @@ func TestGuardianEmailStatusQueryBudget(t *testing.T) {
 	add("budget-3")
 	add("budget-4")
 	assert.Equal(t, first, read(), "a further guardian adds no statement")
+}
+
+// The API tells the toast that no mail reaches the person (#5934). This runs the
+// whole route: a result that loses the value on its way still answers 200.
+func TestInvitingAnExistingAccountSaysThatNoMailGoesOut(t *testing.T) {
+	t.Parallel()
+	c := setupGuardianEmailRoute(t)
+	_, staff := testpkg.CreateTestStaffWithAccount(t, c.db, "Mail", "Konto")
+	guardian := testpkg.CreateTestGuardianProfile(t, c.db, "mail-held-account")
+	student := testpkg.CreateTestStudent(t, c.db, "Mail", "Kontokind", "1a")
+	testpkg.CreateTestStudentGuardianLink(t, c.db, student.ID, guardian.ID, "primary_guardian")
+	parent := testpkg.CreateTestAccount(t, c.db, "mail-held-login")
+	_, err := c.db.ExecContext(testpkg.Ctx(t), `UPDATE users.guardian_profiles SET account_id = ?, has_account = TRUE, email = ? WHERE id = ?`, parent.ID, parent.Email, guardian.ID)
+	require.NoError(t, err)
+	c.mark(t, strings.ToLower(parent.Email), "failed")
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/guardians/students/%d/invite", student.ID),
+		map[string]any{"email": parent.Email}, bearer(t, guardianStaffClaims(staff.ID, permissions.UsersCreate)))
+	rec := testutil.ExecuteRequest(c.router, req)
+
+	require.Less(t, rec.Code, 300, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"mail_held":true`)
+}
+
+// Another school's block reaches this school as its own mail held back. As long as
+// the provider holds it, no new invitation is offered, and nothing names the cause.
+// Once it is gone, the old mail decides nothing.
+func TestGuardianStatusFollowsTheCurrentProviderBlock(t *testing.T) {
+	t.Parallel()
+	c := setupGuardianEmailRoute(t)
+	_, account := testpkg.CreateTestStaffWithAccount(t, c.db, "Mail", "Anbieter")
+	guardian := testpkg.CreateTestGuardianProfile(t, c.db, "mail-provider")
+	student := testpkg.CreateTestStudent(t, c.db, "Mail", "Anbieterkind", "1a")
+	testpkg.CreateTestStudentGuardianLink(t, c.db, student.ID, guardian.ID, "primary_guardian")
+	address := strings.ToLower(*guardian.Email)
+	c.invitationMail(t, address, "suppressed")
+	statusPath := fmt.Sprintf("/students/%d/email-status", student.ID)
+	read := func() map[string]any {
+		return emailStatusLine(t, c.do(t, account.ID, http.MethodGet, statusPath, permissions.UsersRead), guardian.ID)
+	}
+
+	testProviderBlocks.Store(address, deliveryContract.EmailProviderBlockActive)
+	line := read()
+	assert.Equal(t, "provider_blocked", line["mail_outcome"])
+	assert.Equal(t, "provider", line["send_block"])
+	assert.Equal(t, "active", line["provider_block"])
+	assert.Nil(t, line["address_mark"], "it stays off the school's list")
+
+	testProviderBlocks.Store(address, deliveryContract.EmailProviderBlockUnreadable)
+	line = read()
+	assert.Equal(t, "provider_unknown", line["send_block"], "an unknown state offers nothing")
+
+	testProviderBlocks.Store(address, deliveryContract.EmailProviderBlockNone)
+	line = read()
+	assert.Equal(t, "provider_blocked", line["mail_outcome"], "the old mail keeps its result")
+	assert.Nil(t, line["send_block"], "the block is gone: another try goes")
+}
+
+// The provider is only asked about an address the school's own mail ran into, so
+// no school can probe another's addresses.
+func TestGuardianStatusAsksTheProviderOnlyAfterItsOwnBlockedMail(t *testing.T) {
+	t.Parallel()
+	c := setupGuardianEmailRoute(t)
+	_, account := testpkg.CreateTestStaffWithAccount(t, c.db, "Mail", "Frage")
+	guardian := testpkg.CreateTestGuardianProfile(t, c.db, "mail-not-asked")
+	student := testpkg.CreateTestStudent(t, c.db, "Mail", "Fragekind", "1a")
+	testpkg.CreateTestStudentGuardianLink(t, c.db, student.ID, guardian.ID, "primary_guardian")
+	address := strings.ToLower(*guardian.Email)
+	c.invitationMail(t, address, "delivered")
+
+	line := emailStatusLine(t, c.do(t, account.ID, http.MethodGet, fmt.Sprintf("/students/%d/email-status", student.ID), permissions.UsersRead), guardian.ID)
+
+	assert.Equal(t, "delivered", line["mail_outcome"])
+	_, asked := testProviderAsked.Load(address)
+	assert.False(t, asked)
+}
+
+// A stop on a shared address must not read as if no mail went there any more.
+func TestGuardianStatusSaysThatASharedAddressStillGetsMail(t *testing.T) {
+	t.Parallel()
+	c := setupGuardianEmailRoute(t)
+	_, account := testpkg.CreateTestStaffWithAccount(t, c.db, "Mail", "Geteilt")
+	stopped := testpkg.CreateTestGuardianProfile(t, c.db, "mail-shared-stopped")
+	free := testpkg.CreateTestGuardianProfile(t, c.db, "mail-shared-free")
+	student := testpkg.CreateTestStudent(t, c.db, "Mail", "Geteiltkind", "1a")
+	testpkg.CreateTestStudentGuardianLink(t, c.db, student.ID, stopped.ID, "primary_guardian")
+	login := testpkg.CreateTestAccount(t, c.db, "mail-shared-login")
+	_, err := c.db.ExecContext(testpkg.Ctx(t), `UPDATE users.guardian_profiles SET account_id = ?, has_account = TRUE WHERE id = ?`, login.ID, free.ID)
+	require.NoError(t, err)
+	_, err = c.db.ExecContext(testpkg.Ctx(t), `UPDATE users.guardian_profiles SET email = ? WHERE id = ?`, login.Email, stopped.ID)
+	require.NoError(t, err)
+	statusPath := fmt.Sprintf("/students/%d/email-status", student.ID)
+	require.Equal(t, http.StatusOK, c.do(t, account.ID, http.MethodPost, fmt.Sprintf("/%d/email-stop", stopped.ID), permissions.UsersUpdate).Code)
+
+	line := emailStatusLine(t, c.do(t, account.ID, http.MethodGet, statusPath, permissions.UsersRead), stopped.ID)
+
+	assert.Equal(t, true, line["emails_stopped"])
+	assert.Equal(t, true, line["stop_shared"])
 }

@@ -72,19 +72,25 @@ const MAIL_OUTCOME_BADGES: Partial<
   undeliverable: { label: "Nicht zustellbar", tone: "red" },
   complained: { label: "Nicht zustellbar", tone: "red" },
   blocked: { label: "Nicht gesendet", tone: "gray" },
+  provider_blocked: { label: "Nicht gesendet", tone: "gray" },
   unsubscribed: { label: "Abgemeldet", tone: "gray" },
 };
 
-// A further mail would only repeat these; the backend refuses it as well. The
-// family still needs the letter, so the note points to the print.
-const HELD_BACK_NOTES: Partial<Record<MailOutcome, string>> = {
-  blocked:
-    "Die Mail ging nicht raus, weil die Adresse gesperrt ist. Bitte drucken Sie das Schreiben.",
-  unsubscribed:
-    "Diese Person hat sich von den Mails abgemeldet. Bitte drucken Sie das Schreiben.",
-  complained:
-    "Diese Person hat eine Mail als unerwünscht gemeldet. Bitte drucken Sie das Schreiben.",
-};
+// The provider's block as it is now decides, not what became of the last mail. The
+// family still needs the letter, so a block points to the print.
+function heldBackNote(mailing: LetterMailing): string | null {
+  if (mailing.providerBlock === "unreadable") {
+    return "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal.";
+  }
+  if (mailing.providerBlock !== "active") return null;
+  if (mailing.mailOutcome === "unsubscribed") {
+    return "Diese Person hat sich von den Mails abgemeldet. Bitte drucken Sie das Schreiben.";
+  }
+  if (mailing.mailOutcome === "complained") {
+    return "Diese Person hat eine Mail als unerwünscht gemeldet. Bitte drucken Sie das Schreiben.";
+  }
+  return "Diese Adresse ist gesperrt. Bitte drucken Sie das Schreiben. Der moto-Support klärt die Sperre.";
+}
 
 // The date beside the short status; it wraps on small screens.
 function statusDetail(mailing: LetterMailing): string | null {
@@ -93,8 +99,14 @@ function statusDetail(mailing: LetterMailing): string | null {
   if (mailing.mailOutcome === "delayed" || mailing.mailOutcome === "overdue") {
     return mailStatusCopy(mailing.mailOutcome)?.explanation ?? null;
   }
-  const heldBack = mailing.mailOutcome && HELD_BACK_NOTES[mailing.mailOutcome];
+  const heldBack = heldBackNote(mailing);
   if (heldBack) return heldBack;
+  if (mailing.providerBlock === "none") {
+    return (
+      mailStatusCopy(mailing.mailOutcome, "", false, "none")?.explanation ??
+      null
+    );
+  }
   if (mailing.status === "sent" && mailing.sentAt) {
     return `am ${at(mailing.sentAt)}`;
   }
@@ -288,9 +300,7 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
                   {mailing.recipientEmail &&
                   mailing.status !== "queued" &&
                   mailing.mailOutcome !== "delayed" &&
-                  !(
-                    mailing.mailOutcome && HELD_BACK_NOTES[mailing.mailOutcome]
-                  ) ? (
+                  !heldBackNote(mailing) ? (
                     <Button
                       type="button"
                       variant="ghost"

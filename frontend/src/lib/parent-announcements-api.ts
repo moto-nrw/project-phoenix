@@ -7,6 +7,7 @@
 
 import type {
   EmailAddressMark,
+  MailProviderBlock,
   MailOutcome,
 } from "~/lib/email-delivery-status";
 import { ApiError, apiErrorFromText, transportFetch } from "~/lib/api-error";
@@ -236,12 +237,17 @@ export interface LetterRecipient {
    * separate vocabularies on purpose; collapsing them is what would let a
    * school read "kein Portalzugang" as a delivery failure.
    */
-  email_status: "not_sent" | "pending" | "sent" | "failed";
+  email_status: "not_sent" | "pending" | "sent" | "failed" | "cancelled";
   /** What became of the mail; only a provider's report says delivered. */
   mail_outcome?: MailOutcome;
   address_mark?: EmailAddressMark;
   /** The school stopped mail to this person. */
   stopped?: boolean;
+  /** Another holder of the address carries no stop: mail to it still goes out. */
+  stop_shared?: boolean;
+  /** Where this mail went: its outcome belongs there. `email` is the current address. */
+  mailed_to?: string;
+  provider_block?: MailProviderBlock;
   reachability: "ok" | "no_email" | "no_portal" | "excluded";
   last_error?: string;
   sent_at?: string;
@@ -277,6 +283,7 @@ interface LetterSummary {
   emails_delayed?: number;
   emails_address_check?: number;
   emails_stopped?: number;
+  emails_provider_blocked?: number;
   emails_resendable?: number;
   emails_pending: number;
   emails_failed: number;

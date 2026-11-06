@@ -85,6 +85,8 @@ var guardianConflictCodes = []struct {
 }{
 	{identityaccess.ErrGuardianEmailAddressBlocked, apiCommon.CodeIdentityGuardianEmailAddressBlocked},
 	{identityaccess.ErrInvitationMailDelayed, apiCommon.CodeIdentityInvitationMailDelayed},
+	{identityaccess.ErrMailBlockedAtProvider, apiCommon.CodeIdentityMailBlockedAtProvider},
+	{identityaccess.ErrMailBlockUnreadable, apiCommon.CodeIdentityMailBlockUnreadable},
 	{deliveryContract.ErrEmailSuppressionNeedsReview, apiCommon.CodeStudentsGuardianEmailBlockNeedsReview},
 	{deliveryContract.ErrEmailSuppressionStaysAtProvider, apiCommon.CodeStudentsGuardianEmailBlockStays},
 }

@@ -597,6 +597,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (p careContractPost) ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]carecontract.MailState, error) {\n\tstatuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID, deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: contractID})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tstates := make([]carecontract.MailState, len(statuses))\n\tfor i, status := range statuses {\n\t\tstates[i] = carecontract.MailState{OutboxID: status.ID, State: contractMailState(status.Outcome), Outcome: string(status.Outcome)}\n\t}\n\treturn states, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/careContractPost.ContractMailStates",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (r childQuotaStudentsReader) ChildQuotaUsage(ctx context.Context) (students.ChildQuotaUsage, bool, error) {\n\tusage, limited, err := r.usages.ChildQuotaUsage(ctx)\n\treturn students.ChildQuotaUsage{Booked: usage.Booked, Occupied: usage.Occupied}, limited, err\n}",
       "form": "unclassified-evidence",
       "id": "api/childQuotaStudentsReader.ChildQuotaUsage",
@@ -1188,6 +1195,13 @@
       "evidence": "func (p parentBillingLetterPost) EnqueueDocumentNotice(ctx context.Context, notice parentbilling.BillingDocumentNotice) error {\n\tpayload, err := json.Marshal(notice)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"document notice payload: %w\", err)\n\t}\n\t_, err = p.delivery.EnqueueDeferredPush(ctx, deliveryContract.DeferredPushIntent{OrganizationID: notice.OrganizationID, Template: parentbilling.PushKindBillingDocument, IdempotencyKey: fmt.Sprintf(\"parent-billing-document:%d\", notice.DocumentID), Payload: payload, Related: deliveryContract.RelatedEntity{Type: parentbilling.PushRelatedBillingDocument, ID: notice.DocumentID}})\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingLetterPost.EnqueueDocumentNotice",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p parentBillingLetterPost) LetterMailBlocks(ctx context.Context, addresses []string) map[string]string {\n\tblocks := make(map[string]string, len(addresses))\n\tfor address, block := range p.outcomes.ProviderEmailBlocks(ctx, addresses) {\n\t\tblocks[address] = string(block)\n\t}\n\treturn blocks\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingLetterPost.LetterMailBlocks",
       "owner": "roots"
     },
     {

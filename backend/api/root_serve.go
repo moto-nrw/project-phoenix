@@ -315,7 +315,7 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			announcements, err = owners.BuildParentAnnouncements(env, settings.Service, delivery.Outbox, owners.DeliveryModuleOf(delivery),
+			announcements, err = owners.BuildParentAnnouncements(env, settings.Service, delivery.Outbox, owners.DeliveryModuleOf(delivery), delivery.Runtime.EmailOutcomes,
 				notifications, messaging, purger)
 			return
 		},
@@ -568,7 +568,7 @@ func composeServeRoot(
 			}
 			mountPortalRoutes(router, limiters, newAccountResource(db, identity, organizations, services.CaregiverCapability, settings.Service),
 				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications, delivery.Runtime.Module, env.HealthData))
-			return mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, delivery.Runtime.Module, config.Turnstile, env.HealthData, logger)
+			return mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, delivery.Runtime.Module, delivery.Runtime.EmailOutcomes, config.Turnstile, env.HealthData, logger)
 		},
 	)
 	if err != nil {

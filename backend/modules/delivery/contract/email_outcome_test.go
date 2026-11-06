@@ -42,13 +42,13 @@ func TestEmailOutcomeOfNeverCallsAnAcceptedMailDelivered(t *testing.T) {
 
 func TestEmailSendBlockOf(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, EmailSendBlockStopped, EmailSendBlockOf(EmailMarkFailed, true, EmailDelivered), "the school's decision comes first")
-	assert.Equal(t, EmailSendBlockAddress, EmailSendBlockOf(EmailMarkFailed, false, EmailDelivered))
-	assert.Equal(t, EmailSendBlockAddress, EmailSendBlockOf(EmailMarkComplained, false, EmailDelayed), "a mark outranks a delay")
-	assert.Equal(t, EmailSendBlockDelayed, EmailSendBlockOf("", false, EmailDelayed))
-	assert.Empty(t, EmailSendBlockOf("", false, EmailOverdue), "after the wait a new mail is allowed")
-	assert.Empty(t, EmailSendBlockOf("", false, EmailBlocked), "a lifted address can be mailed again")
-	assert.Empty(t, EmailSendBlockOf("", false, ""))
+	assert.Equal(t, EmailSendBlockStopped, EmailSendBlockOf(EmailMarkFailed, true, EmailDelivered, ""), "the school's decision comes first")
+	assert.Equal(t, EmailSendBlockAddress, EmailSendBlockOf(EmailMarkFailed, false, EmailDelivered, ""))
+	assert.Equal(t, EmailSendBlockAddress, EmailSendBlockOf(EmailMarkComplained, false, EmailDelayed, ""), "a mark outranks a delay")
+	assert.Equal(t, EmailSendBlockDelayed, EmailSendBlockOf("", false, EmailDelayed, ""))
+	assert.Empty(t, EmailSendBlockOf("", false, EmailOverdue, ""), "after the wait a new mail is allowed")
+	assert.Empty(t, EmailSendBlockOf("", false, EmailBlocked, ""), "a lifted address can be mailed again")
+	assert.Empty(t, EmailSendBlockOf("", false, "", ""))
 }
 
 func TestEmailOutcomeAtEndsTheWaitForADelayedMail(t *testing.T) {

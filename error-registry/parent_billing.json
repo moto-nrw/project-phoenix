@@ -265,6 +265,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.letter_mail_blocked"
+    },
+    {
+      "code": "parent_billing.letter_mail_block_unreadable",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "parent_billing.letter_mail_block_unreadable"
     }
   ]
 }

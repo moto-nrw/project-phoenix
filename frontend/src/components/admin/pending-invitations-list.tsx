@@ -60,7 +60,10 @@ function staffMailNote(invitation: PendingInvitation): string | null {
     return `Eine frühere Mail an diese Adresse kam nicht an. ${nextStep}`;
   }
   if (invitation.mailOutcome === "accepted") return null;
-  return mailStatusCopy(invitation.mailOutcome)?.explanation ?? null;
+  return (
+    mailStatusCopy(invitation.mailOutcome, "", false, invitation.providerBlock)
+      ?.explanation ?? null
+  );
 }
 
 export function PendingInvitationsList({
@@ -257,6 +260,8 @@ export function PendingInvitationsList({
                 const mailCopy = mailStatusCopy(
                   invitation.mailOutcome,
                   invitation.addressMark,
+                  false,
+                  invitation.providerBlock,
                 );
 
                 const mailNote = staffMailNote(invitation);
@@ -315,7 +320,9 @@ export function PendingInvitationsList({
                             ariaLabel={`Aktionen für ${invitation.email}`}
                             items={[
                               ...(isExpired ||
-                              invitation.mailOutcome === "delayed"
+                              invitation.mailOutcome === "delayed" ||
+                              invitation.providerBlock === "active" ||
+                              invitation.providerBlock === "unreadable"
                                 ? []
                                 : [
                                     {

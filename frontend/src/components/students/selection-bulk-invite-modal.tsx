@@ -28,6 +28,8 @@ const PROBLEM_LABEL: Record<BulkInviteProblem["reason"], string> = {
   email_not_queued: "E-Mail konnte gerade nicht verschickt werden",
   address_blocked: "Mails an diese Person gehen gerade nicht raus",
   mail_delayed: "Die letzte E-Mail ist noch unterwegs",
+  provider_blocked: "Diese Adresse ist gesperrt",
+  block_unreadable: "Der Stand der Adresse lässt sich gerade nicht prüfen",
 };
 
 const PROBLEM_ACTION: Record<BulkInviteProblem["reason"], string> = {
@@ -38,6 +40,8 @@ const PROBLEM_ACTION: Record<BulkInviteProblem["reason"], string> = {
   address_blocked:
     "Den Grund sehen Sie beim Kind unter „Erziehungsberechtigte“.",
   mail_delayed: "Bitte warten Sie, sonst kommt die Mail doppelt an.",
+  provider_blocked: "Der moto-Support muss das klären.",
+  block_unreadable: "Bitte versuchen Sie es später noch einmal.",
 };
 
 function parents(count: number): string {

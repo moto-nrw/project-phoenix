@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,6 +77,7 @@ func TestWorkerHoldsBackAMailToAStoppedGuardianWithoutMarkingTheAddress(t *testi
 	assert.Equal(t, 1, stats.Cancelled)
 	require.Len(t, store.events, 1)
 	assert.False(t, store.events[0].State.BlocksAddress(), "the stop is the school's decision, not a problem of the address")
+	assert.Equal(t, deliveryContract.MailHeldByStop, store.cancelledReason, "the mail says why it stayed back")
 }
 
 func TestWorkerAsksTheTraegersSchoolsForATraegerMail(t *testing.T) {

@@ -1,5 +1,6 @@
 import type {
   EmailAddressMark,
+  MailProviderBlock,
   MailOutcome,
 } from "~/lib/email-delivery-status";
 
@@ -51,6 +52,7 @@ export interface PendingInvitation {
   position?: string | null;
   /** What became of the last mail; only a provider's report says delivered. */
   mailOutcome?: MailOutcome;
+  providerBlock?: MailProviderBlock;
   addressMark?: EmailAddressMark;
 }
 
@@ -79,6 +81,7 @@ export interface BackendInvitation {
   position?: string | null;
   creator?: string; // Creator email from backend
   mail_outcome?: MailOutcome;
+  provider_block?: MailProviderBlock;
   address_mark?: EmailAddressMark;
 }
 
@@ -112,6 +115,7 @@ export const mapPendingInvitationResponse = (
     lastName: data.last_name,
     position: data.position,
     mailOutcome: data.mail_outcome,
+    providerBlock: data.provider_block,
     addressMark: data.address_mark,
   };
 };

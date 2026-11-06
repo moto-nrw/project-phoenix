@@ -3,6 +3,7 @@ package postgres_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -363,4 +364,194 @@ func TestADelayedMailBecomesOverdue(t *testing.T) {
 		assert.Equal(t, deliveryContract.EmailOverdue, latest[address].Outcome)
 		return nil
 	})
+}
+
+// A mail keeps the address it went to. A new address does not take over its result,
+// and another mail goes to the new one.
+func TestALetterRowKeepsTheAddressItsMailWentTo(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "letter-mailed-to")
+	old := strings.ToLower(*guardian.Email)
+	mail := relatedMail(t, db, store, ctx, school, "letter-mailed-to", old, 83)
+	_, err := db.ExecContext(ctx, `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW(), delivery_state = 'delivered', delivery_state_at = NOW() WHERE id = ?`, mail)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `INSERT INTO platform.delivery_email_deliveries
+		(tenant_id, related_entity_type, related_entity_id, outbox_id, guardian_profile_id, recipient_email, reachability)
+		VALUES (?, 'parent_announcement', 83, ?, ?, ?, 'ok')`, school, mail, guardian.ID, old)
+	require.NoError(t, err)
+	next := "neu-" + old
+	_, err = db.ExecContext(ctx, `UPDATE users.guardian_profiles SET email = ? WHERE id = ?`, next, guardian.ID)
+	require.NoError(t, err)
+
+	inSchool(t, ctx, db, school, func(txCtx context.Context) error {
+		rows, err := store.EmailDeliveryStatuses(txCtx, school, "parent_announcement", 83)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		assert.Equal(t, deliveryContract.EmailDelivered, rows[0].Outcome)
+		require.NotNil(t, rows[0].MailedTo)
+		assert.Equal(t, old, *rows[0].MailedTo, "delivered there, not at the new address")
+		require.NotNil(t, rows[0].RecipientEmail)
+		assert.Equal(t, next, *rows[0].RecipientEmail, "the next mail goes here")
+		return nil
+	})
+}
+
+// What the status calls failed is exactly what a claim takes. A mail cancelled on
+// purpose is neither, and a held mail is both, whether its own event arrived or not.
+func TestTheLetterStatusAndTheClaimAgree(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	for index, test := range []struct {
+		name          string
+		status        string
+		deliveryState any
+		lastError     any
+		wantStatus    string
+		claims        bool
+	}{
+		{"cancelled on purpose", "cancelled", nil, "the letter was withdrawn", "cancelled", false},
+		{"held by the list", "cancelled", "suppressed", deliveryContract.MailHeldByList, "failed", true},
+		{"held by the list, event lost", "cancelled", nil, deliveryContract.MailHeldByList, "failed", true},
+		{"held by a stop, event lost", "cancelled", nil, deliveryContract.MailHeldByStop, "failed", true},
+		{"given up", "dead_letter", nil, "smtp refused", "failed", true},
+		{"withheld by the provider", "sent", "suppressed", nil, "failed", true},
+		{"accepted", "sent", nil, nil, "sent", false},
+	} {
+		related := int64(8400 + index)
+		address := fmt.Sprintf("claim-%d-%d@example.com", index, testpkg.UniqueTestTenantID(t))
+		mail := relatedMail(t, db, store, ctx, school, fmt.Sprintf("claim-%d", index), address, related)
+		_, err := db.ExecContext(ctx, `UPDATE platform.email_outbox SET status = ?, delivery_state = ?, delivery_state_at = NOW(), last_error = ?, sent_at = NOW(),
+			dead_letter_at = CASE WHEN ? = 'dead_letter' THEN NOW() END, cancelled_at = CASE WHEN ? = 'cancelled' THEN NOW() END WHERE id = ?`,
+			test.status, test.deliveryState, test.lastError, test.status, test.status, mail)
+		require.NoError(t, err, test.name)
+		var delivery int64
+		require.NoError(t, db.NewRaw(`INSERT INTO platform.delivery_email_deliveries
+			(tenant_id, related_entity_type, related_entity_id, outbox_id, recipient_email, reachability)
+			VALUES (?, 'parent_announcement', ?, ?, ?, 'ok') RETURNING id`, school, related, mail, address).Scan(ctx, &delivery), test.name)
+		inSchool(t, ctx, db, school, func(txCtx context.Context) error {
+			rows, err := store.EmailDeliveryStatuses(txCtx, school, "parent_announcement", related)
+			require.NoError(t, err, test.name)
+			require.Len(t, rows, 1, test.name)
+			assert.Equal(t, test.wantStatus, rows[0].EmailStatus, test.name)
+			claimed, err := store.ClaimFailedEmailDelivery(txCtx, school, delivery)
+			require.NoError(t, err, test.name)
+			assert.Equal(t, test.claims, claimed, test.name)
+			return nil
+		})
+	}
+}
+
+// A mark of an address only an open application names stays through the night; a
+// decided or withdrawn application holds nothing, and nothing crosses to another school.
+func TestRetentionKeepsTheMarkOfAnOpenApplication(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	phase := testpkg.CreateTestEnrollmentPhase(t, db)
+	apply := func(address, childStatus string, withdrawn bool) {
+		t.Helper()
+		var request int64
+		require.NoError(t, db.NewRaw(`INSERT INTO enrollment.requests
+			(tenant_id, phase_id, guardian_first_name, guardian_last_name, guardian_email, consent_flags, custom_data, status_token, submitted_at, withdrawn_at)
+			VALUES (?, ?, 'Anmeldung', 'Test', ?, '{}'::jsonb, '{}'::jsonb, ?, NOW(), CASE WHEN ? THEN NOW() END) RETURNING id`,
+			school, phase.ID, address, "token-"+address, withdrawn).Scan(ctx, &request))
+		_, err := db.ExecContext(ctx, `INSERT INTO enrollment.request_children
+			(tenant_id, request_id, first_name, last_name, date_of_birth, status, activation_mode, sort_order, custom_data)
+			VALUES (?, ?, 'Kind', 'Test', '2018-04-15', ?, 'scheduled', 0, '{}'::jsonb)`, school, request, childStatus)
+		require.NoError(t, err)
+		_, err = db.ExecContext(ctx, `INSERT INTO platform.email_suppressions (tenant_id, address, reason) VALUES (?, ?, 'failed')`, school, address)
+		require.NoError(t, err)
+	}
+	unique := testpkg.UniqueTestTenantID(t)
+	open := fmt.Sprintf("offen-%d@example.com", unique)
+	waiting := fmt.Sprintf("warteliste-%d@example.com", unique)
+	decided := fmt.Sprintf("zusage-%d@example.com", unique)
+	gone := fmt.Sprintf("zurueckgezogen-%d@example.com", unique)
+	apply(open, "submitted", false)
+	apply(waiting, "waitlisted", false)
+	apply(decided, "approved", false)
+	apply(gone, "submitted", true)
+
+	inSchool(t, ctx, db, school, func(txCtx context.Context) error {
+		_, err := store.DeleteUnheldEmailSuppressions(txCtx, school)
+		return err
+	})
+
+	var left []string
+	require.NoError(t, db.NewRaw(`SELECT address FROM platform.email_suppressions WHERE tenant_id = ? AND address IN (?)`,
+		school, bun.List([]string{open, waiting, decided, gone})).Scan(ctx, &left))
+	assert.ElementsMatch(t, []string{open, waiting}, left)
+}
+
+// A mail the stop held back says so, also once the stop has ended and also without
+// its event, and never blames the address.
+func TestAMailHeldByTheStopKeepsItsReason(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "held-by-stop")
+	address := strings.ToLower(*guardian.Email)
+	stopGuardian(t, ctx, db, guardian.ID)
+	mail := relatedMail(t, db, store, ctx, school, "held-by-stop", address, 72)
+	_, err := db.ExecContext(ctx, `UPDATE platform.email_outbox SET status = 'cancelled', cancelled_at = NOW(), last_error = ? WHERE id = ?`, deliveryContract.MailHeldByStop, mail)
+	require.NoError(t, err)
+	read := func() deliveryContract.EmailOutcomeReport {
+		var report deliveryContract.EmailOutcomeReport
+		inSchool(t, ctx, db, school, func(txCtx context.Context) error {
+			latest, err := store.LatestEmailOutcomes(txCtx, school, []string{"guardian_invitation"}, []string{address})
+			report = latest[address]
+			return err
+		})
+		return report
+	}
+	assert.Equal(t, deliveryContract.EmailHeldByStop, read().Outcome, "without its event")
+
+	_, err = store.RecordEmailDeliveryEvent(ctx, eventAt(eventMailToken(t, db, mail), "held-back", domain.EmailDeliverySuppressed, time.Now()))
+	require.NoError(t, err)
+	assert.Equal(t, deliveryContract.EmailHeldByStop, read().Outcome, "with its event")
+
+	_, err = db.ExecContext(ctx, `UPDATE users.guardian_profiles SET emails_stopped_at = NULL WHERE id = ?`, guardian.ID)
+	require.NoError(t, err)
+	assert.Equal(t, deliveryContract.EmailHeldByStop, read().Outcome, "after the stop ended")
+}
+
+// A Träger reads the holds of its own schools in its own transaction, and nobody
+// else's. Its role reads no school's rows: the function answers for the session.
+func TestTraegerMailHoldsStayWithTheirTraeger(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	var organization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, school).Scan(ctx, &organization))
+	other := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
+		Name: "Anderer Träger", Slug: fmt.Sprintf("anderer-%d", testpkg.UniqueTestTenantID(t)), Active: true,
+	}).ID
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "holds-traeger")
+	address := strings.ToLower(*guardian.Email)
+	stopGuardian(t, ctx, db, guardian.ID)
+	_, err := db.ExecContext(ctx, `INSERT INTO platform.email_suppressions (tenant_id, address, reason) VALUES (?, ?, 'failed')`, school, address)
+	require.NoError(t, err)
+
+	require.NoError(t, tenant.WithinTraeger(ctx, organization, func(txCtx context.Context) error {
+		listed, stopped, err := store.Store.TraegerMailHolds(txCtx, organization, address)
+		require.NoError(t, err)
+		assert.True(t, listed)
+		assert.True(t, stopped)
+		return nil
+	}))
+	require.NoError(t, tenant.WithinTraeger(ctx, other, func(txCtx context.Context) error {
+		listed, stopped, err := store.Store.TraegerMailHolds(txCtx, other, address)
+		require.NoError(t, err)
+		assert.False(t, listed, "another Träger learns nothing")
+		assert.False(t, stopped)
+		return nil
+	}))
 }

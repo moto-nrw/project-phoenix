@@ -792,9 +792,29 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
+      "reason": "Pure classification of a mail outcome in the delivery contract (#5934). No persistent, lock or scope effect.",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
       "reason": "Read-only newly exposed target: communication reaches modules/delivery/runtime.Capability.EmailDeliveryStatuses (delivery-platform) through roots/owners.announcementDeliveryAdapter.ListForEntity. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Since #5934 it also passes on what became of the mail, read in the same statement.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EmailDeliveryStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect.",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
       "target_owner": "delivery-platform"
     },
     {

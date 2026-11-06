@@ -935,9 +935,29 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResendSchoolInvitation",
+      "reason": "Pure classification of a mail outcome in the delivery contract (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.ResendSchoolInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResendSchoolInvitation",
       "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.EmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect.",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.ResendSchoolInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResendSchoolInvitation",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
       "target_owner": "delivery-platform"
     },
     {
@@ -978,9 +998,29 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SchoolInvitationMailStates",
+      "reason": "Pure classification of a mail outcome in the delivery contract (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.SchoolInvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SchoolInvitationMailStates",
       "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.EmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect.",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.SchoolInvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SchoolInvitationMailStates",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
       "target_owner": "delivery-platform"
     },
     {
@@ -1168,9 +1208,39 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.ResendSchoolInvitation",
+      "reason": "Pure classification of a mail outcome in the delivery contract (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.InvitationCapability.ResendSchoolInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.ResendSchoolInvitation",
       "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.EmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect.",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.InvitationCapability.ResendSchoolInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.ResendSchoolInvitation",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResendSchoolInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.ResendSchoolInvitation",
+      "reason": "Pure classification of a mail outcome in the delivery contract (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
       "target_owner": "delivery-platform"
     },
     {
@@ -1181,6 +1251,16 @@
       "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.EmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect.",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResendSchoolInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.ResendSchoolInvitation",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
       "target_owner": "delivery-platform"
     },
     {
@@ -2050,9 +2130,29 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendSchoolInvitation",
+      "reason": "Pure classification of a mail outcome in the delivery contract (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResendSchoolInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendSchoolInvitation",
       "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.EmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect.",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResendSchoolInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendSchoolInvitation",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
       "target_owner": "delivery-platform"
     },
     {
@@ -2082,9 +2182,29 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.SchoolInvitationMailStates",
+      "reason": "Pure classification of a mail outcome in the delivery contract (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SchoolInvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.SchoolInvitationMailStates",
       "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.EmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect.",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SchoolInvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.SchoolInvitationMailStates",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
       "target_owner": "delivery-platform"
     },
     {
@@ -3160,6 +3280,16 @@
       "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.LatestEmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect.",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
       "target_owner": "delivery-platform"
     },
     {
@@ -4830,6 +4960,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "reason": "Read-only delivery state: identity-access reads which addresses belong to a stopped guardian through runtime.EmailOutcomes.StoppedEmailAddresses in its tenant transaction (#5934). No persistent, lock or scope effect.",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
@@ -6242,9 +6382,29 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolInvitationDelivery.InvitationMailStates",
+      "reason": "Pure classification of a mail outcome in the delivery contract (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.invitationDelivery.InvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolInvitationDelivery.InvitationMailStates",
       "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.EmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect.",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.invitationDelivery.InvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolInvitationDelivery.InvitationMailStates",
+      "reason": "Read-only: reads the mail provider's current block of exact addresses, only for addresses the caller's own mail ran into, within a budget of reads (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
       "target_owner": "delivery-platform"
     },
     {

@@ -245,7 +245,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return
 		},
 		func() (err error) {
-			announcements, err = owners.BuildParentAnnouncements(env, settings.Service, delivery.Outbox, owners.DeliveryModuleOf(delivery),
+			announcements, err = owners.BuildParentAnnouncements(env, settings.Service, delivery.Outbox, owners.DeliveryModuleOf(delivery), delivery.Runtime.EmailOutcomes,
 				notifications, messaging, purger)
 			return
 		},

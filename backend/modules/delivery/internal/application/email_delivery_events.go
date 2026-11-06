@@ -26,13 +26,13 @@ const (
 // German, because the letter status list shows that text to the school.
 //
 //nolint:staticcheck // user-visible sentence, not a wrapped message
-var errAddressSuppressed = errors.New("Diese Adresse ist gesperrt, weil eine frühere Mail nicht zugestellt werden konnte.")
+var errAddressSuppressed = errors.New(deliveryContract.MailHeldByList)
 
 // errGuardianEmailsStopped is the reason of a mail to a person the school stopped
 // mail to. Like the one above it is shown to the school.
 //
 //nolint:staticcheck // user-visible sentence, not a wrapped message
-var errGuardianEmailsStopped = errors.New("Die Schule hat die Mails an diese Person gestoppt.")
+var errGuardianEmailsStopped = errors.New(deliveryContract.MailHeldByStop)
 
 var eventStates = []domain.EmailDeliveryState{
 	domain.EmailDeliveryDelayed, domain.EmailDeliveryDelivered, domain.EmailDeliverySuppressed, domain.EmailDeliveryUnsubscribed,

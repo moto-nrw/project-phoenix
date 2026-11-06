@@ -1171,7 +1171,7 @@ src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
 src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
-src/components/guardians/guardian-list.tsx|text-[10px]@458
+src/components/guardians/guardian-list.tsx|text-[10px]@462
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@744 text-[11px]@809
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/planning/closing-day-marker.tsx|text-[10px]@54

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -73,6 +74,14 @@ type stubProviderAPI struct {
 	asked      []string
 	liftErr    error
 	lifted     []string
+	blocks     map[string]bool
+	blockErrs  map[string]error
+	blockAsked []string
+}
+
+func (a *stubProviderAPI) SuppressionActive(_ context.Context, address string) (bool, error) {
+	a.blockAsked = append(a.blockAsked, address)
+	return a.blocks[address], a.blockErrs[address]
 }
 
 func (a *stubProviderAPI) WebhookEnabled(context.Context) (bool, error) {
@@ -445,4 +454,49 @@ func TestReconciliationAlarmsOnADelayPastTheLimit(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProviderBlocksReadEachAddressOnceAndNameEveryState(t *testing.T) {
+	t.Parallel()
+	api := &stubProviderAPI{
+		blocks:    map[string]bool{"a@example.com": true},
+		blockErrs: map[string]error{"c@example.com": errors.New("down")},
+	}
+
+	blocks := reconciler(&reconcileStore{}, api).ProviderEmailBlocks(context.Background(), []string{" A@example.com", "a@example.com", "b@example.com", "c@example.com"})
+
+	assert.Equal(t, []string{"a@example.com", "b@example.com", "c@example.com"}, api.blockAsked)
+	assert.Equal(t, deliveryContract.EmailProviderBlockActive, blocks["a@example.com"])
+	assert.Equal(t, deliveryContract.EmailProviderBlockNone, blocks["b@example.com"])
+	assert.Equal(t, deliveryContract.EmailProviderBlockUnreadable, blocks["c@example.com"])
+}
+
+func TestProviderBlocksStayWithinTheirLimit(t *testing.T) {
+	t.Parallel()
+	addresses := make([]string, 0, providerBlockReads+3)
+	for i := range providerBlockReads + 3 {
+		addresses = append(addresses, fmt.Sprintf("a%d@example.com", i))
+	}
+	api := &stubProviderAPI{}
+
+	blocks := reconciler(&reconcileStore{}, api).ProviderEmailBlocks(context.Background(), addresses)
+
+	assert.Len(t, api.blockAsked, providerBlockReads)
+	assert.Equal(t, deliveryContract.EmailProviderBlockUnreadable, blocks[addresses[providerBlockReads]], "what it left out is not offered")
+}
+
+func TestProviderBlocksStopAtTheRateLimit(t *testing.T) {
+	t.Parallel()
+	api := &stubProviderAPI{blockErrs: map[string]error{"a@example.com": domain.ErrProviderRateLimited}}
+
+	blocks := reconciler(&reconcileStore{}, api).ProviderEmailBlocks(context.Background(), []string{"a@example.com", "b@example.com"})
+
+	assert.Equal(t, []string{"a@example.com"}, api.blockAsked)
+	assert.Equal(t, deliveryContract.EmailProviderBlockUnreadable, blocks["b@example.com"])
+}
+
+func TestWithoutAProviderNoAddressIsBlockedThere(t *testing.T) {
+	t.Parallel()
+	blocks := reconcilerWithoutProvider(&reconcileStore{}).ProviderEmailBlocks(context.Background(), []string{"a@example.com"})
+	assert.Equal(t, deliveryContract.EmailProviderBlockNone, blocks["a@example.com"])
 }

@@ -88,8 +88,9 @@ type InvitationResponse struct {
 	// MailOutcome is what Delivery knows about the last mail; "sent" above only
 	// says the mail server took it. AddressMark is set while the school's list
 	// holds the address (#5934).
-	MailOutcome string `json:"mail_outcome,omitempty"`
-	AddressMark string `json:"address_mark,omitempty"`
+	MailOutcome   string `json:"mail_outcome,omitempty"`
+	AddressMark   string `json:"address_mark,omitempty"`
+	ProviderBlock string `json:"provider_block,omitempty"`
 }
 
 // InvitationValidationResponse is the public-safe view of a redeemable
@@ -473,7 +474,7 @@ func (rs *Resource) pendingInvitationsWithMailStates(ctx context.Context) ([]ide
 	}
 	for i := range invitations {
 		state := states[invitations[i].ID]
-		invitations[i].Delivery.Outcome, invitations[i].Delivery.AddressMark = state.Outcome, state.AddressMark
+		invitations[i].Delivery.Outcome, invitations[i].Delivery.AddressMark, invitations[i].Delivery.ProviderBlock = state.Outcome, state.AddressMark, state.ProviderBlock
 	}
 	return invitations, nil
 }
@@ -630,6 +631,25 @@ func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 
 // renderInvitationError maps owner-reported invitation errors to appropriate
 // HTTP responses.
+// isInvitationMailRefusal reports a mail nobody should read as sent (#5934).
+func isInvitationMailRefusal(err error) bool {
+	return errors.Is(err, identityaccess.ErrGuardianEmailAddressBlocked) || errors.Is(err, identityaccess.ErrInvitationMailDelayed) ||
+		errors.Is(err, identityaccess.ErrMailBlockedAtProvider) || errors.Is(err, identityaccess.ErrMailBlockUnreadable)
+}
+
+func invitationMailRefusal(err error) render.Renderer {
+	switch {
+	case errors.Is(err, identityaccess.ErrGuardianEmailAddressBlocked):
+		return common.ErrorConflictWithCode(err, common.CodeIdentityGuardianEmailAddressBlocked)
+	case errors.Is(err, identityaccess.ErrMailBlockedAtProvider):
+		return common.ErrorConflictWithCode(err, common.CodeIdentityMailBlockedAtProvider)
+	case errors.Is(err, identityaccess.ErrMailBlockUnreadable):
+		return common.ErrorServiceUnavailableWithCode(err, common.CodeIdentityMailBlockUnreadable)
+	default:
+		return common.ErrorConflictWithCode(err, common.CodeIdentityInvitationMailDelayed)
+	}
+}
+
 func renderInvitationError(w http.ResponseWriter, r *http.Request, err error) bool {
 	if err == nil {
 		return false
@@ -651,16 +671,8 @@ func renderInvitationError(w http.ResponseWriter, r *http.Request, err error) bo
 			return false
 		}
 		return true
-	case errors.Is(err, identityaccess.ErrGuardianEmailAddressBlocked):
-		if render.Render(w, r, common.ErrorConflictWithCode(err, common.CodeIdentityGuardianEmailAddressBlocked)) != nil {
-			return false
-		}
-		return true
-	case errors.Is(err, identityaccess.ErrInvitationMailDelayed):
-		if render.Render(w, r, common.ErrorConflictWithCode(err, common.CodeIdentityInvitationMailDelayed)) != nil {
-			return false
-		}
-		return true
+	case isInvitationMailRefusal(err):
+		return render.Render(w, r, invitationMailRefusal(err)) == nil
 	case errors.Is(err, identityaccess.ErrGuardianAccessMailNotQueued):
 		// The resend rolled back; the previous link still works (#4602).
 		if render.Render(w, r, common.ErrorServiceUnavailableWithCode(err, common.CodeIdentityGuardianInvitationEmailNotQueued)) != nil {

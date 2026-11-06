@@ -32,7 +32,10 @@ func (r GuardianDisplayResolver) ResolveGuardianDisplays(ctx context.Context, id
 	return result, nil
 }
 
-type announcementDeliveryAdapter struct{ module delivery.Capability }
+type announcementDeliveryAdapter struct {
+	module   delivery.Capability
+	outcomes delivery.EmailOutcomes
+}
 
 func (a announcementDeliveryAdapter) ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []announcement.ParentAnnouncementEmailDelivery) error {
 	values := make([]deliveryContract.EmailDelivery, 0, len(rows))
@@ -54,6 +57,7 @@ func (a announcementDeliveryAdapter) ListForEntity(ctx context.Context, tenantID
 	if err != nil {
 		return nil, err
 	}
+	blocks := a.providerBlocks(ctx, rows)
 	result := make([]announcement.ParentAnnouncementEmailDeliveryStatus, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, announcement.ParentAnnouncementEmailDeliveryStatus{
@@ -61,9 +65,37 @@ func (a announcementDeliveryAdapter) ListForEntity(ctx context.Context, tenantID
 			FirstName: row.FirstName, LastName: row.LastName, RecipientEmail: row.RecipientEmail,
 			Reachability: row.Reachability, EmailStatus: row.EmailStatus, LastError: row.LastError,
 			SentAt: row.SentAt, Attempts: row.Attempts, MailOutcome: string(row.Outcome), AddressMark: string(row.AddressMark), Stopped: row.Stopped,
+			StopShared: row.StopShared, MailedTo: row.MailedTo, ProviderBlock: letterProviderBlock(row, blocks),
 		})
 	}
 	return result, nil
+}
+
+// providerBlocks asks the provider about the addresses another mail would go to,
+// if the provider withheld the last mail to exactly that address. A new address has
+// no such history: it is no question for the provider.
+func (a announcementDeliveryAdapter) providerBlocks(ctx context.Context, rows []deliveryContract.EmailDeliveryStatus) map[string]deliveryContract.EmailProviderBlock {
+	var held []string
+	for _, row := range rows {
+		if sameAddress(row.MailedTo, row.RecipientEmail) && row.Outcome.HeldAtProvider() {
+			held = append(held, *row.RecipientEmail)
+		}
+	}
+	if len(held) == 0 || a.outcomes == nil {
+		return nil
+	}
+	return a.outcomes.ProviderEmailBlocks(ctx, held)
+}
+
+func letterProviderBlock(row deliveryContract.EmailDeliveryStatus, blocks map[string]deliveryContract.EmailProviderBlock) string {
+	if !sameAddress(row.MailedTo, row.RecipientEmail) || !row.Outcome.HeldAtProvider() {
+		return ""
+	}
+	return string(blocks[deliveryContract.NormalizedEmailAddress(*row.RecipientEmail)])
+}
+
+func sameAddress(a, b *string) bool {
+	return a != nil && b != nil && deliveryContract.NormalizedEmailAddress(*a) == deliveryContract.NormalizedEmailAddress(*b)
 }
 
 func (a announcementDeliveryAdapter) AttachOutbox(ctx context.Context, tenantID, deliveryID, outboxID int64) error {

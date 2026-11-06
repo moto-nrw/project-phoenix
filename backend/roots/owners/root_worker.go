@@ -402,7 +402,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return
 		},
 		func() (err error) {
-			announcements, err = BuildParentAnnouncements(env, settings.Service, delivery.Outbox, DeliveryModuleOf(delivery),
+			announcements, err = BuildParentAnnouncements(env, settings.Service, delivery.Outbox, DeliveryModuleOf(delivery), delivery.Runtime.EmailOutcomes,
 				notifications, messaging, purger)
 			return
 		},

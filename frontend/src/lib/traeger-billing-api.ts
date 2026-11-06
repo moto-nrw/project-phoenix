@@ -6,7 +6,10 @@
  * Money stays whole cent. Backend int64 IDs leave here as strings.
  */
 
-import type { MailOutcome } from "~/lib/email-delivery-status";
+import type {
+  MailOutcome,
+  MailProviderBlock,
+} from "~/lib/email-delivery-status";
 import { apiErrorFromBody, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
 import { traegerRequest } from "./traeger-api";
@@ -689,6 +692,7 @@ export interface LetterMailing {
   readonly status: LetterMailStatus;
   /** What became of the last mail; only a provider's report says delivered. */
   readonly mailOutcome?: MailOutcome;
+  readonly providerBlock?: MailProviderBlock;
   readonly sends: number;
   readonly requestedAt: string | null;
   readonly sentAt: string | null;
@@ -710,6 +714,7 @@ interface BackendLetterMailing {
   recipient_email: string;
   status: LetterMailStatus;
   mail_outcome?: MailOutcome;
+  provider_block?: MailProviderBlock;
   sends: number;
   requested_at: string | null;
   sent_at: string | null;
@@ -725,6 +730,7 @@ function mailingFromBackend(mailing: BackendLetterMailing): LetterMailing {
     recipientEmail: mailing.recipient_email,
     status: mailing.status,
     mailOutcome: mailing.mail_outcome,
+    providerBlock: mailing.provider_block,
     sends: mailing.sends,
     requestedAt: mailing.requested_at,
     sentAt: mailing.sent_at,

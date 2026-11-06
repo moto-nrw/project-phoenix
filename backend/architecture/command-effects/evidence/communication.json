@@ -618,10 +618,26 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
-      "binding_digest": "ea6acfad196b6ed874579f2286896d8e",
+      "binding_digest": "54b76e6b8d02adafef4505aa11fe9a07",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.EmailOutcome.HeldAtProvider",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
+      "binding_digest": "ecd941a0ecec99b6903de736436caad1",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EmailDeliveryStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
+      "binding_digest": "08d7c90565e641924562fe655b252c1a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.ProviderEmailBlocks",
       "target_owner": "delivery-platform"
     },
     {

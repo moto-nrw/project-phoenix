@@ -21,6 +21,7 @@ import {
 import type { GuardianEmailState } from "@/lib/guardian-api";
 import {
   GUARDIAN_STOPPED_COPY,
+  STOP_SHARED_NOTE,
   guardianAddressNextStep,
   mailStatusCopy,
 } from "~/lib/email-delivery-status";
@@ -207,6 +208,8 @@ export default function GuardianList({
         const mailCopy = mailStatusCopy(
           emailState?.mailOutcome,
           emailState?.addressMark,
+          false,
+          emailState?.providerBlock,
         );
         const stopped = emailState?.emailsStopped === true;
         // A new invitation would change nothing: the note below says why.
@@ -284,6 +287,7 @@ export default function GuardianList({
             {stopped && (
               <p className="-mt-1 mb-3 text-sm text-gray-600">
                 {GUARDIAN_STOPPED_COPY.explanation}
+                {emailState?.stopShared ? ` ${STOP_SHARED_NOTE}` : null}
                 {readOnly
                   ? null
                   : " Mit „Mails wieder senden“ heben Sie den Stopp auf."}

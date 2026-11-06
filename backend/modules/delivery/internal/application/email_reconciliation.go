@@ -229,6 +229,53 @@ func (r *EmailReconciliation) alarms(run *reconcileRun) error {
 	return nil
 }
 
+// The provider is asked about one address at a time. A list asks once per distinct
+// address and only for mails that ran into a block, within these limits; whatever
+// they leave out counts as unreadable and is not offered.
+const (
+	providerBlockReads  = 10
+	providerBlockBudget = 3 * time.Second
+)
+
+// ProviderEmailBlocks reads the provider's current block of the addresses. Without
+// a provider no such block exists. It answers for every address and has no error:
+// an address it could not read is EmailProviderBlockUnreadable. The caller only asks
+// about addresses its own mail ran into, so this says nothing about anyone else's.
+func (r *EmailReconciliation) ProviderEmailBlocks(ctx context.Context, addresses []string) map[string]deliveryContract.EmailProviderBlock {
+	blocks := make(map[string]deliveryContract.EmailProviderBlock, len(addresses))
+	ctx, cancel := context.WithTimeout(ctx, providerBlockBudget)
+	defer cancel()
+	reads, stop := 0, false
+	for _, address := range addresses {
+		key := deliveryContract.NormalizedEmailAddress(address)
+		if _, known := blocks[key]; known || key == "" {
+			continue
+		}
+		if r.api == nil {
+			blocks[key] = deliveryContract.EmailProviderBlockNone
+			continue
+		}
+		blocks[key] = deliveryContract.EmailProviderBlockUnreadable
+		if stop || reads >= providerBlockReads {
+			continue
+		}
+		reads++
+		active, err := r.api.SuppressionActive(ctx, key)
+		switch {
+		case errors.Is(err, domain.ErrProviderNotFound):
+			blocks[key] = deliveryContract.EmailProviderBlockNone
+		case err != nil:
+			stop = errors.Is(err, domain.ErrProviderRateLimited) || ctx.Err() != nil
+			r.logger.Warn("the provider's block could not be read", slog.String("error", err.Error()))
+		case active:
+			blocks[key] = deliveryContract.EmailProviderBlockActive
+		default:
+			blocks[key] = deliveryContract.EmailProviderBlockNone
+		}
+	}
+	return blocks
+}
+
 // LiftEmailSuppression frees an address someone at the school checked: first at
 // the provider, whose hard bounce block applies to the whole team and never
 // expires, then on the school's list. Any error means the address stays blocked.

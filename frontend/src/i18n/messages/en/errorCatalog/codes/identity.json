@@ -55,5 +55,7 @@
   "caterer_address_taken": "This email address already belongs to another moto account. Please use a different address.",
   "caterer_without_school": "You do not supply any school through moto at the moment. Please ask the school.",
   "guardian_email_address_blocked": "The invitation could not be sent right now. Please try again.",
-  "invitation_mail_delayed": "The invitation could not be sent right now. Please try again."
+  "invitation_mail_delayed": "The invitation could not be sent right now. Please try again.",
+  "mail_blocked_at_provider": "This address is blocked. Sending again will not help. moto support needs to resolve this.",
+  "mail_block_unreadable": "We cannot check right now whether this address is blocked. Please try again later."
 }

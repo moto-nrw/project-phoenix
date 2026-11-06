@@ -731,6 +731,7 @@ func TestResendFailedEmailsSkipsAMarkedAddress(t *testing.T) {
 func TestLetterSummaryCountsWhatAResendCanChange(t *testing.T) {
 	t.Parallel()
 
+	address := "familie@example.test"
 	var summary LetterSummary
 	for _, row := range []EmailDeliveryStatus{
 		{EmailStatus: "sent", MailOutcome: "delivered"},
@@ -739,12 +740,12 @@ func TestLetterSummaryCountsWhatAResendCanChange(t *testing.T) {
 		{EmailStatus: "failed", MailOutcome: "blocked", AddressMark: "complained"},
 		{EmailStatus: "sent", MailOutcome: "undeliverable", AddressMark: "failed"},
 		{EmailStatus: "sent", MailOutcome: "undeliverable"},
-		{EmailStatus: "failed", MailOutcome: "send_failed"},
+		{EmailStatus: "failed", RecipientEmail: &address, MailOutcome: "send_failed"},
 		// Delivery now reports a mail that came back or was held back as failed
 		// (#5934). Without a mark, a new mail can change it.
-		{EmailStatus: "failed", MailOutcome: "undeliverable"},
-		{EmailStatus: "failed", MailOutcome: "blocked"},
-		{EmailStatus: "failed", MailOutcome: "overdue"},
+		{EmailStatus: "failed", RecipientEmail: &address, MailOutcome: "undeliverable"},
+		{EmailStatus: "failed", RecipientEmail: &address, MailOutcome: "blocked"},
+		{EmailStatus: "failed", RecipientEmail: &address, MailOutcome: "overdue"},
 		// A stop is the school's decision: neither an address to check nor resendable.
 		{EmailStatus: "failed", MailOutcome: "blocked", Stopped: true},
 		{EmailStatus: "failed", MailOutcome: "undeliverable", AddressMark: "failed", Stopped: true},
@@ -757,17 +758,38 @@ func TestLetterSummaryCountsWhatAResendCanChange(t *testing.T) {
 	}
 }
 
+func TestLetterSummaryOnlyOffersWhatAResendCanReach(t *testing.T) {
+	t.Parallel()
+	address := "frei@example.test"
+	empty := ""
+	var summary LetterSummary
+	for _, row := range []EmailDeliveryStatus{
+		{EmailStatus: "failed", RecipientEmail: &address, MailOutcome: "provider_blocked", ProviderBlock: "active"},
+		{EmailStatus: "failed", RecipientEmail: &address, MailOutcome: "provider_blocked", ProviderBlock: "unreadable"},
+		{EmailStatus: "failed", MailOutcome: "send_failed"},
+		{EmailStatus: "failed", RecipientEmail: &empty, MailOutcome: "send_failed"},
+		{EmailStatus: "cancelled", RecipientEmail: &address, MailOutcome: "cancelled"},
+		{EmailStatus: "failed", RecipientEmail: &address, MailOutcome: "provider_blocked", ProviderBlock: "none"},
+	} {
+		addLetterMailOutcome(&summary, row)
+	}
+	if summary.EmailsProviderBlocked != 2 || summary.EmailsResendable != 1 {
+		t.Fatalf("summary = %+v", summary)
+	}
+}
+
 func TestResendFailedEmailsLeavesAStoppedOrMarkedAddressAlone(t *testing.T) {
 	t.Parallel()
 
 	published := time.Now().Add(-time.Hour)
 	a := letterDraft(StaffParentAnnouncementDeliveryLetter, StaffEmailAudiencePortalOnly)
 	a.PublishedAt = &published
-	stopped, marked, free := "gestoppt@example.test", "gesperrt@example.test", "frei@example.test"
+	stopped, marked, free, provider := "gestoppt@example.test", "gesperrt@example.test", "frei@example.test", "anbieter@example.test"
 	deliveries := &letterDeliveries{list: []EmailDeliveryStatus{
 		{DeliveryID: 1, RecipientEmail: &stopped, EmailStatus: "failed", Stopped: true},
 		{DeliveryID: 2, RecipientEmail: &marked, EmailStatus: "failed", AddressMark: "failed"},
 		{DeliveryID: 3, RecipientEmail: &free, EmailStatus: "failed"},
+		{DeliveryID: 4, RecipientEmail: &provider, EmailStatus: "failed", ProviderBlock: "active"},
 	}}
 	outbox := &letterOutbox{}
 	svc := newLetterService(&letterRepo{announcement: a}, outbox, deliveries)

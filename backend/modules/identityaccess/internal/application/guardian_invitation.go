@@ -130,9 +130,19 @@ func (l *AccountLifecycle) refuseBlockedMail(ctx context.Context, tenantID int64
 		return domain.ErrGuardianEmailAddressBlocked
 	case domain.GuardianMailBlockDelayed:
 		return domain.ErrInvitationMailDelayed
+	case domain.GuardianMailBlockProvider:
+		return domain.ErrMailBlockedAtProvider
+	case domain.GuardianMailBlockUnreadable:
+		return domain.ErrMailBlockUnreadable
 	default:
 		return nil
 	}
+}
+
+// mailWouldStayBack reports a refusal that means no mail reaches the person. A
+// delay is none: that mail is still on its way.
+func mailWouldStayBack(err error) bool {
+	return errors.Is(err, domain.ErrGuardianEmailAddressBlocked) || errors.Is(err, domain.ErrMailBlockedAtProvider) || errors.Is(err, domain.ErrMailBlockUnreadable)
 }
 
 // mailNewInvitation queues the mail of a new token invitation and the

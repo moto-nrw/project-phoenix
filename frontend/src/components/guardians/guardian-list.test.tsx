@@ -558,6 +558,40 @@ describe("GuardianList mail state (#5934)", () => {
     expect(screen.queryByText("Adresse prüfen")).not.toBeInTheDocument();
   });
 
+  it("offers no invitation while the provider holds the address and names the support", () => {
+    render(
+      <GuardianList
+        guardians={[guardian]}
+        emailStates={{
+          "7": {
+            mailOutcome: "provider_blocked",
+            providerBlock: "active",
+            sendBlock: "provider",
+          },
+        }}
+        onInvite={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Gesperrt")).toBeInTheDocument();
+    expect(screen.getByText(/moto-Support/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Aktionen für/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says when a stopped person's address still gets mail", () => {
+    render(
+      <GuardianList
+        guardians={[guardian]}
+        emailStates={{
+          "7": { emailsStopped: true, stopShared: true, sendBlock: "stopped" },
+        }}
+      />,
+    );
+    expect(screen.getByText("Versand gestoppt")).toBeInTheDocument();
+    expect(screen.getByText(/gehen deshalb weiter raus/)).toBeInTheDocument();
+  });
+
   it("shows a bounce and a stop side by side, each with its own step", () => {
     const onLift = vi.fn();
     const onResume = vi.fn();

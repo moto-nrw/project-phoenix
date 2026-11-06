@@ -376,6 +376,7 @@ func renderBillingConflict(w http.ResponseWriter, r *http.Request, err error) {
 		{capability.ErrLetterMailPending, common.CodeParentBillingLetterMailPending},
 		{capability.ErrLetterMailDelayed, common.CodeParentBillingLetterMailDelayed},
 		{capability.ErrLetterMailBlocked, common.CodeParentBillingLetterMailBlocked},
+		{capability.ErrLetterMailBlockUnreadable, common.CodeParentBillingLetterMailBlockUnreadable},
 		{capability.ErrRecipientEmailMissing, common.CodeParentBillingRecipientEmailMissing},
 	} {
 		if errors.Is(err, conflict.err) {

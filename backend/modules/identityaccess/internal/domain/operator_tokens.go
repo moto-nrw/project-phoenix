@@ -80,8 +80,9 @@ type TokenDelivery struct {
 	Error      *string
 	RetryCount int
 	// Outcome and AddressMark are what Delivery knows about the last mail.
-	Outcome     string
-	AddressMark string
+	Outcome       string
+	AddressMark   string
+	ProviderBlock string
 }
 
 // Bounded returns the delivery with its error truncated to the stored limit.

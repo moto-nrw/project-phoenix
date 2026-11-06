@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 // ErrGuardianHasNoEmail refuses to lift a block for a guardian without an address.
@@ -20,19 +22,27 @@ type GuardianEmailState struct {
 	MailOutcome string
 	AddressMark string
 	SendBlock   string
-	OutcomeAt   *time.Time
+	// ProviderBlock is the provider's block now; only a mail it withheld asks.
+	ProviderBlock string
+	// AllHoldersStopped: nobody without a stop holds the address.
+	AllHoldersStopped bool
+	OutcomeAt         *time.Time
 }
 
 const sendBlockStopped = "stopped"
 
 // guardianEmailStatusResponse is one guardian's line of the student's status.
 type guardianEmailStatusResponse struct {
-	GuardianProfileID int64      `json:"guardian_profile_id"`
-	MailOutcome       string     `json:"mail_outcome,omitempty"`
-	AddressMark       string     `json:"address_mark,omitempty"`
-	EmailsStopped     bool       `json:"emails_stopped,omitempty"`
-	SendBlock         string     `json:"send_block,omitempty"`
-	OutcomeAt         *time.Time `json:"outcome_at,omitempty"`
+	GuardianProfileID int64  `json:"guardian_profile_id"`
+	MailOutcome       string `json:"mail_outcome,omitempty"`
+	AddressMark       string `json:"address_mark,omitempty"`
+	EmailsStopped     bool   `json:"emails_stopped,omitempty"`
+	// StopShared: another holder of the address carries no stop, so mail to the
+	// address still goes out.
+	StopShared    bool       `json:"stop_shared,omitempty"`
+	ProviderBlock string     `json:"provider_block,omitempty"`
+	SendBlock     string     `json:"send_block,omitempty"`
+	OutcomeAt     *time.Time `json:"outcome_at,omitempty"`
 }
 
 // getStudentGuardianEmailStatus serves GET /students/{studentId}/email-status.
@@ -51,13 +61,8 @@ func (rs *GuardianResource) getStudentGuardianEmailStatus(w http.ResponseWriter,
 		rs.moduleFailure(w, r, err)
 		return
 	}
-	addresses := make([]string, 0, len(rows))
-	for _, row := range rows {
-		if row.Guardian.Email != nil {
-			addresses = append(addresses, *row.Guardian.Email)
-		}
-	}
-	states, err := rs.runtime.GuardianEmailStates(r.Context(), addresses)
+	addresses, stopped := guardianEmailAddresses(rows)
+	states, err := rs.runtime.GuardianEmailStates(r.Context(), addresses, stopped)
 	if err != nil {
 		rs.fail(w, r, FailureInternal, err)
 		return
@@ -68,6 +73,8 @@ func (rs *GuardianResource) getStudentGuardianEmailStatus(w http.ResponseWriter,
 		if row.Guardian.Email != nil {
 			state := states[strings.ToLower(strings.TrimSpace(*row.Guardian.Email))]
 			line.MailOutcome, line.AddressMark, line.SendBlock, line.OutcomeAt = state.MailOutcome, state.AddressMark, state.SendBlock, state.OutcomeAt
+			line.ProviderBlock = state.ProviderBlock
+			line.StopShared = line.EmailsStopped && !state.AllHoldersStopped
 		}
 		if line.EmailsStopped {
 			line.SendBlock = sendBlockStopped
@@ -75,6 +82,21 @@ func (rs *GuardianResource) getStudentGuardianEmailStatus(w http.ResponseWriter,
 		responses = append(responses, line)
 	}
 	rs.succeed(w, r, http.StatusOK, responses, "Guardian email status retrieved successfully")
+}
+
+// guardianEmailAddresses names the addresses of the guardians, and those of the
+// guardians with a stop.
+func guardianEmailAddresses(rows []peopledirectory.GuardianWithLink) (addresses, stopped []string) {
+	for _, row := range rows {
+		if row.Guardian.Email == nil {
+			continue
+		}
+		addresses = append(addresses, *row.Guardian.Email)
+		if row.Guardian.EmailsStopped {
+			stopped = append(stopped, *row.Guardian.Email)
+		}
+	}
+	return addresses, stopped
 }
 
 // stopGuardianEmails serves POST /{id}/email-stop: the school stops mail to this

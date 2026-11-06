@@ -391,6 +391,18 @@ describe("PendingInvitationsList mail state (#5934)", () => {
     expect(await screen.findByText(/laden Sie neu ein/)).toBeInTheDocument();
   });
 
+  it("offers no resend while the provider holds the address", async () => {
+    mockListPendingInvitations.mockResolvedValue([
+      invitation({ mailOutcome: "provider_blocked", providerBlock: "active" }),
+    ]);
+    render(<PendingInvitationsList refreshKey={0} />);
+    expect(await screen.findByText(/moto-Support/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Aktionen für/ }));
+    expect(
+      screen.queryByRole("menuitem", { name: "Erneut senden" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("does not speak of a stop or a failed mail for a mark alone", async () => {
     mockListPendingInvitations.mockResolvedValue([
       invitation({ mailOutcome: "accepted", addressMark: "complained" }),

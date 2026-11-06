@@ -34,6 +34,8 @@ type TokenDelivery struct {
 	// the address.
 	Outcome     string
 	AddressMark string
+	// ProviderBlock is the provider's block now; only a mail it withheld asks.
+	ProviderBlock string
 }
 
 // OperatorInvitation is the link that lets Email become an operator.

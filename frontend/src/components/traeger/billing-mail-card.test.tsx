@@ -138,14 +138,20 @@ describe("BillingMailCard", () => {
   });
 
   it.each([
-    ["blocked", "Nicht gesendet"],
+    ["provider_blocked", "Nicht gesendet"],
     ["unsubscribed", "Abgemeldet"],
     ["complained", "Nicht zustellbar"],
   ] as const)(
-    "points to the print and offers no useless resend for %s",
+    "points to the print and offers no useless resend while the provider holds %s",
     async (mailOutcome, label) => {
       api.fetchLetterMailings.mockResolvedValue([
-        mailing({ documentId: "60", status: "sent", mailOutcome, sends: 1 }),
+        mailing({
+          documentId: "60",
+          status: "sent",
+          mailOutcome,
+          providerBlock: "active",
+          sends: 1,
+        }),
       ]);
       renderCard();
 
@@ -157,6 +163,40 @@ describe("BillingMailCard", () => {
       ).toBeNull();
     },
   );
+
+  it("offers the resend again once the provider's block is gone", async () => {
+    api.fetchLetterMailings.mockResolvedValue([
+      mailing({
+        documentId: "62",
+        status: "sent",
+        mailOutcome: "provider_blocked",
+        providerBlock: "none",
+        sends: 1,
+      }),
+    ]);
+    renderCard();
+
+    expect(await screen.findByText(/besteht nicht mehr/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Erneut senden" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers nothing while the block cannot be read", async () => {
+    api.fetchLetterMailings.mockResolvedValue([
+      mailing({
+        documentId: "63",
+        status: "sent",
+        mailOutcome: "provider_blocked",
+        providerBlock: "unreadable",
+        sends: 1,
+      }),
+    ]);
+    renderCard();
+
+    expect(await screen.findByText(/später noch einmal/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Erneut senden" })).toBeNull();
+  });
 
   it("offers the resend again after a delay ran past its limit", async () => {
     api.fetchLetterMailings.mockResolvedValue([

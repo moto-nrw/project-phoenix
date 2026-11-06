@@ -211,23 +211,6 @@ type emailDeliveryRow struct {
 	UpdatedAt         time.Time `bun:"updated_at"`
 }
 
-type emailDeliveryStatusRow struct {
-	DeliveryID        int64      `bun:"delivery_id"`
-	GuardianProfileID *int64     `bun:"guardian_profile_id"`
-	AccountID         *int64     `bun:"account_id"`
-	RecipientEmail    *string    `bun:"recipient_email"`
-	Reachability      string     `bun:"reachability"`
-	EmailStatus       string     `bun:"email_status"`
-	LastError         *string    `bun:"last_error"`
-	SentAt            *time.Time `bun:"sent_at"`
-	Attempts          int        `bun:"attempts"`
-	OutboxStatus      *string    `bun:"outbox_status"`
-	DeliveryState     *string    `bun:"delivery_state"`
-	DeliveryStateAt   *time.Time `bun:"delivery_state_at"`
-	AddressMark       *string    `bun:"address_mark"`
-	Stopped           bool       `bun:"stopped"`
-}
-
 func New(tenantDB TenantDatabase, adminDB AdminDatabase) *Store {
 	if tenantDB == nil || adminDB == nil {
 		panic("delivery postgres: tenant database and admin transaction are required")
@@ -668,90 +651,6 @@ func (s *Store) AttachEmailOutbox(ctx context.Context, tenantID, deliveryID, out
 		return errors.New("delivery postgres: email delivery not found")
 	}
 	return nil
-}
-
-func (s *Store) ClaimFailedEmailDelivery(ctx context.Context, tenantID, deliveryID int64) (bool, error) {
-	db, err := s.tenantDB(ctx, tenantID)
-	if err != nil {
-		return false, err
-	}
-	result, err := db.NewRaw(`
-		UPDATE platform.delivery_email_deliveries AS delivery
-		SET outbox_id = NULL, updated_at = NOW()
-		FROM platform.email_outbox AS outbox
-		WHERE delivery.tenant_id = ? AND delivery.id = ?
-			AND delivery.outbox_id = outbox.id
-			AND outbox.tenant_id = delivery.tenant_id
-			AND (outbox.status = 'dead_letter'
-				OR (outbox.status = 'cancelled' AND outbox.delivery_state = 'suppressed')
-				OR (outbox.status = 'sent' AND outbox.delivery_state IN ('failed', 'suppressed'))
-				OR (outbox.status = 'sent' AND outbox.delivery_state = 'delayed' AND outbox.delivery_state_at < ?))`,
-		tenantID, deliveryID, time.Now().Add(-deliveryContract.EmailDelayLimit)).Exec(ctx)
-	if err != nil {
-		return false, fmt.Errorf("delivery postgres: claim failed email delivery: %w", err)
-	}
-	count, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("delivery postgres: count failed email delivery claim: %w", err)
-	}
-	return count == 1, nil
-}
-
-func (s *Store) EmailDeliveryStatuses(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]deliveryContract.EmailDeliveryStatus, error) {
-	db, err := s.tenantDB(ctx, tenantID)
-	if err != nil {
-		return nil, err
-	}
-	var rows []emailDeliveryStatusRow
-	if err := db.NewRaw(`
-		SELECT delivery.id AS delivery_id, delivery.guardian_profile_id, delivery.account_id,
-			CASE WHEN contact.guardian_profile_id IS NOT NULL THEN contact.address ELSE LOWER(TRIM(delivery.recipient_email)) END AS recipient_email,
-			delivery.reachability,
-			CASE
-				WHEN delivery.outbox_id IS NULL THEN 'not_sent'
-				WHEN outbox.status = 'sent' AND outbox.delivery_state IN ('failed', 'suppressed') THEN 'failed'
-				WHEN outbox.status = 'sent' THEN 'sent'
-				WHEN outbox.status IN ('dead_letter', 'cancelled') THEN 'failed'
-				ELSE 'pending'
-			END AS email_status,
-			outbox.last_error, outbox.sent_at, COALESCE(outbox.attempts, 0) AS attempts,
-			outbox.status AS outbox_status, outbox.delivery_state, outbox.delivery_state_at,
-			suppression.reason AS address_mark, contact.emails_stopped_at IS NOT NULL AS stopped
-		FROM platform.delivery_email_deliveries AS delivery
-		LEFT JOIN platform.email_outbox AS outbox ON outbox.id = delivery.outbox_id
-		LEFT JOIN platform.delivery_guardian_contacts AS contact
-			ON contact.tenant_id = delivery.tenant_id AND contact.source = 'profile'
-			AND contact.guardian_profile_id = delivery.guardian_profile_id
-		LEFT JOIN platform.email_suppressions AS suppression
-			ON suppression.tenant_id = delivery.tenant_id
-			AND suppression.address = CASE WHEN contact.guardian_profile_id IS NOT NULL THEN contact.address ELSE LOWER(TRIM(delivery.recipient_email)) END
-		WHERE delivery.tenant_id = ? AND delivery.related_entity_type = ?
-			AND delivery.related_entity_id = ?
-		ORDER BY delivery.id`, tenantID, relatedType, relatedID).Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("delivery postgres: list email delivery statuses: %w", err)
-	}
-	statuses := make([]deliveryContract.EmailDeliveryStatus, 0, len(rows))
-	for _, row := range rows {
-		status := deliveryContract.EmailDeliveryStatus{
-			DeliveryID: row.DeliveryID, GuardianProfileID: row.GuardianProfileID, AccountID: row.AccountID,
-			RecipientEmail: row.RecipientEmail,
-			Reachability:   row.Reachability, EmailStatus: row.EmailStatus, LastError: row.LastError,
-			SentAt: row.SentAt, Attempts: row.Attempts,
-		}
-		status.Stopped = row.Stopped
-		if row.AddressMark != nil {
-			status.AddressMark = deliveryContract.EmailAddressMark(*row.AddressMark)
-		}
-		if row.OutboxStatus != nil {
-			status.Outcome = deliveryContract.EmailOutcomeAt(deliveryContract.EmailOutcomeOf(*row.OutboxStatus, row.DeliveryState, row.LastError, status.AddressMark), row.DeliveryStateAt, time.Now())
-			// The wait has ended: the status says a new mail can go out (#5934).
-			if status.Outcome == deliveryContract.EmailOverdue {
-				status.EmailStatus = "failed"
-			}
-		}
-		statuses = append(statuses, status)
-	}
-	return statuses, nil
 }
 
 func unknownTransport(transport domain.Transport) error {

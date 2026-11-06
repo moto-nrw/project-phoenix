@@ -39,13 +39,13 @@ import (
 // of the letters as mails of the Träger on Delivery's outbox and their
 // print in one file (#4670, ADR 0123), and the invoices and amounts per
 // family at /traeger/billing-families behind the right "Abrechnung" (#4691).
-func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) {
+func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, settings, delivery, healthData, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/cost-bearers", rules.CostBearerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-contributions", holiday.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-quotes", holiday.QuoteRouter())
-	runs := NewBillingRunHTTP(settings, delivery, healthData)
+	runs := NewBillingRunHTTP(settings, delivery, outcomes, healthData)
 	root.Mount("/traeger/billing-runs", runs.RunRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/number-ranges", runs.NumberRangeRouter(ProtectedTraegerRoutes))
 	families := parentBillingHTTP.NewBillingFamilyResource(parentBillingCompose.NewBillingFamilies(),
@@ -57,7 +57,7 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 // Enrollment's holiday periods and the review of their registrations, their
 // letters to the master data and branding settings of the Träger, and the
 // mail of the letters to Delivery and the letterhead of the Träger.
-func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher) *parentBillingHTTP.BillingRunResource {
+func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher) *parentBillingHTTP.BillingRunResource {
 	registrations := parentBillingBillingRegistrations{
 		periods: enrollmentCompose.NewHolidayPeriods(), review: enrollmentCompose.NewHolidayRegistrationReview(healthData),
 	}
@@ -65,7 +65,7 @@ func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntim
 		templates: organizationTenancyCompose.NewTraegerDocumentTemplates(), settings: settings}
 	return parentBillingHTTP.NewBillingRunResource(parentBillingCompose.NewBillingRuns(registrations, parentBillingSettings{settings: settings}),
 		parentBillingCompose.NewBillingLetters(letterheads),
-		parentBillingCompose.NewBillingLetterMail(parentBillingLetterPost{settings: settings, delivery: delivery}),
+		parentBillingCompose.NewBillingLetterMail(parentBillingLetterPost{settings: settings, delivery: delivery, outcomes: outcomes}),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 }
 
@@ -77,6 +77,16 @@ func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntim
 type parentBillingLetterPost struct {
 	settings TraegerBrandingSettings
 	delivery deliveryRuntime.Capability
+	outcomes deliveryRuntime.EmailOutcomes
+}
+
+// LetterMailBlocks reads the provider's block as it is now.
+func (p parentBillingLetterPost) LetterMailBlocks(ctx context.Context, addresses []string) map[string]string {
+	blocks := make(map[string]string, len(addresses))
+	for address, block := range p.outcomes.ProviderEmailBlocks(ctx, addresses) {
+		blocks[address] = string(block)
+	}
+	return blocks
 }
 
 func (p parentBillingLetterPost) SenderText(ctx context.Context, organizationID int64) (string, error) {

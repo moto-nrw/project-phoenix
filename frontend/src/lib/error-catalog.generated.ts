@@ -639,6 +639,10 @@ export const ERROR_CATALOG = {
         "Es wurden zu viele Einladungen verschickt. Bitte versuchen Sie es in einer Stunde erneut.",
       "identity.lehrkraft_role_immutable":
         "Ein Lehrkraft-Konto behält seine Rolle. Für eine andere Rolle braucht die Person ein neues Konto.",
+      "identity.mail_block_unreadable":
+        "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal.",
+      "identity.mail_blocked_at_provider":
+        "Diese Adresse ist gesperrt. Eine neue Mail hilft nicht. Der moto-Support muss das klären.",
       "identity.mfa_already_enrolled":
         "Die Zwei-Faktor-Anmeldung ist schon eingerichtet. Bitte laden Sie die Seite neu.",
       "identity.mfa_blocked":
@@ -817,8 +821,10 @@ export const ERROR_CATALOG = {
         "Diese Rechnung hat schon eine Gutschrift. Schreiben Sie den Rest gut, statt zu stornieren.",
       "parent_billing.invoice_number_taken":
         "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnungsvorgaben“.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal.",
       "parent_billing.letter_mail_blocked":
-        "An diese Adresse geht keine Mail mehr raus. Bitte drucken Sie das Schreiben.",
+        "Diese Adresse ist gesperrt. Bitte drucken Sie das Schreiben. Der moto-Support klärt die Sperre.",
       "parent_billing.letter_mail_delayed":
         "Die letzte Mail an diese Familie ist noch unterwegs. Bitte warten Sie, sonst kommt sie doppelt an.",
       "parent_billing.letter_mail_pending":
@@ -2016,6 +2022,10 @@ export const ERROR_CATALOG = {
         "The invitation could not be sent right now. Please try again.",
       "identity.invitation_not_found":
         "This invitation does not exist. Please check the link in the email.",
+      "identity.mail_block_unreadable":
+        "We cannot check right now whether this address is blocked. Please try again later.",
+      "identity.mail_blocked_at_provider":
+        "This address is blocked. Sending again will not help. moto support needs to resolve this.",
       "identity.mfa_blocked":
         "Too many attempts. Please wait a few minutes and then try again.",
       "identity.mfa_session_required":
@@ -2064,6 +2074,8 @@ export const ERROR_CATALOG = {
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
       "parent_billing.holiday_quote_invalid":
         "The fee cannot be calculated for these weeks. Please reload the page.",
+      "parent_billing.letter_mail_block_unreadable":
+        "We cannot check right now whether this address is blocked. Please try again later.",
       "parent_billing.parent_document_not_found":
         "This document is no longer available. Please reload the page.",
       "school.parent_conference_change_closed":
@@ -2509,6 +2521,10 @@ export const ERROR_CATALOG = {
         "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.invitation_not_found":
         "Такого приглашения нет. Проверьте ссылку в письме.",
+      "identity.mail_block_unreadable":
+        "Сейчас нельзя проверить, заблокирован ли этот адрес. Попробуйте позже.",
+      "identity.mail_blocked_at_provider":
+        "Этот адрес заблокирован. Повторная отправка не поможет. Это должна решить поддержка moto.",
       "identity.mfa_blocked":
         "Слишком много попыток. Подождите несколько минут и попробуйте снова.",
       "identity.mfa_session_required":
@@ -2555,6 +2571,8 @@ export const ERROR_CATALOG = {
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
       "parent_billing.holiday_quote_invalid":
         "Не удаётся рассчитать взнос за эти недели. Пожалуйста, обновите страницу.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Сейчас нельзя проверить, заблокирован ли этот адрес. Попробуйте позже.",
       "parent_billing.parent_document_not_found":
         "Этот документ больше недоступен. Пожалуйста, обновите страницу.",
       "school.parent_conference_change_closed":
@@ -2965,6 +2983,10 @@ export const ERROR_CATALOG = {
         "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.invitation_not_found":
         "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
+      "identity.mail_block_unreadable":
+        "Tani nuk mund të kontrollohet nëse kjo adresë është e bllokuar. Ju lutemi provoni përsëri më vonë.",
+      "identity.mail_blocked_at_provider":
+        "Kjo adresë është e bllokuar. Dërgimi përsëri nuk ndihmon. Këtë duhet ta sqarojë mbështetja e moto.",
       "identity.mfa_blocked":
         "Shumë përpjekje. Prisni disa minuta dhe provoni përsëri.",
       "identity.mfa_session_required":
@@ -3012,6 +3034,8 @@ export const ERROR_CATALOG = {
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
       "parent_billing.holiday_quote_invalid":
         "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Tani nuk mund të kontrollohet nëse kjo adresë është e bllokuar. Ju lutemi provoni përsëri më vonë.",
       "parent_billing.parent_document_not_found":
         "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
       "school.parent_conference_change_closed":
@@ -3411,6 +3435,10 @@ export const ERROR_CATALOG = {
         "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.invitation_not_found":
         "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
+      "identity.mail_block_unreadable":
+        "Nie można teraz sprawdzić, czy ten adres jest zablokowany. Spróbuj ponownie później.",
+      "identity.mail_blocked_at_provider":
+        "Ten adres jest zablokowany. Ponowne wysłanie nie pomoże. Sprawę musi wyjaśnić pomoc techniczna moto.",
       "identity.mfa_blocked":
         "Zbyt wiele prób. Odczekaj kilka minut i spróbuj ponownie.",
       "identity.mfa_session_required":
@@ -3458,6 +3486,8 @@ export const ERROR_CATALOG = {
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
       "parent_billing.holiday_quote_invalid":
         "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Nie można teraz sprawdzić, czy ten adres jest zablokowany. Spróbuj ponownie później.",
       "parent_billing.parent_document_not_found":
         "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
       "school.parent_conference_change_closed":
@@ -3862,6 +3892,10 @@ export const ERROR_CATALOG = {
         "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.invitation_not_found":
         "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
+      "identity.mail_block_unreadable":
+        "Bu adresin engelli olup olmadığı şu anda kontrol edilemiyor. Lütfen daha sonra tekrar deneyin.",
+      "identity.mail_blocked_at_provider":
+        "Bu adres engellendi. Yeniden göndermek işe yaramaz. Bunu moto destek ekibi çözmelidir.",
       "identity.mfa_blocked":
         "Çok fazla deneme yapıldı. Lütfen birkaç dakika bekleyin ve sonra yeniden deneyin.",
       "identity.mfa_session_required":
@@ -3908,6 +3942,8 @@ export const ERROR_CATALOG = {
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
       "parent_billing.holiday_quote_invalid":
         "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Bu adresin engelli olup olmadığı şu anda kontrol edilemiyor. Lütfen daha sonra tekrar deneyin.",
       "parent_billing.parent_document_not_found":
         "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
       "school.parent_conference_change_closed":
@@ -4305,6 +4341,10 @@ export const ERROR_CATALOG = {
         "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.invitation_not_found":
         "Такого запрошення немає. Перевірте посилання в листі.",
+      "identity.mail_block_unreadable":
+        "Зараз неможливо перевірити, чи заблоковано цю адресу. Спробуйте пізніше.",
+      "identity.mail_blocked_at_provider":
+        "Цю адресу заблоковано. Повторне надсилання не допоможе. Це має вирішити підтримка moto.",
       "identity.mfa_blocked":
         "Забагато спроб. Зачекайте кілька хвилин і спробуйте ще раз.",
       "identity.mfa_session_required":
@@ -4351,6 +4391,8 @@ export const ERROR_CATALOG = {
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
       "parent_billing.holiday_quote_invalid":
         "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Зараз неможливо перевірити, чи заблоковано цю адресу. Спробуйте пізніше.",
       "parent_billing.parent_document_not_found":
         "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
       "school.parent_conference_change_closed":
