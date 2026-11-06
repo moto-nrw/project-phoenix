@@ -56,6 +56,22 @@ describe("DateRangePicker", () => {
     });
   });
 
+  it("marks the normal trigger while its calendar is open", () => {
+    render(
+      <DateRangePicker
+        value={{ from: new Date(2026, 7, 1), to: new Date(2026, 7, 30) }}
+        onChange={() => undefined}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /Aug/ });
+    expect(trigger).not.toHaveClass("bg-gray-50!");
+
+    fireEvent.click(trigger);
+
+    expect(trigger).toHaveClass("bg-gray-50!");
+  });
+
   it("shows a single day as one date", () => {
     render(
       <DateRangePicker

@@ -118,7 +118,12 @@ export function DateRangePicker({
                 "flex h-9 w-full items-center justify-center gap-2 px-3 text-sm transition-colors",
                 isOpen ? "bg-gray-50" : "hover:bg-gray-50",
               )
-            : selectTriggerClassName({ className: triggerClassName })
+            : cn(
+                selectTriggerClassName({ className: triggerClassName }),
+                // `moto-content-surface` supplies the white background outside
+                // the Tailwind layer, so the open state must take precedence.
+                isOpen && "bg-gray-50!",
+              )
         }
       >
         <span
