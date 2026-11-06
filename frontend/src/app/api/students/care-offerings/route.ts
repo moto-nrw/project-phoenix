@@ -1,9 +1,6 @@
 import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
-import { createLogger } from "~/lib/logger";
-import type { CareOfferingOption } from "~/lib/student-api";
-
-const logger = createLogger({ component: "StudentCareOfferingsRoute" });
+import type { CareOfferingOption } from "~/lib/student-helpers";
 
 interface ApiCareOfferingsResponse {
   data: Array<{ id: number; name: string }>;
@@ -20,12 +17,6 @@ export const GET = createGetHandler(
       "/api/students/care-offerings",
       token,
     );
-
-    if (!response || !Array.isArray(response.data)) {
-      logger.warn("student care offerings response has unexpected structure");
-      return [];
-    }
-
     return response.data.map((offering) => ({
       id: String(offering.id),
       name: offering.name,

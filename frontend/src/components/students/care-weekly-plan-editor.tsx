@@ -69,7 +69,7 @@ export interface CarePlanWeeklyAdjustment {
   readonly completeWithdrawalConfirmed?: boolean;
 }
 
-export interface WeeklyRow {
+interface WeeklyRow {
   readonly weekday: number;
   /** The child is in care that weekday (#2414). */
   readonly arrivalInCare: boolean;
@@ -236,7 +236,7 @@ function offeringRemovesAllCareDays(
 
 // --- draft state ------------------------------------------------------------
 
-export interface WeeklyPlanDraft {
+interface WeeklyPlanDraft {
   readonly rows: WeeklyRow[];
   readonly expandedWeekdays: Set<number>;
   readonly setField: (

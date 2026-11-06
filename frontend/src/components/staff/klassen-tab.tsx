@@ -33,6 +33,7 @@ import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { authFetch } from "~/lib/api-helpers";
 import { createLogger } from "~/lib/logger";
 import { schoolClassLabel } from "~/lib/school-class-label";
+import { fetchSchoolClasses } from "~/lib/student-api";
 
 const logger = createLogger({ component: "StaffKlassenTab" });
 
@@ -64,13 +65,6 @@ async function saveAssignedClasses(
     { method: "PUT", body: { school_classes: classes } },
   );
   return response.data.school_classes ?? [];
-}
-
-async function fetchKnownClasses(): Promise<string[]> {
-  const response = await authFetch<{ success: boolean; data: string[] }>(
-    "/api/students/school-classes",
-  );
-  return response.data ?? [];
 }
 
 function sameClassSet(a: readonly string[], b: readonly string[]): boolean {
@@ -121,7 +115,7 @@ export function KlassenTab({
           retry: () => setLoadAttempt((attempt) => attempt + 1),
         });
       });
-    fetchKnownClasses()
+    fetchSchoolClasses()
       .then((classes) => {
         if (!cancelled) setKnown(classes);
       })

@@ -15,8 +15,14 @@ import { StudentCreateModal } from "./student-create-modal";
 import { validateStudentForm } from "~/lib/student-form-validation";
 import { ApiError } from "~/lib/api-error";
 
-const { mockFetchArrivalSettings } = vi.hoisted(() => ({
-  mockFetchArrivalSettings: vi.fn(),
+const { mockFetchArrivalSettings, mockFetchPrivacyConsentDefaults } =
+  vi.hoisted(() => ({
+    mockFetchArrivalSettings: vi.fn(),
+    mockFetchPrivacyConsentDefaults: vi.fn(),
+  }));
+
+vi.mock("~/lib/student-api", () => ({
+  fetchPrivacyConsentDefaults: mockFetchPrivacyConsentDefaults,
 }));
 
 vi.mock("~/lib/student-arrival-api", async () => {
@@ -125,23 +131,42 @@ vi.mock("./student-form-fields", () => ({
       </button>
     </div>
   ),
-}));
-
-// Mock student common form sections
-vi.mock("./student-common-form-sections", () => ({
-  StudentCommonFormSections: ({
+  HealthInfoSection: ({
+    value,
+    onChange,
+  }: {
+    value?: string;
+    onChange: (v: string) => void;
+  }) => (
+    <input
+      data-testid="health-info-input"
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  ),
+  AdditionalInfoSection: () => <div data-testid="additional-info-section" />,
+  PrivacyConsentSection: ({
     formData,
     onChange,
   }: {
     formData: Record<string, unknown>;
-    fieldError: (name: string) => string | undefined;
     onChange: (field: string, value: unknown) => void;
+    fieldError: (name: string) => string | undefined;
   }) => (
-    <div data-testid="common-form-sections">
+    <div data-testid="privacy-consent-section">
       <input
-        data-testid="health-info-input"
-        value={(formData.health_info as string) ?? ""}
-        onChange={(e) => onChange("health_info", e.target.value)}
+        type="checkbox"
+        aria-label="Einwilligung"
+        checked={formData.privacy_consent_accepted === true}
+        onChange={(e) => onChange("privacy_consent_accepted", e.target.checked)}
+      />
+      <input
+        type="number"
+        aria-label="Aufbewahrungstage"
+        value={(formData.data_retention_days as number | undefined) ?? ""}
+        onChange={(e) =>
+          onChange("data_retention_days", Number(e.target.value))
+        }
       />
     </div>
   ),
@@ -214,7 +239,7 @@ vi.mock("./care-weekly-plan-modal", () => ({
     isOpen: boolean;
     onClose: () => void;
     careDaysSource: "weekly_plan" | "bookings";
-    schoolPeriods?: Array<{ period: number; end_time: string }>;
+    schoolPeriods?: Array<{ period: number; endTime: string }>;
     timePresets?: { arrival: string; pickup: string };
     onSubmit: (data: {
       arrivalSchedules: Array<{
@@ -239,7 +264,7 @@ vi.mock("./care-weekly-plan-modal", () => ({
           {schoolPeriods
             ?.map(
               (schoolPeriod) =>
-                `${schoolPeriod.period}: ${schoolPeriod.end_time}`,
+                `${schoolPeriod.period}: ${schoolPeriod.endTime}`,
             )
             .join(", ")}
         </span>
@@ -333,11 +358,15 @@ describe("StudentCreateModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetchArrivalSettings.mockResolvedValue({
-      care_days_source: "weekly_plan",
-      school_periods: [
-        { period: 1, end_time: "08:45" },
-        { period: 2, end_time: "09:35" },
+      careDaysSource: "weekly_plan",
+      schoolPeriods: [
+        { period: 1, endTime: "08:45" },
+        { period: 2, endTime: "09:35" },
       ],
+    });
+    mockFetchPrivacyConsentDefaults.mockResolvedValue({
+      accepted: false,
+      dataRetentionDays: 14,
     });
   });
 
@@ -416,7 +445,7 @@ describe("StudentCreateModal", () => {
     });
   });
 
-  it("renders common form sections", async () => {
+  it("renders the health, notes and privacy sections", async () => {
     render(
       <StudentCreateModal
         isOpen={true}
@@ -426,7 +455,9 @@ describe("StudentCreateModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("common-form-sections")).toBeInTheDocument();
+      expect(screen.getByTestId("health-info-input")).toBeInTheDocument();
+      expect(screen.getByTestId("additional-info-section")).toBeInTheDocument();
+      expect(screen.getByTestId("privacy-consent-section")).toBeInTheDocument();
     });
   });
 
@@ -925,8 +956,8 @@ describe("StudentCreateModal", () => {
   // times must reach its weekly plan.
   it("hands the school's usual times to the weekly care-plan editor", async () => {
     mockFetchArrivalSettings.mockResolvedValueOnce({
-      care_days_source: "weekly_plan",
-      school_periods: [],
+      careDaysSource: "weekly_plan",
+      schoolPeriods: [],
       defaultArrivalTime: "12:30",
       defaultPickupTime: "16:00",
     });
@@ -950,7 +981,7 @@ describe("StudentCreateModal", () => {
 
   it("routes OGS creation through manual enrollment when bookings are authoritative", async () => {
     mockFetchArrivalSettings.mockResolvedValueOnce({
-      care_days_source: "bookings",
+      careDaysSource: "bookings",
     });
 
     render(
@@ -980,7 +1011,7 @@ describe("StudentCreateModal", () => {
 
   it("keeps class-list-only creation available in booking mode", async () => {
     mockFetchArrivalSettings.mockResolvedValueOnce({
-      care_days_source: "bookings",
+      careDaysSource: "bookings",
     });
 
     render(
@@ -1275,6 +1306,100 @@ describe("StudentCreateModal", () => {
           phone_numbers: [],
         },
       ],
+    });
+  });
+
+  describe("privacy consent defaults", () => {
+    const renderOpen = async () => {
+      render(
+        <StudentCreateModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onCreate={mockOnCreate}
+        />,
+      );
+      await screen.findByTestId("privacy-consent-section");
+    };
+
+    const submit = async () => {
+      const form = screen.getByTestId("modal").querySelector("form");
+      await act(async () => {
+        fireEvent.submit(form!);
+      });
+      await waitFor(() => expect(mockOnCreate).toHaveBeenCalled());
+      return mockOnCreate.mock.calls[0]?.[0] as Record<string, unknown>;
+    };
+
+    it("starts the consent fields at the school's defaults", async () => {
+      await renderOpen();
+
+      await waitFor(() =>
+        expect(screen.getByLabelText("Aufbewahrungstage")).toHaveValue(14),
+      );
+      expect(screen.getByLabelText("Einwilligung")).not.toBeChecked();
+    });
+
+    it("leaves an untouched consent pair out of the create payload", async () => {
+      mockOnCreate.mockResolvedValue(undefined);
+      await renderOpen();
+      await waitFor(() =>
+        expect(screen.getByLabelText("Aufbewahrungstage")).toHaveValue(14),
+      );
+
+      const submitted = await submit();
+
+      expect(submitted).not.toHaveProperty("privacy_consent_accepted");
+      expect(submitted).not.toHaveProperty("data_retention_days");
+    });
+
+    it("sends both consent fields once one of them was changed", async () => {
+      mockOnCreate.mockResolvedValue(undefined);
+      await renderOpen();
+      await waitFor(() =>
+        expect(screen.getByLabelText("Aufbewahrungstage")).toHaveValue(14),
+      );
+
+      fireEvent.click(screen.getByLabelText("Einwilligung"));
+      const submitted = await submit();
+
+      expect(submitted).toMatchObject({
+        privacy_consent_accepted: true,
+        data_retention_days: 14,
+      });
+    });
+
+    it("keeps a value the person typed when the defaults arrive later", async () => {
+      let resolveDefaults: (value: {
+        accepted: boolean;
+        dataRetentionDays: number;
+      }) => void = () => undefined;
+      mockFetchPrivacyConsentDefaults.mockReturnValue(
+        new Promise((resolve) => {
+          resolveDefaults = resolve;
+        }),
+      );
+      await renderOpen();
+
+      fireEvent.change(screen.getByLabelText("Aufbewahrungstage"), {
+        target: { value: "7" },
+      });
+      await act(async () => {
+        resolveDefaults({ accepted: false, dataRetentionDays: 14 });
+      });
+
+      expect(screen.getByLabelText("Aufbewahrungstage")).toHaveValue(7);
+    });
+
+    it("shows a failed defaults load in place", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      mockFetchPrivacyConsentDefaults.mockRejectedValue(
+        new ApiError("defaults failed", 500, { code: "general.internal" }),
+      );
+      await renderOpen();
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /Datenschutz-Voreinstellung/,
+      );
     });
   });
 });

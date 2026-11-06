@@ -6,8 +6,7 @@
 // reader's audience never arrive at all. The client renders that answer and
 // never computes its own.
 
-import { apiErrorFromResponse } from "./api-error";
-import { sessionFetch } from "./session-cache";
+import { bffJson } from "./bff-fetch";
 
 /** Note lifetimes. A permanent note is the durable hint shown with the master data. */
 export const NOTE_KIND_PERMANENT = "permanent";
@@ -22,19 +21,6 @@ export const NOTE_VISIBILITY_GROUP_LEADS = "group_leads";
 export const NOTE_ORIGIN_MASTER_DATA = "master_data";
 /** Hinweis der Lehrkraft für einen Tag, geschrieben in moto schule (#4795). */
 export const NOTE_ORIGIN_SCHOOL = "school";
-
-/**
- * Kennzeichen einer Notiz, die die Lehrkraft der Klasse in moto schule liest
- * (#4797): die Props des `StatusBadge` an der Notiz, in der Chronik wie bei
- * den dauerhaften Hinweisen.
- */
-export const NOTE_SHARED_WITH_SCHOOL_BADGE = {
-  compact: true,
-  tone: "green",
-  label: "Für die Schule freigegeben",
-  accessibleLabel:
-    "Für die Schule freigegeben: Die Lehrkraft der Klasse liest diese Notiz.",
-} as const;
 
 export interface StudentNote {
   id: string;
@@ -136,25 +122,19 @@ function toPayload(draft: StudentNoteDraft): Record<string, unknown> {
   };
 }
 
-async function throwNoteError(
-  response: Response,
-  fallback: string,
-): Promise<never> {
-  throw await apiErrorFromResponse(response, fallback);
+function notesPath(studentId: string, noteId?: string): string {
+  const base = `/api/students/${encodeURIComponent(studentId)}/notes`;
+  return noteId ? `${base}/${encodeURIComponent(noteId)}` : base;
 }
 
 class StudentNotesService {
   /** kind narrows the read to one lifetime; omit it for the whole card. */
   async list(studentId: string, kind?: string): Promise<StudentNote[]> {
     const query = kind ? `?kind=${encodeURIComponent(kind)}` : "";
-    const response = await sessionFetch(
-      `/api/students/${studentId}/notes${query}`,
+    const notes = await bffJson<BackendStudentNote[] | null>(
+      `${notesPath(studentId)}${query}`,
     );
-    if (!response.ok) {
-      await throwNoteError(response, "Notizen konnten nicht geladen werden.");
-    }
-    const json = (await response.json()) as { data: BackendStudentNote[] };
-    return (json.data ?? []).map(mapNote);
+    return (notes ?? []).map(mapNote);
   }
 
   /**
@@ -162,27 +142,20 @@ class StudentNotesService {
    * against the same read, so the form never offers one it would refuse.
    */
   async listActivities(studentId: string): Promise<StudentNoteActivity[]> {
-    const response = await sessionFetch(
-      `/api/students/${studentId}/note-subjects`,
+    const subjects = await bffJson<BackendNoteSubjects | null>(
+      `/api/students/${encodeURIComponent(studentId)}/note-subjects`,
     );
-    if (!response.ok) {
-      await throwNoteError(response, "Angebote konnten nicht geladen werden.");
-    }
-    const json = (await response.json()) as { data: BackendNoteSubjects };
-    return (json.data?.activities ?? []).map((activity) => ({
+    return (subjects?.activities ?? []).map((activity) => ({
       id: activity.id,
       name: activity.name,
     }));
   }
 
   async create(studentId: string, draft: StudentNoteDraft): Promise<void> {
-    const response = await sessionFetch(`/api/students/${studentId}/notes`, {
+    await bffJson<unknown>(notesPath(studentId), {
       method: "POST",
-      body: JSON.stringify(toPayload(draft)),
+      body: toPayload(draft),
     });
-    if (!response.ok) {
-      await throwNoteError(response, "Notiz konnte nicht gespeichert werden.");
-    }
   }
 
   async update(
@@ -190,23 +163,14 @@ class StudentNotesService {
     noteId: string,
     draft: StudentNoteDraft,
   ): Promise<void> {
-    const response = await sessionFetch(
-      `/api/students/${studentId}/notes/${noteId}`,
-      { method: "PUT", body: JSON.stringify(toPayload(draft)) },
-    );
-    if (!response.ok) {
-      await throwNoteError(response, "Notiz konnte nicht geändert werden.");
-    }
+    await bffJson<unknown>(notesPath(studentId, noteId), {
+      method: "PUT",
+      body: toPayload(draft),
+    });
   }
 
   async remove(studentId: string, noteId: string): Promise<void> {
-    const response = await sessionFetch(
-      `/api/students/${studentId}/notes/${noteId}`,
-      { method: "DELETE" },
-    );
-    if (!response.ok) {
-      await throwNoteError(response, "Notiz konnte nicht entfernt werden.");
-    }
+    await bffJson<unknown>(notesPath(studentId, noteId), { method: "DELETE" });
   }
 }
 

@@ -193,14 +193,18 @@ A direct fetch outside this inventory needs a reason and a shared proxy path.
 | `staff/[id]/time-tracking/export` | Streams one staff member’s time-tracking export. |
 | `staff/time-tracking/export` | Streams staff time-tracking export bytes. |
 | `statistics/export` | Streams statistics export bytes with no-store caching. |
-| `students/[id]/attendance-history/export` | Streams attendance-history export bytes with no-store caching. |
-| `students/[id]/documents` | Multipart student-document upload uses the shared file-upload validator. |
-| `students/[id]/documents/[documentId]/download` | Streams a student document with MIME and disposition. |
-| `students/[id]/photo` | Validates photo bytes and consent; DELETE also refreshes an expired session. |
-| `students/[id]/photo/[filename]` | Serves student photo bytes with MIME and cache headers. |
-| `students/day-log/export` | Streams day-log export bytes with no-store caching. |
-| `students/export` | Streams the student export file and backend disposition. |
+| `students/[id]/photo/[filename]` | Serves student photo bytes with MIME, cache headers and the 304 revalidation path. |
 | `traeger/auth/logout` | Uses the Träger refresh token, not the access token, to revoke the `org` session. |
+
+Tenant file routes with no route-specific logic use the shared factories
+instead of a direct fetch: downloads `proxyFile` (`lib/tenant-file-proxy.server.ts`:
+streaming, file headers, client identity, one refreshed retry; the route wraps
+it in `withPrivateDownloadNoStore`), uploads `proxyFileUpload`
+(`lib/file-upload-wrapper.server.ts`: file validation, listed form fields,
+client identity, one refreshed retry). Under `students/` these are the six
+downloads (accident-report PDF, attendance-history and day-log exports,
+document download, care-request proof, student export) and the three uploads
+(documents, photo, accident-report paper copy).
 
 The three SSE routes (`sse/events`, `parent/sse/events`, and
 `school/sse/events`) use `proxySSEStream` separately: each must keep its own
@@ -208,9 +212,10 @@ portal credential and abortable event stream, which a JSON factory would buffer.
 
 Helper-backed custom handlers without a direct `fetch` have narrower reasons:
 `rooms/[id]/history` applies the documented empty/disabled BFF mapping;
-`students/day-log`, `students/[id]/attendance-history`, and
-`statistics/report` whitelist audit-sensitive queries, retry refreshed tenant
-sessions, and keep their established no-store success envelope;
+`statistics/report` whitelists audit-sensitive queries, retries refreshed
+tenant sessions, and keeps its established no-store success envelope
+(`students/day-log` and `students/[id]/attendance-history` forward only their
+audit-sensitive query keys through `proxyGet` with `forwardQuery`);
 `auth/password` validates and renames password fields before `apiPost`;
 `auth/token` renews the tenant session and answers 204 without a token;
 `auth/staff-preview/end` takes the running preview's token from the session
@@ -226,9 +231,9 @@ wrappers; they are not handwritten auth/fetch/error loops.
 
 Business adapters are not transparent proxies: room history maps the
 documented 404 and `feature_disabled` 403 to an empty/disabled view;
-student privacy-consent GET maps an absent consent to its default model, and
 student PUT marks a consent write that succeeded before a later student write
-failed. Demo handoff produces a redirect after checking readiness. An exhausted
+failed. The student routes own the backend wire shape (`lib/student-wire.ts`);
+the browser client `lib/student-api.ts` receives mapped `Student` objects. Demo handoff produces a redirect after checking readiness. An exhausted
 auth refresh/retry answers 401 with `general.permission`. All other
 backend errors in those routes retain the shared error contract. Logout
 forwards backend errors unchanged even though the browser always clears its

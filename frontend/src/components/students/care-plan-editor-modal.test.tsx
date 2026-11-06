@@ -140,15 +140,15 @@ const baseArrivalDay: ArrivalDayData = {
   showExcused: false,
   exception: undefined,
   baseSchedule: {
-    id: 1,
-    student_id: 42,
+    id: "1",
+    studentId: "42",
     weekday: 1,
-    weekday_name: "Montag",
-    expected_arrival: "08:00",
+    weekdayName: "Montag",
+    expectedArrival: "08:00",
     notes: "Haupteingang",
-    created_by: 1,
-    created_at: "2026-05-01T00:00:00Z",
-    updated_at: "2026-05-01T00:00:00Z",
+    createdBy: "1",
+    createdAt: "2026-05-01T00:00:00Z",
+    updatedAt: "2026-05-01T00:00:00Z",
   },
   effectiveTime: "08:00",
   effectiveReason: "Haupteingang",
@@ -156,13 +156,13 @@ const baseArrivalDay: ArrivalDayData = {
   isAbsent: false,
   notes: [
     {
-      id: 11,
-      student_id: 42,
-      note_date: "2026-05-25",
+      id: "11",
+      studentId: "42",
+      noteDate: "2026-05-25",
       content: "Kommt mit Oma",
-      created_by: 1,
-      created_at: "2026-05-01T00:00:00Z",
-      updated_at: "2026-05-01T00:00:00Z",
+      createdBy: "1",
+      createdAt: "2026-05-01T00:00:00Z",
+      updatedAt: "2026-05-01T00:00:00Z",
     },
   ],
 };
@@ -570,7 +570,7 @@ describe("CarePlanEditorModal", () => {
       baseSchedule: {
         ...baseArrivalDay.baseSchedule!,
         weekday: 2,
-        weekday_name: "Dienstag",
+        weekdayName: "Dienstag",
       },
       notes: [],
     };
@@ -650,7 +650,7 @@ describe("CarePlanEditorModal", () => {
       }),
     );
 
-    await waitFor(() => expect(onDeleteArrivalNote).toHaveBeenCalledWith(11));
+    await waitFor(() => expect(onDeleteArrivalNote).toHaveBeenCalledWith("11"));
   });
 
   it("shows an error when resetting to the offering pickup time fails", async () => {

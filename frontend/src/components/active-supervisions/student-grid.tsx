@@ -24,7 +24,7 @@ import {
   StudentPendingExcusedRow,
 } from "~/components/students/student-card";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
-import type { BulkArrivalTime } from "~/lib/student-arrival-api";
+import type { BulkArrivalTime } from "~/components/active-supervisions/use-supervision-dashboard";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import { combineTimeNotes, getStudentAbsence } from "~/lib/student-time-status";

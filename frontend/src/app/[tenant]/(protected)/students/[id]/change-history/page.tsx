@@ -10,7 +10,13 @@ import {
   studentHistoryBack,
 } from "../student-referrer";
 import { useApiLoadError } from "~/contexts/ToastContext";
-import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
+import { ApiError } from "~/lib/api-error";
+import {
+  fetchStudent,
+  fetchStudentChangeHistory,
+  type StudentFieldChange,
+} from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -21,25 +27,6 @@ import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 const logger = createLogger({ component: "StudentChangeHistoryPage" });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-
-interface Student {
-  id: string;
-  first_name: string;
-  second_name: string;
-  name?: string;
-  school_class: string;
-  group_id?: string;
-  group_name?: string;
-}
-
-interface ChangeEntry {
-  id: string;
-  field: string;
-  old_value: string;
-  new_value: string;
-  edited_by: string;
-  changed_at: string;
-}
 
 // German labels for the tracked fields. The backend stores the raw field token
 // and already-formatted German values; only the field name is mapped here.
@@ -95,7 +82,7 @@ function StudentChangeHistoryPageContent() {
   const referrer = resolveStudentReferrer(searchParams.get("from"));
 
   const [student, setStudent] = useState<Student | null>(null);
-  const [entries, setEntries] = useState<ChangeEntry[] | null>(null);
+  const [entries, setEntries] = useState<StudentFieldChange[] | null>(null);
   const [loading, setLoading] = useState(true);
   // A 404 is its own state, not an error to retry.
   const [notFound, setNotFound] = useState(false);
@@ -108,16 +95,12 @@ function StudentChangeHistoryPageContent() {
   useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
   useScrollToTop(studentId);
 
-  const fetchStudent = useCallback(async (): Promise<Student | null> => {
+  const loadStudent = useCallback(async (): Promise<Student | null> => {
     try {
-      const res = await transportFetch(`/api/students/${studentId}`);
+      return await fetchStudent(studentId);
+    } catch (err) {
       // The name only decorates the header; without it the page still shows
       // the history under its generic title.
-      if (!res.ok) return null;
-      const body = (await res.json()) as { data?: Student };
-      return body.data ?? null;
-    } catch (err) {
-      // Same as above: the header falls back to the generic title.
       logger.error("student_fetch_failed", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
@@ -128,23 +111,16 @@ function StudentChangeHistoryPageContent() {
 
   const fetchHistory = useCallback(async (): Promise<void> => {
     try {
-      const res = await transportFetch(
-        `/api/students/${studentId}/change-history`,
-      );
-      if (res.status === 404) {
+      setEntries(await fetchStudentChangeHistory(studentId));
+      setNotFound(false);
+      clearHistoryError();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
         setNotFound(true);
         setEntries(null);
         clearHistoryError();
         return;
       }
-      if (!res.ok) {
-        throw await apiErrorFromResponse(res, "change history failed");
-      }
-      const body = (await res.json()) as { data: ChangeEntry[] };
-      setEntries(body.data ?? []);
-      setNotFound(false);
-      clearHistoryError();
-    } catch (err) {
       logger.error("change_history_fetch_failed", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
@@ -162,7 +138,7 @@ function StudentChangeHistoryPageContent() {
     setLoading(true);
 
     void (async () => {
-      const [s] = await Promise.all([fetchStudent(), fetchHistory()]);
+      const [s] = await Promise.all([loadStudent(), fetchHistory()]);
       if (cancelled) return;
       setStudent(s);
       setLoading(false);
@@ -171,7 +147,7 @@ function StudentChangeHistoryPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [fetchStudent, fetchHistory, attempt]);
+  }, [loadStudent, fetchHistory, attempt]);
 
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)

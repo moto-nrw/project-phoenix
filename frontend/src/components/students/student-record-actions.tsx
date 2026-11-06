@@ -14,7 +14,7 @@ import {
 } from "~/lib/care-exit-api";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import { CareExitModal } from "./care-exit-modal";
 import { CareResumeModal } from "./care-resume-modal";
 import { StudentDeletionModal } from "./student-deletion-modal";

@@ -34,9 +34,9 @@ import {
   StudentAbsenceRow,
   StudentPendingExcusedRow,
 } from "~/components/students/student-card";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
-import type { DepartureMode } from "~/lib/student-helpers";
+import type { DepartureMode } from "~/lib/departure-plan";
 import {
   getStudentAbsence,
   getStudentDayTimes,
@@ -176,7 +176,7 @@ export function searchStudentDay(
   };
 }
 
-export interface SearchStudentCardProps {
+interface SearchStudentCardProps {
   readonly student: Student;
   /** Live presence view (today) vs. planned expectation (any other day, #1939). */
   readonly isToday: boolean;

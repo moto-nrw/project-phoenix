@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 
 import { StudentPhotoSection } from "./student-photo-section";
 

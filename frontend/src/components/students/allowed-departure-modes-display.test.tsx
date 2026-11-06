@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { AllowedDepartureModes } from "~/lib/student-helpers";
+import type { AllowedDepartureModes } from "~/lib/departure-plan";
 import { AllowedDepartureModesDisplay } from "./allowed-departure-modes-display";
 
 describe("AllowedDepartureModesDisplay", () => {

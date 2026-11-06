@@ -9,6 +9,7 @@ import { useShellAuth } from "~/lib/shell-auth-context";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useShellSeed } from "~/lib/shell-seed";
 import { useUnreadCount } from "./use-unread-count";
+import { CHANGE_REQUESTS_REFRESH_EVENT } from "~/lib/change-requests-refresh";
 
 export function useCareWithdrawalsPending() {
   const { data: session, status } = useSession();
@@ -23,7 +24,7 @@ export function useCareWithdrawalsPending() {
     fetcher: async () => (await fetchCareWithdrawals({ pageSize: 1 })).total,
     cacheKey: `care_withdrawals_pending_count:${tenantSlug ?? ""}:${accountId}`,
     cacheOwner: personalStorageOwner(session?.user),
-    eventNames: ["change-requests-refresh"],
+    eventNames: [CHANGE_REQUESTS_REFRESH_EVENT],
     eventDebounceMs: 500,
     refetchOnFocus: true,
     initialCount: useShellSeed()?.counts.careWithdrawalsPending,

@@ -24,8 +24,8 @@ import {
 } from "~/components/students/student-card";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
-import type { Student } from "~/lib/api";
-import type { DepartureMode } from "~/lib/student-helpers";
+import type { Student } from "~/lib/student-helpers";
+import type { DepartureMode } from "~/lib/departure-plan";
 
 /** A table column plus what the "Spalten" menu needs to know about it. */
 export interface StudentTableColumn<T> extends DataTableColumn<T> {

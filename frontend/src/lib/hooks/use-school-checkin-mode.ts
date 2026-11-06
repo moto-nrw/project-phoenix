@@ -22,6 +22,9 @@ import {
   type SchoolCheckinBatchOutcome,
   type SchoolCheckoutReason,
 } from "~/lib/student-api";
+import { STUDENT_KEY_FAMILIES, studentKeys } from "~/lib/swr/portal-keys";
+import { groupKeys } from "~/lib/swr/groups-keys";
+import { SEARCH_STUDENTS_KEY_PREFIX } from "~/lib/swr/search-students-key";
 
 /**
  * Presence state shown in check-in mode. Maps 1:1 onto the brand color
@@ -137,11 +140,11 @@ async function invalidatePresenceCachesBulk(): Promise<void> {
   await globalMutate(
     (key) =>
       typeof key === "string" &&
-      (key.includes("ogs-students-") ||
-        key.includes("search-students-") ||
+      (key.includes(groupKeys.liveFamily) ||
+        key.includes(SEARCH_STUDENTS_KEY_PREFIX) ||
         key.includes("tracking-supervisions-") ||
         key.includes("tracking-indicators-") ||
-        key.includes("student-detail-")),
+        key.includes(STUDENT_KEY_FAMILIES.detail)),
   );
 }
 
@@ -372,11 +375,11 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
         await globalMutate(
           (key) =>
             typeof key === "string" &&
-            (key.includes("ogs-students-") ||
-              key.includes("search-students-") ||
+            (key.includes(groupKeys.liveFamily) ||
+              key.includes(SEARCH_STUDENTS_KEY_PREFIX) ||
               key.includes("tracking-supervisions-") ||
               key.includes("tracking-indicators-") ||
-              key.includes(`student-detail-${studentId}`)),
+              key.endsWith(studentKeys.detail(studentId))),
         );
 
         // Bump the per-session counter so the ModeBar can surface "X

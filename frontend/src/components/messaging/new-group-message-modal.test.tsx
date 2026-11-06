@@ -34,7 +34,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("~/lib/api", () => ({
   groupService: { getGroups: mocks.getGroups },
-  studentService: { getSchoolClasses: mocks.getSchoolClasses },
+}));
+vi.mock("~/lib/student-api", () => ({
+  fetchSchoolClasses: mocks.getSchoolClasses,
 }));
 vi.mock("~/lib/activity-api", () => ({
   fetchActivities: mocks.fetchActivities,
