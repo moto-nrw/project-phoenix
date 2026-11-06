@@ -41,6 +41,8 @@ func (rs *Resource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(c
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/today", rs.schoolsToday)
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/key-date-counts", rs.keyDateCounts)
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/alerts", rs.schoolsAlerts)
+		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/occupancy", rs.occupancy)
+		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/occupancy/export", rs.occupancyExport)
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/{id}", rs.getSchool)
 	})
 	return r

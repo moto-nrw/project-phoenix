@@ -90,6 +90,7 @@ import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { AttachmentList } from "~/components/ui/attachment-list";
+import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { Textarea } from "~/components/ui/textarea";
 import { formatBytes } from "~/lib/files-api";
 import {
@@ -558,9 +559,7 @@ function ParentAnnouncementsContent() {
             )}
             {row.priority === "important" &&
               row.system_kind !== "care_cancellation" && (
-                <span className="inline-flex shrink-0 items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-                  Wichtig
-                </span>
+                <StatusBadge label="Wichtig" tone="gray" compact />
               )}
           </div>
           <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">
@@ -2021,10 +2020,7 @@ function AnnouncementFormModal({
                           key={`${file.name}-${index}`}
                           className="flex items-center gap-3 rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2"
                         >
-                          <Paperclip
-                            className="h-4 w-4 shrink-0 text-gray-400"
-                            aria-hidden
-                          />
+                          <FileTypeIcon contentType={file.type} />
                           <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
                             {file.name}
                           </span>

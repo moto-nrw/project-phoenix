@@ -107,11 +107,7 @@ function RoomTile({
                 </p>
               )}
             </div>
-            <RoomStatusBadge
-              isOccupied={room.isOccupied}
-              size="sm"
-              className="font-bold"
-            />
+            <RoomStatusBadge isOccupied={room.isOccupied} />
           </div>
           <div className="flex-1 space-y-2">
             {room.isOccupied && room.groupName && (

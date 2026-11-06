@@ -1,7 +1,8 @@
-import { SWRConfig } from "~/lib/swr/testing";
+import { SWRConfig, useSWRConfig } from "~/lib/swr/testing";
 vi.unmock("swr");
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resetSWRScope } from "~/lib/swr/scope";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { TraegerKeyDateCounts } from "~/lib/traeger-api";
@@ -87,10 +88,20 @@ const COUNTS: TraegerKeyDateCounts = {
   ],
 };
 
+let revalidateAll: () => Promise<unknown> = async () => undefined;
+
+/** Hands the test a way to refetch every key, as a focus would. */
+function Revalidator() {
+  const { mutate } = useSWRConfig();
+  revalidateAll = () => mutate(() => true);
+  return null;
+}
+
 function renderPage() {
   return render(
     <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
       <ToastProvider>
+        <Revalidator />
         <TraegerKeyDateCountsPage />
       </ToastProvider>
     </SWRConfig>,
@@ -103,6 +114,8 @@ function schoolTable() {
 
 describe("TraegerKeyDateCountsPage", () => {
   beforeEach(() => {
+    // A refusal holds per key for the whole tab; start every test clean.
+    resetSWRScope({ revalidate: false });
     mockFetchCounts.mockReset();
     mockUseSession.mockReturnValue({
       data: {
@@ -323,6 +336,27 @@ describe("TraegerKeyDateCountsPage", () => {
       screen.queryByText("Aktive Kinder", { selector: "p" }),
     ).not.toBeInTheDocument();
   });
+
+  it.each([403, 404])(
+    "drops the loaded counts, also in the page head, when a refresh answers %i",
+    async (status) => {
+      mockFetchCounts.mockResolvedValueOnce(COUNTS);
+      renderPage();
+      await screen.findByText("84 mehr als im September 2026.");
+      expect(screen.getByText("Monate erfasst")).toBeInTheDocument();
+
+      mockFetchCounts.mockRejectedValue(new ApiError("refused", status));
+      await act(async () => {
+        await revalidateAll();
+      });
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(screen.queryByText("Monate erfasst")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("84 mehr als im September 2026."),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("shows a refusal instead of figures", async () => {
     mockFetchCounts.mockRejectedValue(

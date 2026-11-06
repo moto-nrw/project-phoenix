@@ -3,13 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import type { SchemaTab } from "~/lib/settings-api";
-import { createLogger } from "~/lib/logger";
-import { Button, buttonClassName } from "~/components/ui/button";
+import { buttonClassName } from "~/components/ui/button";
+import { CopyField } from "~/components/ui/copy-field";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
-
-const logger = createLogger({ component: "EnrollmentLinkPanel" });
 
 interface Props {
   readonly tab: SchemaTab;
@@ -28,7 +26,6 @@ interface Props {
 export function EnrollmentLinkPanel({ tab }: Props) {
   const tenantSlug = useTenantSlugSafe();
   const [origin, setOrigin] = useState<string>("");
-  const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
   const { showMessage } = useApiErrorDisplay();
 
   // Window access is client-only; defer until mount.
@@ -66,23 +63,6 @@ export function EnrollmentLinkPanel({ tab }: Props) {
     return null;
   }
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(enrollUrl);
-      setCopyState("copied");
-      window.setTimeout(() => setCopyState("idle"), 2500);
-    } catch (err) {
-      logger.error("enrollment_link_copy_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      // Kein API-Fehler: der Browser hat das Kopieren verweigert. Der Link
-      // steht daneben und lässt sich von Hand markieren.
-      showMessage(
-        "Der Link konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.",
-      );
-    }
-  };
-
   return (
     <SectionCard
       // Geschwister im selben Container sind die SettingsCategory-Bloecke
@@ -93,26 +73,26 @@ export function EnrollmentLinkPanel({ tab }: Props) {
       description="Teilen Sie diesen Link mit Eltern, damit sie ihre Kinder anmelden können. Jeder mit dem Link kann ihn öffnen. Eltern brauchen dafür kein Konto."
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <code className="moto-content-surface flex-1 truncate rounded-lg border px-3 py-2 font-mono text-xs text-gray-800">
-          {enrollUrl}
-        </code>
-        <Button
-          type="button"
-          variant={copyState === "copied" ? "success" : "primary"}
-          size="compact"
-          onClick={() => void handleCopy()}
-          className="shrink-0"
-        >
-          {copyState === "copied" ? "Kopiert" : "Kopieren"}
-        </Button>
+        <CopyField
+          value={enrollUrl}
+          monospace
+          className="flex-1"
+          onCopyFailed={() =>
+            // Kein API-Fehler: der Browser hat das Kopieren verweigert. Der
+            // Link steht daneben und lässt sich von Hand markieren.
+            showMessage(
+              "Der Link konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.",
+            )
+          }
+        />
         <a
           href={enrollUrl}
           target="_blank"
           rel="noopener noreferrer"
           className={buttonClassName({
-            variant: "surface",
-            size: "compact",
-            className: "shrink-0",
+            variant: "outline",
+            size: "md",
+            className: "shrink-0 self-start sm:self-auto",
           })}
         >
           Öffnen

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { defineEntityConfig } from "@/lib/database/types";
 import type { Device } from "@/lib/iot-helpers";
 import {
@@ -20,6 +21,7 @@ import {
   DEVICE_TYPE_OPTIONS,
 } from "@/lib/iot-helpers";
 import { devicesConcept } from "~/lib/concepts/devices";
+import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 
 /**
  * Der API-Schlüssel eines Geräts: verborgen, mit zwei Schaltflächen aus dem
@@ -28,7 +30,8 @@ import { devicesConcept } from "~/lib/concepts/devices";
  */
 function ApiKeyField({ device }: Readonly<{ device: Device }>) {
   const [visible, setVisible] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useClipboardCopy("DeviceApiKeyField", 2000);
+  const { showMessage } = useApiErrorDisplay();
 
   if (!device.api_key) {
     return (
@@ -63,9 +66,13 @@ function ApiKeyField({ device }: Readonly<{ device: Device }>) {
           variant="outline"
           size="compact"
           onClick={() => {
-            void navigator.clipboard.writeText(device.api_key!);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            void copy(device.api_key!).then((ok) => {
+              if (!ok) {
+                showMessage(
+                  "Der Schlüssel konnte nicht kopiert werden. Bitte zeigen Sie ihn an und kopieren Sie ihn selbst.",
+                );
+              }
+            });
           }}
         >
           {copied ? "Kopiert" : "Kopieren"}

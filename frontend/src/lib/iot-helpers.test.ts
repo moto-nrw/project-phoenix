@@ -238,6 +238,10 @@ describe("iot-helpers", () => {
         "unknown_status",
       );
     });
+
+    it("should return original status for inherited status-map keys", () => {
+      expect(getDeviceStatusDisplayName("constructor")).toBe("constructor");
+    });
   });
 
   describe("getDeviceStatusColor", () => {
