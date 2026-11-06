@@ -403,6 +403,8 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
 export default function TraegerZeitvergleichPage() {
   const { data: session, status } = useSession();
   const canSeeNames = hasPermission(session ?? null, OVERRUN_NAMES_RIGHT);
+  // The Träger of the session: another tab can switch it under this page.
+  const orgId = session?.user?.orgId;
   // Stays mounted across midnight: the window ends today, and the current
   // month follows the calendar while the person is looking at it.
   const today = useBerlinToday();
@@ -423,6 +425,9 @@ export default function TraegerZeitvergleichPage() {
   const range = useMemo(() => monthWindow(month, today), [month, today]);
 
   const load = useCallback(async () => {
+    // Without a Träger in the session there is nothing to read; a new
+    // Träger is a new read.
+    if (orgId === undefined) return;
     const current = ++request.current;
     setEvaluation(null);
     try {
@@ -447,7 +452,19 @@ export default function TraegerZeitvergleichPage() {
         retry: () => void load(),
       });
     }
-  }, [range, schoolId, canSeeNames, clearLoadError, showLoadError]);
+  }, [range, schoolId, canSeeNames, orgId, clearLoadError, showLoadError]);
+
+  // A switch of the Träger drops everything the previous one showed and
+  // every answer still on its way for it, before the new read starts.
+  const shownOrgId = useRef(orgId);
+  useEffect(() => {
+    if (shownOrgId.current === orgId) return;
+    shownOrgId.current = orgId;
+    request.current++;
+    setEvaluation(null);
+    setSchools([]);
+    setSchoolId(ALL_SCHOOLS);
+  }, [orgId]);
 
   useEffect(() => {
     if (status === "loading") return;

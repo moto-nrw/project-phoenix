@@ -70,9 +70,9 @@ const EVALUATION: OverrunEvaluation = {
   children: [],
 };
 
-function session(permissions: string[]) {
+function session(permissions: string[], orgId = 7) {
   return {
-    data: { user: { id: "A", scope: "org", orgId: 7, permissions } },
+    data: { user: { id: "A", scope: "org", orgId, permissions } },
     status: "authenticated",
   };
 }
@@ -436,5 +436,49 @@ describe("Länger als gebucht", () => {
     expect(
       screen.getByText("Ein Kind war länger da als gebucht."),
     ).toBeInTheDocument();
+  });
+
+  it("drops the figures of the previous Träger when the session switches", async () => {
+    mockUseSession.mockReturnValue(session(["traeger_reports:read"], 7));
+    api.fetchOverrunSummary.mockResolvedValueOnce(EVALUATION);
+    let answerOther: (value: OverrunEvaluation) => void = () => undefined;
+    api.fetchOverrunSummary.mockImplementationOnce(
+      () =>
+        new Promise<OverrunEvaluation>((resolve) => (answerOther = resolve)),
+    );
+    const { rerender } = render(
+      <ToastProvider>
+        <TraegerZeitvergleichPage />
+      </ToastProvider>,
+    );
+    expect(
+      (await screen.findAllByText("OGS Am Lindenhof")).length,
+    ).toBeGreaterThan(0);
+
+    mockUseSession.mockReturnValue(session(["traeger_reports:read"], 8));
+    rerender(
+      <ToastProvider>
+        <TraegerZeitvergleichPage />
+      </ToastProvider>,
+    );
+    await waitFor(() =>
+      expect(api.fetchOverrunSummary).toHaveBeenCalledTimes(2),
+    );
+    expect(screen.queryByText("OGS Am Lindenhof")).not.toBeInTheDocument();
+
+    answerOther({
+      ...EVALUATION,
+      schools: [
+        {
+          ...EVALUATION.schools[1]!,
+          schoolId: "9",
+          schoolName: "OGS Anderer Träger",
+        },
+      ],
+    });
+    expect(
+      (await screen.findAllByText("OGS Anderer Träger")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText("OGS Am Lindenhof")).not.toBeInTheDocument();
   });
 });
