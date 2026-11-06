@@ -33,6 +33,7 @@ import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { roomsConcept } from "~/lib/concepts/rooms";
 import { supervisionConcept } from "~/lib/concepts/supervision";
 import { StatusDot } from "~/components/ui/status-dot";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 interface TemplateCardProps {
   template: TimetableTemplate;
@@ -140,22 +141,14 @@ export function TemplateCard({
               />
             ) : null}
             {template.shiftTypeName ? (
-              <span
-                className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
-                style={{
-                  backgroundColor: `${shiftTypeColor}1A`,
-                  color: shiftTypeColor,
-                }}
-                title={`Dienstart: ${template.shiftTypeName}`}
-              >
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{
-                    backgroundColor: shiftTypeColor,
-                  }}
-                  aria-hidden
+              <span className="mt-1 inline-flex">
+                <StatusColorBadge
+                  label={template.shiftTypeName}
+                  color={shiftTypeColor}
+                  title={`Dienstart: ${template.shiftTypeName}`}
+                  compact
+                  wrap
                 />
-                {template.shiftTypeName}
               </span>
             ) : null}
           </div>

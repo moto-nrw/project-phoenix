@@ -82,6 +82,7 @@ import {
 } from "~/lib/slot-lists-api";
 import { IconTile } from "~/components/ui/icon-tile";
 import { PlanLegend } from "~/components/ui/planning/plan-legend";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 const logger = createLogger({ component: "SlotListsPage" });
 
@@ -335,16 +336,11 @@ function SlotRowStatusBadge({
   row,
   source,
 }: Readonly<{ row: SlotListRow; source: SlotListSource }>) {
-  const color = statusColor(row, source);
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
-      <span
-        aria-hidden
-        className="inline-block h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: color }}
-      />
-      <span style={{ color }}>{row.status_label}</span>
-    </span>
+    <StatusColorBadge
+      label={row.status_label}
+      color={statusColor(row, source)}
+    />
   );
 }
 
