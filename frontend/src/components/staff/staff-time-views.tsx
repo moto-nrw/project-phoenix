@@ -5,7 +5,7 @@
 // time-tracking-helpers formatters, so the visual treatment stays consistent
 // regardless of where the cards or calendar are rendered.
 
-import { OriginChip } from "~/components/ui/origin-chip";
+import { OriginChip } from "~/components/ui/planning/origin-chip";
 import {
   SegmentedControl,
   type SegmentedControlItem,

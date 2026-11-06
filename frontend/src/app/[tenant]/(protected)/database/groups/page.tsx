@@ -24,7 +24,7 @@ import type {
 import { createCrudService } from "@/lib/database/service-factory";
 import { groupsConfig } from "@/components/database/configs/groups.config";
 import type { Group } from "@/lib/group-helpers";
-import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
+import { DatabaseFormModal } from "~/components/database/database-form-modal";
 import { GroupsMasterDetail } from "@/components/groups/groups-master-detail";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";

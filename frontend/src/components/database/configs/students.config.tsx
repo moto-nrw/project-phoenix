@@ -1,7 +1,7 @@
 // Student Entity Configuration
 
 import { defineEntityConfig } from "@/lib/database/types";
-import { GroupSelect } from "@/components/ui/database/database-select";
+import { GroupSelect } from "@/components/database/database-select";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import type { Student } from "@/lib/api";
 import { busDaysFromToggle, formatBusDays } from "@/lib/student-helpers";

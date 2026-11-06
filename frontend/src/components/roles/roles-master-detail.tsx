@@ -17,7 +17,7 @@ import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
 import { roleEditSections } from "~/components/database/configs/roles.config";
-import { DatabaseForm } from "~/components/ui/database/database-form";
+import { DatabaseForm } from "~/components/database/database-form";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";

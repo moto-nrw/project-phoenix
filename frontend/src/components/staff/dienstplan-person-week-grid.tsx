@@ -13,8 +13,11 @@ import {
   ClosingDayConfirmModal,
 } from "~/components/planning/closing-day-marker";
 import { Button } from "~/components/ui/button";
-import { PlanBlock } from "~/components/ui/plan-block";
-import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
+import { PlanBlock } from "~/components/ui/planning/plan-block";
+import {
+  PlanLegend,
+  type PlanLegendEntry,
+} from "~/components/ui/planning/plan-legend";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   formatColumnDate,

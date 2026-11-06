@@ -27,7 +27,6 @@ import {
 } from "~/components/auth/credential-error";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { PasswordRequirements } from "~/components/auth/password-requirements";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
 import {
   FormErrorAlert,
@@ -188,8 +187,6 @@ function AcceptForm({
 }>) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [mfaStep, setMfaStep] = useState<Extract<
@@ -329,26 +326,20 @@ function AcceptForm({
         >
           Passwort
         </FieldLabel>
-        <div className="relative">
-          <Input
-            id="password"
-            name="password"
-            type={showPassword ? "text" : "password"}
-            controlSize="compact"
-            autoComplete={existing ? "current-password" : "new-password"}
-            value={password}
-            disabled={submitting}
-            onChange={(event) => setPassword(event.target.value)}
-            aria-invalid={Boolean(passwordError)}
-            aria-describedby={passwordError ? "password-error" : undefined}
-            required
-            className="pr-10"
-          />
-          <PasswordToggleButton
-            showPassword={showPassword}
-            onToggle={() => setShowPassword(!showPassword)}
-          />
-        </div>
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          controlSize="compact"
+          autoComplete={existing ? "current-password" : "new-password"}
+          value={password}
+          disabled={submitting}
+          onChange={(event) => setPassword(event.target.value)}
+          aria-invalid={Boolean(passwordError)}
+          aria-describedby={passwordError ? "password-error" : undefined}
+          required
+          revealable
+        />
         <AuthFieldError id="password-error" message={passwordError} />
       </div>
 
@@ -362,28 +353,22 @@ function AcceptForm({
             >
               Passwort bestätigen
             </FieldLabel>
-            <div className="relative">
-              <Input
-                id="confirmPassword"
-                name="confirm_password"
-                type={showConfirmPassword ? "text" : "password"}
-                controlSize="compact"
-                autoComplete="new-password"
-                value={confirmPassword}
-                disabled={submitting}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                aria-invalid={Boolean(confirmError)}
-                aria-describedby={
-                  confirmError ? "confirmPassword-error" : undefined
-                }
-                required
-                className="pr-10"
-              />
-              <PasswordToggleButton
-                showPassword={showConfirmPassword}
-                onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
-              />
-            </div>
+            <Input
+              id="confirmPassword"
+              name="confirm_password"
+              type="password"
+              controlSize="compact"
+              autoComplete="new-password"
+              value={confirmPassword}
+              disabled={submitting}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              aria-invalid={Boolean(confirmError)}
+              aria-describedby={
+                confirmError ? "confirmPassword-error" : undefined
+              }
+              required
+              revealable
+            />
             <AuthFieldError id="confirmPassword-error" message={confirmError} />
           </div>
 

@@ -11,7 +11,7 @@ import {
   SIDEBAR_ICON_CLASSES,
   SIDEBAR_NAV_GAP,
   sidebarLabelClasses,
-} from "~/components/dashboard/sidebar-geometry";
+} from "~/components/ui/sidebar-geometry";
 
 interface SidebarGroupProps {
   readonly label: string;

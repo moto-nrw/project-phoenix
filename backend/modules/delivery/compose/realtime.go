@@ -8,9 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
-// QueueStaffTimeTrackingChanged emits the tenant-wide time-tracking
-// invalidation after the surrounding transaction commits. The root binds it
-// to the Workforce event port; the producer stays Delivery's.
+// QueueStaffTimeTrackingChanged emits the tenant-wide time-tracking invalidation
+// after the commit. The root binds it to the Workforce event port; Delivery produces it.
 func QueueStaffTimeTrackingChanged(ctx context.Context, broadcaster realtime.Broadcaster, logger *slog.Logger) {
 	realtimeevents.QueueStaffTimeTrackingChanged(ctx, broadcaster, logger)
 }
@@ -19,15 +18,13 @@ func QueueStaffTimeTrackingChanged(ctx context.Context, broadcaster realtime.Bro
 type StartedInstance = realtimeevents.StartedInstance
 
 // QueueInstanceStarted announces a started timetable instance to its school
-// after the surrounding transaction commits. The root binds it to the kiosk
-// session mirror.
+// after the transaction commits. The root binds it to the kiosk session mirror.
 func QueueInstanceStarted(ctx context.Context, broadcaster realtime.Broadcaster, logger *slog.Logger, instance StartedInstance) {
 	realtimeevents.QueueInstanceStarted(ctx, broadcaster, logger, instance)
 }
 
 // QueueArrivalScheduleChanged announces an arrival schedule change after the
-// surrounding transaction commits. The root binds it to the class day's
-// announcer.
+// transaction commits. The root binds it to the class day's announcer.
 func QueueArrivalScheduleChanged(ctx context.Context, broadcaster realtimeevents.TenantPublisher, logger *slog.Logger) {
 	realtimeevents.QueueArrivalScheduleChanged(ctx, broadcaster, logger)
 }

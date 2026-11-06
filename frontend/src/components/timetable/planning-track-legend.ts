@@ -7,7 +7,7 @@
  * erklären, liegt die Ableitung hier und nicht in einer der beiden Ansichten.
  */
 
-import type { PlanLegendEntry } from "~/components/ui/plan-legend";
+import type { PlanLegendEntry } from "~/components/ui/planning/plan-legend";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 
 export function buildPlanningTrackLegend(

@@ -24,7 +24,7 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { activitiesConfig } from "@/components/database/configs/activities.config";
 import type { Activity } from "@/lib/activity-helpers";
 import { ActivitiesMasterDetail } from "@/components/activities/activities-master-detail";
-import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
+import { DatabaseFormModal } from "~/components/database/database-form-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
   useApiFormError,

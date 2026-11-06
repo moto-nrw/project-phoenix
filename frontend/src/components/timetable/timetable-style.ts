@@ -39,7 +39,7 @@ export const timetableToneColors: Record<TimetableTone, string> = {
 
 /**
  * Neutrale Blockkante für Termine ohne Planungsspur. Derselbe Wert wie
- * UNTYPED_EDGE_COLOR in ui/plan-block.tsx: die Rasterflächen, die den Block
+ * UNTYPED_EDGE_COLOR in ui/planning/plan-block.tsx: die Rasterflächen, die den Block
  * nicht selbst rendern (Monatsraster, Regeltermin-Karte, Tagesplan), müssen
  * dieselbe Kante zeigen. Benannte Konstante statt eines Hex-Literals im
  * Markup, damit ein tenant-gesetzter Spurwert und sein Ersatz an einer

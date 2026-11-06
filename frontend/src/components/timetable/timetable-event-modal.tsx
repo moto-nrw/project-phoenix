@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useCatalogRefreshOnFocus } from "~/components/database/catalog/catalog-manage-link";
 
-import { useModal } from "~/components/dashboard/modal-context";
+import { useModal } from "~/components/ui/modal-context";
 import { ClosingDayConfirmModal } from "~/components/planning/closing-day-marker";
 import { SeriesClosingDaysChoiceModal } from "~/components/planning/series-closing-days-choice-modal";
 import { Alert } from "~/components/ui/alert";

@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
-import { LogoutModal } from "~/components/ui/logout-modal";
+import { LogoutModal } from "~/components/auth/logout-modal";
 import { NavLink } from "~/components/ui/nav-link";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { parentPath } from "~/lib/parent-url";
@@ -14,7 +14,7 @@ import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import {
   PORTAL_ICON_CLASSES,
   portalSidebarRowClasses,
-} from "~/components/dashboard/sidebar-geometry";
+} from "~/components/ui/sidebar-geometry";
 import {
   PARENT_MORE_NAV,
   PARENT_PRIMARY_NAV,
