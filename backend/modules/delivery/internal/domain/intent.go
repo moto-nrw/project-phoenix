@@ -73,8 +73,11 @@ type Intent struct {
 	SentAt            *time.Time
 	DeadLetterAt      *time.Time
 	CancelledAt       *time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	// DeliveryState is what the mail provider reported after acceptance
+	// (EmailDeliveryState); empty while nothing was reported.
+	DeliveryState string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type Enqueued struct {

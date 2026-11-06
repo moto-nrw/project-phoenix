@@ -1983,6 +1983,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (s CareContractSender) TraegerLetterhead(ctx context.Context, organizationID int64) (string, error) {\n\ttexts, err := s.Settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyBrandingLetterheadText})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[configModels.KeyBrandingLetterheadText], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/CareContractSender.TraegerLetterhead",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c CareContractSignatures) ContractSignatureProofs(ctx context.Context, ids []int64) (map[int64]carecontract.SignatureProof, error) {\n\tstored, err := c.Ledger.TraegerSignatures(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tout := make(map[int64]carecontract.SignatureProof, len(stored))\n\tfor id, s := range stored {\n\t\tout[id] = carecontract.SignatureProof{VersionID: s.ContractVersionID, Method: s.Method, TypedName: s.TypedName, PNG: s.PNG, DocumentSHA256: s.DocumentSHA256, Intact: s.IntegrityOK \u0026\u0026 s.Purpose == auditlog.SignaturePurposeCareContract}\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/CareContractSignatures.ContractSignatureProofs",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (b CareOfferingCatalogBookings) MaterializableOfferingCount(ctx context.Context, offeringID int64, today calendar.Date) (int, error) {\n\treturn b.Bookings.MaterializableOfferingCount(ctx, offeringID, enrollmentOwner.Date(today))\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/CareOfferingCatalogBookings.MaterializableOfferingCount",
@@ -4272,6 +4286,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (s careContractReminderSettings) SignatureReminderDays(ctx context.Context, organizationID int64) (int, error) {\n\tvalues, err := s.settings.TraegerInts(ctx, organizationID, []string{configModels.KeyCareContractSignatureReminderDays})\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn values[configModels.KeyCareContractSignatureReminderDays], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/careContractReminderSettings.SignatureReminderDays",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t careContractTraeger) ActiveTraegerIDs(ctx context.Context) ([]int64, error) {\n\torganizations, err := t.organizations.ListOrganizations(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tids := make([]int64, 0, len(organizations))\n\tfor _, organization := range organizations {\n\t\tif organization.Active \u0026\u0026 organization.DeletedAt == nil {\n\t\t\tids = append(ids, organization.ID)\n\t\t}\n\t}\n\treturn ids, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/careContractTraeger.ActiveTraegerIDs",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (r careEndRecorder) RecordCareEndChange(ctx context.Context, studentID int64, before, after *owner0.Date, actorAccountID int64) error {\n\tprevious := \u0026peopledirectory.StudentState{EnrolledUntil: before}\n\tprevious.ID = studentID\n\tnext := \u0026peopledirectory.StudentState{EnrolledUntil: after}\n\tnext.ID = studentID\n\treturn r.audit.RecordChangesForActor(ctx, previous, next, actorAccountID)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/careEndRecorder.RecordCareEndChange",
@@ -6207,6 +6235,20 @@
       "evidence": "func (d parentContractDocuments) ContractDocumentFile(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {\n\tfile, err := d.inbox.InboxContractDocument(ctx, organizationID, contractID, carecontract.InboxReader(reader))\n\tif errors.Is(err, carecontract.ErrInboxDocumentNotFound) {\n\t\treturn parentportal.BillingDocumentFile{}, fmt.Errorf(\"%w: %w\", parentportal.ErrBillingDocumentNotFound, err)\n\t}\n\tif err != nil {\n\t\treturn parentportal.BillingDocumentFile{}, err\n\t}\n\treturn parentportal.BillingDocumentFile(file), nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentContractDocuments.ContractDocumentFile",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d parentContractDocuments) ContractSigningView(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader) (parentportal.ContractSigningView, error) {\n\tview, err := d.signing.InboxSigningView(ctx, organizationID, contractID, carecontract.InboxReader(reader))\n\treturn parentSigningView(view, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentContractDocuments.ContractSigningView",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d parentContractDocuments) SignContract(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader, input parentportal.ContractSignatureInput) (parentportal.ContractSigningView, error) {\n\tview, err := d.signing.SignInInbox(ctx, organizationID, contractID, carecontract.InboxReader(reader), carecontract.SignatureInput(input))\n\treturn parentSigningView(view, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentContractDocuments.SignContract",
       "owner": "roots"
     },
     {
