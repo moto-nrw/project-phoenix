@@ -301,6 +301,53 @@ describe("TraegerOccupancyPage", () => {
     expect(screen.queryByText("Bären")).not.toBeInTheDocument();
   });
 
+  it.each([401, 403, 404])(
+    "drops every trace of the loaded figures when a refresh answers %i",
+    async (status) => {
+      mockFetchOccupancy.mockResolvedValueOnce(OCCUPANCY);
+      renderPage();
+      await screen.findByText("14 von 16");
+      // A view other than the first, so the refusal also covers the tabs.
+      openTab("Gruppen");
+      expect((await screen.findAllByText("Bären")).length).toBeGreaterThan(0);
+
+      const assign = vi
+        .spyOn(window.location, "assign")
+        .mockImplementation(() => undefined);
+      mockFetchOccupancy.mockRejectedValue(new ApiError("refused", status));
+      await act(async () => {
+        await revalidateAll();
+      });
+
+      if (status === 401) {
+        // An ended session goes to the sign-in instead of an error card.
+        await vi.waitFor(() => expect(assign).toHaveBeenCalled());
+      } else {
+        expect(await screen.findByRole("alert")).toBeInTheDocument();
+      }
+      // Head of the page: no day, no time of the old answer, no school count.
+      expect(
+        screen.queryByText("09.09.2026, Stand 12:00 Uhr"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/Stand \d/)).not.toBeInTheDocument();
+      // Body: no figure and no group name.
+      expect(screen.queryByText("14 von 16")).not.toBeInTheDocument();
+      expect(screen.queryByText("Bären")).not.toBeInTheDocument();
+      expect(screen.queryByText("Füchse")).not.toBeInTheDocument();
+      // No export of the old answer, and no search over its schools.
+      expect(
+        screen.queryByPlaceholderText("Schule oder Ort suchen…"),
+      ).not.toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Belegung herunterladen" }),
+      );
+      expect(
+        screen.queryByRole("menuitem", { name: "CSV" }),
+      ).not.toBeInTheDocument();
+      assign.mockRestore();
+    },
+  );
+
   it("keeps loaded figures when a refresh fails for a moment", async () => {
     mockFetchOccupancy.mockResolvedValueOnce(OCCUPANCY);
     renderPage();

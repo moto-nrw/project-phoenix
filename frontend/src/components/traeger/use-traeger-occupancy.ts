@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { metadataLoadError } from "./metadata-load-error";
+import { isRefusal, metadataLoadError } from "./metadata-load-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
 import { traegerKeys } from "~/lib/swr/portal-keys";
@@ -24,10 +24,14 @@ export function useTraegerOccupancy() {
     "die Belegung der Schulen",
     response.mutate,
   );
+  // A refusal (revoked right, ended session, Träger gone) withdraws the
+  // cached answer too: the page head, every tab, the search and the export
+  // read only `occupancy`, so none of them can show the old figures.
+  const refused = isRefusal(response.error);
   return {
-    occupancy: response.data ?? null,
-    // A failed reload keeps confirmed figures; a refusal (revoked right,
-    // school gone) hides them and shows the error instead.
+    occupancy: refused ? null : (response.data ?? null),
+    // A failed reload keeps confirmed figures above the error; a refusal
+    // shows the error alone.
     error: metadataLoadError(
       error,
       response.data !== undefined,
