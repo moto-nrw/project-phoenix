@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -335,6 +335,78 @@ describe("DateTimePicker", () => {
     );
 
     expect(screen.getByLabelText("Startzeit")).toBeDisabled();
+  });
+
+  describe("time picker", () => {
+    const option = (column: "Stunde" | "Minute", name: string) =>
+      within(screen.getByRole("listbox", { name: column })).getByRole(
+        "option",
+        { name },
+      );
+    const openPicker = (user: ReturnType<typeof userEvent.setup>) =>
+      user.click(screen.getByRole("button", { name: "Uhrzeit auswählen" }));
+
+    it("locks times below the minimum on the boundary day", async () => {
+      const user = userEvent.setup();
+      render(<Controlled initial="2026-09-01T10:30" min="2026-09-01T10:30" />);
+
+      await openPicker(user);
+
+      expect(option("Stunde", "09")).toHaveAttribute("aria-disabled", "true");
+      expect(option("Stunde", "10")).not.toHaveAttribute("aria-disabled");
+      expect(option("Minute", "25")).toHaveAttribute("aria-disabled", "true");
+      expect(option("Minute", "30")).not.toHaveAttribute("aria-disabled");
+
+      await user.click(option("Stunde", "09"));
+      expect(screen.getByLabelText("Zeit")).toHaveValue("10:30");
+    });
+
+    it("leaves later days unconstrained", async () => {
+      const user = userEvent.setup();
+      render(<Controlled initial="2026-09-02T12:00" min="2026-09-01T10:30" />);
+
+      await openPicker(user);
+
+      expect(option("Stunde", "00")).not.toHaveAttribute("aria-disabled");
+    });
+
+    it("raises an early minute to the minimum when its hour is picked", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      render(
+        <Controlled
+          initial="2026-09-01T12:15"
+          min="2026-09-01T10:30"
+          onChange={onChange}
+        />,
+      );
+
+      await openPicker(user);
+      await user.click(option("Stunde", "10"));
+
+      expect(onChange).toHaveBeenLastCalledWith("2026-09-01T10:30");
+    });
+
+    it("keeps the day when a time is picked after erasing it", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      render(<Controlled initial="2026-09-01T09:30" onChange={onChange} />);
+
+      const time = screen.getByLabelText("Zeit");
+      await user.clear(time);
+      await openPicker(user);
+      await user.click(option("Stunde", "15"));
+
+      expect(onChange).toHaveBeenLastCalledWith("2026-09-01T15:00");
+    });
+
+    it("stays locked until a day is chosen", () => {
+      render(<Controlled initial="" />);
+
+      expect(
+        screen.getByRole("button", { name: "Uhrzeit auswählen" }),
+      ).toBeDisabled();
+    });
   });
 
   it("clamps the fallback time to the minimum on the boundary day", () => {

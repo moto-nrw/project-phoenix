@@ -149,7 +149,7 @@ export function DateTimePicker({
         className="min-w-0 flex-1"
         placeholder="Datum wählen"
       />
-      <div className="w-24 shrink-0">
+      <div className="w-28 shrink-0">
         <TimeField
           inline
           label={timeAriaLabel}
@@ -159,6 +159,9 @@ export function DateTimePicker({
           required={required}
           invalid={invalid}
           disabled={disabled || !day}
+          minTime={
+            day === minParts.day ? minParts.time || undefined : undefined
+          }
           onChange={(nextTime) => {
             if (!nextTime) {
               // An optional field has to stay emptiable.

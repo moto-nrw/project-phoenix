@@ -20,6 +20,7 @@ import { cn } from "~/lib/utils";
 const VIEWPORT_MARGIN = 8;
 const PANEL_GAP = 4;
 const DEFAULT_MAX_HEIGHT = 420;
+const DEFAULT_PORTAL_SCOPE = '[data-date-picker-focus-trap="true"]';
 
 interface AnchoredPopoverProps {
   readonly open: boolean;
@@ -38,6 +39,8 @@ interface AnchoredPopoverProps {
   >;
   readonly preferredWidth?: number;
   readonly align?: "start" | "end";
+  /** Vorfahre mit Fokusfalle, in dessen Baum der Rahmen portaliert wird. */
+  readonly portalScopeSelector?: string;
   readonly className?: string;
   readonly renderTrigger: (props: {
     ref: RefObject<HTMLButtonElement | null>;
@@ -60,6 +63,7 @@ export function AnchoredPopover({
   panelHandlers,
   preferredWidth,
   align = "start",
+  portalScopeSelector = DEFAULT_PORTAL_SCOPE,
   className,
   renderTrigger,
   children,
@@ -72,8 +76,7 @@ export function AnchoredPopover({
   const portalContainer =
     typeof document === "undefined"
       ? null
-      : (triggerRef.current?.closest('[data-date-picker-focus-trap="true"]') ??
-        document.body);
+      : (triggerRef.current?.closest(portalScopeSelector) ?? document.body);
 
   const close = useCallback(
     (restoreFocus = true) => {
@@ -103,7 +106,7 @@ export function AnchoredPopover({
     const openAbove =
       spaceBelow < Math.min(DEFAULT_MAX_HEIGHT, 280) && spaceAbove > spaceBelow;
     const availableHeight = Math.max(openAbove ? spaceAbove : spaceBelow, 0);
-    const scope = trigger.closest('[data-date-picker-focus-trap="true"]');
+    const scope = trigger.closest(portalScopeSelector);
     const scopeRect = scope?.getBoundingClientRect();
     const coordinateLeft = scopeRect ? left - scopeRect.left : left;
 
@@ -122,7 +125,7 @@ export function AnchoredPopover({
       style.top = rect.bottom + PANEL_GAP - (scopeRect?.top ?? 0);
     }
     setPanelStyle(style);
-  }, [align, preferredWidth]);
+  }, [align, portalScopeSelector, preferredWidth]);
 
   useLayoutEffect(() => {
     if (!open) {

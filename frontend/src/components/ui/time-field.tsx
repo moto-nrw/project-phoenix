@@ -1,8 +1,18 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { Clock } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
 
+import { AnchoredPopover } from "./anchored-popover";
+import { Button } from "./button";
 import { RequiredMark } from "./field-label";
+import { TimePickerPanel } from "./time-picker-panel";
+
+// Ein Dialog oder Slide-over zieht den Fokus aus allem heraus, was nach
+// document.body portaliert ist; die Auswahl muss deshalb in seinem Baum liegen.
+const PICKER_PORTAL_SCOPE =
+  '[data-modal-focus-scope="true"], [data-date-picker-focus-trap="true"]';
+const PICKER_WIDTH = 168;
 
 /**
  * Nur Ziffern und der Doppelpunkt; auch einstellige Stunden bleiben gültig.
@@ -59,7 +69,8 @@ export function completesOneDigitHour(raw: string): boolean {
  *
  * Das native `<input type="time">` zeigt leer ein rohes "--:--" und oeffnet je
  * nach Browser ein Systemrad. Dieses Feld ist ein normales Textfeld mit
- * sichtbarem Formathinweis und automatischem Doppelpunkt nach zwei Ziffern.
+ * sichtbarem Formathinweis und automatischem Doppelpunkt nach zwei Ziffern;
+ * das Uhr-Symbol oeffnet zusaetzlich eine Zeitauswahl aus dem Kit.
  *
  * Der Wert bleibt "HH:MM" wie beim nativen Feld, damit aufrufender Code und
  * Schnittstelle unveraendert bleiben.
@@ -77,6 +88,7 @@ export function TimeField({
   name,
   disabled = false,
   inline = false,
+  minTime,
   onBlur,
   onKeyDown,
 }: Readonly<{
@@ -100,69 +112,146 @@ export function TimeField({
    * and frame match the neighbouring `DatePicker`.
    */
   inline?: boolean;
+  /** Frühester Wert der Zeitauswahl als "HH:MM"; das Tippen bleibt frei. */
+  minTime?: string;
+  /** Der Fokus hat das Feld samt Uhr und Zeitauswahl verlassen. */
   onBlur?: () => void;
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
 }>) {
+  const inputId = useId();
   const hintId = useId();
   const completedOneDigitHour = useRef<string | null>(null);
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const initialOptionRef = useRef<HTMLElement>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const open = pickerOpen && !disabled;
+
+  const handleFocusLeave = (event: React.FocusEvent) => {
+    if (open) return;
+    const next = event.relatedTarget;
+    if (next instanceof Node && fieldRef.current?.contains(next)) return;
+    onBlur?.();
+  };
+
+  // Ein Klick außerhalb schließt die Auswahl, ohne dass Feld oder Knopf den
+  // Fokus noch einmal bekommen: Auch dann hat die Person das Feld verlassen.
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (
+      wasOpen.current &&
+      !open &&
+      !fieldRef.current?.contains(document.activeElement)
+    ) {
+      onBlur?.();
+    }
+    wasOpen.current = open;
+  }, [open, onBlur]);
 
   return (
-    <label className="block">
+    <div className="block">
       {!inline && (
-        <span className="mb-1 block text-sm font-medium text-gray-700">
+        <label
+          htmlFor={inputId}
+          className="mb-1 block text-sm font-medium text-gray-700"
+        >
           {label}
           {required && <RequiredMark />}
-        </span>
+        </label>
       )}
-      <input
-        ref={inputRef}
-        name={name}
-        type="text"
-        inputMode="numeric"
-        autoComplete="off"
-        value={value}
-        placeholder={placeholder}
-        maxLength={6}
-        required={required}
-        disabled={disabled}
-        aria-label={inline ? label : undefined}
-        aria-required={required}
-        aria-invalid={invalid}
-        aria-describedby={[describedBy, hintId].filter(Boolean).join(" ")}
-        onChange={(event) => {
-          const nextValue = normalizeTimeInput(
-            event.target.value,
-            value,
-            completedOneDigitHour.current === value,
-          );
-          completedOneDigitHour.current = completesOneDigitHour(
-            event.target.value,
-          )
-            ? nextValue
-            : null;
-          onChange(nextValue);
-        }}
-        onKeyDown={onKeyDown}
-        onBlur={() => {
-          completedOneDigitHour.current = null;
-          onBlur?.();
-        }}
-        className={`h-10 w-full rounded-lg border px-3 text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 ${
-          inline ? "bg-white text-sm" : "text-base"
-        } ${
-          invalid
-            ? inline
-              ? "border-moto-red focus-visible:border-moto-red"
-              : "border-parent-red focus-visible:border-parent-red"
-            : `focus-visible:border-gray-400 ${inline ? "border-gray-200" : "border-gray-300"}`
-        }`}
-      />
+      <div ref={fieldRef} className="relative">
+        <input
+          ref={inputRef}
+          id={inputId}
+          name={name}
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          value={value}
+          placeholder={placeholder}
+          maxLength={6}
+          required={required}
+          disabled={disabled}
+          aria-label={inline ? label : undefined}
+          aria-required={required}
+          aria-invalid={invalid}
+          aria-describedby={[describedBy, hintId].filter(Boolean).join(" ")}
+          onChange={(event) => {
+            const nextValue = normalizeTimeInput(
+              event.target.value,
+              value,
+              completedOneDigitHour.current === value,
+            );
+            completedOneDigitHour.current = completesOneDigitHour(
+              event.target.value,
+            )
+              ? nextValue
+              : null;
+            onChange(nextValue);
+          }}
+          onKeyDown={onKeyDown}
+          onBlur={(event) => {
+            completedOneDigitHour.current = null;
+            handleFocusLeave(event);
+          }}
+          className={`h-10 w-full rounded-lg border pr-10 pl-3 text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none pointer-coarse:pr-12 ${
+            inline ? "bg-white text-sm" : "text-base"
+          } ${
+            invalid
+              ? inline
+                ? "border-moto-red focus-visible:border-moto-red"
+                : "border-parent-red focus-visible:border-parent-red"
+              : `focus-visible:border-gray-400 ${inline ? "border-gray-200" : "border-gray-300"}`
+          }`}
+        />
+        <AnchoredPopover
+          open={open}
+          onOpenChange={setPickerOpen}
+          ariaLabel="Uhrzeit auswählen"
+          initialFocusRef={initialOptionRef}
+          preferredWidth={PICKER_WIDTH}
+          align="end"
+          portalScopeSelector={PICKER_PORTAL_SCOPE}
+          renderTrigger={({ ref, open: isOpen, panelId, toggle }) => (
+            <Button
+              ref={ref}
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={disabled}
+              aria-label="Uhrzeit auswählen"
+              aria-haspopup="dialog"
+              aria-expanded={isOpen}
+              aria-controls={isOpen ? panelId : undefined}
+              // Das Feld behält den Fokus, bis die Auswahl ihn übernimmt.
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                if (isOpen) ref.current?.focus();
+                toggle();
+              }}
+              onBlur={handleFocusLeave}
+              className="absolute top-1/2 right-1 -translate-y-1/2 pointer-coarse:right-0"
+            >
+              <Clock className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          )}
+        >
+          {({ close }) => (
+            <TimePickerPanel
+              value={value}
+              minTime={minTime}
+              onChange={onChange}
+              close={close}
+              initialFocusRef={initialOptionRef}
+            />
+          )}
+        </AnchoredPopover>
+      </div>
       <span
         id={hintId}
         className={inline ? "sr-only" : "mt-1 block text-xs text-gray-500"}
       >
         {hint}
       </span>
-    </label>
+    </div>
   );
 }

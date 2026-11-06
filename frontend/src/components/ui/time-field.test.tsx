@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TimeField } from "./time-field";
 
@@ -106,4 +106,208 @@ it("reports leaving the field", () => {
   fireEvent.blur(screen.getByPlaceholderText("Uhrzeit"));
 
   expect(left).toBe(true);
+});
+
+function openPicker() {
+  return userEvent.click(
+    screen.getByRole("button", { name: "Uhrzeit auswählen" }),
+  );
+}
+
+function hourOption(name: string) {
+  return within(screen.getByRole("listbox", { name: "Stunde" })).getByRole(
+    "option",
+    { name },
+  );
+}
+
+function minuteOption(name: string) {
+  return within(screen.getByRole("listbox", { name: "Minute" })).getByRole(
+    "option",
+    { name },
+  );
+}
+
+describe("time picker", () => {
+  it("sets the field from a picked hour and minute", async () => {
+    const user = userEvent.setup();
+    render(<TimeFieldDemo initialValue="" />);
+
+    await openPicker();
+    await user.click(hourOption("15"));
+    expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("15:00");
+
+    await user.click(minuteOption("30"));
+
+    expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("15:30");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("marks the current value and focuses its hour", async () => {
+    render(<TimeFieldDemo initialValue="15:30" />);
+
+    await openPicker();
+
+    expect(hourOption("15")).toHaveAttribute("aria-selected", "true");
+    expect(minuteOption("30")).toHaveAttribute("aria-selected", "true");
+    expect(hourOption("15")).toHaveFocus();
+  });
+
+  it("marks no minute for a time outside the five-minute steps", async () => {
+    render(<TimeFieldDemo initialValue="15:37" />);
+
+    await openPicker();
+
+    expect(hourOption("15")).toHaveAttribute("aria-selected", "true");
+    const minutes = within(
+      screen.getByRole("listbox", { name: "Minute" }),
+    ).getAllByRole("option");
+    expect(minutes).toHaveLength(12);
+    for (const minute of minutes) {
+      expect(minute).toHaveAttribute("aria-selected", "false");
+    }
+  });
+
+  it("keeps a typed minute when only the hour is picked", async () => {
+    const user = userEvent.setup();
+    render(<TimeFieldDemo initialValue="15:37" />);
+
+    await openPicker();
+    await user.click(hourOption("16"));
+
+    expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("16:37");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("completes the time when the minute is picked before the hour", async () => {
+    const user = userEvent.setup();
+    render(<TimeFieldDemo initialValue="" />);
+
+    await openPicker();
+    await user.click(minuteOption("45"));
+    expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("");
+    expect(minuteOption("45")).toHaveAttribute("aria-selected", "true");
+
+    await user.click(hourOption("08"));
+
+    expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("08:45");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("works by keyboard and returns focus to the clock", async () => {
+    const user = userEvent.setup();
+    render(<TimeFieldDemo initialValue="15:30" />);
+
+    await user.tab();
+    await user.tab();
+    const clock = screen.getByRole("button", { name: "Uhrzeit auswählen" });
+    expect(clock).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    expect(hourOption("15")).toHaveFocus();
+
+    await user.keyboard("{ArrowDown}");
+    expect(hourOption("16")).toHaveFocus();
+    // Pfeile wandern nur, erst Enter übernimmt.
+    expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("15:30");
+
+    await user.keyboard("{Enter}");
+    expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("16:30");
+    expect(minuteOption("30")).toHaveFocus();
+
+    await user.keyboard("{ArrowUp}{Enter}");
+    expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("16:25");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(clock).toHaveFocus();
+  });
+
+  it("closes on Escape without changing the value", async () => {
+    const user = userEvent.setup();
+    render(<TimeFieldDemo initialValue="15:30" />);
+
+    await openPicker();
+    await user.keyboard("{ArrowDown}{Escape}");
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("15:30");
+    expect(
+      screen.getByRole("button", { name: "Uhrzeit auswählen" }),
+    ).toHaveFocus();
+  });
+
+  it("keeps Tab inside the open picker", async () => {
+    const user = userEvent.setup();
+    render(<TimeFieldDemo initialValue="15:30" />);
+
+    await openPicker();
+    await user.tab();
+    expect(minuteOption("30")).toHaveFocus();
+    await user.tab();
+    expect(hourOption("15")).toHaveFocus();
+  });
+
+  it("locks the clock together with the field", () => {
+    render(
+      <TimeField
+        value="15:30"
+        onChange={() => undefined}
+        label="Uhrzeit"
+        hint="Uhrzeit im Format 15:30"
+        placeholder="HH:MM"
+        disabled
+      />,
+    );
+
+    const clock = screen.getByRole("button", { name: "Uhrzeit auswählen" });
+    expect(clock).toBeDisabled();
+    fireEvent.click(clock);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["a modal", "data-modal-focus-scope"],
+    ["a slide-over", "data-date-picker-focus-trap"],
+  ])("stays inside the focus trap of %s", async (_name, attribute) => {
+    render(
+      <div {...{ [attribute]: "true" }} data-testid="focus-trap">
+        <TimeFieldDemo initialValue="15:30" />
+      </div>,
+    );
+
+    await openPicker();
+
+    expect(
+      within(screen.getByTestId("focus-trap")).getByRole("dialog", {
+        name: "Uhrzeit auswählen",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("reports leaving only when focus left field, clock and picker", async () => {
+    const user = userEvent.setup();
+    const onBlur = vi.fn();
+    render(
+      <>
+        <TimeField
+          value="15:30"
+          onChange={() => undefined}
+          onBlur={onBlur}
+          label="Uhrzeit"
+          hint="Uhrzeit im Format 15:30"
+          placeholder="HH:MM"
+        />
+        <button type="button">Weiter</button>
+      </>,
+    );
+
+    await user.click(screen.getByPlaceholderText("HH:MM"));
+    await openPicker();
+    await user.click(hourOption("16"));
+    expect(onBlur).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(onBlur).toHaveBeenCalledTimes(1);
+  });
 });
