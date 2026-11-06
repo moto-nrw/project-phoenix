@@ -15,8 +15,6 @@ import { DataTableSkeleton } from "~/components/ui/data-table";
 import { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
 import { Skeleton } from "~/components/ui/skeleton";
 
-export { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
-
 // Deterministic width cycle — varied line lengths read as real text without
 // Math.random() (which would break SSR hydration and test snapshots).
 const LINE_WIDTHS = ["w-3/4", "w-1/2", "w-2/3", "w-5/6", "w-2/5", "w-3/5"];
