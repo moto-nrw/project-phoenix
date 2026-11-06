@@ -3026,11 +3026,13 @@ const noHandRolledPortalNav = {
     return {
       Literal: (node) => check(node, node.value),
       TemplateLiteral(node) {
+        const chunks = [];
+        collectStaticStrings(node, chunks);
         const combinations = classCombinations(
           node,
           new WeakSet(),
           sourceCode,
-        );
+        ) ?? [chunks.join(" ")];
         const rendered = combinations?.find(hasPortalNavShellSignature);
         if (rendered !== undefined) check(node, rendered);
       },

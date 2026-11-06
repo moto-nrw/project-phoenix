@@ -57,7 +57,7 @@ describe("PortalSidebar (#5680)", () => {
 
     placeSidebarAt(50);
     await scrollPage();
-    expect(inner.style.height).toBe("");
+    expect(inner.style.height).toBe("calc(100vh - 50px)");
   });
 
   it("passt sich an, wenn der Hinweis erst nach dem Laden erscheint", async () => {
@@ -72,7 +72,7 @@ describe("PortalSidebar (#5680)", () => {
         disconnect() {}
       },
     );
-    placeSidebarAt(65);
+    placeSidebarAt(73);
     const inner = renderSidebar();
     expect(inner.style.height).toBe("");
 
@@ -86,7 +86,7 @@ describe("PortalSidebar (#5680)", () => {
   });
 
   it("behält ohne Hinweis die Höhe aus der Klasse", () => {
-    placeSidebarAt(65);
+    placeSidebarAt(73);
     const inner = renderSidebar();
 
     expect(inner.style.height).toBe("");
@@ -153,6 +153,21 @@ describe("PortalSidebar, Bausteine für Eltern und Tenant (#5603)", () => {
     expect(
       container.querySelector<HTMLElement>("aside > div")!.style.height,
     ).toBe("calc(100vh - 140px)");
+  });
+
+  it("passt die Höhe an, wenn die Leiste vom Streifen zur Kopfzeile hochscrollt", async () => {
+    placeSidebarAt(121);
+    const { container } = render(
+      <PortalSidebar topOffset={121}>
+        <li>Start</li>
+      </PortalSidebar>,
+    );
+    const inner = container.querySelector<HTMLElement>("aside > div")!;
+
+    placeSidebarAt(80);
+    await scrollPage();
+
+    expect(inner.style.height).toBe("calc(100vh - 80px)");
   });
 
   it("benennt beide Blöcke in der Sprache des Portals und lässt Aktionen auslösen", () => {

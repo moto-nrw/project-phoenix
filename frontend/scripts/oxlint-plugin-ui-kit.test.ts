@@ -73,6 +73,23 @@ describe.concurrent("ui-kit/no-hand-rolled-portal-nav", () => {
     expect(output).toContain(RULE);
   });
 
+  it("finds shell classes when conditional combinations overflow", async () => {
+    const { output } = await lintSource(
+      [
+        "declare const a: boolean;",
+        "declare const b: boolean;",
+        "declare const c: boolean;",
+        "declare const d: boolean;",
+        "declare const e: boolean;",
+        "declare const f: boolean;",
+        "declare const g: boolean;",
+        'export const aside = `${a ? "border-r" : "border-l"} ${b ? "border-gray-200/70" : "border-gray-100"} ${c ? "bg-white/95" : "bg-gray-50"} ${d ? "p-1" : "p-2"} ${e ? "m-1" : "m-2"} ${f ? "gap-1" : "gap-2"} ${g ? "h-8" : "h-9"}`;',
+      ].join("\n"),
+      "src/components/dashboard/probe-nav.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
   it("rejects the kit's sidebar row classes outside the kit", async () => {
     const { output } = await lintSource(
       `import { portalSidebarRowClasses } from "~/components/ui/sidebar-geometry";

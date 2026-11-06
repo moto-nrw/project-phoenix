@@ -50,7 +50,7 @@ function useFitSidebarToWindow(topOffset: PortalSidebarTopOffset) {
       const inner = innerRef.current;
       if (!measured || !inner) return;
       const { top } = measured.getBoundingClientRect();
-      inner.style.height = top > topOffset ? `calc(100vh - ${top}px)` : "";
+      inner.style.height = top === topOffset ? "" : `calc(100vh - ${top}px)`;
     };
     let frame = 0;
     const scheduleFit = () => {
