@@ -123,6 +123,28 @@ func (s *Service) UpdateDeviceLastSeen(ctx context.Context, id int64, lastSeen t
 		domain.UpdateDevice{ID: id, LastSeen: &lastSeen}, []string{"last_seen"})
 }
 
+// RecordDeviceHeartbeat needs only the live device's identity, not its room.
+// The store selects that identity and stamps it in one tenant-scoped statement.
+func (s *Service) RecordDeviceHeartbeat(ctx context.Context, deviceID string) error {
+	if deviceID == "" {
+		return s.reject("record_device_heartbeat", devicefleet.ErrInvalidDevice)
+	}
+	return s.runWrite(ctx, "record_device_heartbeat", func(ctx context.Context, stats *domain.OperationStats) error {
+		if _, err := s.deps.Tx.TenantID(ctx); err != nil {
+			return err
+		}
+		affected, queryStats, err := s.deps.Devices.RecordHeartbeat(ctx, deviceID, s.deps.Now())
+		stats.Add(queryStats)
+		if err != nil {
+			return err
+		}
+		if affected != 1 {
+			return devicefleet.ErrDeviceNotFound
+		}
+		return nil
+	})
+}
+
 // UpdateDeviceLastSeenChecked shares the heartbeat unit with its read-only
 // authentication guard. A rejected guard rolls back without updating the device.
 func (s *Service) UpdateDeviceLastSeenChecked(ctx context.Context, id int64, check devicefleet.DeviceHeartbeatCheck) error {

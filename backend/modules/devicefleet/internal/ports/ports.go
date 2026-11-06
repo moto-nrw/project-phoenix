@@ -14,6 +14,7 @@ type DeviceStore interface {
 	Update(context.Context, domain.UpdateDevice) (devicefleet.Device, domain.OperationStats, error)
 	UpdateColumns(context.Context, domain.UpdateDevice, []string) (int64, domain.OperationStats, error)
 	UpdateStatusByDeviceID(context.Context, string, devicefleet.DeviceStatus) (int64, domain.OperationStats, error)
+	RecordHeartbeat(context.Context, string, time.Time) (int64, domain.OperationStats, error)
 	Delete(context.Context, int64) (int64, domain.OperationStats, error)
 	FindByID(context.Context, int64, string) (devicefleet.Device, bool, domain.OperationStats, error)
 	FindByDeviceID(context.Context, string) (devicefleet.Device, bool, domain.OperationStats, error)

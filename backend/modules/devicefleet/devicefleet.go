@@ -227,6 +227,9 @@ type DeviceCommand interface {
 	DeleteDevice(context.Context, int64) error
 	UpdateDeviceStatus(context.Context, string, DeviceStatus) error
 	UpdateDeviceLastSeen(context.Context, int64, time.Time) error
+	// RecordDeviceHeartbeat stamps a live device by its tenant-unique device_id,
+	// without loading unused device or room presentation.
+	RecordDeviceHeartbeat(context.Context, string) error
 	// UpdateRoomID moves one device into a room.
 	UpdateRoomID(context.Context, int64, int64) error
 }
