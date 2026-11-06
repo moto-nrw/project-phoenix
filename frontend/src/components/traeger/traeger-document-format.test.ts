@@ -3,6 +3,7 @@ import type { TraegerDocumentRelease } from "~/lib/traeger-documents-api";
 import {
   documentFileFacts,
   releaseAudienceLabel,
+  revokeConsequence,
   schoolNamesOf,
   schoolReleaseAudienceLabel,
 } from "./traeger-document-format";
@@ -75,5 +76,29 @@ describe("documentFileFacts", () => {
         sizeBytes: 3 * 1024 * 1024,
       }),
     ).toBe("Excel · 3.0 MB");
+  });
+});
+
+// Revoking one release ends only that one: who another active release
+// covers keeps the document, and the confirmation says so (#4692 review).
+describe("revokeConsequence", () => {
+  const group = release({
+    id: "2",
+    schoolId: "7",
+    groupId: "3",
+    groupName: "Bären",
+  });
+
+  it("promises the end of access only when no other release remains", () => {
+    expect(revokeConsequence(group, [group], schools, "Hausordnung")).toBe(
+      "Eltern der Gruppe „Bären“ (OGS Nord) sehen „Hausordnung“ danach nicht mehr.",
+    );
+  });
+
+  it("names that other releases keep their access", () => {
+    const all = release({ id: "1" });
+    expect(revokeConsequence(group, [all, group], schools, "Hausordnung")).toBe(
+      "Die Freigabe für Eltern der Gruppe „Bären“ (OGS Nord) endet. Andere Freigaben dieses Dokuments bleiben: Wer darüber Zugang hat, sieht „Hausordnung“ weiter.",
+    );
   });
 });

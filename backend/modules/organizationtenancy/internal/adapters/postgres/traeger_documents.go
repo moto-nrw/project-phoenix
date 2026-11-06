@@ -365,6 +365,28 @@ func appendRead(ctx context.Context, db bun.IDB, organizationID, documentID, acc
 	return nil
 }
 
+// DeleteExpiredTraegerDocumentReads deletes, across every Träger, the reads
+// older than the retention, also where nobody opens a document any more.
+// Only the administrative transaction of the hourly cleanup may delete
+// across Träger.
+func (s *TraegerDocumentStore) DeleteExpiredTraegerDocumentReads(ctx context.Context) (int, error) {
+	if !tenant.IsAdminTx(ctx) {
+		return 0, errors.New("organization tenancy postgres: the Träger document read retention requires the administrative transaction")
+	}
+	db, err := NewDatabase()(ctx)
+	if err != nil {
+		return 0, err
+	}
+	result, err := db.ExecContext(ctx, `
+		DELETE FROM platform.traeger_document_reads
+		WHERE read_at < CURRENT_TIMESTAMP - INTERVAL '`+traegerDocumentReadRetention+`'`)
+	if err != nil {
+		return 0, fmt.Errorf("organization tenancy postgres: delete expired Träger document reads: %w", err)
+	}
+	deleted, err := result.RowsAffected()
+	return int(deleted), err
+}
+
 // SchoolDocuments lists the documents released for the school or for the
 // parents at it.
 func (s *TraegerDocumentStore) SchoolDocuments(ctx context.Context, schoolID int64) ([]organizationtenancy.SharedDocument, error) {

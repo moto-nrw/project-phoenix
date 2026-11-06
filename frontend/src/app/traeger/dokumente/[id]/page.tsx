@@ -11,6 +11,7 @@ import { useMemo, useState } from "react";
 import {
   documentFileFacts,
   releaseAudienceLabel,
+  revokeConsequence,
   schoolNamesOf,
 } from "~/components/traeger/traeger-document-format";
 import { TraegerDocumentReleaseModal } from "~/components/traeger/traeger-document-release-modal";
@@ -201,11 +202,15 @@ export default function TraegerDocumentPage() {
               title="Freigabe zurücknehmen?"
               description={
                 <>
-                  <span className="font-medium">
-                    {pending ? releaseAudienceLabel(pending, names) : ""}
-                  </span>{" "}
-                  sehen „{document.title}“ danach nicht mehr. Das Dokument
-                  selbst bleibt hier gespeichert.
+                  {pending
+                    ? revokeConsequence(
+                        pending,
+                        document.releases,
+                        names,
+                        document.title,
+                      )
+                    : ""}{" "}
+                  Das Dokument selbst bleibt hier gespeichert.
                 </>
               }
               confirmLabel="Zurücknehmen"

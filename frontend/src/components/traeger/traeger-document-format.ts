@@ -55,6 +55,23 @@ export function releaseAudienceLabel(
 }
 
 /** Für wen eine Freigabe gilt, aus Sicht der eigenen Schule. */
+/**
+ * Was das Zurücknehmen einer Freigabe bewirkt. Andere aktive Freigaben
+ * bleiben; wer darüber Zugang hat, sieht das Dokument weiter.
+ */
+export function revokeConsequence(
+  pending: TraegerDocumentRelease,
+  releases: readonly TraegerDocumentRelease[],
+  names: SchoolNames,
+  title: string,
+): string {
+  const label = releaseAudienceLabel(pending, names);
+  if (releases.some((release) => release.id !== pending.id)) {
+    return `Die Freigabe für ${label} endet. Andere Freigaben dieses Dokuments bleiben: Wer darüber Zugang hat, sieht „${title}“ weiter.`;
+  }
+  return `${label} sehen „${title}“ danach nicht mehr.`;
+}
+
 export function schoolReleaseAudienceLabel(
   release: TraegerDocumentRelease,
 ): string {

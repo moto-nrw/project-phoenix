@@ -8,6 +8,7 @@ import { UploadSimpleIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
@@ -150,7 +151,11 @@ export function TraegerDocumentUploadModal({
           name="file"
           type="file"
           accept={TRAEGER_DOCUMENT_ACCEPT}
-          aria-describedby="traeger-document-file-hint"
+          aria-describedby={
+            fileError
+              ? "traeger-document-file-hint traeger-document-file-error"
+              : "traeger-document-file-hint"
+          }
           aria-invalid={fileError ? true : undefined}
           className="peer sr-only"
           onChange={(event) => {
@@ -218,9 +223,7 @@ export function TraegerDocumentUploadModal({
             </span>
           </label>
         )}
-        {fileError && (
-          <p className="text-moto-red -mt-2 text-xs">{fileError}</p>
-        )}
+        <FieldErrorHint id="traeger-document-file-error" message={fileError} />
         <Input
           id="traeger-document-title"
           name="title"

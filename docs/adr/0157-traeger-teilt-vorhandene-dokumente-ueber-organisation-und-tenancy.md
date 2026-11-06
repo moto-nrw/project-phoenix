@@ -63,3 +63,6 @@ ADR 0070).
 - Eltern bekommen zu einer neuen Freigabe keine Push-Nachricht.
 - Dateien liegen als `BYTEA` in Postgres, höchstens 10 MB, wie Logo und Briefe.
 - Eine Freigabe einer gelöschten Schule deckt niemanden mehr ab.
+- Einträge des Öffnens löscht die stündliche Bereinigung des Schedulers nach
+  drei Jahren für alle Träger, in der Admin-Transaktion wie die Löschfristen
+  der Ferienanmeldungen (Port `TraegerDocumentReadRetention`).

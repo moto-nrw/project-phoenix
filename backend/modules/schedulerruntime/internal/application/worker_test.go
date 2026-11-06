@@ -31,6 +31,12 @@ func (fakeHolidayRegistrationRetention) DeleteExpiredHolidayRegistrations(contex
 	return 0, nil
 }
 
+type fakeTraegerDocumentReadRetention struct{}
+
+func (fakeTraegerDocumentReadRetention) DeleteExpiredTraegerDocumentReads(context.Context) (int, error) {
+	return 0, nil
+}
+
 type fakeAccountRetention struct{}
 
 func (fakeAccountRetention) EraseUnusedAccounts(context.Context) (int, error) { return 0, nil }
@@ -58,6 +64,7 @@ func minimalWorkerDependencies(t *testing.T) ports.WorkerDependencies {
 		OperatorRetention:            ports.OperatorRetention{Ledger: fakeOperatorRetention{}, Accounts: fakeOperatorRetention{}},
 		AccountRetention:             fakeAccountRetention{},
 		HolidayRegistrationRetention: fakeHolidayRegistrationRetention{},
+		TraegerDocumentReadRetention: fakeTraegerDocumentReadRetention{},
 		FeedbackCleaner:              &fakeFeedbackCleaner{},
 		CleanupRuns:                  newFakeCleanupRuns(),
 		Lease: ports.WorkerLease{
@@ -96,6 +103,7 @@ func TestNewWorkerRejectsMissingTokenCleanupDependencies(t *testing.T) {
 		{name: "operator invitation cleanup", remove: func(deps *ports.WorkerDependencies) { deps.OperatorInvitationCleanup = nil }},
 		{name: "account retention", remove: func(deps *ports.WorkerDependencies) { deps.AccountRetention = nil }},
 		{name: "holiday registration retention", remove: func(deps *ports.WorkerDependencies) { deps.HolidayRegistrationRetention = nil }},
+		{name: "Träger document read retention", remove: func(deps *ports.WorkerDependencies) { deps.TraegerDocumentReadRetention = nil }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

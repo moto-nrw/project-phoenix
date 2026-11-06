@@ -9,6 +9,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -24,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	organizationtenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -357,4 +359,40 @@ func TestTraegerDocumentListsReadFlat(t *testing.T) {
 	assert.Len(t, read(lead, "/api/traeger-documents/"), len(school))
 	querybudgets.AssertQueryBudget(t, "api.traeger.documents", traeger)
 	querybudgets.AssertQueryBudget(t, "api.school.traeger_documents", school)
+}
+
+// TestTraegerDocumentReadsExpireWithoutAnyOpening pins the retention of the
+// reads (#4692 review): the hourly cleanup deletes every Träger's reads older
+// than three years, even when nobody opens a document of that Träger any
+// more, and keeps the younger ones. Outside the administrative transaction
+// the deletion refuses.
+func TestTraegerDocumentReadsExpireWithoutAnyOpening(t *testing.T) {
+	t.Parallel()
+	f := newTraegerDocumentsFixture(t)
+	ctx := context.Background()
+	document := f.uploaded(t, f.office.token, "Hausordnung")
+	_, err := f.db.ExecContext(ctx, `INSERT INTO platform.traeger_document_reads (organization_id, document_id, reader, read_at)
+		VALUES (?0, ?1, 'school', NOW() - INTERVAL '3 years 1 day'), (?0, ?1, 'parent', NOW() - INTERVAL '2 years 11 months')`,
+		f.office.organization, document.ID)
+	require.NoError(t, err)
+	reads := func() []string {
+		var ages []string
+		require.NoError(t, f.db.NewRaw(`SELECT CASE WHEN read_at < NOW() - INTERVAL '3 years' THEN 'expired' ELSE 'kept' END
+			FROM platform.traeger_document_reads WHERE organization_id = ? ORDER BY read_at`, f.office.organization).Scan(ctx, &ages))
+		return ages
+	}
+	require.Equal(t, []string{"expired", "kept"}, reads())
+
+	retention := organizationtenancyCompose.NewSharedTraegerDocuments()
+	unit := tenant.WithUnitOfWork(ctx, testpkg.TenantRuntime(t, f.db))
+	require.Error(t, tenant.WithinTraeger(unit, f.office.organization, func(traegerCtx context.Context) error {
+		_, err := retention.DeleteExpiredTraegerDocumentReads(traegerCtx)
+		return err
+	}), "only the administrative transaction deletes across Träger")
+	require.NoError(t, tenant.WithinAdmin(unit, func(adminCtx context.Context) error {
+		deleted, err := retention.DeleteExpiredTraegerDocumentReads(adminCtx)
+		assert.GreaterOrEqual(t, deleted, 1)
+		return err
+	}))
+	assert.Equal(t, []string{"kept"}, reads(), "the expired read goes, the younger one stays")
 }
