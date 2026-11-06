@@ -21,6 +21,7 @@ import {
   listAdminEnrollmentChangeRequests,
   listAdminRequests,
 } from "~/lib/enrollment-admin-api";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { listCareOfferings } from "~/lib/care-offering-api";
 import {
@@ -967,19 +968,9 @@ function StatusPill({
   label: string;
   tone: "success" | "info" | "neutral";
 }>) {
-  const className =
-    tone === "success"
-      ? "bg-moto-green/15 text-moto-green-strong"
-      : tone === "info"
-        ? "bg-moto-blue/10 text-moto-blue-hover"
-        : "bg-gray-100 text-gray-600";
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${className}`}
-    >
-      {label}
-    </span>
-  );
+  const badgeTone =
+    tone === "success" ? "green" : tone === "info" ? "blue" : "gray";
+  return <StatusBadge tone={badgeTone} compact label={label} />;
 }
 
 function StepMeta({

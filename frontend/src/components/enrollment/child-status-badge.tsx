@@ -18,7 +18,7 @@ export const CHILD_STATUS_LABELS: Record<ChildStatus, string> = {
   pending_admin_review: "Manuelle Prüfung",
 };
 
-const CHILD_STATUS_TONES: Record<ChildStatus, StatusBadgeTone> = {
+export const CHILD_STATUS_TONES: Record<ChildStatus, StatusBadgeTone> = {
   submitted: "blue",
   under_review: "blue",
   approved: "green",

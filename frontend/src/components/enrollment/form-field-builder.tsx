@@ -29,6 +29,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { AttachmentEditor } from "~/components/enrollment/attachment-editor";
 import {
   FileFieldOptionsEditor,
@@ -1469,9 +1470,7 @@ export function PreviewFieldsSection({
     <section>
       <div className="mb-3 flex items-center justify-between gap-3">
         <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
-        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-          {fields.length}
-        </span>
+        <StatusBadge tone="gray" compact label={String(fields.length)} />
       </div>
       {fields.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/80 px-4 py-5 text-center">

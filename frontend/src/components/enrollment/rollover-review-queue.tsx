@@ -17,6 +17,8 @@ import {
   listRolloverReview,
   type ReviewQueueItem,
 } from "~/lib/enrollment-phase-api";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -243,8 +245,12 @@ export function RolloverReviewQueue({ phaseID }: Props) {
                 </div>
 
                 {reasonLabel && (
-                  <div className="bg-moto-amber/15 text-moto-amber-strong mt-3 inline-flex items-center rounded-full px-3 py-1 text-xs font-medium">
-                    {reasonLabel}
+                  <div className="mt-3">
+                    <StatusColorBadge
+                      color={LOCATION_COLORS.WARNING}
+                      wrap
+                      label={reasonLabel}
+                    />
                   </div>
                 )}
 
