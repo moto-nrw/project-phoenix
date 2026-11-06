@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.schools_today",
+  "max": 9,
+  "exact": true,
+  "description": "Retired with GET /traeger/schools/today after #5942: no production callers remain. Historical ceiling retained so removing an endpoint does not erase or weaken its SQL contract."
+}

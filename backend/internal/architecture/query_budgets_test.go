@@ -104,3 +104,42 @@ func historicalQueryFixture(t *testing.T, repo string) {
 	runGit(t, repo, "add", ".")
 	runGit(t, repo, "commit", "-qm", "historical query base")
 }
+
+// A removed endpoint leaves its immutable SQL contract behind, not an executable
+// budget without a test. Moving it must not permit a raised ceiling.
+func TestCompareQueryBudgetsRetirementPreservesCeiling(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct{ name, fragment, want string }{
+		{"retired", queryBudgetFragment, ""},
+		{"retired ceiling raised", strings.Replace(queryBudgetFragment, `"max":1`, `"max":2`, 1), "max: 1 -> 2"},
+		{"retired exactness weakened", strings.Replace(queryBudgetFragment, `"exact":true`, `"exact":false`, 1), "exact: true -> false"},
+		{"still active", queryBudgetFragment, "both active and retired"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			repo, base := ratchetRepository(t, legacyRecord(2583))
+			if test.name != "still active" {
+				if err := os.Remove(filepath.Join(repo, "test", "query-budgets", "owner", "list.json")); err != nil {
+					t.Fatal(err)
+				}
+				writeFile(t, filepath.Join(repo, "test", "query-budgets", "other.json"), strings.Replace(queryBudgetFragment, "fixture.list", "fixture.other", 1))
+			}
+			writeFile(t, filepath.Join(repo, "architecture", "retired-query-budgets", "list.json"), test.fragment)
+			err := CompareQueryBudgets(repo, base)
+			if test.want == "" && err != nil || test.want != "" && (err == nil || !strings.Contains(err.Error(), test.want)) {
+				t.Fatalf("want %q, got %v", test.want, err)
+			}
+			if test.want == "" {
+				runGit(t, repo, "add", ".")
+				runGit(t, repo, "commit", "-qm", "retire endpoint budget")
+				retiredBase := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+				if err := os.RemoveAll(filepath.Join(repo, "architecture", "retired-query-budgets")); err != nil {
+					t.Fatal(err)
+				}
+				if err := CompareQueryBudgets(repo, retiredBase); err == nil || !strings.Contains(err.Error(), "fixture.list disappeared") {
+					t.Fatalf("lost immutable retired contract: %v", err)
+				}
+			}
+		})
+	}
+}

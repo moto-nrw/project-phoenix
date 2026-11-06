@@ -13,6 +13,8 @@ import (
 // CompareQueryBudgets preserves each SQL contract against an immutable Git
 // base, including the historical Go-map representation. New scenarios establish
 // a budget; an existing scenario cannot disappear, grow or lose exactness.
+// Removed endpoints retain their contracts in architecture/retired-query-budgets,
+// outside the executable register checked by TestQueryBudgetRatchet.
 func CompareQueryBudgets(project, ref string) error {
 	root, err := gitOutput(project, "rev-parse", "--show-toplevel")
 	if err != nil {
@@ -31,6 +33,9 @@ func CompareQueryBudgets(project, ref string) error {
 	if err != nil {
 		return fmt.Errorf("read candidate query budgets: %w", err)
 	}
+	if err := includeRetiredQueryBudgets(project, candidate); err != nil {
+		return err
+	}
 	var violations []string
 	for scenario, before := range base {
 		after, exists := candidate[scenario]
@@ -46,6 +51,25 @@ func CompareQueryBudgets(project, ref string) error {
 	if len(violations) != 0 {
 		sort.Strings(violations)
 		return fmt.Errorf("query budgets weakened against base %s:\n  %s", sha, strings.Join(violations, "\n  "))
+	}
+	return nil
+}
+
+func includeRetiredQueryBudgets(project string, candidate map[string]querybudget.Budget) error {
+	retiredPath := filepath.Join(project, "architecture", "retired-query-budgets")
+	if _, err := os.Stat(retiredPath); err == nil {
+		retired, err := querybudget.ReadQueryBudgets(os.DirFS(project), "architecture/retired-query-budgets")
+		if err != nil {
+			return fmt.Errorf("read retired query budgets: %w", err)
+		}
+		for scenario, budget := range retired {
+			if _, active := candidate[scenario]; active {
+				return fmt.Errorf("query budget %q is both active and retired", scenario)
+			}
+			candidate[scenario] = budget
+		}
+	} else if !os.IsNotExist(err) {
+		return err
 	}
 	return nil
 }
@@ -70,7 +94,11 @@ func baseQueryBudgets(root, project, sha string) (map[string]querybudget.Budget,
 	if err != nil {
 		return nil, err
 	}
-	listing, err := gitOutput(root, "ls-tree", "-r", "-z", sha, "--", prefix)
+	retiredPrefix, err := repositoryRelativePath(root, project, "architecture/retired-query-budgets")
+	if err != nil {
+		return nil, err
+	}
+	listing, err := gitOutput(root, "ls-tree", "-r", "-z", sha, "--", prefix, retiredPrefix)
 	if err != nil {
 		return nil, err
 	}
