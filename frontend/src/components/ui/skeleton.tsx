@@ -29,8 +29,8 @@ function Skeleton({
     <div
       className={cn(
         "animate-pulse bg-gray-200 motion-reduce:animate-none",
-        SKELETON_SHAPES[shape],
         className,
+        SKELETON_SHAPES[shape],
       )}
       {...props}
     />

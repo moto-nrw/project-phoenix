@@ -65,7 +65,7 @@ function GridSkeletonBody() {
                         className="border-l border-gray-100 px-1 py-1 align-top"
                       >
                         <Skeleton
-                          className={`${RESOURCE_GRID_METRICS.cellMinHeightClass.days}w-full`}
+                          className={`${RESOURCE_GRID_METRICS.cellMinHeightClass.days} w-full`}
                         />
                       </td>
                     ))}

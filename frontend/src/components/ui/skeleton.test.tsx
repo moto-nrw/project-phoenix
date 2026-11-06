@@ -46,11 +46,14 @@ describe("Skeleton", () => {
     );
   });
 
-  it("can override rounded class with custom className", () => {
-    render(<Skeleton data-testid="skeleton" className="rounded-full" />);
+  it("does not let className override the radius selected by shape", () => {
+    render(
+      <Skeleton data-testid="skeleton" shape="line" className="rounded-full" />,
+    );
 
     const skeleton = screen.getByTestId("skeleton");
-    expect(skeleton).toHaveClass("rounded-full");
+    expect(skeleton).toHaveClass("rounded-md");
+    expect(skeleton).not.toHaveClass("rounded-full");
   });
 
   it.each([
