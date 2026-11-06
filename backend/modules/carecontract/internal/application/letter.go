@@ -139,7 +139,7 @@ func letterValues(record ContractRecord, head carecontract.Letterhead) map[strin
 	switch {
 	case version.PriceCents != nil:
 		values["summe"] = text(formatEuro(*version.PriceCents))
-	case len(ModuleNames(version.Services)) > 1:
+	case moduleCount(version.Services) > 1:
 		values["summe"] = text(feeByRules)
 	}
 	return values
@@ -165,7 +165,7 @@ func termFacts(version carecontract.Version, head carecontract.Letterhead) []Let
 	switch {
 	case version.PriceCents != nil:
 		facts = append(facts, LetterFact{Label: "Beitrag im Monat", Value: formatEuro(*version.PriceCents), Bold: true})
-	case len(ModuleNames(version.Services)) > 1:
+	case moduleCount(version.Services) > 1:
 		facts = append(facts, LetterFact{Label: "Beitrag im Monat", Value: feeByRules})
 	}
 	facts = append(facts,
@@ -211,6 +211,16 @@ func ServiceText(service carecontract.Service) string {
 		return service.ModuleName
 	}
 	return service.ModuleName + " bis " + service.EndsAt + " Uhr"
+}
+
+// moduleCount counts the booked modules by offering, so two offerings with
+// the same name still count as two.
+func moduleCount(services []carecontract.Service) int {
+	offerings := map[int64]bool{}
+	for _, service := range services {
+		offerings[service.CareOfferingID] = true
+	}
+	return len(offerings)
 }
 
 // ModuleNames lists the modules of the services once each, in the order of

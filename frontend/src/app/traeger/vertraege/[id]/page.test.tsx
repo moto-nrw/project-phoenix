@@ -163,6 +163,36 @@ describe("TraegerVertragPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("counts two same-named offerings as two modules", async () => {
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      moduleNames: ["Nachmittagsbetreuung"],
+      version: {
+        ...DRAFT.version,
+        priceCents: null,
+        services: [
+          {
+            weekday: "mon",
+            careOfferingId: "7",
+            moduleName: "Nachmittagsbetreuung",
+            endsAt: "16:00",
+          },
+          {
+            weekday: "tue",
+            careOfferingId: "8",
+            moduleName: "Nachmittagsbetreuung",
+            endsAt: "16:00",
+          },
+        ],
+      },
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText("Laut Beitragsordnung für die gebuchten Module"),
+    ).toBeInTheDocument();
+  });
+
   it("sends the draft", async () => {
     api.sendCareContracts.mockResolvedValue({ sent: ["7"], skipped: [] });
     renderPage();

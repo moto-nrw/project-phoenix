@@ -157,3 +157,24 @@ func TestContractPartnerDoesNotNeedBrandingWhenExplicitlyNamed(t *testing.T) {
 	assert.Contains(t, termFacts(version, carecontract.Letterhead{}), LetterFact{Label: "Vertragspartner", Value: "Träger Am Lindenhof"})
 	assert.Contains(t, termFacts(version, carecontract.Letterhead{SenderText: "Briefkopf"}), LetterFact{Label: "Vertragspartner", Value: "Träger Am Lindenhof"})
 }
+
+// Two offerings with one name are still two modules: the contract names the
+// fee rules instead of leaving the fee out (#4678 review).
+func TestServiceFactsCountModulesByOfferingNotByName(t *testing.T) {
+	t.Parallel()
+	services := []carecontract.Service{
+		{Weekday: "mon", CareOfferingID: 1, ModuleName: "Nachmittagsbetreuung", EndsAt: "16:00"},
+		{Weekday: "tue", CareOfferingID: 2, ModuleName: "Nachmittagsbetreuung", EndsAt: "16:00"},
+	}
+	assert.Equal(t, 2, moduleCount(services))
+	facts := termFacts(carecontract.Version{Services: services}, carecontract.Letterhead{SenderText: "Träger"})
+	assert.Contains(t, facts, LetterFact{Label: "Beitrag im Monat", Value: feeByRules})
+}
+
+// A batch sends, and so locks, its contracts in ascending order, whatever
+// order the request names them in.
+func TestSendOrderIsAscendingSoOverlappingBatchesCannotDeadlock(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, []int64{1, 2, 7}, uniqueIDs([]int64{7, 2, 0, 1, 2}))
+	assert.Equal(t, uniqueIDs([]int64{1, 2}), uniqueIDs([]int64{2, 1}))
+}

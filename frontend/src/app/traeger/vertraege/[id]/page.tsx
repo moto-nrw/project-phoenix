@@ -354,7 +354,11 @@ export default function TraegerVertragPage() {
                   <DataField label="Beitrag im Monat">
                     {contract.version.priceCents !== null
                       ? formatEuro(contract.version.priceCents)
-                      : contract.moduleNames.length > 1
+                      : new Set(
+                            contract.version.services.map(
+                              (service) => service.careOfferingId,
+                            ),
+                          ).size > 1
                         ? "Laut Beitragsordnung für die gebuchten Module"
                         : "Kein Beitrag hinterlegt"}
                   </DataField>

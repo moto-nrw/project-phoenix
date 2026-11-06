@@ -373,6 +373,9 @@ func knownStatus(status string) bool {
 	}, status)
 }
 
+// uniqueIDs keeps every positive ID once, in ascending order. A send locks
+// each contract row until its transaction ends; the fixed order keeps two
+// overlapping batches, [1, 2] and [2, 1], from waiting on each other.
 func uniqueIDs(ids []int64) []int64 {
 	result := make([]int64, 0, len(ids))
 	for _, id := range ids {
@@ -380,5 +383,6 @@ func uniqueIDs(ids []int64) []int64 {
 			result = append(result, id)
 		}
 	}
+	slices.Sort(result)
 	return result
 }
