@@ -1,14 +1,13 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useState } from "react";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import { mealPlanConcept } from "~/lib/concepts/mealPlan";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
@@ -86,24 +85,39 @@ function OperatorCaterersPageContent() {
     () => void mutate(),
   );
 
-  const tabs = useMemo(
-    () => ({
-      items: [{ id: "caterers", label: "Caterer", count: data?.length }],
-      activeTab: "caterers",
-      onTabChange: () => undefined,
-    }),
-    [data?.length],
-  );
+  const count = data?.length;
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title="Caterer"
-        concept={mealPlanConcept}
-        tabs={tabs}
-      />
-
-      <LoadErrorAlert error={loadError} className="mb-4" />
+    <TenantPage
+      title="Caterer"
+      stats={
+        count === undefined ? undefined : (
+          <TenantPageStats
+            items={[
+              { value: count, label: count === 1 ? "Caterer" : "Caterer" },
+            ]}
+          />
+        )
+      }
+      overlays={
+        <>
+          {resetTarget ? (
+            <MFAAdminOverrideModal
+              isOpen={true}
+              onClose={() => {
+                setResetTarget(null);
+                void mutate();
+              }}
+              scope="caterer"
+              catererId={resetTarget.id}
+              accountId={resetTarget.accountId}
+              accountLabel={`${resetTarget.name} (${resetTarget.email})`}
+            />
+          ) : null}
+        </>
+      }
+    >
+      <LoadErrorAlert error={loadError} />
 
       {(data === undefined && !isLoading) || error ? null : !isLoading &&
         data?.length === 0 ? (
@@ -120,21 +134,7 @@ function OperatorCaterersPageContent() {
           isLoading={isLoading}
         />
       )}
-
-      {resetTarget ? (
-        <MFAAdminOverrideModal
-          isOpen={true}
-          onClose={() => {
-            setResetTarget(null);
-            void mutate();
-          }}
-          scope="caterer"
-          catererId={resetTarget.id}
-          accountId={resetTarget.accountId}
-          accountLabel={`${resetTarget.name} (${resetTarget.email})`}
-        />
-      ) : null}
-    </div>
+    </TenantPage>
   );
 }
 

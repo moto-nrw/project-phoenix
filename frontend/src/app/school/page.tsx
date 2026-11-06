@@ -18,21 +18,19 @@ import {
 
 export default function SchoolHomePage() {
   return (
-    <div className="space-y-6">
-      {/* Hinweise der OGS-Leitung für heute (#2208): oben, damit sie einem
-          begegnen; ohne Hinweis rendert die Karte nichts. */}
-      <TodayNoticesCard />
-      {/* useSearchParams (der angezeigte Tag steht in der Adresse) braucht
-          eine Suspense-Grenze. */}
-      <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-        <ClassDayOverview
-          fetchClasses={fetchClassDayClassesSchool}
-          fetchClassDay={fetchClassDaySchool}
-          fetchSchoolDay={fetchSchoolDaySchool}
-          reportAbsence={reportAbsenceSchool}
-          withdrawAbsenceReport={withdrawAbsenceReportSchool}
-        />
-      </Suspense>
-    </div>
+    // useSearchParams (der angezeigte Tag steht in der Adresse) braucht eine
+    // Suspense-Grenze.
+    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+      <ClassDayOverview
+        fetchClasses={fetchClassDayClassesSchool}
+        fetchClassDay={fetchClassDaySchool}
+        fetchSchoolDay={fetchSchoolDaySchool}
+        reportAbsence={reportAbsenceSchool}
+        withdrawAbsenceReport={withdrawAbsenceReportSchool}
+        // Hinweise der OGS-Leitung für heute (#2208): direkt unter dem Kopf;
+        // ohne Hinweis rendert die Karte nichts.
+        notices={<TodayNoticesCard />}
+      />
+    </Suspense>
   );
 }

@@ -155,7 +155,13 @@ describe("OperatorOperatorsPage", () => {
     setupSWR(sampleData);
     render(<OperatorOperatorsPage />);
 
-    expect(screen.getByText("Operatoren")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Operatoren" }),
+    ).toBeInTheDocument();
+    // Die Erklärung liegt hinter dem Info-Knopf neben dem Titel (#5604).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Erklärung zu Operatoren" }),
+    );
     expect(
       screen.getByText("Neue Operatoren einladen und bestehende anzeigen."),
     ).toBeInTheDocument();

@@ -83,30 +83,6 @@ vi.mock("~/lib/format-utils", () => ({
   formatCount: (value: number) => new Intl.NumberFormat("de-DE").format(value),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({ title, tabs, actionButton }: any) => (
-    <div data-testid="page-header">
-      <h1>{title}</h1>
-      {tabs && (
-        <div data-testid="tabs">
-          {tabs.items.map((tab: any) => (
-            <button
-              type="button"
-              key={tab.id}
-              data-testid={`tab-${tab.id}`}
-              className={tabs.activeTab === tab.id ? "active" : ""}
-            >
-              {tab.label}
-              {tab.count !== undefined && ` (${tab.count})`}
-            </button>
-          ))}
-        </div>
-      )}
-      {actionButton}
-    </div>
-  ),
-}));
-
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({ isOpen, children, title, footer }: any) =>
     isOpen ? (
@@ -242,14 +218,14 @@ describe("OperatorOrganizationsPage", () => {
     expect(screen.getAllByText("Neuer Träger").length).toBeGreaterThan(0);
   });
 
-  it("shows tab count", () => {
+  it("shows the count in the status line", () => {
     withDefaultSWR();
 
     render(<OperatorOrganizationsPage />);
 
-    expect(screen.getByTestId("tab-organizations")).toHaveTextContent(
-      "Träger (1)",
-    );
+    const head = screen.getByRole("banner");
+    expect(head).toHaveTextContent("1");
+    expect(head).toHaveTextContent("Träger");
   });
 
   it("passes null SWR key when not authenticated", () => {

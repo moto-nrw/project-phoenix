@@ -33,12 +33,12 @@ import type {
 } from "~/lib/operator/operator-invitation-helpers";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { createLogger } from "~/lib/logger";
-import { ConceptPageHeader } from "~/components/ui/concept-page-header";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { operatorsConcept } from "~/lib/concepts/operators";
 import { SectionCard } from "~/components/ui/section-card";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
-import { operatorsConcept } from "~/lib/concepts/operators";
 
 const logger = createLogger({ component: "OperatorOperatorsPage" });
 
@@ -62,13 +62,10 @@ export default function OperatorOperatorsPage() {
   );
 
   return (
-    <div className="space-y-8 p-6">
-      <ConceptPageHeader
-        title="Operatoren"
-        concept={operatorsConcept}
-        subtitle="Neue Operatoren einladen und bestehende anzeigen."
-      />
-
+    <TenantPage
+      title="Operatoren"
+      info={<p>Neue Operatoren einladen und bestehende anzeigen.</p>}
+    >
       <InviteForm onCreated={() => void mutate()} />
 
       <LoadErrorAlert error={loadError} />
@@ -93,7 +90,7 @@ export default function OperatorOperatorsPage() {
           />
         </>
       )}
-    </div>
+    </TenantPage>
   );
 }
 

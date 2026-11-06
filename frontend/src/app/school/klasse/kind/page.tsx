@@ -19,12 +19,10 @@ import {
   classDayDateParam,
   classDayPath,
 } from "~/components/class-day/routes";
-import { BackLink } from "~/components/ui/back-link";
 import { EmptyState } from "~/components/ui/empty-state";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { formatDate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
@@ -104,41 +102,29 @@ function SharedNotes({
     () => void mutate(),
   );
 
-  const back = (
-    <BackLink
-      href={schoolPath(classDayPath(schoolClass, dateISO))}
-      label={`Zurück zur ${schoolClassLabel(schoolClass) || "Klasse"}`}
-    />
-  );
   const name = data ? `${data.first_name} ${data.last_name}`.trim() : "";
+  const nothingChosen = !schoolClass || !studentId;
 
   return (
-    <div className="-mt-1.5 w-full space-y-6">
-      {back}
-      <div>
-        <h1 className="text-xl font-semibold break-words text-gray-900 sm:text-2xl">
-          {name || "Beobachtungen der OGS"}
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          {schoolClassLabel(schoolClass)}
-        </p>
-      </div>
-
-      {loadError ? <LoadErrorAlert error={loadError} /> : null}
-
-      {!schoolClass || !studentId ? (
-        <EmptyState
-          title="Kein Kind ausgewählt"
-          description="Öffnen Sie die Beobachtungen über die Klassenseite."
-        />
-      ) : null}
-
-      {isLoading && !data ? (
-        <SkeletonRegion label="Beobachtungen werden geladen…">
-          <ListSkeleton rows={3} avatar={false} />
-        </SkeletonRegion>
-      ) : null}
-
+    <TenantPage
+      title={name || "Beobachtungen der OGS"}
+      back
+      backHref={schoolPath(classDayPath(schoolClass, dateISO))}
+      backLabel={`Zurück zur ${schoolClassLabel(schoolClass) || "Klasse"}`}
+      stats={schoolClassLabel(schoolClass)}
+      loading={!nothingChosen && isLoading && !data}
+      loadingLabel="Beobachtungen werden geladen…"
+      error={loadError}
+      empty={
+        nothingChosen
+          ? {
+              title: "Kein Kind ausgewählt",
+              description:
+                "Öffnen Sie die Beobachtungen über die Klassenseite.",
+            }
+          : null
+      }
+    >
       {data ? (
         <SectionCard
           title="Beobachtungen der OGS"
@@ -164,7 +150,7 @@ function SharedNotes({
           )}
         </SectionCard>
       ) : null}
-    </div>
+    </TenantPage>
   );
 }
 

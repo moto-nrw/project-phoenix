@@ -59,6 +59,7 @@
     "ui-kit/no-white-on-warm-fill": "error",
     "ui-kit/no-raw-input": "error",
     "ui-kit/no-kit-domain-import": "error",
+    "ui-kit/no-radix-outside-kit": "error",
     "ui-kit/no-important-override": "error",
     "ui-kit/no-section-card-bleed": "error",
     "ui-kit/require-checkbox-label": "error",

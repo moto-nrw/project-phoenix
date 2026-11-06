@@ -21,6 +21,12 @@ function render(ui: React.ReactElement) {
   return renderPlain(ui, { wrapper: ToastProvider });
 }
 
+// Das Operator-Portal hat keinen Tenant-Kontext: der Rückweg bekommt kein Präfix.
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantRoutingModeSafe: () => "path",
+}));
+
 vi.mock("~/components/operator/transfer-device-modal", () => ({
   TransferDeviceModal: () => null,
 }));
@@ -789,9 +795,11 @@ describe("OperatorSchoolDetailPage", () => {
 
       await renderPage();
 
-      // The persons-table renders a "Löschen" button with title="Person löschen".
-      const rowDelete = await screen.findByTitle("Person löschen");
-      fireEvent.click(rowDelete);
+      // The persons-table keeps "Löschen" in the row's kebab (#5604).
+      fireEvent.click(
+        await screen.findByRole("button", { name: /^Aktionen für/ }),
+      );
+      fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
 
       await waitFor(() => {
         expect(

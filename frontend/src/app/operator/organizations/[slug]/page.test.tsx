@@ -24,6 +24,12 @@ function render(ui: React.ReactElement) {
   return renderPlain(ui, { wrapper: ToastProvider });
 }
 
+// Das Operator-Portal hat keinen Tenant-Kontext: der Rückweg bekommt kein Präfix.
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantRoutingModeSafe: () => "path",
+}));
+
 vi.mock("~/components/operator/transfer-device-modal", () => ({
   TransferDeviceModal: () => null,
 }));

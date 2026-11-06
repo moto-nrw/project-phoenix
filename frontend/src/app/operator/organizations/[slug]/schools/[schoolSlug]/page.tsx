@@ -23,8 +23,11 @@ import {
   summaryToOrganization,
   summaryToSchool,
 } from "~/lib/operator/provisioning-helpers";
-import { EntityHeaderCard } from "~/components/operator/entity-header-card";
-import { BackLink } from "~/components/ui/back-link";
+import {
+  EntityStats,
+  EntityStatusLine,
+} from "~/components/operator/entity-head";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
@@ -33,8 +36,7 @@ import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { Button, ButtonLink } from "~/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -53,8 +55,6 @@ import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-mod
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import { useSoftDeletable } from "~/app/operator/provisioning/soft-delete-shared";
 import { SchoolSoftDeleteModal } from "~/app/operator/provisioning/operator-entity-modals";
-import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
-import { schoolsConcept } from "~/lib/concepts/schools";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 
@@ -561,82 +561,244 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
 
   if (!school && headLoadError) {
     return (
-      <div className="w-full">
-        <BackLink {...organizationBack} className="mb-4" />
-        <LoadErrorAlert error={headLoadError} />
-      </div>
+      <TenantPage
+        title="Schule"
+        back
+        backHref={organizationBack.href}
+        backLabel={organizationBack.label}
+        error={headLoadError}
+      />
     );
   }
 
   if ((!organizations || schoolsLoading) && !school) {
     return (
-      <SkeletonRegion label="Schule wird geladen">
-        <DetailSkeleton sections={1} fieldsPerSection={3} />
-      </SkeletonRegion>
+      <TenantPage
+        title="Schule"
+        back
+        backHref={organizationBack.href}
+        backLabel={organizationBack.label}
+        loading
+        loadingLabel="Schule wird geladen"
+      />
     );
   }
 
   if (!organization) {
     logger.warn("organization_not_found_by_slug", { slug });
     return (
-      <div className="w-full">
-        <BackLink
-          href="/operator/organizations"
-          label="Zurück zu den Trägern"
-        />
-        <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center">
-          <p className="text-gray-600">Träger nicht gefunden.</p>
-        </div>
-      </div>
+      <TenantPage
+        title="Schule"
+        back
+        backHref="/operator/organizations"
+        backLabel="Zurück zu den Trägern"
+        empty={{ title: "Träger nicht gefunden." }}
+      />
     );
   }
 
   if (!school) {
     logger.warn("school_not_found_by_slug", { slug, schoolSlug });
     return (
-      <div className="w-full">
-        <BackLink {...organizationBack} />
-        <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center">
-          <p className="text-gray-600">Schule nicht gefunden.</p>
-        </div>
-      </div>
+      <TenantPage
+        title="Schule"
+        back
+        backHref={organizationBack.href}
+        backLabel={organizationBack.label}
+        empty={{ title: "Schule nicht gefunden." }}
+      />
     );
   }
 
   return (
-    <div className="w-full">
-      <EntityHeaderCard
-        back={organizationBack}
-        title={school.name}
-        concept={schoolsConcept}
-        subdomain={school.subdomain}
-        active={school.active}
-        createdAt={school.createdAt}
-        actions={schoolHeaderActions}
-        subtitle={
-          <span className="flex flex-wrap items-center gap-2">
-            <span>
-              Träger:{" "}
-              <span className="font-medium text-gray-800">
-                {organization.name}
+    <TenantPage
+      title={school.name}
+      back
+      backHref={organizationBack.href}
+      backLabel={organizationBack.label}
+      stats={
+        <EntityStatusLine
+          subdomain={school.subdomain}
+          active={school.active}
+          subtitle={
+            <span className="flex flex-wrap items-center gap-2">
+              <span>
+                Träger:{" "}
+                <span className="font-medium text-gray-800">
+                  {organization.name}
+                </span>
               </span>
+              {school.hidden && (
+                <StatusColorBadge
+                  label="Verborgen"
+                  color={LOCATION_COLORS.WARNING}
+                  compact
+                />
+              )}
             </span>
-            {school.hidden && (
-              <StatusColorBadge
-                label="Verborgen"
-                color={LOCATION_COLORS.WARNING}
-                compact
-              />
-            )}
-          </span>
-        }
-        stats={headerStats}
-      />
+          }
+        />
+      }
+      actions={schoolHeaderActions}
+      overlays={
+        <>
+          {mfaAccount && mfaSchoolContext ? (
+            <MFAAdminOverrideModal
+              isOpen={true}
+              onClose={() => {
+                setMfaAccount(null);
+                setMfaSchoolContext(null);
+              }}
+              scope="operator"
+              schoolId={mfaSchoolContext.id}
+              accountId={mfaAccount.accountId}
+              accountLabel={`${mfaAccount.firstName} ${mfaAccount.lastName}`.trim()}
+            />
+          ) : null}
 
-      <LoadErrorAlert error={headLoadError} className="mt-3" />
-      <LoadErrorAlert error={pwaUsageLoadError} className="mt-3" />
+          {caregiverAccount && caregiverSchoolContext ? (
+            <CaregiverCapabilityModal
+              isOpen={true}
+              onClose={() => {
+                setCaregiverAccount(null);
+                setCaregiverSchoolContext(null);
+              }}
+              scope="operator"
+              accountId={caregiverAccount.accountId}
+              accountLabel={`${caregiverAccount.firstName} ${caregiverAccount.lastName}`.trim()}
+              schoolId={caregiverSchoolContext.id}
+              schoolName={caregiverSchoolContext.name}
+              onUpdated={async () => {
+                await mutateSchoolAccounts();
+              }}
+            />
+          ) : null}
 
-      <div className="mt-6">
+          {schoolDelete.deleteTarget && (
+            <SchoolSoftDeleteModal
+              target={schoolDelete.deleteTarget}
+              errorMessage={schoolDelete.softDeleteError}
+              isProcessing={schoolDelete.isProcessing}
+              onCancel={() => schoolDelete.setDeleteTarget(null)}
+              onConfirm={() => void schoolDelete.handleSoftDelete()}
+            />
+          )}
+
+          <ChildQuotaModal
+            isOpen={childQuotaOpen}
+            onClose={() => setChildQuotaOpen(false)}
+            school={school}
+            loadCurrentSchool={async () => {
+              const fresh = await mutateSchools(undefined, {
+                throwOnError: true,
+              });
+              const current = fresh?.find((item) => item.id === school.id);
+              if (!current) {
+                throw new Error("school not found after refresh");
+              }
+              return current;
+            }}
+            onUpdated={refreshSchoolDetail}
+          />
+
+          <EditSchoolModal
+            isOpen={editSchoolOpen}
+            onClose={() => setEditSchoolOpen(false)}
+            school={summaryToSchool(school)}
+            organizations={activeOrganizations}
+            onUpdated={async () => {
+              const [refreshedOrganizations] = await Promise.all([
+                mutateOrganizations(),
+                mutateSchools(),
+              ]);
+              const refreshedSchools =
+                await operatorProvisioningService.listSchoolSummaries();
+              const updatedSchool = refreshedSchools.find(
+                (item) => item.id === school.id,
+              );
+              if (!updatedSchool) {
+                return;
+              }
+              const targetOrganization =
+                refreshedOrganizations?.find(
+                  (item) => item.id === updatedSchool.organizationId,
+                ) ??
+                organizations?.find(
+                  (item) => item.id === updatedSchool.organizationId,
+                );
+              if (!targetOrganization) {
+                return;
+              }
+              const nextPath = `/operator/organizations/${encodeURIComponent(targetOrganization.slug)}/schools/${encodeURIComponent(updatedSchool.slug)}${currentTabSearch}`;
+              const currentPath = `/operator/organizations/${encodeURIComponent(slug)}/schools/${encodeURIComponent(schoolSlug)}${currentTabSearch}`;
+              if (nextPath !== currentPath) {
+                router.replace(nextPath);
+              }
+            }}
+          />
+
+          <CreateAccountModal
+            isOpen={createAccountOpen}
+            onClose={() => setCreateAccountOpen(false)}
+            schoolId={school.id}
+            schoolName={school.name}
+            onCreated={() => {
+              void Promise.all([mutateSchoolAccounts(), refreshSchoolDetail()]);
+            }}
+          />
+
+          <InviteAdminModal
+            isOpen={inviteOpen}
+            onClose={() => setInviteOpen(false)}
+            schoolId={school.id}
+            schoolName={school.name}
+          />
+
+          <CreateDeviceModal
+            isOpen={createDeviceOpen}
+            onClose={() => setCreateDeviceOpen(false)}
+            schools={[summaryToSchool(school)]}
+            onCreated={() => {
+              void Promise.all([mutateSchoolDevices(), refreshSchoolDetail()]);
+            }}
+          />
+
+          <SetApiKeyModal
+            isOpen={setKeyDevice !== null}
+            onClose={() => setSetKeyDevice(null)}
+            device={setKeyDevice}
+            onKeySet={() => {
+              void mutateSchoolDevices();
+            }}
+          />
+
+          <TransferDeviceModal
+            device={transferDevice}
+            schools={transferSchools}
+            onClose={() => setTransferDevice(null)}
+            onTransferred={handleDeviceDeleted}
+          />
+
+          <DeleteDeviceModal
+            device={deleteDevice}
+            onClose={() => setDeleteDevice(null)}
+            onDeleted={handleDeviceDeleted}
+          />
+
+          <DeletePersonModal
+            person={deletePersonTarget}
+            onClose={() => setDeletePersonTarget(null)}
+            onDeleted={handlePersonDeleted}
+          />
+        </>
+      }
+    >
+      <EntityStats stats={headerStats} createdAt={school.createdAt} />
+
+      <LoadErrorAlert error={headLoadError} />
+      <LoadErrorAlert error={pwaUsageLoadError} />
+
+      <div>
         <Tabs value={activeTab} onValueChange={handleTabValueChange}>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <TabsList variant="line">
@@ -653,7 +815,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
             ) : null}
           </div>
 
-          <TabsPrimitive.Content value="konten" className="mt-4">
+          <TabsContent value="konten" className="mt-4">
             <LoadErrorAlert error={accountsLoadError} className="mb-4" />
             {(schoolAccounts === undefined && !accountsLoading) ||
             accountsError ? null : !accountsLoading &&
@@ -670,9 +832,9 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
                 onManageMFA={openMFAModal}
               />
             )}
-          </TabsPrimitive.Content>
+          </TabsContent>
 
-          <TabsPrimitive.Content value="geraete" className="mt-4">
+          <TabsContent value="geraete" className="mt-4">
             <LoadErrorAlert error={devicesLoadError} className="mb-4" />
             {(schoolDevices === undefined && !devicesLoading) ||
             devicesError ? null : !devicesLoading &&
@@ -689,9 +851,9 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
                 onDelete={setDeleteDevice}
               />
             )}
-          </TabsPrimitive.Content>
+          </TabsContent>
 
-          <TabsPrimitive.Content value="personen" className="mt-4">
+          <TabsContent value="personen" className="mt-4">
             <LoadErrorAlert error={personsLoadError} className="mb-4" />
             {(schoolPersons === undefined && !personsLoading) ||
             personsError ? null : !personsLoading &&
@@ -706,156 +868,9 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
                 onDelete={setDeletePersonTarget}
               />
             )}
-          </TabsPrimitive.Content>
+          </TabsContent>
         </Tabs>
       </div>
-
-      {mfaAccount && mfaSchoolContext ? (
-        <MFAAdminOverrideModal
-          isOpen={true}
-          onClose={() => {
-            setMfaAccount(null);
-            setMfaSchoolContext(null);
-          }}
-          scope="operator"
-          schoolId={mfaSchoolContext.id}
-          accountId={mfaAccount.accountId}
-          accountLabel={`${mfaAccount.firstName} ${mfaAccount.lastName}`.trim()}
-        />
-      ) : null}
-
-      {caregiverAccount && caregiverSchoolContext ? (
-        <CaregiverCapabilityModal
-          isOpen={true}
-          onClose={() => {
-            setCaregiverAccount(null);
-            setCaregiverSchoolContext(null);
-          }}
-          scope="operator"
-          accountId={caregiverAccount.accountId}
-          accountLabel={`${caregiverAccount.firstName} ${caregiverAccount.lastName}`.trim()}
-          schoolId={caregiverSchoolContext.id}
-          schoolName={caregiverSchoolContext.name}
-          onUpdated={async () => {
-            await mutateSchoolAccounts();
-          }}
-        />
-      ) : null}
-
-      {schoolDelete.deleteTarget && (
-        <SchoolSoftDeleteModal
-          target={schoolDelete.deleteTarget}
-          errorMessage={schoolDelete.softDeleteError}
-          isProcessing={schoolDelete.isProcessing}
-          onCancel={() => schoolDelete.setDeleteTarget(null)}
-          onConfirm={() => void schoolDelete.handleSoftDelete()}
-        />
-      )}
-
-      <ChildQuotaModal
-        isOpen={childQuotaOpen}
-        onClose={() => setChildQuotaOpen(false)}
-        school={school}
-        loadCurrentSchool={async () => {
-          const fresh = await mutateSchools(undefined, { throwOnError: true });
-          const current = fresh?.find((item) => item.id === school.id);
-          if (!current) {
-            throw new Error("school not found after refresh");
-          }
-          return current;
-        }}
-        onUpdated={refreshSchoolDetail}
-      />
-
-      <EditSchoolModal
-        isOpen={editSchoolOpen}
-        onClose={() => setEditSchoolOpen(false)}
-        school={summaryToSchool(school)}
-        organizations={activeOrganizations}
-        onUpdated={async () => {
-          const [refreshedOrganizations] = await Promise.all([
-            mutateOrganizations(),
-            mutateSchools(),
-          ]);
-          const refreshedSchools =
-            await operatorProvisioningService.listSchoolSummaries();
-          const updatedSchool = refreshedSchools.find(
-            (item) => item.id === school.id,
-          );
-          if (!updatedSchool) {
-            return;
-          }
-          const targetOrganization =
-            refreshedOrganizations?.find(
-              (item) => item.id === updatedSchool.organizationId,
-            ) ??
-            organizations?.find(
-              (item) => item.id === updatedSchool.organizationId,
-            );
-          if (!targetOrganization) {
-            return;
-          }
-          const nextPath = `/operator/organizations/${encodeURIComponent(targetOrganization.slug)}/schools/${encodeURIComponent(updatedSchool.slug)}${currentTabSearch}`;
-          const currentPath = `/operator/organizations/${encodeURIComponent(slug)}/schools/${encodeURIComponent(schoolSlug)}${currentTabSearch}`;
-          if (nextPath !== currentPath) {
-            router.replace(nextPath);
-          }
-        }}
-      />
-
-      <CreateAccountModal
-        isOpen={createAccountOpen}
-        onClose={() => setCreateAccountOpen(false)}
-        schoolId={school.id}
-        schoolName={school.name}
-        onCreated={() => {
-          void Promise.all([mutateSchoolAccounts(), refreshSchoolDetail()]);
-        }}
-      />
-
-      <InviteAdminModal
-        isOpen={inviteOpen}
-        onClose={() => setInviteOpen(false)}
-        schoolId={school.id}
-        schoolName={school.name}
-      />
-
-      <CreateDeviceModal
-        isOpen={createDeviceOpen}
-        onClose={() => setCreateDeviceOpen(false)}
-        schools={[summaryToSchool(school)]}
-        onCreated={() => {
-          void Promise.all([mutateSchoolDevices(), refreshSchoolDetail()]);
-        }}
-      />
-
-      <SetApiKeyModal
-        isOpen={setKeyDevice !== null}
-        onClose={() => setSetKeyDevice(null)}
-        device={setKeyDevice}
-        onKeySet={() => {
-          void mutateSchoolDevices();
-        }}
-      />
-
-      <TransferDeviceModal
-        device={transferDevice}
-        schools={transferSchools}
-        onClose={() => setTransferDevice(null)}
-        onTransferred={handleDeviceDeleted}
-      />
-
-      <DeleteDeviceModal
-        device={deleteDevice}
-        onClose={() => setDeleteDevice(null)}
-        onDeleted={handleDeviceDeleted}
-      />
-
-      <DeletePersonModal
-        person={deletePersonTarget}
-        onClose={() => setDeletePersonTarget(null)}
-        onDeleted={handlePersonDeleted}
-      />
-    </div>
+    </TenantPage>
   );
 }

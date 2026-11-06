@@ -15,7 +15,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import {
@@ -41,7 +41,6 @@ import {
   type BillingKeyDateCount,
   type BillingKeyDay,
 } from "~/lib/operator/billing-api";
-import { reportsConcept } from "~/lib/concepts/reports";
 
 const logger = createLogger({ component: "OperatorBillingPage" });
 
@@ -330,17 +329,7 @@ function OperatorBillingPageContent() {
   const hasCounts = periods.length > 0;
 
   return (
-    <div className="-mt-1.5 w-full space-y-6">
-      <PageHeaderWithSearch
-        title="Stichtagszahlen"
-        concept={reportsConcept}
-        tabs={{
-          items: [{ id: "billing", label: "Stichtagszahlen" }],
-          activeTab: "billing",
-          onTabChange: () => undefined,
-        }}
-      />
-
+    <TenantPage title="Stichtagszahlen">
       <LoadErrorAlert error={keyDayLoadError} />
 
       <KeyDaySection
@@ -427,13 +416,13 @@ function OperatorBillingPageContent() {
       </SectionCard>
 
       <CountingRulesSection />
-    </div>
+    </TenantPage>
   );
 }
 
 export default function OperatorBillingPage() {
   return (
-    <Suspense fallback={<div className="-mt-1.5 w-full" />}>
+    <Suspense>
       <OperatorBillingPageContent />
     </Suspense>
   );

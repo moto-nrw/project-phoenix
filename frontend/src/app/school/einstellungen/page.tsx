@@ -11,23 +11,23 @@ import { Suspense } from "react";
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
 import { PushNotificationSection } from "~/components/settings/push-notification-section";
 import { SchoolAnalyticsConsentSection } from "~/components/settings/analytics-consent-section";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { activeSchoolSettingsSection } from "~/components/school/shell/school-nav-items";
 
 function SchoolSettingsContent() {
   const section = activeSchoolSettingsSection(useSearchParams().get("tab"));
   return (
-    <div className="-mt-1.5 w-full space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-          {section.label}
-        </h1>
-        {section.key === "notifications" ? (
-          <p className="mt-1 text-sm text-gray-500">
+    <TenantPage
+      title={section.label}
+      info={
+        section.key === "notifications" ? (
+          <p>
             Wählen Sie zuerst die Themen. Dann erlauben Sie die Hinweise auf
             diesem Gerät.
           </p>
-        ) : null}
-      </div>
+        ) : undefined
+      }
+    >
       {section.key === "notifications" ? (
         <>
           <NotificationPreferencesSection portal="school" />
@@ -36,7 +36,7 @@ function SchoolSettingsContent() {
       ) : (
         <SchoolAnalyticsConsentSection />
       )}
-    </div>
+    </TenantPage>
   );
 }
 

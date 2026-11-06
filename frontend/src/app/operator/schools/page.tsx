@@ -7,7 +7,7 @@ import { useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -19,10 +19,7 @@ import type { SchoolSummary } from "~/lib/operator/provisioning-helpers";
 import { buildSchoolColumns } from "~/components/operator/school-table-columns";
 import { Button } from "~/components/ui/button";
 import { DataTable } from "~/components/ui/data-table";
-import {
-  ProvisioningEmptyState,
-  PlusIcon,
-} from "../provisioning/provisioning-shared";
+import { ProvisioningEmptyState } from "../provisioning/provisioning-shared";
 import { CreateSchoolModal } from "../provisioning/create-school-modal";
 import {
   useSoftDeletable,
@@ -33,7 +30,6 @@ import {
   SchoolRestoreModal,
   SchoolSoftDeleteModal,
 } from "../provisioning/operator-entity-modals";
-import { schoolsConcept } from "~/lib/concepts/schools";
 
 export default function OperatorSchoolsPage() {
   const { status } = useSession();
@@ -150,16 +146,7 @@ export default function OperatorSchoolsPage() {
     return deletedOrgIds.has(target.organizationId);
   }, [schoolDelete.restoreTarget, deletedOrgIds]);
 
-  const tabs = useMemo(
-    () => ({
-      items: [
-        { id: "schools", label: "Schulen", count: schoolSummaries?.length },
-      ],
-      activeTab: "schools",
-      onTabChange: () => undefined,
-    }),
-    [schoolSummaries?.length],
-  );
+  const count = schoolSummaries?.length;
 
   const actionButton = (
     <Button
@@ -169,18 +156,6 @@ export default function OperatorSchoolsPage() {
       onClick={() => setCreateSchoolOpen(true)}
     >
       Neue Schule
-    </Button>
-  );
-
-  const mobileActionButton = (
-    <Button
-      type="button"
-      variant="primary"
-      size="icon"
-      onClick={() => setCreateSchoolOpen(true)}
-      aria-label="Neue Schule"
-    >
-      <PlusIcon />
     </Button>
   );
 
@@ -201,18 +176,32 @@ export default function OperatorSchoolsPage() {
   );
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title="Schulen"
-        concept={schoolsConcept}
-        tabs={tabs}
-        actionButton={actionButton}
-        mobileActionButton={mobileActionButton}
-      />
-
-      <div className="mt-6">
-        <LoadErrorAlert error={summariesLoadError} className="mb-4" />
-        <LoadErrorAlert error={organizationsLoadError} className="mb-4" />
+    <TenantPage
+      title="Schulen"
+      stats={
+        count === undefined ? undefined : (
+          <TenantPageStats
+            items={[
+              { value: count, label: count === 1 ? "Schule" : "Schulen" },
+            ]}
+          />
+        )
+      }
+      actions={actionButton}
+      overlays={
+        <>
+          <CreateSchoolModal
+            isOpen={createSchoolOpen}
+            onClose={() => setCreateSchoolOpen(false)}
+            organizations={activeOrganizations}
+            onCreated={() => refreshAll().then(() => undefined)}
+          />
+        </>
+      }
+    >
+      <div>
+        <LoadErrorAlert error={summariesLoadError} />
+        <LoadErrorAlert error={organizationsLoadError} />
         {deletedSummaries.length > 0 && (
           <div className="mb-4 flex justify-end">
             <TrashToggleButton
@@ -291,13 +280,6 @@ export default function OperatorSchoolsPage() {
           confirmDisabledReason="Der Träger dieser Schule ist gelöscht. Bitte zuerst den Träger wiederherstellen."
         />
       </div>
-
-      <CreateSchoolModal
-        isOpen={createSchoolOpen}
-        onClose={() => setCreateSchoolOpen(false)}
-        organizations={activeOrganizations}
-        onCreated={() => refreshAll().then(() => undefined)}
-      />
-    </div>
+    </TenantPage>
   );
 }

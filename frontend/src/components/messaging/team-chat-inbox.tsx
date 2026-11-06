@@ -11,17 +11,14 @@ import {
 } from "react";
 import { useSWRAuth } from "~/lib/swr";
 import { MessagesSquare, UsersRound } from "lucide-react";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Button } from "~/components/ui/button";
-import { CustomSelect } from "~/components/ui/custom-select";
-import { EmptyState } from "~/components/ui/empty-state";
 import { formErrorMessage, type FormError } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { TileCard } from "~/components/ui/tile-card";
+import { renderInboxFrame } from "~/components/messaging/team-chat-frames";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { NewTeamMessageModal } from "~/components/messaging/new-team-message-modal";
 import { NewTeamGroupModal } from "~/components/messaging/team-group-modals";
-import { TeamChatSkeleton } from "~/components/messaging/team-chat-skeletons";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
@@ -49,10 +46,8 @@ interface TeamChatEmptyState {
 }
 
 /**
- * Was die Hülle eines Portals vom Posteingang bekommt. Die Logik (Laden,
- * Filtern, Aus-Zustand, Fehler) ist eine; nur die Hülle unterscheidet sich:
- * das OGS-Portal rendert `TenantPage` als Wurzel, das Schul-Portal seine
- * eigene Kopfzeile. Beide bauen aus denselben Teilen.
+ * Was das Seitengerüst vom Posteingang bekommt. Die Logik (Laden, Filtern,
+ * Aus-Zustand, Fehler) liegt hier, das Gerüst in `team-chat-frames.tsx`.
  */
 export interface TeamChatInboxParts {
   readonly title: string;
@@ -96,13 +91,10 @@ export interface TeamChatInboxParts {
 
 export function TeamChatInbox({
   portal,
-  frame,
+  frame = renderInboxFrame,
 }: {
   readonly portal: TeamChatPortal;
-  /**
-   * Hülle des Portals. Ohne Angabe die Kopfzeile des Schul-Portals; das
-   * OGS-Portal reicht hier `TenantPage` herein.
-   */
+  /** Das Gerüst um die Teile; nur Tests reichen ein eigenes herein. */
   readonly frame?: (parts: TeamChatInboxParts) => ReactNode;
 }) {
   const { api, navigate, threadHref } = portal;
@@ -386,7 +378,7 @@ export function TeamChatInbox({
     overlays,
   };
 
-  return frame ? frame(parts) : <DefaultInboxFrame parts={parts} />;
+  return frame(parts);
 }
 
 /** Name in der Liste: das Gegenüber, bei einer Gruppe ihr Name (#4776). */
@@ -407,74 +399,4 @@ function previewSender(thread: StaffInboxThread): string {
     return `${thread.last_sender_name.split(" ")[0]}: `;
   }
   return "";
-}
-
-/** Die Hülle des Schul-Portals: Kopfzeile mit Suche, Filter, Liste. */
-function DefaultInboxFrame({ parts }: { readonly parts: TeamChatInboxParts }) {
-  const {
-    title,
-    chatEnabled,
-    search,
-    onlyUnread,
-    setOnlyUnread,
-    composeButton,
-    loading,
-    empty,
-    error,
-    staleWarning,
-    list,
-    overlays,
-  } = parts;
-  return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title={title}
-        badge={
-          loading || parts.count === null
-            ? undefined
-            : { icon: <MessagesSquare size={20} />, count: parts.count }
-        }
-        search={{
-          value: search.value,
-          onChange: search.onChange,
-          placeholder: search.placeholder,
-        }}
-      />
-
-      {chatEnabled && (
-        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-          <CustomSelect
-            ariaLabel="Unterhaltungen filtern"
-            value={onlyUnread ? "unread" : "all"}
-            onChange={(next) => setOnlyUnread(next === "unread")}
-            className="w-48"
-            options={[
-              { value: "all", label: "Alle Unterhaltungen" },
-              { value: "unread", label: "Nur ungelesen" },
-            ]}
-          />
-          {composeButton}
-        </div>
-      )}
-
-      {loading ? (
-        <TeamChatSkeleton />
-      ) : error ? (
-        <LoadErrorAlert error={error} />
-      ) : empty ? (
-        <EmptyState
-          icon={empty.icon}
-          title={empty.title}
-          description={empty.description}
-        />
-      ) : (
-        <>
-          {staleWarning && <div className="mb-4">{staleWarning}</div>}
-          {list}
-        </>
-      )}
-
-      {overlays}
-    </div>
-  );
 }

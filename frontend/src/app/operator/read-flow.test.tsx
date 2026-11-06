@@ -48,7 +48,10 @@ vi.mock("next-auth/react", () => ({
     status: "authenticated",
   }),
 }));
-vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantRoutingModeSafe: () => "path",
+}));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(state.query),
   usePathname: () => "/operator/accounts",
@@ -367,7 +370,13 @@ describe("operator reads with real SWR", () => {
         { ...person, firstName: "Bestätigte", fullName: "Bestätigte Person" },
       ]);
       if (action === "delete") {
-        act(() => screen.getAllByTitle("Person löschen")[1]!.click());
+        // Löschen liegt im Kebab der Karte (#5604).
+        act(() =>
+          screen.getAllByRole("button", { name: /^Aktionen für/ })[1]!.click(),
+        );
+        act(() =>
+          screen.getByRole("menuitem", { name: "Person löschen" }).click(),
+        );
         act(() =>
           screen.getByRole("button", { name: "Löschen bestätigen" }).click(),
         );

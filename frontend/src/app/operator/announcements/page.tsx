@@ -10,7 +10,8 @@ import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 // eslint-disable-next-line no-restricted-imports -- operator pages use useOperatorAuth, not NextAuth
 import { useSWRAuth } from "~/lib/swr";
 import { Pencil, Trash2, Send, Check } from "lucide-react";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -21,9 +22,7 @@ import {
   type SegmentedControlItem,
 } from "~/components/ui/segmented-control";
 import { Input } from "~/components/ui/input";
-import { Skeleton } from "~/components/ui/skeleton";
 import { Textarea } from "~/components/ui/textarea";
-import { SkeletonRegion } from "~/components/ui/page-skeletons";
 import { DatePicker } from "~/components/ui/date-picker";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
@@ -55,7 +54,6 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useCurrentTimestamp } from "~/lib/hooks/use-current-timestamp";
 import { Alert } from "~/components/ui/alert";
-import { announcementsConcept } from "~/lib/concepts/announcements";
 import { StatusBadge } from "~/components/ui/status-badge";
 
 const logger = createLogger({ component: "OperatorAnnouncementsPage" });
@@ -468,66 +466,611 @@ export default function OperatorAnnouncementsPage() {
   ];
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title="Ankündigungen"
-        concept={announcementsConcept}
-        badge={
-          announcements
-            ? { count: announcements.length, label: "Gesamt" }
-            : undefined
-        }
-        filters={filterConfigs}
-        actionButton={
-          announcements && announcements.length > 0 ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={openCreateForm}
+    <TenantPage
+      title="Ankündigungen"
+      stats={
+        announcements ? (
+          <TenantPageStats
+            items={[
+              {
+                value: announcements.length,
+                label:
+                  announcements.length === 1 ? "Ankündigung" : "Ankündigungen",
+              },
+            ]}
+          />
+        ) : undefined
+      }
+      filters={filterConfigs}
+      actions={
+        announcements && announcements.length > 0 ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={openCreateForm}
+          >
+            Neue Ankündigung
+          </Button>
+        ) : undefined
+      }
+      loading={isLoading}
+      loadingLabel="Ankündigungen werden geladen"
+      overlays={
+        <>
+          {/* Create/Edit Form Modal */}
+          <Modal
+            isOpen={formOpen}
+            onClose={() => {
+              setFormOpen(false);
+              setEditTarget(null);
+            }}
+            title={editTarget ? "Ankündigung bearbeiten" : "Neue Ankündigung"}
+            footer={
+              <>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setFormOpen(false);
+                    setEditTarget(null);
+                  }}
+                  variant="outline"
+                  size="md"
+                  className="flex-1"
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  type="button"
+                  onClick={(e) => void handleSave(e)}
+                  disabled={
+                    isSaving ||
+                    !formData.title.trim() ||
+                    !formData.content.trim()
+                  }
+                  variant="primary"
+                  size="md"
+                  className="flex-1"
+                >
+                  {isSaving
+                    ? "Wird gespeichert..."
+                    : editTarget
+                      ? "Speichern"
+                      : "Erstellen"}
+                </Button>
+              </>
+            }
+          >
+            <form
+              ref={formRef}
+              onSubmit={(e) => void handleSave(e)}
+              className="space-y-4"
+              id="announcement-form"
             >
-              Neue Ankündigung
-            </Button>
-          ) : undefined
-        }
-        mobileActionButton={
-          announcements && announcements.length > 0 ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="icon"
-              onClick={openCreateForm}
-              aria-label="Neue Ankündigung"
-            >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-            </Button>
-          ) : undefined
-        }
-      />
+              <FormErrorAlert message={saveErrors.error} />
+              {/* Title */}
+              <Input
+                id="announcement-title"
+                name="title"
+                type="text"
+                label="Titel"
+                value={formData.title}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, title: e.target.value }))
+                }
+                maxLength={200}
+                required
+                error={saveErrors.fieldError("title")}
+                controlSize="compact"
+              />
 
-      <div className="mt-4 space-y-3">
+              {/* Content */}
+              <Textarea
+                id="announcement-content"
+                name="content"
+                label="Inhalt"
+                value={formData.content}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, content: e.target.value }))
+                }
+                rows={5}
+                maxLength={5000}
+                required
+                error={saveErrors.fieldError("content")}
+              />
+
+              {/* Type */}
+              <div>
+                <span className="mb-1 block text-sm font-medium text-gray-700">
+                  Typ
+                </span>
+                <SegmentedControl
+                  ariaLabel="Typ"
+                  items={TYPE_ITEMS}
+                  value={formData.type}
+                  onChange={(type) =>
+                    setFormData((prev) => ({ ...prev, type }))
+                  }
+                />
+              </div>
+
+              {/* Severity */}
+              <div>
+                <span
+                  id="announcement-severity-label"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Dringlichkeit
+                </span>
+                <div
+                  className="relative"
+                  ref={severityDropdownRef}
+                  aria-labelledby="announcement-severity-label"
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSeverityDropdownOpen(!severityDropdownOpen)
+                    }
+                    className={`flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-all ${
+                      severityDropdownOpen
+                        ? "border-gray-300 bg-gray-50"
+                        : "hover:bg-gray-50"
+                    }`}
+                  >
+                    <span className="text-gray-900">
+                      {SEVERITY_LABELS[formData.severity]}
+                    </span>
+                    <svg
+                      className={`h-4 w-4 text-gray-400 transition-transform ${
+                        severityDropdownOpen ? "rotate-180" : ""
+                      }`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </button>
+                  {severityDropdownOpen && (
+                    <div className="moto-popover-surface absolute top-full left-0 z-[10001] mt-1 w-full overflow-hidden rounded-xl border py-1">
+                      {Object.entries(SEVERITY_LABELS).map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              severity: value as AnnouncementSeverity,
+                            }));
+                            setSeverityDropdownOpen(false);
+                          }}
+                          className={`flex w-full items-center px-4 py-2 text-left text-sm transition-colors hover:bg-gray-50 ${
+                            formData.severity === value
+                              ? "bg-gray-50 font-medium text-gray-900"
+                              : "text-gray-700"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Version (only for release type) */}
+              {formData.type === "release" && (
+                <Input
+                  id="announcement-version"
+                  type="text"
+                  label="Version"
+                  value={formData.version}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      version: e.target.value,
+                    }))
+                  }
+                  placeholder="z.B. 2.1.0"
+                  maxLength={255}
+                  controlSize="compact"
+                />
+              )}
+
+              {/* Expires at */}
+              <div>
+                <span
+                  id="announcement-expires-label"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Ablaufdatum (optional)
+                </span>
+                <DatePicker
+                  value={
+                    formData.expiresAt ? new Date(formData.expiresAt) : null
+                  }
+                  onChange={(date) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      expiresAt: date ? date.toISOString() : "",
+                    }))
+                  }
+                  placeholder="Datum auswählen"
+                />
+              </div>
+
+              {/* Target Roles */}
+              <div>
+                <span
+                  id="announcement-roles-label"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Zielgruppen
+                </span>
+                <p className="mb-2 text-xs text-gray-500">
+                  Leer = Alle Benutzer sehen die Ankündigung
+                </p>
+                <div
+                  className="flex flex-wrap gap-3"
+                  role="group"
+                  aria-labelledby="announcement-roles-label"
+                >
+                  {(["admin", "user", "guardian"] as const).map((role) => {
+                    const isChecked = formData.targetRoles.includes(role);
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => {
+                          if (isChecked) {
+                            setFormData((prev) => ({
+                              ...prev,
+                              targetRoles: prev.targetRoles.filter(
+                                (r) => r !== role,
+                              ),
+                            }));
+                          } else {
+                            setFormData((prev) => ({
+                              ...prev,
+                              targetRoles: [...prev.targetRoles, role],
+                            }));
+                          }
+                        }}
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
+                          isChecked
+                            ? "border-moto-green bg-moto-green/10 text-gray-900"
+                            : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        <span
+                          className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
+                            isChecked
+                              ? "border-moto-green-fill bg-moto-green-fill"
+                              : "border-gray-300 bg-white"
+                          }`}
+                        >
+                          {isChecked && (
+                            <Check
+                              className="h-3 w-3 text-white"
+                              strokeWidth={3}
+                            />
+                          )}
+                        </span>
+                        {SYSTEM_ROLE_LABELS[role]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Deleted-target warning: surfaces historical org/tenant IDs that
+              reference soft-deleted entities so the operator sees them before
+              saving. These IDs are preserved verbatim to avoid widening scope. */}
+              {hasStaleTargets && (
+                <Alert
+                  type="warning"
+                  title="Diese Ankündigung enthält gelöschte Ziele"
+                  message="Die folgenden Organisationen/Schulen wurden gelöscht und sind in den Auswahllisten ausgeblendet. Sie bleiben als Ziel erhalten, damit die Ankündigung nicht versehentlich global sichtbar wird, und tauchen wieder auf, falls das Ziel wiederhergestellt wird. Entfernen Sie ein Ziel explizit, wenn die Ankündigung nach einer Wiederherstellung nicht mehr für dieses Ziel gelten soll."
+                  actionLayout="stacked"
+                  action={
+                    <div>
+                      {staleOrgTargets.length > 0 && (
+                        <div className="mt-2 text-xs">
+                          <span className="font-medium">
+                            Gelöschte Organisationen:
+                          </span>
+                          <ul className="mt-1 space-y-1">
+                            {staleOrgTargets.map((t) => (
+                              <li
+                                key={t.id}
+                                className="flex items-center justify-between gap-2"
+                              >
+                                <span>{t.name}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost_tone"
+                                  size="compact"
+                                  onClick={() =>
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      targetOrgIds: prev.targetOrgIds.filter(
+                                        (id) => id !== t.id,
+                                      ),
+                                    }))
+                                  }
+                                  aria-label={`${t.name} aus Zielen entfernen`}
+                                >
+                                  Entfernen
+                                </Button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {staleTenantTargets.length > 0 && (
+                        <div className="mt-2 text-xs">
+                          <span className="font-medium">
+                            Gelöschte Schulen:
+                          </span>
+                          <ul className="mt-1 space-y-1">
+                            {staleTenantTargets.map((t) => (
+                              <li
+                                key={t.id}
+                                className="flex items-center justify-between gap-2"
+                              >
+                                <span>{t.name}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost_tone"
+                                  size="compact"
+                                  onClick={() =>
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      targetTenantIds:
+                                        prev.targetTenantIds.filter(
+                                          (id) => id !== t.id,
+                                        ),
+                                    }))
+                                  }
+                                  aria-label={`${t.name} aus Zielen entfernen`}
+                                >
+                                  Entfernen
+                                </Button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  }
+                />
+              )}
+
+              {/* Target Organizations */}
+              <div>
+                <span
+                  id="announcement-orgs-label"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Organisationen
+                </span>
+                <p className="mb-2 text-xs text-gray-500">
+                  Leer = Alle Organisationen
+                </p>
+                <div
+                  className="flex flex-wrap gap-3"
+                  role="group"
+                  aria-labelledby="announcement-orgs-label"
+                >
+                  {activeOrganizations.map((org) => {
+                    const orgId = org.id;
+                    const isChecked = formData.targetOrgIds.includes(orgId);
+                    return (
+                      <button
+                        key={org.id}
+                        type="button"
+                        onClick={() => {
+                          if (isChecked) {
+                            setFormData((prev) => ({
+                              ...prev,
+                              targetOrgIds: prev.targetOrgIds.filter(
+                                (id) => id !== orgId,
+                              ),
+                              // Remove tenant selections that belonged to this org
+                              targetTenantIds: schools
+                                ? prev.targetTenantIds.filter(
+                                    (tid) =>
+                                      !schools.some(
+                                        (s) =>
+                                          s.id === tid &&
+                                          s.organizationId === orgId,
+                                      ),
+                                  )
+                                : prev.targetTenantIds,
+                            }));
+                          } else {
+                            setFormData((prev) => {
+                              const newOrgIds = [...prev.targetOrgIds, orgId];
+                              return {
+                                ...prev,
+                                targetOrgIds: newOrgIds,
+                                // Prune tenant selections to only schools belonging to selected orgs
+                                targetTenantIds: schools
+                                  ? prev.targetTenantIds.filter((tid) =>
+                                      schools.some(
+                                        (s) =>
+                                          s.id === tid &&
+                                          newOrgIds.includes(s.organizationId),
+                                      ),
+                                    )
+                                  : prev.targetTenantIds,
+                              };
+                            });
+                          }
+                        }}
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
+                          isChecked
+                            ? "border-moto-green bg-moto-green/10 text-gray-900"
+                            : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        <span
+                          className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
+                            isChecked
+                              ? "border-moto-green-fill bg-moto-green-fill"
+                              : "border-gray-300 bg-white"
+                          }`}
+                        >
+                          {isChecked && (
+                            <Check
+                              className="h-3 w-3 text-white"
+                              strokeWidth={3}
+                            />
+                          )}
+                        </span>
+                        {org.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Target Schools/Tenants */}
+              <div>
+                <span
+                  id="announcement-tenants-label"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Schulen
+                </span>
+                <p className="mb-2 text-xs text-gray-500">
+                  Leer = Alle Schulen
+                  {formData.targetOrgIds.length > 0
+                    ? " der ausgewählten Organisationen"
+                    : ""}
+                </p>
+                <div
+                  className="flex flex-wrap gap-3"
+                  role="group"
+                  aria-labelledby="announcement-tenants-label"
+                >
+                  {availableSchools.map((school) => {
+                    const schoolId = school.id;
+                    const isChecked =
+                      formData.targetTenantIds.includes(schoolId);
+                    return (
+                      <button
+                        key={school.id}
+                        type="button"
+                        onClick={() => {
+                          if (isChecked) {
+                            setFormData((prev) => ({
+                              ...prev,
+                              targetTenantIds: prev.targetTenantIds.filter(
+                                (id) => id !== schoolId,
+                              ),
+                            }));
+                          } else {
+                            setFormData((prev) => ({
+                              ...prev,
+                              targetTenantIds: [
+                                ...prev.targetTenantIds,
+                                schoolId,
+                              ],
+                            }));
+                          }
+                        }}
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
+                          isChecked
+                            ? "border-moto-green bg-moto-green/10 text-gray-900"
+                            : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        <span
+                          className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
+                            isChecked
+                              ? "border-moto-green-fill bg-moto-green-fill"
+                              : "border-gray-300 bg-white"
+                          }`}
+                        >
+                          {isChecked && (
+                            <Check
+                              className="h-3 w-3 text-white"
+                              strokeWidth={3}
+                            />
+                          )}
+                        </span>
+                        {school.name}
+                      </button>
+                    );
+                  })}
+                  {availableSchools.length === 0 && (
+                    <p className="text-xs text-gray-400 italic">
+                      Keine Schulen verfügbar
+                    </p>
+                  )}
+                </div>
+              </div>
+            </form>
+          </Modal>
+
+          {/* Delete confirmation */}
+          <ConfirmDeleteModal
+            isOpen={!!deleteTarget}
+            title="Ankündigung löschen"
+            description={
+              <p>
+                Die Ankündigung &quot;{deleteTarget?.title}&quot; wird
+                unwiderruflich gelöscht.
+              </p>
+            }
+            gate={{ mode: "twoStep" }}
+            onConfirm={handleDelete}
+            onClose={() => {
+              clearDeleteError();
+              setDeleteTarget(null);
+            }}
+            loading={isDeleting}
+            error={deleteErrors.error}
+          />
+
+          {/* Publish confirmation */}
+          <ConfirmationModal
+            isOpen={!!publishTarget}
+            onClose={() => {
+              clearPublishError();
+              setPublishTarget(null);
+            }}
+            onConfirm={() => void handlePublish()}
+            title="Ankündigung veröffentlichen?"
+            confirmText="Veröffentlichen"
+            confirmVariant="success"
+            isConfirmLoading={isPublishing}
+          >
+            <p className="text-sm text-gray-600">
+              {publishTarget &&
+              ((publishTarget.targetOrgIds?.length ?? 0) > 0 ||
+                (publishTarget.targetTenantIds?.length ?? 0) > 0)
+                ? `Die Ankündigung "${publishTarget.title}" wird für die ausgewählten Organisationen/Schulen sichtbar.`
+                : `Die Ankündigung "${publishTarget?.title}" wird für alle Nutzer sichtbar.`}
+            </p>
+            <FormErrorAlert message={publishErrors.error} className="mt-3" />
+          </ConfirmationModal>
+        </>
+      }
+    >
+      <div className="space-y-3">
         <LoadErrorAlert error={announcementsLoadError} />
         <LoadErrorAlert error={organizationsLoadError} />
         <LoadErrorAlert error={schoolsLoadError} />
       </div>
 
-      {isLoading && (
-        <SkeletonRegion label="Ankündigungen werden geladen">
-          <AnnouncementSkeletons />
-        </SkeletonRegion>
-      )}
       {!isLoading &&
         !announcementsError &&
         announcements !== undefined &&
@@ -566,7 +1109,7 @@ export default function OperatorAnnouncementsPage() {
 
       {!isLoading && filteredAnnouncements.length > 0 && (
         <LayoutGroup>
-          <div className="mt-4 space-y-4">
+          <div className="space-y-4">
             <AnimatePresence>
               {filteredAnnouncements.map((announcement) => (
                 <motion.div
@@ -588,545 +1131,7 @@ export default function OperatorAnnouncementsPage() {
           </div>
         </LayoutGroup>
       )}
-
-      {/* Create/Edit Form Modal */}
-      <Modal
-        isOpen={formOpen}
-        onClose={() => {
-          setFormOpen(false);
-          setEditTarget(null);
-        }}
-        title={editTarget ? "Ankündigung bearbeiten" : "Neue Ankündigung"}
-        footer={
-          <>
-            <Button
-              type="button"
-              onClick={() => {
-                setFormOpen(false);
-                setEditTarget(null);
-              }}
-              variant="outline"
-              size="md"
-              className="flex-1"
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              onClick={(e) => void handleSave(e)}
-              disabled={
-                isSaving || !formData.title.trim() || !formData.content.trim()
-              }
-              variant="primary"
-              size="md"
-              className="flex-1"
-            >
-              {isSaving
-                ? "Wird gespeichert..."
-                : editTarget
-                  ? "Speichern"
-                  : "Erstellen"}
-            </Button>
-          </>
-        }
-      >
-        <form
-          ref={formRef}
-          onSubmit={(e) => void handleSave(e)}
-          className="space-y-4"
-          id="announcement-form"
-        >
-          <FormErrorAlert message={saveErrors.error} />
-          {/* Title */}
-          <Input
-            id="announcement-title"
-            name="title"
-            type="text"
-            label="Titel"
-            value={formData.title}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, title: e.target.value }))
-            }
-            maxLength={200}
-            required
-            error={saveErrors.fieldError("title")}
-            controlSize="compact"
-          />
-
-          {/* Content */}
-          <Textarea
-            id="announcement-content"
-            name="content"
-            label="Inhalt"
-            value={formData.content}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, content: e.target.value }))
-            }
-            rows={5}
-            maxLength={5000}
-            required
-            error={saveErrors.fieldError("content")}
-          />
-
-          {/* Type */}
-          <div>
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              Typ
-            </span>
-            <SegmentedControl
-              ariaLabel="Typ"
-              items={TYPE_ITEMS}
-              value={formData.type}
-              onChange={(type) => setFormData((prev) => ({ ...prev, type }))}
-            />
-          </div>
-
-          {/* Severity */}
-          <div>
-            <span
-              id="announcement-severity-label"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Dringlichkeit
-            </span>
-            <div
-              className="relative"
-              ref={severityDropdownRef}
-              aria-labelledby="announcement-severity-label"
-            >
-              <button
-                type="button"
-                onClick={() => setSeverityDropdownOpen(!severityDropdownOpen)}
-                className={`flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-all ${
-                  severityDropdownOpen
-                    ? "border-gray-300 bg-gray-50"
-                    : "hover:bg-gray-50"
-                }`}
-              >
-                <span className="text-gray-900">
-                  {SEVERITY_LABELS[formData.severity]}
-                </span>
-                <svg
-                  className={`h-4 w-4 text-gray-400 transition-transform ${
-                    severityDropdownOpen ? "rotate-180" : ""
-                  }`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-              {severityDropdownOpen && (
-                <div className="moto-popover-surface absolute top-full left-0 z-[10001] mt-1 w-full overflow-hidden rounded-xl border py-1">
-                  {Object.entries(SEVERITY_LABELS).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => {
-                        setFormData((prev) => ({
-                          ...prev,
-                          severity: value as AnnouncementSeverity,
-                        }));
-                        setSeverityDropdownOpen(false);
-                      }}
-                      className={`flex w-full items-center px-4 py-2 text-left text-sm transition-colors hover:bg-gray-50 ${
-                        formData.severity === value
-                          ? "bg-gray-50 font-medium text-gray-900"
-                          : "text-gray-700"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Version (only for release type) */}
-          {formData.type === "release" && (
-            <Input
-              id="announcement-version"
-              type="text"
-              label="Version"
-              value={formData.version}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, version: e.target.value }))
-              }
-              placeholder="z.B. 2.1.0"
-              maxLength={255}
-              controlSize="compact"
-            />
-          )}
-
-          {/* Expires at */}
-          <div>
-            <span
-              id="announcement-expires-label"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Ablaufdatum (optional)
-            </span>
-            <DatePicker
-              value={formData.expiresAt ? new Date(formData.expiresAt) : null}
-              onChange={(date) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  expiresAt: date ? date.toISOString() : "",
-                }))
-              }
-              placeholder="Datum auswählen"
-            />
-          </div>
-
-          {/* Target Roles */}
-          <div>
-            <span
-              id="announcement-roles-label"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Zielgruppen
-            </span>
-            <p className="mb-2 text-xs text-gray-500">
-              Leer = Alle Benutzer sehen die Ankündigung
-            </p>
-            <div
-              className="flex flex-wrap gap-3"
-              role="group"
-              aria-labelledby="announcement-roles-label"
-            >
-              {(["admin", "user", "guardian"] as const).map((role) => {
-                const isChecked = formData.targetRoles.includes(role);
-                return (
-                  <button
-                    key={role}
-                    type="button"
-                    onClick={() => {
-                      if (isChecked) {
-                        setFormData((prev) => ({
-                          ...prev,
-                          targetRoles: prev.targetRoles.filter(
-                            (r) => r !== role,
-                          ),
-                        }));
-                      } else {
-                        setFormData((prev) => ({
-                          ...prev,
-                          targetRoles: [...prev.targetRoles, role],
-                        }));
-                      }
-                    }}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
-                      isChecked
-                        ? "border-moto-green bg-moto-green/10 text-gray-900"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    <span
-                      className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
-                        isChecked
-                          ? "border-moto-green-fill bg-moto-green-fill"
-                          : "border-gray-300 bg-white"
-                      }`}
-                    >
-                      {isChecked && (
-                        <Check className="h-3 w-3 text-white" strokeWidth={3} />
-                      )}
-                    </span>
-                    {SYSTEM_ROLE_LABELS[role]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Deleted-target warning: surfaces historical org/tenant IDs that
-              reference soft-deleted entities so the operator sees them before
-              saving. These IDs are preserved verbatim to avoid widening scope. */}
-          {hasStaleTargets && (
-            <Alert
-              type="warning"
-              title="Diese Ankündigung enthält gelöschte Ziele"
-              message="Die folgenden Organisationen/Schulen wurden gelöscht und sind in den Auswahllisten ausgeblendet. Sie bleiben als Ziel erhalten, damit die Ankündigung nicht versehentlich global sichtbar wird, und tauchen wieder auf, falls das Ziel wiederhergestellt wird. Entfernen Sie ein Ziel explizit, wenn die Ankündigung nach einer Wiederherstellung nicht mehr für dieses Ziel gelten soll."
-              actionLayout="stacked"
-              action={
-                <div>
-                  {staleOrgTargets.length > 0 && (
-                    <div className="mt-2 text-xs">
-                      <span className="font-medium">
-                        Gelöschte Organisationen:
-                      </span>
-                      <ul className="mt-1 space-y-1">
-                        {staleOrgTargets.map((t) => (
-                          <li
-                            key={t.id}
-                            className="flex items-center justify-between gap-2"
-                          >
-                            <span>{t.name}</span>
-                            <Button
-                              type="button"
-                              variant="ghost_tone"
-                              size="compact"
-                              onClick={() =>
-                                setFormData((prev) => ({
-                                  ...prev,
-                                  targetOrgIds: prev.targetOrgIds.filter(
-                                    (id) => id !== t.id,
-                                  ),
-                                }))
-                              }
-                              aria-label={`${t.name} aus Zielen entfernen`}
-                            >
-                              Entfernen
-                            </Button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {staleTenantTargets.length > 0 && (
-                    <div className="mt-2 text-xs">
-                      <span className="font-medium">Gelöschte Schulen:</span>
-                      <ul className="mt-1 space-y-1">
-                        {staleTenantTargets.map((t) => (
-                          <li
-                            key={t.id}
-                            className="flex items-center justify-between gap-2"
-                          >
-                            <span>{t.name}</span>
-                            <Button
-                              type="button"
-                              variant="ghost_tone"
-                              size="compact"
-                              onClick={() =>
-                                setFormData((prev) => ({
-                                  ...prev,
-                                  targetTenantIds: prev.targetTenantIds.filter(
-                                    (id) => id !== t.id,
-                                  ),
-                                }))
-                              }
-                              aria-label={`${t.name} aus Zielen entfernen`}
-                            >
-                              Entfernen
-                            </Button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              }
-            />
-          )}
-
-          {/* Target Organizations */}
-          <div>
-            <span
-              id="announcement-orgs-label"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Organisationen
-            </span>
-            <p className="mb-2 text-xs text-gray-500">
-              Leer = Alle Organisationen
-            </p>
-            <div
-              className="flex flex-wrap gap-3"
-              role="group"
-              aria-labelledby="announcement-orgs-label"
-            >
-              {activeOrganizations.map((org) => {
-                const orgId = org.id;
-                const isChecked = formData.targetOrgIds.includes(orgId);
-                return (
-                  <button
-                    key={org.id}
-                    type="button"
-                    onClick={() => {
-                      if (isChecked) {
-                        setFormData((prev) => ({
-                          ...prev,
-                          targetOrgIds: prev.targetOrgIds.filter(
-                            (id) => id !== orgId,
-                          ),
-                          // Remove tenant selections that belonged to this org
-                          targetTenantIds: schools
-                            ? prev.targetTenantIds.filter(
-                                (tid) =>
-                                  !schools.some(
-                                    (s) =>
-                                      s.id === tid &&
-                                      s.organizationId === orgId,
-                                  ),
-                              )
-                            : prev.targetTenantIds,
-                        }));
-                      } else {
-                        setFormData((prev) => {
-                          const newOrgIds = [...prev.targetOrgIds, orgId];
-                          return {
-                            ...prev,
-                            targetOrgIds: newOrgIds,
-                            // Prune tenant selections to only schools belonging to selected orgs
-                            targetTenantIds: schools
-                              ? prev.targetTenantIds.filter((tid) =>
-                                  schools.some(
-                                    (s) =>
-                                      s.id === tid &&
-                                      newOrgIds.includes(s.organizationId),
-                                  ),
-                                )
-                              : prev.targetTenantIds,
-                          };
-                        });
-                      }
-                    }}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
-                      isChecked
-                        ? "border-moto-green bg-moto-green/10 text-gray-900"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    <span
-                      className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
-                        isChecked
-                          ? "border-moto-green-fill bg-moto-green-fill"
-                          : "border-gray-300 bg-white"
-                      }`}
-                    >
-                      {isChecked && (
-                        <Check className="h-3 w-3 text-white" strokeWidth={3} />
-                      )}
-                    </span>
-                    {org.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Target Schools/Tenants */}
-          <div>
-            <span
-              id="announcement-tenants-label"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Schulen
-            </span>
-            <p className="mb-2 text-xs text-gray-500">
-              Leer = Alle Schulen
-              {formData.targetOrgIds.length > 0
-                ? " der ausgewählten Organisationen"
-                : ""}
-            </p>
-            <div
-              className="flex flex-wrap gap-3"
-              role="group"
-              aria-labelledby="announcement-tenants-label"
-            >
-              {availableSchools.map((school) => {
-                const schoolId = school.id;
-                const isChecked = formData.targetTenantIds.includes(schoolId);
-                return (
-                  <button
-                    key={school.id}
-                    type="button"
-                    onClick={() => {
-                      if (isChecked) {
-                        setFormData((prev) => ({
-                          ...prev,
-                          targetTenantIds: prev.targetTenantIds.filter(
-                            (id) => id !== schoolId,
-                          ),
-                        }));
-                      } else {
-                        setFormData((prev) => ({
-                          ...prev,
-                          targetTenantIds: [...prev.targetTenantIds, schoolId],
-                        }));
-                      }
-                    }}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
-                      isChecked
-                        ? "border-moto-green bg-moto-green/10 text-gray-900"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    <span
-                      className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
-                        isChecked
-                          ? "border-moto-green-fill bg-moto-green-fill"
-                          : "border-gray-300 bg-white"
-                      }`}
-                    >
-                      {isChecked && (
-                        <Check className="h-3 w-3 text-white" strokeWidth={3} />
-                      )}
-                    </span>
-                    {school.name}
-                  </button>
-                );
-              })}
-              {availableSchools.length === 0 && (
-                <p className="text-xs text-gray-400 italic">
-                  Keine Schulen verfügbar
-                </p>
-              )}
-            </div>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Delete confirmation */}
-      <ConfirmDeleteModal
-        isOpen={!!deleteTarget}
-        title="Ankündigung löschen"
-        description={
-          <p>
-            Die Ankündigung &quot;{deleteTarget?.title}&quot; wird
-            unwiderruflich gelöscht.
-          </p>
-        }
-        gate={{ mode: "twoStep" }}
-        onConfirm={handleDelete}
-        onClose={() => {
-          clearDeleteError();
-          setDeleteTarget(null);
-        }}
-        loading={isDeleting}
-        error={deleteErrors.error}
-      />
-
-      {/* Publish confirmation */}
-      <ConfirmationModal
-        isOpen={!!publishTarget}
-        onClose={() => {
-          clearPublishError();
-          setPublishTarget(null);
-        }}
-        onConfirm={() => void handlePublish()}
-        title="Ankündigung veröffentlichen?"
-        confirmText="Veröffentlichen"
-        confirmVariant="success"
-        isConfirmLoading={isPublishing}
-      >
-        <p className="text-sm text-gray-600">
-          {publishTarget &&
-          ((publishTarget.targetOrgIds?.length ?? 0) > 0 ||
-            (publishTarget.targetTenantIds?.length ?? 0) > 0)
-            ? `Die Ankündigung "${publishTarget.title}" wird für die ausgewählten Organisationen/Schulen sichtbar.`
-            : `Die Ankündigung "${publishTarget?.title}" wird für alle Nutzer sichtbar.`}
-        </p>
-        <FormErrorAlert message={publishErrors.error} className="mt-3" />
-      </ConfirmationModal>
-    </div>
+    </TenantPage>
   );
 }
 
@@ -1158,7 +1163,7 @@ function AnnouncementCard({
   }, [announcement.content]);
 
   return (
-    <div className="moto-content-surface relative rounded-2xl border p-5 pr-12 transition-all duration-150">
+    <SectionCard className="relative" bodyClassName="pr-8">
       {/* Kebab menu - absolute top right */}
       <div className="absolute top-3 right-3">
         <OverflowMenu
@@ -1344,27 +1349,6 @@ function AnnouncementCard({
       {announcement.status !== "draft" && (
         <AnnouncementViewsAccordion announcementId={announcement.id} />
       )}
-    </div>
-  );
-}
-
-function AnnouncementSkeletons() {
-  return (
-    <div className="mt-4 space-y-4">
-      {Array.from({ length: 3 }, (_, i) => (
-        <div key={i} className="moto-content-surface rounded-2xl border p-5">
-          <div className="space-y-3">
-            <Skeleton className="h-5 w-3/5 rounded" />
-            <div className="flex gap-2">
-              <Skeleton className="h-5 w-20 rounded-full" />
-              <Skeleton className="h-5 w-16 rounded-full" />
-              <Skeleton className="h-5 w-24 rounded-full" />
-            </div>
-            <Skeleton className="h-4 w-full rounded" />
-            <Skeleton className="h-4 w-4/5 rounded" />
-          </div>
-        </div>
-      ))}
-    </div>
+    </SectionCard>
   );
 }

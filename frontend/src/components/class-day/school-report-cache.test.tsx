@@ -30,7 +30,10 @@ vi.mock("next-auth/react", () => ({
     status: identity.session ? "authenticated" : "unauthenticated",
   }),
 }));
-vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantRoutingModeSafe: () => "path",
+}));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(identity.search),
   useRouter: () => ({ replace: vi.fn() }),

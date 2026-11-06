@@ -28,6 +28,12 @@ const {
   mockSearchParams: { value: new URLSearchParams() },
 }));
 
+// Das Operator-Portal hat keinen Tenant-Kontext: der Rückweg bekommt kein Präfix.
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantRoutingModeSafe: () => "path",
+}));
+
 vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
 }));

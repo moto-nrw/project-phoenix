@@ -31,6 +31,12 @@ import { TeamChatThread } from "./team-chat-thread";
 // laufen über den echten Abruf.
 vi.unmock("swr");
 
+// Das Schul-Portal hat keinen Tenant-Kontext: der Rückweg bekommt kein Präfix.
+vi.mock("~/lib/tenant-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/tenant-context")>()),
+  useTenantSlugSafe: () => null,
+}));
+
 vi.mock("~/lib/hooks/use-messages-activity", () => ({
   useMessagesActivity: vi.fn(),
 }));

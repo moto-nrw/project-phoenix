@@ -13,7 +13,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Plus, Printer } from "lucide-react";
 
-import { BackLink } from "~/components/ui/back-link";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -25,10 +24,13 @@ import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { EditActions } from "~/components/ui/edit-actions";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
   SlideOver,
   SlideOverBody,
+  SlideOverFooter,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
@@ -266,317 +268,329 @@ function SchoolParentConferences() {
   const breakError = formErrors.fieldError("breaks");
 
   return (
-    <div className="-mt-1.5 w-full space-y-6">
-      <BackLink
-        href={schoolPath("/school/kalender")}
-        label="Zurück zum Kalender"
-        className="print:hidden"
-      />
-      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-            Elternsprechtag
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
+    // Der Ausdruck zeigt nur die Liste eines Tages; der Seitenkopf bleibt weg.
+    <div className="flex w-full flex-1 flex-col print:[&>div>header]:hidden">
+      <TenantPage
+        title="Elternsprechtag"
+        back
+        backHref={schoolPath("/school/kalender")}
+        backLabel="Zurück zum Kalender"
+        info={
+          <p>
             Eltern buchen in der Eltern-App ein Zeitfenster je Kind. Hier sehen
             Sie, wer wann kommt.
           </p>
-        </div>
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          className="gap-1.5"
-          onClick={openCreate}
-          disabled={!!error || classes.length === 0}
-        >
-          <Plus className="h-4 w-4" aria-hidden />
-          Neuer Elternsprechtag
-        </Button>
-      </div>
-
-      {noClasses ? (
-        <p className="text-sm text-gray-600 print:hidden">
-          Ihnen ist keine Klasse zugeordnet. Bitte fragen Sie die OGS-Leitung.
-        </p>
-      ) : null}
-
-      {selected ? (
-        <SectionCard
-          title={`Elternsprechtag ${schoolClassLabel(selected.school_class)} am ${formatDate(selected.date)}`}
-          description={`${selected.start_time}–${selected.end_time} Uhr${selected.location ? ` · ${selected.location}` : ""} · ${selected.booked_count} von ${selected.slots.length} Zeitfenstern gebucht`}
-          action={
-            <div className="flex flex-wrap gap-2 print:hidden">
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                className="gap-1.5"
-                onClick={() => window.print()}
-              >
-                <Printer className="h-4 w-4" aria-hidden />
-                Drucken
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={() => openEdit(selected)}
-              >
-                Ändern
-              </Button>
-              <Button
-                type="button"
-                variant="outline_danger"
-                size="md"
-                onClick={() => {
-                  deleteErrors.clear();
-                  setDeleteTarget(selected);
-                }}
-              >
-                Löschen
-              </Button>
-            </div>
-          }
-        >
-          <DataTable
-            columns={slotColumns}
-            rows={[...selected.slots]}
-            getRowKey={(row) => row.start_time}
-            stackedOnMobile
-          />
-          <p className="mt-4 text-sm text-gray-600 print:hidden">
-            Eltern buchen, verschieben oder sagen ab, bis 24 Stunden vor dem
-            Termin. Danach melden sie sich bei Ihnen.
-          </p>
-        </SectionCard>
-      ) : null}
-
-      <SectionCard title="Meine Elternsprechtage" className="print:hidden">
-        {error && loadError ? (
-          <LoadErrorAlert error={loadError} />
-        ) : (
-          <DataTable
-            columns={conferenceColumns}
-            rows={[...conferences]}
-            getRowKey={(row) => row.id}
-            isLoading={isLoading && !data}
-            stackedOnMobile
-            defaultSortKey="date"
-            defaultSortDirection="asc"
-            onRowClick={(row) => select(row.id)}
-            emptyState={
-              <EmptyState
-                title="Noch kein Elternsprechtag"
-                description="Legen Sie einen Tag an. Dann buchen die Eltern Ihrer Klasse ein Zeitfenster."
-              />
-            }
-          />
-        )}
-      </SectionCard>
-
-      <SlideOver
-        open={formOpen}
-        onOpenChange={(open) => {
-          if (!open && !submitting) closeForm();
-        }}
-      >
-        <SlideOverContent widthClass="sm:w-[640px]">
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SlideOverTitle>
-                {editing ? "Elternsprechtag ändern" : "Neuer Elternsprechtag"}
-              </SlideOverTitle>
-            </div>
-            <SlideOverCloseButton disabled={submitting} />
-          </SlideOverHeader>
-          <SlideOverBody error={formErrors.error}>
-            <div ref={formRef}>
-              <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-                <label htmlFor="parent-conference-class" className="block">
-                  <span className="mb-2 block text-sm font-medium text-gray-700">
-                    Klasse
-                  </span>
-                  <CustomSelect
-                    id="parent-conference-class"
-                    name="school_class"
-                    ariaLabel="Klasse"
-                    value={draft.schoolClass}
-                    placeholder="Klasse wählen"
-                    onChange={(next) => update({ schoolClass: next })}
-                    disabled={submitting}
-                    invalid={!!classError}
-                    ariaDescribedBy={
-                      classError ? "parent-conference-class-error" : undefined
-                    }
-                    options={[
-                      ...new Set([
-                        ...classes,
-                        ...(editing ? [editing.school_class] : []),
-                      ]),
-                    ].map((schoolClass) => ({
-                      value: schoolClass,
-                      label: schoolClassLabel(schoolClass),
-                    }))}
-                  />
-                  <FieldErrorHint
-                    id="parent-conference-class-error"
-                    message={classError}
-                  />
-                </label>
-
-                <ISODatePicker
-                  label="Tag"
-                  id="parent-conference-date"
-                  name="date"
-                  controlSize="lg"
-                  value={draft.date}
-                  error={formErrors.fieldError("date")}
-                  onChange={(next) => update({ date: next })}
-                  disabled={submitting}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    label="Beginn"
-                    name="start_time"
-                    type="time"
-                    value={draft.startTime}
-                    error={formErrors.fieldError("start_time")}
-                    onChange={(event) =>
-                      update({ startTime: event.target.value })
-                    }
-                    disabled={submitting}
-                    required
-                  />
-                  <Input
-                    label="Ende"
-                    name="end_time"
-                    type="time"
-                    value={draft.endTime}
-                    error={formErrors.fieldError("end_time")}
-                    onChange={(event) =>
-                      update({ endTime: event.target.value })
-                    }
-                    disabled={submitting}
-                    required
-                  />
-                </div>
-
-                <label htmlFor="parent-conference-slot" className="block">
-                  <span className="mb-2 block text-sm font-medium text-gray-700">
-                    Dauer je Gespräch
-                  </span>
-                  <CustomSelect
-                    id="parent-conference-slot"
-                    name="slot_minutes"
-                    ariaLabel="Dauer je Gespräch"
-                    value={draft.slotMinutes}
-                    onChange={(next) => update({ slotMinutes: next })}
-                    disabled={submitting}
-                    options={PARENT_CONFERENCE_SLOT_OPTIONS.map((minutes) => ({
-                      value: minutes,
-                      label: `${minutes} Minuten`,
-                    }))}
-                  />
-                </label>
-
-                <fieldset className="space-y-2">
-                  <legend className="mb-2 block text-sm font-medium text-gray-700">
-                    Pause (freiwillig)
-                  </legend>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Input
-                      label="Von"
-                      name="break_start"
-                      type="time"
-                      value={draft.breakStart}
-                      onChange={(event) =>
-                        update({ breakStart: event.target.value })
-                      }
-                      disabled={submitting}
-                      aria-describedby={
-                        breakError ? "parent-conference-break-error" : undefined
-                      }
-                    />
-                    <Input
-                      label="Bis"
-                      name="break_end"
-                      type="time"
-                      value={draft.breakEnd}
-                      onChange={(event) =>
-                        update({ breakEnd: event.target.value })
-                      }
-                      disabled={submitting}
-                    />
-                  </div>
-                  <FieldErrorHint
-                    id="parent-conference-break-error"
-                    message={breakError}
-                  />
-                </fieldset>
-
-                <Input
-                  label="Raum (freiwillig)"
-                  name="location"
-                  value={draft.location}
-                  onChange={(event) => update({ location: event.target.value })}
-                  disabled={submitting}
-                  maxLength={200}
-                />
-
-                <p className="text-sm text-gray-600">
-                  {editing
-                    ? "Die Eltern mit Buchung bekommen eine Nachricht. Fällt ein gebuchtes Zeitfenster weg, ist die Buchung abgesagt."
-                    : "Die Eltern der Klasse sehen die freien Zeitfenster in der Eltern-App und buchen eines je Kind."}
-                </p>
-
-                <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={closeForm}
-                    disabled={submitting}
-                  >
-                    Abbrechen
-                  </Button>
-                  <Button
-                    type="submit"
-                    size="md"
-                    isLoading={submitting}
-                    loadingText="Wird gespeichert…"
-                  >
-                    Speichern
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </SlideOverBody>
-        </SlideOverContent>
-      </SlideOver>
-
-      <ConfirmDeleteModal
-        isOpen={deleteTarget !== null}
-        title="Elternsprechtag löschen"
-        description={
-          <p className="text-gray-700">
-            Der Elternsprechtag wird gelöscht. Alle Buchungen sind dann
-            abgesagt, und die Eltern bekommen eine Nachricht.
-          </p>
         }
-        gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
-        confirmLabel="Endgültig löschen"
-        onConfirm={() => void confirmDelete()}
-        onClose={() => {
-          if (!deleting) {
-            setDeleteTarget(null);
-            deleteErrors.clear();
-          }
-        }}
-        loading={deleting}
-        error={deleteErrors.error}
-      />
+        actions={
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            className="gap-1.5"
+            onClick={openCreate}
+            disabled={!!error || classes.length === 0}
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Neuer Elternsprechtag
+          </Button>
+        }
+        overlays={
+          <>
+            <SlideOver
+              open={formOpen}
+              onOpenChange={(open) => {
+                if (!open && !submitting) closeForm();
+              }}
+            >
+              <SlideOverContent widthClass="sm:w-[640px]">
+                <SlideOverHeader className="flex-row items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <SlideOverTitle>
+                      {editing
+                        ? "Elternsprechtag ändern"
+                        : "Neuer Elternsprechtag"}
+                    </SlideOverTitle>
+                  </div>
+                  <SlideOverCloseButton disabled={submitting} />
+                </SlideOverHeader>
+                <form
+                  className="flex min-h-0 flex-1 flex-col"
+                  onSubmit={handleSubmit}
+                  noValidate
+                >
+                  <SlideOverBody error={formErrors.error}>
+                    <div ref={formRef}>
+                      <div className="space-y-5">
+                        <label
+                          htmlFor="parent-conference-class"
+                          className="block"
+                        >
+                          <span className="mb-2 block text-sm font-medium text-gray-700">
+                            Klasse
+                          </span>
+                          <CustomSelect
+                            id="parent-conference-class"
+                            name="school_class"
+                            ariaLabel="Klasse"
+                            value={draft.schoolClass}
+                            placeholder="Klasse wählen"
+                            onChange={(next) => update({ schoolClass: next })}
+                            disabled={submitting}
+                            invalid={!!classError}
+                            ariaDescribedBy={
+                              classError
+                                ? "parent-conference-class-error"
+                                : undefined
+                            }
+                            options={[
+                              ...new Set([
+                                ...classes,
+                                ...(editing ? [editing.school_class] : []),
+                              ]),
+                            ].map((schoolClass) => ({
+                              value: schoolClass,
+                              label: schoolClassLabel(schoolClass),
+                            }))}
+                          />
+                          <FieldErrorHint
+                            id="parent-conference-class-error"
+                            message={classError}
+                          />
+                        </label>
+
+                        <ISODatePicker
+                          label="Tag"
+                          id="parent-conference-date"
+                          name="date"
+                          controlSize="lg"
+                          value={draft.date}
+                          error={formErrors.fieldError("date")}
+                          onChange={(next) => update({ date: next })}
+                          disabled={submitting}
+                        />
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <Input
+                            label="Beginn"
+                            name="start_time"
+                            type="time"
+                            value={draft.startTime}
+                            error={formErrors.fieldError("start_time")}
+                            onChange={(event) =>
+                              update({ startTime: event.target.value })
+                            }
+                            disabled={submitting}
+                            required
+                          />
+                          <Input
+                            label="Ende"
+                            name="end_time"
+                            type="time"
+                            value={draft.endTime}
+                            error={formErrors.fieldError("end_time")}
+                            onChange={(event) =>
+                              update({ endTime: event.target.value })
+                            }
+                            disabled={submitting}
+                            required
+                          />
+                        </div>
+
+                        <label
+                          htmlFor="parent-conference-slot"
+                          className="block"
+                        >
+                          <span className="mb-2 block text-sm font-medium text-gray-700">
+                            Dauer je Gespräch
+                          </span>
+                          <CustomSelect
+                            id="parent-conference-slot"
+                            name="slot_minutes"
+                            ariaLabel="Dauer je Gespräch"
+                            value={draft.slotMinutes}
+                            onChange={(next) => update({ slotMinutes: next })}
+                            disabled={submitting}
+                            options={PARENT_CONFERENCE_SLOT_OPTIONS.map(
+                              (minutes) => ({
+                                value: minutes,
+                                label: `${minutes} Minuten`,
+                              }),
+                            )}
+                          />
+                        </label>
+
+                        <fieldset className="space-y-2">
+                          <legend className="mb-2 block text-sm font-medium text-gray-700">
+                            Pause (freiwillig)
+                          </legend>
+                          <div className="grid grid-cols-2 gap-4">
+                            <Input
+                              label="Von"
+                              name="break_start"
+                              type="time"
+                              value={draft.breakStart}
+                              onChange={(event) =>
+                                update({ breakStart: event.target.value })
+                              }
+                              disabled={submitting}
+                              aria-describedby={
+                                breakError
+                                  ? "parent-conference-break-error"
+                                  : undefined
+                              }
+                            />
+                            <Input
+                              label="Bis"
+                              name="break_end"
+                              type="time"
+                              value={draft.breakEnd}
+                              onChange={(event) =>
+                                update({ breakEnd: event.target.value })
+                              }
+                              disabled={submitting}
+                            />
+                          </div>
+                          <FieldErrorHint
+                            id="parent-conference-break-error"
+                            message={breakError}
+                          />
+                        </fieldset>
+
+                        <Input
+                          label="Raum (freiwillig)"
+                          name="location"
+                          value={draft.location}
+                          onChange={(event) =>
+                            update({ location: event.target.value })
+                          }
+                          disabled={submitting}
+                          maxLength={200}
+                        />
+
+                        <p className="text-sm text-gray-600">
+                          {editing
+                            ? "Die Eltern mit Buchung bekommen eine Nachricht. Fällt ein gebuchtes Zeitfenster weg, ist die Buchung abgesagt."
+                            : "Die Eltern der Klasse sehen die freien Zeitfenster in der Eltern-App und buchen eines je Kind."}
+                        </p>
+                      </div>
+                    </div>
+                  </SlideOverBody>
+                  <SlideOverFooter>
+                    <EditActions
+                      onCancel={closeForm}
+                      saving={submitting}
+                      saveLabel="Speichern"
+                      savingLabel="Wird gespeichert…"
+                    />
+                  </SlideOverFooter>
+                </form>
+              </SlideOverContent>
+            </SlideOver>
+
+            <ConfirmDeleteModal
+              isOpen={deleteTarget !== null}
+              title="Elternsprechtag löschen"
+              description={
+                <p className="text-gray-700">
+                  Der Elternsprechtag wird gelöscht. Alle Buchungen sind dann
+                  abgesagt, und die Eltern bekommen eine Nachricht.
+                </p>
+              }
+              gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
+              confirmLabel="Endgültig löschen"
+              onConfirm={() => void confirmDelete()}
+              onClose={() => {
+                if (!deleting) {
+                  setDeleteTarget(null);
+                  deleteErrors.clear();
+                }
+              }}
+              loading={deleting}
+              error={deleteErrors.error}
+            />
+          </>
+        }
+      >
+        {noClasses ? (
+          <p className="text-sm text-gray-600 print:hidden">
+            Ihnen ist keine Klasse zugeordnet. Bitte fragen Sie die OGS-Leitung.
+          </p>
+        ) : null}
+
+        {selected ? (
+          <SectionCard
+            title={`Elternsprechtag ${schoolClassLabel(selected.school_class)} am ${formatDate(selected.date)}`}
+            description={`${selected.start_time}–${selected.end_time} Uhr${selected.location ? ` · ${selected.location}` : ""} · ${selected.booked_count} von ${selected.slots.length} Zeitfenstern gebucht`}
+            action={
+              <div className="flex flex-wrap gap-2 print:hidden">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  className="gap-1.5"
+                  onClick={() => window.print()}
+                >
+                  <Printer className="h-4 w-4" aria-hidden />
+                  Drucken
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => openEdit(selected)}
+                >
+                  Ändern
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline_danger"
+                  size="md"
+                  onClick={() => {
+                    deleteErrors.clear();
+                    setDeleteTarget(selected);
+                  }}
+                >
+                  Löschen
+                </Button>
+              </div>
+            }
+          >
+            <DataTable
+              columns={slotColumns}
+              rows={[...selected.slots]}
+              getRowKey={(row) => row.start_time}
+              stackedOnMobile
+            />
+            <p className="mt-4 text-sm text-gray-600 print:hidden">
+              Eltern buchen, verschieben oder sagen ab, bis 24 Stunden vor dem
+              Termin. Danach melden sie sich bei Ihnen.
+            </p>
+          </SectionCard>
+        ) : null}
+
+        <SectionCard title="Meine Elternsprechtage" className="print:hidden">
+          {error && loadError ? (
+            <LoadErrorAlert error={loadError} />
+          ) : (
+            <DataTable
+              columns={conferenceColumns}
+              rows={[...conferences]}
+              getRowKey={(row) => row.id}
+              isLoading={isLoading && !data}
+              stackedOnMobile
+              defaultSortKey="date"
+              defaultSortDirection="asc"
+              onRowClick={(row) => select(row.id)}
+              emptyState={
+                <EmptyState
+                  title="Noch kein Elternsprechtag"
+                  description="Legen Sie einen Tag an. Dann buchen die Eltern Ihrer Klasse ein Zeitfenster."
+                />
+              }
+            />
+          )}
+        </SectionCard>
+      </TenantPage>
     </div>
   );
 }

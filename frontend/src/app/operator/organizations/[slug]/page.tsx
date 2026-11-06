@@ -23,8 +23,11 @@ import {
   summaryToOrganization,
   summaryToSchool,
 } from "~/lib/operator/provisioning-helpers";
-import { EntityHeaderCard } from "~/components/operator/entity-header-card";
-import { BackLink } from "~/components/ui/back-link";
+import {
+  EntityStats,
+  EntityStatusLine,
+} from "~/components/operator/entity-head";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { Button } from "~/components/ui/button";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { DevicesTable } from "~/components/operator/devices-table";
@@ -33,9 +36,8 @@ import { TransferDeviceModal } from "~/components/operator/transfer-device-modal
 import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import { buildSchoolColumns } from "~/components/operator/school-table-columns";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { ConfirmationModal } from "~/components/ui/modal";
-import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -48,7 +50,6 @@ import {
   PlusIcon,
   SimpleEmptyState,
 } from "~/app/operator/provisioning/provisioning-shared";
-import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
 import { CreateSchoolModal } from "~/app/operator/provisioning/create-school-modal";
 import { EditOrganizationModal } from "~/app/operator/provisioning/edit-organization-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
@@ -70,7 +71,6 @@ import {
   OrgSoftDeleteModal,
   SchoolRestoreModal,
 } from "~/app/operator/provisioning/operator-entity-modals";
-import { organizationsConcept } from "~/lib/concepts/organizations";
 
 const logger = createLogger({ component: "OperatorOrganizationDetailPage" });
 
@@ -630,62 +630,223 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
   if (isLoading && !organization) {
     return (
-      <div className="w-full">
-        <BackLink {...ORGANIZATIONS_BACK} className="mb-4" />
-        <SkeletonRegion label="Träger wird geladen">
-          <DetailSkeleton sections={1} fieldsPerSection={4} />
-        </SkeletonRegion>
-      </div>
+      <TenantPage
+        title="Träger"
+        back
+        backHref={ORGANIZATIONS_BACK.href}
+        backLabel={ORGANIZATIONS_BACK.label}
+        loading
+        loadingLabel="Träger wird geladen"
+      />
     );
   }
 
   if (!organization && organizationsLoadError) {
     return (
-      <div className="w-full">
-        <BackLink {...ORGANIZATIONS_BACK} className="mb-4" />
-        <LoadErrorAlert error={organizationsLoadError} />
-      </div>
+      <TenantPage
+        title="Träger"
+        back
+        backHref={ORGANIZATIONS_BACK.href}
+        backLabel={ORGANIZATIONS_BACK.label}
+        error={organizationsLoadError}
+      />
     );
   }
 
   if (!organization) {
     logger.warn("organization_not_found_by_slug", { slug });
     return (
-      <div className="w-full">
-        <BackLink {...ORGANIZATIONS_BACK} />
-        <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center">
-          <p className="text-gray-600">Träger nicht gefunden.</p>
-        </div>
-      </div>
+      <TenantPage
+        title="Träger"
+        back
+        backHref={ORGANIZATIONS_BACK.href}
+        backLabel={ORGANIZATIONS_BACK.label}
+        empty={{ title: "Träger nicht gefunden." }}
+      />
     );
   }
 
   return (
-    <div className="w-full">
-      <EntityHeaderCard
-        back={ORGANIZATIONS_BACK}
-        title={organization.name}
-        concept={organizationsConcept}
-        subdomain={organization.slug}
-        active={organization.active}
-        createdAt={organization.createdAt}
-        actions={orgHeaderActions}
-        stats={headerStats}
-      />
+    <TenantPage
+      title={organization.name}
+      back
+      backHref={ORGANIZATIONS_BACK.href}
+      backLabel={ORGANIZATIONS_BACK.label}
+      stats={
+        <EntityStatusLine
+          subdomain={organization.slug}
+          active={organization.active}
+        />
+      }
+      actions={orgHeaderActions}
+      overlays={
+        <>
+          <ConfirmationModal
+            isOpen={deactivateOpen}
+            onClose={() => setDeactivateOpen(false)}
+            onConfirm={() => {
+              setDeactivateOpen(false);
+              void handleToggleOrgActive();
+            }}
+            title="Träger deaktivieren?"
+            confirmText="Deaktivieren"
+            confirmVariant="warning"
+          >
+            <p className="text-sm text-gray-700">
+              Alle Personen im Träger-Portal von {organization.name} werden
+              sofort abgemeldet und können sich nicht mehr anmelden. Die Schulen
+              des Trägers arbeiten weiter. Sie können den Träger wieder
+              aktivieren.
+            </p>
+          </ConfirmationModal>
 
-      <LoadErrorAlert error={organizationsLoadError} className="mt-3" />
+          <AssignTraegerMemberModal
+            isOpen={assignTraegerOpen}
+            onClose={() => setAssignTraegerOpen(false)}
+            organizationId={organization.id}
+            organizationName={organization.name}
+            onAssigned={reloadTraegerBuero}
+          />
+
+          <InviteTraegerAccountModal
+            isOpen={inviteTraegerOpen}
+            onClose={() => setInviteTraegerOpen(false)}
+            onInvited={reloadTraegerBuero}
+            invite={(input) =>
+              operatorProvisioningService.inviteTraegerMember(organization.id, {
+                email: input.email,
+                roles: [...input.roles],
+              })
+            }
+            title="Person ins Träger-Büro einladen"
+            hint={`Die Person bekommt eine E-Mail mit einem Link zum Träger-Portal von ${organization.name}. Dort legt sie ein Passwort fest oder meldet sich mit ihrem moto-Konto an. Ein Schulkonto braucht sie nicht.`}
+            successText="Die Einladung ist verschickt. Sie steht jetzt in der Liste."
+          />
+
+          {mfaResetMember ? (
+            <MFAAdminOverrideModal
+              isOpen={true}
+              onClose={() => setMfaResetMember(null)}
+              scope="traeger"
+              organizationId={organization.id}
+              accountId={mfaResetMember.accountId}
+              accountLabel={mfaResetMember.email}
+            />
+          ) : null}
+
+          {caregiverAccount && caregiverSchoolContext ? (
+            <CaregiverCapabilityModal
+              isOpen={true}
+              onClose={() => {
+                setCaregiverAccount(null);
+                setCaregiverSchoolContext(null);
+              }}
+              scope="operator"
+              accountId={caregiverAccount.accountId}
+              accountLabel={`${caregiverAccount.firstName} ${caregiverAccount.lastName}`.trim()}
+              schoolId={caregiverSchoolContext.id}
+              schoolName={caregiverSchoolContext.name}
+              onUpdated={async () => {
+                await mutateOrgAccounts();
+              }}
+            />
+          ) : null}
+
+          {orgDelete.deleteTarget && (
+            <OrgSoftDeleteModal
+              target={orgDelete.deleteTarget}
+              errorMessage={orgDelete.softDeleteError}
+              isProcessing={orgDelete.isProcessing}
+              onCancel={() => orgDelete.setDeleteTarget(null)}
+              onConfirm={() => void orgDelete.handleSoftDelete()}
+              confirmDisabled={orgDeleteTargetHasSchools}
+              confirmDisabledReason="Dieser Träger hat noch nicht gelöschte Schulen. Bitte zuerst alle Schulen löschen."
+            />
+          )}
+
+          <SchoolRestoreModal
+            target={schoolDelete.restoreTarget}
+            setTarget={schoolDelete.setRestoreTarget}
+            onConfirm={() => void schoolDelete.handleRestore()}
+            isProcessing={schoolDelete.isProcessing}
+            errorMessage={schoolDelete.softDeleteError}
+            confirmDisabled={organization.deletedAt != null}
+            confirmDisabledReason="Der Träger dieser Schule ist gelöscht. Bitte zuerst den Träger wiederherstellen."
+          />
+
+          <CreateSchoolModal
+            isOpen={createSchoolOpen}
+            onClose={() => setCreateSchoolOpen(false)}
+            organizations={activeOrganizations}
+            onCreated={() => refreshOrganizationDrillIn().then(() => undefined)}
+          />
+
+          <EditOrganizationModal
+            isOpen={editOrgOpen}
+            onClose={() => setEditOrgOpen(false)}
+            organization={summaryToOrganization(organization)}
+            onUpdated={async () => {
+              const refreshed = await mutateOrganizations();
+              const updated = refreshed?.find(
+                (item) => item.id === organization.id,
+              );
+              if (updated && updated.slug !== slug) {
+                router.replace(
+                  `/operator/organizations/${encodeURIComponent(updated.slug)}${currentTabSearch}`,
+                );
+              }
+            }}
+          />
+
+          <CreateDeviceModal
+            isOpen={createDeviceOpen}
+            onClose={() => setCreateDeviceOpen(false)}
+            schools={organizationSchoolsForDeviceModal}
+            onCreated={() => {
+              void Promise.all([
+                mutateOrgDevices(),
+                refreshOrganizationDrillIn(),
+              ]);
+            }}
+          />
+
+          <SetApiKeyModal
+            isOpen={setKeyDevice !== null}
+            onClose={() => setSetKeyDevice(null)}
+            device={setKeyDevice}
+            onKeySet={() => {
+              void mutateOrgDevices();
+            }}
+          />
+
+          <TransferDeviceModal
+            device={transferDevice}
+            schools={organizationSchoolsForDeviceModal}
+            onClose={() => setTransferDevice(null)}
+            onTransferred={handleDeviceDeleted}
+          />
+
+          <DeleteDeviceModal
+            device={deleteDevice}
+            onClose={() => setDeleteDevice(null)}
+            onDeleted={handleDeviceDeleted}
+          />
+        </>
+      }
+    >
+      <EntityStats stats={headerStats} createdAt={organization.createdAt} />
+
+      <LoadErrorAlert error={organizationsLoadError} />
 
       {organization.testSystem ? (
-        <div className="mt-6">
-          <TestTraegerSection
-            organizationId={organization.id}
-            organizationActive={organization.active}
-            onChanged={refreshOrganizationDrillIn}
-          />
-        </div>
+        <TestTraegerSection
+          organizationId={organization.id}
+          organizationActive={organization.active}
+          onChanged={refreshOrganizationDrillIn}
+        />
       ) : null}
 
-      <div className="mt-6">
+      <div>
         <Tabs value={activeTab} onValueChange={handleTabValueChange}>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             {/* Seven tabs do not fit a phone: the row scrolls sideways. */}
@@ -706,7 +867,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
             ) : null}
           </div>
 
-          <TabsPrimitive.Content value="schulen" className="mt-4">
+          <TabsContent value="schulen" className="mt-4">
             <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
             {schoolDelete.showTrash ? (
               <div className="space-y-4">
@@ -749,9 +910,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
                 isLoading={schoolsLoading}
               />
             )}
-          </TabsPrimitive.Content>
+          </TabsContent>
 
-          <TabsPrimitive.Content value="konten" className="mt-4">
+          <TabsContent value="konten" className="mt-4">
             <LoadErrorAlert error={accountsLoadError} className="mb-4" />
             {(orgAccounts === undefined && !accountsLoading) ||
             accountsError ? null : !accountsLoading &&
@@ -767,9 +928,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
                 onManageCaregiver={openCaregiverModal}
               />
             )}
-          </TabsPrimitive.Content>
+          </TabsContent>
 
-          <TabsPrimitive.Content value="geraete" className="mt-4">
+          <TabsContent value="geraete" className="mt-4">
             <LoadErrorAlert error={devicesLoadError} className="mb-4" />
             {(orgDevices === undefined && !devicesLoading) ||
             devicesError ? null : !devicesLoading &&
@@ -787,9 +948,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
                 onDelete={setDeleteDevice}
               />
             )}
-          </TabsPrimitive.Content>
+          </TabsContent>
 
-          <TabsPrimitive.Content value="personen" className="mt-4">
+          <TabsContent value="personen" className="mt-4">
             <LoadErrorAlert error={personsLoadError} className="mb-4" />
             {(orgPersons === undefined && !personsLoading) ||
             personsError ? null : !personsLoading &&
@@ -804,8 +965,8 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
                 isLoading={personsLoading}
               />
             )}
-          </TabsPrimitive.Content>
-          <TabsPrimitive.Content value="traeger-buero" className="mt-4">
+          </TabsContent>
+          <TabsContent value="traeger-buero" className="mt-4">
             <LoadErrorAlert error={traegerMembersLoadError} className="mb-4" />
             {((traegerMembers === undefined ||
               traegerInvitations === undefined) &&
@@ -826,169 +987,22 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
                 onChanged={reloadTraegerBuero}
               />
             )}
-          </TabsPrimitive.Content>
-          <TabsPrimitive.Content value="einstellungen" className="mt-4">
+          </TabsContent>
+          <TabsContent value="einstellungen" className="mt-4">
             {activeTab === "einstellungen" ? (
               <TraegerSettingsSection organizationId={organization.id} />
             ) : null}
-          </TabsPrimitive.Content>
-          <TabsPrimitive.Content value="loeschauftrag" className="mt-4">
+          </TabsContent>
+          <TabsContent value="loeschauftrag" className="mt-4">
             {activeTab === "loeschauftrag" ? (
               <TraegerErasureOrderSection
                 organizationId={organization.id}
                 organizationActive={organization.active}
               />
             ) : null}
-          </TabsPrimitive.Content>
+          </TabsContent>
         </Tabs>
       </div>
-
-      <ConfirmationModal
-        isOpen={deactivateOpen}
-        onClose={() => setDeactivateOpen(false)}
-        onConfirm={() => {
-          setDeactivateOpen(false);
-          void handleToggleOrgActive();
-        }}
-        title="Träger deaktivieren?"
-        confirmText="Deaktivieren"
-        confirmVariant="warning"
-      >
-        <p className="text-sm text-gray-700">
-          Alle Personen im Träger-Portal von {organization.name} werden sofort
-          abgemeldet und können sich nicht mehr anmelden. Die Schulen des
-          Trägers arbeiten weiter. Sie können den Träger wieder aktivieren.
-        </p>
-      </ConfirmationModal>
-
-      <AssignTraegerMemberModal
-        isOpen={assignTraegerOpen}
-        onClose={() => setAssignTraegerOpen(false)}
-        organizationId={organization.id}
-        organizationName={organization.name}
-        onAssigned={reloadTraegerBuero}
-      />
-
-      <InviteTraegerAccountModal
-        isOpen={inviteTraegerOpen}
-        onClose={() => setInviteTraegerOpen(false)}
-        onInvited={reloadTraegerBuero}
-        invite={(input) =>
-          operatorProvisioningService.inviteTraegerMember(organization.id, {
-            email: input.email,
-            roles: [...input.roles],
-          })
-        }
-        title="Person ins Träger-Büro einladen"
-        hint={`Die Person bekommt eine E-Mail mit einem Link zum Träger-Portal von ${organization.name}. Dort legt sie ein Passwort fest oder meldet sich mit ihrem moto-Konto an. Ein Schulkonto braucht sie nicht.`}
-        successText="Die Einladung ist verschickt. Sie steht jetzt in der Liste."
-      />
-
-      {mfaResetMember ? (
-        <MFAAdminOverrideModal
-          isOpen={true}
-          onClose={() => setMfaResetMember(null)}
-          scope="traeger"
-          organizationId={organization.id}
-          accountId={mfaResetMember.accountId}
-          accountLabel={mfaResetMember.email}
-        />
-      ) : null}
-
-      {caregiverAccount && caregiverSchoolContext ? (
-        <CaregiverCapabilityModal
-          isOpen={true}
-          onClose={() => {
-            setCaregiverAccount(null);
-            setCaregiverSchoolContext(null);
-          }}
-          scope="operator"
-          accountId={caregiverAccount.accountId}
-          accountLabel={`${caregiverAccount.firstName} ${caregiverAccount.lastName}`.trim()}
-          schoolId={caregiverSchoolContext.id}
-          schoolName={caregiverSchoolContext.name}
-          onUpdated={async () => {
-            await mutateOrgAccounts();
-          }}
-        />
-      ) : null}
-
-      {orgDelete.deleteTarget && (
-        <OrgSoftDeleteModal
-          target={orgDelete.deleteTarget}
-          errorMessage={orgDelete.softDeleteError}
-          isProcessing={orgDelete.isProcessing}
-          onCancel={() => orgDelete.setDeleteTarget(null)}
-          onConfirm={() => void orgDelete.handleSoftDelete()}
-          confirmDisabled={orgDeleteTargetHasSchools}
-          confirmDisabledReason="Dieser Träger hat noch nicht gelöschte Schulen. Bitte zuerst alle Schulen löschen."
-        />
-      )}
-
-      <SchoolRestoreModal
-        target={schoolDelete.restoreTarget}
-        setTarget={schoolDelete.setRestoreTarget}
-        onConfirm={() => void schoolDelete.handleRestore()}
-        isProcessing={schoolDelete.isProcessing}
-        errorMessage={schoolDelete.softDeleteError}
-        confirmDisabled={organization.deletedAt != null}
-        confirmDisabledReason="Der Träger dieser Schule ist gelöscht. Bitte zuerst den Träger wiederherstellen."
-      />
-
-      <CreateSchoolModal
-        isOpen={createSchoolOpen}
-        onClose={() => setCreateSchoolOpen(false)}
-        organizations={activeOrganizations}
-        onCreated={() => refreshOrganizationDrillIn().then(() => undefined)}
-      />
-
-      <EditOrganizationModal
-        isOpen={editOrgOpen}
-        onClose={() => setEditOrgOpen(false)}
-        organization={summaryToOrganization(organization)}
-        onUpdated={async () => {
-          const refreshed = await mutateOrganizations();
-          const updated = refreshed?.find(
-            (item) => item.id === organization.id,
-          );
-          if (updated && updated.slug !== slug) {
-            router.replace(
-              `/operator/organizations/${encodeURIComponent(updated.slug)}${currentTabSearch}`,
-            );
-          }
-        }}
-      />
-
-      <CreateDeviceModal
-        isOpen={createDeviceOpen}
-        onClose={() => setCreateDeviceOpen(false)}
-        schools={organizationSchoolsForDeviceModal}
-        onCreated={() => {
-          void Promise.all([mutateOrgDevices(), refreshOrganizationDrillIn()]);
-        }}
-      />
-
-      <SetApiKeyModal
-        isOpen={setKeyDevice !== null}
-        onClose={() => setSetKeyDevice(null)}
-        device={setKeyDevice}
-        onKeySet={() => {
-          void mutateOrgDevices();
-        }}
-      />
-
-      <TransferDeviceModal
-        device={transferDevice}
-        schools={organizationSchoolsForDeviceModal}
-        onClose={() => setTransferDevice(null)}
-        onTransferred={handleDeviceDeleted}
-      />
-
-      <DeleteDeviceModal
-        device={deleteDevice}
-        onClose={() => setDeleteDevice(null)}
-        onDeleted={handleDeviceDeleted}
-      />
-    </div>
+    </TenantPage>
   );
 }

@@ -45,8 +45,9 @@ import { cn } from "~/lib/utils";
 /**
  * Das Seitengerüst des Tenant-Portals. JEDE Seite unter
  * `app/[tenant]/(protected)` rendert genau dieses Gerüst als Wurzel
- * (Ausnahmen gibt es nicht.), ebenso jede Seite des Träger-Portals nach der
- * Anmeldung (`app/traeger`, #5146).
+ * (Ausnahmen gibt es nicht.), ebenso jede Seite des Träger-, Schul- und
+ * Operator-Portals nach der Anmeldung (`app/traeger`, #5146; `app/school`,
+ * `app/operator`, #5604).
  *
  * Die Reihenfolge der Bausteine ist fest und liegt hier, nicht in der Seite:
  *

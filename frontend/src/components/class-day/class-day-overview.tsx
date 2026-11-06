@@ -9,14 +9,13 @@
 // unten stand und deshalb unsichtbar blieb.
 //
 // Design follows the Anmeldungen/Planung surface language: one calm content
-// section with an uppercase kicker, gray-50 stat blocks, no colored
-// dashboards.
+// surface inside `TenantPage`, gray-50 stat blocks, no colored dashboards.
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useCallback, useLayoutEffect, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import {
@@ -28,7 +27,9 @@ import NavigationLink from "~/components/ui/navigation-link";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { StatCard } from "~/components/ui/stat-card";
 import { getUserDisplayName } from "~/lib/auth-utils";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
@@ -372,6 +373,8 @@ function absenceReportMenu(
 }
 
 export interface ClassDayOverviewProps {
+  /** Fläche direkt unter der Kopfkarte, über den Klassen. */
+  readonly notices?: ReactNode;
   /** Klassenliste und Wochenendplan der angemeldeten Lehrkraft. */
   readonly fetchClasses: () => Promise<ClassDayClasses>;
   /** Tagesreport einer Klasse — portal-eigene Session. */
@@ -405,6 +408,7 @@ export function ClassDayOverview({
   fetchSchoolDay,
   reportAbsence,
   withdrawAbsenceReport,
+  notices,
 }: ClassDayOverviewProps) {
   const greeting = useTimeBasedGreeting();
   const { data: session } = useSession();
@@ -536,7 +540,7 @@ export function ClassDayOverview({
 
   return (
     <div
-      className="w-full"
+      className="flex w-full flex-1 flex-col"
       style={
         {
           "--class-day-blue": MOTO_COLOR_PALETTE.blue.base,
@@ -544,21 +548,17 @@ export function ClassDayOverview({
         } as CSSProperties
       }
     >
-      <section className="moto-content-surface rounded-2xl border p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold tracking-wide text-[var(--class-day-blue)] uppercase">
-              Klassenansicht
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
-              {greeting}, {getUserDisplayName(session)}
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Ihre Übergabe nach Unterricht am {formatDate(dateISO)}. Öffnen Sie
-              eine Klasse, um zu sehen, wer in Randstunde oder Ganztag bleibt
-              und wer nach Hause geht.
-            </p>
-          </div>
+      <TenantPage
+        title={`${greeting}, ${getUserDisplayName(session)}`}
+        prominent
+        info={
+          <p>
+            Ihre Übergabe nach Unterricht am {formatDate(dateISO)}. Öffnen Sie
+            eine Klasse, um zu sehen, wer in Randstunde oder Ganztag bleibt und
+            wer nach Hause geht.
+          </p>
+        }
+        actions={
           <div className="flex w-full items-center gap-1 lg:w-auto">
             <Button
               type="button"
@@ -590,239 +590,247 @@ export function ClassDayOverview({
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
-        </div>
+        }
+        overlays={
+          <ConfirmationModal
+            isOpen={canReportAbsences && absenceReports.withdrawTarget !== null}
+            onClose={absenceReports.closeWithdraw}
+            onConfirm={() => void absenceReports.confirmWithdraw()}
+            title="Meldung zurücknehmen?"
+            confirmText="Zurücknehmen"
+            isConfirmLoading={absenceReports.withdrawing}
+          >
+            <FormErrorAlert message={absenceReports.error} className="mb-3" />
+            <p className="text-sm text-gray-700">
+              {absenceReports.withdrawTarget
+                ? `${absenceReports.withdrawTarget.child.first_name} ${absenceReports.withdrawTarget.child.last_name} steht dann wieder unter „Fehlen ohne Meldung“. Die OGS sieht den Status nicht mehr.`
+                : null}
+            </p>
+          </ConfirmationModal>
+        }
+      >
+        {notices}
+        <SectionCard>
+          {noClasses && (
+            <EmptyState
+              className="mt-4"
+              title="Keine Klassen zugewiesen"
+              description="Ihrem Konto ist noch keine Klasse zugeordnet. Die OGS-Verwaltung kann Ihnen Klassen unter Mitarbeitende zuweisen."
+            />
+          )}
 
-        {noClasses && (
-          <EmptyState
-            className="mt-4"
-            title="Keine Klassen zugewiesen"
-            description="Ihrem Konto ist noch keine Klasse zugeordnet. Die OGS-Verwaltung kann Ihnen Klassen unter Mitarbeitende zuweisen."
-          />
-        )}
+          {!noClasses && loading && (
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          )}
 
-        {!noClasses && loading && (
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
-          </div>
-        )}
-
-        {/* Voller Fehlerzustand nur, wenn GAR NICHTS geladen werden konnte;
+          {/* Voller Fehlerzustand nur, wenn GAR NICHTS geladen werden konnte;
             bei Teilausfall bleiben die gesunden Klassen stehen. */}
-        {!noClasses &&
-          !loading &&
-          hasLoadFailure &&
-          Object.keys(reports).length === 0 &&
-          !weekend && <LoadErrorAlert error={loadError} className="mt-4" />}
+          {!noClasses &&
+            !loading &&
+            hasLoadFailure &&
+            Object.keys(reports).length === 0 &&
+            !weekend && <LoadErrorAlert error={loadError} className="mt-4" />}
 
-        {!noClasses &&
-          !loading &&
-          (weekend || !schoolMode || Object.keys(reports).length > 0) && (
-            <>
-              {hasLoadFailure && Object.keys(reports).length > 0 && (
-                <LoadErrorAlert error={loadError} className="mt-4" />
-              )}
+          {!noClasses &&
+            !loading &&
+            (weekend || !schoolMode || Object.keys(reports).length > 0) && (
+              <>
+                {hasLoadFailure && Object.keys(reports).length > 0 && (
+                  <LoadErrorAlert error={loadError} className="mt-4" />
+                )}
 
-              {weekend ? (
-                <EmptyState
-                  className="mt-4"
-                  title="Kein Schultag"
-                  description="Für Samstag und Sonntag gibt es keine Übergabe. Bitte einen Wochentag wählen."
-                />
-              ) : (
-                <>
-                  {schoolMode && schoolDay && (
-                    <>
-                      <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                        Ganze Schule
-                      </h3>
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                        {schoolLists.map((list) => (
-                          <StatCard
-                            key={list.key}
-                            variant="row"
-                            label={list.label}
-                            value={list.count(schoolDay.totals)}
-                            href={schoolPath(
-                              schoolDayListPath(dateISO, list.key),
-                            )}
-                          />
-                        ))}
-                      </div>
-                      {open && (
-                        <div className="mt-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <h3 className="text-sm font-semibold text-gray-900">
-                              {open.label}: {open.count(schoolDay.totals)}
-                            </h3>
-                            <ButtonLink
+                {weekend ? (
+                  <EmptyState
+                    className="mt-4"
+                    title="Kein Schultag"
+                    description="Für Samstag und Sonntag gibt es keine Übergabe. Bitte einen Wochentag wählen."
+                  />
+                ) : (
+                  <>
+                    {schoolMode && schoolDay && (
+                      <>
+                        <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                          Ganze Schule
+                        </h3>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          {schoolLists.map((list) => (
+                            <StatCard
+                              key={list.key}
+                              variant="row"
+                              label={list.label}
+                              value={list.count(schoolDay.totals)}
                               href={schoolPath(
-                                schoolDayListPath(dateISO, null),
+                                schoolDayListPath(dateISO, list.key),
                               )}
-                              variant="ghost"
-                              size="compact"
-                            >
-                              Liste schließen
-                            </ButtonLink>
-                          </div>
-                          {/* Bei offener Rückfrage steht der Fehler dort. */}
-                          <FormErrorAlert
-                            message={
-                              absenceReports.withdrawTarget
-                                ? null
-                                : absenceReports.error
-                            }
-                            className="mt-2"
-                          />
-                          {open.key === "ohne-meldung" && (
-                            <p className="mt-1 text-sm text-gray-600">
-                              Die Lehrkraft hat diese Kinder als fehlend
-                              eingetragen. Es gibt keine Krankmeldung.
-                              {canReportAbsences
-                                ? " Rufen die Eltern an, tragen Sie die Meldung hier ein."
-                                : ""}
-                            </p>
-                          )}
-                          {groups.length === 0 ? (
-                            <p className="mt-2 text-sm text-gray-500">
-                              An diesem Tag stehen keine Kinder in dieser Liste.
-                            </p>
-                          ) : (
-                            <div className="mt-2 grid gap-3 lg:grid-cols-2">
-                              {groups.map((group) => (
-                                <div
-                                  key={group.schoolClass}
-                                  className="rounded-xl bg-gray-50 px-3 py-2"
-                                >
-                                  <NavigationLink
-                                    href={schoolPath(
-                                      schoolDayClassPath(
-                                        group.schoolClass,
-                                        dateISO,
-                                        open.key,
-                                      ),
-                                    )}
-                                    className="text-sm font-semibold text-gray-900 underline-offset-2 hover:underline"
-                                  >
-                                    {schoolClassLabel(group.schoolClass)} ·{" "}
-                                    {group.children.length}
-                                  </NavigationLink>
-                                  <ul className="mt-1 space-y-0.5 text-sm text-gray-700">
-                                    {group.children.map((child) => {
-                                      const note = childNote(child, open.key);
-                                      const target = {
-                                        schoolClass: group.schoolClass,
-                                        child,
-                                      };
-                                      const menu = absenceReportMenu(
-                                        child,
-                                        canReportAbsences,
-                                        (status) =>
-                                          void absenceReports.enter(
-                                            target,
-                                            status,
-                                          ),
-                                        () =>
-                                          absenceReports.askWithdraw(target),
-                                      );
-                                      return (
-                                        <li
-                                          key={
-                                            child.list_entry
-                                              ? `entry-${child.list_entry_id}`
-                                              : `student-${child.student_id}`
-                                          }
-                                          className="flex min-w-0 items-center justify-between gap-2"
-                                        >
-                                          <span className="min-w-0">
-                                            {child.last_name},{" "}
-                                            {child.first_name}
-                                            {note && (
-                                              <span className="text-gray-500">
-                                                {" "}
-                                                · {note}
-                                              </span>
-                                            )}
-                                          </span>
-                                          {menu.length > 0 && (
-                                            <OverflowMenu
-                                              items={menu}
-                                              ariaLabel={
-                                                child.unreported
-                                                  ? `Meldung für ${child.first_name} ${child.last_name} eintragen`
-                                                  : `Meldung für ${child.first_name} ${child.last_name} zurücknehmen`
-                                              }
-                                              triggerSize="sm"
-                                              triggerContent={
-                                                absenceReports.isPending(target)
-                                                  ? "Wird gespeichert …"
-                                                  : child.unreported
-                                                    ? "Meldung eintragen"
-                                                    : "Zurücknehmen"
-                                              }
-                                            />
-                                          )}
-                                        </li>
-                                      );
-                                    })}
-                                  </ul>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {classes !== undefined && (
-                    <>
-                      <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                        {schoolMode ? "Alle Klassen" : "Ihre Klassen"}
-                      </h3>
-                      {schoolMode ? (
-                        <div className="mt-2 grid gap-3 lg:grid-cols-2">
-                          {classes.map((klass) => (
-                            <ClassLink
-                              key={klass}
-                              klass={klass}
-                              report={reports[klass] ?? null}
-                              failed={false}
-                              weekend={weekend}
-                              dateISO={dateISO}
-                              openList={openList}
                             />
                           ))}
                         </div>
-                      ) : (
-                        <ClassReports
-                          key={JSON.stringify([dateISO, classes])}
-                          classes={classes}
-                          dateISO={dateISO}
-                          fetchClassDay={fetchClassDay}
-                        />
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-            </>
-          )}
-      </section>
-      <ConfirmationModal
-        isOpen={canReportAbsences && absenceReports.withdrawTarget !== null}
-        onClose={absenceReports.closeWithdraw}
-        onConfirm={() => void absenceReports.confirmWithdraw()}
-        title="Meldung zurücknehmen?"
-        confirmText="Zurücknehmen"
-        isConfirmLoading={absenceReports.withdrawing}
-      >
-        <FormErrorAlert message={absenceReports.error} className="mb-3" />
-        <p className="text-sm text-gray-700">
-          {absenceReports.withdrawTarget
-            ? `${absenceReports.withdrawTarget.child.first_name} ${absenceReports.withdrawTarget.child.last_name} steht dann wieder unter „Fehlen ohne Meldung“. Die OGS sieht den Status nicht mehr.`
-            : null}
-        </p>
-      </ConfirmationModal>
+                        {open && (
+                          <div className="mt-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <h3 className="text-sm font-semibold text-gray-900">
+                                {open.label}: {open.count(schoolDay.totals)}
+                              </h3>
+                              <ButtonLink
+                                href={schoolPath(
+                                  schoolDayListPath(dateISO, null),
+                                )}
+                                variant="ghost"
+                                size="compact"
+                              >
+                                Liste schließen
+                              </ButtonLink>
+                            </div>
+                            {/* Bei offener Rückfrage steht der Fehler dort. */}
+                            <FormErrorAlert
+                              message={
+                                absenceReports.withdrawTarget
+                                  ? null
+                                  : absenceReports.error
+                              }
+                              className="mt-2"
+                            />
+                            {open.key === "ohne-meldung" && (
+                              <p className="mt-1 text-sm text-gray-600">
+                                Die Lehrkraft hat diese Kinder als fehlend
+                                eingetragen. Es gibt keine Krankmeldung.
+                                {canReportAbsences
+                                  ? " Rufen die Eltern an, tragen Sie die Meldung hier ein."
+                                  : ""}
+                              </p>
+                            )}
+                            {groups.length === 0 ? (
+                              <p className="mt-2 text-sm text-gray-500">
+                                An diesem Tag stehen keine Kinder in dieser
+                                Liste.
+                              </p>
+                            ) : (
+                              <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                                {groups.map((group) => (
+                                  <div
+                                    key={group.schoolClass}
+                                    className="rounded-xl bg-gray-50 px-3 py-2"
+                                  >
+                                    <NavigationLink
+                                      href={schoolPath(
+                                        schoolDayClassPath(
+                                          group.schoolClass,
+                                          dateISO,
+                                          open.key,
+                                        ),
+                                      )}
+                                      className="text-sm font-semibold text-gray-900 underline-offset-2 hover:underline"
+                                    >
+                                      {schoolClassLabel(group.schoolClass)} ·{" "}
+                                      {group.children.length}
+                                    </NavigationLink>
+                                    <ul className="mt-1 space-y-0.5 text-sm text-gray-700">
+                                      {group.children.map((child) => {
+                                        const note = childNote(child, open.key);
+                                        const target = {
+                                          schoolClass: group.schoolClass,
+                                          child,
+                                        };
+                                        const menu = absenceReportMenu(
+                                          child,
+                                          canReportAbsences,
+                                          (status) =>
+                                            void absenceReports.enter(
+                                              target,
+                                              status,
+                                            ),
+                                          () =>
+                                            absenceReports.askWithdraw(target),
+                                        );
+                                        return (
+                                          <li
+                                            key={
+                                              child.list_entry
+                                                ? `entry-${child.list_entry_id}`
+                                                : `student-${child.student_id}`
+                                            }
+                                            className="flex min-w-0 items-center justify-between gap-2"
+                                          >
+                                            <span className="min-w-0">
+                                              {child.last_name},{" "}
+                                              {child.first_name}
+                                              {note && (
+                                                <span className="text-gray-500">
+                                                  {" "}
+                                                  · {note}
+                                                </span>
+                                              )}
+                                            </span>
+                                            {menu.length > 0 && (
+                                              <OverflowMenu
+                                                items={menu}
+                                                ariaLabel={
+                                                  child.unreported
+                                                    ? `Meldung für ${child.first_name} ${child.last_name} eintragen`
+                                                    : `Meldung für ${child.first_name} ${child.last_name} zurücknehmen`
+                                                }
+                                                triggerSize="sm"
+                                                triggerContent={
+                                                  absenceReports.isPending(
+                                                    target,
+                                                  )
+                                                    ? "Wird gespeichert …"
+                                                    : child.unreported
+                                                      ? "Meldung eintragen"
+                                                      : "Zurücknehmen"
+                                                }
+                                              />
+                                            )}
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {classes !== undefined && (
+                      <>
+                        <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                          {schoolMode ? "Alle Klassen" : "Ihre Klassen"}
+                        </h3>
+                        {schoolMode ? (
+                          <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                            {classes.map((klass) => (
+                              <ClassLink
+                                key={klass}
+                                klass={klass}
+                                report={reports[klass] ?? null}
+                                failed={false}
+                                weekend={weekend}
+                                dateISO={dateISO}
+                                openList={openList}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <ClassReports
+                            key={JSON.stringify([dateISO, classes])}
+                            classes={classes}
+                            dateISO={dateISO}
+                            fetchClassDay={fetchClassDay}
+                          />
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+        </SectionCard>
+      </TenantPage>
     </div>
   );
 }

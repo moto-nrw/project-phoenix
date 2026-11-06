@@ -93,29 +93,22 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
 
 // Mock UI components
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({ title, badge, filters, actionButton }: any) => (
-    <div data-testid="page-header">
-      <h1>{title}</h1>
-      {badge && <span data-testid="badge">{badge.count}</span>}
-      {filters &&
-        filters.map((f: any) => (
-          <select
-            key={f.id}
-            data-testid={`filter-${f.id}`}
-            value={f.value}
-            onChange={(e) => f.onChange(e.target.value)}
-          >
-            {f.options.map((opt: any) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
+  PageHeaderSearchLayout: ({ filters }: any) =>
+    filters?.map((f: any) => (
+      <select
+        key={f.id}
+        data-testid={`filter-${f.id}`}
+        value={f.value}
+        onChange={(e) => f.onChange(e.target.value)}
+      >
+        {f.options.map((opt: any) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
         ))}
-      {actionButton}
-    </div>
-  ),
+      </select>
+    )),
 }));
 
 vi.mock("~/components/ui/modal", () => ({
@@ -175,7 +168,8 @@ vi.mock("framer-motion", () => ({
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
   },
 }));
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("lucide-react")>()),
   MoreVertical: () => <span>MoreVertical</span>,
   Pencil: () => <span>Pencil</span>,
   Trash2: () => <span>Trash2</span>,
@@ -241,8 +235,10 @@ describe("OperatorAnnouncementsPage", () => {
 
     render(<OperatorAnnouncementsPage />);
 
-    // 3 skeleton cards × 6 Skeleton components each = 18
-    expect(screen.getAllByTestId("skeleton")).toHaveLength(18);
+    // Das Gerüst kündigt den Ladezustand an und zeigt seine Skelette (#5604).
+    expect(
+      screen.getByLabelText("Ankündigungen werden geladen"),
+    ).toBeInTheDocument();
   });
 
   it("renders empty state when no announcements", () => {
