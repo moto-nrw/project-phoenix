@@ -5,6 +5,7 @@ import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { SWRConfig, useSWRConfig } from "~/lib/swr/testing";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
+import { resetSWRScope } from "~/lib/swr/scope";
 import { useSWRAuth } from "~/lib/swr";
 import {
   useConfirmedResource,
@@ -69,6 +70,8 @@ beforeEach(() => {
     expires: "2099-01-01",
   } as Session;
   fetchFigures.mockReset().mockResolvedValue(CONFIRMED);
+  // Refusals are tab-wide; the session boundary lifts them between tests.
+  resetSWRScope({ revalidate: false });
 });
 
 describe("Träger reads after a refusal", () => {
@@ -149,5 +152,98 @@ describe("Träger reads after a refusal", () => {
     expect(view.result.current.resource.data).toEqual(CONFIRMED);
     expect(view.result.current.resource.refused).toBe(false);
     expect(options.cache.get(CACHE_KEY)?.data).toEqual(CONFIRMED);
+  });
+});
+
+/** One reader of the key: what a second component of the same key shows. */
+function useReader() {
+  const guard = useRefusalGuard(KEY);
+  const response = useSWRAuth<{ children: number }>(KEY, fetchFigures, {
+    ...guard.callbacks,
+  });
+  return useConfirmedResource(response, guard, "die Zahlen");
+}
+
+describe("a refusal per key, for every reader (invariant 4)", () => {
+  it("keeps a second reader empty after the first one's 403, also when another view writes back on 503", async () => {
+    const options = setup();
+    const first = renderHook(() => useFigures(), options);
+    await waitFor(() =>
+      expect(first.result.current.resource.data).toEqual(CONFIRMED),
+    );
+
+    fetchFigures.mockRejectedValue(new ApiError("forbidden", 403));
+    await refetch(first.result.current.resource.reload);
+    await waitFor(() =>
+      expect(first.result.current.resource.refused).toBe(true),
+    );
+
+    // Another view writes the old answer back; the server is unavailable.
+    await act(async () => {
+      await first.result.current.writeCache(CACHE_KEY, CONFIRMED, {
+        revalidate: false,
+      });
+    });
+    fetchFigures.mockRejectedValue(new ApiError("unavailable", 503));
+    const second = renderHook(() => useReader(), options);
+    await waitFor(() => expect(fetchFigures).toHaveBeenCalledTimes(3));
+
+    expect(second.result.current.data).toBeNull();
+    expect(second.result.current.refused).toBe(true);
+    expect(second.result.current.failure).toMatchObject({ status: 403 });
+    expect(first.result.current.resource.data).toBeNull();
+  });
+
+  it("shows data again in every reader after 403 and then 200", async () => {
+    const options = setup();
+    const first = renderHook(() => useFigures(), options);
+    await waitFor(() =>
+      expect(first.result.current.resource.data).toEqual(CONFIRMED),
+    );
+    fetchFigures.mockRejectedValue(new ApiError("forbidden", 403));
+    await refetch(first.result.current.resource.reload);
+    await waitFor(() =>
+      expect(first.result.current.resource.refused).toBe(true),
+    );
+    const second = renderHook(() => useReader(), options);
+    await waitFor(() => expect(second.result.current.refused).toBe(true));
+    expect(second.result.current.data).toBeNull();
+
+    fetchFigures.mockResolvedValue(AGAIN);
+    await refetch(second.result.current.reload);
+
+    await waitFor(() => expect(second.result.current.data).toEqual(AGAIN));
+    await waitFor(() =>
+      expect(first.result.current.resource.data).toEqual(AGAIN),
+    );
+    expect(first.result.current.resource.refused).toBe(false);
+  });
+
+  it("lifts every refusal when the session ends or the account changes", async () => {
+    const options = setup();
+    const view = renderHook(() => useFigures(), options);
+    await waitFor(() =>
+      expect(view.result.current.resource.data).toEqual(CONFIRMED),
+    );
+    fetchFigures.mockRejectedValue(new ApiError("forbidden", 403));
+    await refetch(view.result.current.resource.reload);
+    await waitFor(() =>
+      expect(view.result.current.resource.refused).toBe(true),
+    );
+
+    // Another account signs in; its first read fails without a refusal.
+    fetchFigures.mockRejectedValue(new ApiError("unavailable", 503));
+    sessionState.data = {
+      user: { id: "B", orgId: 7, scope: "org" },
+      expires: "2099-01-01",
+    } as Session;
+    view.rerender();
+
+    await waitFor(() =>
+      expect(view.result.current.resource.failure).toMatchObject({
+        status: 503,
+      }),
+    );
+    expect(view.result.current.resource.refused).toBe(false);
   });
 });
