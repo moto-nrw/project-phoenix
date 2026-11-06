@@ -109,7 +109,7 @@ interface BackendSchool {
 const optionalId = (id: number | null): string | null =>
   id === null ? null : String(id);
 
-export function mapTraegerDocumentRelease(
+function mapTraegerDocumentRelease(
   release: BackendRelease,
 ): TraegerDocumentRelease {
   return {
@@ -157,14 +157,6 @@ export async function fetchTraegerDocuments(): Promise<TraegerDocument[]> {
     traegerDocumentsPath,
   );
   return (documents ?? []).map(mapDocument);
-}
-
-/** Ein Dokument des Trägers aus der Liste; `null`, wenn es fehlt. */
-export async function fetchTraegerDocument(
-  id: string,
-): Promise<TraegerDocument | null> {
-  const documents = await fetchTraegerDocuments();
-  return documents.find((document) => document.id === id) ?? null;
 }
 
 /** Die Schulen des Trägers mit ihren Gruppen, für eine Freigabe. */

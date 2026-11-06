@@ -70,10 +70,3 @@ export function schoolReleaseAudienceLabel(
     ? "Eltern an allen Schulen"
     : "Eltern Ihrer Schule";
 }
-
-/** Ob mindestens eine Freigabe Eltern erreicht. */
-export function reachesParents(
-  releases: readonly TraegerDocumentRelease[],
-): boolean {
-  return releases.some((release) => release.audience === "parents");
-}
