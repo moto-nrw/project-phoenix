@@ -6,6 +6,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { ModuleNotBookedSlots } from "~/components/tenant/module-not-booked-state";
 import { describe, expect, it, vi } from "vitest";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
@@ -77,7 +78,9 @@ function TestSection({
 function renderSection(error: unknown, retry?: () => void) {
   return render(
     <ToastProvider>
-      <TestSection error={error} retry={retry} />
+      <ModuleNotBookedSlots>
+        <TestSection error={error} retry={retry} />
+      </ModuleNotBookedSlots>
     </ToastProvider>,
   );
 }

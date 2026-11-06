@@ -18,7 +18,7 @@ function PasswordResetModalOnErrorPath(
 }
 
 const meta: Meta<typeof PasswordResetModalOnErrorPath> = {
-  title: "components/ui/PasswordResetModal",
+  title: "components/auth/PasswordResetModal",
   component: PasswordResetModalOnErrorPath,
   parameters: {
     layout: "fullscreen",

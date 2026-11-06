@@ -20,7 +20,7 @@ import { Alert } from "~/components/ui/alert";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { DatabaseForm } from "~/components/ui/database/database-form";
+import { DatabaseForm } from "~/components/database/database-form";
 import { useApiFormError } from "~/contexts/ToastContext";
 import {
   DataField,

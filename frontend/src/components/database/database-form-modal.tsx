@@ -5,7 +5,7 @@ import { Modal } from "~/components/ui/modal";
 import {
   DatabaseForm,
   type DatabaseFormErrorPath,
-} from "~/components/ui/database/database-form";
+} from "~/components/database/database-form";
 import { configToFormSection, type EntityConfig } from "@/lib/database/types";
 
 type DatabaseFormModalConfig<T> = Pick<EntityConfig<T>, "form" | "labels">;

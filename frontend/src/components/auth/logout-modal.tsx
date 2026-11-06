@@ -3,8 +3,8 @@
 import React, { useState } from "react";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
-import { Modal } from "./modal";
-import { Button } from "./button";
+import { Modal } from "~/components/ui/modal";
+import { Button } from "~/components/ui/button";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "LogoutModal" });

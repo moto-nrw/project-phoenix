@@ -2,10 +2,12 @@
 
 import { LockSimpleIcon } from "@phosphor-icons/react";
 import { useSession } from "next-auth/react";
+import type { ReactNode } from "react";
 
 import { ButtonLink } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Alert } from "~/components/ui/alert";
+import { NotBookedSlotProvider } from "~/components/ui/not-booked-slot";
 import { seesLockedModules } from "~/lib/module-register";
 import { normalizeLocale } from "~/i18n/locales";
 import { moduleNotBookedExplanation } from "~/lib/module-not-booked";
@@ -73,5 +75,23 @@ export function ModuleNotBookedState({
         ) : undefined
       }
     />
+  );
+}
+
+const NOT_BOOKED_SLOTS = {
+  Alert: ModuleNotBookedAlert,
+  State: ModuleNotBookedState,
+};
+
+/** Gives the kit's error alerts and page scaffold the explanation (#5586). */
+export function ModuleNotBookedSlots({
+  children,
+}: {
+  readonly children: ReactNode;
+}) {
+  return (
+    <NotBookedSlotProvider slots={NOT_BOOKED_SLOTS}>
+      {children}
+    </NotBookedSlotProvider>
   );
 }

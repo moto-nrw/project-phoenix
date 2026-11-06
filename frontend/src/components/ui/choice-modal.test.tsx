@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ChoiceModal } from "./choice-modal";
-import { ModalProvider } from "../dashboard/modal-context";
+import { ModalProvider } from "./modal-context";
 
 function TestWrapper({ children }: { children: ReactNode }) {
   return <ModalProvider>{children}</ModalProvider>;

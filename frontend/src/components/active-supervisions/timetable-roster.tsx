@@ -32,7 +32,7 @@ import {
   homeworkLine,
 } from "~/lib/homework-feedback";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
-import { OccupancyBadges } from "~/components/ui/occupancy-badges";
+import { OccupancyBadges } from "~/components/ui/planning/occupancy-badges";
 import type { AddUnplannedStudentModalProps } from "~/components/active-supervisions/add-unplanned-student-modal";
 import type { PresentChildrenPickerProps } from "~/components/active-supervisions/present-children-picker";
 import {

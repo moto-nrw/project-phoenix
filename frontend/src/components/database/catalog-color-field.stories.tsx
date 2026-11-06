@@ -28,7 +28,7 @@ function ControlledCatalogColorField(
 }
 
 const meta = {
-  title: "ui/database/CatalogColorField",
+  title: "components/database/CatalogColorField",
   component: CatalogColorField,
   args: {
     value: null,

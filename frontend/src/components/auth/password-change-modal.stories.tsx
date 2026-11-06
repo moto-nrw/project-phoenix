@@ -18,7 +18,7 @@ function PasswordChangeModalOnErrorPath(
 }
 
 const meta = {
-  title: "components/ui/PasswordChangeModal",
+  title: "components/auth/PasswordChangeModal",
   component: PasswordChangeModalOnErrorPath,
   parameters: {
     layout: "fullscreen",

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { ModuleNotBookedSlots } from "~/components/tenant/module-not-booked-state";
 import { FormErrorAlert, LoadErrorAlert } from "./form-error-alert";
 
 const session = vi.hoisted(() => ({ permissions: [] as string[] }));
@@ -94,7 +95,7 @@ describe("FormErrorAlert", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Gleicher Fehler");
   });
 
-  it("explains a form refusal to staff through their Leitung", () => {
+  it("shows the ordinary error without a not-booked slot", () => {
     render(
       <FormErrorAlert
         message={{
@@ -103,6 +104,22 @@ describe("FormErrorAlert", () => {
           attempt: 1,
         }}
       />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Katalogtext");
+  });
+
+  it("explains a form refusal to staff through their Leitung", () => {
+    render(
+      <ModuleNotBookedSlots>
+        <FormErrorAlert
+          message={{
+            message: "Katalogtext",
+            notBookedModule: "zeiterfassung",
+            attempt: 1,
+          }}
+        />
+      </ModuleNotBookedSlots>,
     );
 
     expect(screen.getByRole("status")).toHaveTextContent(
@@ -114,13 +131,15 @@ describe("FormErrorAlert", () => {
     session.permissions = ["config:manage"];
 
     render(
-      <LoadErrorAlert
-        error={{
-          message: "Katalogtext",
-          notBookedModule: "zeiterfassung",
-          attempt: 1,
-        }}
-      />,
+      <ModuleNotBookedSlots>
+        <LoadErrorAlert
+          error={{
+            message: "Katalogtext",
+            notBookedModule: "zeiterfassung",
+            attempt: 1,
+          }}
+        />
+      </ModuleNotBookedSlots>,
     );
 
     expect(screen.getByRole("status")).toHaveTextContent(

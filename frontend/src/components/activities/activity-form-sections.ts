@@ -3,7 +3,7 @@
 import { activitiesConfig } from "@/components/database/configs/activities.config";
 import { configToFormSection } from "@/lib/database/types";
 import { isSystemActivity, type Activity } from "@/lib/activity-helpers";
-import type { FormSection } from "~/components/ui/database/database-form";
+import type { FormSection } from "~/components/database/database-form";
 
 export function buildActivityFormSections(
   activity: Activity | null | undefined,

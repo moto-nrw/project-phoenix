@@ -21,7 +21,6 @@ import {
 } from "~/components/auth/credential-error";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -29,7 +28,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
-import { PasswordResetModal } from "~/components/ui/password-reset-modal";
+import { PasswordResetModal } from "~/components/auth/password-reset-modal";
 import { Radio } from "~/components/ui/radio";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { requestTraegerPasswordReset } from "~/lib/auth-api";
@@ -77,7 +76,6 @@ interface EnrollmentStep {
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
@@ -319,31 +317,25 @@ function LoginForm() {
                 >
                   Passwort
                 </FieldLabel>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    controlSize="compact"
-                    data-testid="input-password"
-                    autoComplete="current-password"
-                    required
-                    disabled={isSubmitting}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    aria-invalid={Boolean(formErrors.fieldError("password"))}
-                    aria-describedby={
-                      formErrors.fieldError("password")
-                        ? "password-error"
-                        : undefined
-                    }
-                    className="pr-10"
-                  />
-                  <PasswordToggleButton
-                    showPassword={showPassword}
-                    onToggle={() => setShowPassword(!showPassword)}
-                  />
-                </div>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  controlSize="compact"
+                  data-testid="input-password"
+                  autoComplete="current-password"
+                  required
+                  disabled={isSubmitting}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  aria-invalid={Boolean(formErrors.fieldError("password"))}
+                  aria-describedby={
+                    formErrors.fieldError("password")
+                      ? "password-error"
+                      : undefined
+                  }
+                  revealable
+                />
                 <AuthFieldError
                   id="password-error"
                   message={formErrors.fieldError("password")}

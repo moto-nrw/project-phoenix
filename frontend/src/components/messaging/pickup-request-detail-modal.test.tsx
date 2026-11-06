@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ModalProvider } from "~/components/dashboard/modal-context";
+import { ModalProvider } from "~/components/ui/modal-context";
 import {
   fetchCareScheduleChangeRequest,
   type StaffCareRequestDetail,
