@@ -145,11 +145,11 @@ export interface CareContractList {
 export type ContractMailState = "queued" | "sent" | "failed" | "unknown";
 
 /** The state of a contract version (ADR 0088 section 2, #4681). */
-export type ContractVersionStatus =
+type ContractVersionStatus =
   "beantragt" | "wirksam" | "abgeloest" | "abgelehnt";
 
 /** Where a version came from: the conclusion or an approved change. */
-export type ContractVersionSource = "abschluss" | "buchungsaenderung";
+type ContractVersionSource = "abschluss" | "buchungsaenderung";
 
 /** One version of a contract with the days it holds (#4681). */
 export interface ContractVersion {
