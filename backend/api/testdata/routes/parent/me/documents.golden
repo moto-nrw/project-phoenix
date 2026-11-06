@@ -1,2 +1,3 @@
 GET /parent/me/documents
+GET /parent/me/documents/{organizationId}/contracts/{contractId}/pdf
 GET /parent/me/documents/{organizationId}/{documentId}/pdf
