@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import { searchStudentDay } from "./search-student-card";
 
 function student(overrides: Partial<Student>): Student {

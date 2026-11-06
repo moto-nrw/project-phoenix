@@ -377,14 +377,17 @@ const mockStudents = [
   },
 ];
 
+vi.mock("~/lib/student-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/student-api")>()),
+  fetchStudents: vi.fn(() =>
+    Promise.resolve({
+      students: mockStudents,
+    }),
+  ),
+  fetchSchoolClasses: vi.fn(() => Promise.resolve([])),
+}));
+
 vi.mock("~/lib/api", () => ({
-  studentService: {
-    getStudents: vi.fn(() =>
-      Promise.resolve({
-        students: mockStudents,
-      }),
-    ),
-  },
   groupService: {
     getGroups: vi.fn(() =>
       Promise.resolve([
@@ -452,7 +455,7 @@ function mockUseSWRAuthWithStudents(
 
 // Mocks useSWRAuth so the students SWR fetcher is captured (not auto-run) and
 // returns it. Lets a test execute the fetcher itself and assert which filters
-// the page forwards to studentService.getStudents, the real backend contract
+// the page forwards to fetchStudents, the real backend contract
 // for the #1492 administrative filters.
 function captureStudentsFetcher(swrModule: typeof import("~/lib/swr")) {
   const captured: { current: (() => Promise<unknown>) | null } = {
@@ -1559,7 +1562,7 @@ describe("StudentSearchPage", () => {
     it("asks the backend for the selected school year", async () => {
       // The stage filter is applied server-side (#2218) so the reported count
       // covers the whole selection instead of only the fetched page.
-      const { studentService } = await import("~/lib/api");
+      const { fetchStudents } = await import("~/lib/student-api");
       const swrModule = await import("~/lib/swr");
       const fetcher = captureStudentsFetcher(swrModule);
 
@@ -1574,13 +1577,13 @@ describe("StudentSearchPage", () => {
       });
 
       await fetcher.current!();
-      expect(studentService.getStudents).toHaveBeenCalledWith(
+      expect(fetchStudents).toHaveBeenCalledWith(
         expect.objectContaining({ gradeLevel: ["1"] }),
       );
     });
 
     it("keeps two school years in one list and in the URL (#2218)", async () => {
-      const { studentService } = await import("~/lib/api");
+      const { fetchStudents } = await import("~/lib/student-api");
       const swrModule = await import("~/lib/swr");
       const fetcher = captureStudentsFetcher(swrModule);
 
@@ -1593,7 +1596,7 @@ describe("StudentSearchPage", () => {
       selectFilterOptions(screen.getByTestId("filter-year"), ["3", "4"]);
 
       await fetcher.current!();
-      expect(studentService.getStudents).toHaveBeenCalledWith(
+      expect(fetchStudents).toHaveBeenCalledWith(
         expect.objectContaining({ gradeLevel: ["3", "4"] }),
       );
       expect(new URL(window.location.href).searchParams.get("year")).toBe(
@@ -2090,13 +2093,11 @@ describe("StudentSearchPage", () => {
 
     it("executes the students SWR fetcher", async () => {
       mockSearchParams.set("day_status", "not_coming_today");
-      const studentService = await import("~/lib/api");
+      const studentApi = await import("~/lib/student-api");
       const mockGetStudents = vi.fn().mockResolvedValue({
         students: [{ id: "1", first_name: "Test", second_name: "Student" }],
       });
-      vi.mocked(studentService.studentService.getStudents).mockImplementation(
-        mockGetStudents,
-      );
+      vi.mocked(studentApi.fetchStudents).mockImplementation(mockGetStudents);
 
       let capturedStudentsFetcher: (() => Promise<unknown>) | null = null;
 
@@ -2635,7 +2636,7 @@ describe("StudentSearchPage", () => {
       "normalizes URL group_id '$rawGroupId' to the backend-effective SSE scope",
       async ({ rawGroupId, expectedGroupIds, expectedScope }) => {
         mockSearchParams.set("group_id", rawGroupId);
-        const { studentService } = await import("~/lib/api");
+        const { fetchStudents } = await import("~/lib/student-api");
         const swrModule = await import("~/lib/swr");
         const studentKeys: string[] = [];
         const fetcher = captureStudentsFetcher(swrModule);
@@ -2673,7 +2674,7 @@ describe("StudentSearchPage", () => {
           ).toBe(true);
         });
         await fetcher.current!();
-        expect(studentService.getStudents).toHaveBeenCalledWith(
+        expect(fetchStudents).toHaveBeenCalledWith(
           expect.objectContaining({ groupId: expectedGroupIds }),
         );
       },
@@ -2683,7 +2684,7 @@ describe("StudentSearchPage", () => {
       // The page renders no address, health info, supervisor note, guardian
       // contact or departure map — shipping them costs ~78% of the payload on
       // a list that fetches up to 1000 rows in one trip.
-      const { studentService } = await import("~/lib/api");
+      const { fetchStudents } = await import("~/lib/student-api");
       const swrModule = await import("~/lib/swr");
       const fetcher = captureStudentsFetcher(swrModule);
 
@@ -2692,7 +2693,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => expect(fetcher.current).not.toBeNull());
       await fetcher.current!();
 
-      expect(studentService.getStudents).toHaveBeenCalledWith(
+      expect(fetchStudents).toHaveBeenCalledWith(
         expect.objectContaining({ view: "slim" }),
       );
     });
@@ -2703,7 +2704,7 @@ describe("StudentSearchPage", () => {
       // single getStudents call carrying bus and must NOT loop over pages.
       mockSearchParams.set("bus", "yes");
 
-      const studentService = await import("~/lib/api");
+      const studentApi = await import("~/lib/student-api");
       const mockGetStudents = vi.fn().mockResolvedValue({
         students: [{ ...mockStudents[0]!, id: "101", first_name: "OnlyPage" }],
         pagination: {
@@ -2713,9 +2714,7 @@ describe("StudentSearchPage", () => {
           total_records: 1,
         },
       });
-      vi.mocked(studentService.studentService.getStudents).mockImplementation(
-        mockGetStudents,
-      );
+      vi.mocked(studentApi.fetchStudents).mockImplementation(mockGetStudents);
 
       let capturedStudentsFetcher: (() => Promise<unknown>) | null = null;
       const swrModule = await import("~/lib/swr");
@@ -2765,7 +2764,7 @@ describe("StudentSearchPage", () => {
       // This view has no pagination control, so a selection the proxy route
       // cannot fit into its 1000-row page has to be walked here — otherwise
       // every child past the first page is unreachable.
-      const studentService = await import("~/lib/api");
+      const studentApi = await import("~/lib/student-api");
       const mockGetStudents = vi.fn();
       mockGetStudents.mockImplementation((filters: { page?: number }) => {
         const page = filters.page ?? 1;
@@ -2785,9 +2784,7 @@ describe("StudentSearchPage", () => {
           },
         });
       });
-      vi.mocked(studentService.studentService.getStudents).mockImplementation(
-        mockGetStudents,
-      );
+      vi.mocked(studentApi.fetchStudents).mockImplementation(mockGetStudents);
 
       const swrModule = await import("~/lib/swr");
       const fetcher = captureStudentsFetcher(swrModule);
@@ -2820,7 +2817,7 @@ describe("StudentSearchPage", () => {
       // Past the bound the loaded rows are only a part of the selection. The
       // count badge, the grouping and the export all read those rows, so the
       // shortfall has to leave the fetcher instead of ending in the log.
-      const studentService = await import("~/lib/api");
+      const studentApi = await import("~/lib/student-api");
       const mockGetStudents = vi.fn();
       mockGetStudents.mockImplementation((filters: { page?: number }) => {
         const page = filters.page ?? 1;
@@ -2840,9 +2837,7 @@ describe("StudentSearchPage", () => {
           },
         });
       });
-      vi.mocked(studentService.studentService.getStudents).mockImplementation(
-        mockGetStudents,
-      );
+      vi.mocked(studentApi.fetchStudents).mockImplementation(mockGetStudents);
 
       const swrModule = await import("~/lib/swr");
       const fetcher = captureStudentsFetcher(swrModule);
@@ -2862,8 +2857,8 @@ describe("StudentSearchPage", () => {
     });
 
     it("keeps truncatedTotal null when every page was loaded (#2218)", async () => {
-      const studentService = await import("~/lib/api");
-      vi.mocked(studentService.studentService.getStudents).mockResolvedValue({
+      const studentApi = await import("~/lib/student-api");
+      vi.mocked(studentApi.fetchStudents).mockResolvedValue({
         students: [mockStudents[0]!],
         pagination: {
           current_page: 1,
@@ -2871,9 +2866,7 @@ describe("StudentSearchPage", () => {
           total_pages: 1,
           total_records: 1,
         },
-      } as unknown as Awaited<
-        ReturnType<typeof studentService.studentService.getStudents>
-      >);
+      } as unknown as Awaited<ReturnType<typeof studentApi.fetchStudents>>);
 
       const swrModule = await import("~/lib/swr");
       const fetcher = captureStudentsFetcher(swrModule);
@@ -2953,7 +2946,7 @@ describe("StudentSearchPage", () => {
       // actual exclusion (incl. GDPR redaction) is covered by the backend
       // applyAdministrativeFilters tests.
       mockSearchParams.set("bus", "yes");
-      const { studentService } = await import("~/lib/api");
+      const { fetchStudents } = await import("~/lib/student-api");
       const swrModule = await import("~/lib/swr");
       const fetcher = captureStudentsFetcher(swrModule);
 
@@ -2962,7 +2955,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => expect(fetcher.current).not.toBeNull());
       await fetcher.current!();
 
-      expect(studentService.getStudents).toHaveBeenCalledWith(
+      expect(fetchStudents).toHaveBeenCalledWith(
         expect.objectContaining({ bus: "yes" }),
       );
       expect(screen.getByTestId("active-filter-bus")).toHaveTextContent(
@@ -2972,7 +2965,7 @@ describe("StudentSearchPage", () => {
 
     it("forwards the photo consent filter to the backend (#1492)", async () => {
       mockSearchParams.set("photo_consent", "no");
-      const { studentService } = await import("~/lib/api");
+      const { fetchStudents } = await import("~/lib/student-api");
       const swrModule = await import("~/lib/swr");
       const fetcher = captureStudentsFetcher(swrModule);
 
@@ -2981,7 +2974,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => expect(fetcher.current).not.toBeNull());
       await fetcher.current!();
 
-      expect(studentService.getStudents).toHaveBeenCalledWith(
+      expect(fetchStudents).toHaveBeenCalledWith(
         expect.objectContaining({ photoConsent: "no" }),
       );
     });
@@ -3575,7 +3568,7 @@ describe("StudentSearchPage", () => {
 
     it("forwards the pickup status filter to the backend (#1492)", async () => {
       mockSearchParams.set("pickup_status", "self");
-      const { studentService } = await import("~/lib/api");
+      const { fetchStudents } = await import("~/lib/student-api");
       const swrModule = await import("~/lib/swr");
       const fetcher = captureStudentsFetcher(swrModule);
 
@@ -3584,7 +3577,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => expect(fetcher.current).not.toBeNull());
       await fetcher.current!();
 
-      expect(studentService.getStudents).toHaveBeenCalledWith(
+      expect(fetchStudents).toHaveBeenCalledWith(
         expect.objectContaining({ pickupStatus: "self" }),
       );
       expect(
@@ -3594,7 +3587,7 @@ describe("StudentSearchPage", () => {
 
     it("forwards the 'no pickup rule' filter to the backend (#1492)", async () => {
       mockSearchParams.set("pickup_status", "none");
-      const { studentService } = await import("~/lib/api");
+      const { fetchStudents } = await import("~/lib/student-api");
       const swrModule = await import("~/lib/swr");
       const fetcher = captureStudentsFetcher(swrModule);
 
@@ -3603,7 +3596,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => expect(fetcher.current).not.toBeNull());
       await fetcher.current!();
 
-      expect(studentService.getStudents).toHaveBeenCalledWith(
+      expect(fetchStudents).toHaveBeenCalledWith(
         expect.objectContaining({ pickupStatus: "none" }),
       );
       expect(

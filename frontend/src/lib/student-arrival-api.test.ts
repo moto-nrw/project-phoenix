@@ -1,5 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "./api-error";
+
+const mockSessionFetch = vi.hoisted(() => vi.fn());
+
+vi.mock("./session-cache", () => ({
+  sessionFetch: mockSessionFetch,
+}));
+
 import {
   WEEKDAYS,
   fetchArrivalSettings,
@@ -13,43 +20,65 @@ import {
   createArrivalNote,
   updateArrivalNote,
   deleteArrivalNote,
+  fetchClassArrivalExceptions,
+  deleteClassArrivalException,
 } from "./student-arrival-api";
 
-const { mockGetSession } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-}));
-
-vi.mock("next-auth/react", () => ({
-  getSession: mockGetSession,
-}));
-
-function mockFetchResponse(
-  data: unknown,
-  options: { ok?: boolean; status?: number; text?: string } = {},
-): Response {
-  const ok = options.ok ?? true;
-  const status = options.status ?? 200;
-  return {
-    ok,
-    status,
-    json: () => Promise.resolve(data),
-    text: () => Promise.resolve(options.text ?? ""),
-  } as unknown as Response;
+function wrapped(data: unknown): Response {
+  return Response.json({ success: true, message: "ok", data });
 }
 
-describe("student-arrival-api", () => {
-  const fetchSpy = vi.fn();
+function failed(status: number, text = ""): Response {
+  return new Response(text, { status });
+}
 
+function noContent(): Response {
+  return new Response(null, { status: 204 });
+}
+
+function requestInit(call = 0): RequestInit {
+  return mockSessionFetch.mock.calls[call]![1] as RequestInit;
+}
+
+const backendSchedule = {
+  id: 1,
+  student_id: 42,
+  weekday: 1,
+  weekday_name: "Montag",
+  expected_arrival: "08:00",
+  source: "class_schedule",
+  source_class: "3a",
+  notes: "Tor",
+  created_by: 7,
+  created_at: "2026-05-01T00:00:00Z",
+  updated_at: "2026-05-02T00:00:00Z",
+};
+
+const backendException = {
+  id: 77,
+  student_id: 42,
+  exception_date: "2024-01-15",
+  expected_arrival: "09:00",
+  reason: "late",
+  source: "guardian",
+  created_by: 3,
+  created_at: "2024-01-10T00:00:00Z",
+  updated_at: "2024-01-11T00:00:00Z",
+};
+
+const backendNote = {
+  id: 5,
+  student_id: 42,
+  note_date: "2024-01-15",
+  content: "note",
+  created_by: 3,
+  created_at: "2024-01-10T00:00:00Z",
+  updated_at: "2024-01-11T00:00:00Z",
+};
+
+describe("student-arrival-api", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    globalThis.fetch = fetchSpy as unknown as typeof fetch;
-    mockGetSession.mockResolvedValue({
-      user: { token: "test-token" },
-    });
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
   });
 
   describe("WEEKDAYS", () => {
@@ -68,109 +97,115 @@ describe("student-arrival-api", () => {
     });
   });
 
-  describe("auth headers", () => {
-    it("omits Authorization when session has no token", async () => {
-      mockGetSession.mockResolvedValueOnce({ user: {} });
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse({
-          data: { schedules: [], exceptions: [], notes: [] },
+  describe("fetchArrivalData", () => {
+    it("fetches through the session and maps the route's data to string IDs and camelCase", async () => {
+      mockSessionFetch.mockResolvedValueOnce(
+        wrapped({
+          schedules: [backendSchedule],
+          exceptions: [backendException],
+          notes: [backendNote],
         }),
       );
-
-      await fetchArrivalData("42");
-
-      const headers = (fetchSpy.mock.calls[0]![1] as RequestInit)
-        .headers as Record<string, string>;
-      expect(headers.Authorization).toBeUndefined();
-      expect(headers["Content-Type"]).toBe("application/json");
-    });
-
-    it("omits Authorization when session is null", async () => {
-      mockGetSession.mockResolvedValueOnce(null);
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse({ schedules: [], exceptions: [], notes: [] }),
-      );
-
-      await fetchArrivalData("42");
-
-      const headers = (fetchSpy.mock.calls[0]![1] as RequestInit)
-        .headers as Record<string, string>;
-      expect(headers.Authorization).toBeUndefined();
-    });
-  });
-
-  describe("fetchArrivalData", () => {
-    it("fetches and unwraps arrival data", async () => {
-      const payload = {
-        data: {
-          schedules: [{ id: 1, student_id: 42, weekday: 1 }],
-          exceptions: [],
-          notes: [],
-        },
-      };
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
 
       const result = await fetchArrivalData("42");
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/students/42/arrival-schedules",
-        expect.objectContaining({
-          method: "GET",
-          credentials: "include",
-        }),
+        expect.objectContaining({ method: "GET" }),
       );
-      expect(result.schedules).toHaveLength(1);
-      expect(result.schedules[0]!.id).toBe(1);
+      // The BFF reads the session cookie; the browser sends no token (#5005).
+      expect(requestInit().headers).toBeUndefined();
+      expect(result).toEqual({
+        schedules: [
+          {
+            id: "1",
+            studentId: "42",
+            weekday: 1,
+            weekdayName: "Montag",
+            expectedArrival: "08:00",
+            source: "class_schedule",
+            sourceClass: "3a",
+            notes: "Tor",
+            createdBy: "7",
+            createdAt: "2026-05-01T00:00:00Z",
+            updatedAt: "2026-05-02T00:00:00Z",
+          },
+        ],
+        exceptions: [
+          {
+            id: "77",
+            studentId: "42",
+            exceptionDate: "2024-01-15",
+            expectedArrival: "09:00",
+            reason: "late",
+            source: "guardian",
+            createdBy: "3",
+            createdAt: "2024-01-10T00:00:00Z",
+            updatedAt: "2024-01-11T00:00:00Z",
+          },
+        ],
+        notes: [
+          {
+            id: "5",
+            studentId: "42",
+            noteDate: "2024-01-15",
+            content: "note",
+            createdBy: "3",
+            createdAt: "2024-01-10T00:00:00Z",
+            updatedAt: "2024-01-11T00:00:00Z",
+          },
+        ],
+      });
     });
 
     it("passes the full displayed week to the arrival endpoint", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse({ schedules: [], exceptions: [], notes: [] }),
+      mockSessionFetch.mockResolvedValueOnce(
+        wrapped({ schedules: [], exceptions: [], notes: [] }),
       );
 
       await fetchArrivalData("42", "2026-08-17", "2026-08-21");
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/students/42/arrival-schedules?date=2026-08-17&to=2026-08-21",
         expect.objectContaining({ method: "GET" }),
       );
     });
 
-    it("handles unwrapped (no .data wrapper) payloads", async () => {
-      const payload = { schedules: [], exceptions: [], notes: [] };
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse(payload));
+    it("treats missing lists as empty", async () => {
+      mockSessionFetch.mockResolvedValueOnce(
+        wrapped({ schedules: null, exceptions: null, notes: null }),
+      );
 
-      const result = await fetchArrivalData("42");
-
-      expect(result).toEqual(payload);
+      await expect(fetchArrivalData("42")).resolves.toEqual({
+        schedules: [],
+        exceptions: [],
+        notes: [],
+      });
     });
 
-    it("throws with server text on non-ok response", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse(null, {
-          ok: false,
-          status: 500,
-          text: "server exploded",
-        }),
-      );
+    it("throws an ApiError with the status on a non-ok response", async () => {
+      mockSessionFetch.mockResolvedValueOnce(failed(500, "server exploded"));
 
-      await expect(fetchArrivalData("42")).rejects.toThrow(
-        "Request failed (500): server exploded",
-      );
+      const error = await fetchArrivalData("42").catch((err: unknown) => err);
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({
+        status: 500,
+        message: "GET /api/students/42/arrival-schedules failed (500)",
+      });
     });
 
     it("keeps code, status and request ID of the envelope as an ApiError", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse(null, {
-          ok: false,
-          status: 409,
-          text: JSON.stringify({
+      mockSessionFetch.mockResolvedValueOnce(
+        failed(
+          409,
+          JSON.stringify({
             status: "error",
             error: "class not found",
             code: "classday.arrival_exception_class_not_found",
             instance: "req-arrival",
           }),
-        }),
+        ),
       );
 
       const error = await fetchArrivalData("42").catch((err: unknown) => err);
@@ -183,43 +218,23 @@ describe("student-arrival-api", () => {
       });
     });
 
-    it("throws generic error when response has no text body", async () => {
-      fetchSpy.mockResolvedValueOnce({
-        ok: false,
-        status: 404,
-        text: () => Promise.reject(new Error("stream error")),
-      } as unknown as Response);
-
-      await expect(fetchArrivalData("42")).rejects.toThrow(
-        "Request failed (404)",
-      );
-    });
-
-    it("classifies a network failure as unavailable", async () => {
-      fetchSpy.mockRejectedValueOnce(new TypeError("Network unavailable"));
-
-      const error = await fetchArrivalData("42").catch(
-        (failure: unknown) => failure,
-      );
-
-      expect(error).toBeInstanceOf(ApiError);
-      expect(error).toMatchObject({
-        status: 503,
+    it("passes a transport failure on unchanged", async () => {
+      const unavailable = new ApiError("Network unavailable", 503, {
         code: "general.unavailable",
-        message: "Network unavailable",
       });
+      mockSessionFetch.mockRejectedValueOnce(unavailable);
+
+      await expect(fetchArrivalData("42")).rejects.toBe(unavailable);
     });
   });
 
   describe("fetchBulkArrivalScheduleStatus", () => {
     it("uses one request for all selected children", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse({ data: { student_ids: [1, 2] } }),
-      );
+      mockSessionFetch.mockResolvedValueOnce(wrapped({ student_ids: [1, 2] }));
 
       await expect(fetchBulkArrivalScheduleStatus(["1", "2"])).resolves.toBe(2);
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/students/arrival-schedules/status",
         expect.objectContaining({
           method: "POST",
@@ -231,34 +246,29 @@ describe("student-arrival-api", () => {
 
   describe("fetchArrivalSettings", () => {
     it("returns the source of the tenant's care days and school periods", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse({
-          data: {
-            care_days_source: "bookings",
-            school_periods: [
-              { period: 1, end_time: "08:45" },
-              { period: 2, end_time: "09:35" },
-            ],
-            default_arrival_time: "12:30",
-            default_pickup_time: "16:00",
-          },
+      mockSessionFetch.mockResolvedValueOnce(
+        wrapped({
+          care_days_source: "bookings",
+          school_periods: [
+            { period: 1, end_time: "08:45" },
+            { period: 2, end_time: "09:35" },
+          ],
+          default_arrival_time: "12:30",
+          default_pickup_time: "16:00",
         }),
       );
 
       const result = await fetchArrivalSettings();
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/students/arrival-settings",
-        expect.objectContaining({
-          method: "GET",
-          credentials: "include",
-        }),
+        expect.objectContaining({ method: "GET" }),
       );
       expect(result).toEqual({
-        care_days_source: "bookings",
-        school_periods: [
-          { period: 1, end_time: "08:45" },
-          { period: 2, end_time: "09:35" },
+        careDaysSource: "bookings",
+        schoolPeriods: [
+          { period: 1, endTime: "08:45" },
+          { period: 2, endTime: "09:35" },
         ],
         defaultArrivalTime: "12:30",
         defaultPickupTime: "16:00",
@@ -267,35 +277,36 @@ describe("student-arrival-api", () => {
   });
 
   describe("updateArrivalSchedules", () => {
-    it("sends PUT with schedules body", async () => {
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({ data: [{ id: 1 }] }));
+    it("sends PUT with schedules body and maps the saved rows", async () => {
+      mockSessionFetch.mockResolvedValueOnce(wrapped([backendSchedule]));
 
       const schedules = [
         { weekday: 1, expected_arrival: "08:00" },
         { weekday: 2, expected_arrival: "08:30", notes: "test" },
       ];
-      await updateArrivalSchedules("42", schedules);
+      const result = await updateArrivalSchedules("42", schedules);
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/students/42/arrival-schedules",
         expect.objectContaining({
           method: "PUT",
           body: JSON.stringify({ schedules }),
         }),
       );
+      expect(result[0]).toMatchObject({ id: "1", studentId: "42" });
     });
   });
 
   describe("bulkUpsertArrivalSchedules", () => {
     it("posts school class and schedules", async () => {
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({ data: {} }));
+      mockSessionFetch.mockResolvedValueOnce(wrapped({}));
 
       await bulkUpsertArrivalSchedules(
         { type: "school_class", schoolClass: "3a" },
         [{ weekday: 1, expected_arrival: "08:00" }],
       );
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/students/arrival-schedules/bulk",
         expect.objectContaining({
           method: "POST",
@@ -308,13 +319,13 @@ describe("student-arrival-api", () => {
     });
 
     it("posts group ID and schedules", async () => {
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({ data: {} }));
+      mockSessionFetch.mockResolvedValueOnce(wrapped({}));
 
       await bulkUpsertArrivalSchedules({ type: "group", groupId: "17" }, [
         { weekday: 1, expected_arrival: "08:00" },
       ]);
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/students/arrival-schedules/bulk",
         expect.objectContaining({
           method: "POST",
@@ -327,14 +338,14 @@ describe("student-arrival-api", () => {
     });
 
     it("posts selected student IDs and schedules", async () => {
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({ data: {} }));
+      mockSessionFetch.mockResolvedValueOnce(wrapped({}));
 
       await bulkUpsertArrivalSchedules(
         { type: "students", studentIds: ["9", "4"] },
         [{ weekday: 2, expected_arrival: "09:15" }],
       );
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/students/arrival-schedules/bulk",
         expect.objectContaining({
           body: JSON.stringify({
@@ -352,148 +363,191 @@ describe("student-arrival-api", () => {
         ]),
       ).rejects.toThrow("Ungültige Gruppen-ID");
 
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(mockSessionFetch).not.toHaveBeenCalled();
     });
   });
 
   describe("arrival exceptions CRUD", () => {
-    it("createArrivalException posts exception body", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse({ data: { id: 77, student_id: 42 } }),
-      );
+    it("createArrivalException posts exception body and maps the answer", async () => {
+      mockSessionFetch.mockResolvedValueOnce(wrapped(backendException));
 
-      const result = await createArrivalException("42", {
+      const input = {
         exception_date: "2024-01-15",
         expected_arrival: "09:00",
         reason: "late",
-      });
+      };
+      const result = await createArrivalException("42", input);
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/students/42/arrival-exceptions",
-        expect.objectContaining({ method: "POST" }),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify(input),
+        }),
       );
-      expect(result.id).toBe(77);
+      expect(result).toMatchObject({
+        id: "77",
+        studentId: "42",
+        exceptionDate: "2024-01-15",
+      });
     });
 
     it("updateArrivalException puts with exceptionId path", async () => {
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({ data: { id: 77 } }));
+      mockSessionFetch.mockResolvedValueOnce(wrapped(backendException));
 
-      await updateArrivalException("42", 77, {
+      await updateArrivalException("42", "77", {
         exception_date: "2024-01-15",
         expected_arrival: null,
         clear_expected_arrival: true,
       });
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/students/42/arrival-exceptions/77",
-        expect.objectContaining({ method: "PUT" }),
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({
+            exception_date: "2024-01-15",
+            expected_arrival: null,
+            clear_expected_arrival: true,
+          }),
+        }),
       );
     });
 
     it("deleteArrivalException resolves on 204", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse(null, { ok: true, status: 204 }),
-      );
+      mockSessionFetch.mockResolvedValueOnce(noContent());
 
-      await expect(deleteArrivalException("42", 77)).resolves.toBeUndefined();
+      await expect(deleteArrivalException("42", "77")).resolves.toBeUndefined();
+      expect(mockSessionFetch).toHaveBeenCalledWith(
+        "/api/students/42/arrival-exceptions/77",
+        expect.objectContaining({ method: "DELETE" }),
+      );
     });
 
     it("deleteArrivalException resolves when response is ok", async () => {
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({}, { ok: true }));
+      mockSessionFetch.mockResolvedValueOnce(wrapped({}));
 
-      await expect(deleteArrivalException("42", 77)).resolves.toBeUndefined();
+      await expect(deleteArrivalException("42", "77")).resolves.toBeUndefined();
     });
 
     it("deleteArrivalException throws on non-ok/non-204", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse(null, {
-          ok: false,
-          status: 500,
-          text: "boom",
-        }),
-      );
+      mockSessionFetch.mockResolvedValueOnce(failed(500, "boom"));
 
-      await expect(deleteArrivalException("42", 77)).rejects.toThrow(
-        "Request failed (500): boom",
-      );
+      await expect(deleteArrivalException("42", "77")).rejects.toMatchObject({
+        status: 500,
+        message: "DELETE /api/students/42/arrival-exceptions/77 failed (500)",
+      });
     });
 
-    it("deleteArrivalException throws generic when text read fails", async () => {
-      fetchSpy.mockResolvedValueOnce({
+    it("deleteArrivalException keeps the status when the body cannot be read", async () => {
+      mockSessionFetch.mockResolvedValueOnce({
         ok: false,
         status: 403,
         text: () => Promise.reject(new Error("nope")),
       } as unknown as Response);
 
-      await expect(deleteArrivalException("42", 77)).rejects.toThrow(
-        "Request failed (403)",
+      const error = await deleteArrivalException("42", "77").catch(
+        (err: unknown) => err,
       );
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({ status: 403 });
     });
   });
 
   describe("arrival notes CRUD", () => {
-    it("createArrivalNote posts note body", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse({ data: { id: 5, student_id: 42 } }),
-      );
+    it("createArrivalNote posts note body and maps the answer", async () => {
+      mockSessionFetch.mockResolvedValueOnce(wrapped(backendNote));
 
       const result = await createArrivalNote("42", {
         note_date: "2024-01-15",
         content: "note",
       });
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/students/42/arrival-notes",
-        expect.objectContaining({ method: "POST" }),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ note_date: "2024-01-15", content: "note" }),
+        }),
       );
-      expect(result.id).toBe(5);
+      expect(result).toMatchObject({
+        id: "5",
+        studentId: "42",
+        noteDate: "2024-01-15",
+      });
     });
 
     it("updateArrivalNote puts with noteId path", async () => {
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({ data: { id: 5 } }));
+      mockSessionFetch.mockResolvedValueOnce(wrapped(backendNote));
 
-      await updateArrivalNote("42", 5, {
+      await updateArrivalNote("42", "5", {
         note_date: "2024-01-15",
         content: "updated",
       });
 
-      expect(fetchSpy).toHaveBeenCalledWith(
+      expect(mockSessionFetch).toHaveBeenCalledWith(
         "/api/students/42/arrival-notes/5",
         expect.objectContaining({ method: "PUT" }),
       );
     });
 
     it("deleteArrivalNote resolves on 204", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse(null, { ok: true, status: 204 }),
-      );
+      mockSessionFetch.mockResolvedValueOnce(noContent());
 
-      await expect(deleteArrivalNote("42", 5)).resolves.toBeUndefined();
+      await expect(deleteArrivalNote("42", "5")).resolves.toBeUndefined();
+      expect(mockSessionFetch).toHaveBeenCalledWith(
+        "/api/students/42/arrival-notes/5",
+        expect.objectContaining({ method: "DELETE" }),
+      );
     });
 
     it("deleteArrivalNote throws on non-ok status", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse(null, {
-          ok: false,
-          status: 404,
-          text: "missing",
-        }),
-      );
+      mockSessionFetch.mockResolvedValueOnce(failed(404, "missing"));
 
-      await expect(deleteArrivalNote("42", 5)).rejects.toThrow(
-        "Request failed (404): missing",
-      );
+      await expect(deleteArrivalNote("42", "5")).rejects.toMatchObject({
+        status: 404,
+        message: "DELETE /api/students/42/arrival-notes/5 failed (404)",
+      });
     });
 
-    it("deleteArrivalNote throws generic when text read fails", async () => {
-      fetchSpy.mockResolvedValueOnce({
+    it("deleteArrivalNote keeps the status when the body cannot be read", async () => {
+      mockSessionFetch.mockResolvedValueOnce({
         ok: false,
         status: 500,
         text: () => Promise.reject(new Error("stream")),
       } as unknown as Response);
 
-      await expect(deleteArrivalNote("42", 5)).rejects.toThrow(
-        "Request failed (500)",
+      const error = await deleteArrivalNote("42", "5").catch(
+        (err: unknown) => err,
+      );
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).toMatchObject({ status: 500 });
+    });
+  });
+
+  describe("class arrival exceptions", () => {
+    it("encodes the class into the path and returns the route's data", async () => {
+      const list = { school_class: "3/a", can_edit: true, exceptions: [] };
+      mockSessionFetch.mockResolvedValueOnce(wrapped(list));
+
+      await expect(fetchClassArrivalExceptions("3/a")).resolves.toEqual(list);
+      expect(mockSessionFetch).toHaveBeenCalledWith(
+        "/api/students/class-arrival-exceptions/3%2Fa",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+
+    it("deletes one date and resolves on 204", async () => {
+      mockSessionFetch.mockResolvedValueOnce(noContent());
+
+      await expect(
+        deleteClassArrivalException("3a", "2026-09-10"),
+      ).resolves.toBeUndefined();
+      expect(mockSessionFetch).toHaveBeenCalledWith(
+        "/api/students/class-arrival-exceptions/3a/2026-09-10",
+        expect.objectContaining({ method: "DELETE" }),
       );
     });
   });

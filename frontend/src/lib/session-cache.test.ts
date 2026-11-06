@@ -262,6 +262,34 @@ describe("sessionFetch", () => {
     });
   });
 
+  // The browser sets the multipart boundary itself; a JSON Content-Type
+  // would clobber it.
+  it("sends a FormData body without a Content-Type of its own", async () => {
+    const { sessionFetch } = await freshModule();
+    mockGetSession.mockResolvedValue(session("token-a"));
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
+    const body = new FormData();
+    body.append("file", new Blob(["x"]), "x.pdf");
+
+    await sessionFetch("/api/upload", { method: "POST", body });
+
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(init.body).toBe(body);
+    expect(init.headers).toBeUndefined();
+  });
+
+  // A superseded request is cancelled on purpose; it must stay an AbortError
+  // instead of reading as an unreachable server.
+  it("keeps a cancelled request an AbortError", async () => {
+    const { sessionFetch } = await freshModule();
+    mockGetSession.mockResolvedValue(session("token-a"));
+    mockFetch.mockRejectedValueOnce(new DOMException("aborted", "AbortError"));
+
+    await expect(sessionFetch("/api/test")).rejects.toMatchObject({
+      name: "AbortError",
+    });
+  });
+
   it("retries after a refresh without a Bearer header", async () => {
     const { sessionFetch } = await freshModule();
     mockGetSession

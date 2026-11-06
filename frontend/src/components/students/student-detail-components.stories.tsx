@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import type { Student } from "~/lib/student-helpers";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
   StudentHeaderStats,
@@ -8,7 +8,7 @@ import {
   StudentHistorySection,
 } from "./student-detail-components";
 
-const mockStudent: ExtendedStudent = {
+const mockStudent: Student = {
   id: "1",
   first_name: "Max",
   second_name: "Mustermann",
@@ -17,7 +17,6 @@ const mockStudent: ExtendedStudent = {
   school_class: "3a",
   group_id: "g1",
   group_name: "Gruppe 1",
-  buskind: false,
   pickup_status: "selbst",
   sick: false,
   current_location: "Klassenraum",

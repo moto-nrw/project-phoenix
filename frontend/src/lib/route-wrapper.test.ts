@@ -497,6 +497,27 @@ describe("Token Refresh and Retry Logic", () => {
     expect(json.data.name).toBe("Success after retry");
   });
 
+  it("answers 204 when a DELETE succeeds on its retry", async () => {
+    mockAuth.mockResolvedValueOnce(defaultSession);
+    mockAuth.mockResolvedValueOnce({
+      user: { id: "1", token: "refreshed-token", name: "Test User" },
+      expires: "2099-01-01",
+    });
+    const mockHandler = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiResponseError(401, "Unauthorized"))
+      .mockResolvedValueOnce(null);
+
+    const handler = createDeleteHandler(mockHandler);
+    const response = await handler(
+      createMockRequest("/api/test/1", { method: "DELETE" }),
+      createMockContext({ id: "1" }),
+    );
+
+    expect(mockHandler).toHaveBeenCalledTimes(2);
+    expect(response.status).toBe(204);
+  });
+
   it("returns the 401 envelope when token was not actually refreshed", async () => {
     mockAuth.mockResolvedValueOnce(defaultSession);
 

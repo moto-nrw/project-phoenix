@@ -2,9 +2,9 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
 import { PersonalInfoEditPanel } from "./personal-info-edit-panel";
 import { ToastProvider } from "~/contexts/ToastContext";
-import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import type { Student } from "~/lib/student-helpers";
 
-const baseStudent: ExtendedStudent = {
+const baseStudent: Student = {
   id: "1",
   name: "Anna Beispiel",
   first_name: "Anna",
