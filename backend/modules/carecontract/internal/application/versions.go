@@ -93,6 +93,11 @@ func (v *Versions) VersionsInForce(ctx context.Context, organizationID int64, fr
 	if organizationID <= 0 || from.IsZero() || to.IsZero() || to.Before(from) || from.DaysUntil(to) > maxBillingSpan {
 		return nil, &carecontract.ValidationError{Fields: map[string]string{"period": "invalid"}}
 	}
+	return v.periods(ctx, organizationID, from, to)
+}
+
+// periods reads the versions in force and clips each to the span.
+func (v *Versions) periods(ctx context.Context, organizationID int64, from, to calendar.Date) ([]carecontract.VersionPeriod, error) {
 	periods, err := v.store.VersionsInForce(ctx, organizationID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("care contract: versions in force: %w", err)

@@ -23,13 +23,13 @@ func nextAmendment(read schoolRead, application carecontract.Application, contra
 	if !latest.EffectiveFrom.Before(today) {
 		// The newest version is still ahead: it must match the bookings on
 		// its own first day, or a change came in before it.
-		if !sameCare(servicesAt(read, application, latest.EffectiveFrom).services, activeServices(latest.Services, latest.EffectiveFrom)) {
+		if !sameCare(servicesAt(read, application, latest.EffectiveFrom).services, promised(latest, latest.EffectiveFrom)) {
 			return nil, carecontract.SkipBeforeLaterVersion
 		}
 	}
-	for _, day := range changeDays(read, application, latest, today) {
+	for _, day := range changeDays(read, application, contract, today) {
 		booked := servicesAt(read, application, day)
-		if sameCare(booked.services, activeServices(latest.Services, day)) {
+		if sameCare(booked.services, promised(latest, day)) {
 			continue
 		}
 		if len(booked.services) == 0 {
@@ -51,11 +51,16 @@ func nextAmendment(read schoolRead, application carecontract.Application, contra
 }
 
 // changeDays are the days after the newest version on which the booked care
-// or the version's promise can change: the start and end of every booking
-// and the day after each module's last day in the version. A day before
-// today counts as today, since no version reaches into the past. Days after
-// the version's end belong to the termination (#4682).
-func changeDays(read schoolRead, application carecontract.Application, latest carecontract.Version, today calendar.Date) []calendar.Date {
+// or the version's promise can change: the start and end of every booking,
+// the day after each module's last day and the day after the version's end.
+// A version that ends because its module ends is followed by the module the
+// child switches to (ADR 0153: "ein späterer Wechsel des Moduls kommt mit
+// einer neuen Version"); only a fixed term ends the contract itself, and
+// days after it belong to the termination (#4682). A day before today counts
+// as today, since no version reaches into the past.
+func changeDays(read schoolRead, application carecontract.Application, contract AmendableContract, today calendar.Date) []calendar.Date {
+	latest := contract.Latest
+	termEnd := endsOn(latest.Terms, contract.FirstFrom, nil)
 	candidates := []calendar.Date{}
 	add := func(day *calendar.Date) {
 		if day == nil || day.IsZero() {
@@ -65,7 +70,7 @@ func changeDays(read schoolRead, application carecontract.Application, latest ca
 		if candidate.Before(today) {
 			candidate = today
 		}
-		if !candidate.After(latest.EffectiveFrom) || (latest.EndsOn != nil && candidate.After(*latest.EndsOn)) {
+		if !candidate.After(latest.EffectiveFrom) || (termEnd != nil && candidate.After(*termEnd)) {
 			return
 		}
 		if !slices.Contains(candidates, candidate) {
@@ -90,6 +95,10 @@ func changeDays(read schoolRead, application carecontract.Application, latest ca
 			add(&next)
 		}
 	}
+	if latest.EndsOn != nil {
+		next := latest.EndsOn.AddDays(1)
+		add(&next)
+	}
 	slices.SortFunc(candidates, func(a, b calendar.Date) int { return a.Compare(b) })
 	return candidates
 }
@@ -109,6 +118,15 @@ func servicesAt(read schoolRead, application carecontract.Application, day calen
 		}
 	}
 	return bookedCare(read, running, day)
+}
+
+// promised is what the version promises on a day: nothing after its end,
+// else its services that still run.
+func promised(version carecontract.Version, day calendar.Date) []carecontract.Service {
+	if version.EndsOn != nil && day.After(*version.EndsOn) {
+		return []carecontract.Service{}
+	}
+	return activeServices(version.Services, day)
 }
 
 // activeServices are the services of a version that still run on a day:

@@ -160,3 +160,32 @@ func TestClipPeriodKeepsTheVersionInsideTheSpan(t *testing.T) {
 	assert.Equal(t, *date(2031, 3, 1), from)
 	assert.Equal(t, *date(2031, 3, 31), to)
 }
+
+// The first version of a contract ends the day before a module switch,
+// because the booking of its module ends there (ADR 0153 point 3). The
+// switch is no end of the contract: the next version carries the new module
+// from the day after.
+func TestAModuleSwitchAfterTheFirstVersionsEndContinuesTheContract(t *testing.T) {
+	t.Parallel()
+	contract := amendable()
+	contract.Latest.EndsOn = date(2031, 2, 28)
+	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1), ValidUntil: date(2031, 3, 1)},
+		{CareOfferingID: 2, Days: []string{"mon"}, ValidFrom: date(2031, 3, 1)},
+	}}
+	version, reason := nextAmendment(amendmentRead(), application, contract, *date(2031, 1, 10))
+	require.Empty(t, reason)
+	require.NotNil(t, version)
+	assert.Equal(t, *date(2031, 3, 1), version.EffectiveFrom)
+	assert.Nil(t, version.EndsOn)
+
+	// A fixed term ends the contract itself: a switch after it is no
+	// version but the termination's business (#4682).
+	six := 6
+	contract.Latest.Terms = carecontract.TemplateInput{TermKind: carecontract.TermFixedMonths, TermMonths: &six,
+		NoticeMonths: 1, NoticeTo: carecontract.NoticeMonthEnd}
+	contract.Latest.EndsOn = date(2031, 1, 31)
+	version, reason = nextAmendment(amendmentRead(), application, contract, *date(2031, 1, 10))
+	assert.Nil(t, version)
+	assert.Empty(t, reason)
+}

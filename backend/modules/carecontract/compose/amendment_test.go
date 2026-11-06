@@ -58,7 +58,8 @@ func (s changedSchool) Offerings(context.Context, []int64) ([]carecontract.Offer
 func (s changedSchool) RecordAccess(context.Context, carecontract.SchoolAccess) error { return nil }
 
 // activeContract stores a concluded contract whose first version books the
-// module until 14:00 on Monday from 1 August 2099.
+// module until 14:00 on Monday from 1 August 2099. As the intake makes it,
+// the version ends the day before the module's booking ends.
 func activeContract(t *testing.T, ctx context.Context, organization int64, school changedSchool) int64 {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
@@ -67,9 +68,9 @@ func activeContract(t *testing.T, ctx context.Context, organization int64, schoo
 			status, sent_at, concluded_at, conclusion_method) VALUES (?, ?, ?, 'aktiv', NOW(), NOW(), 'mit_anmeldung') RETURNING id`,
 		organization, school.school.ID, school.child).Scan(ctx, &contract))
 	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contract_versions (organization_id, contract_id, version_number,
-			status, effective_from, child_first_name, child_last_name, school_name, term_kind, notice_months, notice_to,
+			status, effective_from, ends_on, child_first_name, child_last_name, school_name, term_kind, notice_months, notice_to,
 			special_termination, special_termination_note, statute_required, statute_title, statute_url, contract_partner)
-		VALUES (?, ?, 1, 'wirksam', '2099-08-01', 'Lina', 'Muster', 'OGS Am Lindenhof', 'open_ended', 1, 'month_end',
+		VALUES (?, ?, 1, 'wirksam', '2099-08-01', '2100-02-28', 'Lina', 'Muster', 'OGS Am Lindenhof', 'open_ended', 1, 'month_end',
 			false, '', false, '', '', '') RETURNING id`, organization, contract).Scan(ctx, &version))
 	_, err := db.ExecContext(ctx, `INSERT INTO care_contract.contract_version_services (organization_id, contract_version_id,
 			weekday, care_offering_id, module_name, ends_at) VALUES (?, ?, 'mon', ?, 'Kurzbetreuung', '14:00')`,
