@@ -59,6 +59,7 @@ const PARENT_TYPES = new Set([
 
 interface NotificationPreferencesSectionProps {
   readonly portal?: PreferencePortal;
+  readonly description?: string;
 }
 
 /**
@@ -70,13 +71,17 @@ interface NotificationPreferencesSectionProps {
  */
 export function NotificationPreferencesSection({
   portal = "tenant",
+  description,
 }: NotificationPreferencesSectionProps) {
   return portal === "parent" ? (
     <ParentNotificationPreferencesSection />
   ) : (
     // Staff-catalogue portals (OGS and, since #2208, the school portal) share
     // the German copy; only the proxy base path differs.
-    <NotificationPreferencesSectionContent portal={portal} />
+    <NotificationPreferencesSectionContent
+      portal={portal}
+      description={description}
+    />
   );
 }
 
@@ -93,9 +98,11 @@ function ParentNotificationPreferencesSection() {
 function NotificationPreferencesSectionContent({
   portal,
   parentText,
+  description,
 }: Readonly<{
   portal: PreferencePortal;
   parentText?: (key: string, values?: Record<string, string>) => string;
+  description?: string;
 }>) {
   const isParentPortal = portal === "parent";
   const t = useCallback(
@@ -296,7 +303,7 @@ function NotificationPreferencesSectionContent({
       description={
         isParentPortal
           ? t("description")
-          : "Wählen Sie, worüber moto Sie informieren soll."
+          : (description ?? "Wählen Sie, worüber moto Sie informieren soll.")
       }
       actions={
         isParentPortal && loading ? (

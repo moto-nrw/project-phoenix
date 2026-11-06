@@ -11,8 +11,6 @@
 
 import type React from "react";
 
-import { DataTableSkeleton } from "~/components/ui/data-table";
-import { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
 import { Skeleton } from "~/components/ui/skeleton";
 
 // Deterministic width cycle — varied line lengths read as real text without
@@ -228,30 +226,5 @@ export function ListSkeleton({
         </div>
       ))}
     </div>
-  );
-}
-
-/**
- * Full generic list page: header + table. The right default when a page's
- * loaded state is a PageHeaderWithSearch over a DataTable.
- */
-export function ListPageSkeleton({
-  label,
-  chips = 0,
-  rows = 8,
-  columns = 5,
-  testId,
-}: Readonly<{
-  label: string;
-  chips?: number;
-  rows?: number;
-  columns?: number;
-  testId?: string;
-}>) {
-  return (
-    <SkeletonRegion label={label} testId={testId}>
-      <PageHeaderSkeleton chips={chips} />
-      <DataTableSkeleton rows={rows} columns={columns} />
-    </SkeletonRegion>
   );
 }

@@ -17,18 +17,13 @@ import { activeSchoolSettingsSection } from "~/components/school/shell/school-na
 function SchoolSettingsContent() {
   const section = activeSchoolSettingsSection(useSearchParams().get("tab"));
   return (
-    <TenantPage
-      title={section.label}
-      // Die Reihenfolge ist eine Voraussetzung (#2297), sie bleibt sichtbar.
-      stats={
-        section.key === "notifications"
-          ? "Wählen Sie zuerst die Themen. Dann erlauben Sie die Hinweise auf diesem Gerät."
-          : undefined
-      }
-    >
+    <TenantPage title={section.label}>
       {section.key === "notifications" ? (
         <>
-          <NotificationPreferencesSection portal="school" />
+          <NotificationPreferencesSection
+            portal="school"
+            description="Wählen Sie zuerst die Themen. Dann erlauben Sie die Hinweise auf diesem Gerät."
+          />
           <PushNotificationSection portal="school" />
         </>
       ) : (

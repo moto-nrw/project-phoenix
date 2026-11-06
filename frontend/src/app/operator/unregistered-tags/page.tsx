@@ -16,7 +16,6 @@ import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { DataTable } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
-import { ListPageSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import {
@@ -395,9 +394,7 @@ function StatusFilter({
 
 export default function OperatorUnregisteredTagsPage() {
   return (
-    <Suspense
-      fallback={<ListPageSkeleton label="Unbekannte RFID werden geladen" />}
-    >
+    <Suspense fallback={<TenantPage title="Unbekannte RFID" loading />}>
       <OperatorUnregisteredTagsPageContent />
     </Suspense>
   );

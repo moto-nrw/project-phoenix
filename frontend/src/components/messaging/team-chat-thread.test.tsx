@@ -138,6 +138,24 @@ describe("TeamChatThread (#2517)", () => {
     expect(link.className).not.toMatch(/(^|\s)(sm|md|lg|xl):hidden/);
   });
 
+  it("keeps the one-to-one status line to the message count", async () => {
+    api.fetchThread.mockResolvedValue(thread);
+    render(
+      <TeamChatThread
+        portal={portalFor(api)}
+        threadID="t1"
+        myAccountId="1"
+        back={{ href: "/nachrichten", label: "Zurück zu Nachrichten" }}
+      />,
+      { wrapper: Fresh },
+    );
+
+    await screen.findByText("Hallo");
+
+    expect(screen.getByText("1 Nachricht")).toBeInTheDocument();
+    expect(screen.queryByText("nur Sie beide sehen sie")).toBeNull();
+  });
+
   it("keeps the back link when the history fails to load", async () => {
     api.fetchThread.mockRejectedValue(
       new ApiError("thread kaputt", 500, { code: "general.server" }),

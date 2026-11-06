@@ -76,7 +76,7 @@ export interface TeamChatThreadParts {
   readonly previewTitle?: string;
   /** Rollenzusatz zum Namen (z. B. „Lehrkraft"); `null` ohne Zusatz. */
   readonly roleLabel: string | null;
-  /** Statuszeile aus echten Zahlen: Nachrichten und wer sie sieht. */
+  /** Statuszeile aus echten Zahlen: Nachrichten und bei Gruppen Mitglieder. */
   readonly stats: string;
   /** Eine Zeile unter dem Titel: wer die Nachrichten sieht. */
   readonly audience: string;
@@ -405,8 +405,8 @@ export function TeamChatThread({
   const state: TeamChatThreadParts["state"] =
     showSkeleton || thread ? "ready" : chatDisabled ? "disabled" : "error";
 
-  // Statuszeile unter dem Titel: die Zahl der geladenen Nachrichten dieser
-  // Unterhaltung und wer sie sehen kann.
+  // Statuszeile unter dem Titel: die Zahl der geladenen Nachrichten, bei
+  // Gruppen zusätzlich die Mitgliederzahl.
   // Gezählt wird, was angekommen ist, nicht die Blase auf dem Weg (#5011).
   const sentCount = confirmedThread?.messages.length ?? 0;
   const messageCount = `${sentCount} ${
@@ -414,7 +414,7 @@ export function TeamChatThread({
   }`;
   const stats = group
     ? `${messageCount} · ${members.length} ${members.length === 1 ? "Mitglied" : "Mitglieder"}`
-    : `${messageCount} · nur Sie beide sehen sie`;
+    : messageCount;
   const audience = group
     ? "Nur die Mitglieder sehen diese Nachrichten. Wer neu dazukommt, sieht sie ab dem Beitritt."
     : "Nur Sie beide sehen diese Nachrichten.";
