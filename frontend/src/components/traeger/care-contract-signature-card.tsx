@@ -241,8 +241,9 @@ function WaitingDetails({
   return (
     <div className="space-y-3">
       <p className="text-sm text-gray-600">
-        Bis zur Unterschrift bekommen die Eltern Erinnerungen per Mail. Wann,
-        legen Sie unter „Einstellungen“ im Bereich „Betreuungsverträge“ fest.
+        Bis zur Unterschrift bekommen die Eltern Erinnerungen per Mail. Nach wie
+        vielen Tagen, legen Sie unter „Einstellungen“ → „Allgemein“ →
+        „Betreuungsverträge“ fest.
       </p>
       {contract.reminders.length > 0 ? (
         <ol className="space-y-2">

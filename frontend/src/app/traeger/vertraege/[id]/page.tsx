@@ -439,9 +439,11 @@ export default function TraegerVertragPage() {
               <SectionCard
                 title="Versand"
                 description={
-                  contract.mailings.length === 0
-                    ? "Noch nicht gesendet."
-                    : undefined
+                  contract.mailings.length > 0
+                    ? undefined
+                    : contract.signature?.method === "paper"
+                      ? "Auf Papier übergeben, nicht per Mail."
+                      : "Noch nicht gesendet."
                 }
               >
                 {contract.mailings.length > 0 ? (
@@ -541,6 +543,9 @@ function StatusNotice({
       />
     );
   }
+  // A signed contract shows its signature card; the mail no longer needs a
+  // notice unless it failed (#4679).
+  if (contract.signature && last?.state !== "failed") return null;
   if (last?.state === "failed") {
     return (
       <Alert
