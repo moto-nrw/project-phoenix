@@ -6,6 +6,10 @@
   "api/guardians/[id]/delete-preview": [
     "GET tenant /api/guardians/id%2F1/delete-preview"
   ],
+  "api/guardians/[id]/email-block": [
+    "DELETE tenant /api/guardians/id%2F1/email-block",
+    "POST tenant /api/guardians/id%2F1/email-block"
+  ],
   "api/guardians/[id]/payment": [
     "GET tenant /api/guardians/id%2F1/payment",
     "PUT tenant /api/guardians/id%2F1/payment"
@@ -48,6 +52,9 @@
   ],
   "api/guardians/students/[studentId]/guardians/batch": [
     "POST tenant /api/guardians/students/studentId%2F1/guardians/batch"
+  ],
+  "api/guardians/students/[studentId]/email-status": [
+    "GET tenant /api/guardians/students/studentId%2F1/email-status"
   ],
   "api/guardians/students/[studentId]/invite": [
     "POST tenant /api/guardians/students/studentId%2F1/invite"
