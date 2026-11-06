@@ -19,5 +19,7 @@
   "bookedCare": "Kujdesi i rezervuar",
   "startsOn": "Fillimi",
   "lettersErrorObject": "shkresat",
-  "contractsErrorObject": "kontratat e kujdesit"
+  "contractsErrorObject": "kontratat e kujdesit",
+  "replaced": "Zëvendësuar",
+  "replacedNote": "Ky version nuk vlen më. Nga {date} vlen një version i ri. Ai përmban ndryshimet tuaja të konfirmuara. Versionin e ri e merrni nga ofruesi."
 }

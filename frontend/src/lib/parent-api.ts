@@ -2468,6 +2468,12 @@ export interface ParentDocument {
   readonly total_cents: number;
   readonly child_names: readonly string[];
   readonly sent_at: string;
+  /**
+   * A care contract version that a change on its own first day replaced
+   * (#4681): it holds on no day; the changed version holds from
+   * `service_from`.
+   */
+  readonly replaced?: boolean;
 }
 
 /**

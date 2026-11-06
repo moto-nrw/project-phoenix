@@ -416,6 +416,10 @@ type InboxContract struct {
 	SchoolName  string        `json:"school_name"`
 	SentAt      time.Time     `json:"sent_at"`
 	EffectiveOn calendar.Date `json:"effective_on"`
+	// Replaced tells that a change on the first day of the sent version
+	// replaced it (#4681): it holds on no day, and a changed version holds
+	// from EffectiveOn.
+	Replaced bool `json:"replaced"`
 }
 
 // Inbox serves the contracts of one Träger in the parents' inbox (ADR 0088

@@ -54,6 +54,9 @@ type BillingDocument struct {
 	TotalCents     int64
 	ChildNames     []string
 	SentAt         time.Time
+	// Replaced marks a sent contract version that a change on its own first
+	// day replaced (#4681); it holds on no day.
+	Replaced bool
 }
 
 // BillingDocumentFile is the PDF of one document.

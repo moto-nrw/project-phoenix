@@ -294,7 +294,7 @@ func (Store) DeleteDraft(ctx context.Context, organizationID, contractID int64) 
 // it. Names, modules and date come from the version whose PDF was sent last
 // to the address, so the list matches the PDF the parents open (#4681).
 const inboxSQL = `SELECT c.id, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.school_name,
-	v.effective_from, m.first_sent AS sent_at
+	v.effective_from, v.status = '` + carecontract.VersionReplaced + `' AS replaced, m.first_sent AS sent_at
 	FROM care_contract.contracts AS c
 	JOIN (SELECT contract_id, MIN(sent_at) AS first_sent FROM care_contract.contract_mailings
 		WHERE organization_id = ? AND lower(recipient_email) = lower(?) GROUP BY contract_id) AS m ON m.contract_id = c.id
@@ -319,6 +319,7 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, reader ca
 		ModuleNames    []string      `bun:"module_names,array"`
 		SchoolName     string        `bun:"school_name"`
 		EffectiveFrom  calendar.Date `bun:"effective_from,type:date"`
+		Replaced       bool          `bun:"replaced"`
 		SentAt         time.Time     `bun:"sent_at"`
 	}
 	schools, students := inboxChildScope(reader.Children)
@@ -330,7 +331,7 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, reader ca
 	for i, row := range rows {
 		result[i] = carecontract.InboxContract{
 			ID: row.ID, ChildNames: []string{row.ChildFirstName}, ModuleNames: nonNil(row.ModuleNames),
-			SchoolName: row.SchoolName, SentAt: row.SentAt, EffectiveOn: row.EffectiveFrom,
+			SchoolName: row.SchoolName, SentAt: row.SentAt, EffectiveOn: row.EffectiveFrom, Replaced: row.Replaced,
 		}
 	}
 	return result, nil

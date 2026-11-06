@@ -195,9 +195,6 @@ func (f *tableFixture) statuses(t *testing.T) []string {
 func TestTimelineOfVersionsKeepsEveryApprovalAndOneVersionPerDay(t *testing.T) {
 	t.Parallel()
 	aug, feb, mar, apr := calendar.NewDate(2099, 8, 1), calendar.NewDate(2100, 2, 1), calendar.NewDate(2100, 3, 1), calendar.NewDate(2100, 4, 30)
-	booking := func(offering int64, days []string, from, until *calendar.Date) carecontract.Booking {
-		return carecontract.Booking{CareOfferingID: offering, Days: days, ValidFrom: from, ValidUntil: until}
-	}
 	planned := []tableVersion{{"abgeloest", "2099-08-01", []string{"mon"}}, {"wirksam", "2100-03-01", []string{"mon", "wed"}}}
 
 	t.Run("D before E: the change holds until the planned version, which stays (rules 1, 2, 4)", func(t *testing.T) {
