@@ -61,15 +61,17 @@ func (s *Store) EmailOutcomes(ctx context.Context, tenantID int64, query deliver
 	if err != nil {
 		return nil, err
 	}
-	sql := `SELECT ` + emailOutcomeColumns + `
-		WHERE outbox.tenant_id = ? AND outbox.related_entity_type = ? AND outbox.related_entity_id IN (?)`
-	args := []any{tenantID, query.RelatedType, bun.List(query.RelatedIDs)}
-	if len(query.Kinds) > 0 {
-		sql += ` AND outbox.kind IN (?)`
-		args = append(args, bun.List(query.Kinds))
-	}
 	var rows []emailOutcomeRow
-	if err := db.NewRaw(sql+` ORDER BY outbox.id`, args...).Scan(ctx, &rows); err != nil {
+	raw := db.NewRaw(`SELECT `+emailOutcomeColumns+`
+		WHERE outbox.tenant_id = ? AND outbox.related_entity_type = ? AND outbox.related_entity_id IN (?)
+		ORDER BY outbox.id`, tenantID, query.RelatedType, bun.List(query.RelatedIDs))
+	if len(query.Kinds) > 0 {
+		raw = db.NewRaw(`SELECT `+emailOutcomeColumns+`
+			WHERE outbox.tenant_id = ? AND outbox.related_entity_type = ? AND outbox.related_entity_id IN (?)
+				AND outbox.kind IN (?)
+			ORDER BY outbox.id`, tenantID, query.RelatedType, bun.List(query.RelatedIDs), bun.List(query.Kinds))
+	}
+	if err := raw.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("delivery postgres: list email outcomes: %w", err)
 	}
 	reports := make([]deliveryContract.EmailOutcomeReport, 0, len(rows))
