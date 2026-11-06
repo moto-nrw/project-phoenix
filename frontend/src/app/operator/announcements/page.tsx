@@ -29,7 +29,6 @@ import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import {
   TYPE_LABELS,
-  TYPE_TEXT_COLORS,
   SEVERITY_LABELS,
   ANNOUNCEMENT_STATUS_LABELS,
   SYSTEM_ROLE_LABELS,
@@ -54,9 +53,18 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useCurrentTimestamp } from "~/lib/hooks/use-current-timestamp";
 import { Alert } from "~/components/ui/alert";
-import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
 
 const logger = createLogger({ component: "OperatorAnnouncementsPage" });
+
+const TYPE_BADGE_TONES: Record<AnnouncementType, StatusBadgeTone> = {
+  announcement: "blue",
+  release: "green",
+  maintenance: "orange",
+};
 
 const TYPE_ITEMS: readonly SegmentedControlItem<AnnouncementType>[] = (
   Object.entries(TYPE_LABELS) as [AnnouncementType, string][]
@@ -494,7 +502,7 @@ export default function OperatorAnnouncementsPage() {
           </Button>
         ) : undefined
       }
-      loading={isLoading}
+      loading={isLoading && !announcementsError}
       loadingLabel="Ankündigungen werden geladen"
       overlays={
         <>
@@ -1184,18 +1192,16 @@ function AnnouncementCard({
         />
       </div>
 
-      {/* Type label */}
-      <p
-        className={`mb-2 text-xs font-medium tracking-wide uppercase ${TYPE_TEXT_COLORS[announcement.type]}`}
-      >
-        {TYPE_LABELS[announcement.type]}
-      </p>
-
       {/* Title with draft badge */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-base font-semibold text-gray-900">
           {announcement.title}
         </h3>
+        <StatusBadge
+          tone={TYPE_BADGE_TONES[announcement.type]}
+          compact
+          label={TYPE_LABELS[announcement.type]}
+        />
         {announcement.status === "draft" && (
           <StatusBadge tone="outline" compact label="Entwurf" />
         )}

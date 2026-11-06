@@ -645,8 +645,6 @@ function SectionCard(_: { kicker?: string; title: string }) {
   it.each([
     "src/components/parent/probe.tsx",
     "src/app/parents/probe/page.tsx",
-    "src/components/school/probe.tsx",
-    "src/app/operator/probe/page.tsx",
     "src/app/[tenant]/(protected)/rooms/page.test.tsx",
   ])("leaves %s alone", async (path) => {
     const result = await lintSource(kickerSource, path);
@@ -654,6 +652,17 @@ function SectionCard(_: { kicker?: string; title: string }) {
 
     expect(result.status, `${path}\n${output}`).toBe(0);
     expect(output).not.toContain("no-tenant-kicker");
+  });
+
+  it.each([
+    "src/components/school/probe.tsx",
+    "src/components/class-day/probe.tsx",
+    "src/app/operator/probe/page.tsx",
+  ])("reports %s since #5604", async (path) => {
+    const result = await lintSource(kickerSource, path);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("no-tenant-kicker");
   });
 });
 

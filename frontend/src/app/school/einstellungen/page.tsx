@@ -19,13 +19,11 @@ function SchoolSettingsContent() {
   return (
     <TenantPage
       title={section.label}
-      info={
-        section.key === "notifications" ? (
-          <p>
-            Wählen Sie zuerst die Themen. Dann erlauben Sie die Hinweise auf
-            diesem Gerät.
-          </p>
-        ) : undefined
+      // Die Reihenfolge ist eine Voraussetzung (#2297), sie bleibt sichtbar.
+      stats={
+        section.key === "notifications"
+          ? "Wählen Sie zuerst die Themen. Dann erlauben Sie die Hinweise auf diesem Gerät."
+          : undefined
       }
     >
       {section.key === "notifications" ? (

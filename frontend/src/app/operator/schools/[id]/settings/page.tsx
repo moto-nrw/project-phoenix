@@ -199,12 +199,7 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
       back
       backHref={backHref}
       backLabel={backLabel}
-      info={
-        <p>
-          Sie bearbeiten diese Einstellungen als Operator stellvertretend für
-          die Schule.
-        </p>
-      }
+      stats="Sie bearbeiten diese Einstellungen als Operator stellvertretend für die Schule."
       loading={loading}
       loadingLabel="Einstellungen werden geladen…"
       overlays={

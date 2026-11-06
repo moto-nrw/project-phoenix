@@ -46,17 +46,11 @@ export default function SchoolNoticesPage() {
   return (
     <TenantPage
       title="Tagesinformationen"
-      info={
-        <p>
-          Hinweise der OGS-Leitung an die Lehrkräfte. Sie werden im OGS-Büro
-          angelegt; hier lesen Sie, was heute gilt.
-        </p>
-      }
       loading={isLoading && notices.length === 0}
       loadingLabel="Tagesinformationen werden geladen…"
       error={error ? load.error : null}
       empty={
-        notices.length === 0
+        !error && notices.length === 0
           ? {
               title: "Heute keine Hinweise",
               description: "Für heute liegen keine Hinweise der OGS vor.",
@@ -64,7 +58,10 @@ export default function SchoolNoticesPage() {
           : null
       }
     >
-      <SectionCard title="Heute">
+      <SectionCard
+        title="Heute"
+        description="Hinweise der OGS-Leitung an die Lehrkräfte. Sie werden im OGS-Büro angelegt; hier lesen Sie, was heute gilt."
+      >
         <TodayNoticeList
           notices={notices}
           onChanged={mutate}

@@ -99,7 +99,7 @@ function SupervisionIntro({
   instance: PlannedTimetableInstance;
   busy: boolean;
   onStart: () => void;
-  /** Rückweg zum Überblick, über dem Titel (nur wenn es einen gibt). */
+  /** Rückweg zum Überblick, oben in der Karte (nur wenn es einen gibt). */
   back?: ReactNode;
 }>) {
   // Die Minutenuhr, weil "noch nicht" von selbst in "jetzt" übergehen muss,
@@ -404,7 +404,7 @@ export function SchoolSupervisionsView() {
           <StatusColorBadge label="Fällt aus" color={LOCATION_COLORS.DANGER} />
         ) : undefined
       }
-      loading={isLoading}
+      loading={isLoading && !listLoadError}
       loadingLabel="Aufsichten werden geladen…"
       overlays={
         openId ? (
@@ -431,7 +431,8 @@ export function SchoolSupervisionsView() {
       ) : null}
 
       {/* Ohne Einführungskarte (Kinderliste) steht der Rückweg allein über
-          der Liste; sonst sitzt er in der Karte über dem Titel. */}
+          der Liste; sonst sitzt er oben in der Karte. Die Detailansicht hat
+          keine eigene Adresse, deshalb kein Rückweg-Link im Seitenkopf. */}
       {showRoster ? backToOverview : null}
 
       {openInstance && !showRoster ? (

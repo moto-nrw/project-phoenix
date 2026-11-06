@@ -3,7 +3,6 @@
 import { Suspense, useState } from "react";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -13,7 +12,6 @@ import { useSWRAuth } from "~/lib/swr";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorCaterer } from "~/lib/operator/provisioning-helpers";
-import { SimpleEmptyState } from "../provisioning/provisioning-shared";
 
 /**
  * Die Caterer-Konten (#4497). Ein Caterer schaltet die Zwei-Faktor-Anmeldung
@@ -92,12 +90,18 @@ function OperatorCaterersPageContent() {
       title="Caterer"
       stats={
         count === undefined ? undefined : (
-          <TenantPageStats
-            items={[
-              { value: count, label: count === 1 ? "Caterer" : "Caterer" },
-            ]}
-          />
+          <TenantPageStats items={[{ value: count, label: "Caterer" }]} />
         )
+      }
+      error={loadError}
+      empty={
+        !isLoading && !error && data?.length === 0
+          ? {
+              title: "Noch keine Caterer",
+              description:
+                "Noch kein Caterer hat eine Einladung einer Schule angenommen.",
+            }
+          : null
       }
       overlays={
         <>
@@ -117,23 +121,13 @@ function OperatorCaterersPageContent() {
         </>
       }
     >
-      <LoadErrorAlert error={loadError} />
-
-      {(data === undefined && !isLoading) || error ? null : !isLoading &&
-        data?.length === 0 ? (
-        <SimpleEmptyState
-          title="Noch keine Caterer"
-          description="Noch kein Caterer hat eine Einladung einer Schule angenommen."
-        />
-      ) : (
-        <DataTable
-          columns={catererColumns(setResetTarget)}
-          rows={data ?? []}
-          getRowKey={(caterer) => caterer.accountId}
-          defaultSortKey="name"
-          isLoading={isLoading}
-        />
-      )}
+      <DataTable
+        columns={catererColumns(setResetTarget)}
+        rows={data ?? []}
+        getRowKey={(caterer) => caterer.accountId}
+        defaultSortKey="name"
+        isLoading={isLoading}
+      />
     </TenantPage>
   );
 }

@@ -202,9 +202,7 @@ export default function OperatorOrganizationsPage() {
       title="Träger"
       stats={
         count === undefined ? undefined : (
-          <TenantPageStats
-            items={[{ value: count, label: count === 1 ? "Träger" : "Träger" }]}
-          />
+          <TenantPageStats items={[{ value: count, label: "Träger" }]} />
         )
       }
       actions={actionButton}

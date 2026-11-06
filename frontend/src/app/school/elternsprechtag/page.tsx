@@ -26,7 +26,6 @@ import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { EditActions } from "~/components/ui/edit-actions";
-import { Skeleton } from "~/components/ui/skeleton";
 import {
   SlideOver,
   SlideOverBody,
@@ -599,7 +598,7 @@ export default function SchoolParentConferencePage() {
   return (
     // Der gewählte Tag steht in der Adresse; useSearchParams braucht eine
     // Suspense-Grenze.
-    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+    <Suspense fallback={<TenantPage title="Elternsprechtag" loading />}>
       <SchoolParentConferences />
     </Suspense>
   );

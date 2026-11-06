@@ -6,8 +6,8 @@
 
 import { Suspense } from "react";
 import { ClassDayOverview } from "~/components/class-day/class-day-overview";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { TodayNoticesCard } from "~/components/school/today-notices-card";
-import { Skeleton } from "~/components/ui/skeleton";
 import {
   fetchClassDaySchool,
   fetchClassDayClassesSchool,
@@ -20,7 +20,7 @@ export default function SchoolHomePage() {
   return (
     // useSearchParams (der angezeigte Tag steht in der Adresse) braucht eine
     // Suspense-Grenze.
-    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+    <Suspense fallback={<TenantPage title="Klassenansicht" loading />}>
       <ClassDayOverview
         fetchClasses={fetchClassDayClassesSchool}
         fetchClassDay={fetchClassDaySchool}

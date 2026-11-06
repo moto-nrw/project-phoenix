@@ -1225,11 +1225,10 @@ const noTinyText = makeClassStringRule({
 });
 // ui-kit/no-tenant-kicker — die blaue Mini-Überschrift über einer Überschrift
 // ist im Tenant-Portal abgeschafft (sie trug sechs verschiedene Bedeutungen im
-// selben Slot). Kein Baseline-Eintrag: der Bestand ist in derselben PR auf
-// null gebracht. Eltern-, Schul- und Operator-Portal sind nicht Teil dieser
-// Umstellung und bekommen ihren eigenen Durchgang.
-const OTHER_PORTALS_RE =
-  /(^|\/)(components\/parent|app\/parents|components\/school|app\/school|components\/class-day|components\/operator|app\/operator)\//;
+// selben Slot). Kein Baseline-Eintrag: der Bestand ist auf null gebracht. Das
+// Schul- und das Operator-Portal gehören seit #5604 dazu; nur das Elternportal
+// behält seinen Kicker (ADR 0149).
+const OTHER_PORTALS_RE = /(^|\/)(components\/parent|app\/parents)\//;
 
 const noTenantKicker = {
   meta: {

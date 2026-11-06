@@ -21,7 +21,6 @@ import {
 } from "~/components/class-day/routes";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
-import { Skeleton } from "~/components/ui/skeleton";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { formatDate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -158,7 +157,7 @@ export default function SchoolSharedNotesPage() {
   return (
     // useSearchParams (Klasse, Kind und Tag stehen in der Adresse) braucht
     // eine Suspense-Grenze.
-    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+    <Suspense fallback={<TenantPage title="Beobachtungen der OGS" loading />}>
       <SharedNotesFromAddress />
     </Suspense>
   );

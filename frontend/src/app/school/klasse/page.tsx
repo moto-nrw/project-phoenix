@@ -8,11 +8,11 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { ClassDayClass } from "~/components/class-day/class-day-class";
+import { TenantPage } from "~/components/ui/tenant-page";
 import {
   CLASS_DAY_CLASS_PARAM,
   classDayClassParam,
 } from "~/components/class-day/routes";
-import { Skeleton } from "~/components/ui/skeleton";
 import {
   addHomeworkSchool,
   changeHomeworkSchool,
@@ -54,7 +54,7 @@ export default function SchoolClassDayPage() {
   return (
     // useSearchParams (Klasse und Tag stehen in der Adresse) braucht eine
     // Suspense-Grenze.
-    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+    <Suspense fallback={<TenantPage title="Klasse" loading />}>
       <ClassFromAddress />
     </Suspense>
   );
