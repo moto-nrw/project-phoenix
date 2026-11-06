@@ -59,6 +59,7 @@ import {
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
 import { EmptyState } from "~/components/ui/empty-state";
+import { Textarea } from "~/components/ui/textarea";
 import { OgsVisibleBadge } from "~/components/parent/ogs-visible-badge";
 import { type SignatureValue, signatureRequestBody } from "~/lib/signature";
 import {
@@ -1415,23 +1416,16 @@ function ContactModal({
           )}
         </div>
         {mode === "create" ? (
-          <div>
-            <label
-              htmlFor="new-contact-pickup-notes"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              {t("guardians.pickupNotes")}
-            </label>
-            <textarea
-              id="new-contact-pickup-notes"
-              value={pickupNotes}
-              onChange={(event) => setPickupNotes(event.target.value)}
-              rows={3}
-              maxLength={500}
-              placeholder={t("guardians.pickupNotesPlaceholder")}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
-            />
-          </div>
+          <Textarea
+            id="new-contact-pickup-notes"
+            label={t("guardians.pickupNotes")}
+            value={pickupNotes}
+            onChange={(event) => setPickupNotes(event.target.value)}
+            rows={3}
+            maxLength={500}
+            placeholder={t("guardians.pickupNotesPlaceholder")}
+            className="resize-y"
+          />
         ) : null}
       </div>
     </Modal>
@@ -1695,23 +1689,16 @@ function PickupModal({
             can_edit_contact. A pickup-manage-only caller sees just the flags
             above; the backend rejects a note edit on a contact-locked guardian. */}
         {g.can_edit_contact && (
-          <div>
-            <label
-              htmlFor="pickup-notes"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              {t("guardians.pickupNotes")}
-            </label>
-            <textarea
-              id="pickup-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              maxLength={500}
-              placeholder={t("guardians.pickupNotesPlaceholder")}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
-            />
-          </div>
+          <Textarea
+            id="pickup-notes"
+            label={t("guardians.pickupNotes")}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            maxLength={500}
+            placeholder={t("guardians.pickupNotesPlaceholder")}
+            className="resize-y"
+          />
         )}
       </div>
     </Modal>

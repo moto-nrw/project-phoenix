@@ -15,6 +15,7 @@ describe("foldForSearch", () => {
     ["Zoë", "zoe"],
     ["Müller", "muller"],
     ["Raum 2b", "raum 2b"],
+    ["Cœur Æsir ǽ", "coeur aesir ae"],
   ])("folds %s to %s", (input, expected) => {
     expect(foldForSearch(input)).toBe(expected);
   });

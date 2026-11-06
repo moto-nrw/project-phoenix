@@ -31,7 +31,7 @@ import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatCard } from "~/components/ui/stat-card";
 import { getUserDisplayName } from "~/lib/auth-utils";
-import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { useTimeBasedGreeting } from "~/lib/greeting";
 import type { ClassDayReport } from "~/lib/class-day-api";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
@@ -189,12 +189,7 @@ function ClassLink({
           {summary}
         </span>
         {changes > 0 && (
-          <span className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-gray-700">
-            <span
-              aria-hidden="true"
-              className="h-1.5 w-1.5 shrink-0 rounded-full"
-              style={{ backgroundColor: LOCATION_COLORS.WARNING }}
-            />
+          <span className="mt-1.5 block text-xs font-medium text-gray-700">
             {changesLabel(changes)}
           </span>
         )}

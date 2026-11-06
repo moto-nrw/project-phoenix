@@ -32,7 +32,7 @@ func TestCombineLettersKeepsEveryPageInOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CombineLetters: %v", err)
 	}
-	if file.ContentType != "application/pdf" || file.Filename != "bestaetigungen-herbstferien.pdf" {
+	if file.ContentType != "application/pdf" || file.Filename != "bestätigungen-herbstferien.pdf" {
 		t.Fatalf("file = %q %q", file.ContentType, file.Filename)
 	}
 	if !strings.HasPrefix(string(file.Data), "%PDF-") {

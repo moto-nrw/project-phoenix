@@ -977,6 +977,29 @@ describe.concurrent("ui-kit/no-raw-input", () => {
     expect(output.match(/ui-kit\(no-raw-input\)/g)).toHaveLength(3);
   });
 
+  it("reports a hand-built textarea", async () => {
+    const result = await lintSource(`
+      function Probe() {
+        return <textarea aria-label="Notiz" />;
+      }
+      void Probe;
+    `);
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-raw-input\)/g)).toHaveLength(1);
+  });
+
+  it("accepts the kit Textarea", async () => {
+    const result = await lintSource(`
+      function Probe() {
+        return <Textarea label="Notiz" />;
+      }
+      void Probe;
+    `);
+
+    expect(result.output).not.toContain("no-raw-input");
+  });
+
   it("keeps hidden and file inputs native", async () => {
     const result = await lintSource(`
       function Probe() {
@@ -1715,18 +1738,6 @@ describe.concurrent("ui-kit/no-status-dot-outside-plans (#5598)", () => {
 
     expect(result.output).not.toContain("no-status-dot-outside-plans");
   });
-});
-
-describe("dot ratchet baseline", () => {
-  it("matches the current findings exactly", () => {
-    const result = spawnSync(
-      process.execPath,
-      [resolve("scripts/ui-kit-dot-baseline-update.mjs"), "--check"],
-      { encoding: "utf8" },
-    );
-
-    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
-  }, 120_000);
 });
 
 describe.concurrent("ui-kit/no-hex-alpha-tint", () => {

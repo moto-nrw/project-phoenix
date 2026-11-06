@@ -9,6 +9,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { TimeField } from "~/components/ui/time-field";
+import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import type { Student } from "~/lib/api";
 import {
@@ -338,19 +339,16 @@ export function ClassTripBulkStatusModal({
             />
           </div>
         ) : null}
-        <label className="block text-sm font-medium text-gray-700">
-          {schoolReport ? "Ziel (optional)" : "Hinweis (optional)"}
-          <textarea
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            rows={2}
-            maxLength={schoolReport ? 200 : 2000}
-            placeholder={
-              schoolReport ? "z. B. Zoo" : "z. B. Ziel oder Kontakt vor Ort"
-            }
-            className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-          />
-        </label>
+        <Textarea
+          label={schoolReport ? "Ziel (optional)" : "Hinweis (optional)"}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          rows={2}
+          maxLength={schoolReport ? 200 : 2000}
+          placeholder={
+            schoolReport ? "z. B. Zoo" : "z. B. Ziel oder Kontakt vor Ort"
+          }
+        />
         {conflicts.length > 0 ? (
           <Alert
             type="warning"
