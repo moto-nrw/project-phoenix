@@ -66,6 +66,31 @@ func (s *Store) ListTraegerSchoolIDs(ctx context.Context, organizationID int64) 
 	return ids, stats, nil
 }
 
+// listTraegerBillingKeyDateCountsQuery reads the operator report's captured
+// rows (#2791) of the undeleted schools of one Träger (#4673), newest month
+// first. Its one parameter is the Träger.
+const listTraegerBillingKeyDateCountsQuery = `SELECT ` + billingKeyDateCountColumns + `
+FROM platform.live_billing_key_date_counts
+WHERE school_id IN (SELECT id FROM platform.schools WHERE organization_id = ? AND deleted_at IS NULL)
+ORDER BY period DESC, school_name, school_id`
+
+// ListTraegerBillingKeyDateCounts returns the captured Stichtagszahlen of the
+// undeleted schools of the Träger.
+func (s *Store) ListTraegerBillingKeyDateCounts(ctx context.Context, organizationID int64) ([]domain.BillingKeyDateCount, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var rows []billingKeyDateCountRow
+	started := time.Now()
+	err = db.NewRaw(listTraegerBillingKeyDateCountsQuery, organizationID).Scan(ctx, &rows)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
+	if err != nil {
+		return nil, stats, fmt.Errorf("organization tenancy postgres: list Träger key-date counts: %w", err)
+	}
+	return billingKeyDateCounts(rows), stats, nil
+}
+
 const listTraegerMembershipsQuery = `SELECT organization_id, account_id, status, activated_at, created_at
 	FROM platform.organization_accounts
 	WHERE organization_id = ?
