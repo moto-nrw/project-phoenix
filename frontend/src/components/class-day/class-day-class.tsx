@@ -627,317 +627,316 @@ export function ClassDayClass({
   };
 
   return (
-    <div
-      className="flex w-full flex-1 flex-col"
-      style={
-        {
-          "--class-day-blue": MOTO_COLOR_PALETTE.blue.base,
-          "--class-day-danger": MOTO_COLOR_PALETTE.red.base,
-        } as CSSProperties
+    <TenantPage
+      title={schoolClassLabel(schoolClass) || "Klasse"}
+      back
+      backHref={schoolPath(schoolDayListPath(dateISO, openList))}
+      backLabel="Alle Klassen"
+      stats={
+        <>
+          {formatDate(dateISO)}
+          {report && !weekend ? ` · ${summaryLine(report)}` : ""}
+          {report && !weekend && changes > 0
+            ? ` · ${changes === 1 ? "1 Kind" : `${changes} Kinder`} anders als sonst`
+            : ""}
+        </>
+      }
+      overlays={
+        <>
+          {canWriteHomework ? (
+            <FormModal
+              isOpen={homeworkForm.draft !== null}
+              onClose={homeworkForm.close}
+              title={
+                homeworkForm.draft?.editing
+                  ? "Hausaufgabe ändern"
+                  : `Hausaufgaben für ${formatDate(dateISO)}`
+              }
+              size="md"
+              mobilePosition="bottom"
+              closeDisabled={homeworkForm.saving}
+              isBackdropDismissDisabled
+              error={homeworkForm.formError}
+              footer={
+                <EditActions
+                  className="p-4"
+                  stretchOnPhone
+                  onCancel={homeworkForm.close}
+                  onSave={() => void homeworkForm.save()}
+                  saving={homeworkForm.saving}
+                />
+              }
+            >
+              <div className="space-y-4 p-4">
+                <Input
+                  id="homework-subject"
+                  name="subject"
+                  label="Fach (freiwillig)"
+                  controlSize="compact"
+                  maxLength={HOMEWORK_SUBJECT_MAX_LENGTH}
+                  value={homeworkForm.draft?.subject ?? ""}
+                  onChange={(event) =>
+                    homeworkForm.update("subject", event.target.value)
+                  }
+                />
+                <Textarea
+                  id="homework-description"
+                  name="description"
+                  label="Was ist zu tun?"
+                  rows={4}
+                  maxLength={HOMEWORK_DESCRIPTION_MAX_LENGTH}
+                  value={homeworkForm.draft?.description ?? ""}
+                  error={homeworkForm.fieldError("description")}
+                  onChange={(event) =>
+                    homeworkForm.update("description", event.target.value)
+                  }
+                />
+              </div>
+            </FormModal>
+          ) : null}
+
+          {canWriteHomework ? (
+            <ConfirmDeleteModal
+              isOpen={homeworkForm.deleting !== null}
+              title="Hausaufgabe löschen?"
+              description="Die OGS sieht diese Hausaufgabe danach nicht mehr."
+              gate={{ mode: "twoStep" }}
+              onConfirm={() => homeworkForm.confirmDelete()}
+              onClose={homeworkForm.closeDelete}
+              loading={homeworkForm.removing}
+              error={homeworkForm.deleteError}
+            />
+          ) : null}
+
+          {schoolClass && canReportClassTrip ? (
+            <ClassTripBulkStatusModal
+              isOpen={tripModalOpen}
+              onClose={() => setTripModalOpen(false)}
+              targetLabel={schoolClassLabel(schoolClass)}
+              students={tripStudents}
+              onSuccess={() => void refetchReport()}
+              schoolReport={{ save: saveClassTrip, defaultDate: dateISO }}
+            />
+          ) : null}
+
+          {canHandOver ? (
+            <FormModal
+              isOpen={handoverOpen}
+              onClose={() => setHandoverOpen(false)}
+              closeDisabled={savingHandover}
+              title={`${schoolClassLabel(schoolClass)} an die OGS übergeben`}
+              size="md"
+              mobilePosition="bottom"
+              error={handoverErrors.error}
+              footer={
+                <EditActions
+                  className="p-4"
+                  stretchOnPhone
+                  onCancel={() => setHandoverOpen(false)}
+                  onSave={() => void saveHandover()}
+                  saving={savingHandover}
+                  saveLabel="Übergeben"
+                  savingLabel="Übergibt…"
+                />
+              }
+            >
+              <div className="space-y-3 p-4">
+                <p className="text-sm text-gray-600">
+                  {ogsRows.length > 0
+                    ? "Diese Kinder gehen jetzt in die OGS. Tippen Sie bei jedem Kind, das nicht da ist, auf „Nicht da“."
+                    : "Heute geht kein Kind aus dieser Klasse in die OGS."}
+                </p>
+                {ogsRows.length > 0 ? (
+                  <ul className="space-y-1.5">
+                    {ogsRows.map((row) => (
+                      <li
+                        key={row.student_id}
+                        className="flex flex-wrap items-center justify-between gap-2"
+                      >
+                        <span className="min-w-0 truncate text-sm font-medium text-gray-900">
+                          {row.last_name}, {row.first_name}
+                        </span>
+                        <SegmentedControl<HandoverChoice>
+                          items={[
+                            {
+                              value: "present",
+                              label: "Da",
+                              tone: "green",
+                              disabled: savingHandover,
+                            },
+                            {
+                              value: "absent",
+                              label: "Nicht da",
+                              tone: "red",
+                              disabled: savingHandover,
+                            },
+                          ]}
+                          value={
+                            handoverAbsent.has(row.student_id)
+                              ? "absent"
+                              : "present"
+                          }
+                          onChange={(choice) =>
+                            markHandover(row.student_id, choice)
+                          }
+                          variant="pills"
+                          ariaLabel={`Übergabe von ${row.first_name} ${row.last_name}`}
+                          className="shrink-0"
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </FormModal>
+          ) : null}
+
+          {canHandOver ? (
+            <ConfirmationModal
+              isOpen={withdrawOpen}
+              onClose={() => setWithdrawOpen(false)}
+              onConfirm={() => void confirmWithdraw()}
+              title="Übergabe zurücknehmen?"
+              confirmText="Zurücknehmen"
+              isConfirmLoading={withdrawing}
+            >
+              <div className="space-y-3">
+                <FormErrorAlert message={withdrawErrors.error} />
+                <p className="text-sm text-gray-600">
+                  Die OGS sieht die Übergabe dann nicht mehr. Sie können die
+                  Klasse danach neu übergeben.
+                </p>
+              </div>
+            </ConfirmationModal>
+          ) : null}
+
+          {schoolClass && canWriteArrivalException ? (
+            <ClassArrivalExceptionDialog
+              isOpen={exceptionDialogOpen}
+              onClose={() => setExceptionDialogOpen(false)}
+              schoolClass={schoolClass}
+              defaultDate={weekend ? null : parseISODate(dateISO)}
+              onChanged={() => void refetchReport()}
+              weekendOpen={weekendOpen}
+            />
+          ) : null}
+
+          {schoolClass && canWriteDayHints ? (
+            <FormModal
+              isOpen={hintOpen}
+              suspended={hintDeleteOpen}
+              onClose={closeHint}
+              title="Hinweis für die OGS"
+              size="md"
+              mobilePosition="bottom"
+              error={hintErrors.error}
+              isBackdropDismissDisabled={trimmedHint !== ""}
+              footer={
+                // On a phone Abbrechen and Speichern share one full-width row
+                // and „Hinweis löschen“ sits full width below them (#5758).
+                <div className="flex w-full flex-col-reverse gap-2 p-4 sm:flex-row sm:items-center sm:justify-end">
+                  {existingHint ? (
+                    <Button
+                      type="button"
+                      variant="outline_danger"
+                      size="md"
+                      onClick={() => {
+                        hintDeleteErrors.clear();
+                        setHintDeleteOpen(true);
+                      }}
+                      disabled={hintSaving}
+                      className="w-full sm:mr-auto sm:w-auto"
+                    >
+                      Hinweis löschen
+                    </Button>
+                  ) : null}
+                  <EditActions
+                    onCancel={closeHint}
+                    onSave={() => void saveHint()}
+                    saving={hintSaving}
+                    stretchOnPhone
+                  />
+                </div>
+              }
+            >
+              <div className="space-y-4 p-4">
+                <p className="text-sm text-gray-600">
+                  Die OGS sieht den Hinweis heute am Kind, in Aufsicht, Gruppe
+                  und Kindersuche. Morgen ist er weg.
+                </p>
+                <div>
+                  <label
+                    id="day-hint-target-label"
+                    htmlFor="day-hint-target"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Für wen ist der Hinweis?
+                  </label>
+                  <CustomSelect
+                    value={hintTarget}
+                    options={hintOptions}
+                    onChange={chooseHintTarget}
+                    id="day-hint-target"
+                    ariaLabelledBy="day-hint-target-label"
+                  />
+                </div>
+                <div>
+                  <Textarea
+                    id="day-hint-body"
+                    name="day_hint"
+                    label="Hinweis"
+                    rows={4}
+                    // Der Browser zählt ein Emoji doppelt; der Spielraum lässt
+                    // 500 Zeichen immer zu, die Prüfung zählt wie das Backend.
+                    maxLength={DAY_HINT_MAX_LENGTH * 2}
+                    value={hintBody}
+                    onChange={(event) => setHintBody(event.target.value)}
+                    placeholder="Zum Beispiel: Hat heute Bauchweh, bitte im Blick behalten."
+                    error={
+                      hintTooLong
+                        ? DAY_HINT_TOO_LONG
+                        : hintErrors.fieldError("day_hint")
+                    }
+                  />
+                  <p className="mt-1 text-right text-xs text-gray-500 tabular-nums">
+                    {dayHintLength(hintBody)} von {DAY_HINT_MAX_LENGTH} Zeichen
+                  </p>
+                </div>
+              </div>
+            </FormModal>
+          ) : null}
+
+          <ConfirmDeleteModal
+            isOpen={hintDeleteOpen}
+            title="Hinweis löschen?"
+            description={
+              <p>
+                Die OGS sieht den Hinweis danach nicht mehr. Sie können
+                jederzeit einen neuen schreiben.
+              </p>
+            }
+            gate={{ mode: "twoStep", firstStepLabel: "Ja, löschen" }}
+            confirmLabel="Endgültig löschen"
+            loadingLabel="Wird gelöscht…"
+            loading={hintDeleting}
+            error={hintDeleteErrors.error}
+            onConfirm={() => void deleteHint()}
+            onClose={() => setHintDeleteOpen(false)}
+            mobileSheet
+          />
+        </>
       }
     >
-      <TenantPage
-        title={schoolClassLabel(schoolClass) || "Klasse"}
-        back
-        backHref={schoolPath(schoolDayListPath(dateISO, openList))}
-        backLabel="Alle Klassen"
-        stats={
-          <>
-            {formatDate(dateISO)}
-            {report && !weekend ? ` · ${summaryLine(report)}` : ""}
-            {report && !weekend && changes > 0
-              ? ` · ${changes === 1 ? "1 Kind" : `${changes} Kinder`} anders als sonst`
-              : ""}
-          </>
-        }
-        overlays={
-          <>
-            {canWriteHomework ? (
-              <FormModal
-                isOpen={homeworkForm.draft !== null}
-                onClose={homeworkForm.close}
-                title={
-                  homeworkForm.draft?.editing
-                    ? "Hausaufgabe ändern"
-                    : `Hausaufgaben für ${formatDate(dateISO)}`
-                }
-                size="md"
-                mobilePosition="bottom"
-                closeDisabled={homeworkForm.saving}
-                isBackdropDismissDisabled
-                error={homeworkForm.formError}
-                footer={
-                  <EditActions
-                    className="p-4"
-                    stretchOnPhone
-                    onCancel={homeworkForm.close}
-                    onSave={() => void homeworkForm.save()}
-                    saving={homeworkForm.saving}
-                  />
-                }
-              >
-                <div className="space-y-4 p-4">
-                  <Input
-                    id="homework-subject"
-                    name="subject"
-                    label="Fach (freiwillig)"
-                    controlSize="compact"
-                    maxLength={HOMEWORK_SUBJECT_MAX_LENGTH}
-                    value={homeworkForm.draft?.subject ?? ""}
-                    onChange={(event) =>
-                      homeworkForm.update("subject", event.target.value)
-                    }
-                  />
-                  <Textarea
-                    id="homework-description"
-                    name="description"
-                    label="Was ist zu tun?"
-                    rows={4}
-                    maxLength={HOMEWORK_DESCRIPTION_MAX_LENGTH}
-                    value={homeworkForm.draft?.description ?? ""}
-                    error={homeworkForm.fieldError("description")}
-                    onChange={(event) =>
-                      homeworkForm.update("description", event.target.value)
-                    }
-                  />
-                </div>
-              </FormModal>
-            ) : null}
-
-            {canWriteHomework ? (
-              <ConfirmDeleteModal
-                isOpen={homeworkForm.deleting !== null}
-                title="Hausaufgabe löschen?"
-                description="Die OGS sieht diese Hausaufgabe danach nicht mehr."
-                gate={{ mode: "twoStep" }}
-                onConfirm={() => homeworkForm.confirmDelete()}
-                onClose={homeworkForm.closeDelete}
-                loading={homeworkForm.removing}
-                error={homeworkForm.deleteError}
-              />
-            ) : null}
-
-            {schoolClass && canReportClassTrip ? (
-              <ClassTripBulkStatusModal
-                isOpen={tripModalOpen}
-                onClose={() => setTripModalOpen(false)}
-                targetLabel={schoolClassLabel(schoolClass)}
-                students={tripStudents}
-                onSuccess={() => void refetchReport()}
-                schoolReport={{ save: saveClassTrip, defaultDate: dateISO }}
-              />
-            ) : null}
-
-            {canHandOver ? (
-              <FormModal
-                isOpen={handoverOpen}
-                onClose={() => setHandoverOpen(false)}
-                closeDisabled={savingHandover}
-                title={`${schoolClassLabel(schoolClass)} an die OGS übergeben`}
-                size="md"
-                mobilePosition="bottom"
-                error={handoverErrors.error}
-                footer={
-                  <EditActions
-                    className="p-4"
-                    stretchOnPhone
-                    onCancel={() => setHandoverOpen(false)}
-                    onSave={() => void saveHandover()}
-                    saving={savingHandover}
-                    saveLabel="Übergeben"
-                    savingLabel="Übergibt…"
-                  />
-                }
-              >
-                <div className="space-y-3 p-4">
-                  <p className="text-sm text-gray-600">
-                    {ogsRows.length > 0
-                      ? "Diese Kinder gehen jetzt in die OGS. Tippen Sie bei jedem Kind, das nicht da ist, auf „Nicht da“."
-                      : "Heute geht kein Kind aus dieser Klasse in die OGS."}
-                  </p>
-                  {ogsRows.length > 0 ? (
-                    <ul className="space-y-1.5">
-                      {ogsRows.map((row) => (
-                        <li
-                          key={row.student_id}
-                          className="flex flex-wrap items-center justify-between gap-2"
-                        >
-                          <span className="min-w-0 truncate text-sm font-medium text-gray-900">
-                            {row.last_name}, {row.first_name}
-                          </span>
-                          <SegmentedControl<HandoverChoice>
-                            items={[
-                              {
-                                value: "present",
-                                label: "Da",
-                                tone: "green",
-                                disabled: savingHandover,
-                              },
-                              {
-                                value: "absent",
-                                label: "Nicht da",
-                                tone: "red",
-                                disabled: savingHandover,
-                              },
-                            ]}
-                            value={
-                              handoverAbsent.has(row.student_id)
-                                ? "absent"
-                                : "present"
-                            }
-                            onChange={(choice) =>
-                              markHandover(row.student_id, choice)
-                            }
-                            variant="pills"
-                            ariaLabel={`Übergabe von ${row.first_name} ${row.last_name}`}
-                            className="shrink-0"
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
-              </FormModal>
-            ) : null}
-
-            {canHandOver ? (
-              <ConfirmationModal
-                isOpen={withdrawOpen}
-                onClose={() => setWithdrawOpen(false)}
-                onConfirm={() => void confirmWithdraw()}
-                title="Übergabe zurücknehmen?"
-                confirmText="Zurücknehmen"
-                isConfirmLoading={withdrawing}
-              >
-                <div className="space-y-3">
-                  <FormErrorAlert message={withdrawErrors.error} />
-                  <p className="text-sm text-gray-600">
-                    Die OGS sieht die Übergabe dann nicht mehr. Sie können die
-                    Klasse danach neu übergeben.
-                  </p>
-                </div>
-              </ConfirmationModal>
-            ) : null}
-
-            {schoolClass && canWriteArrivalException ? (
-              <ClassArrivalExceptionDialog
-                isOpen={exceptionDialogOpen}
-                onClose={() => setExceptionDialogOpen(false)}
-                schoolClass={schoolClass}
-                defaultDate={weekend ? null : parseISODate(dateISO)}
-                onChanged={() => void refetchReport()}
-                weekendOpen={weekendOpen}
-              />
-            ) : null}
-
-            {schoolClass && canWriteDayHints ? (
-              <FormModal
-                isOpen={hintOpen}
-                suspended={hintDeleteOpen}
-                onClose={closeHint}
-                title="Hinweis für die OGS"
-                size="md"
-                mobilePosition="bottom"
-                error={hintErrors.error}
-                isBackdropDismissDisabled={trimmedHint !== ""}
-                footer={
-                  // On a phone Abbrechen and Speichern share one full-width row
-                  // and „Hinweis löschen“ sits full width below them (#5758).
-                  <div className="flex w-full flex-col-reverse gap-2 p-4 sm:flex-row sm:items-center sm:justify-end">
-                    {existingHint ? (
-                      <Button
-                        type="button"
-                        variant="outline_danger"
-                        size="md"
-                        onClick={() => {
-                          hintDeleteErrors.clear();
-                          setHintDeleteOpen(true);
-                        }}
-                        disabled={hintSaving}
-                        className="w-full sm:mr-auto sm:w-auto"
-                      >
-                        Hinweis löschen
-                      </Button>
-                    ) : null}
-                    <EditActions
-                      onCancel={closeHint}
-                      onSave={() => void saveHint()}
-                      saving={hintSaving}
-                      stretchOnPhone
-                    />
-                  </div>
-                }
-              >
-                <div className="space-y-4 p-4">
-                  <p className="text-sm text-gray-600">
-                    Die OGS sieht den Hinweis heute am Kind, in Aufsicht, Gruppe
-                    und Kindersuche. Morgen ist er weg.
-                  </p>
-                  <div>
-                    <label
-                      id="day-hint-target-label"
-                      htmlFor="day-hint-target"
-                      className="mb-2 block text-sm font-medium text-gray-700"
-                    >
-                      Für wen ist der Hinweis?
-                    </label>
-                    <CustomSelect
-                      value={hintTarget}
-                      options={hintOptions}
-                      onChange={chooseHintTarget}
-                      id="day-hint-target"
-                      ariaLabelledBy="day-hint-target-label"
-                    />
-                  </div>
-                  <div>
-                    <Textarea
-                      id="day-hint-body"
-                      name="day_hint"
-                      label="Hinweis"
-                      rows={4}
-                      // Der Browser zählt ein Emoji doppelt; der Spielraum lässt
-                      // 500 Zeichen immer zu, die Prüfung zählt wie das Backend.
-                      maxLength={DAY_HINT_MAX_LENGTH * 2}
-                      value={hintBody}
-                      onChange={(event) => setHintBody(event.target.value)}
-                      placeholder="Zum Beispiel: Hat heute Bauchweh, bitte im Blick behalten."
-                      error={
-                        hintTooLong
-                          ? DAY_HINT_TOO_LONG
-                          : hintErrors.fieldError("day_hint")
-                      }
-                    />
-                    <p className="mt-1 text-right text-xs text-gray-500 tabular-nums">
-                      {dayHintLength(hintBody)} von {DAY_HINT_MAX_LENGTH}{" "}
-                      Zeichen
-                    </p>
-                  </div>
-                </div>
-              </FormModal>
-            ) : null}
-
-            <ConfirmDeleteModal
-              isOpen={hintDeleteOpen}
-              title="Hinweis löschen?"
-              description={
-                <p>
-                  Die OGS sieht den Hinweis danach nicht mehr. Sie können
-                  jederzeit einen neuen schreiben.
-                </p>
-              }
-              gate={{ mode: "twoStep", firstStepLabel: "Ja, löschen" }}
-              confirmLabel="Endgültig löschen"
-              loadingLabel="Wird gelöscht…"
-              loading={hintDeleting}
-              error={hintDeleteErrors.error}
-              onConfirm={() => void deleteHint()}
-              onClose={() => setHintDeleteOpen(false)}
-              mobileSheet
-            />
-          </>
-        }
-      >
-        <SectionCard>
+      <SectionCard>
+        <div
+          className="contents"
+          style={
+            {
+              "--class-day-blue": MOTO_COLOR_PALETTE.blue.base,
+              "--class-day-danger": MOTO_COLOR_PALETTE.red.base,
+            } as CSSProperties
+          }
+        >
           {/* Die Klassen-Tagesausnahme steht über der Liste, auch wenn die OGS
             sie eingetragen hat und die Schule nichts ändern darf. */}
           {exceptionLine ? (
@@ -1286,8 +1285,8 @@ export function ClassDayClass({
               />
             </div>
           ) : null}
-        </SectionCard>
-      </TenantPage>
-    </div>
+        </div>
+      </SectionCard>
+    </TenantPage>
   );
 }

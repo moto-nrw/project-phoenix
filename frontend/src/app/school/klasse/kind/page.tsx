@@ -110,7 +110,6 @@ function SharedNotes({
       back
       backHref={schoolPath(classDayPath(schoolClass, dateISO))}
       backLabel={`Zurück zur ${schoolClassLabel(schoolClass) || "Klasse"}`}
-      stats={schoolClassLabel(schoolClass)}
       loading={!nothingChosen && isLoading && !data}
       loadingLabel="Beobachtungen werden geladen…"
       error={loadError}

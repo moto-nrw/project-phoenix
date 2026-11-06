@@ -539,78 +539,78 @@ export function ClassDayOverview({
     schoolDay && open ? schoolDayChildrenByClass(schoolDay, open) : [];
 
   return (
-    <div
-      className="flex w-full flex-1 flex-col"
-      style={
-        {
-          "--class-day-blue": MOTO_COLOR_PALETTE.blue.base,
-          "--class-day-danger": MOTO_COLOR_PALETTE.red.base,
-        } as CSSProperties
+    <TenantPage
+      title={`${greeting}, ${getUserDisplayName(session)}`}
+      prominent
+      info={
+        <p>
+          Ihre Übergabe nach Unterricht am {formatDate(dateISO)}. Öffnen Sie
+          eine Klasse, um zu sehen, wer in Randstunde oder Ganztag bleibt und
+          wer nach Hause geht.
+        </p>
+      }
+      actions={
+        <div className="flex w-full items-center gap-1 lg:w-auto">
+          <Button
+            type="button"
+            variant="surface"
+            size="icon"
+            aria-label="Vorheriger Tag"
+            onClick={() => shiftDay(-1)}
+            className="shrink-0"
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          </Button>
+          <DatePicker
+            value={selectedDate}
+            onChange={(date) => {
+              if (date) goToDate(toISODate(date));
+            }}
+            calendarLayout="popover"
+            hideClearButton
+            className="min-w-0 flex-1 sm:w-44 sm:flex-none"
+          />
+          <Button
+            type="button"
+            variant="surface"
+            size="icon"
+            aria-label="Nächster Tag"
+            onClick={() => shiftDay(1)}
+            className="shrink-0"
+          >
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </div>
+      }
+      overlays={
+        <ConfirmationModal
+          isOpen={canReportAbsences && absenceReports.withdrawTarget !== null}
+          onClose={absenceReports.closeWithdraw}
+          onConfirm={() => void absenceReports.confirmWithdraw()}
+          title="Meldung zurücknehmen?"
+          confirmText="Zurücknehmen"
+          isConfirmLoading={absenceReports.withdrawing}
+        >
+          <FormErrorAlert message={absenceReports.error} className="mb-3" />
+          <p className="text-sm text-gray-700">
+            {absenceReports.withdrawTarget
+              ? `${absenceReports.withdrawTarget.child.first_name} ${absenceReports.withdrawTarget.child.last_name} steht dann wieder unter „Fehlen ohne Meldung“. Die OGS sieht den Status nicht mehr.`
+              : null}
+          </p>
+        </ConfirmationModal>
       }
     >
-      <TenantPage
-        title={`${greeting}, ${getUserDisplayName(session)}`}
-        prominent
-        info={
-          <p>
-            Ihre Übergabe nach Unterricht am {formatDate(dateISO)}. Öffnen Sie
-            eine Klasse, um zu sehen, wer in Randstunde oder Ganztag bleibt und
-            wer nach Hause geht.
-          </p>
-        }
-        actions={
-          <div className="flex w-full items-center gap-1 lg:w-auto">
-            <Button
-              type="button"
-              variant="surface"
-              size="icon"
-              aria-label="Vorheriger Tag"
-              onClick={() => shiftDay(-1)}
-              className="shrink-0"
-            >
-              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            </Button>
-            <DatePicker
-              value={selectedDate}
-              onChange={(date) => {
-                if (date) goToDate(toISODate(date));
-              }}
-              calendarLayout="popover"
-              hideClearButton
-              className="min-w-0 flex-1 sm:w-44 sm:flex-none"
-            />
-            <Button
-              type="button"
-              variant="surface"
-              size="icon"
-              aria-label="Nächster Tag"
-              onClick={() => shiftDay(1)}
-              className="shrink-0"
-            >
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </div>
-        }
-        overlays={
-          <ConfirmationModal
-            isOpen={canReportAbsences && absenceReports.withdrawTarget !== null}
-            onClose={absenceReports.closeWithdraw}
-            onConfirm={() => void absenceReports.confirmWithdraw()}
-            title="Meldung zurücknehmen?"
-            confirmText="Zurücknehmen"
-            isConfirmLoading={absenceReports.withdrawing}
-          >
-            <FormErrorAlert message={absenceReports.error} className="mb-3" />
-            <p className="text-sm text-gray-700">
-              {absenceReports.withdrawTarget
-                ? `${absenceReports.withdrawTarget.child.first_name} ${absenceReports.withdrawTarget.child.last_name} steht dann wieder unter „Fehlen ohne Meldung“. Die OGS sieht den Status nicht mehr.`
-                : null}
-            </p>
-          </ConfirmationModal>
-        }
-      >
-        {notices}
-        <SectionCard>
+      {notices}
+      <SectionCard>
+        <div
+          className="contents"
+          style={
+            {
+              "--class-day-blue": MOTO_COLOR_PALETTE.blue.base,
+              "--class-day-danger": MOTO_COLOR_PALETTE.red.base,
+            } as CSSProperties
+          }
+        >
           {noClasses && (
             <EmptyState
               className="mt-4"
@@ -829,8 +829,8 @@ export function ClassDayOverview({
                 )}
               </>
             )}
-        </SectionCard>
-      </TenantPage>
-    </div>
+        </div>
+      </SectionCard>
+    </TenantPage>
   );
 }
