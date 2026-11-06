@@ -49,16 +49,22 @@ export function ClosingDayChip({
   const title = `${label}: ${reason}`;
   return (
     <span className={`inline-flex max-w-full min-w-0 ${className ?? ""}`}>
-      <StatusBadge
-        label={text ?? `${label} · ${reason}`}
-        title={title}
-        accessibleLabel={text === undefined ? undefined : title}
-        tone="gray"
-        size="xs"
-        icon={<MotoConceptIcon concept={closingDaysConcept} size={14} />}
-        truncate={!wrap}
-        wrap={wrap}
-      />
+      {/* Der Kurztext ist nur für Sehende; vorgelesen wird der ganze Satz. */}
+      <span
+        aria-hidden={text === undefined ? undefined : true}
+        className="inline-flex max-w-full min-w-0"
+      >
+        <StatusBadge
+          label={text ?? `${label} · ${reason}`}
+          title={title}
+          tone="gray"
+          size="xs"
+          icon={<MotoConceptIcon concept={closingDaysConcept} size={14} />}
+          truncate={!wrap}
+          wrap={wrap}
+        />
+      </span>
+      {text === undefined ? null : <span className="sr-only">{title}</span>}
     </span>
   );
 }

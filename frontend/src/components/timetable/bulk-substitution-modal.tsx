@@ -483,6 +483,7 @@ export function BulkSubstitutionModal({
                                     label="bereits abwesend gemeldet"
                                     tone="gray"
                                     size="xs"
+                                    wrap
                                   />
                                 )}
                               </span>

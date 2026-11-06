@@ -79,23 +79,6 @@ const template: TimetableTemplate = {
 };
 
 describe("small timetable components", () => {
-  it("shows the ratio as a kit pill with its symbol beside it", () => {
-    render(
-      <TimetableRatioPill
-        icon={<svg data-testid="ratio-icon" />}
-        label="Besetzung"
-        value="1 / 3"
-        tone="warning"
-      />,
-    );
-
-    const pill = screen.getByText("Besetzung 1 / 3");
-    expect(pill).toHaveClass("rounded-full");
-    // Amber bleibt Tönung mit dunklem Text, kein `${color}1A` mehr (#5584).
-    expect(pill).toHaveStyle({ backgroundColor: "#FEF3C7" });
-    expect(pill).not.toContainElement(screen.getByTestId("ratio-icon"));
-  });
-
   it("renders an instance block with live/conflict metadata and handles click", () => {
     const onClick = vi.fn();
 

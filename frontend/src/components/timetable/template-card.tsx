@@ -147,6 +147,7 @@ export function TemplateCard({
                   color={shiftTypeColor}
                   title={`Dienstart: ${template.shiftTypeName}`}
                   compact
+                  wrap
                 />
               </span>
             ) : null}

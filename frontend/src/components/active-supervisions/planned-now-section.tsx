@@ -559,12 +559,12 @@ function RosterPreviewRow({
 }
 
 /**
- * The "Erwartet" dot is the one roster state with no standing in the location
+ * The "Erwartet" pill is the one roster state with no standing in the location
  * palette — it says "nothing has happened yet", so it takes the light neutral
  * from the shared palette rather than borrowing a status hue. Never a raw hex:
  * status and planning colours come from the tokens only.
  */
-const EXPECTED_DOT_COLOR = MOTO_COLOR_PALETTE.neutral.light;
+const EXPECTED_STATUS_COLOR = MOTO_COLOR_PALETTE.neutral.light;
 
 function rosterStatusColor(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") {
@@ -583,7 +583,7 @@ function rosterStatusColor(row: TimetableRosterRow) {
   // isNotScheduled branch above already owns. Sharing the hex would make a
   // child that is merely expected indistinguishable from one the care plan
   // leaves out today.
-  return EXPECTED_DOT_COLOR;
+  return EXPECTED_STATUS_COLOR;
 }
 
 function rosterStatusLabel(row: TimetableRosterRow) {

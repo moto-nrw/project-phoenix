@@ -299,13 +299,11 @@ export function MultiSelectField({
                     <span className="flex min-w-0 items-center gap-1.5">
                       <span className="truncate">{option.name}</span>
                       {isProtected && (
-                        <span className="shrink-0">
-                          <StatusBadge
-                            label="aus Anmeldung"
-                            tone="gray"
-                            size="xs"
-                          />
-                        </span>
+                        <StatusBadge
+                          label="aus Anmeldung"
+                          tone="gray"
+                          size="xs"
+                        />
                       )}
                     </span>
                     {(option.schoolClass || option.groupName) && (

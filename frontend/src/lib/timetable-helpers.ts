@@ -137,11 +137,11 @@ export function getActivityTypeBadge(
 ): { label: string; color: string } | null {
   switch (type) {
     case "activity":
-      return { label: "AG", color: LOCATION_COLORS.GROUP_ROOM };
+      return { label: "AG", color: getActivityColor(type) };
     case "external":
-      return { label: "Extern", color: LOCATION_COLORS.SCHOOLYARD };
+      return { label: "Extern", color: getActivityColor(type) };
     case "duty":
-      return { label: "Dienst", color: MOTO_COLOR_PALETTE.navy.base };
+      return { label: "Dienst", color: getActivityColor(type) };
     case "care":
       return null;
   }
