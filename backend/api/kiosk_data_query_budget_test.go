@@ -413,6 +413,34 @@ func TestKioskDataBudgetAuthenticationContracts(t *testing.T) {
 			require.Empty(t, counter.Operation(operation))
 		}
 	}
+	active := testpkg.CreateTestDevice(t, db, "auth-error-priority")
+	inactive := testpkg.CreateTestDevice(t, db, "auth-error-inactive")
+	_, err := db.ExecContext(testpkg.Ctx(t), `UPDATE iot.devices SET status = 'inactive' WHERE id = ?`, inactive.ID)
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		key        string
+		pin        string
+		status     int
+		code       string
+		statements int
+	}{
+		{testpkg.NewTestSigningSecret(), "", http.StatusUnauthorized, "iot.device_api_key_invalid", 4},
+		{*inactive.APIKey, "", http.StatusForbidden, "iot.device_inactive", 4},
+		{*active.APIKey, "", http.StatusUnauthorized, "iot.device_pin_required", 5},
+		{*active.APIKey, "wrong", http.StatusUnauthorized, "iot.device_pin_invalid", 9},
+	} {
+		counter := testpkg.CaptureQueriesForContext(t, db)
+		request := httptest.NewRequest(http.MethodGet, "/api/iot/activities", nil)
+		request.Header.Set("Authorization", "Bearer "+tc.key)
+		request.Header.Set("X-Staff-PIN", tc.pin)
+		request = request.WithContext(counter.Context(request.Context()))
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		require.Equal(t, tc.status, response.Code, response.Body.String())
+		require.Contains(t, response.Body.String(), `"code":"`+tc.code+`"`)
+		require.Len(t, counter.Queries(), tc.statements, tc.code)
+		require.Zero(t, counter.WriteRows())
+	}
 }
 
 // The shared request bucket includes auth discovery/settings, heartbeat and

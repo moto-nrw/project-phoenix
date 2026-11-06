@@ -244,7 +244,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0141: the payroll dispatch overview of modules/workforce (+1).
 // Lowered by #4497: the caterer scope of CapabilityGate.StartChallenge in
 // modules/identityaccess makes it no pass-through any more (-1).
-const modulePassthroughOwnerBudgetTotal = 1407
+const modulePassthroughOwnerBudgetTotal = 1406
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -291,7 +291,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/schedulerruntime": 4,
 	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.
 	"modules/schoolcalendar":   16,
-	"modules/schoolmembership": 16,
+	"modules/schoolmembership": 15,
 	"modules/schoolsetup":      1,
 	"modules/schoolstructure":  43,
 	"modules/settings":         17,

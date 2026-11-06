@@ -181,10 +181,7 @@ func (c *StudentImportConfig) mergeGuardianRelationships(ctx context.Context, st
 	for _, entry := range existing {
 		byGuardianID[entry.Link.GuardianProfileID] = entry.Link
 	}
-	linkedProfiles, err := c.loadLinkedGuardianProfiles(ctx, existing)
-	if err != nil {
-		return err
-	}
+	linkedProfiles := linkedGuardianProfiles(existing)
 
 	for i, data := range guardians {
 		if err := c.mergeGuardianRelationship(ctx, studentID, i+1, data, linkedProfiles, byGuardianID); err != nil {
@@ -194,24 +191,20 @@ func (c *StudentImportConfig) mergeGuardianRelationships(ctx context.Context, st
 	return nil
 }
 
-// loadLinkedGuardianProfiles loads the phone numbers of the guardians already
-// linked to the child.
-func (c *StudentImportConfig) loadLinkedGuardianProfiles(ctx context.Context, existing []ports.GuardianWithLink) ([]linkedGuardianProfile, error) {
+// linkedGuardianProfiles reuses the phone numbers ListStudentGuardians already
+// batch-loads for the child's linked profiles, preserving relationship order.
+func linkedGuardianProfiles(existing []ports.GuardianWithLink) []linkedGuardianProfile {
 	linked := make([]linkedGuardianProfile, 0, len(existing))
 	for _, entry := range existing {
-		phones, err := c.Guardians.ListGuardianPhones(ctx, entry.Guardian.ID)
-		if err != nil {
-			return nil, copyErrorf("Telefonnummern der Erziehungsberechtigten laden: %w", err)
-		}
 		var normalized []string
-		for _, phone := range phones {
+		for _, phone := range entry.Guardian.PhoneNumbers {
 			if value := normalizeImportPhone(phone.PhoneNumber); value != "" {
 				normalized = append(normalized, value)
 			}
 		}
 		linked = append(linked, linkedGuardianProfile{profile: entry.Guardian, phones: normalized})
 	}
-	return linked, nil
+	return linked
 }
 
 // resolveLinkedGuardian recognises an imported guardian among the guardians the

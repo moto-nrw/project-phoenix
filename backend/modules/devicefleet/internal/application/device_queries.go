@@ -77,7 +77,7 @@ func (s *Service) FindDeviceByDeviceID(ctx context.Context, deviceID string) (de
 	return value, err
 }
 
-func (s *Service) FindDeviceByAPIKey(ctx context.Context, apiKey string) (devicefleet.Device, error) {
+func (s *Service) FindDeviceByAPIKey(ctx context.Context, apiKey string, schools ...devicefleet.DeviceCredentialSchoolCheck) (devicefleet.Device, error) {
 	if apiKey == "" {
 		return devicefleet.Device{}, s.reject("find_device_by_api_key", devicefleet.ErrInvalidDevice)
 	}
@@ -87,8 +87,15 @@ func (s *Service) FindDeviceByAPIKey(ctx context.Context, apiKey string) (device
 		value, err = s.findDevice(ctx, "find_device_by_api_key", false, func(ctx context.Context) (devicefleet.Device, bool, domain.OperationStats, error) {
 			return s.deps.Devices.FindByAPIKey(ctx, s.deps.APIKeys.Hash(apiKey))
 		})
-
-		return err
+		if err != nil || !value.IsActive() || value.TenantID <= 0 {
+			return err
+		}
+		for _, school := range schools {
+			if err := school.CheckDeviceSchool(ctx, value.TenantID); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	return value, publicError(err)
 }

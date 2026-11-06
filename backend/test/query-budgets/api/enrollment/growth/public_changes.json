@@ -1,6 +1,6 @@
 {
   "scenario": "api.enrollment.growth.public_changes",
-  "max": 72,
+  "max": 65,
   "exact": true,
-  "description": "Positive mounted handler, all SQL including transaction envelope; real persistence and N3/N8 returned rows. Known linear growth on unchanged production; ceiling pins the N8 baseline, not a constant bound."
+  "description": "Positive mounted handler with N3/N8 terminal cases and no writes. Terminal public messages use one batch after scalar child validation; per-case row, request, children, phase and tenant frames remain live. Exact ceiling pins N8, not a constant total bound."
 }

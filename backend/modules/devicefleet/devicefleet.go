@@ -170,12 +170,21 @@ type DeviceRoomProjection interface {
 	DeviceRoomName(context.Context, Device) (*string, error)
 }
 
+// DeviceCredentialSchoolCheck reads the credential's school through its owner.
+// It runs fresh on every credential resolution, including credential cache hits,
+// in the existing read-only administrative discovery unit. An error aborts that
+// unit; the authentication adapter classifies the school outcome separately
+// from credential errors after the rollback.
+type DeviceCredentialSchoolCheck interface {
+	CheckDeviceSchool(context.Context, int64) error
+}
+
 // DeviceLookup resolves device records and fleet listings.
 type DeviceLookup interface {
 	FindDevice(context.Context, int64) (Device, error)
 	FindDeviceForUpdate(context.Context, int64) (Device, error)
 	FindDeviceByDeviceID(context.Context, string) (Device, error)
-	FindDeviceByAPIKey(context.Context, string) (Device, error)
+	FindDeviceByAPIKey(context.Context, string, ...DeviceCredentialSchoolCheck) (Device, error)
 	ListDevices(context.Context, DeviceFilter) ([]Device, error)
 	ListDevicesByID(context.Context, []int64) ([]Device, error)
 	ListOfflineDevices(context.Context, time.Duration) ([]Device, error)

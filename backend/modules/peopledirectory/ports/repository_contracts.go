@@ -330,6 +330,10 @@ type TeacherRepository interface {
 	// ListAllWithStaffAndPerson retrieves all teachers with their staff and person data in a single query
 	ListAllWithStaffAndPerson(ctx context.Context) ([]*peopledirectory.Teacher, error)
 
+	// ListRosterWithStaffAndPerson combines teacher and live membership facts
+	// while retaining employment failures and person filtering.
+	ListRosterWithStaffAndPerson(ctx context.Context) ([]*peopledirectory.Teacher, error)
+
 	// FindWithStaffAndPersonByIDs retrieves teachers with staff and person data for multiple IDs
 	FindWithStaffAndPersonByIDs(ctx context.Context, ids []int64) ([]*peopledirectory.Teacher, error)
 }

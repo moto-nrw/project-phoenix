@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.timetable.materialization.schedules.repeat.n8",
+  "max": 54,
+  "exact": true,
+  "description": "Full locked tenant materialization with 8 templates, repeat run; one shared schedule read, output counts verified."
+}

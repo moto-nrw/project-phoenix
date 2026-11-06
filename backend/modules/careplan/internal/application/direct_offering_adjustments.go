@@ -167,9 +167,13 @@ func (s *OfferingChanges) directOfferingDiff(
 		return nil, nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
 	ids, _, _ := offeringChangeSides(current, offeringChangeSelections(selected))
+	var offerings map[int64]*careplan.CareOffering
+	if scope.selectionFacts != nil {
+		offerings = scope.selectionFacts.allowed
+	}
 	diff, err := s.buildDecisionDiff(ctx, decisionDiffInput{
 		excludedIDs: input.ExcludedAutoOfferingIDs, current: current, base: base, selected: selected,
-		course: scope.catalog, requested: input.Selections,
+		course: scope.catalog, requested: input.Selections, offerings: offerings,
 	})
 	if err != nil {
 		return nil, nil, err

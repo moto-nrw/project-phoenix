@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
-	"strings"
 	"testing"
 
 	"log/slog"
@@ -15,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	filesHTTP "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
@@ -97,13 +97,10 @@ func TestCommunicationFiles18PositiveGrowthQueryBudget(t *testing.T) {
 		}
 		folders[0].FileCount = int64(n)
 		slices.SortFunc(roles, func(a, b filesHTTP.AudienceRoleResponse) int {
-			return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+			return collation.CompareGerman(a.Name, b.Name)
 		})
 		slices.SortFunc(people, func(a, b filesHTTP.AudienceAccountResponse) int {
-			if x := strings.Compare(strings.ToLower(a.LastName), strings.ToLower(b.LastName)); x != 0 {
-				return x
-			}
-			return strings.Compare(strings.ToLower(a.FirstName), strings.ToLower(b.FirstName))
+			return collation.CompareGermanNames(a.LastName, a.FirstName, b.LastName, b.FirstName)
 		})
 		paths := []string{"/api/files/audience", "/api/files/folders", fmt.Sprintf("/api/files/folders/%s/files", folders[0].ID)}
 		for _, path := range paths {

@@ -84,6 +84,17 @@ type SchoolLookup interface {
 	IsSchoolDeleted(ctx context.Context, schoolID int64) (bool, error)
 }
 
+// SchoolCheckResult is the optional school guard's outcome after successful
+// credential discovery. A failed read rolls back the read-only discovery unit
+// before authentication applies its existing fail-open/fail-closed policy.
+type SchoolCheckResult struct {
+	Deleted bool
+	Err     error
+}
+
+func (e *SchoolCheckResult) Error() string { return "device school check failed" }
+func (e *SchoolCheckResult) Unwrap() error { return e.Err }
+
 // PINResolver resolves the device PIN for a given tenant.
 // Returns an error when the setting cannot be read. Empty values reject access.
 // Errors are logged: they must describe the lookup failure, never a PIN value.
@@ -278,7 +289,8 @@ func (a *Authenticator) extractAndValidateAPIKey(ctx context.Context, authorizat
 	}
 
 	device, err := a.deps.Devices.FindByAPIKey(ctx, apiKey)
-	if err != nil {
+	var schoolResult *SchoolCheckResult
+	if err != nil && !errors.As(err, &schoolResult) {
 		slog.Warn("device authentication failed: invalid API key",
 			slog.String("error", err.Error()),
 		)
@@ -294,6 +306,11 @@ func (a *Authenticator) extractAndValidateAPIKey(ctx context.Context, authorizat
 		)
 		return nil, ErrDeviceForbidden(ErrDeviceInactive)
 	}
+	if schoolResult != nil {
+		if rejection := rejectSchoolResult(device, schoolResult.Deleted, schoolResult.Err); rejection != nil {
+			return nil, rejection
+		}
+	}
 	return device, nil
 }
 
@@ -307,6 +324,10 @@ func (a *Authenticator) rejectDeletedSchool(ctx context.Context, device *Authent
 		return nil
 	}
 	deleted, err := a.deps.Schools.IsSchoolDeleted(ctx, device.TenantID)
+	return rejectSchoolResult(device, deleted, err)
+}
+
+func rejectSchoolResult(device *AuthenticatedDevice, deleted bool, err error) *ErrResponse {
 	switch {
 	case errors.Is(err, ErrSchoolNotFound):
 		slog.Warn("device authentication rejected: school not found",

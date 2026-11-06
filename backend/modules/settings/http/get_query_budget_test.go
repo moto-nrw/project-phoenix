@@ -154,7 +154,8 @@ func assertBudgetSchema(t *testing.T, raw json.RawMessage, portal string) map[st
 				// Full definition DTO, including validation/options/dependency, is
 				// compared independently of the resolved state.
 				want := records.ResolvedSetting{Key: def.Key, Label: def.Label, Description: def.Description,
-					Type: def.Type, Default: def.Default, SortOrder: def.SortOrder, AccessPolicy: def.AccessPolicy,
+					Placeholder: def.Placeholder,
+					Type:        def.Type, Default: def.Default, SortOrder: def.SortOrder, AccessPolicy: def.AccessPolicy,
 					Levels: def.Levels, Validation: def.Validation, Options: def.Options, DependsOn: def.DependsOn,
 					Value: item.Value, IsDefault: item.IsDefault, Writable: item.Writable, Visible: item.Visible,
 					Source: item.Source, TraegerChangedAt: item.TraegerChangedAt}

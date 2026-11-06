@@ -245,7 +245,7 @@ func New(deps Dependencies) (*Workflow, error) {
 // It refuses a graduate: the Abgänge purge is the only path for those.
 func (w *Workflow) Preview(ctx context.Context, studentID int64) (preview Preview, err error) {
 	err = w.run(ctx, "preview", func(txCtx context.Context, _ Actor) (Result, error) {
-		preview, err = w.snapshot(txCtx, studentID, false)
+		preview, err = w.snapshot(txCtx, studentID, false, nil)
 		if err != nil {
 			return Result{}, err
 		}
@@ -304,7 +304,7 @@ func (w *Workflow) PreviewWithdrawal(ctx context.Context, completionID int64) (p
 		if err != nil {
 			return Result{}, err
 		}
-		preview, err = w.snapshot(txCtx, studentID, false)
+		preview, err = w.snapshot(txCtx, studentID, false, nil)
 		if err != nil {
 			return Result{}, err
 		}
@@ -445,7 +445,7 @@ func (w *Workflow) deleteConfirmed(ctx context.Context, actor Actor, studentID i
 //  5. every owner count, twice: once for the fingerprint, once to prove that
 //     nothing changed between the preview and the cascade.
 func (w *Workflow) lockedSnapshot(ctx context.Context, studentID int64) (Preview, error) {
-	companionIDs, err := w.lockCompanionGraph(ctx, studentID)
+	student, companionIDs, err := w.lockCompanionGraph(ctx, studentID)
 	if err != nil {
 		return Preview{}, err
 	}
@@ -455,7 +455,7 @@ func (w *Workflow) lockedSnapshot(ctx context.Context, studentID int64) (Preview
 	if err := w.deps.Conversations.LockStudentMessageThreads(ctx, studentID); err != nil {
 		return Preview{}, err
 	}
-	preview, err := w.snapshot(ctx, studentID, true)
+	preview, err := w.snapshot(ctx, studentID, true, student)
 	if err != nil {
 		return Preview{}, err
 	}
@@ -474,17 +474,27 @@ func (w *Workflow) lockedSnapshot(ctx context.Context, studentID int64) (Preview
 	return preview, nil
 }
 
-func (w *Workflow) snapshot(ctx context.Context, studentID int64, lock bool) (Preview, error) {
+// snapshot reuses the subject returned by the graph's locked owner read.
+// The workflow has not mutated it, and the same transaction still holds its
+// locks. A nil subject preserves the normal owner read and validation path,
+// including nonpositive IDs omitted by ascending in the graph pass.
+func (w *Workflow) snapshot(ctx context.Context, studentID int64, lock bool, held *peopledirectory.EnrollmentRecord) (Preview, error) {
 	lockMode := ""
 	if lock {
 		lockMode = "update"
 	}
-	student, err := w.deps.Directory.ReadEnrollmentStudent(ctx, studentID, lockMode)
-	if errors.Is(err, peopledirectory.ErrStudentNotFound) {
-		return Preview{}, ErrStudentNotFound
-	}
-	if err != nil {
-		return Preview{}, err
+	var student peopledirectory.EnrollmentRecord
+	var err error
+	if held != nil {
+		student = *held
+	} else {
+		student, err = w.deps.Directory.ReadEnrollmentStudent(ctx, studentID, lockMode)
+		if errors.Is(err, peopledirectory.ErrStudentNotFound) {
+			return Preview{}, ErrStudentNotFound
+		}
+		if err != nil {
+			return Preview{}, err
+		}
 	}
 	var person peopledirectory.Person
 	if lock {
@@ -580,22 +590,22 @@ func (w *Workflow) loadCounts(ctx context.Context, studentID int64) (countSnapsh
 // point at an id below ids already held; those downward locks are taken with
 // NOWAIT so the pass either gets them or refuses the request as retriable,
 // never waiting head-on against a writer coming up the other way.
-func (w *Workflow) lockCompanionGraph(ctx context.Context, subjectID int64) ([]int64, error) {
+func (w *Workflow) lockCompanionGraph(ctx context.Context, subjectID int64) (*peopledirectory.EnrollmentRecord, []int64, error) {
 	links, err := w.deps.CarePlan.ListCompanionLinks(ctx, []int64{subjectID})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ids := []int64{subjectID}
 	for _, link := range links[subjectID] {
 		ids = append(ids, link.CompanionStudentID)
 	}
-	held, maxHeld, err := w.lockInitialCompanions(ctx, subjectID, ids)
+	held, maxHeld, subject, err := w.lockInitialCompanions(ctx, subjectID, ids)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	links, err = w.deps.CarePlan.ListCompanionLinks(ctx, []int64{subjectID})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	companionIDs := make([]int64, 0, len(links[subjectID]))
 	for _, link := range links[subjectID] {
@@ -609,25 +619,25 @@ func (w *Workflow) lockCompanionGraph(ctx context.Context, subjectID int64) ([]i
 		if id < maxHeld {
 			mode = "nowait"
 		}
-		if _, err := w.lockStudent(ctx, id, mode); err != nil {
-			return nil, err
+		if _, _, err := w.lockStudent(ctx, id, mode); err != nil {
+			return nil, nil, err
 		}
 		held[id] = true
 	}
-	return companionIDs, nil
+	return subject, companionIDs, nil
 }
 
-func (w *Workflow) lockStudent(ctx context.Context, id int64, mode string) (bool, error) {
-	_, err := w.deps.Directory.ReadEnrollmentStudent(ctx, id, mode)
+func (w *Workflow) lockStudent(ctx context.Context, id int64, mode string) (peopledirectory.EnrollmentRecord, bool, error) {
+	student, err := w.deps.Directory.ReadEnrollmentStudent(ctx, id, mode)
 	switch {
 	case errors.Is(err, peopledirectory.ErrStudentNotFound):
-		return false, nil
+		return peopledirectory.EnrollmentRecord{}, false, nil
 	case errors.Is(err, peopledirectory.ErrStudentLockBusy):
-		return false, ErrCompanionLockBusy
+		return peopledirectory.EnrollmentRecord{}, false, ErrCompanionLockBusy
 	case err != nil:
-		return false, err
+		return peopledirectory.EnrollmentRecord{}, false, err
 	}
-	return true, nil
+	return student, true, nil
 }
 
 // checkCompanionStranding refuses the deletion when a linked child would be

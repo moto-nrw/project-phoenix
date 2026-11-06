@@ -107,13 +107,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) ListTeachers(ctx context.Context, filter schoolmembership.TeacherFilter) (result []schoolmembership.Teacher, err error) {\n\tfilter.IDs = uniquePositive(filter.IDs)\n\tfilter.StaffIDs = uniquePositive(filter.StaffIDs)\n\tfilter.Specialization = strings.TrimSpace(filter.Specialization)\n\tfilter.SpecializationContains = strings.TrimSpace(filter.SpecializationContains)\n\tfilter.RoleContains = strings.TrimSpace(filter.RoleContains)\n\terr = s.runRead(ctx, \"list_teachers\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListTeachers(txCtx, filter)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/schoolmembership/internal/application/Service.ListTeachers",
-      "owner": "modules/schoolmembership"
-    },
-    {
-      "build": "production",
       "evidence": "func (s *Service) LockGroupAssignments(ctx context.Context) error {\n\treturn s.runWrite(ctx, \"lock_group_assignments\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.store.LockGroupAssignments(txCtx)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "modules/schoolmembership/internal/application/Service.LockGroupAssignments",
