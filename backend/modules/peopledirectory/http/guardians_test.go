@@ -46,14 +46,6 @@ func (f *fakeGuardianDirectory) FindGuardian(_ context.Context, id int64) (peopl
 	return guardian, nil
 }
 
-func (f *fakeGuardianDirectory) PreviewGuardianDelete(ctx context.Context, id int64) (peopledirectory.GuardianDeletePreview, error) {
-	if _, err := f.FindGuardian(ctx, id); err != nil {
-		return peopledirectory.GuardianDeletePreview{}, err
-	}
-	impact, err := f.GuardianDeleteImpact(ctx, id)
-	return peopledirectory.GuardianDeletePreview{GuardianFound: true, Impact: impact}, err
-}
-
 func (f *fakeGuardianDirectory) ListStudentsByID(_ context.Context, ids []int64) ([]peopledirectory.Student, error) {
 	f.studentLookups++
 	result := []peopledirectory.Student{}
@@ -73,8 +65,13 @@ func (f *fakeGuardianDirectory) ListGuardianStudents(_ context.Context, guardian
 	return f.guardianKids[guardianID], nil
 }
 
-func (f *fakeGuardianDirectory) GuardianDeleteImpact(context.Context, int64) (peopledirectory.GuardianDeleteImpact, error) {
-	return f.impact, nil
+func (f *fakeGuardianDirectory) GuardianDeleteImpact(ctx context.Context, id int64) (peopledirectory.GuardianDeleteImpact, error) {
+	if _, err := f.FindGuardian(ctx, id); err != nil {
+		return peopledirectory.GuardianDeleteImpact{}, err
+	}
+	impact := f.impact
+	impact.GuardianFound = true
+	return impact, nil
 }
 
 func (f *fakeGuardianDirectory) EvaluateGuardianDelete(_ context.Context, _ int64, force, isAdmin bool) (bool, error) {

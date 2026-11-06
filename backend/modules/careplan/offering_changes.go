@@ -319,7 +319,8 @@ type DirectOfferingAdjustments interface {
 	PreviewDirectOfferingAdjustment(ctx context.Context, input DirectOfferingAdjustmentInput) (*DirectOfferingAdjustmentPreview, error)
 	// PreviewDirectOfferingAlternatives validates ordered replacement selections
 	// for one child and effective date using one read-only set of booking facts.
-	PreviewDirectOfferingAlternatives(ctx context.Context, input DirectOfferingAdjustmentInput, alternatives [][]OfferingChangeSelection) ([]*DirectOfferingAdjustmentPreview, error)
+	// Today is the caller-resolved school day of the pickup adjustment.
+	PreviewDirectOfferingAlternatives(ctx context.Context, input DirectOfferingAdjustmentInput, today calendar.Date, alternatives [][]OfferingChangeSelection) ([]*DirectOfferingAdjustmentPreview, error)
 	// ApplyDirectOfferingAdjustment books the replacement and reports its
 	// effect on the child's Regeltermine (#5102).
 	ApplyDirectOfferingAdjustment(ctx context.Context, input DirectOfferingAdjustmentInput) (RosterImpact, error)

@@ -42,6 +42,15 @@ func (f *fakeEnrollmentFormSchemaService) SchemaVersion(_ context.Context, id in
 	return f.schemas[id], nil
 }
 
+func (f *fakeEnrollmentFormSchemaService) StudentExtraFieldSchemas(ctx context.Context, ids []int64) ([]capability.SchemaVersionResult, error) {
+	results := make([]capability.SchemaVersionResult, 0, len(ids))
+	for _, id := range ids {
+		schema, err := f.SchemaVersion(ctx, id)
+		results = append(results, capability.SchemaVersionResult{ID: id, Schema: schema, Err: err})
+	}
+	return results, nil
+}
+
 func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing.T) {
 	t.Parallel()
 

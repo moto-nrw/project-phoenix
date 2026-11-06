@@ -334,12 +334,22 @@ func TestAppointmentRecipientsAreAtomicTenantScopedAndDeduplicateReminderPushes(
 
 func assertRecipientPersistenceAndResponse(t *testing.T, module appointments.Owner, ctx context.Context, appointmentID, studentID int64, recipients []*appointments.AppointmentRecipient, links []*appointments.AppointmentRecipientStudent) {
 	t.Helper()
+	expected := make([]*appointments.AppointmentRecipient, 0, len(recipients))
+	for _, recipient := range recipients {
+		value := *recipient
+		for _, link := range links {
+			if link.RecipientID == value.ID {
+				value.StudentIDs = append(value.StudentIDs, link.StudentID)
+			}
+		}
+		expected = append(expected, &value)
+	}
 	stored, err := module.FindAppointmentRecipients(ctx, appointmentID)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, recipients, stored)
+	assert.ElementsMatch(t, expected, stored)
 	storedByIDs, err := module.FindAppointmentRecipientsByAppointmentIDs(ctx, []int64{appointmentID})
 	require.NoError(t, err)
-	assert.ElementsMatch(t, recipients, storedByIDs)
+	assert.ElementsMatch(t, expected, storedByIDs)
 	storedLinks, err := module.FindAppointmentRecipientStudents(ctx, []int64{links[0].RecipientID})
 	require.NoError(t, err)
 	assert.Equal(t, links, storedLinks)

@@ -120,23 +120,12 @@ type VisitReads interface {
 
 // VisitCommands records and ends single room visits.
 type VisitCommands interface {
-	CreateVisit(ctx context.Context, visit *Visit, admission ...VisitAdmission) error
-	// LockStudentForVisit locks before a kiosk reads/closes the old visit and
-	// returns admission for its one subsequent check-in. Between the calls the
-	// caller may change visits/attendance, but not the child's membership.
-	LockStudentForVisit(ctx context.Context, studentID int64) (VisitAdmission, error)
+	CreateVisit(ctx context.Context, visit *Visit) error
 	EndVisit(ctx context.Context, id int64) error
 	// LockStudent locks the child in the caller's transaction, before any of
 	// its visits (#5278): a caller that ends the child's visit and opens the
 	// next one calls it before it reads that visit.
 	LockStudent(ctx context.Context, studentID int64) error
-}
-
-// VisitAdmission identifies an owner-issued, single-use locked membership
-// observation. Only its issuing presence service can use it, in the same
-// context. It does not contain live sick/excused/care or attendance state.
-type VisitAdmission interface {
-	StudentID() int64
 }
 
 // StudentMoves moves students between room sessions while preserving the

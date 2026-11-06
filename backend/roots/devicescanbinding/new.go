@@ -26,7 +26,7 @@ func New(deps scanCompose.Dependencies) scanCompose.DeviceScan {
 	if deps.Pickups != nil {
 		pickups = pickupPlan{pickups: deps.Pickups}
 	}
-	return scanCompose.New(deps, scanCompose.Bindings{Visits: visits{Presence: deps.Active, active: deps.Active, clock: clock}, Sessions: sessions{Presence: deps.Active, active: deps.Active, presence: deps.Presence, clock: clock}, Attendance: attendance{active: deps.Active}, Groups: groups, Pickups: pickups, Clock: clock})
+	return scanCompose.New(deps, scanCompose.Bindings{Visits: visits{Presence: deps.Active, active: deps.Active, locations: deps.Presence, clock: clock}, Sessions: sessions{Presence: deps.Active, active: deps.Active, presence: deps.Presence, clock: clock}, Attendance: attendance{active: deps.Active}, Groups: groups, Pickups: pickups, Clock: clock})
 }
 
 type clock struct{ now func() time.Time }

@@ -15705,6 +15705,14 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerContext.StaffID",
+      "binding_digest": "007b5ebb11abe54630c678e235bdb940",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.OperationStaffIdentity.StaffID",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerContext.StaffID",
+      "target_owner": "identity-access"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.RosterStudents.FindByIDs",
       "binding_digest": "1d75a149f499202aaec5c16961ff5528",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.OperationStudents.FindByIDs",

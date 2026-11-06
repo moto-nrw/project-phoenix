@@ -44,7 +44,7 @@ func (s directPickupCoordinatorStub) PreviewDirectOfferingAdjustment(
 	return &careplan.DirectOfferingAdjustmentPreview{Catalog: s.catalog, MaterializedPickupTimes: profile}, err
 }
 
-func (s directPickupCoordinatorStub) PreviewDirectOfferingAlternatives(ctx context.Context, input careplan.DirectOfferingAdjustmentInput, alternatives [][]careplan.OfferingChangeSelection) ([]*careplan.DirectOfferingAdjustmentPreview, error) {
+func (s directPickupCoordinatorStub) PreviewDirectOfferingAlternatives(ctx context.Context, input careplan.DirectOfferingAdjustmentInput, _ calendar.Date, alternatives [][]careplan.OfferingChangeSelection) ([]*careplan.DirectOfferingAdjustmentPreview, error) {
 	result := make([]*careplan.DirectOfferingAdjustmentPreview, 0, len(alternatives))
 	for _, selections := range alternatives {
 		input.Selections = selections
@@ -107,7 +107,7 @@ func TestMatchingPickupOfferings_ReturnsEveryOtherExactActiveCareProfile(t *test
 	service := pickupAdjustmentsWith(directPickupCoordinatorStub{catalog: catalog})
 	matches, err := service.matchingPickupOfferings(context.Background(), careplan.PickupAdjustmentPreviewInput{
 		StudentID: 1, CareDays: []int{1, 2, 3, 4}, EffectiveFrom: pickupAdjustmentTestToday,
-	}, catalog, proposed)
+	}, catalog, proposed, pickupAdjustmentTestToday)
 	require.NoError(t, err)
 
 	require.Len(t, matches, 2)
@@ -133,7 +133,7 @@ func TestMatchingPickupOfferings_DoesNotGuessForIntermediateTimeOrDifferentCareD
 	}, catalog, map[int]careplan.PickupAdjustmentSchedule{
 		1: {Weekday: 1, PickupTime: "13:45"}, 2: {Weekday: 2, PickupTime: "13:45"},
 		3: {Weekday: 3, PickupTime: "13:45"}, 4: {Weekday: 4, PickupTime: "13:45"},
-	})
+	}, pickupAdjustmentTestToday)
 	require.NoError(t, err)
 	assert.Empty(t, matches)
 	matches, err = service.matchingPickupOfferings(context.Background(), careplan.PickupAdjustmentPreviewInput{
@@ -141,7 +141,7 @@ func TestMatchingPickupOfferings_DoesNotGuessForIntermediateTimeOrDifferentCareD
 	}, catalog, map[int]careplan.PickupAdjustmentSchedule{
 		1: {Weekday: 1, PickupTime: "14:30"}, 2: {Weekday: 2, PickupTime: "14:30"},
 		3: {Weekday: 3, PickupTime: "14:30"},
-	})
+	}, pickupAdjustmentTestToday)
 	require.NoError(t, err)
 	assert.Empty(t, matches)
 }
@@ -164,7 +164,7 @@ func TestMatchingPickupOfferings_UsesChosenCareDaysForParentChoiceOffering(t *te
 	service := pickupAdjustmentsWith(directPickupCoordinatorStub{catalog: catalog})
 	matches, err := service.matchingPickupOfferings(context.Background(), careplan.PickupAdjustmentPreviewInput{
 		StudentID: 1, CareDays: []int{1, 4}, EffectiveFrom: pickupAdjustmentTestToday,
-	}, catalog, proposed)
+	}, catalog, proposed, pickupAdjustmentTestToday)
 	require.NoError(t, err)
 
 	require.Len(t, matches, 1)
@@ -186,7 +186,7 @@ func TestMatchingPickupOfferings_UsesMaterializedCoBookings(t *testing.T) {
 	})
 	matches, err := service.matchingPickupOfferings(context.Background(), careplan.PickupAdjustmentPreviewInput{
 		StudentID: 1, CareDays: []int{1}, EffectiveFrom: pickupAdjustmentTestToday,
-	}, catalog, map[int]careplan.PickupAdjustmentSchedule{1: {Weekday: 1, PickupTime: "14:30"}})
+	}, catalog, map[int]careplan.PickupAdjustmentSchedule{1: {Weekday: 1, PickupTime: "14:30"}}, pickupAdjustmentTestToday)
 
 	require.NoError(t, err)
 	assert.Empty(t, matches)

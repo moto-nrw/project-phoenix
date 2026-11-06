@@ -80,7 +80,7 @@ func (s *PickupAdjustments) preview(ctx context.Context, input careplan.PickupAd
 	if err != nil {
 		return nil, err
 	}
-	return s.completePickupAdjustmentPreview(ctx, input, plans, preview)
+	return s.completePickupAdjustmentPreview(ctx, input, plans, preview, today)
 }
 
 // pickupAdjustmentPlans are the current plan, its booking-derived part and
@@ -95,8 +95,9 @@ func (s *PickupAdjustments) completePickupAdjustmentPreview(
 	input careplan.PickupAdjustmentPreviewInput,
 	plans *pickupAdjustmentPlans,
 	preview *careplan.PickupAdjustmentPreview,
+	today calendar.Date,
 ) (*careplan.PickupAdjustmentPreview, error) {
-	if err := s.attachOfferingAdjustment(ctx, input, plans.proposed, preview); err != nil {
+	if err := s.attachOfferingAdjustment(ctx, input, plans.proposed, preview, today); err != nil {
 		return nil, err
 	}
 	if err := s.attachRemovedManualNotes(ctx, input, preview); err != nil {
@@ -211,6 +212,7 @@ func (s *PickupAdjustments) attachOfferingAdjustment(
 	input careplan.PickupAdjustmentPreviewInput,
 	proposed map[int]careplan.PickupAdjustmentSchedule,
 	preview *careplan.PickupAdjustmentPreview,
+	today calendar.Date,
 ) error {
 	direct, err := s.deps.Offerings.PreviewDirectOfferingAdjustment(ctx, directPreviewInput(input))
 	if errors.Is(err, careplan.ErrCareOfferingsDisabled) || errors.Is(err, careplan.ErrOfferingChangeNoEnrollment) {
@@ -221,7 +223,7 @@ func (s *PickupAdjustments) attachOfferingAdjustment(
 	}
 	preview.OfferingCatalog = direct.Catalog
 	preview.OfferingConsequences = direct.Consequences
-	preview.MatchingOfferings, err = s.matchingPickupOfferings(ctx, input, direct.Catalog, proposed)
+	preview.MatchingOfferings, err = s.matchingPickupOfferings(ctx, input, direct.Catalog, proposed, today)
 	return err
 }
 
@@ -237,6 +239,7 @@ func (s *PickupAdjustments) matchingPickupOfferings(
 	input careplan.PickupAdjustmentPreviewInput,
 	catalog *careplan.OfferingChangeCatalog,
 	proposed map[int]careplan.PickupAdjustmentSchedule,
+	today calendar.Date,
 ) ([]careplan.PickupOfferingMatch, error) {
 	if catalog == nil || !pickupPlanHasExactlyDays(proposed, input.CareDays) {
 		return []careplan.PickupOfferingMatch{}, nil
@@ -256,7 +259,7 @@ func (s *PickupAdjustments) matchingPickupOfferings(
 		})
 		alternatives = append(alternatives, selections)
 	}
-	previews, err := s.deps.Offerings.PreviewDirectOfferingAlternatives(ctx, directPreviewInput(input), alternatives)
+	previews, err := s.deps.Offerings.PreviewDirectOfferingAlternatives(ctx, directPreviewInput(input), today, alternatives)
 	if err != nil {
 		return nil, err
 	}

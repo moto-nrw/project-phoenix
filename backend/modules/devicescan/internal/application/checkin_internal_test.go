@@ -267,7 +267,7 @@ func TestProcessCheckin_RejectedCapacityRemovesNewSpecialRoomSession(t *testing.
 	h.activities.byName[facilities.WCActivityName] = []devicescan.Activity{{ID: 300, Name: "WC", MaxParticipants: 999}}
 	h.visits.recordErr = &ports.RoomCapacityExceeded{RoomID: 42, RoomName: facilities.WCRoomName, CurrentOccupancy: 1, MaxCapacity: 1}
 
-	_, _, err := h.service().processCheckin(context.Background(), &ports.Student{ID: 500}, &ports.Person{FirstName: "Capacity"}, room.ID, testDeviceID, h.visits.Record)
+	_, _, err := h.service().processCheckin(context.Background(), &ports.Student{ID: 500}, &ports.Person{FirstName: "Capacity"}, room.ID, testDeviceID, nil)
 
 	_, ok := errors.AsType[*devicescan.RoomCapacityExceededError](err)
 	require.True(t, ok, "got %v", err)
@@ -283,7 +283,7 @@ func TestProcessCheckin_FullRoomDoesNotCreateSpecialRoomSession(t *testing.T) {
 	h.presence.roomCounts[room.ID] = 1
 	h.sessions.open = nil
 
-	_, _, err := h.service().processCheckin(context.Background(), &ports.Student{ID: 500}, &ports.Person{FirstName: "Capacity"}, room.ID, testDeviceID, h.visits.Record)
+	_, _, err := h.service().processCheckin(context.Background(), &ports.Student{ID: 500}, &ports.Person{FirstName: "Capacity"}, room.ID, testDeviceID, nil)
 
 	_, ok := errors.AsType[*devicescan.RoomCapacityExceededError](err)
 	require.True(t, ok)

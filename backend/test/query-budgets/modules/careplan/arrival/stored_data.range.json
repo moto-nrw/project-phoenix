@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.careplan.arrival.stored_data.range",
+  "max": 6,
+  "exact": true,
+  "description": "Stored arrival data range fallback without a baseline reader, including tenant transaction. Full stored DTO and empty/foreign-tenant plans verified."
+}

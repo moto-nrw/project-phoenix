@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -44,8 +47,8 @@ var identityStageMatchers = map[string]func(string) bool{
 }
 
 // TestOGSGroupLiveIdentityQueryBudget is the endpoint-level #2099 acceptance
-// test: one request through the production Router() (including the
-// RequestIdentityCacheMiddleware mounted by ProtectedTenantGroup) resolves
+// test: cold and warm requests through the native session and tenant middleware
+// (including live-family validation and RequestIdentityCacheMiddleware) resolves
 // each identity-chain stage at most once, even though the aggregate calls
 // GetMyGroups, GetSubstitutedGroupIDs, and ResolveStudentAccess internally.
 //
@@ -67,6 +70,17 @@ func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 	subGroup := testpkg.CreateTestEducationGroup(t, tc.db, "IdentityBudgetSubGroup")
 	testpkg.CreateTestGroupSubstitution(t, tc.db, subGroup.ID, nil, teacher.StaffID,
 		today.AddDays(-1), today.AddDays(3))
+	auth, err := api.NewAuthTestModule(testpkg.NewDatabase(t, tc.db), testpkg.TenantRuntime(t, tc.db))
+	require.NoError(t, err)
+	verifier, err := testpkg.ConfiguredTokenAuth()
+	require.NoError(t, err)
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	claims.Permissions = ogsLivePerms
+	token := testpkg.MintLiveSessionJWT(t, tc.db, claims)
+	router := chi.NewRouter()
+	router.Use(testpkg.TenantRuntimeMiddleware(t, tc.db), api.RequestSettingsCacheMiddleware, api.RequestIdentityCacheMiddleware)
+	router.Use(verifier.Verifier(), api.RequireLiveAccessSession(auth.Auth))
+	api.ProtectedTenantRoutes(router, tc.resource.Register)
 
 	var studentIDs []string
 	addStudents := func(n int) {
@@ -81,7 +95,8 @@ func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 	measure := func() map[string]int {
 		counter.Reset()
 		req := testutil.NewRequest("GET", fmt.Sprintf("/ogs-group-live?group_id=%d", group.ID), nil)
-		rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), ogsLivePerms)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rr := testutil.ExecuteRequest(router, req)
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 		data := decodeOGSLive(t, rr.Body.Bytes()).Data
 		require.Len(t, data.Students, len(studentIDs))
@@ -105,11 +120,15 @@ func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 		querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.staff", staff)
 		querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.teacher", teacher)
 		querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.substitutions", substitutions)
+		t.Logf("live middleware N%d total=%d", len(studentIDs), counter.Total())
+		querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.live_middleware", counter.Queries())
 		return map[string]int{"person": len(person), "staff": len(staff), "teacher": len(teacher), "substitutions": len(substitutions)}
 	}
 
 	addStudents(3)
 	small := measure()
+	require.Equal(t, small, measure(), "a warm request still has its own identity memo")
 	addStudents(5)
 	require.Equal(t, small, measure(), "identity buckets must not grow with N3/N8 children")
+	require.Equal(t, small, measure(), "warm N8 has the same identity budget")
 }

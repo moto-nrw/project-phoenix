@@ -98,23 +98,16 @@ func (p *GuardianDirectory) SearchGuardians(ctx context.Context, text string, li
 }
 
 func (p *GuardianDirectory) GuardianDeleteImpact(ctx context.Context, id int64) (peopledirectory.GuardianDeleteImpact, error) {
-	impact, err := p.guardians.GetGuardianDeleteImpact(ctx, id)
-	if err != nil {
+	if _, err := p.guardians.GuardianProfiles().FindByID(ctx, id); err != nil {
 		return peopledirectory.GuardianDeleteImpact{}, mapGuardianError(err)
 	}
-	return peopledirectory.GuardianDeleteImpact{LinkIDs: impact.LinkIDs, StudentNames: impact.StudentNames}, nil
-}
-
-func (p *GuardianDirectory) PreviewGuardianDelete(ctx context.Context, id int64) (peopledirectory.GuardianDeletePreview, error) {
-	if _, err := p.guardians.GuardianProfiles().FindByID(ctx, id); err != nil {
-		return peopledirectory.GuardianDeletePreview{}, mapGuardianError(err)
-	}
-	result := peopledirectory.GuardianDeletePreview{GuardianFound: true}
+	result := peopledirectory.GuardianDeleteImpact{GuardianFound: true}
 	impact, err := p.guardians.GetGuardianDeletePreviewImpact(ctx, id)
 	if err != nil {
 		return result, mapGuardianError(err)
 	}
-	result.Impact = peopledirectory.GuardianDeleteImpact{LinkIDs: impact.LinkIDs, StudentNames: impact.StudentNames}
+	result.LinkIDs = impact.LinkIDs
+	result.StudentNames = impact.StudentNames
 	return result, nil
 }
 
@@ -199,15 +192,22 @@ func (p *GuardianDirectory) ListPaymentExportRows(ctx context.Context, actor peo
 
 func (p *GuardianDirectory) CreateGuardian(ctx context.Context, input peopledirectory.GuardianInput) (peopledirectory.Guardian, error) {
 	var profile *peopledirectory.GuardianProfileSnapshot
+	created := true
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
-		profile, txErr = p.guardians.CreateGuardian(txCtx, toGuardianCreateRequest(input))
+		if input.ReuseExistingByEmail {
+			profile, created, txErr = p.guardians.FindOrCreateGuardian(txCtx, toGuardianCreateRequest(input))
+		} else {
+			profile, txErr = p.guardians.CreateGuardian(txCtx, toGuardianCreateRequest(input))
+		}
 		return txErr
 	})
 	if err != nil {
 		return peopledirectory.Guardian{}, mapGuardianError(err)
 	}
-	return toDirectoryGuardian(profile), nil
+	guardian := toDirectoryGuardian(profile)
+	guardian.ReusedExisting = !created
+	return guardian, nil
 }
 
 func (p *GuardianDirectory) UpdateGuardian(ctx context.Context, id int64, input peopledirectory.GuardianInput) error {

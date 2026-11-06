@@ -2,7 +2,6 @@ package importpkg
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -57,52 +56,33 @@ func (c *StudentImportConfig) createGuardianRelationship(ctx context.Context, st
 // with the row's e-mail is reused (and patched with the row's non-empty
 // fields), otherwise a new profile is created.
 func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data importModels.GuardianImportData) (int64, error) {
-	if email := strings.TrimSpace(data.Email); email != "" {
-		existing, err := c.findGuardianByEmail(ctx, email)
-		if err != nil {
-			return 0, fmt.Errorf("database error checking existing guardian: %w", err)
-		}
-		if existing != nil {
-			if err := c.updateExistingGuardianProfile(ctx, *existing, data); err != nil {
-				return 0, copyErrorf("existing guardian profile aktualisieren: %w", err)
-			}
-			if err := c.createGuardianPhoneNumbers(ctx, existing.ID, data.PhoneNumbers); err != nil {
-				return existing.ID, fmt.Errorf("add phone numbers to existing guardian: %w", err)
-			}
-			return existing.ID, nil
-		}
-	}
-
 	guardian, err := c.Guardians.CreateGuardian(ctx, ports.GuardianInput{
-		FirstName:          strings.TrimSpace(data.FirstName),
-		LastName:           strings.TrimSpace(data.LastName),
-		Email:              importModels.OptionalCell(data.Email),
-		AddressStreet:      importModels.OptionalCell(data.AddressStreet),
-		AddressCity:        importModels.OptionalCell(data.AddressCity),
-		AddressPostalCode:  importModels.OptionalCell(data.AddressPostalCode),
-		Notes:              importModels.OptionalCell(data.Notes),
-		LanguagePreference: guardianLanguagePreference(data.LanguagePreference),
+		ReuseExistingByEmail: true,
+		FirstName:            strings.TrimSpace(data.FirstName),
+		LastName:             strings.TrimSpace(data.LastName),
+		Email:                importModels.OptionalCell(data.Email),
+		AddressStreet:        importModels.OptionalCell(data.AddressStreet),
+		AddressCity:          importModels.OptionalCell(data.AddressCity),
+		AddressPostalCode:    importModels.OptionalCell(data.AddressPostalCode),
+		Notes:                importModels.OptionalCell(data.Notes),
+		LanguagePreference:   guardianLanguagePreference(data.LanguagePreference),
 	})
 	if err != nil {
 		return 0, err
+	}
+	if guardian.ReusedExisting {
+		if err := c.updateExistingGuardianProfile(ctx, guardian, data); err != nil {
+			return 0, copyErrorf("existing guardian profile aktualisieren: %w", err)
+		}
+		if err := c.createGuardianPhoneNumbers(ctx, guardian.ID, data.PhoneNumbers); err != nil {
+			return guardian.ID, fmt.Errorf("add phone numbers to existing guardian: %w", err)
+		}
+		return guardian.ID, nil
 	}
 	if err := c.createGuardianPhoneNumbers(ctx, guardian.ID, data.PhoneNumbers); err != nil {
 		return 0, fmt.Errorf("create phone numbers: %w", err)
 	}
 	return guardian.ID, nil
-}
-
-// findGuardianByEmail resolves the tenant's guardian with exactly this e-mail
-// (case-insensitive, like the legacy lookup); nil when none exists.
-func (c *StudentImportConfig) findGuardianByEmail(ctx context.Context, email string) (*ports.Guardian, error) {
-	guardian, err := c.Guardians.FindGuardianByEmail(ctx, email)
-	if errors.Is(err, ports.ErrGuardianNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &guardian, nil
 }
 
 // updateExistingGuardianProfile merges non-empty import fields into an

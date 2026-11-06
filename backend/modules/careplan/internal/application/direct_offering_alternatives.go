@@ -21,12 +21,12 @@ type directSelectionFacts struct {
 // PreviewDirectOfferingAlternatives evaluates replacements for the same
 // student and date in order. Scope and selection inputs are read once;
 // each alternative still runs the selection engine and consequence guards.
-func (s *OfferingChanges) PreviewDirectOfferingAlternatives(ctx context.Context, input careplan.DirectOfferingAdjustmentInput, alternatives [][]careplan.OfferingChangeSelection) ([]*careplan.DirectOfferingAdjustmentPreview, error) {
+func (s *OfferingChanges) PreviewDirectOfferingAlternatives(ctx context.Context, input careplan.DirectOfferingAdjustmentInput, today calendar.Date, alternatives [][]careplan.OfferingChangeSelection) ([]*careplan.DirectOfferingAdjustmentPreview, error) {
 	result := make([]*careplan.DirectOfferingAdjustmentPreview, 0, len(alternatives))
 	if len(alternatives) == 0 {
 		return result, nil
 	}
-	scope, err := s.directAdjustmentScope(ctx, input, s.todayDate())
+	scope, err := s.directAdjustmentScope(ctx, input, today)
 	if err != nil {
 		return nil, err
 	}

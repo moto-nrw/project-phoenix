@@ -100,6 +100,8 @@ type Guardian struct {
 	HasAccount             bool
 	AccountID              *int64
 	PhoneNumbers           []GuardianPhone
+	// ReusedExisting reports that an opt-in create returned an unchanged e-mail match.
+	ReusedExisting bool `json:"-"`
 }
 
 // FullName joins the two name parts, skipping an empty one.
@@ -167,17 +169,13 @@ type GuardianMatch struct {
 	LinkedChildrenCount int
 }
 
-// GuardianDeletePreview distinguishes a failed profile lookup from a failed
-// impact read so the HTTP adapter retains its historical error responses.
-type GuardianDeletePreview struct {
-	GuardianFound bool
-	Impact        GuardianDeleteImpact
-}
-
 // GuardianDeleteImpact is the exact current blast radius of a full delete.
+// GuardianFound distinguishes a failed profile lookup from a later impact-read
+// failure so the HTTP adapter preserves its lookup and module error responses.
 type GuardianDeleteImpact struct {
-	LinkIDs      []int64
-	StudentNames []string
+	GuardianFound bool
+	LinkIDs       []int64
+	StudentNames  []string
 }
 
 // GuardianInput is the create payload and the fully merged update payload.
@@ -191,6 +189,8 @@ type GuardianInput struct {
 	PreferredContactMethod string
 	LanguagePreference     string
 	Notes                  *string
+	// ReuseExistingByEmail opts into import-style deduplication, not interactive creation.
+	ReuseExistingByEmail bool `json:"-"`
 }
 
 // GuardianDelete describes a confirmed delete. WithLinks removes every link
@@ -362,8 +362,6 @@ type GuardianProfileQuery interface {
 	// the given one, ignoring case; ErrGuardianNotFound when there is none.
 	FindGuardianByEmail(context.Context, string) (Guardian, error)
 	GuardianDeleteImpact(context.Context, int64) (GuardianDeleteImpact, error)
-	// PreviewGuardianDelete checks the profile and reads its deletion impact without phone hydration.
-	PreviewGuardianDelete(context.Context, int64) (GuardianDeletePreview, error)
 }
 
 // GuardianPhoneQuery reads guardian phone numbers.

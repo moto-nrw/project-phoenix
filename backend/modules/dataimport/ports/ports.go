@@ -25,6 +25,7 @@ import (
 type (
 	Person                   = peopledirectory.Person
 	PersonFilter             = peopledirectory.PersonFilter
+	PersonName               = peopledirectory.PersonName
 	CreatePerson             = peopledirectory.CreatePerson
 	UpdatePerson             = peopledirectory.UpdatePerson
 	Student                  = peopledirectory.Student

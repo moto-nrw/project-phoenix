@@ -571,11 +571,11 @@ func (rs *Resource) selectExportResponses(r *http.Request, req studentExportRequ
 // class-list-only entries into the document's rows.
 func (rs *Resource) buildExportSources(r *http.Request, req studentExportRequest, selection exportSelection) ([]exportRowSource, []lists.Column, render.Renderer) {
 	responses, planningDate, isToday := selection.responses, selection.planningDate, selection.isToday
-	weekly, err := rs.loadWeeklySchedules(r, collectResponseIDs(responses), planningDate)
+	columns := lists.ResolveColumns(req.Columns, req.Preset)
+	weekly, err := rs.loadWeeklySchedules(r, collectResponseIDs(responses), planningDate, columns)
 	if err != nil {
 		return nil, nil, common.ErrorInternalServer(err)
 	}
-	columns := lists.ResolveColumns(req.Columns, req.Preset)
 	if err := rs.enrichExportCompanions(r, responses, req.Preset, columns, selection.accessCtx); err != nil {
 		return nil, nil, common.ErrorInternalServer(err)
 	}

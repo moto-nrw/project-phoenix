@@ -98,24 +98,8 @@ func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointme
 		return nil, err
 	}
 	events := make([]Event, 0, len(appointments))
-	if len(appointments) == 0 {
-		return events, nil
-	}
-	allowedGuardians := int64Set(guardianProfileIDs)
-	recipientIDs := make([]int64, 0)
 	for _, appointment := range appointments {
-		for _, recipient := range recipientsOfGuardians(expansion.recipientsByAppointment[appointment.ID], allowedGuardians) {
-			recipientIDs = append(recipientIDs, recipient.ID)
-		}
-	}
-	links, err := s.cfg.Appointments.FindAppointmentRecipientStudents(ctx, recipientIDs)
-	if err != nil {
-		return nil, err
-	}
-	visibleRecipients := visibleGuardianRecipientIDs(studentIDs, links)
-	for _, appointment := range appointments {
-		recipients := recipientsOfGuardians(expansion.recipientsByAppointment[appointment.ID], allowedGuardians)
-		status, recipientID := guardianRecipientStatusWithLinks(recipients, visibleRecipients)
+		status, recipientID := guardianRecipientStatusForStudents(expansion.recipientsByAppointment[appointment.ID], guardianProfileIDs, studentIDs)
 		events = append(events, expansion.events(appointment, from, to, func(occurrence appointmentcap.Date) Event {
 			event := appointmentEvent(appointment, occurrence, status, recipientID, 0)
 			event.CanViewOverview = canParentViewOverview(appointment, recipientID != nil)

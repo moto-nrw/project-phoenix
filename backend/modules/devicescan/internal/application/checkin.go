@@ -16,10 +16,10 @@ import (
 // produced: the visit that was open, its id and room, and whether it was
 // closed by this scan.
 type currentVisitCheckout struct {
-	Recorder         ports.VisitRecorder
 	Visit            *ports.CurrentVisit
 	VisitID          *int64
 	PreviousRoomName string
+	TargetRoom       *facilities.Room
 	CheckedOut       bool
 }
 
@@ -49,32 +49,51 @@ type selectedSession struct {
 
 // loadCurrentVisit returns nil only when no open visit exists. A lookup
 // failure stops the scan instead of being read as a new arrival.
-func (s *Service) loadCurrentVisit(ctx context.Context, studentID int64) (*ports.CurrentVisit, error) {
+func (s *Service) loadCurrentVisit(ctx context.Context, studentID int64, targetRoomID *int64) (*ports.CurrentVisit, *facilities.Room, error) {
 	visit, err := s.visits.Current(ctx, studentID)
 	if err != nil {
-		return nil, devicescan.Internal(devicescan.MessageInternalServerError, err)
+		return nil, nil, devicescan.Internal(devicescan.MessageInternalServerError, err)
 	}
-	return visit, nil
+	if visit == nil || visit.Session == nil {
+		return visit, nil, nil
+	}
+	ids := []int64{visit.Session.RoomID}
+	if targetRoomID != nil && *targetRoomID > 0 && *targetRoomID != visit.Session.RoomID {
+		ids = append(ids, *targetRoomID)
+	}
+	rooms, err := s.rooms.ListRoomsByID(ctx, ids)
+	if err != nil {
+		return nil, nil, devicescan.Internal(devicescan.MessageInternalServerError, err)
+	}
+	var target *facilities.Room
+	for _, room := range rooms {
+		if room.ID == visit.Session.RoomID {
+			visit.Session.Room = &ports.Room{ID: room.ID, Name: room.Name}
+		}
+		if targetRoomID != nil && room.ID == *targetRoomID {
+			target = &room
+		}
+	}
+	return visit, target, nil
 }
 
 // checkoutCurrentVisit resolves and closes the room stay before a new
 // check-in. A failed lock, lookup or checkout prevents the scan from
 // proceeding.
-func (s *Service) checkoutCurrentVisit(ctx context.Context, student *ports.Student, person *ports.Person) (currentVisitCheckout, error) {
+func (s *Service) checkoutCurrentVisit(ctx context.Context, student *ports.Student, person *ports.Person, targetRoomID *int64) (currentVisitCheckout, error) {
 	// The child before its visit: a bulk move locks the child and then the
 	// visit, so a scan that closed the visit first and waited for the child
 	// at its check-in deadlocked against it (#5278).
-	recorder, err := s.visits.LockStudent(ctx, student.ID)
-	if err != nil {
+	if err := s.visits.LockStudent(ctx, student.ID); err != nil {
 		s.logger.ErrorContext(ctx, "failed to lock student",
 			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),
 		)
 		return currentVisitCheckout{}, devicescan.Internal(devicescan.MessageInternalServerError, err)
 	}
-	visit, err := s.loadCurrentVisit(ctx, student.ID)
+	visit, targetRoom, err := s.loadCurrentVisit(ctx, student.ID, targetRoomID)
 	if err != nil || visit == nil {
-		return currentVisitCheckout{Recorder: recorder}, err
+		return currentVisitCheckout{}, err
 	}
 	s.logger.DebugContext(ctx, "student has active visit, performing checkout",
 		slog.String("student_name", person.FirstName+" "+person.LastName),
@@ -109,7 +128,7 @@ func (s *Service) checkoutCurrentVisit(ctx context.Context, student *ports.Stude
 		slog.Int64("visit_id", visit.ID),
 	)
 	visitID := visit.ID
-	return currentVisitCheckout{Recorder: recorder, Visit: visit, VisitID: &visitID, PreviousRoomName: previousRoomName, CheckedOut: true}, nil
+	return currentVisitCheckout{Visit: visit, TargetRoom: targetRoom, VisitID: &visitID, PreviousRoomName: previousRoomName, CheckedOut: true}, nil
 }
 
 // shouldSkipCheckin reports a scan of the room the child just left: the
@@ -134,7 +153,7 @@ func (s *Service) processStudentCheckin(ctx context.Context, student *ports.Stud
 	result := &checkinResult{}
 	switch {
 	case input.RoomID != nil && !input.SkipCheckin:
-		visitID, selection, err := s.processCheckin(ctx, student, person, *input.RoomID, input.DeviceID, input.Checkout.Recorder)
+		visitID, selection, err := s.processCheckin(ctx, student, person, *input.RoomID, input.DeviceID, input.Checkout.TargetRoom)
 		if err != nil {
 			return nil, err
 		}
@@ -154,14 +173,22 @@ func (s *Service) processStudentCheckin(ctx context.Context, student *ports.Stud
 
 // processCheckin opens a visit in the room's session and returns the visit
 // id with the session that received it.
-func (s *Service) processCheckin(ctx context.Context, student *ports.Student, person *ports.Person, roomID, deviceID int64, recorder ports.VisitRecorder) (*int64, *selectedSession, error) {
+func (s *Service) processCheckin(ctx context.Context, student *ports.Student, person *ports.Person, roomID, deviceID int64, knownRoom *facilities.Room) (*int64, *selectedSession, error) {
 	s.logger.DebugContext(ctx, "performing check-in to room",
 		slog.String("student_name", person.FirstName+" "+person.LastName),
 		slog.Int64("student_id", student.ID),
 		slog.Int64("room_id", roomID),
 	)
 
-	room, err := s.rooms.FindRoom(ctx, roomID)
+	// Only room metadata is reused. Capacity is still counted before the
+	// transition and rechecked by the presence command under its room lock.
+	var room facilities.Room
+	var err error
+	if knownRoom != nil && knownRoom.ID == roomID {
+		room = *knownRoom
+	} else {
+		room, err = s.rooms.FindRoom(ctx, roomID)
+	}
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to get room",
 			slog.Int64("room_id", roomID),
@@ -185,7 +212,7 @@ func (s *Service) processCheckin(ctx context.Context, student *ports.Student, pe
 		slog.Int64("student_id", student.ID),
 		slog.Int64("active_group_id", selection.Session.ID),
 	)
-	visitID, err := recorder(ctx, student.ID, selection.Session.ID)
+	visitID, err := s.visits.Record(ctx, student.ID, selection.Session.ID)
 	if err != nil {
 		return nil, nil, s.classifyRecordFailure(ctx, student.ID, selection, err)
 	}
@@ -232,7 +259,7 @@ func (s *Service) classifyRecordFailure(ctx context.Context, studentID int64, se
 // A concurrently closed visit needs no details; a failed lookup remains an
 // error.
 func (s *Service) buildStudentAlreadyActive(ctx context.Context, studentID int64) error {
-	existing, err := s.loadCurrentVisit(ctx, studentID)
+	existing, _, err := s.loadCurrentVisit(ctx, studentID, nil)
 	if err != nil {
 		return err
 	}

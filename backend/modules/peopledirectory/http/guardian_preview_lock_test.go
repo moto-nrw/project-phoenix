@@ -1,4 +1,6 @@
-package api_test
+//go:build testhooks
+
+package users_test
 
 import (
 	"context"

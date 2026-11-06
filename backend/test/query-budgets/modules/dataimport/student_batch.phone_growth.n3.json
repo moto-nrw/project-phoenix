@@ -1,6 +1,6 @@
 {
   "scenario": "modules.dataimport.student_batch.phone_growth.n3",
-  "max": 102,
+  "max": 99,
   "exact": true,
   "description": "Complete 3-row import with one guardian, phone and pickup schedule per child; small execution-growth point."
 }

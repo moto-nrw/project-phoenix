@@ -147,6 +147,19 @@ type fakeRooms struct {
 	nextID    int64
 }
 
+func (r *fakeRooms) ListRoomsByID(_ context.Context, ids []int64) ([]facilities.Room, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
+	var rooms []facilities.Room
+	for _, id := range ids {
+		if room, ok := r.rooms[id]; ok {
+			rooms = append(rooms, room)
+		}
+	}
+	return rooms, nil
+}
+
 func (r *fakeRooms) FindRoom(_ context.Context, id int64) (facilities.Room, error) {
 	if r.findErr != nil {
 		return facilities.Room{}, r.findErr
@@ -247,9 +260,9 @@ type fakeVisits struct {
 	steps []string
 }
 
-func (v *fakeVisits) LockStudent(context.Context, int64) (ports.VisitRecorder, error) {
+func (v *fakeVisits) LockStudent(context.Context, int64) error {
 	v.steps = append(v.steps, "lock")
-	return v.Record, v.lockErr
+	return v.lockErr
 }
 func (v *fakeVisits) Current(context.Context, int64) (*ports.CurrentVisit, error) {
 	v.steps = append(v.steps, "current")

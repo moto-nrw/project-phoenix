@@ -115,16 +115,14 @@ type Visits interface {
 	// LockStudent locks the student in the scan's transaction. A scan takes
 	// it before it reads and ends the student's visit, the order every
 	// presence write that holds a student keeps (#5278).
-	LockStudent(ctx context.Context, studentID int64) (VisitRecorder, error)
-	// Current is nil, nil when the student has no open visit.
+	LockStudent(ctx context.Context, studentID int64) error
+	// Current returns a location without room names; the workflow batches room reads.
 	Current(ctx context.Context, studentID int64) (*CurrentVisit, error)
 	EndVisit(ctx context.Context, visitID int64) error
+	// Record opens a visit. A full room is *RoomCapacityExceeded, a
+	// duplicate ErrStudentAlreadyActive, a departed child ErrStudentNotInCare.
+	Record(ctx context.Context, studentID, sessionID int64) (int64, error)
 }
-
-// VisitRecorder opens the next visit using the child's existing row lock.
-// A full room is *RoomCapacityExceeded, a duplicate ErrStudentAlreadyActive,
-// a departed child ErrStudentNotInCare.
-type VisitRecorder func(ctx context.Context, studentID, sessionID int64) (int64, error)
 
 // AttendanceState is today's attendance row of a student.
 type AttendanceState struct {

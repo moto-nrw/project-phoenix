@@ -61,9 +61,9 @@ func birthdaySortKey(birthday string) string {
 	return fmt.Sprintf("%02d-%02d", int(date.Month()), date.Day())
 }
 
-func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, planningDate calendar.Date) (map[int64]weeklySchedule, error) {
+func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, planningDate calendar.Date, columns []lists.Column) (map[int64]weeklySchedule, error) {
 	result := make(map[int64]weeklySchedule, len(studentIDs))
-	if len(studentIDs) == 0 {
+	if len(studentIDs) == 0 || !exportPrintsWeeklySchedules(columns) {
 		return result, nil
 	}
 	if rs.ArrivalScheduleService == nil || rs.PickupScheduleService == nil {
@@ -98,6 +98,20 @@ func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, pla
 		result[arrival.StudentID] = weekly
 	}
 	return result, nil
+}
+
+// Only care-day and weekday cells consume the recurring weekly schedules.
+// Planned arrival/pickup columns use the date-scoped responses instead.
+func exportPrintsWeeklySchedules(columns []lists.Column) bool {
+	if exportHasColumn(columns, lists.ColumnCareDays) {
+		return true
+	}
+	for _, id := range lists.ClassRosterWeekdayColumns {
+		if exportHasColumn(columns, id) {
+			return true
+		}
+	}
+	return false
 }
 
 func (rs *Resource) loadActiveEnrollmentSummaries(r *http.Request, studentIDs []int64, onDate calendar.Date, columns []lists.Column) (map[int64]string, error) {

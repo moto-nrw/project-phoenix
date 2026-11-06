@@ -59,44 +59,34 @@ func classifyPresence(err error) error {
 // the same service.
 type visits struct {
 	studentpresence.Presence
-	active studentpresence.Presence
-	clock  clock
+	active    studentpresence.Presence
+	locations interface {
+		ListVisitLocations(context.Context, studentpresence.VisitLocationFilter) ([]studentpresence.VisitLocation, error)
+	}
+	clock clock
 }
 
 func (v visits) Current(ctx context.Context, studentID int64) (*ports.CurrentVisit, error) {
-	visit, err := v.active.GetStudentCurrentVisitWithRoom(ctx, studentID)
+	locations, err := v.locations.ListVisitLocations(ctx, studentpresence.VisitLocationFilter{VisitFilter: studentpresence.VisitFilter{
+		StudentIDs: []int64{studentID}, OpenOnly: true, NewestFirst: true, Limit: 1,
+	}})
 	if err != nil {
-		if errors.Is(err, studentpresence.ErrVisitNotFound) {
-			return nil, nil
-		}
 		return nil, err
 	}
-	if visit == nil || visit.ExitTime != nil {
+	if len(locations) == 0 || locations[0].Visit.ExitTime != nil {
 		return nil, nil
 	}
-	current := &ports.CurrentVisit{ID: visit.ID, EntryTime: visit.EntryTime}
-	if group := visit.ActiveGroup; group != nil {
+	visit := locations[0]
+	current := &ports.CurrentVisit{ID: visit.Visit.ID, EntryTime: visit.Visit.EntryTime}
+	if group := visit.Group; group != nil {
 		current.Session = &ports.SessionRef{ID: group.ID, RoomID: group.RoomID, StartTime: group.StartTime, DeviceID: group.DeviceID}
-		if group.Room != nil {
-			current.Session.Room = &ports.Room{ID: group.Room.ID, Name: group.Room.Name}
-		}
 	}
 	return current, nil
 }
 
-func (v visits) LockStudent(ctx context.Context, studentID int64) (ports.VisitRecorder, error) {
-	locked, err := v.active.LockStudentForVisit(ctx, studentID)
-	if err != nil {
-		return nil, err
-	}
-	return func(ctx context.Context, studentID, sessionID int64) (int64, error) {
-		visit := &studentpresence.Visit{StudentID: studentID, ActiveGroupID: sessionID, EntryTime: v.clock.Now()}
-		return recordLockedVisit(ctx, v.active, locked, visit)
-	}, nil
-}
-
-func recordLockedVisit(ctx context.Context, active studentpresence.VisitCommands, locked studentpresence.VisitAdmission, visit *studentpresence.Visit) (int64, error) {
-	if err := active.CreateVisit(ctx, visit, locked); err != nil {
+func (v visits) Record(ctx context.Context, studentID, sessionID int64) (int64, error) {
+	visit := &studentpresence.Visit{StudentID: studentID, ActiveGroupID: sessionID, EntryTime: v.clock.Now()}
+	if err := v.active.CreateVisit(ctx, visit); err != nil {
 		var roomCapacity *studentpresence.RoomCapacityError
 		if errors.As(err, &roomCapacity) {
 			return 0, &ports.RoomCapacityExceeded{

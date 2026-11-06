@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -387,7 +388,9 @@ func (s *settingsService) resolveCachedSettings(ctx context.Context, tenantID in
 
 // Fill the existing request memo with school-only settings in one observation.
 // Träger settings remain demand-driven so school reads acquire no new foreign
-// dependency. Writes and lock barriers keep using the memo's existing eviction.
+// dependency. Notification/reminder gates also stay demand-driven: sequential
+// first-use reads must observe public settings writes committed between them.
+// Writes and lock barriers keep using the memo's existing eviction.
 func (s *settingsService) requestSnapshotKeys(ctx context.Context, tenantID int64, requested []string) []string {
 	if config.HasExplicitSettingsSnapshot(ctx) {
 		return requested
@@ -396,9 +399,11 @@ func (s *settingsService) requestSnapshotKeys(ctx context.Context, tenantID int6
 	keys := make([]string, 0, len(definitions)+len(requested))
 	keys = append(keys, requested...)
 	for key, definition := range definitions {
-		if !definition.Levels.AtTraeger() {
-			keys = append(keys, key)
+		if definition.Levels.AtTraeger() || strings.HasPrefix(key, "notifications.") || strings.HasPrefix(key, "reminders.") ||
+			key == config.KeyParentNotesEnabled || key == config.KeyStaffMessagingEnabled {
+			continue
 		}
+		keys = append(keys, key)
 	}
 	_, missing := config.RequestCacheFromContext(ctx).Lookup(tenantID, keys)
 	sort.Strings(missing)

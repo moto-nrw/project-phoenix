@@ -66,15 +66,6 @@ func (s *Service) GuardianDeleteImpact(ctx context.Context, id int64) (peopledir
 	})
 }
 
-func (s *Service) PreviewGuardianDelete(ctx context.Context, id int64) (peopledirectory.GuardianDeletePreview, error) {
-	if id <= 0 {
-		return peopledirectory.GuardianDeletePreview{}, invalidGuardian("guardian ID is required")
-	}
-	return guardianQuery(s, "preview_guardian_delete", func(p peopledirectory.GuardianProvider) (peopledirectory.GuardianDeletePreview, error) {
-		return p.PreviewGuardianDelete(ctx, id)
-	})
-}
-
 func (s *Service) ListGuardianPhones(ctx context.Context, guardianID int64) ([]peopledirectory.GuardianPhone, error) {
 	if guardianID <= 0 {
 		return nil, invalidGuardian("guardian ID is required")

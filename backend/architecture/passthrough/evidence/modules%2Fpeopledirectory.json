@@ -303,6 +303,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (r nativeStudentGuardianRepository) FindByGuardianProfileIDForDeletePreview(ctx context.Context, guardianProfileID int64) ([]*directory.GuardianRelationshipSnapshot, error) {\n\trows, err := r.rawStudentGuardianRepository.FindByGuardianProfileIDForDeletePreview(ctx, guardianProfileID)\n\treturn mapRecordSlice(rows, func(value *models.StudentGuardian) *directory.GuardianRelationshipSnapshot {\n\t\treturn NativeGuardianRelationshipValue(value)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.FindByGuardianProfileIDForDeletePreview",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
       "evidence": "func (r nativeStudentGuardianRepository) FindByID(ctx context.Context, id any) (*directory.GuardianRelationshipSnapshot, error) {\n\tout0, out1 := r.rawStudentGuardianRepository.FindByID(ctx, id)\n\treturn NativeGuardianRelationshipValue(out0), out1\n}",
       "form": "unclassified-evidence",
       "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.FindByID",
@@ -779,13 +786,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (p *GuardianDirectory) CreateGuardian(ctx context.Context, input peopledirectory.GuardianInput) (peopledirectory.Guardian, error) {\n\tvar profile *peopledirectory.GuardianProfileSnapshot\n\terr := p.inTenantTx(ctx, func(txCtx context.Context) error {\n\t\tvar txErr error\n\t\tprofile, txErr = p.guardians.CreateGuardian(txCtx, toGuardianCreateRequest(input))\n\t\treturn txErr\n\t})\n\tif err != nil {\n\t\treturn peopledirectory.Guardian{}, mapGuardianError(err)\n\t}\n\treturn toDirectoryGuardian(profile), nil\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/peopledirectory/internal/application/GuardianDirectory.CreateGuardian",
-      "owner": "modules/peopledirectory"
-    },
-    {
-      "build": "production",
       "evidence": "func (p *GuardianDirectory) DeleteGuardianPhone(ctx context.Context, phoneID int64) error {\n\treturn mapGuardianPhoneError(p.inTenantTx(ctx, func(txCtx context.Context) error {\n\t\treturn p.guardians.DeletePhoneNumber(txCtx, phoneID)\n\t}))\n}",
       "form": "unclassified-evidence",
       "id": "modules/peopledirectory/internal/application/GuardianDirectory.DeleteGuardianPhone",
@@ -824,13 +824,6 @@
       "evidence": "func (p *GuardianDirectory) FindGuardianPhone(ctx context.Context, phoneID int64) (peopledirectory.GuardianPhone, error) {\n\tphone, err := p.guardians.GuardianPhoneNumbers().FindByID(ctx, phoneID)\n\tif err != nil {\n\t\treturn peopledirectory.GuardianPhone{}, mapGuardianPhoneError(err)\n\t}\n\treturn toDirectoryPhone(phone), nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/peopledirectory/internal/application/GuardianDirectory.FindGuardianPhone",
-      "owner": "modules/peopledirectory"
-    },
-    {
-      "build": "production",
-      "evidence": "func (p *GuardianDirectory) GuardianDeleteImpact(ctx context.Context, id int64) (peopledirectory.GuardianDeleteImpact, error) {\n\timpact, err := p.guardians.GetGuardianDeleteImpact(ctx, id)\n\tif err != nil {\n\t\treturn peopledirectory.GuardianDeleteImpact{}, mapGuardianError(err)\n\t}\n\treturn peopledirectory.GuardianDeleteImpact{LinkIDs: impact.LinkIDs, StudentNames: impact.StudentNames}, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/peopledirectory/internal/application/GuardianDirectory.GuardianDeleteImpact",
       "owner": "modules/peopledirectory"
     },
     {

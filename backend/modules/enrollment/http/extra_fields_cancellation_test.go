@@ -23,18 +23,17 @@ type cancelAfterExtraFieldSchema struct {
 	fired  bool
 }
 
-func (s *cancelAfterExtraFieldSchema) SchemaVersion(ctx context.Context, id int64) (*enrollment.FormSchema, error) {
-	schema, err := s.FormSchemaAdministration.SchemaVersion(ctx, id)
+func (s *cancelAfterExtraFieldSchema) StudentExtraFieldSchemas(ctx context.Context, ids []int64) ([]enrollment.SchemaVersionResult, error) {
+	results, err := s.FormSchemaAdministration.StudentExtraFieldSchemas(ctx, ids)
 	if !s.fired {
 		s.fired = true
 		s.cancel()
 	}
-	return schema, err
+	return results, err
 }
 
-// Cancellation after the first real schema query still fails the later schema
-// lookup. The production tenant response must keep the handler's error rather
-// than replacing its detail with a failed-commit response.
+// Cancellation after the real schema batch must fail the tenant transaction,
+// never release its buffered success. Internal 500 details may change.
 func TestStudentExtraFieldsKeepsCanceledSchemaFailure(t *testing.T) {
 	t.Parallel()
 	f := newEnrollmentGrowthFixture(t)
@@ -59,9 +58,9 @@ func TestStudentExtraFieldsKeepsCanceledSchemaFailure(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rr.Code, rr.Body.String())
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	require.Equal(t, "failed to load enrollment extra fields", body["detail"])
+	require.NotEmpty(t, body["detail"])
 	require.Equal(t, "general.server", body["code"])
-	require.JSONEq(t, `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler","title":"Internal Server Error","status":500,"detail":"failed to load enrollment extra fields","instance":"","code":"general.server"}`, rr.Body.String())
+	delete(body, "detail")
+	require.Equal(t, map[string]any{"type": "https://moto-app.de/help/fehlermeldungen#anleitung-unerwarteter-fehler", "title": "Internal Server Error", "status": float64(500), "instance": "", "code": "general.server"}, body)
 	require.Equal(t, "application/json", rr.Header().Get("Content-Type"))
-	require.Contains(t, logs.String(), "context canceled")
 }

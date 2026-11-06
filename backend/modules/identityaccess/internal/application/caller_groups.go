@@ -119,7 +119,7 @@ func (c *CallerContext) teacherGroupIDs(ctx context.Context, teacherID int64) ([
 // addSubstitutionGroups adds the groups the caller substitutes for today. A
 // failed read is reported as a partial failure, keeping the teacher groups.
 func (c *CallerContext) addSubstitutionGroups(ctx context.Context, staffID int64, groups map[int64]struct{}) *domain.CallerGroupsPartialError {
-	substituted, err := c.deps.Structure.SubstitutedGroups(ctx, staffID)
+	substituted, err := c.substitutionGroups(ctx, staffID)
 	if err != nil {
 		return &domain.CallerGroupsPartialError{Op: "get my groups (substitutions)", LastErr: err, FailureCount: 1}
 	}
@@ -165,20 +165,15 @@ func linkage(staffErr, teacherErr error) (bool, error) {
 // active substitution whose regular staff slot is unassigned. A caller who
 // is no staff member has none.
 func (c *CallerContext) SubstitutedGroupIDs(ctx context.Context) (map[int64]bool, error) {
-	entry := c.entry(ctx)
-	if subs, ok := entry.cachedSubstitutions(); ok {
-		return subs, nil
-	}
 	result := make(map[int64]bool)
 	staffID, err := c.StaffID(ctx)
 	if err != nil {
 		if isExpectedLinkageError(err) {
-			entry.storeSubstitutions(result)
 			return result, nil
 		}
 		return nil, &domain.CallerError{Op: opGetSubstitutedIDs, Err: err}
 	}
-	substituted, err := c.deps.Structure.SubstitutedGroups(ctx, staffID)
+	substituted, err := c.substitutionGroups(ctx, staffID)
 	if err != nil {
 		return nil, &domain.CallerError{Op: opGetSubstitutedIDs, Err: err}
 	}
@@ -187,8 +182,22 @@ func (c *CallerContext) SubstitutedGroupIDs(ctx context.Context) (map[int64]bool
 			result[groupID] = true
 		}
 	}
-	entry.storeSubstitutions(result)
 	return result, nil
+}
+
+// substitutionGroups shares the complete successful read between group reach
+// and the unassigned-only facet. Errors and partial results are never stored.
+func (c *CallerContext) substitutionGroups(ctx context.Context, staffID int64) (map[int64]bool, error) {
+	entry := c.entry(ctx)
+	if subs, ok := entry.cachedSubstitutions(); ok {
+		return subs, nil
+	}
+	subs, err := c.deps.Structure.SubstitutedGroups(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
+	entry.storeSubstitutions(subs)
+	return subs, nil
 }
 
 // MySchoolClasses returns the school classes assigned to the caller's staff

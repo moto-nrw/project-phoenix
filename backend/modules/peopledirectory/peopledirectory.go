@@ -88,8 +88,16 @@ type PersonFilter struct {
 	FullNameContains string
 	TagID            string
 	AccountIDs       []int64
-	Page             int
-	PageSize         int
+	// Names matches any complete name pair using the same equality as
+	// FirstNameEquals and LastNameEquals. It does not limit namesakes.
+	Names    []PersonName
+	Page     int
+	PageSize int
+}
+
+type PersonName struct {
+	FirstName string
+	LastName  string
 }
 
 // ReleasedTag records one tag the ReleaseTags command detached.

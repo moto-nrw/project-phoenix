@@ -13,11 +13,8 @@ import (
 
 // Visit operations
 
-func (s *service) CreateVisit(ctx context.Context, visit *studentpresence.Visit, admission ...studentpresence.VisitAdmission) error {
+func (s *service) CreateVisit(ctx context.Context, visit *studentpresence.Visit) error {
 	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
-		if len(admission) > 0 {
-			return s.createAdmittedVisit(ctx, txCtx, visit, admission)
-		}
 		return s.createVisit(txCtx, visit)
 	})
 }

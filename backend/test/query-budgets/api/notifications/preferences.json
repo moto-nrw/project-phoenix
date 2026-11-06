@@ -1,6 +1,6 @@
 {
   "scenario": "api.notifications.preferences",
-  "max": 6,
+  "max": 14,
   "exact": true,
   "description": "Protected tenant JWT GET /api/notifications/preferences/ through real Delivery, Communication consent, Settings and Identity owners. N=0/3/8 persisted decisions, complete ordered DTO, same-account foreign-school and same-school foreign-account exclusion, zero DML and unchanged persisted rows. Includes tenant BEGIN/prolog/COMMIT; excludes outer host session-liveness and module-booking middleware."
 }

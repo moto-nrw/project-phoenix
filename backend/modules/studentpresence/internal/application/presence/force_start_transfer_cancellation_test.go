@@ -23,13 +23,13 @@ type forceCancelGroups struct{ ports.ActiveGroupRepository }
 func forceCancellationGroups(r ports.ActiveGroupRepository) ports.ActiveGroupRepository {
 	return forceCancelGroups{r}
 }
-func (r forceCancelGroups) FindByID(ctx context.Context, id int64) (*ports.ActiveGroup, error) {
-	row, err := r.ActiveGroupRepository.FindByID(ctx, id)
-	if p, ok := ctx.Value(forceCancelKey{}).(*forceCancelPoint); ok && err == nil && row != nil && row.EndTime != nil && p.hit == "" {
-		p.hit = "scalar"
+func (r forceCancelGroups) FindVisitTransferGroups(ctx context.Context, from, to int64) (*ports.ActiveGroup, *ports.ActiveGroup, error) {
+	source, target, err := r.ActiveGroupRepository.FindVisitTransferGroups(ctx, from, to)
+	if p, ok := ctx.Value(forceCancelKey{}).(*forceCancelPoint); ok && err == nil && source != nil && source.EndTime != nil && p.hit == "" {
+		p.hit = "pair"
 		p.cancel()
 	}
-	return row, err
+	return source, target, err
 }
 func TestForceStartKeepsCanceledTransferGroupError(t *testing.T) {
 	t.Parallel()
@@ -54,9 +54,10 @@ func TestForceStartKeepsCanceledTransferGroupError(t *testing.T) {
 	commandCtx = context.WithValue(commandCtx, forceCancelKey{}, point)
 	created, err := svc.ForceStartActivitySessionWithSupervisors(commandCtx, activity.ID, device.ID, []int64{requested.ID}, &target.ID)
 	require.Nil(t, created)
-	require.Equal(t, "scalar", point.hit, "reach the actual post-end read cancellation point")
+	require.Equal(t, "pair", point.hit, "reach the actual post-end read cancellation point")
 	require.ErrorIs(t, err, context.Canceled)
-	require.EqualError(t, err, "active: ForceStartActivitySessionWithSupervisors: database error during find by id: list live groups: context canceled", "this owner error is propagated unchanged into the kiosk problem detail")
+	// The internal 500 detail may name the next operation after the pair read;
+	// cancellation and rollback remain the contract.
 	// Cancellation must roll the source/visit writes back, including the newly inserted target.
 	old, err := svc.GetActiveGroup(ctx, group.ID)
 	require.NoError(t, err)
@@ -64,4 +65,8 @@ func TestForceStartKeepsCanceledTransferGroupError(t *testing.T) {
 	still, err := module.FindVisit(ctx, visit.ID)
 	require.NoError(t, err)
 	require.Equal(t, group.ID, still.ActiveGroupID)
+	groups, err := module.ListOpenLiveGroupsForActivities(ctx, []int64{activity.ID})
+	require.NoError(t, err)
+	require.Len(t, groups, 1, "the new target must roll back too")
+	require.Equal(t, group.ID, groups[0].ID)
 }

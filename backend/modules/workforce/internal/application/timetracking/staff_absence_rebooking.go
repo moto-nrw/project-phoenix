@@ -354,6 +354,16 @@ func (s *staffAbsenceService) rebookingBalanceDelta(ctx context.Context, absence
 		return 0, fmt.Errorf("rebooking requires the month service")
 	}
 	before, after := rebookingBalanceAbsences(absences, entries)
+	targetByDay := make(map[calendar.Date]int)
+	for _, window := range rebookingTargetWindows(entries) {
+		targets, err := s.monthService.GetDailyTargets(ctx, entries[0].after.StaffID, window[0], window[1])
+		if err != nil {
+			return 0, fmt.Errorf("failed to resolve targets for rebooking: %w", err)
+		}
+		for _, target := range targets {
+			targetByDay[target.Date] = target.TargetMinutes
+		}
+	}
 	delta := 0
 	for _, entry := range entries {
 		for start := entry.after.DateStart; !start.After(entry.after.DateEnd); {
@@ -361,19 +371,36 @@ func (s *staffAbsenceService) rebookingBalanceDelta(ctx context.Context, absence
 			if entry.after.DateEnd.Before(end) {
 				end = entry.after.DateEnd
 			}
-			targets, err := s.monthService.GetDailyTargets(ctx, entry.after.StaffID, start, end)
-			if err != nil {
-				return 0, fmt.Errorf("failed to resolve targets for rebooking: %w", err)
-			}
-			targetByDay := make(map[calendar.Date]int, len(targets))
-			for _, target := range targets {
-				targetByDay[target.Date] = target.TargetMinutes
-			}
 			delta += creditedAbsenceMinutes(after, start, end, targetByDay) - creditedAbsenceMinutes(before, start, end, targetByDay)
 			start = end.AddDays(1)
 		}
 	}
 	return delta, nil
+}
+
+// rebookingTargetWindows shares date-valid Soll inputs between nearby entries.
+// Windows stay within the existing daily-target limit; distant entries do not
+// cause a read of the intervening years. Credit arithmetic still runs over each
+// original entry and chunk so half-day rounding and overlap selection stay put.
+func rebookingTargetWindows(entries []rebookedAbsence) [][2]calendar.Date {
+	ordered := slices.Clone(entries)
+	slices.SortFunc(ordered, func(a, b rebookedAbsence) int {
+		return strings.Compare(string(a.after.DateStart), string(b.after.DateStart))
+	})
+	var windows [][2]calendar.Date
+	for _, entry := range ordered {
+		for start := entry.after.DateStart; !start.After(entry.after.DateEnd); {
+			end := min(entry.after.DateEnd, start.AddDays(maxDailyTargetRangeDays))
+			last := len(windows) - 1
+			if last >= 0 && !end.After(windows[last][0].AddDays(maxDailyTargetRangeDays)) {
+				windows[last][1] = max(windows[last][1], end)
+			} else {
+				windows = append(windows, [2]calendar.Date{start, end})
+			}
+			start = end.AddDays(1)
+		}
+	}
+	return windows
 }
 
 func rebookingChangesCompTime(entries []rebookedAbsence) bool {

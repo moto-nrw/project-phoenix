@@ -34,8 +34,7 @@ func TestLockedStudentVisitObservesOwnStatusAndAttendanceWrites(t *testing.T) {
 	ctx := api.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
 	ctx = api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ testpkg.Tx) error {
-		locked, err := svc.LockStudentForVisit(txCtx, student.ID)
-		require.NoError(t, err)
+		require.NoError(t, svc.LockStudent(txCtx, student.ID))
 		row, err := students.FindByID(txCtx, student.ID)
 		require.NoError(t, err)
 		yes := true
@@ -48,7 +47,7 @@ func TestLockedStudentVisitObservesOwnStatusAndAttendanceWrites(t *testing.T) {
 		})
 		require.NoError(t, err)
 		visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now()}
-		require.NoError(t, svc.CreateVisit(txCtx, visit, locked))
+		require.NoError(t, svc.CreateVisit(txCtx, visit))
 		require.Positive(t, visit.ID)
 		after, err := students.FindByID(txCtx, student.ID)
 		require.NoError(t, err)
@@ -62,62 +61,6 @@ func TestLockedStudentVisitObservesOwnStatusAndAttendanceWrites(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, rows, 1)
 		require.Equal(t, attendance.ID, rows[0].ID)
-		require.ErrorIs(t, svc.CreateVisit(txCtx, visit, locked), active.ErrInvalidData, "a locked command cannot be replayed")
-		return nil
-	}))
-}
-
-func TestLockedStudentVisitDefersAdmissionUntilTheWrite(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	svc := setupVisitHelperService(t, db)
-	student := testpkg.CreateTestStudent(t, db, "Locked", "Alumnus", "1a")
-	testpkg.SetStudentStatus(t, db, student.ID, "alumnus")
-	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
-	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, _ testpkg.Tx) error {
-		locked, err := svc.LockStudentForVisit(ctx, student.ID)
-		require.NoError(t, err, "the early lock must not move admission ahead of room validation")
-		require.ErrorIs(t, svc.CreateVisit(ctx, &studentpresence.Visit{StudentID: student.ID}, locked), active.ErrInvalidData, "visit validation still precedes admission")
-		// Invalid input consumes the one command, so use a fresh early lock just
-		// as a new transition would. Both locks remain held in this transaction.
-		locked, err = svc.LockStudentForVisit(ctx, student.ID)
-		require.NoError(t, err)
-		err = svc.CreateVisit(ctx, &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now()}, locked)
-		require.ErrorIs(t, err, active.ErrStudentGraduated)
-		return nil
-	}))
-}
-
-func TestLockedStudentVisitChecksCareEndAtWriteTime(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	at := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-	svc := setupVisitHelperService(t, db, func() time.Time { return at })
-	student := testpkg.CreateTestStudent(t, db, "Locked", "CareEnd", "1a")
-	until := calendar.DateFromTime(at)
-	testpkg.SetStudentLifecycle(t, db, student.ID, "active", nil, &until)
-	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
-	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, _ testpkg.Tx) error {
-		locked, err := svc.LockStudentForVisit(ctx, student.ID)
-		require.NoError(t, err)
-		at = at.Add(24 * time.Hour)
-		err = svc.CreateVisit(ctx, &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: at}, locked)
-		require.ErrorIs(t, err, active.ErrStudentCareEnded, "admission must use the write-time day, not the earlier lock day")
-		return nil
-	}))
-}
-
-func TestLockedStudentVisitCannotAdmitAnotherChild(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	svc := setupVisitHelperService(t, db)
-	student := testpkg.CreateTestStudent(t, db, "Locked", "Own", "1a")
-	other := testpkg.CreateTestStudent(t, db, "Locked", "Other", "1a")
-	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
-	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, _ testpkg.Tx) error {
-		locked, err := svc.LockStudentForVisit(ctx, student.ID)
-		require.NoError(t, err)
-		require.ErrorIs(t, svc.CreateVisit(ctx, &studentpresence.Visit{StudentID: other.ID, ActiveGroupID: group.ID, EntryTime: time.Now()}, locked), active.ErrInvalidData)
 		return nil
 	}))
 }

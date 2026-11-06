@@ -242,6 +242,14 @@ func (s *Store) Search(ctx context.Context, filter peopledirectory.PersonFilter)
 	if len(filter.AccountIDs) > 0 {
 		query = query.Where(`"person".account_id IN (?)`, bun.List(filter.AccountIDs))
 	}
+	if len(filter.Names) > 0 {
+		query = query.WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
+			for _, name := range filter.Names {
+				q = q.WhereOr(`(LOWER(BTRIM("person".first_name)) = LOWER(BTRIM(?)) AND LOWER(BTRIM("person".last_name)) = LOWER(BTRIM(?)))`, name.FirstName, name.LastName)
+			}
+			return q
+		})
+	}
 	query = query.OrderExpr(`"person".last_name ASC, "person".first_name ASC, "person".id ASC`)
 	if filter.PageSize > 0 {
 		query = query.Limit(int64(filter.PageSize))

@@ -67,6 +67,50 @@ func NewRetainedGuardianService(deps peoplePorts.GuardianServiceDependencies, tr
 // CreateGuardian creates a new guardian profile without an account
 // Note: Phone numbers should be added separately via AddPhoneNumber
 func (s *RetainedGuardianService) CreateGuardian(ctx context.Context, req peoplePorts.GuardianCreateRequest) (*peopleValues.GuardianProfileSnapshot, error) {
+	profile, err := s.newGuardianProfile(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	// Reject a duplicate email up front. The tenant-scoped UNIQUE(tenant_id,
+	// email) index forbids two guardians sharing an email, so without this
+	// pre-check the INSERT fails with a raw 23505 that surfaces to the user as a
+	// generic 500. Detect it as bad input instead and steer the caller to the
+	// existing-guardian picker (#1513) — the same German message and 400
+	// semantics as the batch student-create path (ValidateNewGuardians).
+	// FindByEmail matches case-insensitively (LOWER(email)), so it is at least
+	// as strict as the index and never lets a colliding email slip through.
+	if profile.Email != nil && strings.TrimSpace(*profile.Email) != "" {
+		if existing, err := s.GuardianProfileRepo.FindByEmail(ctx, strings.TrimSpace(*profile.Email)); err == nil && existing != nil {
+			return nil, newEmailInUseError(*profile.Email)
+		}
+	}
+
+	return s.insertGuardianProfile(ctx, profile)
+}
+
+// FindOrCreateGuardian resolves the current tenant's e-mail immediately before
+// writing. A new profile uses the same validation and unique-index backstop as
+// CreateGuardian, without repeating the successful absence lookup. No state is
+// retained between calls, so preceding import rows remain visible.
+func (s *RetainedGuardianService) FindOrCreateGuardian(ctx context.Context, req peoplePorts.GuardianCreateRequest) (*peopleValues.GuardianProfileSnapshot, bool, error) {
+	if req.Email != nil && strings.TrimSpace(*req.Email) != "" {
+		profile, err := s.GuardianProfileRepo.FindByEmail(ctx, strings.TrimSpace(*req.Email))
+		if err == nil {
+			return profile, false, nil
+		}
+		if !errors.Is(err, peopleValues.ErrGuardianProfileNotFound) {
+			return nil, false, fmt.Errorf("database error checking existing guardian: %w", err)
+		}
+	}
+	profile, err := s.newGuardianProfile(ctx, req)
+	if err != nil {
+		return nil, false, err
+	}
+	profile, err = s.insertGuardianProfile(ctx, profile)
+	return profile, err == nil, err
+}
+
+func (s *RetainedGuardianService) newGuardianProfile(ctx context.Context, req peoplePorts.GuardianCreateRequest) (*peopleValues.GuardianProfileSnapshot, error) {
 	profile := &peopleValues.GuardianProfileSnapshot{
 		FirstName:              req.FirstName,
 		LastName:               req.LastName,
@@ -94,20 +138,10 @@ func (s *RetainedGuardianService) CreateGuardian(ctx context.Context, req people
 		return nil, newGuardianValidationError(err)
 	}
 
-	// Reject a duplicate email up front. The tenant-scoped UNIQUE(tenant_id,
-	// email) index forbids two guardians sharing an email, so without this
-	// pre-check the INSERT fails with a raw 23505 that surfaces to the user as a
-	// generic 500. Detect it as bad input instead and steer the caller to the
-	// existing-guardian picker (#1513) — the same German message and 400
-	// semantics as the batch student-create path (ValidateNewGuardians).
-	// FindByEmail matches case-insensitively (LOWER(email)), so it is at least
-	// as strict as the index and never lets a colliding email slip through.
-	if profile.Email != nil && strings.TrimSpace(*profile.Email) != "" {
-		if existing, err := s.GuardianProfileRepo.FindByEmail(ctx, strings.TrimSpace(*profile.Email)); err == nil && existing != nil {
-			return nil, newEmailInUseError(*profile.Email)
-		}
-	}
+	return profile, nil
+}
 
+func (s *RetainedGuardianService) insertGuardianProfile(ctx context.Context, profile *peopleValues.GuardianProfileSnapshot) (*peopleValues.GuardianProfileSnapshot, error) {
 	if err := s.GuardianProfileRepo.Create(ctx, profile); err != nil {
 		// TOCTOU guard: two concurrent creates can both pass the FindByEmail
 		// pre-check above and then race on the UNIQUE(tenant_id, email) index.

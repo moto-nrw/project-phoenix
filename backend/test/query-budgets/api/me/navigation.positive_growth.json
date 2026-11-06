@@ -1,6 +1,6 @@
 {
   "scenario": "api.me.navigation.positive_growth",
-  "max": 22,
+  "max": 20,
   "exact": true,
   "description": "GET /api/me/navigation: real caller, retained rows, tenant session/RLS, production host request memos and school settings; exact N3/N8 educational groups (including a real substitution) and supervised sessions. Serve-host family liveness excluded."
 }

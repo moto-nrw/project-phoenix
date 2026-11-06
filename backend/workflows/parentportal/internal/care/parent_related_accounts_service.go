@@ -82,29 +82,33 @@ func (s *Service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 		if err != nil {
 			return err
 		}
-		profileIDs := make([]int64, 0, len(links))
-		for _, link := range links {
-			profileIDs = append(profileIDs, link.GuardianProfileID)
-		}
-		profiles, err := s.GuardianProfileRepo.FindByIDs(txCtx, profileIDs)
-		if err != nil {
-			return err
-		}
-		out = make([]*RelatedAccount, 0, len(links))
-		for _, link := range links {
-			account, err := s.relatedAccountForLink(txCtx, link, profiles[link.GuardianProfileID], accountID, studentID)
-			if err != nil {
-				return err
-			}
-			if account == nil {
-				continue
-			}
-			out = append(out, account)
-		}
-		return nil
+		out, err = s.relatedAccountsForLinks(txCtx, links, accountID, studentID)
+		return err
 	})
 	if txErr != nil {
 		return nil, txErr
+	}
+	return out, nil
+}
+
+func (s *Service) relatedAccountsForLinks(txCtx context.Context, links []*GuardianRelationship, accountID, studentID int64) ([]*RelatedAccount, error) {
+	profileIDs := make([]int64, 0, len(links))
+	for _, link := range links {
+		profileIDs = append(profileIDs, link.GuardianProfileID)
+	}
+	profiles, err := s.GuardianProfileRepo.FindByIDs(txCtx, profileIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*RelatedAccount, 0, len(links))
+	for _, link := range links {
+		account, err := s.relatedAccountForLink(txCtx, link, profiles[link.GuardianProfileID], accountID, studentID)
+		if err != nil {
+			return nil, err
+		}
+		if account != nil {
+			out = append(out, account)
+		}
 	}
 	return out, nil
 }

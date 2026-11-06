@@ -20568,6 +20568,16 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerContext.StaffID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.OperationStaffIdentity.StaffID",
+      "reason": "Reads the tenant-scoped caller StaffID through the existing CallerContext capability; no write, lock or transaction boundary is introduced.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerContext.StaffID",
+      "target_owner": "identity-access"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.RosterStudents.FindByIDs",
       "classification": "query",
       "effect": "query",

@@ -721,4 +721,21 @@ func TestFormSchemaRepository_RLS_TenantIsolation(t *testing.T) {
 	})
 	require.Error(t, err, "cross-tenant FindByID must NOT see the other tenant's row")
 	assert.Nil(t, got)
+
+	for _, tenantID := range []int64{tenantA, tenantB} {
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			results, batchErr := repo.StudentExtraFieldSchemas(ctx, []int64{schemaA.ID})
+			require.NoError(t, batchErr)
+			require.Len(t, results, 1)
+			require.Equal(t, schemaA.ID, results[0].ID)
+			if tenantID == tenantA {
+				require.NoError(t, results[0].Err)
+				require.Equal(t, schemaA, results[0].Schema)
+			} else {
+				require.ErrorIs(t, results[0].Err, capability.ErrFormSchemaNotFound)
+				require.Nil(t, results[0].Schema)
+			}
+			return nil
+		}))
+	}
 }
