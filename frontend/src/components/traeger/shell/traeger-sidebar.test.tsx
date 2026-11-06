@@ -73,6 +73,7 @@ describe("TraegerSidebar", () => {
     for (const [group, name] of [
       ["Übersicht", "Dashboard"],
       ["Übersicht", "Schulen"],
+      ["Übersicht", "Stichtagszahlen"],
       ["Betreuung", "Ferienbetreuung"],
       ["Finanzen", "Abrechnung"],
     ] as const) {
@@ -85,9 +86,13 @@ describe("TraegerSidebar", () => {
     expect(linkNames(mainNav())).toEqual([
       "Dashboard",
       "Schulen",
+      "Stichtagszahlen",
       "Ferienbetreuung",
       "Abrechnung",
     ]);
+    expect(
+      mainNav().getByRole("link", { name: "Stichtagszahlen" }),
+    ).toHaveAttribute("href", "/stichtagszahlen");
     expect(mainNav().getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",
       "/uebersicht",
@@ -106,12 +111,16 @@ describe("TraegerSidebar", () => {
     sessionUser.permissions = ["traeger_overview:read"];
     render(<TraegerSidebar />);
 
-    expect(linkNames(mainNav())).toEqual(["Dashboard", "Schulen"]);
+    expect(linkNames(mainNav())).toEqual([
+      "Dashboard",
+      "Schulen",
+      "Stichtagszahlen",
+    ]);
     expect(mainNav().queryByText("Betreuung")).toBeNull();
     expect(mainNav().queryByText("Finanzen")).toBeNull();
   });
 
-  it("shows the Dashboard only with its right (#4674)", () => {
+  it("shows the Dashboard and the Stichtagszahlen only with their right (#4674, #4673)", () => {
     sessionUser.permissions = [];
     render(<TraegerSidebar />);
 

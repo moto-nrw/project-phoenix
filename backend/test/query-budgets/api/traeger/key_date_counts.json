@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.key_date_counts",
+  "max": 5,
+  "exact": true,
+  "description": "modules/traegerview — GET /traeger/schools/key-date-counts (#4673): the\nTräger row and the school IDs of the Träger, the school rows, then at\nOrganisation & Tenancy the Träger row again (the owner checks the Träger\nitself) and the captured Stichtagszahlen of all its schools, in one\nadministrative transaction. Flat in the number of schools."
+}
