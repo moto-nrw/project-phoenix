@@ -39,5 +39,7 @@ export function useTraegerOccupancy() {
       occupancy.failure,
     ),
     reload: occupancy.reload,
+    // Related actions (CSV export) can also discover a revoked permission.
+    reportError: guard.callbacks.onError,
   };
 }

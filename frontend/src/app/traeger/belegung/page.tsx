@@ -457,7 +457,7 @@ function ViewContent({
 }
 
 export default function TraegerOccupancyPage() {
-  const { occupancy, error } = useTraegerOccupancy();
+  const { occupancy, error, reportError } = useTraegerOccupancy();
   const { show: showActionError } = useApiErrorDisplay();
   const [view, setView] = useState<View>("schulen");
   const [search, setSearch] = useState("");
@@ -479,6 +479,7 @@ export default function TraegerOccupancyPage() {
         file.filename ?? `belegung-${occupancy?.day ?? "heute"}.csv`,
       );
     } catch (err) {
+      reportError(err);
       logger.error("traeger_occupancy_export_failed", {
         error: err instanceof Error ? err.message : String(err),
       });

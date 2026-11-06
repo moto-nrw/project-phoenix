@@ -304,9 +304,13 @@ describe("TraegerOccupancyPage", () => {
     expect(screen.queryByText("Bären")).not.toBeInTheDocument();
   });
 
-  it.each([401, 403, 404])(
-    "drops every trace of the loaded figures when a refresh answers %i",
-    async (status) => {
+  it.each(
+    ["refresh", "export"].flatMap((source) =>
+      [401, 403, 404].map((status) => ({ source, status })),
+    ),
+  )(
+    "drops every trace of the loaded figures when $source answers $status",
+    async ({ source, status }) => {
       mockFetchOccupancy.mockResolvedValueOnce(OCCUPANCY);
       renderPage();
       await screen.findByText("14 von 16");
@@ -317,16 +321,28 @@ describe("TraegerOccupancyPage", () => {
       const assign = vi
         .spyOn(window.location, "assign")
         .mockImplementation(() => undefined);
-      mockFetchOccupancy.mockRejectedValue(new ApiError("refused", status));
-      await act(async () => {
-        await revalidateAll();
-      });
+      const refusal = new ApiError("refused", status);
+      if (source === "export") {
+        mockDownload.mockRejectedValue(refusal);
+        fireEvent.click(
+          screen.getByRole("button", { name: "Belegung herunterladen" }),
+        );
+        const csv = await screen.findByRole("menuitem", { name: "CSV" });
+        await act(async () => {
+          fireEvent.click(csv);
+        });
+      } else {
+        mockFetchOccupancy.mockRejectedValue(refusal);
+        await act(async () => {
+          await revalidateAll();
+        });
+      }
 
       if (status === 401) {
         // An ended session goes to the sign-in instead of an error card.
         await vi.waitFor(() => expect(assign).toHaveBeenCalled());
       } else {
-        expect(await screen.findByRole("alert")).toBeInTheDocument();
+        expect((await screen.findAllByRole("alert")).length).toBeGreaterThan(0);
       }
       // Head of the page: no day, no time of the old answer, no school count.
       expect(
@@ -348,6 +364,36 @@ describe("TraegerOccupancyPage", () => {
         screen.queryByRole("menuitem", { name: "CSV" }),
       ).not.toBeInTheDocument();
       assign.mockRestore();
+    },
+  );
+
+  it.each([new ApiError("unavailable", 503), new TypeError("Failed to fetch")])(
+    "keeps loaded figures and allows retry after a transient export failure: %s",
+    async (failure) => {
+      mockFetchOccupancy.mockResolvedValue(OCCUPANCY);
+      mockDownload.mockRejectedValueOnce(failure);
+      renderPage();
+      await screen.findByText("14 von 16");
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Belegung herunterladen" }),
+      );
+      fireEvent.click(await screen.findByRole("menuitem", { name: "CSV" }));
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(screen.getByText("14 von 16")).toBeInTheDocument();
+      expect(
+        screen.getAllByRole("link", { name: "OGS Am Bach" }).length,
+      ).toBeGreaterThan(0);
+      expect(
+        screen.getByText("09.09.2026, Stand 12:00 Uhr"),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Belegung herunterladen" }),
+      );
+      expect(
+        await screen.findByRole("menuitem", { name: "CSV" }),
+      ).toBeEnabled();
     },
   );
 
