@@ -341,7 +341,7 @@ func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitat
 		invitation.Token = uuid.Must(uuid.NewV4()).String()
 		invitation.EmailSentAt = nil
 		invitation.EmailError = nil
-		if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {
+		if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, invitation.ApprovalStatus); err != nil {
 			return failed(opGuardianInviteResend, err)
 		}
 		l.logger.Info("guardian invitation resent",

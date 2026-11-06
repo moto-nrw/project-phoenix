@@ -754,9 +754,12 @@ func (s *lifecycleInvitations) InsertGuardianInvitation(_ context.Context, invit
 	return s.add(invitation), nil
 }
 
-func (s *lifecycleInvitations) UpdateGuardianInvitation(_ context.Context, invitation domain.GuardianInvitation) error {
+func (s *lifecycleInvitations) UpdateGuardianInvitation(_ context.Context, invitation domain.GuardianInvitation, expectedApprovalStatus string) error {
 	if s.updateErr != nil {
 		return s.updateErr
+	}
+	if stored, ok := s.rows[invitation.ID]; !ok || stored.AcceptedAt != nil || stored.ApprovalStatus != expectedApprovalStatus {
+		return domain.ErrGuardianInvitationNotFound
 	}
 	s.rows[invitation.ID] = invitation
 	return nil

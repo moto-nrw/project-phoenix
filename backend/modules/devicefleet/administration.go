@@ -124,10 +124,19 @@ func (s *administration) GetDeviceByDeviceID(ctx context.Context, deviceID strin
 	return administrationDevicePointer(device), nil
 }
 
-// UpdateDevice updates an existing IoT device.
+// UpdateDevice applies a school's edit to an existing IoT device. It writes
+// only the fields that edit owns (device_id, device_type, name,
+// registered_by_id, and status when the caller names one): the API key,
+// last_seen, room, archive and transfer columns belong to other flows, and a
+// key rotation, deactivation or transfer that commits after this unlocked
+// read must not be reverted. An empty status keeps the stored one.
 func (s *administration) UpdateDevice(ctx context.Context, device *Device) error {
 	if device == nil || device.ID <= 0 {
 		return &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationInvalidDeviceData}
+	}
+	columns := []string{"device_id", "device_type", "name", "registered_by_id"}
+	if device.Status != "" {
+		columns = append(columns, "status")
 	}
 	if err := validateAdministrationDevice(device); err != nil {
 		return &AdministrationError{Op: "UpdateDevice", Err: err}
@@ -154,13 +163,21 @@ func (s *administration) UpdateDevice(ctx context.Context, device *Device) error
 		}
 	}
 
-	updated, err := s.devices.UpdateDevice(ctx, UpdateDevice{
+	affected, err := s.devices.UpdateDeviceColumns(ctx, UpdateDevice{
 		ID: device.ID, DeviceID: device.DeviceID, DeviceType: device.DeviceType, Name: device.Name,
-		Status: DeviceStatus(device.Status), APIKey: device.APIKey, APIKeyHash: device.APIKeyHash, MaskedAPIKey: device.MaskedAPIKey, LastSeen: device.LastSeen,
-		RegisteredByID: device.RegisteredByID, RoomID: device.RoomID, ArchivedAt: device.ArchivedAt,
-		TransferredToDeviceID: device.TransferredToDeviceID,
-	})
+		Status: DeviceStatus(device.Status), RegisteredByID: device.RegisteredByID,
+	}, columns)
 	if err != nil {
+		return &AdministrationError{Op: "UpdateDevice", Err: err}
+	}
+	if affected == 0 {
+		return &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationDeviceNotFound}
+	}
+	updated, err := s.devices.FindDevice(ctx, device.ID)
+	if err != nil {
+		if errors.Is(err, ErrDeviceNotFound) {
+			return &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationDeviceNotFound}
+		}
 		return &AdministrationError{Op: "UpdateDevice", Err: err}
 	}
 	*device = *administrationDevicePointer(updated)

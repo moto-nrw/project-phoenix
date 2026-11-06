@@ -361,17 +361,27 @@ func (s *OperatorAuthentication) UpdateProfile(ctx context.Context, operatorID i
 	if err != nil {
 		return domain.Operator{}, err
 	}
-	operator, err := s.operators.findOperatorByID(ctx, operatorID)
+	// The whole row is written back, so it is read under a lock: a status
+	// change committed meanwhile must not be reverted by this edit.
+	var updated identityaccess.Operator
+	err = s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+		operator, findErr := s.operators.findOperatorForUpdate(txCtx, operatorID)
+		if findErr != nil {
+			return findErr
+		}
+		operator.DisplayName = displayName
+		stored, updateErr := s.operators.UpdateOperator(txCtx, identityaccess.Operator(operator))
+		if updateErr != nil {
+			return fmt.Errorf("failed to update operator profile: %w", updateErr)
+		}
+		updated = stored
+		return nil
+	})
 	if errors.Is(err, identityaccess.ErrOperatorNotFound) {
 		return domain.Operator{}, identityaccess.ErrOperatorNotFound
 	}
 	if err != nil {
 		return domain.Operator{}, err
-	}
-	operator.DisplayName = displayName
-	updated, err := s.operators.UpdateOperator(ctx, identityaccess.Operator(operator))
-	if err != nil {
-		return domain.Operator{}, fmt.Errorf("failed to update operator profile: %w", err)
 	}
 	return domain.Operator(updated), nil
 }
@@ -399,9 +409,19 @@ func (s *OperatorAuthentication) ChangePassword(ctx context.Context, operatorID 
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
-	operator.PasswordHash = hash
 	return s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if _, err := s.operators.UpdateOperator(txCtx, identityaccess.Operator(operator)); err != nil {
+		// The verification above ran without a lock and the hash is slow, so
+		// re-read the row locked: a deactivation committed meanwhile stays in
+		// force, and a password rotated meanwhile invalidates the proof.
+		current, err := s.operators.findOperatorForUpdate(txCtx, operatorID)
+		if err != nil {
+			return err
+		}
+		if current.PasswordHash != operator.PasswordHash {
+			return identityaccess.ErrOperatorPasswordMismatch
+		}
+		current.PasswordHash = hash
+		if _, err := s.operators.UpdateOperator(txCtx, identityaccess.Operator(current)); err != nil {
 			return fmt.Errorf("failed to update password: %w", err)
 		}
 		if err := s.credentials.RevokeEmailChanges(txCtx, operatorID); err != nil {

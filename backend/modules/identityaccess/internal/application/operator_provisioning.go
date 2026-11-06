@@ -401,7 +401,9 @@ func (p *OperatorProvisioning) confirmEmailChangeInAdmin(txCtx context.Context, 
 	} else if !errors.Is(findErr, identityaccess.ErrOperatorNotFound) {
 		return identityaccess.OperatorEmailChangeResult{}, fmt.Errorf("check operator email uniqueness: %w", findErr)
 	}
-	operator, operatorErr := p.operators.findOperatorByID(txCtx, change.OperatorID)
+	// Locked: the whole row is written back below, so a deactivation that
+	// commits meanwhile must be seen here, not reverted.
+	operator, operatorErr := p.operators.findOperatorForUpdate(txCtx, change.OperatorID)
 	if operatorErr != nil {
 		if errors.Is(operatorErr, identityaccess.ErrOperatorNotFound) {
 			return identityaccess.OperatorEmailChangeResult{}, identityaccess.ErrOperatorEmailChangeNotFound

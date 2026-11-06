@@ -335,7 +335,7 @@ func (l *AccountLifecycle) createStudentInvitation(ctx context.Context, req doma
 		// the upgrade (#2172).
 		if roleUpgrade && !openInvitation.RoleUpgrade {
 			openInvitation.RoleUpgrade = true
-			if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation); err != nil {
+			if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation, openInvitation.ApprovalStatus); err != nil {
 				return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
 			}
 		}
@@ -362,7 +362,7 @@ func (l *AccountLifecycle) closeSupersededApprovalRequests(ctx context.Context, 
 		inv.ApprovedAt = nil
 		accepted := now
 		inv.AcceptedAt = &accepted
-		if err := l.invitations.UpdateGuardianInvitation(ctx, inv); err != nil {
+		if err := l.invitations.UpdateGuardianInvitation(ctx, inv, domain.GuardianInvitationApprovalPending); err != nil {
 			return failed(opGuardianInviteToStudent, err)
 		}
 		l.logger.Info("guardian approval request closed: access granted directly",
@@ -522,11 +522,12 @@ func (l *AccountLifecycle) openStudentInvitations(ctx context.Context, guardianP
 
 func (l *AccountLifecycle) expireInvitations(ctx context.Context, invitations []domain.GuardianInvitation, now time.Time) error {
 	for _, inv := range invitations {
+		readStatus := inv.ApprovalStatus
 		inv.ExpiresAt = now
 		if inv.ApprovalStatus == domain.GuardianInvitationApprovalPending {
 			inv.ApprovalStatus = domain.GuardianInvitationApprovalRejected
 		}
-		if err := l.invitations.UpdateGuardianInvitation(ctx, inv); err != nil {
+		if err := l.invitations.UpdateGuardianInvitation(ctx, inv, readStatus); err != nil {
 			return err
 		}
 	}
@@ -693,7 +694,7 @@ func (l *AccountLifecycle) waiveInvitationApproval(ctx context.Context, openInvi
 		openInvitation.ExpiresAt = time.Now().Add(expiry)
 		openInvitation.EmailSentAt = nil
 		openInvitation.EmailError = nil
-		if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation); err != nil {
+		if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation, domain.GuardianInvitationApprovalPending); err != nil {
 			return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
 		}
 	}
