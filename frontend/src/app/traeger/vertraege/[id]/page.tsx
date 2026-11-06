@@ -56,6 +56,7 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import {
   type CareContractDetail,
+  type ContractVersion,
   discardCareContract,
   downloadCareContract,
   fetchCareContract,
@@ -574,10 +575,20 @@ export default function TraegerVertragPage() {
  * contract (#4681).
  */
 function contractEnd(contract: CareContractDetail): string | null {
-  const effective = contract.versions.filter(
-    (version) => version.status === "wirksam" || version.status === "abgeloest",
-  );
-  const newest = effective.at(-1);
+  // The latest effective date, not the highest number: a change may go in
+  // front of a planned version.
+  const newest = contract.versions
+    .filter(
+      (version) =>
+        version.status === "wirksam" || version.status === "abgeloest",
+    )
+    .reduce<ContractVersion | null>(
+      (latest, version) =>
+        latest === null || version.effectiveFrom > latest.effectiveFrom
+          ? version
+          : latest,
+      null,
+    );
   return newest ? newest.endsOn : contract.version.endsOn;
 }
 

@@ -545,7 +545,13 @@ describe("TraegerVertragPage", () => {
           ...monday,
           { ...monday[1]!, weekday: "wed" },
         ]),
-        version(3, "abgeloest", "2027-02-01", "2027-02-28", [monday[0]!, late]),
+        {
+          ...version(3, "abgeloest", "2027-02-01", "2027-02-28", [
+            monday[0]!,
+            late,
+          ]),
+          endsOn: "2027-07-31",
+        },
       ],
     } satisfies CareContractDetail);
     renderPage();
@@ -566,5 +572,11 @@ describe("TraegerVertragPage", () => {
         "01.02.2027 bis 28.02.2027 · Änderung der Betreuung · 1 Tag geändert",
       ),
     ).toBeInTheDocument();
+    // The contract ends as the planned version from March says (open),
+    // not as version 3, which has the highest number.
+    expect(
+      screen.getByText("Bis zum Ende des Schuljahres"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/endet am 31\.07\.2027/)).not.toBeInTheDocument();
   });
 });
