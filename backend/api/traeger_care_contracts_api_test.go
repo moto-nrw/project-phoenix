@@ -628,6 +628,69 @@ func TestCareContractMailFollowsTheCurrentStateOfTheAddress(t *testing.T) {
 	assert.Contains(t, send(), fmt.Sprintf(`"sent":[%d]`, id), "the old mail decides nothing")
 }
 
+// A correction is a new address. The address the mail already went to is none, in
+// whatever spelling: its last result still counts, so the provider is asked and an
+// answer it cannot give refuses the mail (#5957).
+func TestCareContractSameAddressAsCorrectionKeepsItsResult(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Gleiche Adresse")
+	token := f.office.token
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	rec := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts", map[string]any{"contracts": []any{f.key()}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	id := decodeSchoolPortalData[careContractCreateBody](t, rec.Body.Bytes()).Created[0].ID
+	first := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send", map[string]any{"contract_ids": []int64{id}})
+	require.Equal(t, http.StatusAccepted, first.Code, first.Body.String())
+	mails := func() int {
+		t.Helper()
+		var count int
+		require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM platform.email_outbox WHERE organization_id = ? AND kind = 'care_contract' AND related_entity_id = ?`,
+			f.office.organization, id).Scan(context.Background(), &count))
+		return count
+	}
+	report := func(address, state string) {
+		t.Helper()
+		_, err := f.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW(), delivery_state = ?, delivery_state_at = NOW()
+			WHERE organization_id = ? AND kind = 'care_contract' AND related_entity_id = ? AND LOWER(recipient->>'address') = LOWER(?)`, state, f.office.organization, id, address)
+		require.NoError(t, err)
+	}
+	resend := func(address string) string {
+		t.Helper()
+		rec := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send", map[string]any{"contract_ids": []int64{id}, "recipient_email": address})
+		require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+		return rec.Body.String()
+	}
+	detail := traegerJSON(t, f.traeger, token, http.MethodGet, contractPath(id, ""), nil)
+	require.Equal(t, http.StatusOK, detail.Code, detail.Body.String())
+	report(decodeSchoolPortalData[careContractDetailBody](t, detail.Body.Bytes()).Mailings[0].Recipient, "failed")
+	// The provider's record is shared by the tests of this binary: this address is
+	// this test's alone.
+	address := fmt.Sprintf("gleich-%d@example.org", testpkg.UniqueTestTenantID(t))
+	assert.Contains(t, resend(address), fmt.Sprintf(`"sent":[%d]`, id), "a different address is free to try")
+	require.Equal(t, 2, mails())
+	report(address, "complained")
+
+	for _, spelling := range []string{address, strings.ToUpper(address)} {
+		testProviderBlocks.Store(address, deliveryContract.EmailProviderBlockActive)
+		assert.Contains(t, resend(spelling), `"reason":"mail_blocked"`, "the same address, spelled %q", spelling)
+		testProviderBlocks.Store(address, deliveryContract.EmailProviderBlockUnreadable)
+		assert.Contains(t, resend(spelling), `"reason":"mail_block_unreadable"`, "an unknown block sends nothing")
+	}
+	assert.Equal(t, 2, mails(), "no further mail joined the queue")
+
+	// An older mail counts too: back to the address, past another one that failed.
+	other := fmt.Sprintf("zwischen-%d@example.org", testpkg.UniqueTestTenantID(t))
+	assert.Contains(t, resend(other), fmt.Sprintf(`"sent":[%d]`, id), "a different address is free to try")
+	report(other, "failed")
+	testProviderBlocks.Store(address, deliveryContract.EmailProviderBlockActive)
+	assert.Contains(t, resend(address), `"reason":"mail_blocked"`, "the older mail to this address still counts")
+	assert.Equal(t, 3, mails())
+
+	testProviderBlocks.Store(address, deliveryContract.EmailProviderBlockNone)
+	assert.Contains(t, resend(address), fmt.Sprintf(`"sent":[%d]`, id), "the block is gone: the old mail decides nothing")
+	assert.Equal(t, 4, mails())
+}
+
 // A school's list and stop hold a contract's mail back, and the Träger reads the
 // reason as it is now, through a read that works inside its own transaction.
 func TestCareContractMailNamesAHoldOfTheSchool(t *testing.T) {

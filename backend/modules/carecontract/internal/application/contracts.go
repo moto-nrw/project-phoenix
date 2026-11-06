@@ -409,24 +409,20 @@ func (c *Contracts) deliveryParty(ctx context.Context, organizationID int64, rec
 	if destination != "" {
 		party.Email = destination
 	}
-	if err := c.refuseHeldMail(ctx, organizationID, party.Email, mailings, destination); err != nil {
+	if err := c.refuseHeldMail(ctx, organizationID, party.Email, mailings); err != nil {
 		return carecontract.Party{}, 0, err
 	}
 	return party, len(mailings), nil
 }
 
 // refuseHeldMail stops a mail that would stay back or arrive twice. The state of the
-// address now decides, not what became of an older mail: a new destination has no
-// history of its own, so the last mail's result does not count for it.
-func (c *Contracts) refuseHeldMail(ctx context.Context, organizationID int64, address string, mailings []carecontract.Mailing, destination string) error {
-	block := ""
-	if len(mailings) > 0 && destination == "" {
-		block = mailings[0].SendBlock
-	} else {
-		var err error
-		if block, err = c.post.ContractMailBlock(ctx, organizationID, address, ""); err != nil {
-			return fmt.Errorf("care contract: mail block: %w", err)
-		}
+// address now decides, not what became of an older mail: an address without a mail
+// has no history of its own, and one the contract already went to keeps it, however
+// the correction spells it.
+func (c *Contracts) refuseHeldMail(ctx context.Context, organizationID int64, address string, mailings []carecontract.Mailing) error {
+	block, err := c.mailBlock(ctx, organizationID, address, mailings)
+	if err != nil {
+		return fmt.Errorf("care contract: mail block: %w", err)
 	}
 	switch block {
 	case "":
@@ -438,6 +434,25 @@ func (c *Contracts) refuseHeldMail(ctx context.Context, organizationID int64, ad
 	default:
 		return carecontract.ErrMailBlocked
 	}
+}
+
+// mailBlock reads the block of the address with the result of its newest mail. The
+// newest mailing of all already holds its block.
+func (c *Contracts) mailBlock(ctx context.Context, organizationID int64, address string, mailings []carecontract.Mailing) (string, error) {
+	for i, mailing := range mailings {
+		if !sameMailAddress(mailing.Recipient, address) {
+			continue
+		}
+		if i == 0 {
+			return mailing.SendBlock, nil
+		}
+		return c.post.ContractMailBlock(ctx, organizationID, address, mailing.Outcome)
+	}
+	return c.post.ContractMailBlock(ctx, organizationID, address, "")
+}
+
+func sameMailAddress(a, b string) bool {
+	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
 }
 
 // frozenDocument is the stored PDF, rendered and stored at the first send.

@@ -241,6 +241,12 @@ const (
 // a provider no such block exists. It answers for every address and has no error:
 // an address it could not read is EmailProviderBlockUnreadable. The caller only asks
 // about addresses its own mail ran into, so this says nothing about anyone else's.
+//
+// Callers read this inside their transaction, because the routes run in one and the
+// answer belongs to the check next to the write. That is a named exception to
+// keeping provider calls out of transactions (#5957): it happens only for an address
+// whose mail left a block, and providerBlockBudget and providerBlockReads bound each
+// call. The runbook (monitoring/runbooks/email-delivery.md) states the limit.
 func (r *EmailReconciliation) ProviderEmailBlocks(ctx context.Context, addresses []string) map[string]deliveryContract.EmailProviderBlock {
 	blocks := make(map[string]deliveryContract.EmailProviderBlock, len(addresses))
 	ctx, cancel := context.WithTimeout(ctx, providerBlockBudget)

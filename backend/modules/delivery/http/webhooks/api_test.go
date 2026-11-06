@@ -3,10 +3,12 @@ package webhooks
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -66,4 +68,22 @@ func TestWebhookRefusesAnOversizedBodyBeforeVerifying(t *testing.T) {
 
 	assert.ErrorIs(t, *got, ErrBodyTooLarge)
 	assert.Empty(t, ingest.provider)
+}
+
+// A body that breaks off is no body too large: the provider must try again.
+func TestWebhookTellsAnInterruptedBodyFromAnOversizedOne(t *testing.T) {
+	t.Parallel()
+	ingest := &stubIngest{}
+	var failure error
+	failed := func(w http.ResponseWriter, _ *http.Request, err error) {
+		failure = err
+		w.WriteHeader(http.StatusTeapot)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/email/delivery/lettermint", iotest.ErrReader(io.ErrUnexpectedEOF))
+
+	NewResource(ingest, failed, nil).Router().ServeHTTP(httptest.NewRecorder(), request)
+
+	assert.ErrorIs(t, failure, ErrBodyUnreadable)
+	assert.NotErrorIs(t, failure, ErrBodyTooLarge)
+	assert.Empty(t, ingest.provider, "half a body is never verified")
 }

@@ -8,6 +8,17 @@ import (
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 )
 
+// letterCurrentAddressSQL is where another mail of a delivery row would go.
+const letterCurrentAddressSQL = `COALESCE((SELECT current_contact.address FROM platform.delivery_guardian_contacts AS current_contact
+		WHERE current_contact.tenant_id = delivery.tenant_id AND current_contact.source = 'profile'
+			AND current_contact.guardian_profile_id = delivery.guardian_profile_id), LOWER(TRIM(delivery.recipient_email)))`
+
+// refusedElsewhereSQL is a mail someone unsubscribed from or complained about, at an
+// address the person no longer has. The refusal stays with that address, so the mail
+// counts as failed for the corrected one and never for the same one.
+const refusedElsewhereSQL = `(outbox.status = 'sent' AND outbox.delivery_state IN ('unsubscribed', 'complained')
+		AND LOWER(TRIM(outbox.recipient->>'address')) IS DISTINCT FROM ` + letterCurrentAddressSQL + `)`
+
 // emailDeliveryStatusesSQL reads a mail's result with the address it went to and,
 // apart from it, the person's current address, where another mail would go.
 const emailDeliveryStatusesSQL = `
@@ -18,6 +29,7 @@ const emailDeliveryStatusesSQL = `
 			CASE
 				WHEN delivery.outbox_id IS NULL THEN 'not_sent'
 				WHEN outbox.status = 'sent' AND outbox.delivery_state IN ('failed', 'suppressed') THEN 'failed'
+				WHEN ` + refusedElsewhereSQL + ` THEN 'failed'
 				WHEN outbox.status = 'sent' THEN 'sent'
 				WHEN outbox.status = 'dead_letter' OR ` + heldMailSQL + ` THEN 'failed'
 				WHEN outbox.status = 'cancelled' THEN 'cancelled'
@@ -29,7 +41,15 @@ const emailDeliveryStatusesSQL = `
 			contact.emails_stopped_at IS NOT NULL AND EXISTS (
 				SELECT 1 FROM platform.delivery_guardian_contacts AS other
 				WHERE other.tenant_id = delivery.tenant_id AND other.address = contact.address
-					AND other.emails_stopped_at IS NULL) AS stop_shared
+					AND other.emails_stopped_at IS NULL) AS stop_shared,
+			EXISTS (
+				SELECT 1 FROM platform.email_outbox AS earlier
+				WHERE earlier.tenant_id = delivery.tenant_id
+					AND earlier.related_entity_type = delivery.related_entity_type
+					AND earlier.related_entity_id = delivery.related_entity_id
+					AND earlier.id IS DISTINCT FROM delivery.outbox_id
+					AND earlier.status = 'sent' AND earlier.delivery_state IN ('unsubscribed', 'complained')
+					AND LOWER(TRIM(earlier.recipient->>'address')) = ` + letterCurrentAddressSQL + `) AS current_address_refused
 		FROM platform.delivery_email_deliveries AS delivery
 		LEFT JOIN platform.email_outbox AS outbox ON outbox.id = delivery.outbox_id
 		LEFT JOIN platform.delivery_guardian_contacts AS contact
@@ -59,6 +79,7 @@ type emailDeliveryStatusRow struct {
 	Stopped           bool       `bun:"stopped"`
 	StopShared        bool       `bun:"stop_shared"`
 	MailedTo          *string    `bun:"mailed_to"`
+	AddressRefused    bool       `bun:"current_address_refused"`
 }
 
 // heldMailSQL is a cancelled mail that stayed back for a hold, whether its own event
@@ -81,6 +102,7 @@ func (s *Store) ClaimFailedEmailDelivery(ctx context.Context, tenantID, delivery
 			AND (outbox.status = 'dead_letter'
 				OR `+heldMailSQL+`
 				OR (outbox.status = 'sent' AND outbox.delivery_state IN ('failed', 'suppressed'))
+				OR `+refusedElsewhereSQL+`
 				OR (outbox.status = 'sent' AND outbox.delivery_state = 'delayed' AND outbox.delivery_state_at < ?))`,
 		tenantID, deliveryID, deliveryContract.MailHeldByList, deliveryContract.MailHeldByStop,
 		time.Now().Add(-deliveryContract.EmailDelayLimit)).Exec(ctx)
@@ -112,7 +134,7 @@ func (s *Store) EmailDeliveryStatuses(ctx context.Context, tenantID int64, relat
 			Reachability: row.Reachability, EmailStatus: row.EmailStatus, LastError: row.LastError,
 			SentAt: row.SentAt, Attempts: row.Attempts,
 		}
-		status.Stopped, status.StopShared = row.Stopped, row.StopShared
+		status.Stopped, status.StopShared, status.CurrentAddressRefused = row.Stopped, row.StopShared, row.AddressRefused
 		if row.AddressMark != nil {
 			status.AddressMark = deliveryContract.EmailAddressMark(*row.AddressMark)
 		}

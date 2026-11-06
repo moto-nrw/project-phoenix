@@ -30,13 +30,37 @@ Ausfalls wirklich ungültige Adresse steht deshalb erst auf der Liste, wenn der
 Webhook das Ereignis nachliefert; bis dahin hält Lettermint sie über seine eigene
 Sperre zurück.
 
+### Bewusste Lücke: Beschwerde nach `delivered`
+
+Der Abgleich prüft nur Mails ohne Ergebnis, zugestellte also nicht mehr. Kommt eine
+Beschwerde nach `delivered`, während der Webhook ausgefallen ist, geht sie für moto
+verloren: Die Adresse fehlt auf der Sperrliste der Schule, die Mail bleibt
+„zugestellt“, und kein Alarm nennt diesen Fall. Der Alarm zum abgeschalteten Webhook
+sagt nur, dass Ereignisse fehlen können. Lettermint hält die Adresse über seine
+eigene Sperre weiter zurück.
+
+Das ist eine bewusste Entscheidung (#5957). Zugestellte Mails weiter zu prüfen, würde
+die Team-API (300 Anfragen pro Minute) bis zu 28 Tage lang mit jeder zugestellten
+Mail belasten. Die Lücke wird nach dem Staging-Test (#5935) neu bewertet.
+
+Nach einem Webhook-Ausfall deshalb die Beschwerden der Ausfallzeit im Dashboard von
+Lettermint ansehen.
+
+## Warnung `email webhook body could not be read`
+
+Die Verbindung von Lettermint ist beim Lesen des Webhook-Bodys abgebrochen oder in
+ein Timeout gelaufen. moto antwortet mit 503, Lettermint sendet das Ereignis erneut.
+Einzelne Zeilen: nichts tun. Nur ein Body über 1 MiB bekommt 413, und nur dann geht
+das Ereignis verloren.
+
 ## Warnung `email accepted without a provider id`
 
 Lettermint hat eine Mail angenommen, aber die Antwort 250 enthält kein
 `id=<uuid>`. Der Abgleich kann diese Mail nicht prüfen, sie hängt allein am
 Webhook. Die Zeile nennt `message_id` und `template`, nie die Adresse. Tritt sie
 bei jeder Mail auf, hat sich das Antwortformat geändert: Der Abgleich läuft dann
-leer, ohne dass der Alarm anschlägt.
+leer, ohne dass der Alarm anschlägt. Der Notweg hängt nicht an dieser ID: Eine
+Sicherheitsmail mit offener Notweg-Anforderung läuft auch ohne sie darüber.
 
 ## Alarm „Security mail over fallback“
 
@@ -97,3 +121,24 @@ könnte eine Schule die teamweite Sperre einer fremden Adresse löschen. Hat die
 Adresse bei Lettermint eine `manual`- oder `unsubscribe`-Sperre, löscht moto
 nichts und meldet das. Ohne `EMAIL_PROVIDER=lettermint` leert das Aufheben nur die
 Liste der Schule.
+
+### Grenze: Anbieter-Abfrage in Transaktionen
+
+Den aktuellen Stand der Sperre fragt moto bei Lettermint innerhalb offener
+Datenbank-Transaktionen ab (`ProviderEmailBlocks`, #5957). Das ist eine begründete
+Ausnahme: Die Abfrage gehört zur Prüfung direkt vor dem Schreiben, und die Routen
+laufen in einer Transaktion je Anfrage.
+
+Es gelten diese Grenzen:
+
+- Gefragt wird nur nach Adressen, bei denen eine Mail eine Sperre hinterlassen hat
+  (Sperre, Abmeldung, Beschwerde). Ohne solche Adresse gibt es keine Abfrage.
+- Ein Aufruf dauert höchstens 3 Sekunden und stellt höchstens 10 Anfragen. Was er
+  nicht lesen kann, gilt als `unreadable`, und moto sendet nichts.
+- Sammelversand von Verträgen ruft das je Vertrag mit einem solchen Ergebnis einmal
+  auf. Die 3 Sekunden gelten dort pro Vertrag, nicht pro Anfrage.
+
+Solange die Abfrage läuft, belegt die Anfrage eine Datenbankverbindung und hält ihre
+Zeilensperren (zum Beispiel auf den Eltern-Profilen beim Einladen). Antwortet
+Lettermint langsam und häufen sich dann Wartezeiten bei diesen Abläufen: Status von
+Lettermint prüfen und die Warnung `the provider's block could not be read` ansehen.

@@ -2,14 +2,17 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/chi/v5"
@@ -33,6 +36,7 @@ func TestEmailWebhookFailuresUseTheEnvelopeWithRegisteredCodes(t *testing.T) {
 		"signature":        {deliveryContract.ErrEmailWebhookSignature, http.StatusUnauthorized, "general.permission"},
 		"payload":          {fmt.Errorf("%w: secret detail", deliveryContract.ErrEmailWebhookPayload), http.StatusBadRequest, "general.input"},
 		"too large":        {emailWebhooksHTTP.ErrBodyTooLarge, http.StatusRequestEntityTooLarge, "general.request_too_large"},
+		"interrupted body": {emailWebhooksHTTP.ErrBodyUnreadable, http.StatusServiceUnavailable, "general.unavailable"},
 		"store":            {errors.New("database secret detail"), http.StatusInternalServerError, "general.server"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -117,4 +121,48 @@ func TestEmailWebhookRateLimitWritesTheSecurityEvent(t *testing.T) {
 
 	require.Positive(t, rejected)
 	assert.Equal(t, rejected, strings.Count(logs.String(), customMiddleware.EventRateLimitExceed))
+}
+
+type noWebhookIngest struct{ calls *int }
+
+func (i noWebhookIngest) IngestEmailWebhook(context.Context, string, func(string) string, []byte) error {
+	*i.calls++
+	return nil
+}
+
+// Through the mounted route: the provider retries a 503 and drops a 413, so only a
+// body that is really too large may lose its event. A body that broke off pages
+// nobody: the sender's connection failed, and it sends again.
+func TestEmailWebhookRouteAnswersAnInterruptedBodyWithARetry(t *testing.T) {
+	t.Parallel()
+	for name, test := range map[string]struct {
+		body   io.Reader
+		status int
+		code   string
+	}{
+		"broken off": {iotest.ErrReader(io.ErrUnexpectedEOF), http.StatusServiceUnavailable, "general.unavailable"},
+		"timed out":  {iotest.ErrReader(context.DeadlineExceeded), http.StatusServiceUnavailable, "general.unavailable"},
+		"too large":  {strings.NewReader(strings.Repeat("x", 1<<20+1)), http.StatusRequestEntityTooLarge, "general.request_too_large"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			calls := 0
+			router := chi.NewRouter()
+			mountEmailWebhooks(router, noWebhookIngest{calls: &calls})
+			capture := apiCommon.NewServerErrorCapture()
+			request := httptest.NewRequest(http.MethodPost, emailWebhookPath+"/email/delivery/lettermint", test.body)
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, request.WithContext(apiCommon.WithServerErrorCapture(request.Context(), capture)))
+
+			assert.Equal(t, test.status, recorder.Code)
+			var problem struct {
+				Code string `json:"code"`
+			}
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &problem))
+			assert.Equal(t, test.code, problem.Code)
+			assert.Zero(t, calls, "half a body is never ingested")
+			assert.NoError(t, capture.Err())
+		})
+	}
 }

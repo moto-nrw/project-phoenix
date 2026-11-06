@@ -390,6 +390,55 @@ func TestClaimKeepsSystemMailAmongSecurityMailByAge(t *testing.T) {
 }
 
 // sendEventMail claims and finalizes one queued mail as the worker does.
+// The event can beat the provider's 250 answer, and that answer may name no ID. The
+// open request decides, not the ID: the code reaches the person over the fallback,
+// and only once (#5957).
+func TestRerouteDuringTheSendWithoutAProviderIDStillTakesTheFallbackOnce(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	mail := enqueueEventMail(t, db, store, ctx, testpkg.Tenant(t), "race-no-id", true)
+	fence := startEventMail(t, store, ctx, mail.ID)
+	token := eventMailToken(t, db, mail.ID)
+	event := eventAt(token, "suppressed", domain.EmailDeliverySuppressed, time.Now())
+	event.Reroute, event.KeepsAddress = true, true
+	result, err := store.RecordEmailDeliveryEvent(ctx, event)
+	require.NoError(t, err)
+	require.True(t, result.Rerouted)
+
+	finalized, err := store.FinalizeSent(ctx, domain.TransportEmail, mail.ID, fence, json.RawMessage(`{"message_id":"a@mail.example"}`), time.Now())
+
+	require.NoError(t, err)
+	require.True(t, finalized)
+	status, _, _ := mailStatus(t, db, mail.ID)
+	assert.Equal(t, "pending", status, "the acceptance is what the event already refuted, with or without an ID")
+	assert.Zero(t, mailAttempts(t, db, mail.ID), "the fallback has attempts of its own")
+
+	now := time.Now()
+	claimed, err := store.Claim(ctx, domain.TransportEmail, 50, now, now.Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+	assert.Equal(t, mail.ID, claimed[0].ID)
+	assert.True(t, claimed[0].UseFallback, "this try goes over the fallback")
+	fence, active, err := store.StartDelivery(ctx, domain.TransportEmail, mail.ID, *claimed[0].LeaseToken, now.Add(time.Minute))
+	require.NoError(t, err)
+	require.True(t, active)
+	finalized, err = store.FinalizeSent(ctx, domain.TransportEmail, mail.ID, fence, json.RawMessage(`{"message_id":"fallback@mail.example","used_fallback":true}`), now)
+	require.NoError(t, err)
+	require.True(t, finalized)
+
+	status, _, _ = mailStatus(t, db, mail.ID)
+	assert.Equal(t, "sent", status, "left over the fallback: it stays sent")
+	again, err := store.Claim(ctx, domain.TransportEmail, 50, time.Now(), time.Now().Add(time.Minute))
+	require.NoError(t, err)
+	assert.Empty(t, again, "at most one fallback send")
+	second := eventAt(token, "suppressed-2", domain.EmailDeliverySuppressed, time.Now())
+	second.Reroute, second.KeepsAddress = true, true
+	result, err = store.RecordEmailDeliveryEvent(ctx, second)
+	require.NoError(t, err)
+	assert.False(t, result.Rerouted, "a late event sends nothing again")
+}
+
 func sendEventMail(t *testing.T, store *workerCommandsForTest, ctx context.Context, id int64, providerResult string) {
 	t.Helper()
 	fence := startEventMail(t, store, ctx, id)
@@ -470,7 +519,7 @@ func TestRerouteQueuesASecurityMailForTheFallbackOnce(t *testing.T) {
 	fence, active, err := store.StartDelivery(ctx, domain.TransportEmail, mail.ID, *claimed[0].LeaseToken, now.Add(time.Minute))
 	require.NoError(t, err)
 	require.True(t, active)
-	finalized, err := store.FinalizeSent(ctx, domain.TransportEmail, mail.ID, fence, json.RawMessage(`{"message_id":"a@example.org"}`), now)
+	finalized, err := store.FinalizeSent(ctx, domain.TransportEmail, mail.ID, fence, json.RawMessage(`{"message_id":"a@example.org","used_fallback":true}`), now)
 	require.NoError(t, err)
 	require.True(t, finalized)
 
