@@ -310,7 +310,7 @@ const ROW_ACTION_BASELINE = new Map(
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
     "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1355"],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
-      "Gericht entfernen@797",
+      "Gericht entfernen@796",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
       "Antwort entfernen@1588",
@@ -1587,7 +1587,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Termin bearbeiten Termin erstellen@1065",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
-      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@608",
+      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@611",
     ],
     "src/components/database/grade-transitions/transition-editor.tsx": [
       "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@269",

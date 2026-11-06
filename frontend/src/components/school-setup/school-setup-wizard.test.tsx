@@ -839,13 +839,15 @@ describe("SchoolSetupWizard", () => {
     setupState = studentsNext();
     pathname = "/database/students";
     render(<SchoolSetupWizard />);
-    visibleTarget("student-import");
+    visibleTarget("student-menu");
     const create = visibleTarget("create");
 
     fireEvent.click(screen.getByRole("button", { name: "Zeig es mir" }));
     await screen.findByRole("dialog", { name: "Viele Kinder auf einmal" });
     await waitForHighlight();
     fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    // Das Menü blieb zu: Die Station „Importieren wählen“ entfällt still.
+    await act(() => vi.advanceTimersByTimeAsync(2000));
     await screen.findByRole("dialog", { name: "Ein Kind anlegen" });
     await waitForHighlight();
 
@@ -866,11 +868,18 @@ describe("SchoolSetupWizard", () => {
     setupState = studentsNext();
     pathname = "/database/students";
     const { rerender } = render(<SchoolSetupWizard />);
-    const importLink = visibleTarget("student-import");
+    visibleTarget("student-menu");
 
     fireEvent.click(screen.getByRole("button", { name: "Zeig es mir" }));
     expect(
       await screen.findByRole("dialog", { name: "Viele Kinder auf einmal" }),
+    ).toBeInTheDocument();
+    await waitForHighlight();
+
+    // Die Person öffnet das Menü: Die Tour zeigt auf den Eintrag.
+    const importLink = visibleTarget("student-import");
+    expect(
+      await screen.findByRole("dialog", { name: "Importieren wählen" }),
     ).toBeInTheDocument();
     await waitForHighlight();
 

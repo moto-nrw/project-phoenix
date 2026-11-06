@@ -818,10 +818,11 @@ describe("OGSGroupPage", () => {
     render(<OGSGroupPage />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Abwesenheiten heute")).toBeInTheDocument();
+      // Die Zähler stehen in der Statuszeile, nicht in einer eigenen Zeile.
+      expect(
+        screen.getByText(/von 3 da · 1 krank · 1 entschuldigt$/),
+      ).toBeInTheDocument();
       expect(screen.queryByText("3 Kinder")).not.toBeInTheDocument();
-      expect(screen.getByText("1/3 krank")).toBeInTheDocument();
-      expect(screen.getByText("1/3 entschuldigt")).toBeInTheDocument();
     });
   });
 

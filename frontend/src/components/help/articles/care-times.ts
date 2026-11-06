@@ -35,7 +35,7 @@ export function careTimesTopic(): HelpTopic {
         title: "Zeiten für mehrere Kinder auf einmal setzen",
         steps: [
           "Öffnen Sie `Datenverwaltung` und danach `Kinderdaten`.",
-          "Wählen Sie oben rechts `Auswählen`.",
+          "Öffnen Sie oben rechts das Menü mit den drei Punkten und wählen Sie `Auswählen`.",
           "Haken Sie die Kinder an.",
           "Wählen Sie `Ankunftszeiten` oder `Gehzeiten`.",
           "Tragen Sie die Zeiten ein und wählen Sie `Speichern`.",

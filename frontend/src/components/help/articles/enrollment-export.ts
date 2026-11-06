@@ -14,13 +14,13 @@ export function enrollmentExportTopic(): HelpTopic {
     steps: [
       "Öffnen Sie `Anmeldungen` und danach `Überblick`.",
       "Wählen Sie bei der Phase `Anmeldungen ansehen`.",
-      "Wählen Sie oben `Anmeldungen exportieren`.",
-      "Wählen Sie `PDF`, `Word` oder `Excel`.",
+      "Öffnen Sie oben das Menü mit den drei Punkten.",
+      "Wählen Sie unter `Anmeldungen exportieren` `PDF`, `Word` oder `Excel`.",
     ],
     result: "Die Datei wird erstellt und heruntergeladen.",
     notes: [
       "Oben steht, wie viele Eingänge die Phase hat und wie viele davon offen sind.",
-      "Die Seite hat drei Exporte: `Anmeldungen exportieren`, `Klassenliste exportieren` und `Auswertung exportieren`.",
+      "Die Seite hat drei Exporte: `Anmeldungen exportieren` im Menü sowie `Klassenliste exportieren` und `Auswertung exportieren` weiter unten.",
       "`Klassenliste exportieren` gilt für die Klasse, die Sie unter `Klasse für Klassenliste` wählen.",
       "`Auswertung exportieren` bietet PDF und Word `ausführlich` oder als `kompakte Tabelle`.",
     ],

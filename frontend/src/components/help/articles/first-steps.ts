@@ -36,7 +36,7 @@ export function firstStepsTopic(): HelpTopic {
       "Sie können jeden Schritt in der Checkliste aufklappen, auch in anderer Reihenfolge.",
       "Ob moto auch den Raum erfasst, stimmt das moto-Team mit Ihnen ab.",
       "Sie möchten die Anwesenheit mit NFC-Armbändern erfassen? Dann melden Sie sich beim moto-Team.",
-      "Sie haben eine Liste aller Kinder? Wählen Sie in der Tour zu `Erstes Kind anlegen` den Knopf `Importieren`. Dann zeigt die Tour den Import.",
+      "Sie haben eine Liste aller Kinder? Öffnen Sie in der Tour zu `Erstes Kind anlegen` das Menü mit den drei Punkten und wählen Sie `Importieren`. Dann zeigt die Tour den Import.",
       "Ihre OGS nutzt die Eltern-App nicht? Dann überspringen Sie `Erste Eltern einladen`.",
       "Der Stand gilt für die ganze OGS. Andere Leitungen sehen denselben Stand.",
     ],

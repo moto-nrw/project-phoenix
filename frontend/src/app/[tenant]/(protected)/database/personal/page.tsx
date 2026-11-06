@@ -5,7 +5,6 @@ import { teachersConfig } from "~/components/database/configs/teachers.config";
 import { staff as staffKeys } from "~/lib/swr/staff";
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { ButtonLink } from "~/components/ui/button";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
@@ -333,6 +332,15 @@ function TeachersPageContent() {
       : undefined;
 
   const headerMenuItems = [
+    ...(canImportStaff && !isMobile
+      ? [
+          {
+            label: "Importieren",
+            href: tenantPath("/database/personal/import"),
+            onClick: () => undefined,
+          },
+        ]
+      : []),
     ...(canImportOpeningBalances
       ? [
           {
@@ -401,25 +409,14 @@ function TeachersPageContent() {
         actions: (
           <>
             {!isMobile ? (
-              <>
-                <DatabaseGroupingToggle
-                  value={grouping}
-                  options={STAFF_GROUPING_OPTIONS}
-                  onChange={handleGroupingChange}
-                />
-                {canImportStaff ? (
-                  <ButtonLink
-                    href={tenantPath("/database/personal/import")}
-                    variant="outline"
-                    size="md"
-                  >
-                    Importieren
-                  </ButtonLink>
-                ) : null}
-              </>
+              <DatabaseGroupingToggle
+                value={grouping}
+                options={STAFF_GROUPING_OPTIONS}
+                onChange={handleGroupingChange}
+              />
             ) : null}
-            {/* Zweiter Import-Weg (#2132): eigener Flow mit Stichtag und
-                Begründung, deshalb im Menü statt als weiterer Button. */}
+            {/* Beide Importe stehen im Menü (Spec R4); der zweite Weg (#2132)
+                hat einen eigenen Flow mit Stichtag und Begründung. */}
             {headerMenuItems.length > 0 ? (
               <OverflowMenu
                 ariaLabel="Weitere Aktionen"

@@ -76,7 +76,7 @@ export function inviteStaffTopic(): HelpTopic {
         description:
           "Für ein ganzes Team ist die Vorlage schneller als einzelne Einladungen.",
         steps: [
-          "Öffnen Sie `Personal` und wählen Sie oben `Importieren`.",
+          "Öffnen Sie `Personal`, oben das Menü mit den drei Punkten und wählen Sie `Importieren`.",
           "Wählen Sie bei `Format wählen` `Excel (.xlsx)` oder `CSV (Komma-getrennt)`.",
           "Wählen Sie `Vorlage herunterladen`.",
           "Füllen Sie `Vorname`, `Nachname` und `Rolle` aus. Diese drei sind Pflicht.",

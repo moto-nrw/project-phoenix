@@ -718,7 +718,6 @@ export default function MealPlanPage() {
                       {canEdit && (
                         <OverflowMenu
                           ariaLabel={`Aktionen für ${weekdayLabel(date)}`}
-                          triggerClassName="!size-7"
                           matchContainerSelector="[data-meal-day-column]"
                           items={[
                             {
