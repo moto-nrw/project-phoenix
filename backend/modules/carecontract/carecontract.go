@@ -21,9 +21,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The states of a contract (ADR 0088 section 2). This owner reaches only
-// StatusDraft and StatusSent today; signature (#4679), conclusion at the
-// acceptance (#4680) and termination (#4682) move it further.
+// The states of a contract (ADR 0088 section 2). The signature (#4679)
+// moves a sent contract to StatusSigned, or StatusActive from its effective
+// date; conclusion at the acceptance (#4680) and termination (#4682) follow.
 const (
 	StatusDraft  = "entwurf"
 	StatusSent   = "versendet"
@@ -293,6 +293,10 @@ type ContractDetail struct {
 	// DocumentFrozen tells that the PDF was rendered at the first send and
 	// no longer follows the template.
 	DocumentFrozen bool `json:"document_frozen"`
+	// Signature is the signature of the current version, nil until signed;
+	// Reminders the reminder mails while it waits (#4679, signature.go).
+	Signature *ContractSignature `json:"signature"`
+	Reminders []Reminder         `json:"reminders"`
 }
 
 // File is a rendered PDF.
@@ -383,6 +387,10 @@ type InboxContract struct {
 	SchoolName  string        `json:"school_name"`
 	SentAt      time.Time     `json:"sent_at"`
 	EffectiveOn calendar.Date `json:"effective_on"`
+	// Status and SignedAt tell the parents whether the contract waits for
+	// their signature (#4679).
+	Status   string     `json:"status"`
+	SignedAt *time.Time `json:"signed_at"`
 }
 
 // Inbox serves the contracts of one Träger in the parents' inbox (ADR 0088
@@ -408,6 +416,19 @@ type ContractMail struct {
 	Filename       string `json:"filename"`
 	PDF            []byte `json:"pdf"`
 	IdempotencyKey string `json:"idempotency_key"`
+	// The signature of #4679 (signature.go): Purpose picks the mail
+	// (contract, reminder, confirmation), SigningURL is the one-time link
+	// with its last day, and a confirmation names the signature and carries
+	// the withdrawal notice.
+	Purpose          string   `json:"purpose,omitempty"`
+	SigningURL       string   `json:"signing_url,omitempty"`
+	LinkExpiresOn    string   `json:"link_expires_on,omitempty"`
+	SignedAt         string   `json:"signed_at,omitempty"`
+	SignerName       string   `json:"signer_name,omitempty"`
+	DocumentSHA256   string   `json:"document_sha256,omitempty"`
+	EarlyStart       bool     `json:"early_start,omitempty"`
+	WithdrawalEndsOn string   `json:"withdrawal_ends_on,omitempty"`
+	WithdrawalNotice []string `json:"withdrawal_notice,omitempty"`
 }
 
 // RenderedContractMail is the mail the worker sends.
@@ -426,6 +447,16 @@ type ContractMailContent struct {
 	TraegerName  string
 	ChildName    string
 	Modules      string
+	// The signature of #4679: the link of a contract or reminder mail, and
+	// what a confirmation names.
+	SigningURL       string
+	LinkExpiresOn    string
+	SignedAt         string
+	SignerName       string
+	DocumentSHA256   string
+	EarlyStart       bool
+	WithdrawalEndsOn string
+	WithdrawalNotice []string
 }
 
 // ContractMailRenderer renders the payload of a claimed contract mail.

@@ -51,6 +51,7 @@ type Scheduler struct {
 	holidayGuests               ports.HolidayGuestReconciliation
 	plannedStaffExits           ports.PlannedStaffExits
 	staffQualificationReminders ports.StaffQualificationReminders
+	careContractReminders       ports.CareContractReminders
 	weekProtocols               ports.WeekProtocolEvenings
 	payrollDispatch             ports.PayrollDispatch
 	mealOrders                  ports.MealOrderSettlement
@@ -217,7 +218,7 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		autoCheckouter:     deps.AutoCheckouter,
 		materializer:       deps.Materializer,
 		bookingConsistency: deps.BookingConsistency,
-		holidayGuests:      deps.HolidayGuests, plannedStaffExits: deps.PlannedStaffExits, staffQualificationReminders: deps.StaffQualificationReminders, weekProtocols: deps.WeekProtocols, payrollDispatch: deps.PayrollDispatch, schoolVacations: deps.SchoolVacations,
+		holidayGuests:      deps.HolidayGuests, plannedStaffExits: deps.PlannedStaffExits, staffQualificationReminders: deps.StaffQualificationReminders, careContractReminders: deps.CareContractReminders, weekProtocols: deps.WeekProtocols, payrollDispatch: deps.PayrollDispatch, schoolVacations: deps.SchoolVacations,
 		mealOrders:             deps.MealOrders,
 		autoStart:              deps.AutoStart,
 		autoEnd:                deps.AutoEnd,

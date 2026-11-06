@@ -1,0 +1,166 @@
+package owners
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-nrw/project-phoenix/tenant"
+)
+
+// The Betreuungsvertrag's ports both roots bind (ADR 0153, #4679): the
+// serving root for its routes and the Worker for the reminders.
+
+// CareContractPost binds the mail of a contract to Delivery: a mail of the
+// Träger (ADR 0110) in the caller's Träger transaction, the contract as its
+// related entity and the PDF in its payload (ADR 0123).
+type CareContractPost struct {
+	Delivery deliveryRuntime.Capability
+}
+
+func (p CareContractPost) EnqueueContractMail(ctx context.Context, mail carecontract.ContractMail) (int64, error) {
+	payload, err := json.Marshal(mail)
+	if err != nil {
+		return 0, fmt.Errorf("contract mail payload: %w", err)
+	}
+	enqueued, err := p.Delivery.EnqueueEmail(ctx, deliveryContract.EmailIntent{
+		OrganizationID: mail.OrganizationID, Template: carecontract.MailKindContract,
+		Recipient: deliveryContract.EmailRecipient{Address: mail.Recipient, Name: mail.GuardianName},
+		Payload:   payload, IdempotencyKey: mail.IdempotencyKey,
+		Related: deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: mail.ContractID},
+	})
+	if err != nil {
+		return 0, err
+	}
+	return enqueued.ID, nil
+}
+
+func (p CareContractPost) ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]carecontract.MailState, error) {
+	statuses, err := p.Delivery.TraegerEmailStatuses(ctx, organizationID,
+		deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: contractID})
+	if err != nil {
+		return nil, err
+	}
+	states := make([]carecontract.MailState, len(statuses))
+	for i, status := range statuses {
+		state := carecontract.MailQueued
+		switch {
+		case status.State == deliveryContract.StateSent:
+			state = carecontract.MailSent
+		case status.State == deliveryContract.StateDeadLetter && status.LastError != nil &&
+			*status.LastError == deliveryContract.DispatchOutcomeUnknown:
+			state = carecontract.MailUnknown
+		case status.State == deliveryContract.StateDeadLetter, status.State == deliveryContract.StateCancelled:
+			state = carecontract.MailFailed
+		}
+		states[i] = carecontract.MailState{OutboxID: status.ID, State: state}
+	}
+	return states, nil
+}
+
+// CareContractRuntime opens a school's tenant transaction or the Träger
+// transaction, never both at once (ADR 0105).
+type CareContractRuntime struct{}
+
+func (CareContractRuntime) WithinSchool(ctx context.Context, schoolID int64, fn func(context.Context) error) error {
+	school, err := tenant.NewTenantID(schoolID)
+	if err != nil {
+		return err
+	}
+	return tenant.WithinTenant(ctx, school, fn)
+}
+
+func (CareContractRuntime) WithinTraeger(ctx context.Context, organizationID int64, fn func(context.Context) error) error {
+	return tenant.WithinTraeger(ctx, organizationID, fn)
+}
+
+// CareContractLinks are the one-time link tokens with the base of the
+// parents portal the mails link to (#4679).
+func CareContractLinks(parentsURL string) carecontract.SigningLinks {
+	return carecontract.SigningLinks{Tokens: CareContractTokens{}, ParentsURL: parentsURL}
+}
+
+// CareContractLetterheadText reads the Träger's letterhead text.
+type CareContractLetterheadText interface {
+	TraegerTexts(ctx context.Context, organizationID int64, keys []string) (map[string]string, error)
+}
+
+// CareContractSender reads the letterhead of the Träger, which names it and
+// carries its address, in the caller's Träger transaction.
+type CareContractSender struct {
+	Settings CareContractLetterheadText
+}
+
+func (s CareContractSender) TraegerLetterhead(ctx context.Context, organizationID int64) (string, error) {
+	texts, err := s.Settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyBrandingLetterheadText})
+	if err != nil {
+		return "", err
+	}
+	return texts[configModels.KeyBrandingLetterheadText], nil
+}
+
+// CareContractOrganizations is Organisation & Tenancy as the reminders read
+// the Träger.
+type CareContractOrganizations interface {
+	ListOrganizations(context.Context) ([]organizationtenancy.Organization, error)
+}
+
+// CareContractSettings are the Träger settings the reminders read: the
+// reminder days and the letterhead.
+type CareContractSettings interface {
+	CareContractLetterheadText
+	TraegerInts(ctx context.Context, organizationID int64, keys []string) (map[string]int, error)
+}
+
+// CareContractRemindersJob binds the Worker's reminders of unsigned care
+// contracts (#4679): the active Träger of Organisation & Tenancy, the
+// Träger's setting of the reminder days, and the ports of the signature.
+func CareContractRemindersJob(organizations CareContractOrganizations, settings CareContractSettings,
+	delivery deliveryRuntime.Capability, parentsURL string) schedulerPorts.CareContractReminders {
+	reminders := careContractCompose.NewReminders(careContractCompose.ReminderPorts{
+		Organizations: careContractTraeger{organizations: organizations},
+		Settings:      careContractReminderSettings{settings: settings},
+		Sender:        CareContractSender{Settings: settings},
+		Post:          CareContractPost{Delivery: delivery}, Runtime: CareContractRuntime{}, Links: CareContractLinks(parentsURL),
+	})
+	return reminders.RemindDue
+}
+
+// careContractTraeger lists the active, undeleted Träger.
+type careContractTraeger struct {
+	organizations CareContractOrganizations
+}
+
+func (t careContractTraeger) ActiveTraegerIDs(ctx context.Context) ([]int64, error) {
+	organizations, err := t.organizations.ListOrganizations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(organizations))
+	for _, organization := range organizations {
+		if organization.Active && organization.DeletedAt == nil {
+			ids = append(ids, organization.ID)
+		}
+	}
+	return ids, nil
+}
+
+// careContractReminderSettings reads the Träger's reminder days.
+type careContractReminderSettings struct {
+	settings CareContractSettings
+}
+
+func (s careContractReminderSettings) SignatureReminderDays(ctx context.Context, organizationID int64) (int, error) {
+	values, err := s.settings.TraegerInts(ctx, organizationID, []string{configModels.KeyCareContractSignatureReminderDays})
+	if err != nil {
+		return 0, err
+	}
+	return values[configModels.KeyCareContractSignatureReminderDays], nil
+}

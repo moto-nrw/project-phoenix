@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
+
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
@@ -425,7 +427,8 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			parent, err = owners.BuildParentPortal(db, env, hub, settings.Service, people, portalReads, messaging, presence, carePlanRows,
-				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, announcements, audit, organizations)
+				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, announcements, audit, organizations,
+				careContractCompose.NewInboxSigning(careContractSignaturePorts(organizations, settings.Traeger, delivery.Runtime.Module, env.Links.ParentsURL)))
 			return
 		},
 		func() (err error) {
@@ -568,7 +571,7 @@ func composeServeRoot(
 			}
 			mountPortalRoutes(router, limiters, newAccountResource(db, identity, organizations, services.CaregiverCapability, settings.Service),
 				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications, delivery.Runtime.Module, env.HealthData))
-			return mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, delivery.Runtime.Module, config.Turnstile, env.HealthData, logger)
+			return mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, delivery.Runtime.Module, config.Turnstile, env.HealthData, env.Links.ParentsURL, logger)
 		},
 	)
 	if err != nil {
@@ -584,7 +587,8 @@ func composeServeRoot(
 	worker, err := owners.NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, audit.Persistence.DataAccessLog, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
-		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, analyticsSchoolNames(tracker), PlannedStaffExitsJob(db, hub, env.Logger), WeekProtocolDayLog, env.HealthData)
+		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, analyticsSchoolNames(tracker), PlannedStaffExitsJob(db, hub, env.Logger), WeekProtocolDayLog, env.HealthData,
+		owners.CareContractRemindersJob(organizations, settings.Traeger, delivery.Runtime.Module, env.Links.ParentsURL))
 	if err != nil {
 		return nil, nil, err
 	}

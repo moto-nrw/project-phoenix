@@ -2,8 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"slices"
 	"time"
 
@@ -16,7 +14,6 @@ import (
 	careContractHTTP "github.com/moto-nrw/project-phoenix/modules/carecontract/http"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -27,7 +24,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // mountCareContractRoutes serves the Betreuungsvertrag (ADR 0088, ADR 0153,
@@ -35,10 +31,26 @@ import (
 // /traeger/contracts and the templates of the offerings at
 // /traeger/contract-templates.
 func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) {
-	resource := NewCareContractHTTP(organizations, settings, delivery, accessLog)
+	delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender, parentsURL string) {
+	resource := NewCareContractHTTP(organizations, settings, delivery, accessLog, parentsURL)
 	root.Mount("/traeger/contracts", resource.ContractRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/contract-templates", resource.TemplateRouter(ProtectedTraegerRoutes))
+	// The one-time link of a contract mail (#4679), without an account.
+	signing := careContractCompose.NewSigning(careContractSignaturePorts(organizations, settings, delivery, parentsURL))
+	root.Mount("/public/care-contract-signing", careContractHTTP.NewSigningResource(signing).PublicRouter())
+}
+
+// careContractSignaturePorts binds the signature of a contract (#4679): the
+// Audit Platform's ledger at the Träger, the one-time link tokens with the
+// base of the parents portal, the name and letterhead of the Träger and
+// Delivery's outbox.
+func careContractSignaturePorts(organizations HolidayOrganizations, settings TraegerBrandingSettings,
+	delivery deliveryRuntime.Capability, parentsURL string) careContractCompose.SignaturePorts {
+	return careContractCompose.SignaturePorts{
+		Ledger: owners.NewCareContractSignatures(), Links: owners.CareContractLinks(parentsURL),
+		Sender: owners.CareContractSender{Settings: settings},
+		Post:   owners.CareContractPost{Delivery: delivery}, Runtime: owners.CareContractRuntime{},
+	}
 }
 
 // NewCareContractHTTP binds the Betreuungsvertrag's ports: the schools of
@@ -47,19 +59,22 @@ func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations
 // tenant transaction, the letterhead and the contract template to the
 // master data and the branding of the Träger, and the mail to Delivery.
 func NewCareContractHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) *careContractHTTP.Resource {
+	delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender, parentsURL string) *careContractHTTP.Resource {
 	letterheads := careContractLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(),
 		templates: organizationTenancyCompose.NewTraegerDocumentTemplates(), settings: settings}
-	contracts := careContractCompose.NewContracts(careContractCompose.ContractPorts{
-		Letterheads: letterheads, Post: careContractPost{delivery: delivery},
-		Runtime: careContractRuntime{}, Access: careContractAccessLog{log: accessLog},
-	})
+	contractPorts := careContractCompose.ContractPorts{
+		Letterheads: letterheads, Post: owners.CareContractPost{Delivery: delivery},
+		Runtime: owners.CareContractRuntime{}, Access: careContractAccessLog{log: accessLog},
+		Ledger: owners.NewCareContractSignatures(), Links: owners.CareContractLinks(parentsURL),
+	}
+	contracts := careContractCompose.NewContracts(contractPorts)
+	paper := careContractCompose.NewPaperSignatures(contractPorts, careContractSignaturePorts(organizations, settings, delivery, parentsURL))
 	intake := careContractCompose.NewIntake(careContractCompose.IntakePorts{
 		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications()},
 		Bookings: careContractBookings{offerings: carePlanCompose.NewContractOfferings(), bookings: carePlanCompose.NewOfferingBookings()},
-		Access:   careContractAccessLog{log: accessLog}, Runtime: careContractRuntime{},
+		Access:   careContractAccessLog{log: accessLog}, Runtime: owners.CareContractRuntime{},
 	})
-	return careContractHTTP.NewResource(contracts, intake, common.RequiresPermission(identityaccess.TraegerRightContractsManage))
+	return careContractHTTP.NewResource(contracts, intake, paper, common.RequiresPermission(identityaccess.TraegerRightContractsManage))
 }
 
 // careContractSchools lists the undeleted schools of the Träger.
@@ -88,22 +103,6 @@ func (s careContractSchools) TraegerSchools(ctx context.Context, organizationID 
 		return int(a.ID - b.ID)
 	})
 	return result, nil
-}
-
-// careContractRuntime opens a school's tenant transaction or the Träger
-// transaction, never both at once (ADR 0105).
-type careContractRuntime struct{}
-
-func (careContractRuntime) WithinSchool(ctx context.Context, schoolID int64, fn func(context.Context) error) error {
-	school, err := tenant.NewTenantID(schoolID)
-	if err != nil {
-		return err
-	}
-	return tenant.WithinTenant(ctx, school, fn)
-}
-
-func (careContractRuntime) WithinTraeger(ctx context.Context, organizationID int64, fn func(context.Context) error) error {
-	return tenant.WithinTraeger(ctx, organizationID, fn)
 }
 
 // careContractApplications reads the accepted applications of a school
@@ -260,51 +259,4 @@ func (b careContractLetterheads) Letterhead(ctx context.Context, reviewer careco
 	}
 	head.Logo = logo.Data
 	return head, nil
-}
-
-// careContractPost binds the mail of a contract to Delivery: a mail of the
-// Träger (ADR 0110) in the caller's Träger transaction, the contract as its
-// related entity and the PDF in its payload (ADR 0123).
-type careContractPost struct {
-	delivery deliveryRuntime.Capability
-}
-
-func (p careContractPost) EnqueueContractMail(ctx context.Context, mail carecontract.ContractMail) (int64, error) {
-	payload, err := json.Marshal(mail)
-	if err != nil {
-		return 0, fmt.Errorf("contract mail payload: %w", err)
-	}
-	enqueued, err := p.delivery.EnqueueEmail(ctx, deliveryContract.EmailIntent{
-		OrganizationID: mail.OrganizationID, Template: carecontract.MailKindContract,
-		Recipient: deliveryContract.EmailRecipient{Address: mail.Recipient, Name: mail.GuardianName},
-		Payload:   payload, IdempotencyKey: mail.IdempotencyKey,
-		Related: deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: mail.ContractID},
-	})
-	if err != nil {
-		return 0, err
-	}
-	return enqueued.ID, nil
-}
-
-func (p careContractPost) ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]carecontract.MailState, error) {
-	statuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID,
-		deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: contractID})
-	if err != nil {
-		return nil, err
-	}
-	states := make([]carecontract.MailState, len(statuses))
-	for i, status := range statuses {
-		state := carecontract.MailQueued
-		switch {
-		case status.State == deliveryContract.StateSent:
-			state = carecontract.MailSent
-		case status.State == deliveryContract.StateDeadLetter && status.LastError != nil &&
-			*status.LastError == deliveryContract.DispatchOutcomeUnknown:
-			state = carecontract.MailUnknown
-		case status.State == deliveryContract.StateDeadLetter, status.State == deliveryContract.StateCancelled:
-			state = carecontract.MailFailed
-		}
-		states[i] = carecontract.MailState{OutboxID: status.ID, State: state}
-	}
-	return states, nil
 }

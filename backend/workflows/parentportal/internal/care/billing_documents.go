@@ -54,6 +54,10 @@ type BillingDocument struct {
 	TotalCents     int64
 	ChildNames     []string
 	SentAt         time.Time
+	// ContractStatus and SignedAt tell whether a care contract waits for
+	// the parents' signature (#4679); empty for a letter.
+	ContractStatus string
+	SignedAt       *time.Time
 }
 
 // BillingDocumentFile is the PDF of one document.
@@ -81,6 +85,10 @@ const DocumentKindContract = "care_contract"
 type ContractDocuments interface {
 	ListContractDocuments(ctx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error)
 	ContractDocumentFile(ctx context.Context, organizationID, contractID int64, reader BillingDocumentReader) (BillingDocumentFile, error)
+	// The signature of #4679 (contract_signing.go); reader holds only the
+	// children the account may sign for.
+	ContractSigningView(ctx context.Context, organizationID, contractID int64, reader BillingDocumentReader) (ContractSigningView, error)
+	SignContract(ctx context.Context, organizationID, contractID int64, reader BillingDocumentReader, input ContractSignatureInput) (ContractSigningView, error)
 }
 
 // Traeger is the Träger of a school with the name the inbox shows.

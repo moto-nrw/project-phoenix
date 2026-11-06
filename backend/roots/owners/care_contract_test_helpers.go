@@ -1,0 +1,56 @@
+//go:build testhooks
+
+package owners
+
+import (
+	"context"
+	"sync"
+
+	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
+)
+
+// CareContractTestMails records the mails of the Betreuungsvertrag a test
+// composition enqueues, instead of Delivery's outbox.
+type CareContractTestMails struct {
+	mu    sync.Mutex
+	mails []carecontract.ContractMail
+}
+
+func (m *CareContractTestMails) EnqueueContractMail(_ context.Context, mail carecontract.ContractMail) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.mails = append(m.mails, mail)
+	return int64(len(m.mails)), nil
+}
+
+func (m *CareContractTestMails) ContractMailStates(context.Context, int64, int64) ([]carecontract.MailState, error) {
+	return nil, nil
+}
+
+// Purposes lists the purposes of the recorded mails.
+func (m *CareContractTestMails) Purposes() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	purposes := make([]string, len(m.mails))
+	for i, mail := range m.mails {
+		purposes[i] = mail.Purpose
+	}
+	return purposes
+}
+
+// careContractTestSender names every Träger "Träger".
+type careContractTestSender struct{}
+
+func (careContractTestSender) TraegerLetterhead(context.Context, int64) (string, error) {
+	return "Träger e.V.\nMusterweg 1\n12345 Musterstadt", nil
+}
+
+// NewParentContractSigningForTests composes the signature in the parents'
+// inbox (#4679) over the real ledger and store, with the mails recorded.
+func NewParentContractSigningForTests(mails *CareContractTestMails) carecontract.InboxSigning {
+	return careContractCompose.NewInboxSigning(careContractCompose.SignaturePorts{
+		Ledger: NewCareContractSignatures(), Links: CareContractLinks("http://parents.localhost:3000"),
+		Sender: careContractTestSender{}, Post: mails, Runtime: CareContractRuntime{},
+	})
+}

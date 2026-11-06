@@ -47,8 +47,23 @@ func careContractMailRenderer(render carecontract.ContractMailRenderer, defaultF
 			Content: map[string]any{
 				"GuardianName": mail.Content.GuardianName, "SchoolName": mail.Content.TraegerName,
 				"ChildName": mail.Content.ChildName, "Modules": mail.Content.Modules,
+				// The signature of #4679: the one-time link, and what the
+				// confirmation names.
+				"SigningURL": mail.Content.SigningURL, "LinkExpiresOn": mail.Content.LinkExpiresOn,
+				"SignedAt": mail.Content.SignedAt, "SignerName": mail.Content.SignerName,
+				"DocumentSHA256": mail.Content.DocumentSHA256, "EarlyStart": mail.Content.EarlyStart,
+				"WithdrawalEndsOn": mail.Content.WithdrawalEndsOn, "WithdrawalNotice": mail.Content.WithdrawalNotice,
 			},
-			Attachments: []email.Attachment{{Filename: mail.Filename, ContentType: "application/pdf", Data: mail.PDF}},
+			Attachments: careContractAttachments(mail),
 		}, nil
 	})
+}
+
+// careContractAttachments attaches the contract's PDF; a reminder carries
+// only its link (#4679).
+func careContractAttachments(mail carecontract.RenderedContractMail) []email.Attachment {
+	if len(mail.PDF) == 0 {
+		return nil
+	}
+	return []email.Attachment{{Filename: mail.Filename, ContentType: "application/pdf", Data: mail.PDF}}
 }

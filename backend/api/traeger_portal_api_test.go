@@ -90,7 +90,7 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 	})
 	require.NoError(t, err)
 	mountParentBillingRoutes(router, organizations, settings, delivery.Module, testHealthCipher(), slog.Default())
-	mountCareContractRoutes(router, organizations, settings, delivery.Module, audit.DataAccessLog)
+	mountCareContractRoutes(router, organizations, settings, delivery.Module, audit.DataAccessLog, "http://parents.localhost:3000")
 	return testpkg.SessionVerifier(router)
 }
 

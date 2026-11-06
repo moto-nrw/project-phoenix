@@ -64,6 +64,7 @@ func NewWorker(
 	staffMessaging communication.StaffMessagingRuntime, outbox *deliveryModule.Worker, reminders reminder.Module,
 	fileStore filestorageModule.Capability, announcements communication.ParentAnnouncementCapability, mealPlan mealplanModule.Capability, schoolNames SchoolNamesPublisher,
 	plannedExits PlannedStaffExitsBuilder, dayLog WeekProtocolDayLogBuilder, healthData enrollmentOwner.HolidayHealthCipher,
+	careContractReminders schedulerPorts.CareContractReminders,
 ) (schedulerPorts.Worker, error) {
 	billing, err := NewOperatorBilling(logger)
 	if err != nil {
@@ -149,6 +150,7 @@ func NewWorker(
 		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)), WeekProtocols: NewWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, dayLog),
 		PayrollDispatch:       workforce.PayrollDispatch.RunDue,
 		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, organizations, carePlan, services.Users, accessLog, healthData), PlannedStaffExits: plannedExits(identity, notifications, people.Staff), StaffQualificationReminders: qualificationRemindersJob(workforce.QualificationReminders), SchoolVacations: schoolVacationSync(),
+		CareContractReminders: careContractReminders,
 	})
 }
 

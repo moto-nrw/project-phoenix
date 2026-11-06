@@ -46,6 +46,8 @@ type (
 	BillingDocumentReader           = care.BillingDocumentReader
 	BillingDocumentsPort            = care.BillingDocuments
 	ContractDocumentsPort           = care.ContractDocuments
+	ContractSignatureInput          = care.ContractSignatureInput
+	ContractSigningView             = care.ContractSigningView
 	BillingDocumentNotifierPort     = care.BillingDocumentNotifier
 	ParentAccountsPort              = care.ParentAccounts
 	SchoolTraegerPort               = care.SchoolTraeger
@@ -98,6 +100,9 @@ const (
 )
 
 var (
+	ErrContractSignatureInvalid         = care.ErrContractSignatureInvalid
+	ErrContractNotSignable              = care.ErrContractNotSignable
+	ErrContractWithdrawalNoticeRequired = care.ErrContractWithdrawalNoticeRequired
 	ErrAnnouncementAckNotRequired       = messaging.ErrAnnouncementAckNotRequired
 	ErrAnnouncementNotAPoll             = messaging.ErrAnnouncementNotAPoll
 	ErrAnnouncementNotFound             = messaging.ErrAnnouncementNotFound

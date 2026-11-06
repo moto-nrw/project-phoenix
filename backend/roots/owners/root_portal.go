@@ -3,6 +3,8 @@ package owners
 import (
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+
 	realtime "github.com/moto-nrw/project-phoenix/realtime"
 
 	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
@@ -46,7 +48,7 @@ func BuildParentPortal(
 	mealPlan mealplanModule.Capability, schedules CarePlanSchedules, requests CarePlanRequests, services PeopleServices,
 	emitter eventContract.Emitter, notifications DeliveryNotifications, identity identityaccess.Owner,
 	enrollment EnrollmentRows, notices EnrollmentNotices, announcements communication.ParentAnnouncementCapability, audit AuditOwner,
-	organizations organizationtenancy.Query,
+	organizations organizationtenancy.Query, contractSigning carecontract.InboxSigning,
 ) (*parentportal.Portal, error) {
 	surveys, err := communication.SurveysOf(announcements)
 	if err != nil {
@@ -101,7 +103,7 @@ func BuildParentPortal(
 
 		CarePlanPolicy: NewParentCarePlanPolicy(),
 
-		BillingDocuments: NewParentBillingDocuments(), ContractDocuments: NewParentContractDocuments(), TraegerRuntime: ParentPortalRuntime{},
+		BillingDocuments: NewParentBillingDocuments(), ContractDocuments: NewParentContractDocuments(contractSigning), TraegerRuntime: ParentPortalRuntime{},
 		SchoolTraeger: NewParentSchoolTraeger(organizations), ParentAccounts: NewParentAccounts(identity),
 	}), nil
 }

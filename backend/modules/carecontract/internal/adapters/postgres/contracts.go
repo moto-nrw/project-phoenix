@@ -261,7 +261,7 @@ func (Store) DeleteDraft(ctx context.Context, organizationID, contractID int64) 
 // inboxSQL reads the contracts sent to an address, with the first send to
 // it.
 const inboxSQL = `SELECT c.id, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.school_name,
-	v.effective_from, m.first_sent AS sent_at
+	v.effective_from, m.first_sent AS sent_at, c.status, c.signed_at
 	FROM care_contract.contracts AS c
 	JOIN (SELECT contract_id, MIN(sent_at) AS first_sent FROM care_contract.contract_mailings
 		WHERE organization_id = ? AND lower(recipient_email) = lower(?) GROUP BY contract_id) AS m ON m.contract_id = c.id
@@ -285,6 +285,8 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, reader ca
 		SchoolName     string        `bun:"school_name"`
 		EffectiveFrom  calendar.Date `bun:"effective_from,type:date"`
 		SentAt         time.Time     `bun:"sent_at"`
+		Status         string        `bun:"status"`
+		SignedAt       *time.Time    `bun:"signed_at"`
 	}
 	schools, students := inboxChildScope(reader.Children)
 	if err := db.NewRaw(inboxSQL, organizationID, reader.Email, organizationID, pgdialect.Array(schools), pgdialect.Array(students)).
@@ -296,6 +298,7 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, reader ca
 		result[i] = carecontract.InboxContract{
 			ID: row.ID, ChildNames: []string{row.ChildFirstName}, ModuleNames: nonNil(row.ModuleNames),
 			SchoolName: row.SchoolName, SentAt: row.SentAt, EffectiveOn: row.EffectiveFrom,
+			Status: row.Status, SignedAt: row.SignedAt,
 		}
 	}
 	return result, nil

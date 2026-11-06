@@ -42,6 +42,14 @@ func (r *recordedPushes) all() []parentService.BillingDocumentPush {
 // Organisation & Tenancy and Identity & Access, with the pushes recorded.
 func documentInbox(t *testing.T) (*parentService.Portal, parentService.DocumentNotices, *recordedPushes, *bun.DB) {
 	t.Helper()
+	portal, notices, pushes, db, _ := documentInboxWithMails(t)
+	return portal, notices, pushes, db
+}
+
+// documentInboxWithMails is documentInbox with the mails of the care
+// contracts' signature recorded (#4679).
+func documentInboxWithMails(t *testing.T) (*parentService.Portal, parentService.DocumentNotices, *recordedPushes, *bun.DB, *owners.CareContractTestMails) {
+	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	people := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
@@ -50,6 +58,7 @@ func documentInbox(t *testing.T) (*parentService.Portal, parentService.DocumentN
 	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	pushes := &recordedPushes{}
+	mails := &owners.CareContractTestMails{}
 	deps := parentportalcompose.Dependencies{
 		GuardianChanges: owners.ParentGuardianChanges(), DeparturePolicy: owners.ParentDeparturePolicy(),
 		GuardianPolicy: owners.NewParentGuardianPolicy(), Fingerprints: owners.SecurityFingerprints{},
@@ -57,11 +66,11 @@ func documentInbox(t *testing.T) (*parentService.Portal, parentService.DocumentN
 		ChildRepo: repos.ParentChildReads(), PersonRepo: owners.NewParentPersonReads(people.Person),
 		GuardianProfileRepo: owners.NewParentGuardianProfileReads(people.GuardianProfile),
 		Logger:              slog.Default(), CarePlanPolicy: owners.NewParentCarePlanPolicy(),
-		BillingDocuments: owners.NewParentBillingDocuments(), ContractDocuments: owners.NewParentContractDocuments(), TraegerRuntime: owners.ParentPortalRuntime{},
+		BillingDocuments: owners.NewParentBillingDocuments(), ContractDocuments: owners.NewParentContractDocuments(owners.NewParentContractSigningForTests(mails)), TraegerRuntime: owners.ParentPortalRuntime{},
 		SchoolTraeger: owners.NewParentSchoolTraeger(organizations), ParentAccounts: owners.NewParentAccounts(identity),
 		DocumentNotifier: pushes,
 	}
-	return parentportalcompose.New(deps), parentportalcompose.NewDocumentNotices(deps), pushes, db
+	return parentportalcompose.New(deps), parentportalcompose.NewDocumentNotices(deps), pushes, db, mails
 }
 
 // inboxTraeger writes the invoices of one Träger as the Elternabrechnung
@@ -298,6 +307,10 @@ func inboxContract(t *testing.T, db *bun.DB, organization, school, studentID int
 			weekday, care_offering_id, module_name, ends_at) VALUES (?, ?, 'mon', 3, 'Frühbetreuung', '08:00'),
 			(?, ?, 'mon', 4, 'Ganztag', '16:30'), (?, ?, 'tue', 4, 'Ganztag', '16:30')`,
 		organization, version, organization, version, organization, version)
+	require.NoError(t, err)
+	// The contract party, as the intake writes it from the application.
+	_, err = db.ExecContext(ctx, `INSERT INTO care_contract.contract_parties (organization_id, contract_id, first_name, last_name, email)
+		VALUES (?, ?, 'Erika', 'Schneider', ?)`, organization, contract, sentTo)
 	require.NoError(t, err)
 	if sentTo == "" {
 		return contract

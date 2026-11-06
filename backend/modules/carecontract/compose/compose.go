@@ -19,12 +19,15 @@ func NewContracts(ports ContractPorts) carecontract.Contracts {
 	return application.NewContracts(postgres.NewStore(), rendering.NewRenderer(), application.ContractPorts(ports), application.Clock{Now: time.Now})
 }
 
-// ContractPorts are the ports the root binds for the contracts.
+// ContractPorts are the ports the root binds for the contracts. Ledger and
+// Links serve the signature (#4679).
 type ContractPorts struct {
 	Letterheads carecontract.Letterheads
 	Post        carecontract.Post
 	Runtime     carecontract.Runtime
 	Access      carecontract.SchoolAccessLog
+	Ledger      carecontract.SignatureLedger
+	Links       carecontract.SigningLinks
 }
 
 // NewIntake builds the creation of contracts from the accepted applications
