@@ -160,7 +160,7 @@
     "capacityFull": "Für ein gewähltes Angebot ist kein Platz mehr frei. Bitte wählen Sie ein anderes Angebot oder wenden Sie sich an die Schule.",
     "alreadyPending": "Für Ihr Kind liegt bereits eine Anfrage vor. Bitte warten Sie die Prüfung ab.",
     "withdrawalConfirmTitle": "Betreuung vollständig abmelden?",
-    "withdrawalConfirmBody": "Danach ist für {name} kein Betreuungstag mehr gebucht. Möchten Sie diese Anfrage wirklich senden?",
+    "withdrawalConfirmBody": "Ab dem {date} ist für {name} kein Betreuungstag mehr gebucht. Möchten Sie diese Anfrage wirklich senden?",
     "withdrawalConfirmBack": "Zurück",
     "withdrawalConfirmSubmit": "Anfrage senden",
     "errorObjectCatalog": "die Liste der Angebote",
