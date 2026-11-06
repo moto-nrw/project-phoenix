@@ -91,7 +91,7 @@ vi.mock("./student-form-fields", () => ({
 
 import { PersonalInfoEditPanel } from "./personal-info-edit-panel";
 import { notifyStudentCompanionsChanged } from "~/lib/student-companion-api";
-import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import type { Student } from "~/lib/student-helpers";
 
 const student = {
   id: "1",
@@ -99,7 +99,7 @@ const student = {
   second_name: "Mustermann",
   name: "Max Mustermann",
   bus_days: {},
-} as ExtendedStudent;
+} as Student;
 
 // A child accompanied on Monday AND Tuesday, so the plan can be narrowed to
 // Monday alone without the picker being touched.
@@ -109,7 +109,7 @@ const accompaniedStudent = {
     mon: ["accompanied"],
     tue: ["accompanied"],
   },
-} as ExtendedStudent;
+} as Student;
 
 function companion(id: string) {
   return { companion_student_id: id, weekdays: ["mon"] as const };
@@ -117,7 +117,7 @@ function companion(id: string) {
 
 async function renderOpenModal(
   onSave = vi.fn().mockResolvedValue(undefined),
-  studentProp: ExtendedStudent = student,
+  studentProp: Student = student,
 ) {
   render(
     <PersonalInfoEditPanel

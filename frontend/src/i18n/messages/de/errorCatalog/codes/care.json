@@ -76,5 +76,6 @@
   "request_not_open": "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
   "request_sharing_invalid": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
   "sick_note_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
-  "staff_managed_guardian_protected": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule."
+  "staff_managed_guardian_protected": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+  "guardian_invite_unavailable": "Diese Einladung konnte gerade nicht gesendet werden. Bitte wenden Sie sich an die OGS."
 }

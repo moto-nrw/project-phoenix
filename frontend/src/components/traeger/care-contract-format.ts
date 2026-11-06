@@ -200,6 +200,9 @@ export const SEND_SKIP_LABELS: Record<SendSkipReason, string> = {
   partner_missing:
     "der Name des Vertragspartners fehlt. Ergänzen Sie den Briefkopf. Oder erstellen Sie den Entwurf mit eingetragenem Vertragspartner neu",
   mail_pending: "die letzte Mail wird noch gesendet",
+  mail_delayed: "die letzte Mail ist verzögert und kommt später an",
+  mail_blocked: "eine Mail an diese Adresse würde nicht rausgehen",
+  mail_block_unreadable: "der Stand der Adresse lässt sich gerade nicht prüfen",
   not_sendable: "lässt sich nicht mehr senden",
 };
 

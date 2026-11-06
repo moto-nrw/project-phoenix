@@ -4,8 +4,8 @@ import "@testing-library/jest-dom/vitest";
 import { SchoolPeriodSelect } from "./school-period-select";
 
 const periods = [
-  { period: 5, end_time: "12:35" },
-  { period: 6, end_time: "13:20" },
+  { period: 5, endTime: "12:35" },
+  { period: 6, endTime: "13:20" },
 ];
 
 describe("SchoolPeriodSelect", () => {

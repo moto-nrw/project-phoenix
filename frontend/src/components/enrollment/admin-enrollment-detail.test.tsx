@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render as renderComponent,
   screen,
@@ -26,6 +27,7 @@ import { useCareOfferingsEnabled } from "~/lib/tenant-context";
 
 const mocks = vi.hoisted(() => ({
   getAdminRequest: vi.fn(),
+  getAdminRequestMails: vi.fn(),
   decideAdminChild: vi.fn(),
   correctAdminChildData: vi.fn(),
   listCareOfferings: vi.fn(),
@@ -65,6 +67,7 @@ vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
   return {
     ...actual,
     getAdminRequest: mocks.getAdminRequest,
+    getAdminRequestMails: mocks.getAdminRequestMails,
     decideAdminChild: mocks.decideAdminChild,
     correctAdminChildData: mocks.correctAdminChildData,
     listAdminChildOfferingAdjustments: mocks.listAdminChildOfferingAdjustments,
@@ -151,6 +154,7 @@ function renderAdjustment(child: AdminRequestChild = adjustmentChild()) {
 
 beforeEach(() => {
   mocks.getAdminRequest.mockReset();
+  mocks.getAdminRequestMails.mockReset().mockResolvedValue([]);
   mocks.decideAdminChild.mockReset();
   mocks.correctAdminChildData.mockReset();
   mocks.listCareOfferings.mockReset();
@@ -161,6 +165,49 @@ beforeEach(() => {
   mocks.fetchCareOfferingBookingStats.mockReset();
   mocks.fetchCareOfferingBookingStats.mockResolvedValue({});
   vi.mocked(useCareOfferingsEnabled).mockReturnValue(true);
+});
+
+describe("AdminEnrollmentDetail mail updates", () => {
+  it("reloads decision mails and polls subsequent delivery outcomes", async () => {
+    mocks.getAdminRequest.mockResolvedValue({
+      id: "request-1",
+      phase_id: "phase-1",
+      phase_name: "2026/27",
+      guardian_first_name: "Mara",
+      guardian_last_name: "Beispiel",
+      guardian_email: "mara@example.test",
+      submitted_at: "2026-08-05T10:00:00Z",
+      status_token: "status-token",
+      children: [adjustmentChild({ status: "submitted" })],
+    });
+    mocks.decideAdminChild.mockResolvedValue({});
+    mocks.getAdminRequestMails
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { kind: "enrollment_waitlisted", outcome: "queued" },
+      ])
+      .mockResolvedValue([
+        { kind: "enrollment_waitlisted", outcome: "delivered" },
+      ]);
+    const interval = vi.spyOn(globalThis, "setInterval");
+    const { unmount } = render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Warteliste" }));
+    expect(await screen.findByText("Wird gesendet")).toBeVisible();
+    expect(mocks.getAdminRequestMails).toHaveBeenCalledTimes(2);
+
+    const poll = interval.mock.calls.find((call) => call[1] === 15_000)?.[0];
+    expect(poll).toBeTypeOf("function");
+    const visibility = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockReturnValue("visible");
+    await act(async () => {
+      if (typeof poll === "function") poll();
+    });
+    expect(await screen.findByText("Zugestellt")).toBeVisible();
+    unmount();
+    interval.mockRestore();
+    visibility.mockRestore();
+  });
 });
 
 describe("AdminEnrollmentDetail approval without an offering", () => {

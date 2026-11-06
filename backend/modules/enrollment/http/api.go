@@ -277,6 +277,7 @@ func (rs *Resource) mountAdminRequestRoutes(r chi.Router) {
 			r.With(common.RequiresPermission("config:manage")).Put("/read", rs.markAdminRequestRead)
 			r.With(common.RequiresPermission("config:manage")).Delete("/read", rs.markAdminRequestUnread)
 			r.With(common.RequiresPermission("config:manage")).Get("/delete-impact", rs.getAdminRequestDeleteImpact)
+			r.With(common.RequiresPermission("config:manage")).Get("/mails", rs.getAdminRequestMails)
 			r.With(common.RequiresPermission("config:manage")).Delete("/", rs.deleteAdminRequest)
 			r.With(common.RequiresPermission("config:manage")).Post("/restore", rs.restoreAdminRequest)
 			r.With(common.RequiresPermission("config:manage")).Get("/children/{childId}/delete-impact", rs.getAdminChildDeleteImpact)

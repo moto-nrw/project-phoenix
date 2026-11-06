@@ -179,7 +179,12 @@ describe("private file responses (#5119)", () => {
   ])("protects %s as well as PDF", async (contentType) => {
     const bytes = new Uint8Array([0, 255, 1, 2]);
     mockFetch.mockResolvedValue(
-      new Response(bytes, { headers: { "Content-Type": contentType } }),
+      new Response(bytes, {
+        headers: {
+          "Content-Type": contentType,
+          "Content-Length": String(bytes.length),
+        },
+      }),
     );
     const { POST } = await import("./students/export/route");
     const response = await call(POST, "POST");

@@ -1,5 +1,6 @@
 import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
+import { allowedQueryString } from "~/lib/route-wrapper-utils.server";
 import {
   mapCourseWaitlists,
   type CourseWaitlist,
@@ -7,7 +8,7 @@ import {
 } from "~/lib/course-waitlist-helpers";
 
 interface BackendEnvelope {
-  data?: CourseWaitlistWire[];
+  data: CourseWaitlistWire[];
 }
 
 /**
@@ -17,14 +18,10 @@ interface BackendEnvelope {
  */
 export const GET = createGetHandler(
   async (request, token): Promise<CourseWaitlist[]> => {
-    const groupId = request.nextUrl.searchParams.get("activity_group_id");
-    const query = groupId
-      ? `?activity_group_id=${encodeURIComponent(groupId)}`
-      : "";
     const response = await apiGet<BackendEnvelope>(
-      `/api/students/offering-change-requests/course-waitlists${query}`,
+      `/api/students/offering-change-requests/course-waitlists${allowedQueryString(request, ["activity_group_id"])}`,
       token,
     );
-    return mapCourseWaitlists(response?.data ?? []);
+    return mapCourseWaitlists(response.data);
   },
 );

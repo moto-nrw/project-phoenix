@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { useSWRAuth } from "~/lib/swr";
 import { AlertTriangle, Check, Clock, Info } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
-import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
+import type { Student } from "~/lib/student-helpers";
 import { isNotCheckedInLocation } from "~/lib/location-helper";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import {
@@ -25,11 +25,15 @@ import {
   attendanceActorLabel,
   type AttendanceActor,
 } from "~/lib/attendance-actor";
-import type { StudentEnrollmentExtraFieldGroup } from "~/lib/student-api";
+import {
+  fetchStudentChangeHistory,
+  type StudentEnrollmentExtraFieldGroup,
+  type StudentFieldChange,
+} from "~/lib/student-api";
 import {
   allowedDepartureModesFromDeparture,
   departureDaysFromLegacy,
-} from "~/lib/student-helpers";
+} from "~/lib/departure-plan";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { AllowedDepartureModesDisplay } from "~/components/students/allowed-departure-modes-display";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
@@ -159,22 +163,6 @@ function ClockIcon({
 // FIELD HISTORY INFO (ⓘ next to a field — issue #1455)
 // =============================================================================
 
-interface FieldChangeEntry {
-  id: string;
-  field: string;
-  edited_by: string;
-  changed_at: string;
-}
-
-const changeHistoryFetcher = async (
-  url: string,
-): Promise<FieldChangeEntry[]> => {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`change-history ${res.status}`);
-  const body = (await res.json()) as { data?: FieldChangeEntry[] };
-  return body.data ?? [];
-};
-
 /**
  * Discreet ⓘ shown next to a tracked field. On hover it reveals who last
  * changed the field and when — the quick-answer use case from issue #1455.
@@ -185,9 +173,9 @@ function FieldHistoryInfo({
   studentId,
   fields,
 }: Readonly<{ studentId: string; fields: readonly string[] }>) {
-  const { data } = useSWRAuth<FieldChangeEntry[]>(
+  const { data } = useSWRAuth<StudentFieldChange[]>(
     studentKeys.changeHistory(studentId),
-    () => changeHistoryFetcher(`/api/students/${studentId}/change-history`),
+    () => fetchStudentChangeHistory(studentId),
     {
       keepPreviousData: false,
       shouldRetryOnError: false,
@@ -329,7 +317,7 @@ function ViewOnlyBadge() {
 // =============================================================================
 
 interface StudentHeaderProps {
-  student: ExtendedStudent;
+  student: Student;
   myGroups: string[];
   myGroupRooms: string[];
   mySupervisedRooms: string[];
@@ -360,7 +348,7 @@ interface StudentHeaderProps {
  */
 export function StudentHeaderAvatar({
   student,
-}: Readonly<{ student: ExtendedStudent }>) {
+}: Readonly<{ student: Student }>) {
   const { enabled: photosEnabled } = useStudentPhotosEnabled();
   if (!photosEnabled) return null;
 
@@ -376,7 +364,7 @@ export function StudentHeaderAvatar({
 }
 
 /** Der Name des Kindes als Titel der Kopfkarte. */
-export function studentHeaderTitle(student: ExtendedStudent): string {
+export function studentHeaderTitle(student: Student): string {
   return (
     `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
     student.name ||
@@ -809,7 +797,7 @@ function SupervisorItem({
 // =============================================================================
 
 interface PersonalInfoReadOnlyProps {
-  student: ExtendedStudent;
+  student: Student;
   enrollmentExtraGroups?: StudentEnrollmentExtraFieldGroup[];
   /** Failure loading the Anmeldung answers; shown with "Wiederholen". */
   enrollmentExtraError?: unknown;
@@ -1103,7 +1091,7 @@ function ParentVisibleValue({
   );
 }
 
-function formatStudentAddress(student: ExtendedStudent): string | null {
+function formatStudentAddress(student: Student): string | null {
   const street = student.address_street?.trim();
   const postalCode = student.address_postal_code?.trim();
   const city = student.address_city?.trim();

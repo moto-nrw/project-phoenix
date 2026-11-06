@@ -50,6 +50,7 @@ type SchoolInvitation struct {
 	owners          ports.InvitationOwnerTokens
 	passwords       ports.PasswordPolicy
 	delivery        ports.SchoolInvitationDelivery
+	mailStates      SchoolInvitationMailStateReader
 	runtime         ports.Runtime
 	attach          func(context.Context) context.Context
 	expiry          time.Duration
@@ -70,6 +71,7 @@ type SchoolInvitationDependencies struct {
 	Owners          ports.InvitationOwnerTokens
 	Passwords       ports.PasswordPolicy
 	Delivery        ports.SchoolInvitationDelivery
+	MailStates      SchoolInvitationMailStateReader
 	Runtime         ports.Runtime
 	// Attach binds the composed unit of work ahead of every public flow.
 	Attach func(context.Context) context.Context
@@ -95,7 +97,7 @@ func NewSchoolInvitation(deps SchoolInvitationDependencies) (*SchoolInvitation, 
 	return &SchoolInvitation{
 		employmentReset: deps.EmploymentReset, store: deps.Store, logins: deps.Logins, roles: deps.Roles, policy: deps.Policy, grants: deps.Grants,
 		identity: deps.Identity, schools: deps.Schools, owners: deps.Owners, passwords: deps.Passwords,
-		delivery: deps.Delivery, runtime: deps.Runtime, attach: deps.Attach, expiry: deps.Expiry, now: time.Now, logger: logger,
+		delivery: deps.Delivery, mailStates: deps.MailStates, runtime: deps.Runtime, attach: deps.Attach, expiry: deps.Expiry, now: time.Now, logger: logger,
 	}, nil
 }
 
@@ -528,6 +530,9 @@ func (s *SchoolInvitation) ResendInvitation(ctx context.Context, invitationID, a
 		invitation, portal, err := s.resendableSchoolInvitation(ctx, invitationID, now)
 		if err != nil {
 			return err
+		}
+		if err := s.refuseDelayedMail(ctx, invitation.TenantID, invitationID); err != nil {
+			return failed(opResendInvitation, err)
 		}
 		token := uuid.Must(uuid.NewV4()).String()
 		extended, _, err := s.store.ExtendSchoolInvitation(ctx, invitationID, now.Add(s.expiry), now, token)

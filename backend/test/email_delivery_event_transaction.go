@@ -9,13 +9,15 @@ import "maps"
 // match the register exactly.
 var emailDeliveryEventTransactionSites = map[string]string{
 	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.RecordEmailDeliveryEvent:c.transactions.WithinAdmin#1": "Delivery worker command records one delivery event; the mail and thereby its school are found only by the identity in the event.",
-	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.EmailAddressSuppressed:c.transactions.WithinAdmin#1":   "Delivery worker command reads the suppression list of the claimed mail's school.",
+	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.SchoolEmailHolds:c.transactions.WithinAdmin#1":         "Delivery worker command reads the holds of the claimed mail's school.",
+	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.TraegerEmailHolds:c.transactions.WithinAdmin#1":        "Delivery worker command reads the holds of the claimed mail's Träger across its schools.",
 	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.OpenProviderMails:c.transactions.WithinAdmin#1":        "Delivery reconciliation reads the open mails of all schools; a mail is checked by its provider ID, and its school only follows from it.",
 	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.MarkEmailDeliveryChecked:c.transactions.WithinAdmin#1": "Delivery reconciliation notes when it last asked the provider about one mail, across schools.",
 	"modules/delivery/compose/new.go:NewModule:NewTenantTransactions().WithinTenant#1":                                               "Delivery composition binds the school transaction for worker commands that name their school; it starts nothing itself.",
 	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.EmailSuppressionReason:c.schools.WithinTenant#1":       "Delivery reads why one address is on the named school's suppression list, in that school's transaction under row-level security.",
 	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.DeleteEmailSuppression:c.schools.WithinTenant#1":       "Delivery removes one address from the named school's suppression list after the provider lifted its block, in that school's transaction under row-level security.",
-	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.SchoolMailedAddress:c.schools.WithinTenant#1":          "Delivery checks that the named school has a mail to one exact address before a team-wide provider block is lifted, in that school's transaction under row-level security.",
+	"modules/peopledirectory/http/guardian_email_status.go:*GuardianResource.liftGuardianEmailBlock:rs.runtime.InTenantTx#1":         "HTTP query boundary: liftGuardianEmailBlock checks the right to change the guardian and reads the address in its own tenant transaction, so the provider call after it holds no transaction open (#5934).",
+	"modules/enrollment/http/admin_deletion_handlers.go:*Resource.getAdminRequestMails:rs.runInTenantTx#1":                           "HTTP query boundary: getAdminRequestMails reads what became of the mails of one application in the caller's tenant transaction.",
 }
 
 func withoutReviewedEmailDeliveryEventTransactions(current map[string]string) map[string]string {

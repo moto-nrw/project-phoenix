@@ -15,6 +15,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Delivery holds these kinds back for a stop or a listed address by their names
+// (TestAppointmentMailsAreParentMails there); this package may not import it.
+func TestAppointmentMailKindsKeepTheirNames(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t,
+		[]string{"appointment_published", "appointment_updated", "appointment_cancelled", "appointment_reminder"},
+		[]string{portal.EmailKindAppointmentPublished, portal.EmailKindAppointmentUpdated, portal.EmailKindAppointmentCancelled, portal.EmailKindAppointmentReminder})
+}
+
 func TestCalendarLifecyclePushJoinsTriggeringTransaction(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []string{portal.EmailKindAppointmentPublished, portal.EmailKindAppointmentUpdated, portal.EmailKindAppointmentCancelled} {

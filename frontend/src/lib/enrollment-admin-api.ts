@@ -1,3 +1,7 @@
+import type {
+  EmailAddressMark,
+  MailOutcome,
+} from "~/lib/email-delivery-status";
 import type { RosterImpactWire } from "~/lib/roster-impact";
 import { announceEnrollmentReadChange } from "~/lib/enrollment-unread-api";
 import { unavailableApiError, type ApiError } from "~/lib/api-error";
@@ -427,6 +431,31 @@ export async function markAllAdminRequestsRead(): Promise<void> {
 /** Nach dem Öffnen einer Anmeldung: das Badge neu zählen lassen. */
 export function announceAdminRequestOpened() {
   announceEnrollmentReadChange();
+}
+
+/** What became of one mail to the family of an application (#5934). */
+export interface AdminRequestMail {
+  kind: string;
+  outcome: MailOutcome;
+  address_mark?: EmailAddressMark;
+  stopped?: boolean;
+  outcome_at?: string;
+}
+
+export async function getAdminRequestMails(
+  requestId: string,
+): Promise<AdminRequestMail[]> {
+  const response = await send(
+    `${BASE}/${encodeURIComponent(requestId)}/mails`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Der Stand der E-Mails konnte nicht geladen werden",
+    );
+  }
+  return (await readJSON<AdminRequestMail[] | null>(response)) ?? [];
 }
 
 export async function getAdminRequestDeleteImpact(

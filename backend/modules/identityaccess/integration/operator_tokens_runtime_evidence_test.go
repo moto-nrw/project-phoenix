@@ -194,12 +194,10 @@ func TestOperatorTokenRuntimeEvidence(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				current, err := tokens.FindOperator(txCtx, redeemed.OperatorID)
-				if err != nil {
-					return err
-				}
-				current.Email = redeemed.NewEmail
-				_, err = tokens.UpdateOperator(txCtx, current)
+				_, err = tokens.UpdateOperator(txCtx, redeemed.OperatorID, func(current *identityaccess.Operator) error {
+					current.Email = redeemed.NewEmail
+					return nil
+				})
 				return err
 			})
 		})

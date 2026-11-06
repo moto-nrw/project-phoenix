@@ -40,8 +40,8 @@ import {
 } from "~/components/ui/form-error-alert";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import { studentService } from "~/lib/api";
-import type { Student } from "~/lib/api";
+import { fetchStudents } from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
 import {
   activeService,
   summarizeStudentMoveResult,
@@ -139,7 +139,7 @@ export function StudentsInRoomSection({
     students: Student[];
     pagination?: { total_records: number };
   }>(`room-students-${roomId}`, async () =>
-    studentService.getStudents({
+    fetchStudents({
       roomId,
       pageSize: 200,
     }),

@@ -1,4 +1,5 @@
-import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
+import { apiErrorFromResponse } from "~/lib/api-error";
+import { sessionFetch } from "~/lib/session-cache";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import {
   downloadBlob,
@@ -79,7 +80,7 @@ export interface StudentExportFilters {
   student_ids?: string[];
 }
 
-export interface BirthdayMonthOption {
+interface BirthdayMonthOption {
   value: string;
   label: string;
 }
@@ -440,9 +441,8 @@ export async function exportStudents(
   request: StudentExportRequest,
   printTarget?: Window,
 ): Promise<void> {
-  const response = await transportFetch("/api/students/export", {
+  const response = await sessionFetch("/api/students/export", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
   });
 

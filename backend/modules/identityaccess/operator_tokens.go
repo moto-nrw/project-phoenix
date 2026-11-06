@@ -29,6 +29,13 @@ type TokenDelivery struct {
 	SentAt     *time.Time
 	Error      *string
 	RetryCount int
+	// Outcome is what Delivery knows about the last mail; empty for a token
+	// whose owner did not ask (#5934). AddressMark is why the school's list holds
+	// the address.
+	Outcome     string
+	AddressMark string
+	// ProviderBlock is the provider's block now; only a mail it withheld asks.
+	ProviderBlock string
 }
 
 // OperatorInvitation is the link that lets Email become an operator.

@@ -497,6 +497,27 @@ describe("Token Refresh and Retry Logic", () => {
     expect(json.data.name).toBe("Success after retry");
   });
 
+  it("answers 204 when a DELETE succeeds on its retry", async () => {
+    mockAuth.mockResolvedValueOnce(defaultSession);
+    mockAuth.mockResolvedValueOnce({
+      user: { id: "1", token: "refreshed-token", name: "Test User" },
+      expires: "2099-01-01",
+    });
+    const mockHandler = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiResponseError(401, "Unauthorized"))
+      .mockResolvedValueOnce(null);
+
+    const handler = createDeleteHandler(mockHandler);
+    const response = await handler(
+      createMockRequest("/api/test/1", { method: "DELETE" }),
+      createMockContext({ id: "1" }),
+    );
+
+    expect(mockHandler).toHaveBeenCalledTimes(2);
+    expect(response.status).toBe(204);
+  });
+
   it("returns the 401 envelope when token was not actually refreshed", async () => {
     mockAuth.mockResolvedValueOnce(defaultSession);
 
@@ -543,6 +564,44 @@ describe("Token Refresh and Retry Logic", () => {
       status: 401,
       detail: "Token expired",
       code: "general.permission",
+    });
+  });
+
+  it("forwards a non-401 backend error from the retry instead of the 401 envelope", async () => {
+    mockAuth.mockResolvedValueOnce(defaultSession);
+
+    const mockHandler = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiResponseError(401, "Unauthorized"))
+      .mockRejectedValueOnce(
+        new ApiResponseError(
+          403,
+          JSON.stringify({
+            type: "about:blank",
+            title: "Forbidden",
+            status: 403,
+            detail: "day log disabled",
+            code: "students.day_log_disabled",
+          }),
+          { contentType: "application/problem+json" },
+        ),
+      );
+
+    mockAuth.mockResolvedValueOnce({
+      user: { id: "1", token: "refreshed-token", name: "Test User" },
+      expires: "2099-01-01",
+    });
+
+    const handler = createGetHandler(mockHandler);
+    const request = createMockRequest("/api/test");
+    const response = await handler(request, createMockContext());
+
+    expect(mockHandler).toHaveBeenCalledTimes(2);
+    expect(response.status).toBe(403);
+    const json = await parseJsonResponse<ApiErrorResponse>(response);
+    expect(json).toMatchObject({
+      status: 403,
+      code: "students.day_log_disabled",
     });
   });
 

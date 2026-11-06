@@ -9,7 +9,7 @@ import {
   matchesForeignRoomFilter,
 } from "./ogs-group-helpers";
 import type { OGSGroup } from "./ogs-group-helpers";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 
 // Helper to create a minimal Student for testing
 function makeStudent(overrides: Partial<Student> = {}): Student {

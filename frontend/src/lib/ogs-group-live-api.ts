@@ -6,7 +6,8 @@
 import type { ClassHandover } from "~/lib/class-handover";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
-import type { DepartureMode, TeacherHint } from "~/lib/student-helpers";
+import type { DepartureMode } from "~/lib/departure-plan";
+import type { TeacherHint } from "~/lib/student-helpers";
 
 // Wire types (Go DTOs from backend/api/students/ogs_group_live_handlers.go)
 

@@ -1,121 +1,45 @@
-import { studentService } from "~/lib/api";
+import { fetchStudent } from "~/lib/student-api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
-import { busDaysHaveAny } from "~/lib/student-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 import { createLogger } from "~/lib/logger";
+
 const logger = createLogger({ component: "StudentData" });
 
 /**
- * Extended Student type with additional detail page fields
+ * Blanks what a caller without read access must not see. The absence
+ * statuses also follow the absence-write gate: they are the state the Krank-/
+ * Entschuldigt-Aktionen toggle, so blanking them for a caller who may write
+ * them would always render "melden" and turn a clearing click into a fresh
+ * report (#2232).
  */
-export interface ExtendedStudent extends Student {
-  bus: boolean;
-  /** Confirmation to widen a linked child's own departure plan on save. */
-  extend_companion_plans?: boolean;
-  current_room?: string;
-  location_since?: string;
-  birthday?: string;
-  buskind?: boolean;
-  extra_info?: string;
-  health_info?: string;
-  address_street?: string;
-  address_city?: string;
-  address_postal_code?: string;
-  pickup_status?: string;
-  sick?: boolean;
-  sick_since?: string;
-  excused?: boolean;
-  excused_since?: string;
-  class_trip?: boolean;
-  class_trip_since?: string;
-}
-
-/**
- * Maps raw student response to ExtendedStudent with proper access control
- */
-function mapStudentResponse(
-  response: unknown,
+function gateForAccess(
+  student: Student,
   hasAccess: boolean,
   canManageAbsence: boolean,
-): ExtendedStudent {
-  interface WrappedResponse {
-    data?: unknown;
-    success?: boolean;
-    message?: string;
-  }
-  const wrappedResponse = response as WrappedResponse;
-  const studentData = wrappedResponse.data ?? response;
-
-  const mappedStudent = studentData as Student & {
-    has_full_access?: boolean;
-    group_supervisors?: SupervisorContact[];
-  };
-
-  const canSeeAbsenceStatus = hasAccess || canManageAbsence;
-
-  // Spread upstream-mapped student so future Student fields propagate without
-  // touching this whitelist. Explicit lines below either coerce nullish to a
-  // default (first_name/group_id/...) or apply access-control gating.
+): Student {
+  const readable = <T>(value: T | undefined) =>
+    hasAccess ? (value ?? undefined) : undefined;
+  const canSeeAbsence = hasAccess || canManageAbsence;
   return {
-    ...mappedStudent,
-    first_name: mappedStudent.first_name ?? "",
-    second_name: mappedStudent.second_name ?? "",
-    group_id: mappedStudent.group_id ?? "",
-    group_name: mappedStudent.group_name ?? "",
-    // bus / buskind are derived from bus_days, the single source of truth (#1582).
-    bus: busDaysHaveAny(mappedStudent.bus_days),
-    buskind: busDaysHaveAny(mappedStudent.bus_days),
-    current_room: undefined,
-    location_since: hasAccess
-      ? (mappedStudent.location_since ?? undefined)
-      : undefined,
-    extra_info: hasAccess ? (mappedStudent.extra_info ?? undefined) : undefined,
-    address_street: hasAccess
-      ? (mappedStudent.address_street ?? undefined)
-      : undefined,
-    address_city: hasAccess
-      ? (mappedStudent.address_city ?? undefined)
-      : undefined,
-    address_postal_code: hasAccess
-      ? (mappedStudent.address_postal_code ?? undefined)
-      : undefined,
-    // The absence statuses follow read access OR the absence-write gate: they
-    // are the state the Krank-/Entschuldigt-Aktionen toggle, so blanking them
-    // for a caller who may write them would always render "melden" and turn a
-    // clearing click into a fresh report (#2232). The backend hands these
-    // fields to every authenticated staff member anyway.
-    sick: canSeeAbsenceStatus ? (mappedStudent.sick ?? false) : false,
-    sick_since: canSeeAbsenceStatus
-      ? (mappedStudent.sick_since ?? undefined)
-      : undefined,
-    excused: canSeeAbsenceStatus ? (mappedStudent.excused ?? false) : false,
-    excused_since: canSeeAbsenceStatus
-      ? (mappedStudent.excused_since ?? undefined)
-      : undefined,
-    class_trip: canSeeAbsenceStatus
-      ? (mappedStudent.class_trip ?? false)
-      : false,
-    class_trip_since: canSeeAbsenceStatus
-      ? (mappedStudent.class_trip_since ?? undefined)
-      : undefined,
-    actual_arrival_time: hasAccess
-      ? (mappedStudent.actual_arrival_time ?? undefined)
-      : undefined,
-    actual_pickup_time: hasAccess
-      ? (mappedStudent.actual_pickup_time ?? undefined)
-      : undefined,
+    ...student,
+    first_name: student.first_name ?? "",
+    second_name: student.second_name ?? "",
+    group_id: student.group_id ?? "",
+    group_name: student.group_name ?? "",
+    location_since: readable(student.location_since),
+    extra_info: readable(student.extra_info),
+    address_street: readable(student.address_street),
+    address_city: readable(student.address_city),
+    address_postal_code: readable(student.address_postal_code),
+    actual_arrival_time: readable(student.actual_arrival_time),
+    actual_pickup_time: readable(student.actual_pickup_time),
+    sick: canSeeAbsence ? (student.sick ?? false) : false,
+    sick_since: canSeeAbsence ? student.sick_since : undefined,
+    excused: canSeeAbsence ? (student.excused ?? false) : false,
+    excused_since: canSeeAbsence ? student.excused_since : undefined,
+    class_trip: canSeeAbsence ? (student.class_trip ?? false) : false,
+    class_trip_since: canSeeAbsence ? student.class_trip_since : undefined,
     has_full_access: hasAccess,
-    // Photo URL is visible to anyone with users:read who can see the
-    // student. The backend returns the authenticated proxy URL, so the
-    // browser can render <img src> with the same-origin session cookie.
-    // Forgetting this field on the detail-page hook was the bug where the
-    // big xl avatar in StudentDetailHeader stayed empty even though all
-    // other surfaces (register rows, search cards, OGS-room cards)
-    // showed the photo correctly.
-    photo_url: mappedStudent.photo_url ?? undefined,
-    photo_consent_given: mappedStudent.photo_consent_given ?? undefined,
-    photo_consent_given_at: mappedStudent.photo_consent_given_at ?? undefined,
-    photo_consent_given_by: mappedStudent.photo_consent_given_by ?? undefined,
   };
 }
 
@@ -129,7 +53,7 @@ function extractRoomNames(
 }
 
 export interface StudentDetailResponse {
-  student: ExtendedStudent;
+  student: Student;
   hasFullAccess: boolean;
   hasWriteAccess: boolean;
   hasAbsenceWriteAccess: boolean;
@@ -147,8 +71,8 @@ export async function fetchStudentDetail(
   studentId: string,
 ): Promise<StudentDetailResponse> {
   // Fetch student data and user context in parallel
-  const [studentResponse, groups, supervisedGroups] = await Promise.all([
-    studentService.getStudent(studentId),
+  const [student, groups, supervisedGroups] = await Promise.all([
+    fetchStudent(studentId),
     // Own groups only refine access hints on the page; without them the
     // child still loads, just without the "my group" shortcuts.
     userContextService.getMyEducationalGroups().catch((err) => {
@@ -166,35 +90,10 @@ export async function fetchStudentDetail(
     }),
   ]);
 
-  interface WrappedResponse {
-    data?: unknown;
-  }
-  const wrappedResponse = studentResponse as WrappedResponse;
-  const rawStudentData = wrappedResponse.data ?? studentResponse;
-
-  const mappedStudent = rawStudentData as Student & {
-    has_full_access?: boolean;
-    has_write_access?: boolean;
-    has_absence_write_access?: boolean;
-    has_sick_excused_write_access?: boolean;
-    group_supervisors?: SupervisorContact[];
-    attendance_log_enabled?: boolean;
-    feedback_enabled?: boolean;
-  };
-
-  const hasAccess = mappedStudent.has_full_access ?? false;
-  const hasWriteAccess = mappedStudent.has_write_access ?? false;
-  // Falls back to the Stammdaten flag so an older backend keeps today's
-  // behavior instead of hiding the Krankmeldung action (#2232).
-  const hasAbsenceWriteAccess =
-    mappedStudent.has_absence_write_access ?? hasWriteAccess;
-  const hasSickExcusedWriteAccess =
-    mappedStudent.has_sick_excused_write_access ?? hasAbsenceWriteAccess;
-  const attendanceLogEnabled = mappedStudent.attendance_log_enabled ?? false;
-  const feedbackEnabled = mappedStudent.feedback_enabled ?? false;
-  const groupSupervisors = mappedStudent.group_supervisors ?? [];
-  const extendedStudent = mapStudentResponse(
-    studentResponse,
+  const hasAccess = student.has_full_access ?? false;
+  const hasAbsenceWriteAccess = student.has_absence_write_access ?? false;
+  const extendedStudent = gateForAccess(
+    student,
     hasAccess,
     hasAbsenceWriteAccess,
   );
@@ -206,12 +105,12 @@ export async function fetchStudentDetail(
   return {
     student: extendedStudent,
     hasFullAccess: hasAccess,
-    hasWriteAccess,
+    hasWriteAccess: student.has_write_access ?? false,
     hasAbsenceWriteAccess,
-    hasSickExcusedWriteAccess,
-    attendanceLogEnabled,
-    feedbackEnabled,
-    supervisors: groupSupervisors,
+    hasSickExcusedWriteAccess: student.has_sick_excused_write_access ?? false,
+    attendanceLogEnabled: student.attendance_log_enabled ?? false,
+    feedbackEnabled: student.feedback_enabled ?? false,
+    supervisors: student.group_supervisors ?? [],
     myGroups: groupIds,
     myGroupRooms: ogsGroupRoomNames,
     mySupervisedRooms: roomNames,

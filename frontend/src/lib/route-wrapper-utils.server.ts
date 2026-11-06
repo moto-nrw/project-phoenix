@@ -16,6 +16,20 @@ export function buildQueryString(request: NextRequest): string {
   return qs ? `?${qs}` : "";
 }
 
+/** Only the listed keys, first non-empty value each, in the listed order. */
+export function allowedQueryString(
+  request: NextRequest,
+  allowed: readonly string[],
+): string {
+  const forwarded = new URLSearchParams();
+  for (const key of allowed) {
+    const value = request.nextUrl.searchParams.get(key);
+    if (value) forwarded.set(key, value);
+  }
+  const qs = forwarded.toString();
+  return qs ? `?${qs}` : "";
+}
+
 export async function extractParams(
   request: NextRequest,
   context: RouteContext,

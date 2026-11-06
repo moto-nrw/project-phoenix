@@ -34,6 +34,7 @@ import {
 } from "~/lib/student-status-days-api";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { studentKeys } from "~/lib/swr/portal-keys";
 
 const logger = createLogger({ component: "AbsencesPage" });
 
@@ -166,7 +167,14 @@ export default function AbsencesPage() {
     mutate,
   } = useSWRAuth<StatusDayOverview>(
     effectiveFromIso && effectiveToIso
-      ? `student-status-days-overview-${effectiveFromIso}-${effectiveToIso}-${page}-${deferredQuery}-${statusFilter}-${groupFilter}`
+      ? studentKeys.statusDayOverview({
+          from: effectiveFromIso,
+          to: effectiveToIso,
+          page,
+          query: deferredQuery,
+          status: statusFilter,
+          groupId: groupFilter,
+        })
       : null,
     () =>
       fetchStatusDayOverview(effectiveFromIso!, effectiveToIso!, {

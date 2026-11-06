@@ -35,8 +35,8 @@ import (
 // /traeger/contracts and the templates of the offerings at
 // /traeger/contract-templates.
 func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) {
-	resource := NewCareContractHTTP(organizations, settings, delivery, accessLog)
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) {
+	resource := NewCareContractHTTP(organizations, settings, delivery, outcomes, accessLog)
 	root.Mount("/traeger/contracts", resource.ContractRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/contract-templates", resource.TemplateRouter(ProtectedTraegerRoutes))
 }
@@ -47,11 +47,11 @@ func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations
 // tenant transaction, the letterhead and the contract template to the
 // master data and the branding of the Träger, and the mail to Delivery.
 func NewCareContractHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) *careContractHTTP.Resource {
+	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender) *careContractHTTP.Resource {
 	letterheads := careContractLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(),
 		templates: organizationTenancyCompose.NewTraegerDocumentTemplates(), settings: settings}
 	contracts := careContractCompose.NewContracts(careContractCompose.ContractPorts{
-		Letterheads: letterheads, Post: careContractPost{delivery: delivery},
+		Letterheads: letterheads, Post: careContractPost{delivery: delivery, outcomes: outcomes},
 		Runtime: careContractRuntime{}, Access: careContractAccessLog{log: accessLog},
 	})
 	intake := careContractCompose.NewIntake(careContractCompose.IntakePorts{
@@ -273,6 +273,7 @@ func (b careContractLetterheads) Letterhead(ctx context.Context, reviewer careco
 // related entity and the PDF in its payload (ADR 0123).
 type careContractPost struct {
 	delivery deliveryRuntime.Capability
+	outcomes deliveryRuntime.EmailOutcomes
 }
 
 func (p careContractPost) EnqueueContractMail(ctx context.Context, mail carecontract.ContractMail) (int64, error) {
@@ -292,6 +293,41 @@ func (p careContractPost) EnqueueContractMail(ctx context.Context, mail carecont
 	return enqueued.ID, nil
 }
 
+// contractMailState names Delivery's outcome in the contract's words. Only a mail
+// that left and did not come back counts as sent: an unsubscribe or a complaint is
+// no sent contract (#5934).
+func contractMailState(outcome deliveryContract.EmailOutcome) string {
+	switch outcome {
+	case deliveryContract.EmailQueued:
+		return carecontract.MailQueued
+	case deliveryContract.EmailAccepted, deliveryContract.EmailDelivered, deliveryContract.EmailDelayed, deliveryContract.EmailOverdue:
+		return carecontract.MailSent
+	case deliveryContract.EmailOutcomeUnknown:
+		return carecontract.MailUnknown
+	default:
+		return carecontract.MailFailed
+	}
+}
+
+// ContractMailBlock reads what would hold a mail to the address now: a stop or a
+// list of a school of the Träger, or the provider if the last mail to it left a block.
+func (p careContractPost) ContractMailBlock(ctx context.Context, organizationID int64, address, outcome string) (string, error) {
+	listed, stopped, err := p.outcomes.TraegerMailHolds(ctx, organizationID, address)
+	if err != nil {
+		return "", err
+	}
+	mark := deliveryContract.EmailAddressMark("")
+	if listed {
+		mark = deliveryContract.EmailMarkFailed
+	}
+	latest := deliveryContract.EmailOutcome(outcome)
+	var provider deliveryContract.EmailProviderBlock
+	if latest.HeldAtProvider() {
+		provider = p.outcomes.ProviderEmailBlocks(ctx, []string{address})[deliveryContract.NormalizedEmailAddress(address)]
+	}
+	return string(deliveryContract.EmailSendBlockOf(mark, stopped, latest, provider)), nil
+}
+
 func (p careContractPost) ContractMailStates(ctx context.Context, organizationID, contractID int64) ([]carecontract.MailState, error) {
 	statuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID,
 		deliveryContract.RelatedEntity{Type: carecontract.MailRelatedContract, ID: contractID})
@@ -300,22 +336,7 @@ func (p careContractPost) ContractMailStates(ctx context.Context, organizationID
 	}
 	states := make([]carecontract.MailState, len(statuses))
 	for i, status := range statuses {
-		state := carecontract.MailQueued
-		switch {
-		case status.State == deliveryContract.StateSent && (status.DeliveryState == deliveryContract.DeliveryFailed ||
-			status.DeliveryState == deliveryContract.DeliverySuppressed):
-			// Accepted, then bounced for good or withheld for a bad
-			// address: the parents never got it (#5932).
-			state = carecontract.MailFailed
-		case status.State == deliveryContract.StateSent:
-			state = carecontract.MailSent
-		case status.State == deliveryContract.StateDeadLetter && status.LastError != nil &&
-			*status.LastError == deliveryContract.DispatchOutcomeUnknown:
-			state = carecontract.MailUnknown
-		case status.State == deliveryContract.StateDeadLetter, status.State == deliveryContract.StateCancelled:
-			state = carecontract.MailFailed
-		}
-		states[i] = carecontract.MailState{OutboxID: status.ID, State: state}
+		states[i] = carecontract.MailState{OutboxID: status.ID, State: contractMailState(status.Outcome), Outcome: string(status.Outcome)}
 	}
 	return states, nil
 }

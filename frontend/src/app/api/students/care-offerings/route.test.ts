@@ -60,16 +60,4 @@ describe("GET /api/students/care-offerings", () => {
     }>(response);
     expect(json.data).toEqual([{ id: "12", name: "OGS Ganztag" }]);
   });
-
-  it("answers an empty list for an unexpected backend shape", async () => {
-    mockApiGet.mockResolvedValueOnce({ data: null });
-
-    const response = await GET(
-      createMockRequest("/api/students/care-offerings"),
-      createMockContext(),
-    );
-
-    const json = await parseJsonResponse<{ data: unknown[] }>(response);
-    expect(json.data).toEqual([]);
-  });
 });

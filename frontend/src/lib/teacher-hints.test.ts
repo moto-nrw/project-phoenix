@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mapVisitsToSupervisionStudents } from "~/components/active-supervisions/view-model";
-import { mapSlimStudentResponse, teacherHintText } from "./student-helpers";
+import { teacherHintText } from "./student-helpers";
+import { mapStudentListRow } from "./student-wire";
 import { mapRoster } from "./timetable-operations-types";
 
 // Der Hinweis der Lehrkraft (#4795) steht in Aufsicht, Gruppe und Kindersuche
@@ -25,18 +26,21 @@ describe("teacherHintText", () => {
 
 describe("teacher hints on the child", () => {
   it("reaches the Kindersuche row from the slim list", () => {
-    const student = mapSlimStudentResponse({
-      id: 7,
-      first_name: "Ida",
-      last_name: "Hinweis",
-      school_class: "4a",
-      current_location: "Anwesend",
-      sick: false,
-      excused: false,
-      class_trip: false,
-      has_full_access: true,
-      teacher_hints: [{ body: "Hat Bauchweh", author_name: "Lena Lehrerin" }],
-    });
+    const student = mapStudentListRow(
+      {
+        id: 7,
+        first_name: "Ida",
+        last_name: "Hinweis",
+        school_class: "4a",
+        current_location: "Anwesend",
+        sick: false,
+        excused: false,
+        class_trip: false,
+        has_full_access: true,
+        teacher_hints: [{ body: "Hat Bauchweh", author_name: "Lena Lehrerin" }],
+      } as Parameters<typeof mapStudentListRow>[0],
+      "slim",
+    );
     expect(student.teacher_hints).toEqual([
       { body: "Hat Bauchweh", author_name: "Lena Lehrerin" },
     ]);
