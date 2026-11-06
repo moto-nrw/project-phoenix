@@ -30,10 +30,9 @@ type shortRetention struct{ days int }
 
 func (shortRetention) RoomRetentionDays(context.Context) (int, error)   { return 30, nil }
 func (shortRetention) CourseRetentionDays(context.Context) (int, error) { return 365, nil }
-func (r shortRetention) AttendanceRetentionDays(context.Context) (int, error) {
-	return r.days, nil
+func (r shortRetention) OccupancyRetentionDays(context.Context) (int, int, error) {
+	return 365, r.days, nil
 }
-func (shortRetention) StatusDayRetentionDays(context.Context) (int, error) { return 365, nil }
 
 func wallClockAt(hour, minute int) *calendar.WallClock {
 	c, err := calendar.NewWallClock(hour, minute, 0, 0)

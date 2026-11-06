@@ -57,6 +57,32 @@ func (r StatisticsRetention) StatusDayRetentionDays(ctx context.Context) (int, e
 	return NewStatusDayRetention(r.source).Days(ctx)
 }
 
+// settingsPrefetcher resolves several keys in one read and carries the
+// snapshot in the returned context, so the resolvers after it read no
+// further rows.
+type settingsPrefetcher interface {
+	Prefetch(ctx context.Context, keys []string) (context.Context, error)
+}
+
+// OccupancyRetentionDays resolves the status day and the attendance window
+// together. A source that can prefetch reads both keys in one statement.
+func (r StatisticsRetention) OccupancyRetentionDays(ctx context.Context) (statusDays, attendanceDays int, err error) {
+	if prefetcher, ok := r.source.(settingsPrefetcher); ok {
+		if ctx, err = prefetcher.Prefetch(ctx, []string{
+			configModel.KeyGDPRStatusDayRetentionDays, configModel.KeyGDPRAttendanceRetentionDays,
+		}); err != nil {
+			return 0, 0, fmt.Errorf("prefetch the retention windows: %w", err)
+		}
+	}
+	if statusDays, err = r.StatusDayRetentionDays(ctx); err != nil {
+		return 0, 0, err
+	}
+	if attendanceDays, err = r.AttendanceRetentionDays(ctx); err != nil {
+		return 0, 0, err
+	}
+	return statusDays, attendanceDays, nil
+}
+
 // StatusDayRetention is the retention window of the student status days
 // (sick and excused days), the tenant's GDPR status day retention.
 type StatusDayRetention struct{ source StatisticsRetentionSource }

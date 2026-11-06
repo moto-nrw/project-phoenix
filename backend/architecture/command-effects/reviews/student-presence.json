@@ -14619,16 +14619,6 @@
       "target_owner": "audit-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.AttendanceRetentionDays",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsRetention.AttendanceRetentionDays",
-      "reason": "Read-only target: student-presence reaches modules/settings.StatisticsRetention.AttendanceRetentionDays (settings-platform), which resolves gdpr.attendance_retention_days for the occupancy by time of day (#4764). No persistent, lock or scope effect.",
-      "source_owner": "student-presence",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.AttendanceRetentionDays",
-      "target_owner": "settings-platform"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.CourseRetentionDays",
       "classification": "query",
       "effect": "query",
@@ -14639,6 +14629,16 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.OccupancyRetentionDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsRetention.OccupancyRetentionDays",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings.StatisticsRetention.OccupancyRetentionDays: resolves the status day and the attendance retention windows of the tenant in one settings read (#4683, ADR 0155).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.OccupancyRetentionDays",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.RoomRetentionDays",
       "classification": "query",
       "effect": "query",
@@ -14646,16 +14646,6 @@
       "reason": "Read-only newly exposed target: student-presence reaches modules/settings.StatisticsRetention.RoomRetentionDays (settings-platform) through modules/settings.StatisticsRetention.RoomRetentionDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.RoomRetentionDays",
-      "target_owner": "settings-platform"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.StatusDayRetentionDays",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsRetention.StatusDayRetentionDays",
-      "reason": "Read-only target: student-presence reaches modules/settings.StatisticsRetention.StatusDayRetentionDays (settings-platform), which resolves gdpr.status_day_retention_days for the occupancy by time of day (#4764). No persistent, lock or scope effect.",
-      "source_owner": "student-presence",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.StatusDayRetentionDays",
       "target_owner": "settings-platform"
     },
     {

@@ -70,8 +70,10 @@ User Stories 56, 57 und 118. Er baut auf
    ADR 0067 (Lesen mit Protokoll), `BookedCare` und `BookedContract.Day` sind
    Lesungen. Die Compose-Budgets steigen um 23 Zeilen
    (`modules/carecontract/compose` +19, `modules/studentpresence/compose`
-   +4). Die drei Abfrage-Budgets von Soll und Ist steigen um je ein Statement:
-   die eine Lesung der gebuchten Leistungen je Anfrage.
+   +4). Die Abfrage-Budgets von Soll und Ist bleiben: Die Vertragslesung
+   kostet ein Statement, dafür liest Soll und Ist die beiden Löschfristen
+   (`gdpr.status_day_retention_days`, `gdpr.attendance_retention_days`) jetzt
+   in einer Settings-Lesung (`StatisticsRetention.OccupancyRetentionDays`).
 
 ## Verworfene Optionen
 

@@ -106,10 +106,10 @@ type StatisticsRetention interface {
 	// RoomRetentionDays returns zero when room history is switched off.
 	RoomRetentionDays(context.Context) (int, error)
 	CourseRetentionDays(context.Context) (int, error)
-	// AttendanceRetentionDays is gdpr.attendance_retention_days.
-	AttendanceRetentionDays(context.Context) (int, error)
-	// StatusDayRetentionDays is gdpr.status_day_retention_days.
-	StatusDayRetentionDays(context.Context) (int, error)
+	// OccupancyRetentionDays answers gdpr.status_day_retention_days and
+	// gdpr.attendance_retention_days together, in one read where the
+	// settings allow it (#4683: the contract Soll costs one statement more).
+	OccupancyRetentionDays(context.Context) (statusDays, attendanceDays int, err error)
 }
 
 type PlannedCareDay = studentpresence.PlannedCareDay
