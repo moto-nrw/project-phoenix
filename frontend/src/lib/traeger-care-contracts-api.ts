@@ -164,7 +164,7 @@ export type SendSkipReason =
   | "mail_block_unreadable"
   | "not_sendable";
 
-export type ContractSendBlock =
+type ContractSendBlock =
   "delayed" | "stopped" | "address" | "provider" | "provider_unknown";
 
 export interface SendResult {
