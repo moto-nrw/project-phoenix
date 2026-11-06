@@ -104,7 +104,6 @@ function toDisplayEntry(row: ImportRowResult): DisplayEntry {
 export default function ClassListImportPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<DisplayEntry[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importComplete, setImportComplete] = useState(false);
@@ -135,7 +134,6 @@ export default function ClassListImportPage() {
   const resetForm = useCallback(() => {
     setUploadedFile(null);
     setPreviewData([]);
-    setIsDragging(false);
     setIsLoading(false);
     setIsImporting(false);
     setImportComplete(false);
@@ -304,45 +302,21 @@ export default function ClassListImportPage() {
     latestImportRef.current = () => void handleImport();
   });
 
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      const file = files[0];
-      if (
-        file &&
-        (file.type === "text/csv" ||
-          file.type ===
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-          file.name.endsWith(".csv") ||
-          file.name.endsWith(".xlsx"))
-      ) {
-        void handleFileUpload(file);
-      } else {
-        importErrors.invalid(
-          "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
-        );
-      }
+  // Beim Ablegen greift der Filter des Dateidialogs nicht, deshalb die Prüfung
+  // hier für beide Wege.
+  const handleFileChosen = (file: File) => {
+    if (
+      file.type === "text/csv" ||
+      file.type ===
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      file.name.toLowerCase().endsWith(".csv") ||
+      file.name.toLowerCase().endsWith(".xlsx")
+    ) {
+      void handleFileUpload(file);
+    } else {
+      importErrors.invalid(
+        "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
+      );
     }
   };
 
@@ -465,14 +439,9 @@ export default function ClassListImportPage() {
 
       {/* Upload Section */}
       <UploadSection
-        isDragging={isDragging}
         isLoading={isLoading}
         uploadedFile={uploadedFile}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-        onFileSelect={(file) => void handleFileUpload(file)}
+        onFileSelect={handleFileChosen}
       />
 
       {/* Preview Section */}

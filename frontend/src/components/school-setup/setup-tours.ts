@@ -127,6 +127,7 @@ function viaSidebar(path: string, label: string): SetupTourStop[] {
 const INVITE_FORM = 'div:has(> form [data-setup-tour="invite-submit"])';
 
 const IMPORT_SUBMIT = '[data-setup-tour="student-import-submit"]';
+const IMPORT_UPLOAD = '[data-setup-tour="student-import-upload"]';
 
 /** Zweige einer Tour, auf eigener Seite und mit eigener Zählung. */
 export type SetupTourBranch = "student-import";
@@ -149,7 +150,7 @@ export const SETUP_TOUR_BRANCHES: Readonly<Record<SetupTourBranch, SetupTour>> =
           advance: "next",
         },
         {
-          target: 'div:has(> input[type="file"])',
+          target: IMPORT_UPLOAD,
           title: "Datei hochladen",
           text: "Ziehen Sie die ausgefüllte Datei hierher oder wählen Sie „Datei auswählen“. Danach zeigt moto eine Vorschau.",
           advance: "next",
