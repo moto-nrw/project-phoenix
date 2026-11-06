@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -34,6 +35,9 @@ func (seedTraegerCareContractSignaturesStep) Run(ctx context.Context, rt *Runtim
 	}
 	paper, err := seedPaperContract(rt.Client, auth)
 	if err != nil {
+		return err
+	}
+	if err := seedSendContractsToParents(rt, auth); err != nil {
 		return err
 	}
 	signed, err := seedParentContractSignatures(ctx, rt)
@@ -104,6 +108,7 @@ func seedParentContractSignatures(ctx context.Context, rt *Runtime) (int, error)
 		raw, err := rt.Client.GetWithAuth(auth, "/parent/me/documents/contracts")
 		if err != nil {
 			// A parent without the inbox right has no contracts to sign.
+			fmt.Printf("    parent %s has no contract inbox: %v\n", parent.Email, err)
 			continue
 		}
 		var inbox struct {
@@ -126,10 +131,48 @@ func seedParentContractSignatures(ctx context.Context, rt *Runtime) (int, error)
 				"withdrawal_notice_acknowledged": true, "early_start_requested": true,
 			}); err != nil {
 				// The relationship may grant reading but not signing.
+				fmt.Printf("    parent %s cannot sign contract %s: %v\n", parent.Email, contract.ID, err)
 				continue
 			}
 			return 1, nil
 		}
 	}
 	return 0, nil
+}
+
+// seedSendContractsToParents sends the drafts addressed to the demo parents,
+// so one of them finds a contract to sign in the parents portal.
+func seedSendContractsToParents(rt *Runtime, auth AuthRef) error {
+	emails := map[string]bool{}
+	for _, parent := range rt.Parents {
+		emails[strings.ToLower(parent.Email)] = true
+	}
+	raw, err := rt.Client.GetWithAuth(auth, "/traeger/contracts/?status=entwurf&limit=100")
+	if err != nil {
+		return fmt.Errorf("read the drafts: %w", err)
+	}
+	var drafts struct {
+		Data struct {
+			Contracts []struct {
+				ID         int64  `json:"id"`
+				PartyEmail string `json:"party_email"`
+			} `json:"contracts"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &drafts); err != nil {
+		return fmt.Errorf("read the drafts: %w", err)
+	}
+	ids := []int64{}
+	for _, draft := range drafts.Data.Contracts {
+		if emails[strings.ToLower(draft.PartyEmail)] {
+			ids = append(ids, draft.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	if _, err := rt.Client.PostWithAuth(auth, "/traeger/contracts/send", map[string]any{"contract_ids": ids}); err != nil {
+		return fmt.Errorf("send the contracts of the demo parents: %w", err)
+	}
+	return nil
 }
