@@ -198,28 +198,7 @@ func sumFamily(family *parentbilling.BillingFamilyDetail) {
 		latest.RecipientFirstName, latest.RecipientLastName, latest.RecipientEmail
 	family.DocumentCount = len(family.Documents)
 	for _, document := range family.Documents {
-		if document.IssuedOn.After(family.LastIssuedOn) || family.LastIssuedOn.IsZero() {
-			family.LastIssuedOn = document.IssuedOn
-		}
-		if document.DebtorNumber != "" && !slices.Contains(family.DebtorNumbers, document.DebtorNumber) {
-			family.DebtorNumbers = append(family.DebtorNumbers, document.DebtorNumber)
-		}
-		switch document.Kind {
-		case parentbilling.DocumentInvoice:
-			family.InvoiceCount++
-			family.IssuedCents += document.TotalCents
-			family.OpenCents += document.OpenCents
-			if document.OpenCents > 0 {
-				family.OpenInvoiceCount++
-			}
-			if document.Status != parentbilling.InvoiceCancelled && !slices.Contains(family.Payments, *document.Payment) {
-				family.Payments = append(family.Payments, *document.Payment)
-			}
-		case parentbilling.DocumentCancellation:
-			family.CancelledCents -= document.TotalCents
-		case parentbilling.DocumentCredit:
-			family.CreditedCents -= document.TotalCents
-		}
+		noteDocument(family, document)
 	}
 	slices.Sort(family.DebtorNumbers)
 	slices.SortFunc(family.Payments, func(a, b parentbilling.BillingPayment) int {
@@ -228,6 +207,39 @@ func sumFamily(family *parentbilling.BillingFamilyDetail) {
 		}
 		return strings.Compare(a.CostBearerName, b.CostBearerName)
 	})
+}
+
+// noteDocument adds one document to the date, the debtor numbers and the
+// sums of its family.
+func noteDocument(family *parentbilling.BillingFamilyDetail, document parentbilling.BillingFamilyDocument) {
+	if family.LastIssuedOn.IsZero() || document.IssuedOn.After(family.LastIssuedOn) {
+		family.LastIssuedOn = document.IssuedOn
+	}
+	if document.DebtorNumber != "" && !slices.Contains(family.DebtorNumbers, document.DebtorNumber) {
+		family.DebtorNumbers = append(family.DebtorNumbers, document.DebtorNumber)
+	}
+	switch document.Kind {
+	case parentbilling.DocumentInvoice:
+		noteInvoice(family, document)
+	case parentbilling.DocumentCancellation:
+		family.CancelledCents -= document.TotalCents
+	case parentbilling.DocumentCredit:
+		family.CreditedCents -= document.TotalCents
+	}
+}
+
+// noteInvoice adds an invoice to the counts and sums of its family and, unless
+// it is cancelled, its payer to the ways the family pays.
+func noteInvoice(family *parentbilling.BillingFamilyDetail, invoice parentbilling.BillingFamilyDocument) {
+	family.InvoiceCount++
+	family.IssuedCents += invoice.TotalCents
+	family.OpenCents += invoice.OpenCents
+	if invoice.OpenCents > 0 {
+		family.OpenInvoiceCount++
+	}
+	if invoice.Status != parentbilling.InvoiceCancelled && !slices.Contains(family.Payments, *invoice.Payment) {
+		family.Payments = append(family.Payments, *invoice.Payment)
+	}
 }
 
 // paymentOrder lists the family first, then the cost bearers, then the
