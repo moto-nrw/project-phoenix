@@ -15,15 +15,18 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// februarySchool books the module until 14:00 on Monday from August 2099;
+// februarySchool books the module until 14:00 on Monday from August 2099
+// and, from an earlier approval, on Monday and Wednesday from 1 March 2100;
 // the school approved a change to the module until 16:30 on Monday from
 // 1 February 2100.
 type februarySchool struct{ changedSchool }
 
 func (s februarySchool) Bookings(context.Context, []int64) (map[int64][]carecontract.Booking, error) {
-	from, february := calendar.NewDate(2099, 8, 1), calendar.NewDate(2100, 2, 1)
+	from, february, march := calendar.NewDate(2099, 8, 1), calendar.NewDate(2100, 2, 1), calendar.NewDate(2100, 3, 1)
 	return map[int64][]carecontract.Booking{s.child: {
 		{CareOfferingID: s.offering, Days: []string{"mon"}, ValidFrom: &from, ValidUntil: &february},
+		// The earlier approval behind the planned version 2.
+		{CareOfferingID: s.offering, Days: []string{"mon", "wed"}, ValidFrom: &march},
 		{CareOfferingID: s.offering + 1, Days: []string{"mon"}, ValidFrom: &february},
 	}}, nil
 }

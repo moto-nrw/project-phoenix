@@ -426,3 +426,52 @@ func TestAnExtendedModuleIsCarriedOnAfterItsPromisedEnd(t *testing.T) {
 	assert.Len(t, version.ServicesOn(*date(2031, 7, 7)), 1, "a Monday in July books the module")
 	assert.Len(t, version.ServicesOn(*date(2031, 9, 29)), 1, "a Monday in September too")
 }
+
+// A version never promises a cancelled weekday (quorum critical): version 2
+// plans Monday and Wednesday in the short module from 1 March; an approved
+// change from 1 February reduces the module to Monday. From 1 March the
+// planned version is replaced without Wednesday.
+func TestACancelledWeekdayIsNoLongerPromised(t *testing.T) {
+	t.Parallel()
+	contract := plannedTimeline()
+	inserted := contract.Versions[0]
+	inserted.ID, inserted.Number, inserted.EffectiveFrom = 34, 3, *date(2031, 2, 1)
+	inserted.Status = carecontract.VersionSuperseded
+	contract.Versions = []carecontract.Version{contract.Versions[0], inserted, contract.Versions[1]}
+	contract.NextNumber = 4
+	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1)},
+	}}
+	plan, reason := nextAmendment(amendmentRead(), application, contract, *date(2031, 1, 10))
+	require.Empty(t, reason)
+	require.NotNil(t, plan)
+	require.NotNil(t, plan.replace)
+	assert.Equal(t, *date(2031, 3, 1), plan.version.EffectiveFrom)
+	assert.Equal(t, []carecontract.Service{{Weekday: "mon", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"}},
+		plan.version.Services, "Wednesday is booked no more")
+}
+
+// Care that goes on in another module is no end of care (quorum critical):
+// version 2 plans the short module from 1 March; an approved change from
+// 1 February switched to the long module. From 1 March the planned version
+// takes the continuing booking instead of promising the cancelled module.
+func TestContinuingCareInAnotherModuleReplacesAnUnbookedPlan(t *testing.T) {
+	t.Parallel()
+	contract := plannedTimeline()
+	inserted := contract.Versions[0]
+	inserted.ID, inserted.Number, inserted.EffectiveFrom = 34, 3, *date(2031, 2, 1)
+	inserted.Status = carecontract.VersionSuperseded
+	inserted.Services = []carecontract.Service{{Weekday: "mon", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"}}
+	contract.Versions = []carecontract.Version{contract.Versions[0], inserted, contract.Versions[1]}
+	contract.NextNumber = 4
+	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1), ValidUntil: date(2031, 2, 1)},
+		{CareOfferingID: 2, Days: []string{"mon"}, ValidFrom: date(2031, 2, 1)},
+	}}
+	plan, reason := nextAmendment(amendmentRead(), application, contract, *date(2031, 1, 10))
+	require.Empty(t, reason, "care goes on, it does not end")
+	require.NotNil(t, plan)
+	require.NotNil(t, plan.replace)
+	assert.Equal(t, []carecontract.Service{{Weekday: "mon", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"}},
+		plan.version.Services)
+}

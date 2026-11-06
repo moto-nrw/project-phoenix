@@ -26,7 +26,7 @@ import (
 //
 // The offerings a change concerns: their booking starts or ends on D, their
 // promised end (last day, end of the version) is D-1, or no booking runs
-// for them on D any more; a version never promises unbooked care (#5928),
+// for them on D any more on a promised weekday; a version never promises unbooked care (#5928),
 // which goes before rule 4. A D before today holds from today, unless a
 // version started since then; all such overdue changes hold together.
 
@@ -67,6 +67,11 @@ func planChange(read schoolRead, application carecontract.Application, contract 
 	}
 	booked := servicesAt(read, application, next.day)
 	services := withChange(base, booked.services, changedOfferings(read, application, contract.Versions, next, base, booked.services))
+	if len(services) == 0 && len(booked.services) > 0 {
+		// Nothing the version promised is booked any more, but care goes on:
+		// the version takes the continuing bookings, never an empty promise.
+		services = booked.services
+	}
 	if sameCare(services, base) {
 		return nil, ""
 	}
@@ -119,7 +124,8 @@ func withChange(base, booked []carecontract.Service, changed map[int64]bool) []c
 
 // changedOfferings are the offerings the change concerns: a booking starts
 // or ends on one of its days, a version's promise for them ends the day
-// before, or no booking runs for a promised offering on the change's day.
+// before, or no booking runs on a promised weekday of an offering on the
+// change's day.
 func changedOfferings(read schoolRead, application carecontract.Application, timeline []carecontract.Version,
 	next change, base, booked []carecontract.Service) map[int64]bool {
 	changed := map[int64]bool{}
@@ -133,8 +139,12 @@ func changedOfferings(read schoolRead, application carecontract.Application, tim
 			changed[offering] = true
 		}
 	}
+	// A promised weekday of an offering without a running booking on it:
+	// the offering takes its bookings, so the cancelled day drops out.
 	for _, service := range base {
-		if !slices.ContainsFunc(booked, func(b carecontract.Service) bool { return b.CareOfferingID == service.CareOfferingID }) {
+		if !slices.ContainsFunc(booked, func(b carecontract.Service) bool {
+			return b.CareOfferingID == service.CareOfferingID && b.Weekday == service.Weekday
+		}) {
 			changed[service.CareOfferingID] = true
 		}
 	}
