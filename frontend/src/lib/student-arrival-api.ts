@@ -213,6 +213,10 @@ export async function fetchArrivalData(
   const data = await bffJson<BackendArrivalData>(
     `/api/students/${encodeURIComponent(studentId)}/arrival-schedules${suffix}`,
   );
+  return mapArrivalData(data);
+}
+
+function mapArrivalData(data: BackendArrivalData): ArrivalData {
   return {
     schedules: (data.schedules ?? []).map(mapArrivalSchedule),
     exceptions: (data.exceptions ?? []).map(mapArrivalException),
@@ -251,12 +255,12 @@ export async function fetchArrivalSettings(): Promise<ArrivalSettings> {
 export async function updateArrivalSchedules(
   studentId: string,
   schedules: ArrivalScheduleInput[],
-): Promise<ArrivalSchedule[]> {
-  const data = await bffJson<BackendArrivalSchedule[]>(
+): Promise<ArrivalData> {
+  const data = await bffJson<BackendArrivalData>(
     `/api/students/${encodeURIComponent(studentId)}/arrival-schedules`,
     { method: "PUT", body: { schedules } },
   );
-  return data.map(mapArrivalSchedule);
+  return mapArrivalData(data);
 }
 
 export async function bulkUpsertArrivalSchedules(

@@ -277,8 +277,10 @@ describe("student-arrival-api", () => {
   });
 
   describe("updateArrivalSchedules", () => {
-    it("sends PUT with schedules body and maps the saved rows", async () => {
-      mockSessionFetch.mockResolvedValueOnce(wrapped([backendSchedule]));
+    it("sends PUT with schedules body and maps the saved arrival data", async () => {
+      mockSessionFetch.mockResolvedValueOnce(
+        wrapped({ schedules: [backendSchedule], exceptions: [], notes: [] }),
+      );
 
       const schedules = [
         { weekday: 1, expected_arrival: "08:00" },
@@ -293,7 +295,9 @@ describe("student-arrival-api", () => {
           body: JSON.stringify({ schedules }),
         }),
       );
-      expect(result[0]).toMatchObject({ id: "1", studentId: "42" });
+      expect(result.schedules[0]).toMatchObject({ id: "1", studentId: "42" });
+      expect(result.exceptions).toEqual([]);
+      expect(result.notes).toEqual([]);
     });
   });
 
