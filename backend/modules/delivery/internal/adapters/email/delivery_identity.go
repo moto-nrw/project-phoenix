@@ -30,7 +30,7 @@ func setDeliveryIdentity(msg *mail.Msg, message mailcontract.Message) {
 // quota or missing authentication, and calling those final would put a whole
 // queue's addresses on the suppression list. Only the enhanced status of the
 // answer names the cause:
-//   - 5.1.x at RCPT TO or DATA: this address does not exist.
+//   - 5.1.1/2/3/4/6/10 at RCPT TO or DATA: the destination address is unusable.
 //   - 5.6.x at DATA: this mail's content cannot be delivered.
 //
 // Everything else stays retryable, up to the mail's attempts: network errors,
@@ -43,8 +43,12 @@ func classifySendError(err error) error {
 	}
 	enhanced := sendErr.EnhancedStatusCode()
 	atData := sendErr.Reason == mail.ErrSMTPData || sendErr.Reason == mail.ErrSMTPDataClose
+	// Other 5.1.x statuses describe sender failures, valid addresses or
+	// unspecified causes; none proves that the recipient must be suppressed.
+	recipientRejected := enhanced == "5.1.1" || enhanced == "5.1.2" || enhanced == "5.1.3" ||
+		enhanced == "5.1.4" || enhanced == "5.1.6" || enhanced == "5.1.10"
 	switch {
-	case strings.HasPrefix(enhanced, "5.1.") && (sendErr.Reason == mail.ErrSMTPRcptTo || atData):
+	case recipientRejected && (sendErr.Reason == mail.ErrSMTPRcptTo || atData):
 		return fmt.Errorf("%w: %w: %w", mailcontract.ErrPermanentRejection, mailcontract.ErrRecipientRejected, err)
 	case strings.HasPrefix(enhanced, "5.6.") && atData:
 		return fmt.Errorf("%w: %w", mailcontract.ErrPermanentRejection, err)

@@ -193,6 +193,32 @@ func TestSecurityMailIsClaimedBeforeAnOlderLetterQueue(t *testing.T) {
 	assert.NotEmpty(t, first[0].DeliveryToken)
 }
 
+func TestClaimOrdersAMixedEmailBatch(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	school := testpkg.Tenant(t)
+	var letters []int64
+	for _, key := range []string{"letter-1", "letter-2", "letter-3"} {
+		letters = append(letters, enqueueEventMail(t, db, store, ctx, school, key, false).ID)
+	}
+	code := enqueueEventMail(t, db, store, ctx, school, "code", true)
+	invitation := enqueueEventMail(t, db, store, ctx, school, "invitation", true)
+	// Equal due times also exercise the ID tie-breaker within each priority.
+	now := time.Now()
+	_, err := db.ExecContext(ctx, `UPDATE platform.email_outbox SET next_retry_at = ? WHERE tenant_id = ?`, now, school)
+	require.NoError(t, err)
+
+	claimed, err := store.Claim(ctx, domain.TransportEmail, 5, now, now.Add(time.Minute))
+
+	require.NoError(t, err)
+	require.Len(t, claimed, 5)
+	want := append([]int64{code.ID, invitation.ID}, letters...)
+	for i, mail := range claimed {
+		assert.Equal(t, want[i], mail.ID, "dispatch position %d", i)
+	}
+}
+
 func TestFinalizeSentStoresTheMailsIdentity(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

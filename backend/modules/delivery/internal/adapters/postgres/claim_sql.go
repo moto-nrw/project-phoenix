@@ -6,7 +6,10 @@ package postgres
 // demo a new school's seed queued some 340 mails per order ahead of the next
 // visitor's link (2026-10-27). Security mail of a school ranks with it: an
 // invitation must not wait behind that school's letter to all parents (#5932).
+// UPDATE RETURNING has no defined order; the outer SELECT preserves priority
+// for the worker, which dispatches the claimed batch sequentially.
 const emailClaimSQL = `
+	WITH claimed AS (
 	UPDATE platform.email_outbox
 	SET status = 'claimed', lease_token = uuid_generate_v4()::text,
 		lease_expires_at = ?, updated_at = ?
@@ -16,7 +19,10 @@ const emailClaimSQL = `
 			OR (status = 'claimed' AND lease_expires_at <= ? AND lease_token NOT LIKE 'dispatch:%')
 		ORDER BY (security OR (tenant_id IS NULL AND organization_id IS NULL)) DESC, next_retry_at, id
 		FOR UPDATE SKIP LOCKED LIMIT ?
-	) RETURNING *`
+	) RETURNING *
+	)
+	SELECT * FROM claimed
+	ORDER BY (security OR (tenant_id IS NULL AND organization_id IS NULL)) DESC, next_retry_at, id`
 
 const pushClaimSQL = `
 	UPDATE platform.push_outbox
