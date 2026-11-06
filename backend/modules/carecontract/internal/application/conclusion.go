@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
@@ -232,29 +233,32 @@ func sendHoldBack(err error) error {
 // agreed to the conditions of this contract (ADR 0088 section 3, Weg b): the
 // school's acceptance needs its instant, and the submission a required
 // conditions block the parents ticked, with the checksum taken when it was
-// shown, before the acceptance. Conditions changed after the submission are
-// not the ones the parents agreed to. Approval alone or a missing checksum is
-// no proof; the contract then waits and nothing is reconstructed.
+// shown, before the acceptance. Its complete text must equal the applicable
+// template conditions. A save timestamp alone neither proves nor invalidates
+// agreement; the contract waits when its conditions have not been accepted.
 func acceptanceIssue(draft NewContract, termsChanged time.Time) string {
-	proof, ok := acceptanceProof(draft)
-	switch {
-	case !ok:
-		return carecontract.SkipAcceptanceMissing
-	case termsChanged.After(proof.SubmittedAt):
-		return carecontract.SkipAcceptanceChanged
+	if _, ok := acceptanceProof(draft); ok {
+		return ""
 	}
-	return ""
+	for _, proof := range draft.Acceptances {
+		if submittedAcceptance(draft, proof) && strings.HasPrefix(proof.Text, "Vertragsbedingungen für die Betreuung\n") &&
+			termsChanged.After(proof.SubmittedAt) {
+			return carecontract.SkipAcceptanceChanged
+		}
+	}
+	return carecontract.SkipAcceptanceMissing
 }
 
-// acceptanceProof is the latest ticked conditions block submitted before the
-// school accepted the application.
+// acceptanceProof is the latest ticked block covering exactly the conditions
+// frozen into this contract, submitted before the school's acceptance.
 func acceptanceProof(draft NewContract) (carecontract.AcceptedText, bool) {
-	if draft.AcceptedAt == nil || draft.AcceptedAt.IsZero() {
+	text := acceptanceText(draft.Version.Terms)
+	if text == "" {
 		return carecontract.AcceptedText{}, false
 	}
 	var found carecontract.AcceptedText
 	for _, proof := range draft.Acceptances {
-		if proof.SHA256 == "" || proof.SubmittedAt.IsZero() || proof.SubmittedAt.After(*draft.AcceptedAt) {
+		if !submittedAcceptance(draft, proof) || proof.Text != text {
 			continue
 		}
 		if proof.SubmittedAt.After(found.SubmittedAt) {
@@ -262,6 +266,11 @@ func acceptanceProof(draft NewContract) (carecontract.AcceptedText, bool) {
 		}
 	}
 	return found, !found.SubmittedAt.IsZero()
+}
+
+func submittedAcceptance(draft NewContract, proof carecontract.AcceptedText) bool {
+	return draft.AcceptedAt != nil && !draft.AcceptedAt.IsZero() && proof.SHA256 != "" &&
+		!proof.SubmittedAt.IsZero() && !proof.SubmittedAt.After(*draft.AcceptedAt)
 }
 
 // recordAcceptance writes the creation of the contract with the proof it

@@ -305,6 +305,19 @@ func TestCareContractAutomaticModeRefusesManualDrafts(t *testing.T) {
 	assert.Zero(t, careContractRows(t, f))
 }
 
+func TestCareContractConclusionKeepsConsentAfterAnUnchangedTemplateSave(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Unveränderte Bedingungen")
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	recordCareContractAcceptance(t, f)
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	setTraegerConclusionMode(t, f, carecontract.ModeOnAcceptance)
+	assert.Empty(t, candidateAcceptanceIssue(t, f))
+	run := careContractConclusionRun(t, f)
+	assert.Len(t, run.Concluded, 1)
+	assert.Empty(t, run.Skipped)
+}
+
 // recordCareContractAcceptance arranges a parent submission whose required
 // conditions block was ticked, with the checksum taken when it was shown,
 // after the conditions were saved; the school accepted it an hour later. The
@@ -312,11 +325,24 @@ func TestCareContractAutomaticModeRefusesManualDrafts(t *testing.T) {
 // It returns the instant of the acceptance.
 func recordCareContractAcceptance(t *testing.T, f careContractFixture) time.Time {
 	t.Helper()
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodGet, "/traeger/contract-templates", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	for _, offering := range decodeSchoolPortalData[[]carecontract.OfferingTemplate](t, rec.Body.Bytes()) {
+		if offering.SchoolID == f.school && offering.OfferingID == f.offering {
+			require.NotEmpty(t, offering.AcceptanceText)
+			return recordCareContractTextAcceptance(t, f, offering.AcceptanceText)
+		}
+	}
+	t.Fatal("the offering's conditions are missing")
+	return time.Time{}
+}
+
+func recordCareContractTextAcceptance(t *testing.T, f careContractFixture, text string) time.Time {
+	t.Helper()
 	ctx := context.Background()
 	var submitted time.Time
 	require.NoError(t, f.db.NewRaw(`SELECT NOW()`).Scan(ctx, &submitted))
 	accepted := submitted.Add(time.Hour)
-	text := "Es gelten die Teilnahmebedingungen des Trägers mit Laufzeit, Kündigungsfrist und Satzung."
 	snapshot, err := json.Marshal([]enrollment.LegalBlocksSnapshotEntry{{
 		SnapshotAt: submitted, ConsentFlags: json.RawMessage(`{"terms":true}`),
 		Blocks: []enrollment.LegalBlockSnapshot{{Key: "terms", Kind: enrollment.LegalBlockKindTerms,
@@ -329,6 +355,24 @@ func recordCareContractAcceptance(t *testing.T, f careContractFixture) time.Time
 	_, err = f.db.ExecContext(ctx, `UPDATE enrollment.request_children SET reviewed_at = ? WHERE id = ?`, accepted, f.child)
 	require.NoError(t, err)
 	return accepted
+}
+
+func TestCareContractConclusionRejectsUnrelatedConsent(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Fremde Zustimmung")
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	recordCareContractTextAcceptance(t, f, "Ich stimme der Schulordnung zu.")
+	setTraegerConclusionMode(t, f, carecontract.ModeOnAcceptance)
+	assert.Equal(t, carecontract.SkipAcceptanceMissing, candidateAcceptanceIssue(t, f))
+	run := careContractConclusionRun(t, f)
+	assert.Empty(t, run.Concluded)
+	require.Len(t, run.Skipped, 1)
+	assert.Equal(t, carecontract.SkipAcceptanceMissing, run.Skipped[0].Reason)
+	assert.Zero(t, careContractRows(t, f))
+	var outbox int
+	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM platform.email_outbox WHERE organization_id = ? AND kind = 'care_contract'`,
+		f.office.organization).Scan(context.Background(), &outbox))
+	assert.Zero(t, outbox)
 }
 
 func TestCareContractConclusionRefusesChangedConditions(t *testing.T) {

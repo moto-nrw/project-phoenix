@@ -45,6 +45,7 @@ interface ContractTemplate extends ContractTerms {
 
 /** One offering of a school with its template, or none yet. */
 export interface OfferingTemplate {
+  readonly acceptanceText?: string;
   readonly schoolId: string;
   readonly schoolName: string;
   readonly offeringId: string;
@@ -84,7 +85,8 @@ export type TemplateIssue =
   | "templates_differ"
   | "conclusion_automatic"
   | "acceptance_missing"
-  | "acceptance_changed";
+  | "acceptance_changed"
+  | "recipient_missing";
 
 /**
  * Why the application gives no proof of the parents' agreement for a
@@ -228,6 +230,7 @@ interface BackendTemplate extends BackendTerms {
 }
 
 interface BackendOfferingTemplate {
+  acceptance_text?: string;
   school_id: number;
   school_name: string;
   offering_id: number;
@@ -335,6 +338,7 @@ function termsToBackend(terms: ContractTerms): BackendTerms {
 
 function offeringFromBackend(row: BackendOfferingTemplate): OfferingTemplate {
   return {
+    acceptanceText: row.acceptance_text ?? "",
     schoolId: String(row.school_id),
     schoolName: row.school_name,
     offeringId: String(row.offering_id),

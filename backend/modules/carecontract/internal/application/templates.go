@@ -9,6 +9,36 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 )
 
+// acceptanceText is the complete, stable text of the template conditions.
+// The parent submission must have checksummed and accepted this exact text,
+// not a generic reference to terms. Explicit labels and indented values keep
+// multiline notes from masquerading as another condition. A missing partner
+// cannot bind the eventual fallback from the mutable letterhead.
+func acceptanceText(terms carecontract.TemplateInput) string {
+	if strings.TrimSpace(terms.ContractPartner) == "" {
+		return ""
+	}
+	values := [][2]string{
+		{"Laufzeit", TermText(terms, nil)},
+		{"Kündigung", NoticeText(terms)},
+		{"Vertragspartner", terms.ContractPartner},
+		{"Sonderkündigung", "Nein"},
+		{"Satzung", "Nein"},
+	}
+	if terms.SpecialTermination {
+		values[3][1] = "Ja\n" + terms.SpecialTerminationNote
+	}
+	if terms.StatuteRequired {
+		values[4][1] = "Ja\n" + terms.StatuteTitle
+		values = append(values, [2]string{"Link zur Satzung", terms.StatuteURL})
+	}
+	lines := []string{"Vertragsbedingungen für die Betreuung"}
+	for _, value := range values {
+		lines = append(lines, value[0]+":\n  "+strings.ReplaceAll(value[1], "\n", "\n  "))
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n\n"))
+}
+
 // The limits of a template, as the table checks them.
 const (
 	maxTermMonths       = 48

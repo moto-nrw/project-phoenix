@@ -110,7 +110,7 @@ func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templa
 			if existing[key] || len(booked.services) == 0 {
 				continue
 			}
-			_, issue := templates.terms(read.school.ID, booked.offerings)
+			terms, issue := templates.terms(read.school.ID, booked.offerings)
 			candidates = append(candidates, carecontract.Candidate{
 				CandidateKey:   carecontract.CandidateKey{SchoolID: read.school.ID, RequestChildID: application.RequestChildID},
 				SchoolName:     read.school.Name,
@@ -121,7 +121,8 @@ func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templa
 				Services:      boundServices(booked.services, lastDay(booked.until)),
 				EffectiveFrom: booked.effectiveFrom(application, today),
 				TemplateIssue: issue,
-				AcceptanceIssue: acceptanceIssue(NewContract{AcceptedAt: application.AcceptedAt, Acceptances: application.Acceptances},
+				AcceptanceIssue: acceptanceIssue(NewContract{AcceptedAt: application.AcceptedAt, Acceptances: application.Acceptances,
+					Version: carecontract.Version{Terms: terms}},
 					changed.since(read.school.ID, booked.offerings)),
 			})
 		}
@@ -330,11 +331,11 @@ func (in *Intake) Templates(ctx context.Context, reviewer carecontract.Reviewer)
 	result := []carecontract.OfferingTemplate{}
 	for _, school := range schools {
 		for _, offering := range offerings[school.ID] {
-			item := offeringTemplate(school, offering, nil)
+			var found *carecontract.Template
 			if template, ok := byOffering[[2]int64{school.ID, offering.ID}]; ok {
-				item.Template = &template
+				found = &template
 			}
-			result = append(result, item)
+			result = append(result, offeringTemplate(school, offering, found))
 		}
 	}
 	sortTemplates(result)
@@ -546,8 +547,13 @@ func (in *Intake) templateIndex(ctx context.Context, organizationID int64) (temp
 }
 
 func offeringTemplate(school carecontract.School, offering carecontract.Offering, template *carecontract.Template) carecontract.OfferingTemplate {
+	text := ""
+	if template != nil {
+		text = acceptanceText(template.TemplateInput)
+	}
 	return carecontract.OfferingTemplate{
-		SchoolID: school.ID, SchoolName: school.Name, OfferingID: offering.ID, OfferingName: offering.Name,
+		AcceptanceText: text,
+		SchoolID:       school.ID, SchoolName: school.Name, OfferingID: offering.ID, OfferingName: offering.Name,
 		PhaseName: offering.PhaseName, PriceCents: offering.PriceCents, Active: offering.Active, Template: template,
 	}
 }
