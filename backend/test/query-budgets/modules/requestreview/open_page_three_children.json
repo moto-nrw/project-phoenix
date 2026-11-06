@@ -1,6 +1,6 @@
 {
   "scenario": "modules.requestreview.open_page.three_children",
-  "max": 90,
+  "max": 82,
   "exact": false,
   "description": "Request Review native four-queue open_page, N=3 distinct children, one request of each kind per child, measured inside a tenant transaction (BEGIN and scope included, trailing COMMIT excluded). Merged complete page with search, conflicts, groups, family protection and submitters. Pins current linear schedule-plan/absence enrichment costs, not a flat-cost claim."
 }
