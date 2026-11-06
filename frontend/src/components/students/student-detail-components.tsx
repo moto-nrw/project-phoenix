@@ -33,6 +33,7 @@ import {
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { AllowedDepartureModesDisplay } from "~/components/students/allowed-departure-modes-display";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -703,10 +704,9 @@ function TodayTimeStatusInlineRow({
         )}
         {note && <span className="ml-1 text-gray-500">({note})</span>}
         {isException && (
-          <span
-            className="bg-moto-orange ml-1.5 inline-flex h-2 w-2 rounded-full"
-            title="Ausnahme"
-          />
+          <span className="ml-1.5 inline-flex align-middle">
+            <StatusBadge size="xs" tone="orange" label="Ausnahme" />
+          </span>
         )}
       </span>
     </span>

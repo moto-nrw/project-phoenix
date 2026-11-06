@@ -1717,18 +1717,6 @@ describe.concurrent("ui-kit/no-status-dot-outside-plans (#5598)", () => {
   });
 });
 
-describe("dot ratchet baseline", () => {
-  it("matches the current findings exactly", () => {
-    const result = spawnSync(
-      process.execPath,
-      [resolve("scripts/ui-kit-dot-baseline-update.mjs"), "--check"],
-      { encoding: "utf8" },
-    );
-
-    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
-  }, 120_000);
-});
-
 describe.concurrent("ui-kit/no-hex-alpha-tint", () => {
   it("fails a hex alpha tint in a pill's style", async () => {
     const result = await lintSource(

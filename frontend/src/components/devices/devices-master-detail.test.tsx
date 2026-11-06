@@ -101,7 +101,8 @@ describe("DevicesMasterDetail", () => {
     expect(screen.getAllByText("Eingang Kiosk").length).toBeGreaterThan(0);
     expect(screen.getByText("kiosk-001")).toBeInTheDocument();
     expect(screen.getByText("Foyer")).toBeInTheDocument();
-    expect(screen.getByText("Online")).toBeInTheDocument();
+    // Einmal als Pille in der Liste, einmal im Feld „Verbindung“.
+    expect(screen.getAllByText("Online")).toHaveLength(2);
   });
 
   it("opens the inline edit form from the header and triggers delete", () => {
@@ -248,7 +249,7 @@ describe("DevicesMasterDetail", () => {
     });
   });
 
-  it("renders the offline status text and a labeled indicator dot when the device is offline", () => {
+  it("names the offline status in the list and in the connection field", () => {
     render(
       <DevicesMasterDetail
         groupDefinitions={flatGroup([offlineDeviceWithKey])}
@@ -260,14 +261,11 @@ describe("DevicesMasterDetail", () => {
       />,
     );
 
-    // Multiple "Offline" texts surface intentionally: the connection field, the
-    // status pill, and the list dot. We only assert that at least one is shown
-    // and that the labeled list-item indicator is also present.
-    expect(screen.getAllByText("Offline").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByLabelText("Offline").length).toBeGreaterThan(0);
+    // Pille in der Liste, Feld „Verbindung“ und Statuspille der Detailansicht.
+    expect(screen.getAllByText("Offline")).toHaveLength(3);
   });
 
-  it("labels the list-item connection dot as 'Online' for is_online devices", () => {
+  it("names 'Online' as visible text in the list for is_online devices", () => {
     render(
       <DevicesMasterDetail
         groupDefinitions={flatGroup([onlineDevice])}
@@ -279,6 +277,6 @@ describe("DevicesMasterDetail", () => {
       />,
     );
 
-    expect(screen.getAllByLabelText("Online").length).toBeGreaterThan(0);
+    expect(screen.getByText("Online")).toBeInTheDocument();
   });
 });

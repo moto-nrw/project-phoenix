@@ -1625,20 +1625,14 @@ function UsageLine({
   title: string;
   status: TemplateStatus;
 }>) {
-  const statusMap: Record<
-    TemplateStatus,
-    { dotClassName: string; textClassName: string }
-  > = {
+  const statusMap: Record<TemplateStatus, { textClassName: string }> = {
     base: {
-      dotClassName: "bg-gray-300",
       textClassName: "text-gray-700",
     },
     assigned: {
-      dotClassName: "bg-moto-green",
       textClassName: "text-moto-green-vivid",
     },
     ready: {
-      dotClassName: "bg-gray-300",
       textClassName: "text-gray-700",
     },
   };
@@ -1648,10 +1642,6 @@ function UsageLine({
     <span
       className={`inline-flex items-center gap-2 font-medium ${config.textClassName}`}
     >
-      <span
-        className={`h-2 w-2 shrink-0 rounded-full ${config.dotClassName}`}
-        aria-hidden="true"
-      />
       {title}
     </span>
   );
@@ -1899,12 +1889,15 @@ function GuideStep({
       <span className="min-w-0 flex-1 text-sm font-medium text-gray-700">
         {title}
       </span>
-      <span
-        className={`h-2 w-2 rounded-full ${
-          done ? "bg-moto-green" : "bg-gray-300"
-        }`}
-        aria-hidden="true"
-      />
+      {done && (
+        <>
+          <Check
+            className="text-moto-green-strong h-4 w-4 shrink-0"
+            aria-hidden="true"
+          />
+          <span className="sr-only">Erledigt</span>
+        </>
+      )}
     </div>
   );
 }
@@ -3384,10 +3377,6 @@ function FormPreview({
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${previewStatus.className}`}
               >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${previewStatus.dotClassName}`}
-                  aria-hidden="true"
-                />
                 {previewStatus.label}
               </span>
             }
@@ -3550,7 +3539,6 @@ function getPreviewStatus({
       label: "In Phase verwendet",
       hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
       className: "bg-moto-green/10 text-moto-green-vivid",
-      dotClassName: "bg-moto-green",
     };
   }
 
@@ -3559,7 +3547,6 @@ function getPreviewStatus({
       label: "Bereit zur Zuordnung",
       hint: "Eltern sehen diese Vorlage erst, wenn sie einer Anmeldephase zugeordnet ist.",
       className: "bg-moto-green/10 text-moto-green-vivid",
-      dotClassName: "bg-moto-green",
     };
   }
 
@@ -3568,7 +3555,6 @@ function getPreviewStatus({
       label: "Gespeichert",
       hint: "Ordne die Vorlage in einer Anmeldephase zu, damit Eltern sie verwenden.",
       className: "bg-gray-100 text-gray-600",
-      dotClassName: "bg-gray-300",
     };
   }
 
@@ -3576,7 +3562,6 @@ function getPreviewStatus({
     label: "Entwurf",
     hint: "Speichern Sie die Vorlage zuerst. Danach können Sie sie in einer Anmeldephase auswählen.",
     className: "bg-gray-100 text-gray-600",
-    dotClassName: "bg-gray-300",
   };
 }
 
