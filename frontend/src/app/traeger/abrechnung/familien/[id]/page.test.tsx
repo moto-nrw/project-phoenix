@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { BillingFamilyDetail } from "~/lib/traeger-billing-families-api";
@@ -143,6 +143,39 @@ describe("TraegerBillingFamilyPage", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("Ersetzt FE-0001")[0]).toBeInTheDocument();
     expect(screen.getAllByText(/^[-−]5,00\s€$/).length).toBeGreaterThan(0);
+  });
+
+  it("keeps all document details in the mobile list", async () => {
+    renderPage();
+    await screen.findByRole("heading", { name: "Sabine Schneider" });
+
+    const mobileList = within(screen.getByRole("list"));
+    const invoice = within(
+      mobileList.getByRole("button", { name: /Rechnung FE-0003/ }),
+    );
+    expect(invoice.getByText("04.09.2026")).toBeInTheDocument();
+    expect(invoice.getByText("Herbstferien 2026")).toBeInTheDocument();
+    expect(invoice.getByText("12.10.2026 bis 23.10.2026")).toBeInTheDocument();
+    expect(invoice.getByText("Jonas, Lotta")).toBeInTheDocument();
+    expect(invoice.getByText("Betrag")).toBeInTheDocument();
+    expect(invoice.getByText("120,00 €")).toBeInTheDocument();
+    expect(invoice.getByText("Teilweise gutgeschrieben")).toBeInTheDocument();
+    expect(invoice.getByText("Offen")).toBeInTheDocument();
+    expect(invoice.getByText("115,00 €")).toBeInTheDocument();
+
+    const cancelled = within(
+      mobileList.getByRole("button", { name: /Rechnung FE-0001/ }),
+    );
+    expect(cancelled.getByText("Storniert")).toBeInTheDocument();
+    expect(cancelled.getByText("0,00 €")).toBeInTheDocument();
+
+    const credit = within(
+      mobileList.getByRole("button", { name: /Gutschrift FE-0004/ }),
+    );
+    expect(credit.getByText(/^[-−]5,00\s€$/)).toBeInTheDocument();
+
+    fireEvent.click(invoice.getByText("FE-0003"));
+    expect(mockPush).toHaveBeenCalledWith("/abrechnung/3");
   });
 
   it("opens the run of a document", async () => {

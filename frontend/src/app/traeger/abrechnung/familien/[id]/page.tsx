@@ -95,7 +95,7 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
     render: (document) => (
       <span className="block min-w-0">
         <span className="block text-gray-900">{document.periodName}</span>
-        <span className="block text-sm whitespace-nowrap text-gray-500">
+        <span className="block text-sm text-gray-500 md:whitespace-nowrap">
           {formatDateRange(document.serviceFrom, document.serviceUntil)}
         </span>
       </span>
@@ -260,7 +260,6 @@ export default function TraegerBillingFamilyPage() {
               rows={[...family.documents]}
               getRowKey={(document) => document.id}
               stackedOnMobile
-              stackedLayout="row"
               onRowClick={(document) =>
                 router.push(
                   traegerPath(
