@@ -24,7 +24,7 @@ import {
   useHomeCardRows,
 } from "~/components/home/home-card-rows";
 import { StatCard } from "~/components/ui/stat-card";
-import { OverbookedBadge } from "~/components/ui/occupancy-badges";
+import { OverbookedBadge } from "~/components/ui/planning/occupancy-badges";
 import { formatChildCount } from "~/lib/activity-occupancy";
 import type { BirthdayOverview } from "~/lib/birthdays-api";
 import {

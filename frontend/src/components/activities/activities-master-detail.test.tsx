@@ -22,7 +22,7 @@ vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
-vi.mock("~/components/ui/database/database-form", () => ({
+vi.mock("~/components/database/database-form", () => ({
   // Mirrors DatabaseForm in production: a rejected save goes to the
   // owner's error path, whose text the form renders.
   DatabaseForm: ({

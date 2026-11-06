@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "~/components/ui/navigation-link";
-import { MobilePageHelpTarget } from "~/components/help/mobile-page-help-target";
+import { MobilePageHelpTarget } from "~/components/ui/mobile-page-help-target";
 import { ChevronDown, Info } from "lucide-react";
 import type {
   InputHTMLAttributes,
@@ -22,7 +22,7 @@ import { Alert } from "~/components/ui/alert";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
-import { ModuleNotBookedState } from "~/components/ui/module-not-booked-state";
+import { useNotBookedSlots } from "./not-booked-slot";
 import { useNotBookedPageModule } from "~/lib/not-booked-page-context";
 import type { FormErrorDetail } from "~/components/ui/form-error";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
@@ -490,7 +490,8 @@ export function TenantBackLink({
  */
 export function TenantPage(props: TenantPageProps) {
   const notBookedModule = useNotBookedPageModule();
-  if (notBookedModule) {
+  const NotBookedState = useNotBookedSlots()?.State;
+  if (notBookedModule && NotBookedState) {
     return (
       <TenantPageView
         title={props.title}
@@ -500,7 +501,7 @@ export function TenantPage(props: TenantPageProps) {
         testId={props.testId}
       >
         <SectionCard>
-          <ModuleNotBookedState module={notBookedModule} />
+          <NotBookedState module={notBookedModule} />
         </SectionCard>
       </TenantPageView>
     );
@@ -1185,6 +1186,7 @@ function TenantPageBody({
   empty?: TenantPageProps["empty"];
   children?: ReactNode;
 }>) {
+  const NotBookedState = useNotBookedSlots()?.State;
   // Eine Anfrage, die das Backend mit `module.not_booked` ablehnt, ist kein
   // Fehler der Seite: die Schule hat das Modul nicht gebucht (#4894). Statt
   // der roten Meldung steht der erklärende Zustand.
@@ -1192,10 +1194,10 @@ function TenantPageBody({
     typeof error === "object" && error !== null && "notBookedModule" in error
       ? error.notBookedModule
       : undefined;
-  if (notBookedModule) {
+  if (notBookedModule && NotBookedState) {
     return (
       <SectionCard>
-        <ModuleNotBookedState module={notBookedModule} />
+        <NotBookedState module={notBookedModule} />
       </SectionCard>
     );
   }

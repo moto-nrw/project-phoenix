@@ -30,7 +30,7 @@ import {
   SIDEBAR_NAV_PADDING,
   sidebarLabelClasses,
   sidebarRowClasses,
-} from "./sidebar-geometry";
+} from "~/components/ui/sidebar-geometry";
 
 const RETURN_PATH_KEY = "staff-settings-return-path";
 const SETTINGS_PATH = STAFF_FLAT_PAGES.settings.href;

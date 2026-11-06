@@ -12,12 +12,12 @@ import {
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
 import { Button } from "~/components/ui/button";
-import { CoverageIndicator } from "~/components/ui/coverage-indicator";
+import { CoverageIndicator } from "~/components/ui/planning/coverage-indicator";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   ResourceGrid,
   type ResourceGridColumn,
-} from "~/components/ui/resource-grid";
+} from "~/components/ui/planning/resource-grid";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { calendarPeriodService } from "~/lib/calendar-period-api";

@@ -9,7 +9,7 @@ import { OwnWeekHoursCard } from "~/components/time-tracking/own-week-hours-card
 import { Button } from "~/components/ui/button";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { staffPlanConcept } from "~/lib/concepts/staffPlan";
 import {

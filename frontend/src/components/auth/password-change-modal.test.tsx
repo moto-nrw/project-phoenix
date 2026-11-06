@@ -41,7 +41,7 @@ function problemResponse(status: number, code: string, field?: string) {
 }
 
 // Mock UI components
-vi.mock("./modal", () => ({
+vi.mock("~/components/ui/modal", () => ({
   Modal: ({
     isOpen,
     children,
@@ -64,9 +64,7 @@ vi.mock("./modal", () => ({
     ) : null,
 }));
 
-vi.mock("./icons", () => ({
-  EyeIcon: () => <div data-testid="eye-icon">Eye</div>,
-  EyeOffIcon: () => <div data-testid="eye-off-icon">EyeOff</div>,
+vi.mock("~/components/ui/icons", () => ({
   CheckIcon: ({ className }: { className?: string }) => (
     <div data-testid="check-icon" className={className}>
       Check
@@ -173,10 +171,10 @@ describe("PasswordChangeModal", () => {
     const currentPasswordInput = screen.getByLabelText(/Aktuelles Passwort/i);
     expect(currentPasswordInput).toHaveAttribute("type", "password");
 
-    // Find the first toggle button (eye icon button)
-    const eyeIcons = screen.getAllByTestId("eye-icon");
-    const toggleButton = eyeIcons[0]!.closest("button");
-    fireEvent.click(toggleButton!);
+    // The first eye button belongs to the current password.
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Passwort anzeigen" })[0]!,
+    );
 
     expect(currentPasswordInput).toHaveAttribute("type", "text");
   });
@@ -407,9 +405,9 @@ describe("PasswordChangeModal", () => {
         screen.getByText(/Das aktuelle Passwort stimmt nicht/i),
       ).toBeInTheDocument();
     });
-    expect(screen.getByText(/Aktuelles Passwort/i).className).toContain(
-      "text-moto-red",
-    );
+    expect(
+      screen.getByText(/Aktuelles Passwort/i).parentElement?.className,
+    ).toContain("text-moto-red");
     expect(
       screen.queryByText(/diagnostic text that is never shown/i),
     ).not.toBeInTheDocument();
@@ -609,8 +607,9 @@ describe("PasswordChangeModal", () => {
         ).toBeInTheDocument();
       });
 
-      const currentPasswordLabel = screen.getByText(/Aktuelles Passwort/i);
-      expect(currentPasswordLabel.className).toContain("text-moto-red");
+      expect(
+        screen.getByText(/Aktuelles Passwort/i).parentElement?.className,
+      ).toContain("text-moto-red");
     });
   });
 });

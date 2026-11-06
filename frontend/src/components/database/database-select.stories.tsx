@@ -22,7 +22,7 @@ function DatabaseSelectDemo(
 }
 
 const meta: Meta<typeof DatabaseSelect> = {
-  title: "components/ui/database/DatabaseSelect",
+  title: "components/database/DatabaseSelect",
   component: DatabaseSelect,
   parameters: {
     layout: "padded",

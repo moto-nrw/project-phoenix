@@ -24,7 +24,7 @@
 import {
   CoverageIndicator,
   type CoverageState,
-} from "~/components/ui/coverage-indicator";
+} from "~/components/ui/planning/coverage-indicator";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import {

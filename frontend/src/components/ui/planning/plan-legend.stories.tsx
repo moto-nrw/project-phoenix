@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { PlanLegend } from "./plan-legend";
 
 const meta = {
-  title: "components/ui/PlanLegend",
+  title: "components/ui/planning/PlanLegend",
   component: PlanLegend,
   args: {
     entries: [

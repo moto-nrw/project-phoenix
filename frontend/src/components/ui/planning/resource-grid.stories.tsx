@@ -34,7 +34,7 @@ const WEEK_COLUMNS: readonly ResourceGridColumn[] = Array.from(
 );
 
 const meta = {
-  title: "components/ui/ResourceGrid",
+  title: "components/ui/planning/ResourceGrid",
 } satisfies Meta;
 
 export default meta;

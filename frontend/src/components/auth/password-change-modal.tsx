@@ -7,34 +7,16 @@ import {
   useRef,
   type RefObject,
 } from "react";
-import { Modal } from "./modal";
-import { Button } from "./button";
-import { FormErrorAlert } from "./form-error-alert";
-import type { DatabaseFormErrorPath } from "./database/database-form";
+import { Modal } from "~/components/ui/modal";
+import { Button } from "~/components/ui/button";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import type { DatabaseFormErrorPath } from "~/components/database/database-form";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
-import { EyeIcon, EyeOffIcon, CheckIcon, SpinnerIcon } from "./icons";
+import { CheckIcon, SpinnerIcon } from "~/components/ui/icons";
+import { Input } from "~/components/ui/input";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PasswordChange" });
-
-interface PasswordToggleProps {
-  readonly show: boolean;
-  readonly onToggle: () => void;
-}
-
-// Extracted component to avoid re-creating on each parent render
-function PasswordToggle({ show, onToggle }: PasswordToggleProps) {
-  return (
-    <button
-      type="button"
-      aria-label={show ? "Passwort ausblenden" : "Passwort anzeigen"}
-      onClick={onToggle}
-      className="absolute top-1/2 right-3 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700"
-    >
-      {show ? <EyeOffIcon /> : <EyeIcon />}
-    </button>
-  );
-}
 
 /** Default for `mapError`: the error as it came. */
 function keepError(error: unknown): unknown {
@@ -47,8 +29,8 @@ interface PasswordChangeModalProps {
   readonly onSuccess?: () => void;
   readonly apiEndpoint?: string;
   /**
-   * The owner's shared API error path (`useApiFormError`), handed in because
-   * the kit may not import contexts (#2517). A refused change shows the
+   * The owner's shared API error path (`useApiFormError`), handed in by the
+   * page (#2517). A refused change shows the
    * catalog text of its code in the dialog and marks the field the backend
    * names (`current_password`, `new_password`).
    */
@@ -122,9 +104,6 @@ export function PasswordChangeModal({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const latestSubmitRef = useRef<() => void>(() => undefined);
   const clearPathError = errorPath.clear;
 
@@ -195,9 +174,6 @@ export function PasswordChangeModal({
     setConfirmPassword("");
     clearPathError();
     setSuccess(false);
-    setShowCurrentPassword(false);
-    setShowNewPassword(false);
-    setShowConfirmPassword(false);
     onClose();
   }, [onClose, clearPathError]);
 
@@ -224,86 +200,44 @@ export function PasswordChangeModal({
         >
           <FormErrorAlert message={errorPath.error} />
 
-          {/* Current Password */}
-          <div>
-            <label
-              htmlFor="current-password"
-              className={`mb-1 block text-sm font-medium ${fieldInvalid("current_password") ? "text-moto-red" : "text-gray-700"}`}
-            >
-              Aktuelles Passwort
-            </label>
-            <div className="relative">
-              <input
-                id="current-password"
-                name="current_password"
-                aria-invalid={fieldInvalid("current_password")}
-                type={showCurrentPassword ? "text" : "password"}
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className={`block w-full rounded-lg border ${fieldInvalid("current_password") ? "border-moto-red/40" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
-              />
-              <PasswordToggle
-                show={showCurrentPassword}
-                onToggle={() => setShowCurrentPassword(!showCurrentPassword)}
-              />
-            </div>
-          </div>
+          <Input
+            label="Aktuelles Passwort"
+            id="current-password"
+            name="current_password"
+            aria-invalid={fieldInvalid("current_password")}
+            type="password"
+            revealable
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            placeholder="••••••••"
+            required
+          />
 
-          {/* New Password */}
-          <div>
-            <label
-              htmlFor="new-password"
-              className={`mb-1 block text-sm font-medium ${fieldInvalid("new_password") ? "text-moto-red" : "text-gray-700"}`}
-            >
-              Neues Passwort
-            </label>
-            <div className="relative">
-              <input
-                id="new-password"
-                name="new_password"
-                aria-invalid={fieldInvalid("new_password")}
-                type={showNewPassword ? "text" : "password"}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className={`block w-full rounded-lg border ${fieldInvalid("new_password") ? "border-moto-red/40" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
-              />
-              <PasswordToggle
-                show={showNewPassword}
-                onToggle={() => setShowNewPassword(!showNewPassword)}
-              />
-            </div>
-          </div>
+          <Input
+            label="Neues Passwort"
+            id="new-password"
+            name="new_password"
+            aria-invalid={fieldInvalid("new_password")}
+            type="password"
+            revealable
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="••••••••"
+            required
+          />
 
-          {/* Confirm Password */}
-          <div>
-            <label
-              htmlFor="confirm-password"
-              className={`mb-1 block text-sm font-medium ${fieldInvalid("confirm_password") ? "text-moto-red" : "text-gray-700"}`}
-            >
-              Neues Passwort bestätigen
-            </label>
-            <div className="relative">
-              <input
-                id="confirm-password"
-                name="confirm_password"
-                aria-invalid={fieldInvalid("confirm_password")}
-                type={showConfirmPassword ? "text" : "password"}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className={`block w-full rounded-lg border ${fieldInvalid("confirm_password") ? "border-moto-red/40" : "border-gray-200"} focus:border-moto-blue focus:ring-moto-blue bg-white px-4 py-3 pr-12 text-base text-gray-900 transition-colors placeholder:text-gray-400 focus:ring-1`}
-              />
-              <PasswordToggle
-                show={showConfirmPassword}
-                onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
-              />
-            </div>
-          </div>
+          <Input
+            label="Neues Passwort bestätigen"
+            id="confirm-password"
+            name="confirm_password"
+            aria-invalid={fieldInvalid("confirm_password")}
+            type="password"
+            revealable
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="••••••••"
+            required
+          />
 
           {/* Simple Password Requirements */}
           <div className="border-moto-blue/20 bg-moto-blue-soft rounded-lg border p-3">

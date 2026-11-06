@@ -5,7 +5,7 @@ import { releaseFakeTimers } from "~/test/clock";
 
 import { ConfirmDeleteModal } from "./confirm-delete-modal";
 import { Modal } from "./modal";
-import { ModalProvider } from "../dashboard/modal-context";
+import { ModalProvider } from "./modal-context";
 
 // The three escapes this dialog needs to stay usable are structural, not
 // visual, so they are pinned here: it must leave the card it is declared in

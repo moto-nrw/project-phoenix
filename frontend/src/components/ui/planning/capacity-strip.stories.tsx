@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { CapacityStrip } from "./capacity-strip";
 
 const meta = {
-  title: "components/ui/CapacityStrip",
+  title: "components/ui/planning/CapacityStrip",
   component: CapacityStrip,
   decorators: [
     (Story, context) =>

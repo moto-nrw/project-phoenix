@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Checkbox } from "./checkbox";
-import { ChoiceTile, choiceTileClassName } from "./choice-tile";
+import { ChoiceTile } from "./choice-tile";
 
 describe("ChoiceTile", () => {
   it("rendert als label, damit die Checkbox über die ganze Kachel klickbar ist", () => {
@@ -54,16 +54,28 @@ describe("ChoiceTile", () => {
   });
 
   it("färbt den gewählten Zustand nach tone", () => {
-    expect(choiceTileClassName({ selected: true })).toContain(
-      "border-gray-300 bg-gray-50",
+    const { rerender } = render(
+      <ChoiceTile data-testid="tile" selected>
+        Gewählt
+      </ChoiceTile>,
     );
-    expect(choiceTileClassName({ selected: true, tone: "green" })).toContain(
-      "border-moto-green/50 bg-moto-green/10",
+    const tile = screen.getByTestId("tile");
+    expect(tile.className).toContain("border-gray-300 bg-gray-50");
+    expect(tile.className).not.toContain("bg-white");
+
+    rerender(
+      <ChoiceTile data-testid="tile" selected tone="green">
+        Gewählt
+      </ChoiceTile>,
     );
-    expect(choiceTileClassName({ selected: true, tone: "blue" })).toContain(
-      "border-moto-blue bg-moto-blue/10",
+    expect(tile.className).toContain("border-moto-green/50 bg-moto-green/10");
+
+    rerender(
+      <ChoiceTile data-testid="tile" selected tone="blue">
+        Gewählt
+      </ChoiceTile>,
     );
-    expect(choiceTileClassName({ selected: true })).not.toContain("bg-white");
+    expect(tile.className).toContain("border-moto-blue bg-moto-blue/10");
   });
 
   it("schaltet bei disabled Hover und Fokusring ab", () => {
@@ -81,9 +93,12 @@ describe("ChoiceTile", () => {
   });
 
   it("lässt Padding und Rahmenfarbe über className überschreiben", () => {
-    const className = choiceTileClassName({
-      className: "border-moto-red/20 p-4",
-    });
+    render(
+      <ChoiceTile data-testid="tile" className="border-moto-red/20 p-4">
+        Zeile
+      </ChoiceTile>,
+    );
+    const { className } = screen.getByTestId("tile");
 
     expect(className).toContain("p-4");
     expect(className).not.toContain("px-3");

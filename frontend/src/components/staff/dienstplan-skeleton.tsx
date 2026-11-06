@@ -1,10 +1,10 @@
 "use client";
 
-import { CapacityStrip } from "~/components/ui/capacity-strip";
+import { CapacityStrip } from "~/components/ui/planning/capacity-strip";
 import {
   RESOURCE_GRID_METRICS,
   resourceGridMinWidth,
-} from "~/components/ui/resource-grid";
+} from "~/components/ui/planning/resource-grid";
 import { Skeleton } from "~/components/ui/skeleton";
 import { PlanningContextBarSkeleton } from "~/components/timetable/betreuungsplan-skeleton";
 

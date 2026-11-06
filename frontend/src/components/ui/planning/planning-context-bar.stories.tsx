@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { Button } from "./button";
+import { Button } from "../button";
 import { PlanningContextBar, PlanningDayChip } from "./planning-context-bar";
-import { SegmentedControl } from "./segmented-control";
+import { SegmentedControl } from "../segmented-control";
 
 const meta = {
-  title: "components/ui/PlanningContextBar",
+  title: "components/ui/planning/PlanningContextBar",
   component: PlanningContextBar,
   args: {
     dateLabel: "Mo 13.07.",
