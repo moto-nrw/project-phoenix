@@ -277,13 +277,28 @@ func TestLiftSuppressionWorksWithoutAProvider(t *testing.T) {
 	assert.Equal(t, 1, store.deleted)
 }
 
-func TestLiftSuppressionOfASchoolStopLeavesTheProviderAlone(t *testing.T) {
+func TestLiftSuppressionOfASchoolStopChecksTheProvider(t *testing.T) {
 	t.Parallel()
-	store := &reconcileStore{listed: true, reason: domain.EmailSuppressionSchoolStop}
-	api := &stubProviderAPI{}
-	require.NoError(t, reconciler(store, api).LiftEmailSuppression(context.Background(), 7, "eltern@example.com"))
-	assert.Empty(t, api.lifted)
-	assert.Equal(t, 1, store.deleted)
+	for _, providerErr := range []error{nil, domain.ErrSuppressionNeedsReview, domain.ErrSuppressionStaysAtProvider, errors.New("provider unavailable")} {
+		name := "unblocked"
+		if providerErr != nil {
+			name = providerErr.Error()
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			store := &reconcileStore{listed: true, reason: domain.EmailSuppressionSchoolStop}
+			api := &stubProviderAPI{liftErr: providerErr}
+			err := reconciler(store, api).LiftEmailSuppression(context.Background(), 7, "eltern@example.com")
+			assert.Equal(t, []string{"eltern@example.com"}, api.lifted)
+			if providerErr == nil {
+				require.NoError(t, err)
+				assert.Equal(t, 1, store.deleted)
+			} else {
+				require.Error(t, err)
+				assert.Zero(t, store.deleted, "a school stop can hide an earlier or later provider block")
+			}
+		})
+	}
 }
 
 func TestLiftSuppressionReportsAComplaintRecordedDuringTheProviderCall(t *testing.T) {

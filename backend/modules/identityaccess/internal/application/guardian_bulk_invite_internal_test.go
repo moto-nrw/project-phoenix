@@ -303,3 +303,27 @@ func TestBulkInvite_RepoErrorsSurface(t *testing.T) {
 		require.ErrorIs(t, err, errLifecycleBoom)
 	})
 }
+
+func TestBulkInvite_LinksExistingAccountDespiteMailBlock(t *testing.T) {
+	t.Parallel()
+	for _, block := range []string{domain.GuardianMailBlockAddress, domain.GuardianMailBlockDelayed} {
+		t.Run(block, func(t *testing.T) {
+			t.Parallel()
+			f := newLifecycleFixture(t)
+			f.store.addAccount(40, "konto@example.test", "hash:secret", true)
+			parent := f.bulkGuardian("konto@example.test", roleLegal, 11)
+			f.delivery.mailBlocks = map[string]string{parent.Email: block}
+
+			result, err := f.lifecycle.BulkInviteToStudents(tenantContext(), bulkRequest(11))
+
+			require.NoError(t, err)
+			assert.Equal(t, 1, result.LinkedExistingAccount)
+			assert.Empty(t, result.Problems)
+			assert.Zero(t, result.Invited)
+			assert.Empty(t, f.delivery.emails)
+			require.NotNil(t, f.guardians.profiles[parent.ID].AccountID)
+			assert.Equal(t, int64(40), *f.guardians.profiles[parent.ID].AccountID)
+			assert.Equal(t, []int64{40}, f.store.granted)
+		})
+	}
+}

@@ -296,15 +296,15 @@ func (l *AccountLifecycle) bulkInviteOne(ctx context.Context, run *bulkInviteRun
 	if l.skipBulkInviteEmailProblem(run, candidate, profile, email) {
 		return nil
 	}
-	if reason, blocked := bulkInviteMailBlock(run.mailBlocks[email]); blocked && !profile.HasAccount {
-		run.problem(candidate, profile, reason)
-		return nil
-	}
 	linked, err := l.linkBulkExistingAccount(ctx, run, candidate, profile, email)
 	if err != nil {
 		return err
 	}
 	if linked {
+		return nil
+	}
+	if reason, blocked := bulkInviteMailBlock(run.mailBlocks[email]); blocked && !profile.HasAccount {
+		run.problem(candidate, profile, reason)
 		return nil
 	}
 	return l.inviteEligibleBulkGuardian(ctx, run, candidate, profile, email, open)

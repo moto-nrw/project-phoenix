@@ -240,8 +240,9 @@ func (r *EmailReconciliation) LiftEmailSuppression(ctx context.Context, tenantID
 			return deliveryContract.ErrEmailSuppressionNotFound
 		}
 	}
-	// The school's own stop says nothing about the provider's list.
-	if r.api != nil && reason != domain.EmailSuppressionSchoolStop {
+	// A school stop may have replaced a provider block, or a later bounce may
+	// have left the stop unchanged. Reconcile both lists before reporting success.
+	if r.api != nil {
 		if err := r.api.LiftSuppression(ctx, address); err != nil {
 			return liftFailure(err)
 		}
