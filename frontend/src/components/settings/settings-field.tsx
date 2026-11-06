@@ -1572,8 +1572,8 @@ function renderAGBSourceEditor({
             Eltern lesen den Text direkt im Formular.
           </span>
           {hasText && (
-            <span className="mt-2 inline-flex rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200">
-              Text gespeichert
+            <span className="mt-2 block">
+              <StatusBadge label="Text gespeichert" tone="outline" compact />
             </span>
           )}
         </ChoiceTile>
@@ -1592,8 +1592,8 @@ function renderAGBSourceEditor({
             Eltern öffnen im Formular einen PDF-Link.
           </span>
           {hasDocument && (
-            <span className="mt-2 inline-flex rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200">
-              PDF gespeichert
+            <span className="mt-2 block">
+              <StatusBadge label="PDF gespeichert" tone="outline" compact />
             </span>
           )}
         </ChoiceTile>
