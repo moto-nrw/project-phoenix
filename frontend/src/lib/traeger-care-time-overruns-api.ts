@@ -6,12 +6,10 @@ import { traegerRequest } from "./traeger-api";
 
 const OVERRUNS_PATH = "/api/traeger/care-time-overruns";
 
-/** Das Recht, das die Zahlen je Schule öffnet. */
-export const OVERRUN_REPORT_RIGHT = "traeger_reports:read";
 /** Das Recht, das die Kinder mit Namen öffnet. */
 export const OVERRUN_NAMES_RIGHT = "traeger_contracts:manage";
 
-export interface OverrunFigures {
+interface OverrunFigures {
   readonly children: number;
   readonly overrunDays: number;
   readonly unbookedDays: number;
@@ -93,9 +91,7 @@ function figuresFromBackend(
   };
 }
 
-export function evaluationFromBackend(
-  body: BackendEvaluation,
-): OverrunEvaluation {
+function evaluationFromBackend(body: BackendEvaluation): OverrunEvaluation {
   return {
     from: body.from,
     to: body.to,

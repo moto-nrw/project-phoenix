@@ -1,6 +1,6 @@
 {
   "scenario": "api.statistics.student_care_times",
-  "max": 19,
+  "max": 20,
   "exact": false,
-  "description": "GET /statistics/students/{id}/care-times: fixed tenant and comparison batches, independent of listed days. TestCareTimesQueryBudgets compares three with six days."
+  "description": "GET /statistics/students/{id}/care-times: fixed tenant and comparison batches, independent of listed days. TestCareTimesQueryBudgets compares three with six days. Since #4683 one more statement reads the booked care of the school's sent contracts, the Soll where a contract is in force (ADR 0154)."
 }
