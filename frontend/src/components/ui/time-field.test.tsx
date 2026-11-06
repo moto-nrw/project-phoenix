@@ -137,6 +137,8 @@ describe("time picker", () => {
     await user.click(hourOption("15"));
     expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("15:00");
 
+    // Anker: die Auswahl ist offen.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     await user.click(minuteOption("30"));
 
     expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("15:30");
@@ -188,6 +190,8 @@ describe("time picker", () => {
     expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("");
     expect(minuteOption("45")).toHaveAttribute("aria-selected", "true");
 
+    // Anker: die Auswahl ist offen.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     await user.click(hourOption("08"));
 
     expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("08:45");
@@ -215,6 +219,8 @@ describe("time picker", () => {
     expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("16:30");
     expect(minuteOption("30")).toHaveFocus();
 
+    // Anker: die Auswahl ist offen.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     await user.keyboard("{ArrowUp}{Enter}");
     expect(screen.getByPlaceholderText("HH:MM")).toHaveValue("16:25");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -226,6 +232,8 @@ describe("time picker", () => {
     render(<TimeFieldDemo initialValue="15:30" />);
 
     await openPicker();
+    // Anker: die Auswahl ist offen.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     await user.keyboard("{ArrowDown}{Escape}");
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -242,6 +250,8 @@ describe("time picker", () => {
     render(<TimeFieldDemo initialValue="15:30" />);
 
     await openPicker();
+    // Anker: die Auswahl ist offen.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     await user.keyboard("{Escape}");
     document.removeEventListener("keydown", surroundingOverlay, true);
 
@@ -273,8 +283,55 @@ describe("time picker", () => {
     );
 
     const clock = screen.getByRole("button", { name: "Uhrzeit auswählen" });
+    // Anker: der Knopf ist da, nur gesperrt; offen geht sonst dieselbe Auswahl auf.
     expect(clock).toBeDisabled();
     fireEvent.click(clock);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("stays in the field when a click into the input closes the picker", async () => {
+    const user = userEvent.setup();
+    const onBlur = vi.fn();
+    render(
+      <TimeField
+        value="15:30"
+        onChange={() => undefined}
+        onBlur={onBlur}
+        label="Uhrzeit"
+        hint="Uhrzeit im Format 15:30"
+        placeholder="HH:MM"
+      />,
+    );
+
+    await openPicker();
+    // Anker: die Auswahl ist offen.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await user.click(screen.getByPlaceholderText("HH:MM"));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("HH:MM")).toHaveFocus();
+    expect(onBlur).not.toHaveBeenCalled();
+  });
+
+  it("does not reopen by itself after the field was locked", async () => {
+    const field = (disabled: boolean) => (
+      <TimeField
+        value="15:30"
+        onChange={() => undefined}
+        label="Uhrzeit"
+        hint="Uhrzeit im Format 15:30"
+        placeholder="HH:MM"
+        disabled={disabled}
+      />
+    );
+    const { rerender } = render(field(false));
+
+    await openPicker();
+    // Anker: die Auswahl ist offen.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    rerender(field(true));
+    rerender(field(false));
+
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -317,6 +374,8 @@ describe("time picker", () => {
     await user.click(screen.getByPlaceholderText("HH:MM"));
     await openPicker();
     await user.click(hourOption("16"));
+    // Anker: die Auswahl ist noch offen.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(onBlur).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Weiter" }));

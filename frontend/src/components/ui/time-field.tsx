@@ -125,6 +125,12 @@ export function TimeField({
   const initialOptionRef = useRef<HTMLElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const open = pickerOpen && !disabled;
+  const pressedInput = useRef(false);
+
+  // Ein Feld, das gesperrt wurde, geht danach nicht von selbst wieder auf.
+  useEffect(() => {
+    if (disabled) setPickerOpen(false);
+  }, [disabled]);
 
   const handleFocusLeave = (event: React.FocusEvent) => {
     if (open) return;
@@ -135,16 +141,20 @@ export function TimeField({
 
   // Ein Klick außerhalb schließt die Auswahl, ohne dass Feld oder Knopf den
   // Fokus noch einmal bekommen: Auch dann hat die Person das Feld verlassen.
+  // Ein Klick ins Eingabefeld schließt sie ebenfalls, doch das Feld bekommt den
+  // Fokus erst danach; die Person bleibt also im Feld.
   const wasOpen = useRef(false);
   useEffect(() => {
     if (
       wasOpen.current &&
       !open &&
+      !pressedInput.current &&
       !fieldRef.current?.contains(document.activeElement)
     ) {
       onBlur?.();
     }
     wasOpen.current = open;
+    pressedInput.current = false;
   }, [open, onBlur]);
 
   return (
@@ -189,11 +199,14 @@ export function TimeField({
             onChange(nextValue);
           }}
           onKeyDown={onKeyDown}
+          onMouseDown={() => {
+            pressedInput.current = true;
+          }}
           onBlur={(event) => {
             completedOneDigitHour.current = null;
             handleFocusLeave(event);
           }}
-          className={`h-10 w-full rounded-lg border pr-10 pl-3 text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none pointer-coarse:pr-12 ${
+          className={`h-10 w-full rounded-lg border pr-10 pl-3 text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 pointer-coarse:pr-12 ${
             inline ? "bg-white text-sm" : "text-base"
           } ${
             invalid

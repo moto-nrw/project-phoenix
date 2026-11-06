@@ -18,7 +18,7 @@ const HOURS = Array.from({ length: 24 }, (_, hour) =>
 const MINUTES = Array.from({ length: 12 }, (_, step) =>
   String(step * 5).padStart(2, "0"),
 );
-const COMPLETE_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
+export const COMPLETE_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ENABLED_OPTION = '[role="option"]:not([aria-disabled="true"])';
 
 function focusColumn(column: HTMLElement | null) {
@@ -107,8 +107,8 @@ function TimeColumn({
               className={cn(
                 "flex h-9 items-center justify-center rounded-lg text-sm tabular-nums focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset pointer-coarse:h-11",
                 isSelected && "bg-gray-900 text-white",
-                !isSelected && disabled && "text-gray-300",
-                !isSelected && !disabled && "text-gray-700 hover:bg-gray-100",
+                !isSelected && disabled && "text-gray-400",
+                !isSelected && !disabled && "text-gray-700 hover:bg-gray-50",
                 disabled ? "cursor-not-allowed" : "cursor-pointer",
               )}
             >
@@ -144,6 +144,7 @@ export function TimePickerPanel({
   const minuteColumnRef = useRef<HTMLUListElement>(null);
   // Eine Minute vor der Stunde: sie wartet, bis die Stunde die Zeit vollständig macht.
   const [waitingMinute, setWaitingMinute] = useState<string | null>(null);
+  // Ein neues Objekt je Wahl: Auch dieselbe Stunde ein zweites Mal rückt den Fokus weiter.
   const [columnToFocus, setColumnToFocus] = useState<{
     column: "hour" | "minute";
   } | null>(null);
@@ -218,47 +219,54 @@ export function TimePickerPanel({
   };
 
   return (
-    <div className="flex gap-1 p-2">
-      <TimeColumn
-        label="Stunde"
-        options={HOURS}
-        selected={hour}
-        isDisabled={(option) =>
-          minTime !== undefined && `${option}:59` < minTime
-        }
-        onPick={(nextHour) => {
-          emit(nextHour, minute ?? "00");
-          if (waitingMinute !== null && time === null) {
+    <div className="p-2">
+      <div className="flex gap-1">
+        <TimeColumn
+          label="Stunde"
+          options={HOURS}
+          selected={hour}
+          isDisabled={(option) =>
+            minTime !== undefined && `${option}:59` < minTime
+          }
+          onPick={(nextHour) => {
+            emit(nextHour, minute ?? "00");
+            if (waitingMinute !== null && time === null) {
+              close();
+              return;
+            }
+            setColumnToFocus({ column: "minute" });
+          }}
+          onNavigate={handleNavigate}
+          columnRef={hourColumnRef}
+          initialOptionRef={initialFocusRef}
+        />
+        <TimeColumn
+          label="Minute"
+          options={MINUTES}
+          selected={minute}
+          isDisabled={(option) =>
+            minTime !== undefined &&
+            hour !== null &&
+            `${hour}:${option}` < minTime
+          }
+          onPick={(nextMinute) => {
+            if (hour === null) {
+              setWaitingMinute(nextMinute);
+              setColumnToFocus({ column: "hour" });
+              return;
+            }
+            emit(hour, nextMinute);
             close();
-            return;
-          }
-          setColumnToFocus({ column: "minute" });
-        }}
-        onNavigate={handleNavigate}
-        columnRef={hourColumnRef}
-        initialOptionRef={initialFocusRef}
-      />
-      <TimeColumn
-        label="Minute"
-        options={MINUTES}
-        selected={minute}
-        isDisabled={(option) =>
-          minTime !== undefined &&
-          hour !== null &&
-          `${hour}:${option}` < minTime
-        }
-        onPick={(nextMinute) => {
-          if (hour === null) {
-            setWaitingMinute(nextMinute);
-            setColumnToFocus({ column: "hour" });
-            return;
-          }
-          emit(hour, nextMinute);
-          close();
-        }}
-        onNavigate={handleNavigate}
-        columnRef={minuteColumnRef}
-      />
+          }}
+          onNavigate={handleNavigate}
+          columnRef={minuteColumnRef}
+        />
+      </div>
+      {minTime && (
+        <p className="px-1 pt-2 text-center text-xs text-gray-500">
+          Frühestens {minTime} Uhr
+        </p>
+      )}
     </div>
   );
 }

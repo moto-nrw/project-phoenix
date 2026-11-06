@@ -4,15 +4,12 @@ import { useEffect, useRef, useState } from "react";
 
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { TimeField } from "~/components/ui/time-field";
+import { COMPLETE_TIME } from "~/components/ui/time-picker-panel";
 
 // Wire shape of `<input type="datetime-local">`: "YYYY-MM-DDTHH:mm" in local
 // time, "" when unset. Keeping it means the callers' existing conversion
 // helpers (toLocalInputValue / fromLocalInputValue) work unchanged.
 const DATE_LENGTH = 10;
-
-// `TimeField` hands up every keystroke ("1", "15", "15:3"); only a real clock
-// time may reach the value, because the callers convert it to an instant.
-const COMPLETE_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 function splitLocal(value: string): { day: string; time: string } {
   if (!value) return { day: "", time: "" };
@@ -162,6 +159,9 @@ export function DateTimePicker({
           minTime={
             day === minParts.day ? minParts.time || undefined : undefined
           }
+          // `TimeField` hands up every keystroke ("1", "15", "15:3"); only a real
+          // clock time may reach the value, because the callers convert it to an
+          // instant.
           onChange={(nextTime) => {
             if (!nextTime) {
               // An optional field has to stay emptiable.

@@ -400,6 +400,29 @@ describe("DateTimePicker", () => {
       expect(onChange).toHaveBeenLastCalledWith("2026-09-01T15:00");
     });
 
+    it("keeps the day when a click into the erased field closes the picker", async () => {
+      const user = userEvent.setup();
+      render(<Controlled initial="2026-09-01T09:30" />);
+
+      const time = screen.getByLabelText("Zeit");
+      await user.clear(time);
+      await openPicker(user);
+      await user.click(time);
+
+      expect(time).toBeEnabled();
+      expect(time).toHaveFocus();
+      expect(screen.getByLabelText("Tag")).toHaveValue("2026-09-01");
+    });
+
+    it("says why earlier times are locked", async () => {
+      const user = userEvent.setup();
+      render(<Controlled initial="2026-09-01T10:30" min="2026-09-01T10:30" />);
+
+      await openPicker(user);
+
+      expect(screen.getByText("Frühestens 10:30 Uhr")).toBeInTheDocument();
+    });
+
     it("stays locked until a day is chosen", () => {
       render(<Controlled initial="" />);
 
