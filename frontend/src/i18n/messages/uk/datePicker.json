@@ -4,5 +4,11 @@
   "previousMonth": "Попередній місяць",
   "nextMonth": "Наступний місяць",
   "month": "Місяць",
-  "year": "Рік"
+  "year": "Рік",
+  "timePicker": {
+    "selectTime": "Вибрати час",
+    "hour": "Година",
+    "minute": "Хвилина",
+    "minimum": "Не раніше {time}"
+  }
 }

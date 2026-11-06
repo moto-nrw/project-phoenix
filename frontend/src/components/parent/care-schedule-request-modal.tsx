@@ -245,6 +245,7 @@ function ScheduleValues({
   onChange: (draft: DayDraft) => void;
 }>) {
   const t = useTranslations("parentMasterData");
+  const tTimePicker = useTranslations("datePicker.timePicker");
   const options = ["alone", "bus", "pickup"].map((value) => ({
     value,
     label: t(`departureModes.${value}`),
@@ -267,6 +268,12 @@ function ScheduleValues({
           label={t("careSchedule.pickup")}
           hint={t("careSchedule.timeHint")}
           placeholder={t("careSchedule.timeExample")}
+          timePickerLabels={{
+            selectTime: tTimePicker("selectTime"),
+            hour: tTimePicker("hour"),
+            minute: tTimePicker("minute"),
+            minimum: (time) => tTimePicker("minimum", { time }),
+          }}
         />
       )}
     </>
