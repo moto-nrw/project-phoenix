@@ -110,13 +110,10 @@ import {
   type StudentStatusDay,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
-import {
-  formatDate as formatCalendarDate,
-  parseISODate,
-  berlinTodayISO,
-} from "~/lib/date-helpers";
+import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import { careWithdrawalNotice } from "~/lib/care-withdrawal-notice";
 import {
   fetchStudentCareWithdrawal,
   type CareWithdrawalCompletion,
@@ -1789,7 +1786,7 @@ function StudentDetailPageContent() {
         <div>
           <Alert
             type="warning"
-            message={`Abmeldung noch abschließen. Ab ${formatCalendarDate(careWithdrawal.firstBookinglessDay)} ist kein Betreuungstag mehr gebucht.`}
+            message={`Abmeldung noch abschließen. ${careWithdrawalNotice(careWithdrawal)}`}
             action={
               <Button
                 type="button"

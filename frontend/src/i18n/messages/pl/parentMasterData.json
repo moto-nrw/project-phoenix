@@ -160,7 +160,7 @@
     "capacityFull": "W jednej z wybranych ofert nie ma już wolnych miejsc. Proszę wybrać inną ofertę lub skontaktować się ze szkołą.",
     "alreadyPending": "Dla Państwa dziecka jest już otwarta prośba. Proszę poczekać na jej rozpatrzenie.",
     "withdrawalConfirmTitle": "Całkowicie wypisać z opieki?",
-    "withdrawalConfirmBody": "Potem {name} nie będzie mieć żadnego dnia opieki. Czy na pewno wysłać tę prośbę?",
+    "withdrawalConfirmBody": "Od {date} {name} nie będzie mieć żadnego dnia opieki. Czy na pewno wysłać tę prośbę?",
     "withdrawalConfirmBack": "Wstecz",
     "withdrawalConfirmSubmit": "Wyślij prośbę",
     "errorObjectCatalog": "lista ofert",
