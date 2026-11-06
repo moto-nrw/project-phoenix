@@ -180,6 +180,49 @@ describe("TraegerOccupancyPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps zero places finite in each school and the totals", async () => {
+    const school = OCCUPANCY.schools[0]!;
+    mockFetchOccupancy.mockResolvedValue({
+      ...OCCUPANCY,
+      schools: [
+        {
+          ...school,
+          careForms: [
+            { id: "zero", name: "Keine Plätze", children: 2, capacity: 0 },
+            { id: "empty", name: "Leer", children: 0, capacity: 0 },
+            { id: "open", name: "Ohne Grenze", children: 2, capacity: null },
+          ],
+        },
+      ],
+    });
+    renderPage();
+    await screen.findByText("9 von 10");
+    openTab("Betreuungsformen");
+
+    for (const table of await screen.findAllByRole("table")) {
+      const overbooked = within(rowOf(table, "Keine Plätze"));
+      expect(
+        overbooked.getByText("von 0", { exact: false }),
+      ).toBeInTheDocument();
+      expect(overbooked.getByText("Überbelegt")).toBeInTheDocument();
+      expect(
+        within(rowOf(table, "Leer")).getByText("Voll"),
+      ).toBeInTheDocument();
+      expect(
+        within(rowOf(table, "Ohne Grenze")).getByText("Keine Grenze"),
+      ).toBeInTheDocument();
+
+      fireEvent.click(within(table).getByRole("button", { name: /^Plätze/ }));
+      const names = within(table)
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => row.textContent);
+      expect(names.findIndex((name) => name?.includes("Leer"))).toBeLessThan(
+        names.findIndex((name) => name?.includes("Keine Plätze")),
+      );
+    }
+  });
+
   it("narrows the sums and lists to the schools of the search", async () => {
     mockFetchOccupancy.mockResolvedValue(OCCUPANCY);
     renderPage();

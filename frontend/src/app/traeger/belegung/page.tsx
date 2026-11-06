@@ -8,6 +8,8 @@
 
 import { type MouseEvent, type ReactNode, useMemo, useState } from "react";
 import { School } from "lucide-react";
+import { OfferingOccupancyCell } from "~/components/enrollment/offering-occupancy";
+import { offeringOccupancy } from "~/lib/care-offering-booking-stats";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -19,11 +21,10 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import NavigationLink from "~/components/ui/navigation-link";
 import { ProgressBar } from "~/components/ui/progress-bar";
 import { StatCard } from "~/components/ui/stat-card";
-import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import {
   formatShare,
-  isFull,
+  occupancyRatio,
   matchesSchool,
   occupancyCareFormRows,
   occupancyCareFormSums,
@@ -102,50 +103,6 @@ function ShareCell({
         value={part}
         max={Math.max(whole, 1)}
         label={`${part} von ${whole} ${label}`}
-        className="mt-1.5"
-      />
-    </div>
-  );
-}
-
-/** Kinder eines Angebots gegen seine Plätze; voll in Orange. */
-function PlacesCell({
-  booked,
-  capacity,
-}: Readonly<{ booked: number; capacity: number | null }>) {
-  if (capacity === null || capacity === 0) {
-    return (
-      <span className="text-sm text-gray-500">
-        Keine Grenze
-        <span className="sr-only"> für dieses Angebot</span>
-      </span>
-    );
-  }
-  const full = isFull(booked, capacity);
-  return (
-    <div className="w-40 max-md:w-full">
-      <span className="inline-flex items-center gap-2 text-sm text-gray-900 tabular-nums">
-        <span>
-          <span className="font-semibold">{booked}</span>
-          <span className="text-gray-500"> von {capacity}</span>
-        </span>
-        {full ? (
-          <StatusBadge
-            tone="orange"
-            size="xs"
-            label={booked > capacity ? "Überbelegt" : "Voll"}
-          />
-        ) : (
-          <span className="text-xs text-gray-500">
-            {capacity - booked} frei
-          </span>
-        )}
-      </span>
-      <ProgressBar
-        value={Math.min(booked, capacity)}
-        max={capacity}
-        tone={full ? "orange" : "green"}
-        label={`${booked} von ${capacity} Plätzen belegt`}
         className="mt-1.5"
       />
     </div>
@@ -289,10 +246,17 @@ const CARE_FORM_COLUMNS: DataTableColumn<OccupancyCareFormRow>[] = [
       row.form === null ? (
         <span className="text-sm text-gray-500">–</span>
       ) : (
-        <PlacesCell booked={row.children} capacity={row.form.capacity} />
+        <OfferingOccupancyCell
+          occupancy={offeringOccupancy({
+            booked: row.children,
+            capacity: row.form.capacity,
+          })}
+          isActive
+          variant="progress"
+        />
       ),
     sortValue: (row) =>
-      row.form?.capacity ? row.children / row.form.capacity : null,
+      occupancyRatio(row.children, row.form?.capacity ?? null),
   },
 ];
 
@@ -326,9 +290,16 @@ const SUM_COLUMNS: DataTableColumn<OccupancyCareFormSum>[] = [
     key: "places",
     header: "Plätze",
     render: (sum) => (
-      <PlacesCell booked={sum.children} capacity={sum.capacity} />
+      <OfferingOccupancyCell
+        occupancy={offeringOccupancy({
+          booked: sum.children,
+          capacity: sum.capacity,
+        })}
+        isActive
+        variant="progress"
+      />
     ),
-    sortValue: (sum) => (sum.capacity ? sum.children / sum.capacity : null),
+    sortValue: (sum) => occupancyRatio(sum.children, sum.capacity),
   },
 ];
 
