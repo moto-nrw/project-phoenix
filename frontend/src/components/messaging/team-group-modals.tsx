@@ -18,6 +18,7 @@ import {
 } from "~/lib/staff-messages-api";
 import { createLogger } from "~/lib/logger";
 import { foldForSearch } from "~/lib/search-fold";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "TeamGroupModals" });
 
@@ -100,11 +101,7 @@ function PeoplePicker({
       />
       <LoadErrorAlert error={loadError.error} />
       <div className="max-h-64 space-y-1 overflow-y-auto">
-        {loading && (
-          <p className="py-3 text-center text-sm text-gray-500">
-            Wird geladen...
-          </p>
-        )}
+        {loading && <Loading fullPage={false} message="Wird geladen …" />}
         {!loading && !loadFailed && filtered.length === 0 && (
           <p className="py-3 text-center text-sm text-gray-500">
             {query

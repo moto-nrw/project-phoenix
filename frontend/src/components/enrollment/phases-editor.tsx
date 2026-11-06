@@ -107,6 +107,7 @@ import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -999,7 +1000,8 @@ export function PhasesEditor() {
                       Diese Aktion kann nicht rückgängig gemacht werden:
                     </p>
                     {impactLoading ? (
-                      <p className="mt-1 text-xs">
+                      <p className="mt-1 flex items-center gap-2 text-xs">
+                        <SpinnerIcon className="h-3 w-3" />
                         Löschvorschau wird geladen…
                       </p>
                     ) : impactLoad.error ? (

@@ -4,7 +4,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
-import { Skeleton } from "~/components/ui/skeleton";
+import { Skeleton, SkeletonRows } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
@@ -114,16 +114,8 @@ export function MyGroupBlock() {
         if ((isLoading && !group) || error) {
           return (
             <div className="space-y-2" aria-hidden="true">
-              <Skeleton className="h-4 w-3/5 rounded" />
-              {[1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between gap-3 rounded-xl bg-gray-50/50 px-3 py-2"
-                >
-                  <Skeleton className="h-4 w-24 rounded" />
-                  <Skeleton className="h-4 w-16 rounded" />
-                </div>
-              ))}
+              <Skeleton className="h-4 w-3/5" />
+              <SkeletonRows rows={2} valueClassName="w-16" />
             </div>
           );
         }

@@ -12,7 +12,6 @@ import { mutate } from "~/lib/swr/mutate";
 import {
   ChevronLeft,
   ChevronRight,
-  Loader2,
   SquarePen,
   StickyNote,
   X,
@@ -110,6 +109,7 @@ import { classTripConcept } from "~/lib/concepts/classTrip";
 import { sickConcept } from "~/lib/concepts/sick";
 import { excusedConcept } from "~/lib/concepts/excused";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "CareScheduleManager" });
 const statusDayDateFormatter = new Intl.DateTimeFormat("de-DE", {
@@ -994,9 +994,9 @@ export function CareScheduleManager({
 
   if (isLoading && arrivalData.schedules.length === 0) {
     return (
-      <div className="moto-content-surface flex items-center justify-center rounded-2xl border py-12">
-        <Loader2 className="h-7 w-7 animate-spin text-gray-500" />
-      </div>
+      <SectionCard>
+        <Loading fullPage={false} message="Betreuungszeiten werden geladen …" />
+      </SectionCard>
     );
   }
 

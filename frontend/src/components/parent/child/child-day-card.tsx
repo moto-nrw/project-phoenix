@@ -203,7 +203,7 @@ export function ChildDayCard({
         >
           {loading ? (
             <div className="flex min-h-20 items-start gap-3" aria-hidden="true">
-              <Skeleton className="size-8 shrink-0 rounded-full" />
+              <Skeleton shape="round" className="size-8 shrink-0" />
               <div className="min-w-0 flex-1 space-y-2">
                 <Skeleton className="h-3 w-20" />
                 <Skeleton className="h-7 w-36 max-w-full" />
@@ -266,8 +266,8 @@ export function ChildDayCard({
 
         {loading ? (
           <div className="grid gap-2 @md:grid-cols-2" aria-hidden="true">
-            <Skeleton className="h-11 w-full rounded-lg" />
-            <Skeleton className="h-11 w-full rounded-lg" />
+            <Skeleton shape="control" className="h-11 w-full" />
+            <Skeleton shape="control" className="h-11 w-full" />
           </div>
         ) : (
           <ChildDayActions

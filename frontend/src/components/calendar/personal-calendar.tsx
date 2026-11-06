@@ -639,8 +639,8 @@ export function PersonalCalendar({
             aria-label="Kalender wird geladen"
             className="absolute inset-0 z-10 space-y-2 bg-white/80 p-4"
           >
-            <Skeleton className="h-10 w-full rounded-lg" />
-            <Skeleton className="h-full min-h-40 w-full rounded-lg" />
+            <Skeleton shape="control" className="h-10 w-full" />
+            <Skeleton shape="control" className="h-full min-h-40 w-full" />
           </div>
         ) : null}
         {viewMode === "day" ? (

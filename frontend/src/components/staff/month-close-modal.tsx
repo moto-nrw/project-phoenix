@@ -93,8 +93,10 @@ export function MonthCloseReasonModal({
             size="md"
             onClick={handleSubmit}
             disabled={!canSubmit}
+            isLoading={submitting}
+            loadingText="Bitte warten…"
           >
-            {submitting ? "Bitte warten…" : submitLabel}
+            {submitLabel}
           </Button>
         </div>
       }

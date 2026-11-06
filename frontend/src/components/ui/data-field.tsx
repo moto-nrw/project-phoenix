@@ -105,10 +105,10 @@ export function DataFieldSkeleton({
       aria-hidden="true"
     >
       <dt className="text-xs text-gray-500">
-        <Skeleton className="h-3 w-20 rounded" />
+        <Skeleton className="h-3 w-20" />
       </dt>
       <dd className="mt-0.5 text-sm font-medium text-gray-900">
-        <Skeleton className="h-4 w-2/3 rounded" />
+        <Skeleton className="h-4 w-2/3" />
       </dd>
     </div>
   );

@@ -145,8 +145,8 @@ export function TrustedDevicesSection({
       {/* Bis der Text eines Ladefehlers da ist, bleibt das Skelett stehen. */}
       {(loading || (loadFailed && !loadError)) && (
         <div className="space-y-2">
-          <Skeleton className="h-16 w-full rounded" />
-          <Skeleton className="h-16 w-full rounded" />
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
         </div>
       )}
       {!loading && loadFailed && loadError ? (

@@ -117,12 +117,14 @@ export default function RootPage() {
             <Button
               type="button"
               disabled={!selectedSlug || isNavigating}
+              isLoading={isNavigating}
+              loadingText="OGS wird geladen..."
               onClick={handleNavigate}
               variant="primary"
               size="field"
               className="w-full gap-2"
             >
-              {isNavigating ? "OGS wird geladen..." : "Weiter"}
+              Weiter
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           </>

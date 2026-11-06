@@ -146,27 +146,29 @@ export function Monatskarte({
     // Mirrors the loaded card below: title row, then SummaryRow-shaped
     // label/value lines in the same divide-y raster.
     return (
-      <output
-        aria-label="Monatskarte wird geladen"
-        aria-live="polite"
-        className="moto-content-surface block rounded-2xl border p-4 sm:p-6"
-      >
-        <div className="mb-3 flex items-center">
-          <Skeleton className="h-5 w-44 rounded" />
-        </div>
-        <div className="divide-y divide-gray-100" aria-hidden="true">
-          {Array.from({ length: 4 }, (_, i) => (
-            <div
-              key={i}
-              className="flex items-baseline justify-between gap-4 py-1.5"
-            >
-              <Skeleton className="h-4 w-32 rounded" />
-              <Skeleton className="h-4 w-16 rounded" />
-            </div>
-          ))}
-        </div>
-        <span className="sr-only">Monatskarte wird geladen</span>
-      </output>
+      <SectionCard padding="none">
+        <output
+          aria-label="Monatskarte wird geladen"
+          aria-live="polite"
+          className="block p-4 sm:p-6"
+        >
+          <div className="mb-3 flex items-center">
+            <Skeleton className="h-5 w-44" />
+          </div>
+          <div className="divide-y divide-gray-100" aria-hidden="true">
+            {Array.from({ length: 4 }, (_, i) => (
+              <div
+                key={i}
+                className="flex items-baseline justify-between gap-4 py-1.5"
+              >
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+            ))}
+          </div>
+          <span className="sr-only">Monatskarte wird geladen</span>
+        </output>
+      </SectionCard>
     );
   }
   if (error) {

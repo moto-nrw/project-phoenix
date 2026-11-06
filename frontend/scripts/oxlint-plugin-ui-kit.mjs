@@ -79,6 +79,13 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     navigator.clipboard outside the kit and
 //                                     useClipboardCopy; use CopyField
 //
+// One more keeps waiting indicators on the kit (#5588), hard-zero:
+//
+//   ui-kit/no-own-spinner           — no `animate-spin` and no spinner icon
+//                                     from an icon package outside
+//                                     src/components/ui/; use Loading,
+//                                     SpinnerIcon or Button isLoading
+//
 // One more keeps form fields on the kit (#5217):
 //
 //   ui-kit/no-kit-domain-import     — files in components/ui import no other
@@ -1160,7 +1167,7 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 ]);
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
-src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1337 text-[11px]@1337 text-[10px]@1341 text-[10px]@1350 text-[11px]@1350
+src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1340 text-[11px]@1340 text-[10px]@1344 text-[10px]@1353 text-[11px]@1353
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@219 text-[11px]@263
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@231
@@ -1180,15 +1187,15 @@ src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@58
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1393 text-[11px]@1482 text-[11px]@1492 text-[11px]@1520
 src/components/students/planned-status-days-modal.tsx|text-[10px]@936 text-[11px]@936
-src/components/students/school-checkin-fab.tsx|text-[10px]@199
-src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
+src/components/students/school-checkin-fab.tsx|text-[10px]@200
+src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@119 text-[10px]@140 text-[10px]@151
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@374
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@481 text-[11px]@525
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@148 text-[10px]@301 text-[11px]@307
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
 src/components/timetable/gap-jump-list.tsx|text-[10px]@109 text-[11px]@132 text-[11px]@147
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[10px]@325 text-[9px]@442 text-[9px]@1076 text-[11px]@1390 text-[11px]@1416 text-[11px]@1592 text-[10px]@1701 text-[11px]@1724
+src/components/timetable/instance-detail-modal.tsx|text-[10px]@326 text-[9px]@443 text-[9px]@1077 text-[11px]@1391 text-[11px]@1417 text-[11px]@1590 text-[10px]@1699 text-[11px]@1722
 src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 text-[11px]@152 text-[11px]@173 text-[9px]@204 text-[10px]@238
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@199 text-[10px]@215 text-[11px]@224 text-[10px]@266 text-[10px]@290 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@404 text-[11px]@471
@@ -3009,6 +3016,47 @@ const noShadowKitName = {
   },
 };
 
+// ui-kit/no-own-spinner (#5588).
+
+const SPIN_CLASS_RE = /(?:^|[\s"'`:])animate-spin(?:$|[\s"'`])/;
+const ICON_PACKAGE_RE = /^(?:lucide-react|@phosphor-icons\/)/;
+const SPINNER_ICON_RE =
+  /^(?:Loader(?:2|Circle|Pinwheel)?(?:Icon)?|CircleNotch(?:Icon)?|Spinner(?:Gap|Ball)?(?:Icon)?)$/;
+
+const noOwnSpinner = makeRatchetRule({
+  ruleName: "no-own-spinner",
+  description:
+    "Waiting indicators come from Loading, SpinnerIcon or Button isLoading instead of an own spinner.",
+  message:
+    "Kein eigener Spinner: `Loading` für einen ganzen Bereich, `SpinnerIcon` neben Text oder im Symbolknopf, `Button isLoading loadingText=…` im Knopf (#5588, .claude/rules/frontend-ui-kit.md).",
+  // Hard-zero: der Bestand ist abgebaut, jede neue Stelle schlägt fehl.
+  baselines: {},
+  allowlist: [],
+  kitFile: "src/components/ui/icons.tsx",
+  exemptDir: UI_KIT_DIR,
+  detect: ({ found }) => ({
+    ImportDeclaration(node) {
+      if (!ICON_PACKAGE_RE.test(String(node.source.value))) return;
+      for (const specifier of node.specifiers) {
+        if (
+          specifier.type === "ImportSpecifier" &&
+          SPINNER_ICON_RE.test(specifier.imported.name)
+        ) {
+          found(specifier);
+        }
+      }
+    },
+    Literal(node) {
+      if (typeof node.value === "string" && SPIN_CLASS_RE.test(node.value)) {
+        found(node);
+      }
+    },
+    TemplateElement(node) {
+      if (SPIN_CLASS_RE.test(node.value.raw)) found(node);
+    },
+  }),
+});
+
 // ui-kit/no-hand-rolled-dropzone und ui-kit/no-hand-rolled-copy-field (#5599).
 // Eine Ablagefläche besteht aus Zieh-Zustand, Dateiauswahl und Tastaturweg; die
 // sechs Eigenbauten unterschieden sich genau darin. Ein Kopierfeld hat zwei
@@ -3101,6 +3149,7 @@ export default {
     "no-grey-button-fill": noGreyButtonFill,
     "no-hand-rolled-button": noHandRolledButton,
     "no-hand-rolled-copy-field": noHandRolledCopyField,
+    "no-own-spinner": noOwnSpinner,
     "no-hand-rolled-dot": noHandRolledDot,
     "no-hand-rolled-dropzone": noHandRolledDropzone,
     "no-hand-rolled-icon-tile": noHandRolledIconTile,

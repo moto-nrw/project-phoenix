@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Clock, Loader2 } from "lucide-react";
+import { Clock } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   SlideOver,
@@ -350,12 +350,9 @@ export function CarePlanEditorModal({
         type="submit"
         size="md"
         form="care-plan-editor-form"
-        className="gap-2"
-        disabled={isSubmitting}
+        isLoading={isSubmitting}
+        loadingText="Wird gespeichert …"
       >
-        {isSubmitting ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        ) : null}
         Speichern
       </Button>
     </>

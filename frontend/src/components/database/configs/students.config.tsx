@@ -14,6 +14,7 @@ import {
 } from "@/lib/location-helper";
 import { childrenConcept } from "~/lib/concepts/children";
 import { transportConcept } from "~/lib/concepts/transport";
+import { Skeleton } from "~/components/ui/skeleton";
 
 const PrivacyConsentSection = dynamic(
   () =>
@@ -22,7 +23,7 @@ const PrivacyConsentSection = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <div className="text-sm text-gray-500">Lädt…</div>,
+    loading: () => <Skeleton className="h-24 w-full" />,
   },
 );
 

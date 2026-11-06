@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
 import { DetailDeleteButton } from "~/components/database/detail-delete-button";
-import { DetailLoadingSpinner } from "~/components/database/detail-loading-spinner";
 import {
   DetailPanel,
   type DetailTab,
@@ -23,6 +22,7 @@ import { isSystemActivity, type Activity } from "@/lib/activity-helpers";
 import { buildActivityFormSections } from "./activity-form-sections";
 import { activitiesConcept } from "~/lib/concepts/activities";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { Loading } from "~/components/ui/loading";
 
 interface ActivitiesMasterDetailProps {
   activities: Activity[];
@@ -210,7 +210,9 @@ function ActivityStammdatenTab({
   const saveErrors = useApiFormError();
 
   if (loading) {
-    return <DetailLoadingSpinner label="Aktivitätsdaten werden geladen..." />;
+    return (
+      <Loading fullPage={false} message="Aktivitätsdaten werden geladen..." />
+    );
   }
 
   // Ohne frisches Detail kein Formular mit veraltetem Stand.

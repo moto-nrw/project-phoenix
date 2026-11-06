@@ -946,10 +946,7 @@ function VertretungContent() {
               (isWeekView ? weekdayInstances : dayInstances).length > 0
                 ? undefined
                 : isLoading
-                  ? {
-                      title: "Lädt…",
-                      description: "Termine werden geladen.",
-                    }
+                  ? undefined
                   : {
                       title: "Keine Termine",
                       description: isWeekView

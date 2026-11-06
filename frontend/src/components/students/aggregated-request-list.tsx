@@ -549,11 +549,10 @@ export function AggregatedRequestList({
               if (hasMore) void feed.loadMore();
               if (withdrawalsHaveMore) void loadMoreWithdrawals();
             }}
-            disabled={loadingMore || withdrawalsLoadingMore}
+            isLoading={loadingMore || withdrawalsLoadingMore}
+            loadingText="Wird geladen…"
           >
-            {loadingMore || withdrawalsLoadingMore
-              ? "Wird geladen…"
-              : "Weitere Einträge laden"}
+            Weitere Einträge laden
           </Button>
         </div>
       )}

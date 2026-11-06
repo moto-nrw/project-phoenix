@@ -1,5 +1,6 @@
 "use client";
 
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 
 // Mirrors uebersicht-tab.tsx: 3 KpiCards, then a 2-column chart-card grid
@@ -12,52 +13,55 @@ export function UebersichtTabSkeleton() {
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {Array.from({ length: 3 }, (_, i) => (
-          <div
-            key={i}
-            className="moto-content-surface rounded-2xl border p-4 sm:p-5"
-          >
-            <Skeleton className="h-3 w-24 rounded" />
-            <Skeleton className="mt-2 h-7 w-20 rounded" />
-            <Skeleton className="mt-3 h-3 w-32 rounded" />
-          </div>
+          <SectionCard key={i} padding="none">
+            <div className="p-4 sm:p-5">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="mt-2 h-7 w-20" />
+              <Skeleton className="mt-3 h-3 w-32" />
+            </div>
+          </SectionCard>
         ))}
       </div>
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {Array.from({ length: 2 }, (_, i) => (
-          <div
-            key={i}
-            className="moto-content-surface overflow-hidden rounded-2xl border p-5"
-          >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <Skeleton className="h-6 w-40 rounded" />
-              <Skeleton className="h-9 w-40 rounded-lg" />
+          <SectionCard key={i} padding="none">
+            <div className="p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <Skeleton className="h-6 w-40" />
+                <Skeleton shape="control" className="h-9 w-40" />
+              </div>
+              <Skeleton shape="inner" className="mt-4 h-64 w-full" />
             </div>
-            <Skeleton className="mt-4 h-64 w-full rounded-xl" />
-          </div>
+          </SectionCard>
         ))}
       </div>
 
-      <div className="moto-content-surface overflow-hidden rounded-2xl border p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <Skeleton className="h-6 w-32 rounded" />
-          <Skeleton className="h-9 w-40 rounded-lg" />
-        </div>
-        <div className="mt-4 grid grid-cols-1 items-center gap-6 md:grid-cols-2">
-          <Skeleton className="mx-auto h-64 w-64 rounded-full" />
-          <div className="flex flex-col gap-3">
-            {Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Skeleton className="h-2.5 w-2.5 rounded-full" />
-                  <Skeleton className="h-3 w-20 rounded" />
+      <SectionCard padding="none">
+        <div className="p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton shape="control" className="h-9 w-40" />
+          </div>
+          <div className="mt-4 grid grid-cols-1 items-center gap-6 md:grid-cols-2">
+            <Skeleton shape="round" className="mx-auto h-64 w-64" />
+            <div className="flex flex-col gap-3">
+              {Array.from({ length: 4 }, (_, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-2">
+                    <Skeleton shape="round" className="h-2.5 w-2.5" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                  <Skeleton className="h-3 w-16" />
                 </div>
-                <Skeleton className="h-3 w-16 rounded" />
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      </SectionCard>
     </div>
   );
 }

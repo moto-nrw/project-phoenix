@@ -152,7 +152,7 @@ export function PeriodSwitcherDropdown({
   // While loading, render a skeleton sized like the trigger pill so the
   // header keeps its place instead of popping in when periods resolve.
   if (isLoading) {
-    return <Skeleton className="h-8 w-44 rounded-lg" />;
+    return <Skeleton shape="control" className="h-8 w-44" />;
   }
 
   // Empty state: no periods exist at all.

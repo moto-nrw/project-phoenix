@@ -164,7 +164,8 @@
     "withdrawalConfirmBack": "Back",
     "withdrawalConfirmSubmit": "Send request",
     "errorObjectCatalog": "the list of offerings",
-    "errorObjectRequest": "the change request"
+    "errorObjectRequest": "the change request",
+    "submitting": "Sending …"
   },
   "weekdayShort": {
     "1": "Mon",

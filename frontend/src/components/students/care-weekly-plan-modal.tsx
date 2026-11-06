@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { FormModal } from "~/components/ui/form-modal";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -117,12 +116,9 @@ function CareWeeklyPlanModalForm({
         type="submit"
         size="md"
         form="care-weekly-plan-form"
-        className="gap-2"
-        disabled={isSubmitting}
+        isLoading={isSubmitting}
+        loadingText="Wird übernommen …"
       >
-        {isSubmitting ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        ) : null}
         Übernehmen
       </Button>
     </>

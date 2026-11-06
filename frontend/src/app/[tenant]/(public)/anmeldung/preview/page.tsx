@@ -26,6 +26,7 @@ import {
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { permissionsConcept } from "~/lib/concepts/permissions";
+import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 
 export default function EnrollmentPreviewPage() {
   return (
@@ -106,7 +107,7 @@ function EnrollmentPreviewPageContent() {
   const previewStatus = loading
     ? {
         label: "Vorschau wird geladen",
-        hint: "Die Formularvorschau wird geladen.",
+        hint: "Das Formular erscheint gleich.",
         tone: "gray" as const,
       }
     : activeAssignedPhaseCount > 0
@@ -127,7 +128,7 @@ function EnrollmentPreviewPageContent() {
             tone: "gray" as const,
           };
   const previewTitle = loading
-    ? "Formularvorschau wird geladen"
+    ? "Formularvorschau"
     : (schema?.name ?? "Basisformular");
 
   return (
@@ -167,9 +168,9 @@ function EnrollmentPreviewPageContent() {
           </div>
 
           {loading ? (
-            <div className="moto-content-surface rounded-2xl border p-6 text-sm font-medium text-gray-600">
-              Vorschau wird geladen…
-            </div>
+            <SkeletonRegion label="Vorschau wird geladen">
+              <FormSkeleton />
+            </SkeletonRegion>
           ) : loadError || missingSchema || gradeLevelMax === null ? (
             <LoadErrorAlert
               error={

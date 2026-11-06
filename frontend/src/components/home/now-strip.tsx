@@ -172,8 +172,8 @@ export function NowStrip({
           <span aria-hidden="true" className="h-10 w-px shrink-0 bg-gray-200" />
           {loading ? (
             <div className="min-w-0 flex-1 space-y-2" aria-hidden="true">
-              <Skeleton className="h-4 w-2/5 rounded" />
-              <Skeleton className="h-3 w-3/5 rounded" />
+              <Skeleton className="h-4 w-2/5" />
+              <Skeleton className="h-3 w-3/5" />
             </div>
           ) : (
             <NowText state={state} analytics={analytics.data} today={today} />

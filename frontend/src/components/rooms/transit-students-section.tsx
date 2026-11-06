@@ -36,6 +36,7 @@ import {
 } from "~/lib/tenant-context";
 import { transitConcept } from "~/lib/concepts/transit";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { Loading } from "~/components/ui/loading";
 
 const DETAIL_CARD_CLASS = "moto-content-surface rounded-2xl border p-5 sm:p-6";
 const EMPTY_STUDENTS: Student[] = [];
@@ -529,9 +530,7 @@ export function TransitStudentsSection({
 
           <div className="mt-4 flex flex-col gap-2">
             {studentsLoading && students.length === 0 ? (
-              <div className="moto-content-surface rounded-xl border px-4 py-6 text-center text-sm text-gray-500">
-                Kinder werden geladen...
-              </div>
+              <Loading fullPage={false} message="Kinder werden geladen …" />
             ) : studentsError ? null : students.length === 0 ? (
               <div className="moto-content-surface rounded-xl border border-dashed px-4 py-6 text-center text-sm text-gray-500">
                 Aktuell keine Kinder unterwegs.

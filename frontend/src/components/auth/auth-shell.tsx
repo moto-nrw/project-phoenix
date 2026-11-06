@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { Hammer, Quote, ShieldCheck, UsersRound } from "lucide-react";
 import { cn } from "~/lib/utils";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { IconTile } from "~/components/ui/icon-tile";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -176,21 +177,23 @@ export function AuthShellSkeleton() {
       aria-hidden="true"
     >
       <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
-        <div className="moto-content-surface w-full max-w-[29rem] rounded-2xl border px-6 py-10 sm:p-8">
-          <Skeleton className="mx-auto h-10 w-28 rounded-lg" />
-          <Skeleton className="mx-auto mt-8 h-3 w-24" />
-          <Skeleton className="mx-auto mt-3 h-8 w-64 max-w-full" />
-          <Skeleton className="mx-auto mt-3 h-4 w-72 max-w-full" />
-          <div className="mt-9 space-y-5">
-            {[0, 1].map((item) => (
-              <div key={item} className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-10 w-full rounded-lg" />
-              </div>
-            ))}
-            <Skeleton className="h-10 w-full rounded-lg" />
+        <SectionCard padding="none" className="w-full max-w-[29rem]">
+          <div className="px-6 py-10 sm:p-8">
+            <Skeleton shape="control" className="mx-auto h-10 w-28" />
+            <Skeleton className="mx-auto mt-8 h-3 w-24" />
+            <Skeleton className="mx-auto mt-3 h-8 w-64 max-w-full" />
+            <Skeleton className="mx-auto mt-3 h-4 w-72 max-w-full" />
+            <div className="mt-9 space-y-5">
+              {[0, 1].map((item) => (
+                <div key={item} className="space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton shape="control" className="h-10 w-full" />
+                </div>
+              ))}
+              <Skeleton shape="control" className="h-10 w-full" />
+            </div>
           </div>
-        </div>
+        </SectionCard>
       </section>
       <section className="hidden min-h-screen items-center justify-center bg-gray-900 p-12 lg:flex">
         <div className="w-full max-w-xl space-y-5">

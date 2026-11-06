@@ -326,7 +326,7 @@ function SurveyDetail({ surveyId }: Readonly<{ surveyId: string }>) {
         ) : results.data ? (
           <SurveyResultsView results={results.data} />
         ) : (
-          <SectionCard title="Auswertung" description="Wird geladen…" />
+          <SectionCard title="Auswertung" loading />
         ))}
 
       {tab === "personen" &&
@@ -340,10 +340,7 @@ function SurveyDetail({ surveyId }: Readonly<{ surveyId: string }>) {
             respondents={respondents.data}
           />
         ) : (
-          <SectionCard
-            title="Antworten je Person"
-            description="Wird geladen…"
-          />
+          <SectionCard title="Antworten je Person" loading />
         ))}
 
       {tab === "fragebogen" &&

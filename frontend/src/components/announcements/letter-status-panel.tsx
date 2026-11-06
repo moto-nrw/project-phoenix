@@ -37,6 +37,7 @@ import type {
   LetterRecipient,
   LetterStatus,
 } from "~/lib/parent-announcements-api";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 /**
  * The two channels of an Elternbrief, side by side (#2384).
@@ -199,11 +200,25 @@ export function LetterStatusPanel({
     return loadError.error ? (
       <LoadErrorAlert error={loadError.error} />
     ) : (
-      <div className="text-sm text-gray-500">Status wird geladen …</div>
+      <div
+        aria-busy="true"
+        className="flex items-center gap-2 text-sm text-gray-500"
+      >
+        <SpinnerIcon className="h-4 w-4" />
+        Status wird geladen …
+      </div>
     );
   }
   if (!status) {
-    return <div className="text-sm text-gray-500">Status wird geladen …</div>;
+    return (
+      <div
+        aria-busy="true"
+        className="flex items-center gap-2 text-sm text-gray-500"
+      >
+        <SpinnerIcon className="h-4 w-4" />
+        Status wird geladen …
+      </div>
+    );
   }
 
   const s = status.summary;

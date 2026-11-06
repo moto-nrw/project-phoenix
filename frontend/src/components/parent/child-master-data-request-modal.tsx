@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
-import { CircleNotchIcon, InfoIcon } from "@phosphor-icons/react/ssr";
+import { InfoIcon } from "@phosphor-icons/react/ssr";
 import { useTranslations } from "next-intl";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -151,20 +151,12 @@ export function ChildMasterDataRequestModal({
           <Button
             type="button"
             size="md"
-            className="w-full gap-2 sm:w-auto"
-            disabled={submitting}
+            className="w-full sm:w-auto"
+            isLoading={submitting}
+            loadingText={t("identityModal.submitting")}
             onClick={() => void submit()}
           >
-            {submitting && (
-              <CircleNotchIcon
-                weight="bold"
-                className="size-4 animate-spin"
-                aria-hidden="true"
-              />
-            )}
-            {submitting
-              ? t("identityModal.submitting")
-              : t("identityModal.submit")}
+            {t("identityModal.submit")}
           </Button>
         </>
       }

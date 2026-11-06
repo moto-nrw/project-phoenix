@@ -8,7 +8,7 @@ import {
   useLayoutEffect,
   useRef,
 } from "react";
-import { Eye, Loader2, Plus, Search } from "lucide-react";
+import { Eye, Plus, Search } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import GuardianList from "./guardian-list";
 import GuardianFormModal from "./guardian-form-modal";
@@ -61,6 +61,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { StudentPaymentCard } from "./student-payment-card";
 import { hasPermission } from "~/lib/auth-utils";
 import { parentsConcept } from "~/lib/concepts/parents";
+import { Loading } from "~/components/ui/loading";
 
 const logger = createLogger({ component: "StudentGuardianManager" });
 
@@ -654,9 +655,7 @@ export default function StudentGuardianManager({
     (failedWithoutData && formErrorMessage(loadError.error) === null)
   ) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
-      </div>
+      <Loading fullPage={false} message="Bezugspersonen werden geladen …" />
     );
   }
 

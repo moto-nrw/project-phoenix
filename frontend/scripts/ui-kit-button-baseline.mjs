@@ -71,13 +71,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/messaging/new-message-modal.tsx",
-    lines: [382],
+    lines: [381],
     reason: "Elternteil in der Empfängerliste wählen: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/messaging/new-team-message-modal.tsx",
-    lines: [162],
+    lines: [159],
     reason: "Person in der Empfängerliste wählen: Auswahlzeile",
   },
   {
@@ -101,7 +101,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/auth/auth-shell.tsx",
-    lines: [362],
+    lines: [365],
     reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
   },
   {
@@ -113,7 +113,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3121],
+    lines: [3123],
     reason: "Schalter (role=switch)",
   },
   {
@@ -137,7 +137,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [856, 889, 989, 1158],
+    lines: [859, 892, 992, 1161],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
@@ -163,7 +163,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/components/class-day/class-day-overview.tsx",
-    lines: [172],
+    lines: [173],
     reason:
       "Klassenkarte: Kachel. Bleibt ButtonLink, weil TileCard den Seitenwechsel nicht an die Portalhülle meldet",
   },
@@ -176,13 +176,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/home/day-flow-block.tsx",
-    lines: [140],
+    lines: [128],
     reason: "Listenzeile der Startseite, verlinkt weiter",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/home/home-block-content.tsx",
-    lines: [218, 292],
+    lines: [198, 272],
     reason: "Listenzeilen der Startseite, verlinken weiter",
   },
   {
@@ -194,7 +194,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/home/my-group-block.tsx",
-    lines: [257, 288, 320],
+    lines: [249, 280, 312],
     reason: "Listenzeilen der Startseite, verlinken weiter",
   },
   {
@@ -206,7 +206,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/home/reminders-block.tsx",
-    lines: [134],
+    lines: [122],
     reason: "Listenzeile der Startseite, verlinkt weiter",
   },
   {
@@ -230,7 +230,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/companion-picker.tsx",
-    lines: [410],
+    lines: [411],
     reason: "Suchtreffer zum Auswählen: Auswahlzeile",
   },
   {

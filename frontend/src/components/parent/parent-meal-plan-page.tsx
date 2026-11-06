@@ -147,7 +147,7 @@ function MealPlanWeekSkeleton({ loadingLabel }: { loadingLabel: string }) {
         <div className="border-b border-gray-200">
           <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
             <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-5 w-12 rounded-full" />
+            <Skeleton shape="round" className="h-5 w-12" />
           </div>
           <div className="p-3">
             <div className="rounded-lg bg-gray-50 p-3 ring-1 ring-gray-100">
@@ -202,12 +202,12 @@ function MealPlanLoadingSection({ loadingLabel }: { loadingLabel: string }) {
         className="flex items-center justify-center gap-2 border-b border-gray-200 px-3 py-2.5"
         aria-hidden="true"
       >
-        <Skeleton className="size-8 rounded-md" />
+        <Skeleton className="size-8" />
         <div className="min-w-40 space-y-2 py-0.5">
           <Skeleton className="mx-auto h-4 w-28" />
           <Skeleton className="mx-auto h-3 w-36" />
         </div>
-        <Skeleton className="size-8 rounded-md" />
+        <Skeleton className="size-8" />
       </div>
       <MealPlanWeekSkeleton loadingLabel={loadingLabel} />
     </section>
@@ -365,8 +365,8 @@ function MealParticipationDaysSkeleton({
             <Skeleton className="h-3 w-1/2" />
           </div>
           <div className="space-y-2">
-            <Skeleton className="h-6 w-36 rounded-full" />
-            <Skeleton className="h-8 w-24 rounded-md" />
+            <Skeleton shape="round" className="h-6 w-36" />
+            <Skeleton className="h-8 w-24" />
           </div>
         </div>
       ))}
@@ -800,7 +800,7 @@ function ParticipationWeek({
           >
             <Skeleton className="h-4 w-24" />
             <Skeleton className="mt-2 h-5 w-52 max-w-full" />
-            <Skeleton className="mt-3 h-9 w-24 rounded-md" />
+            <Skeleton className="mt-3 h-9 w-24" />
           </div>
         ) : editingRegularDays ? (
           <div className="mt-4 rounded-xl bg-gray-50 p-4">
@@ -1099,7 +1099,7 @@ function ParticipationWeek({
 
                   <div className="order-2 md:order-3">
                     {loading ? (
-                      <Skeleton className="h-6 w-40 rounded-full" />
+                      <Skeleton shape="round" className="h-6 w-40" />
                     ) : (
                       <div className="flex flex-wrap items-center gap-2">
                         <StatusBadge

@@ -117,6 +117,7 @@ import { roomsConcept } from "~/lib/concepts/rooms";
 import { staffConcept } from "~/lib/concepts/staff";
 import { substitutionConcept } from "~/lib/concepts/substitution";
 import { supervisionConcept } from "~/lib/concepts/supervision";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 export type LifecycleAction = "start" | "complete" | "cancel" | "reopen";
 
@@ -1555,10 +1556,7 @@ function IconActionButton({
       aria-label={label}
     >
       {isLoading ? (
-        <span
-          className={`h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent ${ICON_ACTION_TONE[tone]}`}
-          aria-hidden
-        />
+        <SpinnerIcon className={`h-3 w-3 ${ICON_ACTION_TONE[tone]}`} />
       ) : (
         <span className={ICON_ACTION_TONE[tone]} aria-hidden>
           {icon}
