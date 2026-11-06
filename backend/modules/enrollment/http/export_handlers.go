@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // phaseExportRequest is the (optional) JSON body:
@@ -116,7 +117,7 @@ func renderPhaseExportError(w http.ResponseWriter, r *http.Request, err error) {
 // writeExportFile sends a rendered export as a download.
 func writeExportFile(w http.ResponseWriter, file lists.File) {
 	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)

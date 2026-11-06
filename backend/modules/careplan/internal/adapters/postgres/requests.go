@@ -172,10 +172,6 @@ func applyRequestUrgency(query *bun.SelectQuery, filter *careplan.RequestQueueFi
 	return query.Where("NOT (?)", bun.SafeQuery(expression, args...))
 }
 
-func escapeILike(value string) string {
-	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(value)
-}
-
 func (s *requestStore) FindExcusedAbsenceRequest(ctx context.Context, id int64, lock bool) (careplan.ExcusedAbsenceRequest, bool, carePlanCompose.RequestStoreStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

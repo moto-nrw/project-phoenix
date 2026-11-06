@@ -8,10 +8,22 @@
  * others) lands everywhere.
  */
 
-/** The filename the backend put in Content-Disposition, if any. */
+/**
+ * The filename the backend put in Content-Disposition, if any. The UTF-8 name
+ * in `filename*` (RFC 8187) keeps accents („gruppe-ćirić.pdf“) and wins over
+ * the ASCII spelling in `filename` (#5791).
+ */
 export function filenameFromDisposition(response: Response): string | null {
-  const disposition = response.headers.get("content-disposition");
-  const match = /filename="([^"]+)"/.exec(disposition ?? "");
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const extended = /filename\*=UTF-8''([^;\s]+)/i.exec(disposition)?.[1];
+  if (extended) {
+    try {
+      return decodeURIComponent(extended);
+    } catch {
+      // Not valid percent-encoded UTF-8: the ASCII spelling below still names the file.
+    }
+  }
+  const match = /filename="([^"]+)"/.exec(disposition);
   return match?.[1] ?? null;
 }
 

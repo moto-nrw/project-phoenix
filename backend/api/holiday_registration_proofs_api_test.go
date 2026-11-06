@@ -158,7 +158,7 @@ func TestHolidayProofIsClaimedAndOpenedOnlyFromTheRegistrationDetail(t *testing.
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, proofPDF, rec.Body.Bytes())
 	assert.Equal(t, "application/pdf", rec.Header().Get("Content-Type"))
-	assert.Equal(t, `inline; filename*=utf-8''Bescheid%20B%C3%BCrgergeld.pdf`, rec.Header().Get("Content-Disposition"))
+	assert.Equal(t, `inline; filename="Bescheid Buergergeld.pdf"; filename*=UTF-8''Bescheid%20B%C3%BCrgergeld.pdf`, rec.Header().Get("Content-Disposition"))
 	assert.Contains(t, rec.Header().Get("Content-Security-Policy"), "sandbox", "the parents' file runs without scripts on our origin")
 	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
 	assert.Equal(t, "private, no-store", rec.Header().Get("Cache-Control"))

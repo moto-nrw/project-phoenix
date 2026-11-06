@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/traegerview"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // AccessLogResource serves the access log of the Träger-Portal (#4655):
@@ -119,7 +120,7 @@ func (rs *AccessLogResource) export(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="zugriffsprotokoll-%s-bis-%s.csv"`, filter.From, filter.To))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", fmt.Sprintf("zugriffsprotokoll-%s-bis-%s.csv", filter.From, filter.To)))
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)

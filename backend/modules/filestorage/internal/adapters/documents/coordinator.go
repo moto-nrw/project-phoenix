@@ -23,11 +23,11 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"mime"
 	"net/http"
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
 // Store is the subset of a domain's document service the coordinator needs to
@@ -139,9 +139,7 @@ func (c *Coordinator) serve(w http.ResponseWriter, r *http.Request, tenantID int
 		disposition = "inline"
 		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'")
 	}
-	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{
-		"filename": displayName,
-	}))
+	w.Header().Set("Content-Disposition", textnorm.ContentDisposition(disposition, displayName))
 	w.Header().Set("Content-Type", contentType)
 	// no-store: a revoked permission or a deleted document must not be
 	// served from a cache the application no longer controls.

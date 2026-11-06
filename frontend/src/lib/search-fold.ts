@@ -1,12 +1,15 @@
 // Letters that carry their accent without a Unicode decomposition, so
 // stripping combining marks leaves them unchanged. ß has no single-letter base
-// and folds to "ss", as PostgreSQL's unaccent does.
+// and folds to "ss", the ligatures æ and œ to "ae" and "oe" (#5791), as
+// PostgreSQL's unaccent does; ǽ decomposes to æ first.
 const UNDECOMPOSABLE_LETTERS: Readonly<Record<string, string>> = {
   ł: "l",
   ø: "o",
   đ: "d",
   ı: "i",
   ß: "ss",
+  æ: "ae",
+  œ: "oe",
 };
 
 /**
@@ -22,5 +25,8 @@ export function foldForSearch(value: string | null | undefined): string {
     .toLocaleLowerCase("de")
     .normalize("NFD")
     .replace(/\p{Mn}/gu, "")
-    .replace(/[łøđıß]/g, (letter) => UNDECOMPOSABLE_LETTERS[letter] ?? letter);
+    .replace(
+      /[łøđıßæœ]/g,
+      (letter) => UNDECOMPOSABLE_LETTERS[letter] ?? letter,
+    );
 }
