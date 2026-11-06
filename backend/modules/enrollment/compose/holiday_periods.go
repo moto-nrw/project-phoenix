@@ -51,3 +51,9 @@ func NewHolidayGuestBadgeList(today func() calendar.Date) enrollment.HolidayGues
 func NewHolidayAccessTrail() enrollment.HolidayAccessTrail {
 	return postgres.NewHolidayRegistrationStore()
 }
+
+// NewOpenEnrollments builds the count of the children waiting for a decision
+// at each school, for the Träger dashboard (#4675).
+func NewOpenEnrollments() enrollment.OpenEnrollments {
+	return postgres.NewOpenEnrollmentStore()
+}

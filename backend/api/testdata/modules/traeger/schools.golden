@@ -1,4 +1,5 @@
 GET /traeger/schools/ -> basis
+GET /traeger/schools/alerts -> basis
 GET /traeger/schools/key-date-counts -> basis
 GET /traeger/schools/today -> basis
 GET /traeger/schools/{id} -> basis

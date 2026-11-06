@@ -14,7 +14,6 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
@@ -36,7 +35,7 @@ func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity Tra
 // TraegerSettings is the Träger level of the settings system: the
 // settings of the Träger-Portal and the branding the letters print.
 type TraegerSettings interface {
-	settingsHTTP.TraegerOperations
+	TraegerPortalSettings
 	TraegerBrandingSettings
 }
 
