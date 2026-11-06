@@ -87,6 +87,7 @@ describe("TraegerSidebar", () => {
       "Dashboard",
       "Schulen",
       "Stichtagszahlen",
+      "Belegung",
       "Ferienbetreuung",
       "Abrechnung",
     ]);
@@ -115,6 +116,7 @@ describe("TraegerSidebar", () => {
       "Dashboard",
       "Schulen",
       "Stichtagszahlen",
+      "Belegung",
     ]);
     expect(mainNav().queryByText("Betreuung")).toBeNull();
     expect(mainNav().queryByText("Finanzen")).toBeNull();

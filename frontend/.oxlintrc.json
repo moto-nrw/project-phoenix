@@ -71,6 +71,8 @@
     "ui-kit/no-tenant-kicker": "error",
     "ui-kit/no-hand-rolled-page-card": "error",
     "ui-kit/no-hand-rolled-pill": "error",
+    "ui-kit/no-hand-rolled-dropzone": "error",
+    "ui-kit/no-hand-rolled-copy-field": "error",
     "ui-kit/no-pill-dot": "error",
     "ui-kit/no-hex-alpha-tint": "error",
     "ui-kit/no-hand-rolled-dot": "error",

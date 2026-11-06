@@ -117,6 +117,7 @@ describe("StatusBadge", () => {
     render(<StatusBadge label="Teilweise gutgeschrieben" tone="blue" wrap />);
     const badge = screen.getByText("Teilweise gutgeschrieben");
     expect(badge).toHaveClass("whitespace-normal");
+    expect(badge).toHaveClass("max-w-full", "min-w-0");
     expect(badge).not.toHaveClass("whitespace-nowrap");
   });
 });

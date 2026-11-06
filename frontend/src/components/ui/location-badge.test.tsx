@@ -626,6 +626,24 @@ describe("LocationBadge", () => {
     });
   });
 
+  it("constrains a long room name to its available width", () => {
+    const { container } = render(
+      <div className="w-24">
+        <LocationBadge
+          student={createStudent({
+            current_location: "Anwesend - Raum mit einem langen Namen",
+          })}
+          displayMode="roomName"
+        />
+      </div>,
+    );
+
+    const badge = screen.getByText("Raum mit einem langen Namen");
+    expect(badge).toHaveClass("max-w-full", "min-w-0", "whitespace-normal");
+    expect(badge.parentElement).toHaveClass("max-w-full", "min-w-0");
+    expect(container.querySelector(".w-24")).toContainElement(badge);
+  });
+
   // ===========================================================================
   // Per-room color (Issue #1324) — make sure the badge actually paints the
   // configured hex when student.current_room_color is set, and falls back to

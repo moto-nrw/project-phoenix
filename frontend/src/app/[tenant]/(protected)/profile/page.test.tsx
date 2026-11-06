@@ -325,7 +325,7 @@ describe("ProfilePage", () => {
       render(<ProfilePage />);
 
       await waitFor(() => {
-        const avatarImage = screen.getByAltText("Profilbild");
+        const avatarImage = screen.getByAltText("John Doe");
         expect(avatarImage).toHaveAttribute(
           "src",
           "https://example.com/avatar.jpg",
