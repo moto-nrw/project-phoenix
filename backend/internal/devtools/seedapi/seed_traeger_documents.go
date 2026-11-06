@@ -74,26 +74,9 @@ func (seedTraegerDocumentsStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	existing, err := seedTraegerDocumentTitles(rt.Client, auth)
+	opened, err := seedTraegerDocumentsOnce(rt.Client, auth, school, group)
 	if err != nil {
 		return err
-	}
-	opened := int64(0)
-	for _, document := range seedTraegerDocuments {
-		id, seen := existing[document.title]
-		if !seen {
-			if id, err = seedTraegerDocumentUpload(rt.Client, auth, document); err != nil {
-				return err
-			}
-		}
-		for _, release := range document.releases {
-			if err := seedTraegerDocumentRelease(rt.Client, auth, id, release, school, group); err != nil {
-				return err
-			}
-		}
-		if opened == 0 && len(document.releases) > 0 {
-			opened = id
-		}
 	}
 	// The OGS-Leitung of the demo school opens the house rule once.
 	if _, err := rt.Client.Get(fmt.Sprintf("/api/traeger-documents/%d/file", opened)); err != nil {
@@ -101,6 +84,33 @@ func (seedTraegerDocumentsStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	fmt.Printf("  Träger documents: %d documents, released for parents and schools\n", len(seedTraegerDocuments))
 	return nil
+}
+
+// seedTraegerDocumentsOnce uploads the documents the Träger does not have
+// yet and releases them; it returns the first released document.
+func seedTraegerDocumentsOnce(client *Client, auth AuthRef, school, group int64) (int64, error) {
+	existing, err := seedTraegerDocumentTitles(client, auth)
+	if err != nil {
+		return 0, err
+	}
+	opened := int64(0)
+	for _, document := range seedTraegerDocuments {
+		id, seen := existing[document.title]
+		if !seen {
+			if id, err = seedTraegerDocumentUpload(client, auth, document); err != nil {
+				return 0, err
+			}
+		}
+		for _, release := range document.releases {
+			if err := seedTraegerDocumentRelease(client, auth, id, release, school, group); err != nil {
+				return 0, err
+			}
+		}
+		if opened == 0 && len(document.releases) > 0 {
+			opened = id
+		}
+	}
+	return opened, nil
 }
 
 // seedTraegerDocumentAudience picks the demo school, the first school of the

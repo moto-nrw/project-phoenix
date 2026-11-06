@@ -42,7 +42,7 @@ export function useSchoolTraegerDocuments(enabled: boolean) {
     fetchSchoolTraegerDocuments,
   );
   const loadError = useSwrLoadError(error, "die Dokumente des Trägers", mutate);
-  return { documents: data ?? [], loadError, mutate };
+  return { documents: enabled ? (data ?? []) : [], loadError, mutate };
 }
 
 /** Die Dokumente des Trägers auf „Dateien“; ohne Dokument fehlt die Karte. */

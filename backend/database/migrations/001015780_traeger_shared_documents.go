@@ -36,6 +36,9 @@ func init() {
 //     only revoked_at and revoked_by ever change, once. One active release
 //     exists per document and audience. A school must belong to the Träger;
 //     the trigger checks it, because the Träger transaction cannot read
+//     platform.schools. school_id carries no foreign key, like the care
+//     contracts: the school erasure plan stays unchanged, and a release of
+//     an erased school covers nobody, because every read joins
 //     platform.schools.
 //   - platform.traeger_document_reads: every time a parent or a school opens
 //     a document, with the account; kept three years like the master data
@@ -77,7 +80,7 @@ CREATE TABLE platform.traeger_document_releases (
 	organization_id BIGINT NOT NULL,
 	document_id BIGINT NOT NULL,
 	audience VARCHAR(16) NOT NULL,
-	school_id BIGINT REFERENCES platform.schools(id) ON DELETE CASCADE,
+	school_id BIGINT,
 	group_id BIGINT,
 	group_name TEXT,
 	released_by BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
@@ -169,7 +172,7 @@ CREATE TABLE platform.traeger_document_reads (
 	document_id BIGINT NOT NULL,
 	account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 	reader VARCHAR(16) NOT NULL,
-	school_id BIGINT REFERENCES platform.schools(id) ON DELETE SET NULL,
+	school_id BIGINT,
 	read_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT fk_traeger_document_reads_document FOREIGN KEY (organization_id, document_id)
 		REFERENCES platform.traeger_documents (organization_id, id) ON DELETE CASCADE,

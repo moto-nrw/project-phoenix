@@ -210,7 +210,10 @@ var moduleLegacyFileBudgets = map[string]int{
 // contract offerings constructor of modules/careplan/compose (+9), the
 // contract applications constructor of modules/enrollment/compose (+5) and
 // the contract port of workflows/parentportal/compose (+1) add exactly 68 LOC.
-const moduleComposeBudgetTotal = 12919
+// ADR 0157: the shared document constructors of
+// modules/organizationtenancy/compose (+10) and the shared document port of
+// workflows/parentportal/compose (+1) add exactly 11 LOC.
+const moduleComposeBudgetTotal = 12930
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -264,7 +267,8 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0112: the Träger master data constructor (+13).
 	// Raised by ADR 0148: the demo school file erasure constructor (+10).
 	// Raised by ADR 0152: the document template constructor (+6).
-	"modules/organizationtenancy/compose": 299,
+	// Raised by ADR 0157: the shared document constructors (+10).
+	"modules/organizationtenancy/compose": 309,
 	// Added by ADR 0115: the Elternabrechnung's construction only.
 	// Raised by ADR 0119: the billing run constructor (+7).
 	// Raised by ADR 0121: the confirmation letter constructor (+8).
@@ -316,8 +320,9 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/openroommove/compose":    46,
 	// Raised by ADR 0078; by ADR 0113: the prefill's data access port (+1);
 	// by ADR 0126: the document inbox ports and the push of a new document
-	// for the Delivery worker (+21); by ADR 0153: the contract port (+1).
-	"workflows/parentportal/compose":     330,
+	// for the Delivery worker (+21); by ADR 0153: the contract port (+1);
+	// by ADR 0157: the shared document port (+1).
+	"workflows/parentportal/compose":     331,
 	"workflows/reminderdelivery/compose": 30,
 	"workflows/sessionend/compose":       59,
 	"workflows/shiftplansync/compose":    124,

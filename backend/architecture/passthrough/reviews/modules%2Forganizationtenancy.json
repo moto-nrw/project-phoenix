@@ -361,26 +361,6 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0084",
-      "id": "modules/organizationtenancy/internal/application/SharedTraegerDocuments.OpenParentDocument",
-      "reason": "ADR 0084 (#4692): owner-edge translation of the parents' opening of a shared document: refuses a parent without a school of the Träger and maps a document no release covers onto ErrTraegerDocumentNotFound."
-    },
-    {
-      "decision": "0084",
-      "id": "modules/organizationtenancy/internal/application/SharedTraegerDocuments.OpenSchoolDocument",
-      "reason": "ADR 0084 (#4692): owner-edge translation of a school's opening of a shared document; maps a document no release covers onto ErrTraegerDocumentNotFound."
-    },
-    {
-      "decision": "0084",
-      "id": "modules/organizationtenancy/internal/application/SharedTraegerDocuments.ParentDocuments",
-      "reason": "ADR 0084 (#4692): owner-edge check of the parents' list of shared documents; a parent without a school of the Träger gets an empty list before any query."
-    },
-    {
-      "decision": "0084",
-      "id": "modules/organizationtenancy/internal/application/SharedTraegerDocuments.SchoolDocuments",
-      "reason": "ADR 0084 (#4692): capability edge of a school's list of shared documents in its tenant transaction; the database functions of migration 1.15.760 decide which releases cover the school."
-    },
-    {
       "decision": "0112",
       "id": "modules/organizationtenancy/internal/application/TraegerMasterData.LogoImage",
       "reason": "ADR 0112 (#4653): reads the logo of the session's Träger after refusing a missing Träger and maps a missing logo to the owner's not-found error; the Träger transaction is the caller's."

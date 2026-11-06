@@ -18,22 +18,12 @@ func NewTraegerDocumentTemplates() organizationtenancy.TraegerDocumentTemplates 
 	return application.NewTraegerDocumentTemplates(postgres.NewTraegerMasterDataStore())
 }
 
-// NewTraegerDocuments builds the shared documents of the Träger-Büro
-// (#4692). The service opens the Träger and school transactions itself
-// through the runtime the root binds.
+// NewTraegerDocuments builds the Träger-Büro's shared documents (#4692).
 func NewTraegerDocuments(dependencies organizationtenancy.TraegerDocumentPorts) organizationtenancy.TraegerDocuments {
 	return application.NewTraegerDocuments(postgres.NewTraegerDocumentStore(), dependencies)
 }
 
-// SharedTraegerDocuments is what parents and schools read of the shared
-// documents, in the transaction their caller opens.
-type SharedTraegerDocuments interface {
-	organizationtenancy.ParentTraegerDocuments
-	organizationtenancy.SchoolTraegerDocuments
-}
-
-// NewSharedTraegerDocuments builds the parents' and the schools' reads of
-// the shared documents (#4692).
-func NewSharedTraegerDocuments() SharedTraegerDocuments {
-	return application.NewSharedTraegerDocuments(postgres.NewTraegerDocumentStore())
+// NewSharedTraegerDocuments builds the parents' and schools' reads (#4692).
+func NewSharedTraegerDocuments() *postgres.TraegerDocumentStore {
+	return postgres.NewTraegerDocumentStore()
 }

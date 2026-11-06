@@ -172,6 +172,10 @@ func (s *TraegerDocumentStore) DocumentFile(ctx context.Context, organizationID,
 	return rows[0].toDomain(), true, nil
 }
 
+// activeReleaseIndex is the unique index of the active releases; a second
+// active release of the same audience violates it.
+const activeReleaseIndex = "uq_traeger_document_releases_active"
+
 const insertTraegerReleaseQuery = `
 INSERT INTO platform.traeger_document_releases (organization_id, document_id, audience, school_id, group_id, group_name, released_by)
 SELECT document.organization_id, document.id, ?, ?, ?, ?, ?
@@ -194,7 +198,7 @@ func (s *TraegerDocumentStore) InsertRelease(ctx context.Context, organizationID
 		traegerActor(accountID), organizationID, documentID).Scan(ctx, &rows)
 	var postgresError pgdriver.Error
 	switch {
-	case errors.As(err, &postgresError) && postgresError.Field('C') == "23505":
+	case errors.As(err, &postgresError) && postgresError.Field('n') == activeReleaseIndex:
 		return organizationtenancy.TraegerDocumentRelease{}, organizationtenancy.ErrTraegerDocumentAlreadyReleased
 	case errors.As(err, &postgresError) && postgresError.Field('C') == "23503":
 		return organizationtenancy.TraegerDocumentRelease{}, organizationtenancy.ErrTraegerDocumentAudienceInvalid
@@ -295,7 +299,16 @@ func parentReleases(ctx context.Context, db bun.IDB, organizationID int64, paren
 	return rows, nil
 }
 
-// ParentDocuments lists the documents released for the parent.
+// The store serves the parents and the schools directly; it is their
+// capability (organizationtenancy.ParentTraegerDocuments and
+// SchoolTraegerDocuments) without a forwarding layer.
+var (
+	_ organizationtenancy.ParentTraegerDocuments = (*TraegerDocumentStore)(nil)
+	_ organizationtenancy.SchoolTraegerDocuments = (*TraegerDocumentStore)(nil)
+)
+
+// ParentDocuments lists the documents released for the parent; a parent
+// without a school of the Träger gets none.
 func (s *TraegerDocumentStore) ParentDocuments(ctx context.Context, organizationID int64, parent organizationtenancy.TraegerDocumentParent) ([]organizationtenancy.SharedDocument, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -309,24 +322,30 @@ func (s *TraegerDocumentStore) ParentDocuments(ctx context.Context, organization
 }
 
 // OpenParentDocument reads a document released for the parent and records
-// the read.
-func (s *TraegerDocumentStore) OpenParentDocument(ctx context.Context, organizationID, documentID int64, parent organizationtenancy.TraegerDocumentParent) (organizationtenancy.TraegerDocumentFile, bool, error) {
+// the read; ErrTraegerDocumentNotFound for any other.
+func (s *TraegerDocumentStore) OpenParentDocument(ctx context.Context, organizationID, documentID int64, parent organizationtenancy.TraegerDocumentParent) (organizationtenancy.TraegerDocumentFile, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return organizationtenancy.TraegerDocumentFile{}, false, err
+		return organizationtenancy.TraegerDocumentFile{}, err
 	}
-	if documentID <= 0 {
-		return organizationtenancy.TraegerDocumentFile{}, false, nil
+	if documentID <= 0 || parent.AccountID <= 0 {
+		return organizationtenancy.TraegerDocumentFile{}, organizationtenancy.ErrTraegerDocumentNotFound
 	}
 	rows, err := parentReleases(ctx, db, organizationID, parent, documentID)
-	if err != nil || len(rows) == 0 {
-		return organizationtenancy.TraegerDocumentFile{}, false, err
+	if err != nil {
+		return organizationtenancy.TraegerDocumentFile{}, err
+	}
+	if len(rows) == 0 {
+		return organizationtenancy.TraegerDocumentFile{}, organizationtenancy.ErrTraegerDocumentNotFound
 	}
 	if err := appendRead(ctx, db, organizationID, documentID, parent.AccountID); err != nil {
-		return organizationtenancy.TraegerDocumentFile{}, false, err
+		return organizationtenancy.TraegerDocumentFile{}, err
 	}
 	file, found, err := s.DocumentFile(ctx, organizationID, documentID)
-	return file, found, err
+	if err == nil && !found {
+		err = organizationtenancy.ErrTraegerDocumentNotFound
+	}
+	return file, err
 }
 
 // appendRead records a parent's read and deletes the Träger's reads older
@@ -364,22 +383,22 @@ func (s *TraegerDocumentStore) SchoolDocuments(ctx context.Context, schoolID int
 }
 
 // OpenSchoolDocument reads a document released for the school and records
-// the read in the same statement.
-func (s *TraegerDocumentStore) OpenSchoolDocument(ctx context.Context, schoolID, accountID, documentID int64) (organizationtenancy.TraegerDocumentFile, bool, error) {
+// the read in the same statement; ErrTraegerDocumentNotFound for any other.
+func (s *TraegerDocumentStore) OpenSchoolDocument(ctx context.Context, schoolID, accountID, documentID int64) (organizationtenancy.TraegerDocumentFile, error) {
 	db, err := schoolDB(ctx, schoolID)
 	if err != nil {
-		return organizationtenancy.TraegerDocumentFile{}, false, err
+		return organizationtenancy.TraegerDocumentFile{}, err
 	}
 	var rows []traegerFileRow
 	err = db.NewRaw(`SELECT file_name, content_type, content FROM platform.open_traeger_school_document(?, ?)`,
 		documentID, traegerActor(accountID)).Scan(ctx, &rows)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return organizationtenancy.TraegerDocumentFile{}, false, fmt.Errorf("organization tenancy postgres: open school document: %w", err)
+		return organizationtenancy.TraegerDocumentFile{}, fmt.Errorf("organization tenancy postgres: open school document: %w", err)
 	}
 	if len(rows) == 0 {
-		return organizationtenancy.TraegerDocumentFile{}, false, nil
+		return organizationtenancy.TraegerDocumentFile{}, organizationtenancy.ErrTraegerDocumentNotFound
 	}
-	return rows[0].toDomain(), true, nil
+	return rows[0].toDomain(), nil
 }
 
 // sharedDocuments folds the covering releases into one entry per document,
