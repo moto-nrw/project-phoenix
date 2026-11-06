@@ -22,10 +22,12 @@ func TestContractAcceptancesRequireUnchangedParentEvidenceBeforeApproval(t *test
 	}
 	entry := LegalBlocksSnapshotEntry{SnapshotAt: submitted, ConsentFlags: json.RawMessage(`{"contract":true}`),
 		Blocks: []LegalBlockSnapshot{{Key: "contract", Kind: LegalBlockKindTerms, Required: true,
-			Text: text, TextSHA256: "known-text-fingerprint"}}}
+			Text: text, TextSHA256: "known-text-fingerprint", DisplayedSHA256: "known-text-fingerprint"}}}
 	tests := map[string]func(*LegalBlocksSnapshotEntry){
 		"valid":                              func(*LegalBlocksSnapshotEntry) {},
 		"old snapshot without checksum":      func(e *LegalBlocksSnapshotEntry) { e.Blocks[0].TextSHA256 = "" },
+		"form showed no checksum":            func(e *LegalBlocksSnapshotEntry) { e.Blocks[0].DisplayedSHA256 = "" },
+		"form showed an older text":          func(e *LegalBlocksSnapshotEntry) { e.Blocks[0].DisplayedSHA256 = "different-text-fingerprint" },
 		"altered wording":                    func(e *LegalBlocksSnapshotEntry) { e.Blocks[0].Text += " Neue Bedingungen." },
 		"no consent":                         func(e *LegalBlocksSnapshotEntry) { e.ConsentFlags = json.RawMessage(`{"contract":false}`) },
 		"privacy is not agreement":           func(e *LegalBlocksSnapshotEntry) { e.Blocks[0].Kind = LegalBlockKindPrivacyNotice },

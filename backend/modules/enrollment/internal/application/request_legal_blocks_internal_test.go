@@ -262,11 +262,26 @@ func TestLegalSnapshotChecksumsTheExactShownText(t *testing.T) {
 	t.Parallel()
 	text := "Vertragsbedingungen mit Umlauten: Kündigung zum Monatsende."
 	entry, err := legalBlocksSnapshotEntry([]enrollmentNative.LegalBlock{{Key: "contract", Kind: enrollmentNative.LegalBlockKindTerms,
-		Text: text, Required: true}}, map[string]any{"contract": true}, time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC), func(content []byte) string {
+		Text: text, Required: true}}, map[string]any{"contract": true}, map[string]string{"contract": " KNOWN-TEXT-FINGERPRINT "}, time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC), func(content []byte) string {
 		assert.Equal(t, text, string(content))
 		return "known-text-fingerprint"
 	})
 	require.NoError(t, err)
 	require.Len(t, entry.Blocks, 1)
 	assert.Equal(t, "known-text-fingerprint", entry.Blocks[0].TextSHA256)
+	assert.Equal(t, "known-text-fingerprint", entry.Blocks[0].DisplayedSHA256, "the form's checksum of the shown text is recorded beside it")
+}
+
+// TestLegalSnapshotKeepsAnOlderShownTextApart: a form opened before the
+// school replaced the text reports the old checksum; the snapshot keeps it
+// apart from the stored text, so the consent proves nothing about the new
+// wording (#4680).
+func TestLegalSnapshotKeepsAnOlderShownTextApart(t *testing.T) {
+	t.Parallel()
+	entry, err := legalBlocksSnapshotEntry([]enrollmentNative.LegalBlock{{Key: "contract", Kind: enrollmentNative.LegalBlockKindTerms,
+		Text: "Neue Bedingungen", Required: true}}, map[string]any{"contract": true}, map[string]string{"contract": "old-text-fingerprint"},
+		time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC), func([]byte) string { return "new-text-fingerprint" })
+	require.NoError(t, err)
+	assert.Equal(t, "new-text-fingerprint", entry.Blocks[0].TextSHA256)
+	assert.Equal(t, "old-text-fingerprint", entry.Blocks[0].DisplayedSHA256)
 }

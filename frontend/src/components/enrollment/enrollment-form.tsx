@@ -35,6 +35,7 @@ import {
   type PublicLateInvitePrefill,
   type PublicSchoolClassConfig,
   EMPTY_SCHOOL_CLASS_CONFIG,
+  legalTextChecksums,
 } from "~/lib/enrollment-submission-api";
 import {
   fetchPublicActiveSchema,
@@ -1478,6 +1479,7 @@ export function EnrollmentForm({
         consentFlags[block.key] =
           block.kind === "notice" ? true : legalConsents[block.key] === true;
       }
+      const legalTextSHA256 = await legalTextChecksums(legalBlocks);
 
       // Drop fully-blank co-guardian cards; trim + lowercase the rest.
       // Validation above guarantees any non-blank card has both names.
@@ -1505,6 +1507,7 @@ export function EnrollmentForm({
             ? additionalGuardiansPayload
             : undefined,
         consent_flags: consentFlags,
+        legal_text_sha256: legalTextSHA256,
         custom_data: restrictToOfferings
           ? { ...customData }
           : visibleAnswerData(

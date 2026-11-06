@@ -1471,6 +1471,10 @@ describe("EnrollmentForm", () => {
       SubmitEnrollmentPayload,
     ];
     expect(payload.consent_flags).toEqual({ agb: true });
+    // SHA-256 of "Ganztag Info-Brief": the wording the parent saw (#4680).
+    expect(payload.legal_text_sha256).toEqual({
+      agb: await sha256Hex("Ganztag Info-Brief"),
+    });
   });
 
   it("opens legal block details in a modal from a neutral details button", async () => {
@@ -5051,3 +5055,13 @@ describe("EnrollmentForm signature (#4786)", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(text),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}

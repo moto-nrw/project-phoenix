@@ -88,7 +88,7 @@ func contractAcceptance(block LegalBlockSnapshot, flags map[string]bool, at time
 		return ContractAcceptance{}, false
 	}
 	checksum := fingerprint([]byte(block.Text))
-	if block.TextSHA256 == "" || block.TextSHA256 != checksum {
+	if block.TextSHA256 == "" || block.TextSHA256 != checksum || block.DisplayedSHA256 != checksum {
 		return ContractAcceptance{}, false
 	}
 	return ContractAcceptance{Key: block.Key, Text: block.Text, SHA256: checksum, SubmittedAt: at}, true

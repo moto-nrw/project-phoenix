@@ -73,8 +73,11 @@ type LegalBlockSnapshot struct {
 	Label       string                      `json:"label"`
 	Text        string                      `json:"text"`
 	TextSHA256  string                      `json:"text_sha256,omitempty"`
-	Required    bool                        `json:"required"`
-	Source      string                      `json:"source,omitempty"`
+	// DisplayedSHA256 is the SHA-256 the form reported for the text it
+	// showed; it differs from TextSHA256 when the text changed meanwhile.
+	DisplayedSHA256 string `json:"displayed_sha256,omitempty"`
+	Required        bool   `json:"required"`
+	Source          string `json:"source,omitempty"`
 	// Translations records the translated wordings (locale → attribute →
 	// text) the form offered next to the German one (#3377). The server does
 	// not learn which language the guardian read.

@@ -646,3 +646,18 @@ func TestSignatureProofDocument_IncludesSignedAnswersAndOfferingChoices(t *testi
 	assert.Contains(t, childFields, lists.Field{Label: "Betreuungsangebote", Value: "Kernzeit (#42) (Mo, Mi)"})
 	assert.Contains(t, childFields, lists.Field{Label: "Abholzeit", Value: "Mo 15:00"})
 }
+
+// TestSubmitCarriesTheChecksumsOfTheShownLegalTexts: the checksum the form
+// reports for each shown legal text reaches the owner (#4680), so the
+// snapshot proves which wording the parent ticked.
+func TestSubmitCarriesTheChecksumsOfTheShownLegalTexts(t *testing.T) {
+	t.Parallel()
+	wire := &SubmitEnrollmentRequest{}
+	require.NoError(t, json.Unmarshal([]byte(`{"phase_id":42,"consent_flags":{"terms":true},
+		"legal_text_sha256":{"terms":"abc123"},"children":[]}`), wire))
+	out, err := buildServiceRequest(wire, 7, "203.0.113.5")
+	require.NoError(t, err)
+	encoded, err := encodeSubmitRequest(out)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"terms": "abc123"}, encoded.DisplayedTextSHA256)
+}

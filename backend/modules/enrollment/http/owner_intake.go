@@ -66,6 +66,10 @@ const (
 
 // SubmitRequest is one submission with its answers decoded.
 type SubmitRequest struct {
+	// DisplayedTextSHA256 maps a legal block's key to the SHA-256 of the
+	// text the form showed the parent (#4680). The snapshot records it next
+	// to the stored text, so the evidence shows whether both are the same.
+	DisplayedTextSHA256      map[string]string
 	TenantID                 int64
 	PhaseID                  int64
 	RemoteIP                 string
@@ -218,7 +222,7 @@ func encodeSubmitRequest(in SubmitRequest) (capability.SubmitRequest, error) {
 		SubmissionSource: in.SubmissionSource, GuardianFirstName: in.GuardianFirstName,
 		GuardianLastName: in.GuardianLastName, GuardianEmail: in.GuardianEmail, GuardianPhone: in.GuardianPhone,
 		GuardianAccountID: in.GuardianAccountID, GuardianSubmitEligible: in.GuardianSubmitEligible,
-		AdditionalGuardians: in.AdditionalGuardians, Signature: in.Signature,
+		AdditionalGuardians: in.AdditionalGuardians, Signature: in.Signature, DisplayedTextSHA256: in.DisplayedTextSHA256,
 	}
 	var err error
 	if out.SourceMetadata, err = encodeJSONObject(in.SourceMetadata); err != nil {

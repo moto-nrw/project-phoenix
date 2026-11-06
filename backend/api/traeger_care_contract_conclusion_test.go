@@ -346,7 +346,8 @@ func recordCareContractTextAcceptance(t *testing.T, f careContractFixture, text 
 	snapshot, err := json.Marshal([]enrollment.LegalBlocksSnapshotEntry{{
 		SnapshotAt: submitted, ConsentFlags: json.RawMessage(`{"terms":true}`),
 		Blocks: []enrollment.LegalBlockSnapshot{{Key: "terms", Kind: enrollment.LegalBlockKindTerms,
-			Required: true, Text: text, TextSHA256: securityruntime.Fingerprint([]byte(text))}},
+			Required: true, Text: text, TextSHA256: securityruntime.Fingerprint([]byte(text)),
+			DisplayedSHA256: securityruntime.Fingerprint([]byte(text))}},
 	}})
 	require.NoError(t, err)
 	_, err = f.db.ExecContext(ctx, `UPDATE enrollment.requests SET legal_blocks_snapshot = ?::jsonb, submission_source = 'public'

@@ -51,6 +51,9 @@ func TestSeedConclusionSubmitsConditionsBeforeApproval(t *testing.T) {
 					require.Len(t, children, 1)
 					assert.NotContains(t, children[0].(map[string]any), "custom_data")
 					assert.Equal(t, true, body["consent_flags"].(map[string]any)["care_contract"])
+					assert.Equal(t, textChecksum(text), body["legal_text_sha256"].(map[string]any)["care_contract"],
+						"the submission reports the checksum of the shown conditions")
+					assert.Len(t, textChecksum(text), 64)
 					assert.NotContains(t, body, "legal_blocks_snapshot")
 					if refuseSubmission {
 						w.WriteHeader(400)

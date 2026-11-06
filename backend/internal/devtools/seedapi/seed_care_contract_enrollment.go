@@ -1,12 +1,21 @@
 package api
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"strconv"
 )
+
+// textChecksum is the SHA-256 the enrollment form reports for a shown
+// legal text.
+func textChecksum(text string) string {
+	sum := sha256.Sum256([]byte(text))
+	return hex.EncodeToString(sum[:])
+}
 
 // seedConclusionEnrollment submits a new parent's agreement through Enrollment,
 // which snapshots and checksums the displayed text, then approves the child.
@@ -46,6 +55,8 @@ func seedConclusionEnrollment(rt *Runtime) error {
 				"guardian_first_name": "Miriam", "guardian_last_name": "Berger",
 				"guardian_email": scopedEmail("miriam.berger@example.test", rt.FixedSeeder.accountScope),
 				"consent_flags":  map[string]bool{"data_processing": true, "care_contract": true},
+				// The browser reports the checksum of the conditions it showed.
+				"legal_text_sha256": map[string]string{"care_contract": textChecksum(text)},
 				"children": []map[string]any{{
 					"first_name": "Tilda", "last_name": "Berger", "date_of_birth": "2019-05-14", "target_grade_level": 1,
 					"offering_ids":  []int64{offeringID},
