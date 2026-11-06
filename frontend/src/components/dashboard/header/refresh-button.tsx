@@ -71,7 +71,7 @@ export function RefreshButton({
         <RotateCw
           className={`absolute inset-0 h-5 w-5 ${
             state === "spinning"
-              ? // oxlint-disable-next-line ui-kit/no-own-spinner
+              ? // oxlint-disable-next-line ui-kit/no-own-spinner -- eigener Pfeil, läuft die Drehung zu Ende
                 "animate-spin"
               : `transition-[opacity,scale] duration-200 ${state === "success" ? "scale-50 opacity-0" : ""}`
           }`}

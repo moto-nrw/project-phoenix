@@ -27,6 +27,7 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { permissionsConcept } from "~/lib/concepts/permissions";
 import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { Skeleton } from "~/components/ui/skeleton";
 
 export default function EnrollmentPreviewPage() {
   return (
@@ -104,13 +105,8 @@ function EnrollmentPreviewPageContent() {
     return schemaToPublicFormSchema(schema);
   }, [schema]);
 
-  const previewStatus = loading
-    ? {
-        label: "Vorschau wird geladen",
-        hint: "Das Formular erscheint gleich.",
-        tone: "gray" as const,
-      }
-    : activeAssignedPhaseCount > 0
+  const previewStatus =
+    activeAssignedPhaseCount > 0
       ? {
           label: "Aktiv in Anmeldephase",
           hint: `Diese Vorlage wird in ${activeAssignedPhaseCount} aktiver Anmeldephase verwendet.`,
@@ -155,10 +151,14 @@ function EnrollmentPreviewPageContent() {
               {previewTitle}
             </h1>
             <div className="mt-4">
-              <StatusBadge
-                tone={previewStatus.tone}
-                label={previewStatus.label}
-              />
+              {loading ? (
+                <Skeleton shape="round" className="h-6 w-28" />
+              ) : (
+                <StatusBadge
+                  tone={previewStatus.tone}
+                  label={previewStatus.label}
+                />
+              )}
             </div>
             <p className="mt-4 max-w-3xl text-base leading-7 text-gray-600">
               Diese Ansicht zeigt nur das Formular mit Basisfeldern und
@@ -198,12 +198,16 @@ function EnrollmentPreviewPageContent() {
             <p className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
               Vorschau
             </p>
-            <h2 className="mt-2 text-xl font-semibold text-gray-900">
-              {previewStatus.label}
-            </h2>
+            {loading ? (
+              <Skeleton className="mt-2 h-7 w-40" />
+            ) : (
+              <h2 className="mt-2 text-xl font-semibold text-gray-900">
+                {previewStatus.label}
+              </h2>
+            )}
             <p className="mt-3 text-sm leading-6 text-gray-600">
-              {previewStatus.hint} Diese Seite dient nur zur Prüfung des
-              Formulars.
+              {loading ? "" : `${previewStatus.hint} `}Diese Seite dient nur zur
+              Prüfung des Formulars.
             </p>
           </section>
 

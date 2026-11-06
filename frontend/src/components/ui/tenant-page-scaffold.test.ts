@@ -304,16 +304,36 @@ describe.each([
 const APP_DIR = path.join(SRC_DIR, "app");
 const LOADING_TEXT_RE =
   /\b(?:wird|werden) geladen\b|\bLädt\b|\bLaden(?:\.\.\.|…| …)/i;
-/** Hier ist der Text die Ansage des Kit-Bausteins, kein Eigenbau. */
+/** Hier ist der Text die Ansage eines Kit-Bausteins, kein Eigenbau. */
 const LOADING_ANNOUNCEMENT_NAMES = new Set([
   "aria-label",
   "ariaLabel",
-  "label",
   "loadingLabel",
   "loadingText",
-  "message",
   "placeholder",
 ]);
+/** `label` und `message` sind nur an diesen Bausteinen die Ansage. */
+const LOADING_ANNOUNCEMENT_ELEMENTS = new Map([
+  ["Loading", "message"],
+  ["SkeletonRegion", "label"],
+  ["ListPageSkeleton", "label"],
+]);
+
+function isLoadingAnnouncement(owner: ts.Node): boolean {
+  if (
+    ts.isPropertyAssignment(owner) ||
+    ts.isVariableDeclaration(owner) ||
+    ts.isJsxAttribute(owner)
+  ) {
+    if (LOADING_ANNOUNCEMENT_NAMES.has(owner.name.getText())) return true;
+  }
+  if (!ts.isJsxAttribute(owner)) return false;
+  const element = owner.parent.parent;
+  return (
+    LOADING_ANNOUNCEMENT_ELEMENTS.get(element.tagName.getText()) ===
+    owner.name.getText()
+  );
+}
 
 function isInsideScreenReaderText(node: ts.Node): boolean {
   for (let current = node.parent; current; current = current.parent) {
@@ -352,10 +372,7 @@ function visibleLoadingTexts(file: string, source: string): string[] {
       ) {
         owner = owner.parent;
       }
-      const named =
-        (ts.isJsxAttribute(owner) || ts.isPropertyAssignment(owner)) &&
-        LOADING_ANNOUNCEMENT_NAMES.has(owner.name.getText());
-      if (!named && !isInsideScreenReaderText(node)) {
+      if (!isLoadingAnnouncement(owner) && !isInsideScreenReaderText(node)) {
         const { line } = sourceFile.getLineAndCharacterOfPosition(
           node.getStart(),
         );
@@ -390,9 +407,11 @@ describe("Ladezustand in Seitendateien", () => {
         "probe.tsx",
         `const a = <p>Wird geladen…</p>;
          const b = <SectionCard description="Lädt…" />;
-         const c = busy ? "Laden..." : "Weiter";`,
+         const c = busy ? "Laden..." : "Weiter";
+         const d = <StatusBadge label="Vorschau wird geladen" />;
+         const e = { label: "Vorschau wird geladen" };`,
       ),
-    ).toHaveLength(3);
+    ).toHaveLength(5);
     expect(
       visibleLoadingTexts(
         "probe.tsx",

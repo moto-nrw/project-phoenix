@@ -83,7 +83,7 @@ export function CheckIcon({ className = "h-5 w-5" }: IconProps) {
 export function SpinnerIcon({ className = "h-4 w-4" }: IconProps) {
   return (
     <svg
-      className={`animate-spin ${className}`}
+      className={`animate-spin motion-reduce:animate-none ${className}`}
       aria-hidden="true"
       fill="none"
       viewBox="0 0 24 24"

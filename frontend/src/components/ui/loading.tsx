@@ -28,7 +28,7 @@ export function Loading({
       aria-busy="true"
     >
       <div className="flex items-center gap-3 text-gray-600">
-        <SpinnerIcon className="h-6 w-6 motion-reduce:animate-none" />
+        <SpinnerIcon className="h-6 w-6" />
         <span className="text-sm font-medium">{message}</span>
       </div>
     </output>

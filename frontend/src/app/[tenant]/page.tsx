@@ -453,12 +453,16 @@ function LoginForm() {
         }
       >
         {isCheckingAuth && (
-          <div className="flex items-center justify-center gap-3 py-12 text-gray-600">
-            <SpinnerIcon className="h-6 w-6 motion-reduce:animate-none" />
+          <output
+            aria-live="polite"
+            aria-busy="true"
+            className="flex items-center justify-center gap-3 py-12 text-gray-600"
+          >
+            <SpinnerIcon className="h-6 w-6" />
             <span className="text-sm font-medium">
               Sitzung wird überprüft...
             </span>
-          </div>
+          </output>
         )}
 
         <div
@@ -466,7 +470,7 @@ function LoginForm() {
         >
           {isSmartRedirecting ? (
             <div className="flex flex-col items-center gap-4 py-12 text-center">
-              <SpinnerIcon className="h-6 w-6 text-gray-600 motion-reduce:animate-none" />
+              <SpinnerIcon className="h-6 w-6 text-gray-600" />
               <div className="space-y-1">
                 <p className="text-sm font-medium text-gray-900">
                   Sie sind bereits angemeldet.

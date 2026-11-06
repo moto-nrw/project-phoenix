@@ -312,9 +312,7 @@ const ROW_ACTION_BASELINE = new Map(
     // Formular-intern (Eintrag eines Formularwerts, kein gespeichertes
     // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
-    "src/app/[tenant]/(protected)/calendar/page.tsx": [
-      "Termin bearbeiten Termin erstellen@1065",
-    ],
+    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1355"],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
       "Gericht entfernen@797",
     ],
@@ -1738,12 +1736,17 @@ const PLACEHOLDER_FILL_RE =
   /(?:^|\s)(?:[^\s:]+:)*bg-gray-\d{2,3}(?:\/[^\s]+)?(?=\s|$)/;
 // Radius belongs to the `shape` prop of ui/skeleton (#5588).
 const SKELETON_RADIUS_RE = /(?:^|\s)(?:[^\s:]+:)*rounded(?:-[^\s]+)?(?=\s|$)/;
+// Epic #5576, Out of Scope: Startseite und Kinderkarten des Elternportals.
+const SKELETON_RADIUS_OUT_OF_SCOPE = new Set([
+  "src/components/parent/start/parent-start-page.tsx",
+  "src/components/parent/child/child-day-card.tsx",
+]);
 // An own surface: the card class, or a rounded element with a frame or a fill.
 const OWN_SURFACE_CARD_RE = /(?:^|\s)moto-content-surface(?:\s|$)/;
 const OWN_SURFACE_ROUNDED_RE =
-  /(?:^|\s)(?:[^\s:]+:)*rounded-(?:lg|xl|2xl)(?:\s|$)/;
+  /(?:^|\s)(?:[^\s:]+:)*rounded-(?:md|lg|xl|2xl)(?:\s|$)/;
 const OWN_SURFACE_FRAME_RE =
-  /(?:^|\s)(?:[^\s:]+:)*(?:border|bg-[^\s]+)(?:\s|$)/;
+  /(?:^|\s)(?:[^\s:]+:)*(?:border(?:-\d)?|shadow(?:-[^\s]+)?|bg-[^\s]+)(?:\s|$)/;
 
 // Termine im Stundenraster sitzen frei positioniert; das ist Raster-Inneres.
 const POSITIONED_RE = /(?:^|\s)absolute(?:\s|$)/;
@@ -1801,6 +1804,7 @@ const noOwnSkeleton = {
     if (isExempt(context)) return {};
     const key = fileKey(context);
     const reportRadius = (node) => {
+      if (SKELETON_RADIUS_OUT_OF_SCOPE.has(key)) return;
       if (jsxName(node.name) !== "Skeleton") return;
       const className = jsxAttribute(node, "className");
       if (!className?.value) return;

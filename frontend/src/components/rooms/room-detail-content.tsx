@@ -449,10 +449,8 @@ export function RoomDetailContent({
 // Belegungshistorie) so the page doesn't visibly resize when real data
 // arrives.
 export function RoomDetailSkeleton() {
-  // Read the per-tenant photo flag once at the top of the skeleton so the
-  // child-rows below match the populated CompactStudentCard shape exactly
-  // (avatar slot reserved when the tenant has photos on; original tighter
-  // shape otherwise).
+  // Read the per-tenant photo flag once at the top of the skeleton: the
+  // child rows reserve an avatar slot only when the tenant has photos on.
   const { enabled: photosEnabled } = useStudentPhotosEnabled();
   return (
     <output

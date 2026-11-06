@@ -313,17 +313,17 @@ function StartChildCardSkeleton() {
       <div aria-hidden="true" className="space-y-5 p-5 sm:p-6">
         <div className="flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-3">
-            <Skeleton shape="inner" className="size-11 shrink-0" />
+            <Skeleton className="size-11 shrink-0 rounded-xl" />
             <div className="min-w-0 flex-1">
               <Skeleton className="h-5 w-40 max-w-3/4" />
               <Skeleton className="mt-2 h-4 w-20" />
             </div>
           </div>
-          <Skeleton shape="control" className="h-11 w-28 shrink-0" />
+          <Skeleton className="h-11 w-28 shrink-0 rounded-lg" />
         </div>
 
         <div className="flex min-w-0 items-start gap-3 rounded-xl bg-gray-50 p-4">
-          <Skeleton shape="control" className="size-8 shrink-0" />
+          <Skeleton className="size-8 shrink-0 rounded-lg" />
           <div className="min-w-0 flex-1">
             <Skeleton className="h-3 w-12" />
             <Skeleton className="mt-2 h-7 w-44 max-w-4/5" />
