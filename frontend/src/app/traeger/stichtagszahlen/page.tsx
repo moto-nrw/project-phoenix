@@ -98,11 +98,17 @@ function MissingFigure() {
   );
 }
 
+/**
+ * Die Spalten je Schule. Die Spalte „Stichtag" erscheint nur, wenn die Schulen
+ * eines Monats an verschiedenen Tagen gezählt wurden (der Stichtag wurde
+ * mitten im Monat verschoben); sonst nennt ihn die Überschrift.
+ */
 function schoolColumns(
   previous: TraegerKeyDateMonth | null,
+  showKeyDate: boolean,
 ): DataTableColumn<KeyDateSchoolRow>[] {
   const previousMonth = previous ? formatKeyDateMonth(previous.period) : null;
-  return [
+  const columns: DataTableColumn<KeyDateSchoolRow>[] = [
     {
       key: "name",
       header: "Schule",
@@ -126,16 +132,6 @@ function schoolColumns(
       ),
       sortValue: (row) => row.school.name,
       stacked: "title",
-    },
-    {
-      key: "keyDate",
-      header: "Stichtag",
-      render: (row) => (
-        <span className="text-sm text-gray-700 tabular-nums">
-          {row.count ? formatDate(row.count.keyDate) : EMPTY_VALUE}
-        </span>
-      ),
-      sortValue: (row) => row.count?.keyDate ?? null,
     },
     {
       key: "students",
@@ -200,6 +196,19 @@ function schoolColumns(
       sortValue: (row) => row.count?.recordedAt ?? null,
     },
   ];
+  if (showKeyDate) {
+    columns.splice(1, 0, {
+      key: "keyDate",
+      header: "Stichtag",
+      render: (row) => (
+        <span className="text-sm text-gray-700 tabular-nums">
+          {row.count ? formatDate(row.count.keyDate) : EMPTY_VALUE}
+        </span>
+      ),
+      sortValue: (row) => row.count?.keyDate ?? null,
+    });
+  }
+  return columns;
 }
 
 const MONTH_COLUMNS: DataTableColumn<KeyDateMonthRow>[] = [
@@ -332,9 +341,15 @@ export default function TraegerKeyDateCountsPage() {
     () => (selection?.rows ?? []).filter((row) => matchesSearch(row, search)),
     [selection, search],
   );
+  const selectedKeyDates =
+    months.find((month) => month.period === selection?.month.period)
+      ?.keyDates ?? [];
+  const singleKeyDate =
+    selectedKeyDates.length === 1 ? selectedKeyDates[0] : undefined;
   const columns = useMemo(
-    () => schoolColumns(selection?.previous ?? null),
-    [selection],
+    () =>
+      schoolColumns(selection?.previous ?? null, singleKeyDate === undefined),
+    [selection, singleKeyDate],
   );
 
   const selectedIndex = selection
@@ -429,7 +444,9 @@ export default function TraegerKeyDateCountsPage() {
           />
           <DataTable
             heading={{
-              title: `Zahlen je Schule im ${formatKeyDateMonth(selection.month.period)}`,
+              title: singleKeyDate
+                ? `Zahlen je Schule am ${formatDate(singleKeyDate)}`
+                : `Zahlen je Schule im ${formatKeyDateMonth(selection.month.period)}`,
               count: rows.length,
             }}
             columns={columns}

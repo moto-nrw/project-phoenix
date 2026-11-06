@@ -138,6 +138,19 @@ describe("TraegerKeyDateCountsPage", () => {
     expect(
       screen.getByText("Für jede Schule gibt es Zahlen zu diesem Stichtag."),
     ).toBeInTheDocument();
+    // Ein Stichtag für alle Schulen: die Überschrift nennt ihn, keine Spalte.
+    expect(
+      screen.getAllByRole("heading", { name: "Zahlen je Schule am 15.10.2026" })
+        .length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(schoolTable()).getByRole("columnheader", {
+        name: /Aktive Kinder/,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(schoolTable()).queryByRole("columnheader", { name: /^Stichtag/ }),
+    ).toBeNull();
   });
 
   it("lists every school with its figures, its change and a late capture", async () => {
