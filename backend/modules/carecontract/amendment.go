@@ -50,10 +50,6 @@ const (
 	SkipCareEnds = "care_ends"
 	// SkipApplicationGone: the application child is no longer accepted.
 	SkipApplicationGone = "application_gone"
-	// SkipBeforeLaterVersion: the booked care differs on the first day of a
-	// planned version. The planned version stays as it is; whether it has to
-	// take a change over is not decided automatically (#4681).
-	SkipBeforeLaterVersion = "before_later_version"
 )
 
 // ErrVersionNotFound reports a version number the contract does not have.

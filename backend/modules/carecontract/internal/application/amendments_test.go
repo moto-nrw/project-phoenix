@@ -55,7 +55,7 @@ func TestAnApprovedChangeBecomesTheNextVersionFromItsEffectiveDay(t *testing.T) 
 		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1), ValidUntil: date(2031, 3, 1)},
 		{CareOfferingID: 2, Days: []string{"mon", "tue"}, ValidFrom: date(2031, 3, 1)},
 	}}
-	version, reason := nextAmendment(amendmentRead(), application, amendable(), *date(2031, 1, 10))
+	version, reason := nextVersion(amendmentRead(), application, amendable(), *date(2031, 1, 10))
 	require.Empty(t, reason)
 	require.NotNil(t, version)
 	assert.Equal(t, *date(2031, 3, 1), version.EffectiveFrom)
@@ -77,7 +77,7 @@ func TestMatchingBookingsMakeNoVersion(t *testing.T) {
 	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
 		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1)},
 	}}
-	version, reason := nextAmendment(amendmentRead(), application, amendable(), *date(2031, 1, 10))
+	version, reason := nextVersion(amendmentRead(), application, amendable(), *date(2031, 1, 10))
 	assert.Nil(t, version)
 	assert.Empty(t, reason)
 }
@@ -91,7 +91,7 @@ func TestAChangeSeenLateTakesEffectTodayNotInThePast(t *testing.T) {
 		{CareOfferingID: 1, Days: []string{"mon", "wed"}, ValidFrom: date(2031, 1, 6)},
 	}}
 	today := *date(2031, 1, 10)
-	version, reason := nextAmendment(amendmentRead(), application, amendable(), today)
+	version, reason := nextVersion(amendmentRead(), application, amendable(), today)
 	require.Empty(t, reason)
 	require.NotNil(t, version)
 	assert.Equal(t, today, version.EffectiveFrom)
@@ -106,7 +106,7 @@ func TestAShorterModuleIsNeverPromisedBeyondItsBooking(t *testing.T) {
 		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1)},
 		{CareOfferingID: 2, Days: []string{"tue"}, ValidFrom: date(2031, 3, 1), ValidUntil: date(2031, 7, 1)},
 	}}
-	version, reason := nextAmendment(amendmentRead(), application, amendable(), *date(2031, 1, 10))
+	version, reason := nextVersion(amendmentRead(), application, amendable(), *date(2031, 1, 10))
 	require.Empty(t, reason)
 	require.NotNil(t, version)
 	assert.Nil(t, version.EndsOn, "the contract runs on with the Monday module")
@@ -124,7 +124,7 @@ func TestAShorterModuleIsNeverPromisedBeyondItsBooking(t *testing.T) {
 	first := amendable().Latest
 	first.Status = carecontract.VersionSuperseded
 	amended.Versions = []carecontract.Version{first, amended.Latest}
-	next, reason := nextAmendment(amendmentRead(), application, amended, *date(2031, 1, 10))
+	next, reason := nextVersion(amendmentRead(), application, amended, *date(2031, 1, 10))
 	assert.Nil(t, next)
 	assert.Empty(t, reason)
 }
@@ -135,7 +135,7 @@ func TestCareThatStopsIsNoVersion(t *testing.T) {
 	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
 		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1), ValidUntil: date(2031, 3, 1)},
 	}}
-	version, reason := nextAmendment(amendmentRead(), application, amendable(), *date(2031, 1, 10))
+	version, reason := nextVersion(amendmentRead(), application, amendable(), *date(2031, 1, 10))
 	assert.Nil(t, version)
 	assert.Equal(t, carecontract.SkipCareEnds, reason)
 }
@@ -165,7 +165,7 @@ func TestAModuleSwitchAfterTheFirstVersionsEndContinuesTheContract(t *testing.T)
 		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1), ValidUntil: date(2031, 3, 1)},
 		{CareOfferingID: 2, Days: []string{"mon"}, ValidFrom: date(2031, 3, 1)},
 	}}
-	version, reason := nextAmendment(amendmentRead(), application, contract, *date(2031, 1, 10))
+	version, reason := nextVersion(amendmentRead(), application, contract, *date(2031, 1, 10))
 	require.Empty(t, reason)
 	require.NotNil(t, version)
 	assert.Equal(t, *date(2031, 3, 1), version.EffectiveFrom)
@@ -178,7 +178,7 @@ func TestAModuleSwitchAfterTheFirstVersionsEndContinuesTheContract(t *testing.T)
 		NoticeMonths: 1, NoticeTo: carecontract.NoticeMonthEnd}
 	contract.Latest.EndsOn = date(2031, 1, 31)
 	contract.Versions = []carecontract.Version{contract.Latest}
-	version, reason = nextAmendment(amendmentRead(), application, contract, *date(2031, 1, 10))
+	version, reason = nextVersion(amendmentRead(), application, contract, *date(2031, 1, 10))
 	assert.Nil(t, version)
 	assert.Empty(t, reason)
 }
@@ -197,7 +197,7 @@ func TestAModuleThatEndedUnseenIsDroppedFromToday(t *testing.T) {
 		{CareOfferingID: 2, Days: []string{"tue"}, ValidUntil: date(2031, 1, 5)},
 	}}
 	today := *date(2031, 1, 10)
-	version, reason := nextAmendment(amendmentRead(), application, contract, today)
+	version, reason := nextVersion(amendmentRead(), application, contract, today)
 	require.Empty(t, reason)
 	require.NotNil(t, version)
 	assert.Equal(t, today, version.EffectiveFrom)
@@ -248,7 +248,7 @@ func TestAChangeBeforeAPlannedVersionGoesInFrontOfIt(t *testing.T) {
 		{CareOfferingID: 2, Days: []string{"mon"}, ValidFrom: date(2031, 2, 1)},
 	}}
 	contract := plannedTimeline()
-	version, reason := nextAmendment(amendmentRead(), application, contract, *date(2031, 1, 10))
+	version, reason := nextVersion(amendmentRead(), application, contract, *date(2031, 1, 10))
 	require.Empty(t, reason)
 	require.NotNil(t, version)
 	assert.Equal(t, *date(2031, 2, 1), version.EffectiveFrom)
@@ -263,7 +263,74 @@ func TestAChangeBeforeAPlannedVersionGoesInFrontOfIt(t *testing.T) {
 	inserted.ID = 33
 	contract.Versions = []carecontract.Version{contract.Versions[0], inserted, contract.Versions[1]}
 	contract.NextNumber = 4
-	next, reason := nextAmendment(amendmentRead(), application, contract, *date(2031, 1, 10))
+	next, reason := nextVersion(amendmentRead(), application, contract, *date(2031, 1, 10))
 	assert.Nil(t, next, "the planned version stays as it is")
 	assert.Empty(t, reason)
+}
+
+// nextVersion is the version of the next amendment plan, nil without one.
+func nextVersion(read schoolRead, application carecontract.Application, contract AmendableContract,
+	today calendar.Date) (*carecontract.Version, string) {
+	plan, reason := nextAmendment(read, application, contract, today)
+	if plan == nil {
+		return nil, reason
+	}
+	return &plan.version, reason
+}
+
+// Rule 3 (#4681): an approval whose day is the first day of the planned
+// version (D = E) replaces that version by one with its services plus the
+// change, under a new number; nothing is dropped.
+func TestAChangeOnThePlannedVersionsFirstDayReplacesIt(t *testing.T) {
+	t.Parallel()
+	contract := plannedTimeline()
+	// The first approval added Wednesday from 1 March (planned version 2);
+	// the second adds Friday in the long module from the same day.
+	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1), ValidUntil: date(2031, 3, 1)},
+		{CareOfferingID: 1, Days: []string{"mon", "wed"}, ValidFrom: date(2031, 3, 1)},
+		{CareOfferingID: 2, Days: []string{"fri"}, ValidFrom: date(2031, 3, 1)},
+	}}
+	plan, reason := nextAmendment(amendmentRead(), application, contract, *date(2031, 1, 10))
+	require.Empty(t, reason)
+	require.NotNil(t, plan)
+	require.NotNil(t, plan.replace, "the planned version is replaced, not kept beside it")
+	assert.Equal(t, contract.Latest.ID, plan.replace.ID)
+	assert.Equal(t, *date(2031, 3, 1), plan.version.EffectiveFrom)
+	assert.Equal(t, 3, plan.version.Number)
+	assert.Equal(t, carecontract.VersionEffective, plan.version.Status, "the newest stays wirksam")
+	assert.Equal(t, []carecontract.Service{
+		{Weekday: "mon", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
+		{Weekday: "wed", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
+		{Weekday: "fri", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"},
+	}, plan.version.Services, "the planned Monday and Wednesday plus the new Friday")
+}
+
+// Rule 3 (#4681): a second approval with the same D replaces the version of
+// the first one, cumulatively.
+func TestASecondChangeOnTheSameDayReplacesTheFirstCumulatively(t *testing.T) {
+	t.Parallel()
+	contract := amendable()
+	first := contract.Latest
+	first.Status = carecontract.VersionSuperseded
+	february := carecontract.Version{ID: 33, Number: 2, Status: carecontract.VersionEffective, EffectiveFrom: *date(2031, 2, 1),
+		ChildFirstName: "Lina", SchoolName: "OGS Am Lindenhof", Terms: first.Terms, Source: carecontract.SourceBookingChange,
+		Services: []carecontract.Service{{Weekday: "mon", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"}}}
+	contract.Latest, contract.NextNumber = february, 3
+	contract.Versions = []carecontract.Version{first, february}
+	// The first approval moved Monday to the long module from 1 February,
+	// the second adds Thursday to it from the same day.
+	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1), ValidUntil: date(2031, 2, 1)},
+		{CareOfferingID: 2, Days: []string{"mon", "thu"}, ValidFrom: date(2031, 2, 1)},
+	}}
+	plan, reason := nextAmendment(amendmentRead(), application, contract, *date(2031, 1, 10))
+	require.Empty(t, reason)
+	require.NotNil(t, plan)
+	require.NotNil(t, plan.replace)
+	assert.Equal(t, int64(33), plan.replace.ID)
+	assert.Equal(t, []carecontract.Service{
+		{Weekday: "mon", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"},
+		{Weekday: "thu", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"},
+	}, plan.version.Services)
 }

@@ -135,23 +135,27 @@ func effectiveTimelines(ctx context.Context, db bun.IDB, organizationID int64, i
 	return timelines, nil
 }
 
-// InsertVersion makes version the newest effective version of the contract:
-// the version previousID it follows becomes abgeloest, and the new one is
-// stored wirksam with its services. A previous version that is no longer
-// wirksam is ErrVersionMoved, so a concurrent run adds nothing twice. The
-// trigger of 1.15.775 refuses a version that starts before an effective one
-// or in the past.
-func (Store) InsertVersion(ctx context.Context, organizationID, contractID, previousID int64, version carecontract.Version) (int64, error) {
+// InsertVersion stores a new version after its step on the timeline: the
+// wirksam version it follows becomes abgeloest, or the version starting on
+// its day becomes ersetzt, or, before a planned version, nothing changes. A
+// stepped version that is no longer in its status is ErrVersionMoved, so a
+// concurrent run adds nothing twice. The triggers of 1.15.775 refuse an
+// overlap and a version in the past.
+func (Store) InsertVersion(ctx context.Context, organizationID, contractID int64, step ports.VersionStep, version carecontract.Version) (int64, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return 0, err
 	}
-	if previousID == 0 {
+	stepped, status := step.Supersede, carecontract.VersionSuperseded
+	if step.Replace != 0 {
+		stepped, status = step.Replace, carecontract.VersionReplaced
+	}
+	if stepped == 0 {
 		return insertVersion(ctx, db, organizationID, contractID, version)
 	}
 	result, err := db.ExecContext(ctx, `UPDATE care_contract.contract_versions SET status = ?
 		WHERE organization_id = ? AND contract_id = ? AND id = ? AND status = ?`,
-		carecontract.VersionSuperseded, organizationID, contractID, previousID, carecontract.VersionEffective)
+		status, organizationID, contractID, stepped, step.Status)
 	if err != nil {
 		return 0, fmt.Errorf("care contract postgres: supersede version: %w", err)
 	}

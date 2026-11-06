@@ -40,6 +40,9 @@ const (
 	VersionEffective  = "wirksam"
 	VersionSuperseded = "abgeloest"
 	VersionRejected   = "abgelehnt"
+	// VersionReplaced is a version that a change on its own first day
+	// replaced (#4681): it stays in the history and holds on no day.
+	VersionReplaced = "ersetzt"
 )
 
 // The term of a contract template.

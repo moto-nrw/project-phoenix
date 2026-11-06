@@ -24,6 +24,15 @@ type AmendableContract struct {
 	Versions   []carecontract.Version
 }
 
+// VersionStep is what a new version does to the timeline (#4681): at most
+// one of Supersede and Replace names a version; Status is the status that
+// version must still have.
+type VersionStep struct {
+	Supersede int64
+	Replace   int64
+	Status    string
+}
+
 // ErrVersionMoved reports that the version a new version should follow is
 // no longer the newest effective one: another run changed the contract.
 var ErrVersionMoved = errors.New("care contract: the newest version changed")
@@ -135,11 +144,12 @@ type Store interface {
 	// AmendableContracts reads every active contract with its newest
 	// effective version.
 	AmendableContracts(ctx context.Context, organizationID int64) ([]AmendableContract, error)
-	// InsertVersion stores version. With a previousID it is the newest: the
-	// version previousID becomes abgeloest, and ErrVersionMoved when it is no
-	// longer wirksam. Without one (0) it goes before a planned version and
-	// supersedes nothing.
-	InsertVersion(ctx context.Context, organizationID, contractID, previousID int64, version carecontract.Version) (int64, error)
+	// InsertVersion stores version after one step on the timeline: step.Supersede
+	// (the wirksam version it follows becomes abgeloest) or step.Replace (the
+	// version starting on the same day becomes ersetzt); neither for a version
+	// that goes before a planned one. ErrVersionMoved when the stepped version
+	// is no longer in its expected status.
+	InsertVersion(ctx context.Context, organizationID, contractID int64, step VersionStep, version carecontract.Version) (int64, error)
 	// VersionsInForce reads the effective versions holding between from and
 	// to; VersionPeriod.From and Until stay for the caller to fill.
 	VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date, contractIDs []int64) ([]carecontract.VersionPeriod, error)

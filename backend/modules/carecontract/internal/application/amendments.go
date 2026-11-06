@@ -88,18 +88,18 @@ func (c *Conclusions) amendContract(ctx context.Context, organizationID int64, r
 		run.Skipped = append(run.Skipped, carecontract.AmendmentSkip{ContractID: contract.ID, Reason: carecontract.SkipApplicationGone})
 		return nil
 	}
-	version, reason := nextAmendment(read, application, contract, today)
+	plan, reason := nextAmendment(read, application, contract, today)
 	if reason != "" {
 		run.Skipped = append(run.Skipped, carecontract.AmendmentSkip{ContractID: contract.ID, Reason: reason})
 		return nil
 	}
-	if version == nil {
+	if plan == nil {
 		return nil
 	}
-	amended, err := c.amend(ctx, organizationID, contract, *version)
+	amended, err := c.amend(ctx, organizationID, contract, *plan)
 	if amended {
 		run.Amended = append(run.Amended, carecontract.AmendedContract{
-			ContractID: contract.ID, VersionNumber: version.Number, EffectiveFrom: version.EffectiveFrom,
+			ContractID: contract.ID, VersionNumber: plan.version.Number, EffectiveFrom: plan.version.EffectiveFrom,
 		})
 	}
 	return err
@@ -108,20 +108,15 @@ func (c *Conclusions) amendContract(ctx context.Context, organizationID int64, r
 // amend stores the new version in the contract's own Träger transaction,
 // under the row lock of the contract. A contract that changed since the
 // read (another run, a termination) is left for the next run.
-func (c *Conclusions) amend(ctx context.Context, organizationID int64, contract AmendableContract, version carecontract.Version) (bool, error) {
+func (c *Conclusions) amend(ctx context.Context, organizationID int64, contract AmendableContract, plan amendmentPlan) (bool, error) {
+	version := plan.version
 	amended := false
 	err := c.intake.runtime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
 		unchanged, err := c.lockedTimeline(txCtx, organizationID, contract)
 		if err != nil || !unchanged {
 			return err
 		}
-		// Only the newest version supersedes the wirksam one; a version that
-		// goes before a planned one supersedes nothing.
-		previousID := int64(0)
-		if version.Status == carecontract.VersionEffective {
-			previousID = contract.Latest.ID
-		}
-		versionID, err := c.intake.store.InsertVersion(txCtx, organizationID, contract.ID, previousID, version)
+		versionID, err := c.intake.store.InsertVersion(txCtx, organizationID, contract.ID, timelineStep(contract, plan), version)
 		if errors.Is(err, ports.ErrVersionMoved) {
 			return nil
 		}
@@ -134,6 +129,7 @@ func (c *Conclusions) amend(ctx context.Context, organizationID int64, contract 
 			Details: map[string]any{
 				"version_id": versionID, "version_number": version.Number, "source": version.Source,
 				"effective_from": version.EffectiveFrom.String(), "status": version.Status,
+				"replaced_version_id": replacedID(plan),
 			},
 		}}); err != nil {
 			return fmt.Errorf("care contract: record amendment: %w", err)
@@ -145,6 +141,27 @@ func (c *Conclusions) amend(ctx context.Context, organizationID int64, contract 
 		return false, fmt.Errorf("care contract: amend contract %d: %w", contract.ID, err)
 	}
 	return amended, nil
+}
+
+// timelineStep is what the new version does to the timeline: it replaces the
+// version starting on its day (rule 3), supersedes the wirksam version as
+// the newest (rule 2), or, before a planned version, changes nothing (rule
+// 4).
+func timelineStep(contract AmendableContract, plan amendmentPlan) VersionStep {
+	switch {
+	case plan.replace != nil:
+		return VersionStep{Replace: plan.replace.ID, Status: plan.replace.Status}
+	case plan.version.Status == carecontract.VersionEffective:
+		return VersionStep{Supersede: contract.Latest.ID, Status: carecontract.VersionEffective}
+	}
+	return VersionStep{}
+}
+
+func replacedID(plan amendmentPlan) any {
+	if plan.replace == nil {
+		return nil
+	}
+	return plan.replace.ID
 }
 
 // lockedTimeline takes the row lock of the contract, the same lock the

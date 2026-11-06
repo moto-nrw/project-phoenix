@@ -34,12 +34,15 @@ func init() {
 //     the newest; every earlier one is abgeloest. Two effective versions
 //     never start on the same day.
 //   - A new version is the newest (wirksam, starting after every effective
-//     version) or is inserted before a planned one (abgeloest, with a later
-//     effective version); either way it starts after the first version, and
-//     a follow-up version (number 2 and up) never starts before the day it
-//     becomes effective (Berlin date): no change reaches back into a month
-//     that may be billed already. #4684 can tighten this to the last issued
-//     invoice in the same trigger.
+//     version) or goes before a planned one (abgeloest, with a later
+//     effective version). A follow-up version (number 2 and up) never starts
+//     before the day it becomes effective (Berlin date): no change reaches
+//     back into a month that may be billed already. #4684 can tighten this
+//     to the last issued invoice in the same trigger.
+//   - A version that a change on its own first day replaces becomes ersetzt
+//     (#4681 rule 3): it stays in the history and holds on no day. The status
+//     guard of #4680 (1.15.773) is taken over and allows wirksam or abgeloest
+//     to ersetzt besides its own steps.
 const careContractAmendmentsUpSQL = `
 ALTER TABLE care_contract.contract_versions
 	ADD COLUMN source VARCHAR(24) NOT NULL DEFAULT 'abschluss';
@@ -70,12 +73,6 @@ BEGIN
 			RAISE EXCEPTION 'care contract version of contract % inserted as superseded needs a later effective version', NEW.contract_id
 				USING ERRCODE = 'check_violation';
 		END IF;
-		IF NEW.version_number > 1 AND NOT EXISTS (SELECT 1 FROM care_contract.contract_versions AS v
-			WHERE v.organization_id = NEW.organization_id AND v.contract_id = NEW.contract_id AND v.id <> NEW.id
-				AND v.status IN ('wirksam', 'abgeloest') AND v.effective_from < NEW.effective_from) THEN
-			RAISE EXCEPTION 'care contract version of contract % must start after the first version', NEW.contract_id
-				USING ERRCODE = 'check_violation';
-		END IF;
 		IF NEW.version_number > 1 AND NEW.effective_from < (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date THEN
 			RAISE EXCEPTION 'care contract version of contract % cannot take effect in the past', NEW.contract_id
 				USING ERRCODE = 'check_violation';
@@ -84,6 +81,23 @@ BEGIN
 	RETURN NEW;
 END;
 $$;
+CREATE OR REPLACE FUNCTION care_contract.guard_version_status() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+	IF NEW.status IS DISTINCT FROM OLD.status AND NOT (
+		(OLD.status = 'beantragt' AND NEW.status IN ('wirksam', 'abgelehnt'))
+		OR (OLD.status = 'wirksam' AND NEW.status IN ('abgeloest', 'ersetzt'))
+		OR (OLD.status = 'abgeloest' AND NEW.status = 'ersetzt')) THEN
+		RAISE EXCEPTION 'care contract version % cannot move from % to %', OLD.id, OLD.status, NEW.status
+			USING ERRCODE = 'check_violation';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+ALTER TABLE care_contract.contract_versions DROP CONSTRAINT chk_contract_versions_status;
+ALTER TABLE care_contract.contract_versions ADD CONSTRAINT chk_contract_versions_status
+	CHECK (status IN ('beantragt', 'wirksam', 'abgeloest', 'abgelehnt', 'ersetzt'));
+
 CREATE TRIGGER guard_care_contract_version_timeline
 	BEFORE INSERT OR UPDATE OF status ON care_contract.contract_versions
 	FOR EACH ROW EXECUTE FUNCTION care_contract.guard_version_timeline();
@@ -97,10 +111,26 @@ DROP TRIGGER IF EXISTS guard_care_contract_version_timeline ON care_contract.con
 DROP FUNCTION IF EXISTS care_contract.guard_version_timeline();
 DELETE FROM care_contract.contract_versions WHERE source = 'buchungsaenderung';
 ALTER TABLE care_contract.contract_versions DISABLE TRIGGER guard_care_contract_version_status;
+UPDATE care_contract.contract_versions SET status = 'abgeloest' WHERE status = 'ersetzt';
 UPDATE care_contract.contract_versions AS v SET status = 'wirksam'
 	WHERE v.status = 'abgeloest' AND NOT EXISTS (SELECT 1 FROM care_contract.contract_versions AS o
 		WHERE o.contract_id = v.contract_id AND o.status IN ('wirksam', 'abgeloest') AND o.effective_from > v.effective_from);
 ALTER TABLE care_contract.contract_versions ENABLE TRIGGER guard_care_contract_version_status;
+ALTER TABLE care_contract.contract_versions DROP CONSTRAINT chk_contract_versions_status;
+ALTER TABLE care_contract.contract_versions ADD CONSTRAINT chk_contract_versions_status
+	CHECK (status IN ('beantragt', 'wirksam', 'abgeloest', 'abgelehnt'));
+CREATE OR REPLACE FUNCTION care_contract.guard_version_status() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+	IF NEW.status IS DISTINCT FROM OLD.status AND NOT (
+		(OLD.status = 'beantragt' AND NEW.status IN ('wirksam', 'abgelehnt'))
+		OR (OLD.status = 'wirksam' AND NEW.status = 'abgeloest')) THEN
+		RAISE EXCEPTION 'care contract version % cannot move from % to %', OLD.id, OLD.status, NEW.status
+			USING ERRCODE = 'check_violation';
+	END IF;
+	RETURN NEW;
+END;
+$$;
 DROP INDEX IF EXISTS care_contract.uq_contract_versions_timeline;
 DROP INDEX IF EXISTS care_contract.uq_contract_versions_effective;
 ALTER TABLE care_contract.contract_versions DROP CONSTRAINT IF EXISTS chk_contract_versions_source;
