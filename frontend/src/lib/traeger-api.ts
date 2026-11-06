@@ -88,6 +88,65 @@ export interface TraegerSchoolsToday {
   readonly total: TraegerSchoolFigures;
 }
 
+/**
+ * One captured Stichtagszahl of a school (#4673): the actively managed
+ * children and the active terminals on the key date of a month, the same row
+ * the operator billing report shows. Captured once, never changed.
+ */
+export interface TraegerKeyDateCount {
+  /** First day of the month, `YYYY-MM-DD`. */
+  readonly period: string;
+  /** The key date of the month, `YYYY-MM-DD`. */
+  readonly keyDate: string;
+  readonly activeStudents: number;
+  readonly activeTerminals: number;
+  /** When moto captured the figures; later than the key date when late. */
+  readonly recordedAt: string;
+}
+
+/** One school with its captured months, newest first (#4673). */
+export interface TraegerSchoolKeyDateCounts extends TraegerSchool {
+  readonly counts: readonly TraegerKeyDateCount[];
+}
+
+/** The sum of one captured month over the schools of the Träger (#4673). */
+export interface TraegerKeyDateMonth {
+  readonly period: string;
+  readonly keyDate: string;
+  readonly activeStudents: number;
+  readonly activeTerminals: number;
+  /** Schools with captured figures in this month. */
+  readonly schools: number;
+}
+
+/** The Stichtagszahlen of every school and the sum of each month (#4673). */
+export interface TraegerKeyDateCounts {
+  readonly schools: readonly TraegerSchoolKeyDateCounts[];
+  /** Newest month first. */
+  readonly months: readonly TraegerKeyDateMonth[];
+}
+
+interface BackendKeyDateCount {
+  period: string;
+  key_date: string;
+  active_students: number;
+  active_terminals: number;
+  recorded_at: string;
+}
+
+interface BackendKeyDateMonth {
+  period: string;
+  key_date: string;
+  active_students: number;
+  active_terminals: number;
+  schools: number;
+}
+
+interface BackendKeyDateCounts {
+  schools: (BackendSchool & { counts: BackendKeyDateCount[] | null })[] | null;
+  months: BackendKeyDateMonth[] | null;
+}
+
 interface BackendSchoolFigures {
   children_total: number;
   children_present: number;
@@ -258,6 +317,45 @@ export async function fetchTraegerSchoolsToday(): Promise<TraegerSchoolsToday> {
       figures: toSchoolFigures(school.figures),
     })),
     total: toSchoolFigures(today.total),
+  };
+}
+
+/**
+ * The captured Stichtagszahlen of every school of the Träger and the sum of
+ * each month (#4673): the rows of the operator billing report, numbers only.
+ */
+export async function fetchTraegerKeyDateCounts(): Promise<TraegerKeyDateCounts> {
+  const response = await transportFetch(
+    "/api/traeger/schools/key-date-counts",
+    { credentials: "include", cache: "no-store" },
+  );
+  const data = await readJson(response);
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+  const counts = (data as { data: BackendKeyDateCounts }).data;
+  return {
+    schools: (counts.schools ?? []).map((school) => ({
+      ...toTraegerSchool(school),
+      counts: (school.counts ?? []).map((count) => ({
+        period: count.period,
+        keyDate: count.key_date,
+        activeStudents: count.active_students,
+        activeTerminals: count.active_terminals,
+        recordedAt: count.recorded_at,
+      })),
+    })),
+    months: (counts.months ?? []).map((month) => ({
+      period: month.period,
+      keyDate: month.key_date,
+      activeStudents: month.active_students,
+      activeTerminals: month.active_terminals,
+      schools: month.schools,
+    })),
   };
 }
 
