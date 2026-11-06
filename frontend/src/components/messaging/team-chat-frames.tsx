@@ -1,5 +1,6 @@
 "use client";
 
+import { MessagesSquare } from "lucide-react";
 import { formErrorDetail, formErrorMessage } from "~/components/ui/form-error";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
@@ -17,6 +18,11 @@ export function renderInboxFrame(parts: TeamChatInboxParts) {
       title={parts.title}
       stats={parts.stats}
       statsLoading={parts.statsLoading}
+      badge={
+        parts.loading || parts.count === null
+          ? undefined
+          : { icon: <MessagesSquare size={20} />, count: parts.count }
+      }
       actions={parts.composeButton ?? undefined}
       search={parts.search}
       filters={
@@ -83,6 +89,7 @@ export function renderThreadFrame(parts: TeamChatThreadParts) {
       {...back}
       stats={parts.stats}
       statsLoading={parts.statsLoading}
+      info={parts.audience}
       actions={parts.actions ?? undefined}
     >
       <div
