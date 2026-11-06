@@ -448,3 +448,28 @@ func TestTraegerDocumentDownloadsAreLoggedAtTheReachedSchools(t *testing.T) {
 	require.Len(t, entries, len(f.office.schools)+1, "the second download writes one entry")
 	assert.Equal(t, f.office.schools[0], entries[len(entries)-1], "a released document is logged where it reaches")
 }
+
+// TestTraegerDocumentDownloadLogNeverReachesAMovedSchool pins the school set
+// of the access log against stale releases (#4692 review): after a released
+// school moves to another Träger, a download of the former Träger is logged
+// at its current schools, never at the moved one.
+func TestTraegerDocumentDownloadLogNeverReachesAMovedSchool(t *testing.T) {
+	t.Parallel()
+	f := newTraegerDocumentsFixture(t)
+	moved, stays := f.office.schools[0], f.office.schools[1]
+	document := f.uploaded(t, f.office.token, "Elternliste")
+	f.released(t, f.office.token, document.ID, map[string]any{"audience": "schools", "school_id": moved})
+	other := testpkg.CreateTestOrganization(t, f.db, &testpkg.Organization{
+		Name: "Neuer Träger", Slug: fmt.Sprintf("neuer-traeger-%d", testpkg.UniqueTestTenantID(t)),
+	})
+	_, err := f.db.ExecContext(t.Context(), `UPDATE platform.schools SET organization_id = ? WHERE id = ?`, other.ID, moved)
+	require.NoError(t, err)
+
+	rec := traegerJSON(t, f.router, f.office.token, http.MethodGet, fmt.Sprintf("/traeger/documents/%d/file", document.ID), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var schools []int64
+	require.NoError(t, f.db.NewRaw(`SELECT tenant_id FROM audit.data_access_log
+		WHERE resource_type = 'traeger_document_download' AND metadata->>'document_id' = ?`, fmt.Sprint(document.ID)).Scan(t.Context(), &schools))
+	assert.Equal(t, []int64{stays}, schools, "the moved school never sees the former Träger's download")
+}

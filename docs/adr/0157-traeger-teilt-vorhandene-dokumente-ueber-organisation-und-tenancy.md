@@ -48,9 +48,9 @@ ADR 0070).
 6. **Zugriffsprotokoll:** Lädt das Träger-Büro ein Dokument herunter, schreibt
    der Dienst nach der Träger-Transaktion einen Eintrag in
    `audit.data_access_log` jeder Schule, die das Dokument über eine aktive
-   Freigabe erreicht, jeweils in deren Tenant-Transaktion (ADR 0084 §7,
-   ADR 0088 §7). Ein Dokument ohne erreichte Schule wird bei allen Schulen des
-   Trägers protokolliert. Ohne Eintrag verlässt keine Datei den Dienst.
+   Freigabe erreicht und noch zum Träger gehört, jeweils in deren
+   Tenant-Transaktion (ADR 0084 §7, ADR 0088 §7). Ein Dokument ohne solche
+   Schule wird bei allen aktuellen Schulen des Trägers protokolliert. Ohne Eintrag verlässt keine Datei den Dienst.
 7. **Rechte im Träger-Büro:** Lesen „Übersicht lesen“, Hochladen, Freigeben und
    Zurücknehmen „Anmeldung verwalten“ (Verwaltung). Ein eigenes Recht wäre ein
    Nachtrag zu ADR 0084.

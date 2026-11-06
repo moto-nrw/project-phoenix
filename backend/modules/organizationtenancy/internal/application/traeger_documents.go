@@ -128,20 +128,29 @@ func (d *TraegerDocuments) File(ctx context.Context, organizationID, accountID, 
 }
 
 // loggedSchools are the schools a download is logged at: those the document
-// reaches, or every school of the Träger while it reaches none or all.
+// reaches that still belong to the Träger, or every current school of the
+// Träger while it reaches none or all. A release keeps the ID of a school that
+// since moved to another Träger or was erased; such a school never gets the
+// entry.
 func (d *TraegerDocuments) loggedSchools(ctx context.Context, organizationID int64, reached []int64, everySchool bool) ([]int64, error) {
-	if !everySchool && len(reached) > 0 {
-		return reached, nil
-	}
 	schools, err := d.ports.Schools.TraegerSchools(ctx, organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("organization tenancy: list schools of the Träger: %w", err)
 	}
-	ids := make([]int64, 0, len(schools))
+	current := make([]int64, 0, len(schools))
 	for _, school := range schools {
-		ids = append(ids, school.ID)
+		current = append(current, school.ID)
 	}
-	return ids, nil
+	if everySchool {
+		return current, nil
+	}
+	kept := slices.DeleteFunc(slices.Clone(reached), func(school int64) bool {
+		return !slices.Contains(current, school)
+	})
+	if len(kept) == 0 {
+		return current, nil
+	}
+	return kept, nil
 }
 
 // logSchools writes one entry per school into that school's access log, in
