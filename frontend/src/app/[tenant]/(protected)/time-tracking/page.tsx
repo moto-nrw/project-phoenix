@@ -227,9 +227,7 @@ function PlannedShiftsInfo({
             {shift.startTime}–{shift.endTime}
           </span>
           {shift.originShiftId && (
-            <span className="bg-moto-blue/10 text-moto-blue rounded-full px-2 py-0.5 text-xs font-medium">
-              Vertretung
-            </span>
+            <StatusBadge label="Vertretung" tone="blue" compact />
           )}
           {shift.breakMinutes > 0 && (
             <span className="text-gray-400">
@@ -246,9 +244,7 @@ function PlannedShiftsInfo({
           <span className="tabular-nums line-through">
             {shift.startTime}–{shift.endTime}
           </span>
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-            Entfällt
-          </span>
+          <StatusBadge label="Entfällt" tone="gray" compact />
           {shift.changeReason && (
             <span className="italic">{shift.changeReason}</span>
           )}

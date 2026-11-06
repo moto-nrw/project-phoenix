@@ -20,6 +20,7 @@ import type { GapInstance } from "~/lib/timetable-types";
 import { formatDate } from "~/lib/date-helpers";
 import { timetablePopoverSurface } from "./timetable-style";
 import { StatusDot } from "~/components/ui/status-dot";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 interface GapJumpListProps {
   /** Offene (nicht quittierte) Lücken des sichtbaren Zeitraums. */
@@ -62,27 +63,25 @@ export function GapJumpList({
   // Prüf-Hinweis in derselben ruhigen Optik wie der "Keine Lücken"-Zustand.
   if (state === "loading") {
     return (
-      <span
-        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500"
+      <StatusBadge
+        label="Lücken werden geprüft …"
         title="Personal-Lücken werden geprüft"
-      >
-        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-gray-400" />
-        Lücken werden geprüft …
-      </span>
+        tone="gray"
+        compact
+      />
     );
   }
 
   // Ohne offene Lücken bleibt der Chip als ruhige "Keine Lücken"-Anzeige
-  // stehen (grauer Punkt), aber ohne Popover — es gäbe nichts anzuspringen.
+  // stehen (graue Pille), aber ohne Popover — es gäbe nichts anzuspringen.
   if (count === 0) {
     return (
-      <span
-        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500"
+      <StatusBadge
+        label="Keine Lücken"
         title="Keine offenen Lücken im sichtbaren Zeitraum"
-      >
-        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-gray-400" />
-        Keine Lücken
-      </span>
+        tone="gray"
+        compact
+      />
     );
   }
 
