@@ -681,6 +681,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.ResendSchoolInvitation",
+      "binding_digest": "7f2bb904c8ddbf7d4acdfc15d23642d0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResendSchoolInvitation",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RevokeTenantSchoolInvitations",
       "binding_digest": "bb62e18552e1ea21f252023116c47999",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RevokeTenantSchoolInvitations",
@@ -703,6 +711,14 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.SchoolInvitationMailStates",
+      "binding_digest": "7f2bb904c8ddbf7d4acdfc15d23642d0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SchoolInvitationMailStates",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.StartTraegerSchoolSession",
@@ -831,6 +847,22 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.InvitationCapability.ResendSchoolInvitation",
+      "binding_digest": "7f2bb904c8ddbf7d4acdfc15d23642d0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.ResendSchoolInvitation",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResendSchoolInvitation",
+      "binding_digest": "7f2bb904c8ddbf7d4acdfc15d23642d0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.ResendSchoolInvitation",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.InvitationCapability.RevokeTenantSchoolInvitations",
@@ -1465,6 +1497,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ResendSchoolInvitation",
+      "binding_digest": "7f2bb904c8ddbf7d4acdfc15d23642d0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.ResendSchoolInvitation",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RevokeTenantSchoolInvitations",
       "binding_digest": "bb62e18552e1ea21f252023116c47999",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.RevokeTenantSchoolInvitations",
@@ -1479,6 +1519,14 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SchoolInvitationMailStates",
+      "binding_digest": "7f2bb904c8ddbf7d4acdfc15d23642d0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.SchoolInvitationMailStates",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolByID",
@@ -2303,6 +2351,22 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.PromoteGuardianLinkToLegalGuardian",
       "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
+      "binding_digest": "2938c0ac8d793e0ea49f9e7b2ece8e5a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
+      "binding_digest": "a57d1122fbe1925b36a81f3656ccdc87",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.InvitationExpiry",
@@ -3554,7 +3618,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "a3e6475f794eae21ea0e37cc0903e96a",
+      "binding_digest": "2938c0ac8d793e0ea49f9e7b2ece8e5a",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -3562,7 +3626,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "a74b2bfb9be25147e12ad5769798b249",
+      "binding_digest": "a57d1122fbe1925b36a81f3656ccdc87",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",

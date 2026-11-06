@@ -36,17 +36,16 @@ func newSchoolInvitation(
 	}
 	return application.NewSchoolInvitation(application.SchoolInvitationDependencies{
 		EmploymentReset: deps.EmploymentReset, Store: store, Logins: store, Roles: postgres.NewRoleStore(store),
-		Policy:     application.RoleAssignmentPolicy{},
-		Grants:     application.InvitationGrantPolicy{Source: deps.Grants},
-		Identity:   lifecycle,
-		Schools:    application.SchoolDirectory{SchoolDirectory: sessions.Schools},
-		Owners:     deps.Owners,
-		Passwords:  deps.Passwords,
-		Delivery:   application.SchoolInvitationDelivery{Source: delivery},
-		MailStates: delivery.InvitationMailStates,
-		Runtime:    tenantRuntime{attach: attach, runner: application.NewTransactionRunner()},
-		Attach:     attach,
-		Expiry:     deps.Expiry,
-		Logger:     deps.Logger,
+		Policy:    application.RoleAssignmentPolicy{},
+		Grants:    application.InvitationGrantPolicy{Source: deps.Grants},
+		Identity:  lifecycle,
+		Schools:   application.SchoolDirectory{SchoolDirectory: sessions.Schools},
+		Owners:    deps.Owners,
+		Passwords: deps.Passwords,
+		Delivery:  application.SchoolInvitationDelivery{Source: delivery}, MailStates: delivery.InvitationMailStates,
+		Runtime: tenantRuntime{attach: attach, runner: application.NewTransactionRunner()},
+		Attach:  attach,
+		Expiry:  deps.Expiry,
+		Logger:  deps.Logger,
 	})
 }

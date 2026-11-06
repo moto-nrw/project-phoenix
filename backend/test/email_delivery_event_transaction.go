@@ -16,6 +16,7 @@ var emailDeliveryEventTransactionSites = map[string]string{
 	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.EmailSuppressionReason:c.schools.WithinTenant#1":       "Delivery reads why one address is on the named school's suppression list, in that school's transaction under row-level security.",
 	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.DeleteEmailSuppression:c.schools.WithinTenant#1":       "Delivery removes one address from the named school's suppression list after the provider lifted its block, in that school's transaction under row-level security.",
 	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.StopEmailsToAddress:c.schools.WithinTenant#1":          "Delivery marks one address on the named school's list on that school's own decision.",
+	"modules/enrollment/http/admin_deletion_handlers.go:*Resource.getAdminRequestMails:rs.runInTenantTx#1":                           "HTTP query boundary: getAdminRequestMails reads what became of the mails of one application in the caller's tenant transaction.",
 	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.SchoolMailedAddress:c.schools.WithinTenant#1":          "Delivery checks that the named school has a mail to one exact address before a team-wide provider block is lifted, in that school's transaction under row-level security.",
 }
 

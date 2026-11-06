@@ -234,10 +234,6 @@ func (rs *GuardianResource) Router() chi.Router {
 		// (emergency cases); writes add the per-student check in the handler.
 		r.With(usersRead, withTx).Get("/students/{studentId}/guardians", rs.getStudentGuardians)
 		r.With(usersRead, withTx).Get("/{id}/students", rs.getGuardianStudents)
-		r.With(usersRead, withTx).Get("/students/{studentId}/email-status", rs.getStudentGuardianEmailStatus)
-		// No request transaction: lifting waits for the mail provider (#5934).
-		r.With(usersUpdate).Post("/{id}/email-block", rs.stopGuardianEmails)
-		r.With(usersUpdate).Delete("/{id}/email-block", rs.liftGuardianEmailBlock)
 		r.With(usersUpdate, withTx).Post("/students/{studentId}/guardians", rs.linkGuardianToStudent)
 		// Atomic create-or-link of one or more guardians (#819).
 		r.With(usersUpdate, withTx).Post("/students/{studentId}/guardians/batch", rs.createStudentGuardians)
@@ -277,6 +273,10 @@ func (rs *GuardianResource) mountRelatedAccounts(r chi.Router, withTx Middleware
 
 	r.With(usersCreate, withTx).Post("/students/{studentId}/invite", rs.inviteGuardianToStudent)
 	r.With(usersCreate, withTx).Post("/bulk-invite", rs.bulkInviteGuardians)
+	r.With(rs.runtime.Permission(permissions.UsersRead), withTx).Get("/students/{studentId}/email-status", rs.getStudentGuardianEmailStatus)
+	// No request transaction: lifting waits for the mail provider (#5934).
+	r.With(usersUpdate).Post("/{id}/email-block", rs.stopGuardianEmails)
+	r.With(usersUpdate).Delete("/{id}/email-block", rs.liftGuardianEmailBlock)
 	r.With(usersManage, withTx).Get("/invitations/pending-approval", rs.listPendingApprovals)
 	r.With(usersUpdate, withTx).Post("/invitations/{invitationId}/approve", rs.approveInvitation)
 	r.With(usersUpdate, withTx).Post("/invitations/{invitationId}/reject", rs.rejectInvitation)

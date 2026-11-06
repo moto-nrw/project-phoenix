@@ -102,6 +102,10 @@ func guardianFailureKind(kind GuardianFailureKind) usersAPI.FailureKind {
 	}
 }
 
+func guardianActorID(r *http.Request) int64 {
+	return int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
+}
+
 func guardianProtectedRoutes(router chi.Router, register func(chi.Router, usersAPI.Middleware)) {
 	ProtectedTenantRoutes(router, register)
 }
@@ -124,9 +128,7 @@ func newGuardiansResource(module peopleModule.Capability, runtime GuardianDirect
 		ObserveResponse: observability.ObserveGuardianDirectoryHTTPResponse,
 		ParseIDParam:    apiCommon.ParseIDParam,
 
-		ActorID: func(r *http.Request) int64 {
-			return int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
-		},
+		ActorID: guardianActorID,
 		ActorRole: func(r *http.Request) string {
 			return strings.Join(sessiontoken.ClaimsFromCtx(r.Context()).Roles, ",")
 		},

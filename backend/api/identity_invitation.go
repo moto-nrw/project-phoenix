@@ -17,5 +17,6 @@ import (
 // the public accept page drives. One owner serves both (#3332).
 type InvitationCapability interface {
 	identityaccess.SchoolInvitations
+	identityaccess.SchoolInvitationMailStates
 	identityaccess.GuardianInvitations
 }

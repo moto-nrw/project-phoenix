@@ -842,11 +842,6 @@
     },
     {
       "decision": "0123",
-      "id": "api/parentBillingLetterPost.LetterMailStates",
-      "reason": "ADR 0123 (#4670): Consumer-port adapter of the post of the confirmation letters; it reads the mails of a billing run of the session's Träger through Delivery in the caller's Träger transaction and names their state in the Elternabrechnung's words."
-    },
-    {
-      "decision": "0123",
       "id": "api/parentBillingLetterPost.SenderText",
       "reason": "ADR 0123 (#4670): Consumer-port adapter of the post of the confirmation letters; it reads the letterhead text of the session's Träger through the Settings Platform in the caller's Träger transaction for the sender name of the mail."
     },
