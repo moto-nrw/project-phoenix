@@ -46,6 +46,7 @@ func TestSchoolVacationsMigrationRoundTrip(t *testing.T) {
 	// The wage types (1.15.733, #4807), the realtime notifications (1.15.727,
 	// #5504) and the Nachweisarten (1.15.724, #4808) extend this erasure; they
 	// go first.
+	require.NoError(t, emailDeliveryEventsDown(ctx, db))
 	require.NoError(t, payrollWageTypesDown(ctx, db))
 	require.NoError(t, realtimeNotificationsDown(ctx, db))
 	require.NoError(t, staffQualificationTypesDown(ctx, db))

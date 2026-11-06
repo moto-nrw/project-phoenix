@@ -61,6 +61,9 @@ type EmailIntent struct {
 	IdempotencyKey string
 	Related        RelatedEntity
 	DeliverAfter   time.Time
+	// Security marks a sign-in code, password reset or staff invitation: it is
+	// sent before other mail and the suppression list never holds it back.
+	Security bool
 }
 
 type EmailDelivery struct {
@@ -184,7 +187,10 @@ var (
 	ErrDeferred  = errors.New("delivery: provider deferred the intent")
 	// ErrPermanent marks a rejection that no retry can change. The intent
 	// dead-letters on this attempt, so the failure is still reported.
-	ErrPermanent           = errors.New("delivery: provider rejected the intent permanently")
+	ErrPermanent = errors.New("delivery: provider rejected the intent permanently")
+	// ErrRecipientRejected refines ErrPermanent: the server refused this
+	// address, so it goes on the school's suppression list.
+	ErrRecipientRejected   = errors.New("delivery: provider rejected the recipient permanently")
 	ErrIdempotencyConflict = errors.New("delivery: idempotency key reused with different intent")
 )
 

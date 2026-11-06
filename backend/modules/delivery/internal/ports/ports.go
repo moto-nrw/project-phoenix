@@ -50,6 +50,12 @@ type Observer func(domain.Observation)
 // window ended before the instant (#3955). Every statement runs on the
 // school's tenant transaction.
 type RetentionStore interface {
+	// DeleteExpiredEmailDeliveryEvents removes the events of the mails that
+	// ended before the instant, including those of cleared key-only mails.
+	DeleteExpiredEmailDeliveryEvents(ctx context.Context, tenantID int64, before time.Time) (int, error)
+	// DeleteExpiredEmailSuppressions removes addresses whose last event is
+	// older than the instant.
+	DeleteExpiredEmailSuppressions(ctx context.Context, tenantID int64, before time.Time) (int, error)
 	// DeleteExpiredEmailDeliveryLogs removes the delivery logs of the
 	// expired mails and the logs without a mail written before the instant.
 	DeleteExpiredEmailDeliveryLogs(ctx context.Context, tenantID int64, before time.Time) (int, error)

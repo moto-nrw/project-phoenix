@@ -114,6 +114,9 @@ func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts 
 		w.observe(domain.Observation{Operation: "stale_lease_fence", Transport: string(intent.Transport), Template: intent.Template, Count: 1})
 		return
 	}
+	if w.heldBackBySuppression(ctx, intent, dispatchToken, stats) {
+		return
+	}
 	providerCtx, cancel := context.WithTimeout(ctx, providerTimeout)
 	result, sendErr := w.provider.Send(providerCtx, intent)
 	cancel()
@@ -129,6 +132,7 @@ func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts 
 	if errors.Is(sendErr, domain.ErrPermanent) {
 		// No retry can change the answer: dead-letter on this attempt.
 		maxAttempts = intent.Attempts + 1
+		w.recordRecipientRejection(ctx, intent, sendErr)
 	}
 	if sendErr != nil {
 		w.finalizeFailure(ctx, intent, dispatchToken, sendErr, maxAttempts, stats)
@@ -151,6 +155,22 @@ func (w *Worker) process(ctx context.Context, intent domain.Intent, maxAttempts 
 	}
 	stats.Sent++
 	w.observe(domain.Observation{Operation: "sent", Transport: string(intent.Transport), Template: intent.Template, Count: 1})
+}
+
+// heldBackBySuppression ends a mail to a suppressed address before it is sent.
+// A failed read keeps the mail for a later attempt: the list decides, so it
+// must be known.
+func (w *Worker) heldBackBySuppression(ctx context.Context, intent domain.Intent, token string, stats *deliveryContract.WorkerStats) bool {
+	suppressed, err := w.addressSuppressed(ctx, intent)
+	if err != nil {
+		w.finalizeDeferred(ctx, intent, token, err, stats)
+		return true
+	}
+	if suppressed {
+		w.finalizeCancelled(ctx, intent, token, errAddressSuppressed, stats)
+		w.recordSuppressedSend(ctx, intent)
+	}
+	return suppressed
 }
 
 func (w *Worker) finalizeCancelled(ctx context.Context, intent domain.Intent, token string, reason error, stats *deliveryContract.WorkerStats) {

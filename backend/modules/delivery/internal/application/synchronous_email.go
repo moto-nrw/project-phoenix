@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
@@ -60,7 +61,19 @@ func (w *Worker) deliverEmail(ctx context.Context, store targetedEmailStore, int
 	if !active {
 		return errors.New("delivery: email lease was lost before dispatch")
 	}
-	result, attempts, sendErr := w.sendEmailAttempts(ctx, store, intent, token)
+	suppressed, err := w.addressSuppressed(ctx, intent)
+	if err != nil {
+		return err
+	}
+	var result deliveryContract.ProviderResult
+	var attempts int
+	var sendErr error
+	if suppressed {
+		sendErr = fmt.Errorf("%w: %w", domain.ErrCancelled, errAddressSuppressed)
+		w.recordSuppressedSend(ctx, intent)
+	} else {
+		result, attempts, sendErr = w.sendEmailAttempts(ctx, store, intent, token)
+	}
 	finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), providerTimeout)
 	defer cancel()
 	if errors.Is(sendErr, domain.ErrCancelled) {
@@ -91,6 +104,10 @@ func (w *Worker) sendEmailAttempts(ctx context.Context, store targetedEmailStore
 	for {
 		result, sendErr := w.provider.Send(ctx, intent)
 		attempts := intent.Attempts + 1
+		if errors.Is(sendErr, domain.ErrPermanent) {
+			w.recordRecipientRejection(ctx, intent, sendErr)
+			return result, attempts, sendErr
+		}
 		if sendErr == nil || errors.Is(sendErr, domain.ErrCancelled) || attempts >= policy.MaxAttempts {
 			return result, attempts, sendErr
 		}

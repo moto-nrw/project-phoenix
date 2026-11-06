@@ -4,7 +4,9 @@ package postgres
 // rest: a demo link, a password reset or a sign-in code is awaited by one
 // person, while a school's queue may hold hundreds of invitations. On the
 // demo a new school's seed queued some 340 mails per order ahead of the next
-// visitor's link (2026-10-27).
+// visitor's link (2026-10-27). Security mail comes before everything: a sign-in
+// code or password reset of a school must not wait behind that school's letter
+// to all parents (#5932).
 const emailClaimSQL = `
 	UPDATE platform.email_outbox
 	SET status = 'claimed', lease_token = uuid_generate_v4()::text,
@@ -13,7 +15,7 @@ const emailClaimSQL = `
 		SELECT id FROM platform.email_outbox
 		WHERE (status = 'pending' AND next_retry_at <= ?)
 			OR (status = 'claimed' AND lease_expires_at <= ? AND lease_token NOT LIKE 'dispatch:%')
-		ORDER BY (tenant_id IS NULL AND organization_id IS NULL) DESC, next_retry_at, id
+		ORDER BY security DESC, (tenant_id IS NULL AND organization_id IS NULL) DESC, next_retry_at, id
 		FOR UPDATE SKIP LOCKED LIMIT ?
 	) RETURNING *`
 

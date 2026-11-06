@@ -78,3 +78,19 @@ func (c *workerCommandsForTest) FinalizeFailure(ctx context.Context, transport d
 	})
 	return
 }
+
+func (c *workerCommandsForTest) RecordEmailDeliveryEvent(ctx context.Context, event domain.EmailDeliveryEvent) (result0 domain.EmailDeliveryEventResult, err error) {
+	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
+		result0, err = c.Store.RecordEmailDeliveryEvent(txCtx, event)
+		return err
+	})
+	return
+}
+
+func (c *workerCommandsForTest) EmailAddressSuppressed(ctx context.Context, tenantID int64, address string) (result0 bool, err error) {
+	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
+		result0, err = c.Store.EmailAddressSuppressed(txCtx, tenantID, address)
+		return err
+	})
+	return
+}

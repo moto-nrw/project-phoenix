@@ -88,7 +88,7 @@ type ProviderAdapter struct{ Provider Provider }
 func (p ProviderAdapter) Send(ctx context.Context, intent domain.Intent) (deliveryContract.ProviderResult, error) {
 	claimed := deliveryContract.ClaimedIntent{
 		ID: intent.ID, TenantID: intent.TenantID, OrganizationID: intent.OrganizationID, Transport: deliveryContract.Transport(intent.Transport),
-		Template: intent.Template, RelatedEntityType: intent.RelatedEntityType,
+		Template: intent.Template, DeliveryToken: intent.DeliveryToken, RelatedEntityType: intent.RelatedEntityType,
 		RelatedEntityID: intent.RelatedEntityID, Attempts: intent.Attempts,
 	}
 	if intent.LeaseToken != nil {
@@ -125,6 +125,9 @@ func ProviderResult(value deliveryContract.ProviderResult, err error) (deliveryC
 	}
 	if errors.Is(err, deliveryContract.ErrDeferred) {
 		err = fmt.Errorf("%w: %v", domain.ErrDeferred, err)
+	}
+	if errors.Is(err, deliveryContract.ErrRecipientRejected) {
+		return value, fmt.Errorf("%w: %w: %v", domain.ErrPermanent, domain.ErrRecipientRejected, err)
 	}
 	if errors.Is(err, deliveryContract.ErrPermanent) {
 		err = fmt.Errorf("%w: %v", domain.ErrPermanent, err)

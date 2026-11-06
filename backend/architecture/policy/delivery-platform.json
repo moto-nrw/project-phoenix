@@ -222,6 +222,14 @@
       "write_owner": "delivery-platform"
     },
     {
+      "name": "platform.email_delivery_events",
+      "write_owner": "delivery-platform"
+    },
+    {
+      "name": "platform.email_suppressions",
+      "write_owner": "delivery-platform"
+    },
+    {
       "name": "platform.push_outbox",
       "write_owner": "delivery-platform"
     },
