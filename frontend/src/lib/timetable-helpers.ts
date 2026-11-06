@@ -137,11 +137,11 @@ export function getActivityTypeBadge(
 ): { label: string; color: string } | null {
   switch (type) {
     case "activity":
-      return { label: "AG", color: LOCATION_COLORS.GROUP_ROOM };
+      return { label: "AG", color: getActivityColor(type) };
     case "external":
-      return { label: "EXTERN", color: LOCATION_COLORS.SCHOOLYARD };
+      return { label: "Extern", color: getActivityColor(type) };
     case "duty":
-      return { label: "DIENST", color: MOTO_COLOR_PALETTE.navy.base };
+      return { label: "Dienst", color: getActivityColor(type) };
     case "care":
       return null;
   }
@@ -485,7 +485,7 @@ export function getStatusLabel(status: EnrichedInstance["status"]): string {
     case "planned":
       return "Geplant";
     case "active":
-      return "LÄUFT";
+      return "Läuft";
     case "completed":
       return "Abgeschlossen";
     case "cancelled":

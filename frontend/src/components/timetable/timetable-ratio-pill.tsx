@@ -2,8 +2,8 @@
 
 /**
  * TimetableRatioPill — shared "X / Y" ratio indicator for the timetable
- * feature (issue #1838). Renders a tone-colored pill, compact inline text,
- * or a bare dot depending on available space (detail slide-over vs. weekly
+ * feature (issue #1838). Renders the kit pill with its symbol in front,
+ * compact inline text, or a bare dot depending on available space (detail slide-over vs. weekly
  * grid block vs. month/year grid cells).
  *
  * Purely presentational: callers compute their own TimetableTone via a
@@ -13,20 +13,9 @@
 
 import type { ReactNode } from "react";
 
-import {
-  StatusBadge,
-  type StatusBadgeTone,
-} from "~/components/ui/status-badge";
-import { StatusDot } from "~/components/ui/status-dot";
 import { timetableToneColors, type TimetableTone } from "./timetable-style";
-
-const TIMETABLE_BADGE_TONES: Record<TimetableTone, StatusBadgeTone> = {
-  neutral: "gray",
-  success: "green",
-  info: "blue",
-  warning: "orange",
-  danger: "red",
-};
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { StatusDot } from "~/components/ui/status-dot";
 
 interface TimetableRatioPillProps {
   readonly icon: ReactNode;
@@ -70,12 +59,12 @@ export function TimetableRatioPill({
   }
 
   return (
-    <StatusBadge
-      icon={icon}
-      label={`${label} ${value}`}
-      title={title}
-      tone={TIMETABLE_BADGE_TONES[tone]}
-    />
+    <span className="inline-flex items-center gap-1">
+      <span aria-hidden className="flex shrink-0 items-center">
+        {icon}
+      </span>
+      <StatusColorBadge label={`${label} ${value}`} color={color} />
+    </span>
   );
 }
 

@@ -336,8 +336,12 @@ function SlotRowStatusBadge({
   row,
   source,
 }: Readonly<{ row: SlotListRow; source: SlotListSource }>) {
-  const color = statusColor(row, source);
-  return <StatusColorBadge label={row.status_label} color={color} />;
+  return (
+    <StatusColorBadge
+      label={row.status_label}
+      color={statusColor(row, source)}
+    />
+  );
 }
 
 // nextSelection collapses a multi-select to null ("all", no restriction) ONLY

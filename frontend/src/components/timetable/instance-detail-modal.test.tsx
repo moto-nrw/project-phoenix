@@ -586,7 +586,7 @@ describe("InstanceDetailModal", () => {
         onLifecycleAction={vi.fn()}
       />,
     );
-    expect(screen.queryByText(/^Grenze /)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Grenze/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Überbucht/)).not.toBeInTheDocument();
   });
 

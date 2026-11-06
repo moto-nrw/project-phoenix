@@ -53,8 +53,6 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Radio } from "~/components/ui/radio";
-import { StatusBadge } from "~/components/ui/status-badge";
-import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import {
   SlideOver,
   SlideOverCloseButton,
@@ -65,9 +63,12 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { useApiFormError } from "~/contexts/ToastContext";
 
 import {
+  instanceStatusTone,
   timetableMutedSurface,
   timetableNestedSurface,
 } from "./timetable-style";
@@ -581,20 +582,14 @@ export function SubstitutionSlideOver({
                     <SlideOverTitle>{instance.title}</SlideOverTitle>
                     <StatusBadge
                       label={getStatusLabel(instance.status)}
-                      tone={
-                        instance.status === "active"
-                          ? "green"
-                          : instance.status === "cancelled"
-                            ? "red"
-                            : "gray"
-                      }
-                      size="xs"
+                      tone={instanceStatusTone[instance.status]}
+                      compact
                     />
                     {typeBadge && (
                       <StatusColorBadge
                         label={typeBadge.label}
                         color={typeBadge.color}
-                        size="xs"
+                        compact
                       />
                     )}
                   </div>
@@ -1252,7 +1247,7 @@ function HistoryTab({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         <div className="mb-3">
-          <StatusBadge label={contextChip} tone="outline" size="xs" />
+          <StatusBadge label={contextChip} tone="gray" compact wrap />
         </div>
 
         {showSkeleton ? (

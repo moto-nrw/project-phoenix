@@ -50,6 +50,8 @@ import {
   type GuardianNoticeDraft,
 } from "./guardian-notice-fields";
 import { OriginChip } from "~/components/ui/planning/origin-chip";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
@@ -80,8 +82,6 @@ import type {
 } from "~/lib/timetable-types";
 import { RosterMaintenanceBadge } from "./roster-maintenance-badge";
 import { SeriesRosterReview } from "./series-roster-review";
-import { StatusBadge } from "~/components/ui/status-badge";
-import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import {
   instanceRoomLabel,
   getActivityTypeBadge,
@@ -90,6 +90,7 @@ import {
   getStatusLabel,
 } from "~/lib/timetable-helpers";
 import {
+  instanceStatusTone,
   timetableDangerPanel,
   timetableMutedSurface,
   timetableNestedSurface,
@@ -296,15 +297,12 @@ interface InstanceStatusBadgeProps {
 }
 
 function InstanceStatusBadge({ status }: InstanceStatusBadgeProps) {
-  const tone: Record<InstanceStatus, "green" | "gray" | "red"> = {
-    planned: "gray",
-    active: "green",
-    completed: "gray",
-    cancelled: "red",
-  };
-
   return (
-    <StatusBadge label={getStatusLabel(status)} tone={tone[status]} size="xs" />
+    <StatusBadge
+      label={getStatusLabel(status)}
+      tone={instanceStatusTone[status]}
+      compact
+    />
   );
 }
 
@@ -415,7 +413,7 @@ function ActivityTypeBadge({
 }: Readonly<{ activityType: EnrichedInstance["activityType"] }>) {
   const badge = getActivityTypeBadge(activityType);
   if (!badge) return null;
-  return <StatusColorBadge label={badge.label} color={badge.color} size="xs" />;
+  return <StatusColorBadge label={badge.label} color={badge.color} compact />;
 }
 
 function AssignedStaffSection({
@@ -1043,12 +1041,12 @@ export function InstanceDetailModal({
               <div className="flex flex-wrap items-center gap-2">
                 <InstanceStatusBadge status={instance.status} />
                 {instance.isSpontaneous && (
-                  <span
-                    className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-gray-600 uppercase"
+                  <StatusBadge
+                    label="Spontan gestartet"
                     title="Dieser Termin wurde spontan gestartet und war nicht geplant."
-                  >
-                    Spontan gestartet
-                  </span>
+                    tone="gray"
+                    compact
+                  />
                 )}
                 <ActivityTypeBadge activityType={instance.activityType} />
               </div>

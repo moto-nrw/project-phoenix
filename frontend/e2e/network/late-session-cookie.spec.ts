@@ -27,6 +27,20 @@ const fixtureState = `http://127.0.0.1:${ports.api}/__fixture/switch-state`;
 // runner that alone can take more than 30 s. A hanging logout still fails here.
 const sessionCookieDeletionTimeout = 60_000;
 
+// Compile the revocation route before timing a real logout. Its five-second
+// application deadline must measure a request to a ready handler, not the
+// first Turbopack compilation. Without a session this cannot revoke a family.
+test.beforeAll(async ({ request }) => {
+  const response = await request.post(
+    `http://127.0.0.1:${ports.frontend}/api/auth/logout`,
+    {
+      headers: { host: new URL(source).host },
+      timeout: sessionCookieDeletionTimeout,
+    },
+  );
+  expect(response.status()).toBe(401);
+});
+
 async function isolate(context: BrowserContext) {
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());

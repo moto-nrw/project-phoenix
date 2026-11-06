@@ -349,10 +349,10 @@ describe("activity/status helpers", () => {
       color: "#83CD2D",
     });
     expect(getActivityTypeBadge("external")).toEqual({
-      label: "EXTERN",
+      label: "Extern",
       color: "#F78C10",
     });
-    expect(getActivityTypeBadge("duty")?.label).toBe("DIENST");
+    expect(getActivityTypeBadge("duty")?.label).toBe("Dienst");
     expect(getActivityColor("duty")).toBe(getActivityTypeBadge("duty")?.color);
   });
 
@@ -366,7 +366,7 @@ describe("activity/status helpers", () => {
 
   it("maps all lifecycle labels", () => {
     expect(getStatusLabel("planned")).toBe("Geplant");
-    expect(getStatusLabel("active")).toBe("LÄUFT");
+    expect(getStatusLabel("active")).toBe("Läuft");
     expect(getStatusLabel("completed")).toBe("Abgeschlossen");
     expect(getStatusLabel("cancelled")).toBe("Abgesagt");
   });

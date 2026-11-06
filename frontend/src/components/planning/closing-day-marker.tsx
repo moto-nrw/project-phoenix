@@ -12,14 +12,13 @@
  * und das Warn-Orange (LOCATION_COLORS.SCHOOLYARD) für den Bestätigen-Knopf,
  * wie bei den übrigen „Trotzdem fortfahren“-Dialogen des Betreuungsplans.
  *
- * Eigene Komponente statt ui/StatusBadge: die Raster brauchen Symbol, Tooltip
- * und eine 10px-Zeile für Spalten ab 52px Breite; StatusBadge kennt weder
- * Symbol noch Tooltip und ist doppelt so hoch. ui/OriginChip scheidet laut
- * eigener Doku aus (bewusst auf drei Stellen begrenzt).
+ * Baut auf ui/StatusBadge in der dichten Größe `xs` auf; diese Komponente legt
+ * nur Symbol, Tooltip und die Beschriftung für schmale Spalten fest.
  */
 
 import { ConfirmationModal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { formatDate } from "~/lib/date-helpers";
 import { closingDaysConcept } from "~/lib/concepts/closingDays";
 
@@ -49,24 +48,21 @@ export function ClosingDayChip({
 }) {
   const title = `${label}: ${reason}`;
   return (
-    <span
-      title={title}
-      className={`inline-flex max-w-full items-center gap-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] leading-tight font-medium text-gray-700 ${className ?? ""}`}
-    >
-      <MotoConceptIcon concept={closingDaysConcept} size={14} />
-      {text === undefined ? (
-        <span
-          className={wrap ? "break-words" : "truncate"}
-        >{`${label} · ${reason}`}</span>
-      ) : (
-        <>
-          <span aria-hidden className="tabular-nums">
-            {text}
-          </span>
-          <span className="sr-only">{title}</span>
-        </>
-      )}
-    </span>
+    <>
+      {/* Der Kurztext ist nur für Sehende; vorgelesen wird der ganze Satz. */}
+      <StatusBadge
+        ariaHidden={text !== undefined}
+        className={className}
+        label={text ?? `${label} · ${reason}`}
+        title={title}
+        tone="gray"
+        size="xs"
+        icon={<MotoConceptIcon concept={closingDaysConcept} size={14} />}
+        truncate={!wrap}
+        wrap={wrap}
+      />
+      {text === undefined ? null : <span className="sr-only">{title}</span>}
+    </>
   );
 }
 
