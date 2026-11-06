@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { ApiError } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import type { SWRResponse } from "~/lib/swr";
+import { onSWRScopeReset, type SWRResponse } from "~/lib/swr";
 
 /**
  * Whether a failure is a refusal (401, 403, 404): the session, the right or
@@ -34,7 +34,42 @@ export function isRefusal(failure: unknown): boolean {
  *    shown failure until then.
  * 3. A transient failure without an earlier refusal keeps confirmed data;
  *    `failure` is set, so the view shows a hint with „Wiederholen“.
+ * 4. A refusal holds per SWR key for the whole tab, not per hook instance:
+ *    while a key is refused, no reader of it hands out data, also when the
+ *    cache is filled again. Only a successful fetch of the key lifts it.
+ *    Logout and an account switch (resetSWRScope) lift every refusal.
  */
+
+/** Refused keys of this tab, with the refusal: the store of invariant 4. */
+const refusals = new Map<string, unknown>();
+const refusalListeners = new Set<() => void>();
+
+function announceRefusals() {
+  for (const listener of refusalListeners) listener();
+}
+
+function subscribeRefusals(listener: () => void) {
+  refusalListeners.add(listener);
+  return () => refusalListeners.delete(listener);
+}
+
+function markRefused(key: string, error: unknown) {
+  refusals.set(key, error);
+  announceRefusals();
+}
+
+function liftRefusal(key: string) {
+  if (refusals.delete(key)) announceRefusals();
+}
+
+function liftAllRefusals() {
+  if (refusals.size === 0) return;
+  refusals.clear();
+  announceRefusals();
+}
+
+// A refusal belongs to the session that got it.
+onSWRScopeReset(liftAllRefusals);
 
 /** The refusal in force for one key, cleared only by a successful fetch. */
 export interface RefusalGuard {
@@ -49,25 +84,24 @@ export interface RefusalGuard {
 
 export function useRefusalGuard(key: string | null): RefusalGuard {
   // SWR's own error is cleared by the cache removal and replaced by any later
-  // failure, so the guard keeps the refusal itself, per key.
-  const [state, setState] = useState<{ key: string; error: unknown } | null>(
-    null,
+  // failure, so the refusal lives in the tab-wide store, per key (invariant 4).
+  const refusal = useSyncExternalStore(
+    subscribeRefusals,
+    () => (key === null ? undefined : refusals.get(key)),
+    () => undefined,
   );
   const callbacks = useMemo(
     () => ({
-      onSuccess: () =>
-        setState((current) => (current?.key === key ? null : current)),
+      onSuccess: () => {
+        if (key !== null) liftRefusal(key);
+      },
       onError: (error: unknown) => {
-        if (key !== null && isRefusal(error)) setState({ key, error });
+        if (key !== null && isRefusal(error)) markRefused(key, error);
       },
     }),
     [key],
   );
-  return {
-    key,
-    refusal: key !== null && state?.key === key ? state.error : undefined,
-    callbacks,
-  };
+  return { key, refusal, callbacks };
 }
 
 export interface ConfirmedResource<T> {
