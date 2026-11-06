@@ -1,6 +1,6 @@
 {
   "scenario": "api.enrollment.growth.student_history",
-  "max": 76,
+  "max": 69,
   "exact": true,
-  "description": "Positive mounted handler, all SQL including transaction envelope; real persistence and N3/N8 returned rows. Known linear growth on unchanged production; ceiling pins the N8 baseline, not a constant bound."
+  "description": "Positive mounted handler, all SQL including transaction envelope; real persistence and N3/N8 returned rows. Pinned schema display metadata uses one ID-set read; per-row phase, child and offering guards stay live. Ceiling pins N8, not a constant bound."
 }
