@@ -180,7 +180,8 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 
 // SendRequest names the contracts to send.
 type SendRequest struct {
-	ContractIDs []int64 `json:"contract_ids"`
+	ContractIDs    []int64 `json:"contract_ids"`
+	RecipientEmail *string `json:"recipient_email"`
 }
 
 // Bind accepts the body; the owner checks the IDs.
@@ -196,7 +197,15 @@ func (rs *Resource) send(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	result, err := rs.contracts.SendContracts(r.Context(), reviewer, req.ContractIDs)
+	var result carecontract.SendResult
+	var err error
+	if req.RecipientEmail == nil {
+		result, err = rs.contracts.SendContracts(r.Context(), reviewer, req.ContractIDs)
+	} else if len(req.ContractIDs) != 1 {
+		err = &carecontract.ValidationError{Fields: map[string]string{"contract_ids": "single_required"}}
+	} else {
+		result, err = rs.contracts.ResendContract(r.Context(), reviewer, req.ContractIDs[0], *req.RecipientEmail)
+	}
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		renderError(w, r, err)
@@ -352,7 +361,7 @@ func validationError(invalid *carecontract.ValidationError) render.Renderer {
 	names := make([]string, 0, len(invalid.Fields))
 	for name := range invalid.Fields {
 		names = append(names, name)
-		if name == "status" || name == "contracts" || name == "contract_ids" {
+		if name == "status" || name == "contracts" || name == "contract_ids" || name == "recipient_email" {
 			code = common.CodeCareContractContractInputInvalid
 		}
 	}

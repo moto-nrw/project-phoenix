@@ -147,7 +147,7 @@ export interface CreateResult {
 }
 
 export type SendSkipReason =
-  "recipient_missing" | "mail_pending" | "not_sendable";
+  "recipient_missing" | "partner_missing" | "mail_pending" | "not_sendable";
 
 export interface SendResult {
   readonly sent: readonly string[];
@@ -476,15 +476,29 @@ async function createCareContractBatch(
   };
 }
 
+/** Retries a failed delivery at a corrected address, keeping its PDF. */
+export function resendCareContract(
+  id: string,
+  email: string,
+): Promise<SendResult> {
+  return sendCareContractBatch([id], email);
+}
+
 async function sendCareContractBatch(
   ids: readonly string[],
+  recipientEmail?: string,
 ): Promise<SendResult> {
   const body = await traegerRequest<{
     sent: number[] | null;
     skipped: { id: number; reason: SendSkipReason }[] | null;
   }>(`${CONTRACTS_PATH}/send`, {
     method: "POST",
-    body: { contract_ids: ids.map(Number) },
+    body: {
+      contract_ids: ids.map(Number),
+      ...(recipientEmail === undefined
+        ? {}
+        : { recipient_email: recipientEmail }),
+    },
   });
   return {
     sent: (body?.sent ?? []).map(String),

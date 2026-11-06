@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createCareContracts,
   sendCareContracts,
+  resendCareContract,
   fetchCareContracts,
 } from "./traeger-care-contracts-api";
 
@@ -34,6 +35,18 @@ describe("care contract requests", () => {
       request.mock.calls.map(([, init]) => init.body.contract_ids.length),
     ).toEqual([200, 200, 1]);
     expect(sent.sent).toEqual(ids);
+  });
+
+  it("retries one contract at the explicit corrected address", async () => {
+    request.mockResolvedValue({ sent: [7], skipped: [] });
+    expect(await resendCareContract("7", "neu@example.org")).toEqual({
+      sent: ["7"],
+      skipped: [],
+    });
+    expect(request).toHaveBeenCalledWith("/api/traeger/contracts/send", {
+      method: "POST",
+      body: { contract_ids: [7], recipient_email: "neu@example.org" },
+    });
   });
 
   it("sends filters and pagination to the list endpoint", async () => {

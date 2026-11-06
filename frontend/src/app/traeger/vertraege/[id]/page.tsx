@@ -7,7 +7,7 @@
 
 import { Download, RotateCw, Send, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CONTRACT_STATUS_LABELS,
   CONTRACT_STATUS_TONES,
@@ -26,6 +26,8 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { Input } from "~/components/ui/input";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { PdfPreview } from "~/components/ui/pdf-preview";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -51,6 +53,7 @@ import {
   downloadCareContract,
   fetchCareContract,
   sendCareContracts,
+  resendCareContract,
 } from "~/lib/traeger-care-contracts-api";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -72,6 +75,9 @@ export default function TraegerVertragPage() {
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const actionError = useApiErrorDisplay();
   const discardErrors = useApiFormError();
+  const recipientForm = useRef<HTMLFormElement>(null);
+  const recipientErrors = useApiFormError(recipientForm);
+  const [recipientEmail, setRecipientEmail] = useState("");
   const { success, warning } = useToast();
 
   const load = useCallback(async () => {
@@ -149,6 +155,27 @@ export default function TraegerVertragPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       void actionError.show(err, { object: "der Vertrag" });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const resendToAddress = async () => {
+    if (!contract) return;
+    recipientErrors.clear();
+    setSending(true);
+    try {
+      const result = await resendCareContract(contract.id, recipientEmail);
+      const skip = result.skipped[0];
+      if (skip) warning(`Nicht gesendet: ${SEND_SKIP_LABELS[skip.reason]}.`);
+      else success("Der Vertrag ist an die neue Adresse unterwegs.");
+      setRecipientEmail("");
+      await load();
+    } catch (err) {
+      logger.error("traeger_care_contract_recipient_retry_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void recipientErrors.show(err, { object: "die Versandadresse" });
     } finally {
       setSending(false);
     }
@@ -386,15 +413,15 @@ export default function TraegerVertragPage() {
                     <DataField label="Vertragspartei">
                       {`${party.firstName} ${party.lastName}`.trim()}
                     </DataField>
-                    <DataField label="E-Mail">
+                    <DataField label="E-Mail bei Vertragserstellung">
                       <span className="wrap-anywhere">
                         {party.email || "Keine E-Mail-Adresse"}
                       </span>
                     </DataField>
-                    <DataField label="Eltern-App">
+                    <DataField label="Elternkonto bei Vertragserstellung">
                       {party.hasAccount
-                        ? "Hat ein Konto: der Vertrag liegt auch unter „Dokumente“."
-                        : "Kein Konto: der Vertrag kommt nur per Mail."}
+                        ? "Konto verknüpft"
+                        : "Kein Konto verknüpft"}
                     </DataField>
                   </DataGrid>
                 ) : (
@@ -435,6 +462,45 @@ export default function TraegerVertragPage() {
                     ))}
                   </ol>
                 ) : null}
+                {contract.status === "versendet" &&
+                lastMail?.state === "failed" ? (
+                  <form
+                    ref={recipientForm}
+                    noValidate
+                    className="mt-5 space-y-3"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void resendToAddress();
+                    }}
+                  >
+                    <FormErrorAlert message={recipientErrors.error} />
+                    <p className="text-sm text-gray-600">
+                      Sie können eine andere Versandadresse verwenden. Das PDF
+                      bleibt gleich. Die Vertragspartei und die bisherigen
+                      Versanddaten bleiben erhalten.
+                    </p>
+                    <Input
+                      name="recipient_email"
+                      type="email"
+                      label="Neue Versandadresse"
+                      autoComplete="off"
+                      maxLength={320}
+                      value={recipientEmail}
+                      error={recipientErrors.fieldError("recipient_email")}
+                      onChange={(event) =>
+                        setRecipientEmail(event.target.value)
+                      }
+                      disabled={sending || refreshing}
+                    />
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={sending || refreshing}
+                    >
+                      {sending ? "Wird gesendet …" : "An diese Adresse senden"}
+                    </Button>
+                  </form>
+                ) : null}
               </SectionCard>
             </div>
           </div>
@@ -473,7 +539,7 @@ function StatusNotice({
     return (
       <Alert
         type="warning"
-        message={`Die Mail an ${last.recipient} kam nicht an. Prüfen Sie die Adresse mit der Schule und senden Sie den Vertrag erneut.`}
+        message={`Die Mail an ${last.recipient} kam nicht an. Prüfen Sie die Adresse. Unter „Versand“ können Sie eine andere Adresse verwenden.`}
       />
     );
   }

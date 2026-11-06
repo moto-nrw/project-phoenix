@@ -194,6 +194,8 @@ export function formatNotice(
 
 export const SEND_SKIP_LABELS: Record<SendSkipReason, string> = {
   recipient_missing: "keine E-Mail-Adresse",
+  partner_missing:
+    "der Name des Vertragspartners fehlt. Ergänzen Sie den Briefkopf. Oder erstellen Sie den Entwurf mit eingetragenem Vertragspartner neu",
   mail_pending: "die letzte Mail wird noch gesendet",
   not_sendable: "lässt sich nicht mehr senden",
 };

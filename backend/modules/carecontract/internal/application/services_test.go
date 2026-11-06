@@ -150,3 +150,10 @@ func TestBookedCareBoundsBookingsToTheirOfferingPhase(t *testing.T) {
 	application.Bookings[0].ValidFrom, application.Bookings[0].ValidUntil = &after, nil
 	assert.Empty(t, bookedCare(read, application, today).services)
 }
+
+func TestContractPartnerDoesNotNeedBrandingWhenExplicitlyNamed(t *testing.T) {
+	t.Parallel()
+	version := carecontract.Version{Terms: carecontract.TemplateInput{TermKind: carecontract.TermOpenEnded, ContractPartner: "Träger Am Lindenhof"}}
+	assert.Contains(t, termFacts(version, carecontract.Letterhead{}), LetterFact{Label: "Vertragspartner", Value: "Träger Am Lindenhof"})
+	assert.Contains(t, termFacts(version, carecontract.Letterhead{SenderText: "Briefkopf"}), LetterFact{Label: "Vertragspartner", Value: "Träger Am Lindenhof"})
+}

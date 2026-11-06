@@ -81,7 +81,7 @@ type careContractDetailBody struct {
 }
 
 var careContractTemplate = map[string]any{
-	"term_kind": "school_year", "notice_months": 1, "notice_to": "month_end",
+	"term_kind": "school_year", "notice_months": 1, "notice_to": "month_end", "contract_partner": "Träger Vertrag",
 	"special_termination": true, "special_termination_note": "Umzug oder Schulwechsel",
 	"statute_required": true, "statute_title": "Satzung über die Elternbeiträge", "statute_url": "https://example.org/satzung",
 }
@@ -449,4 +449,92 @@ func TestCareContractListPaginatesAndFiltersAllContracts(t *testing.T) {
 	for _, query := range []string{"offset=-1", "offset=no", "limit=101"} {
 		assert.Equal(t, http.StatusBadRequest, traegerJSON(t, f.traeger, token, http.MethodGet, "/traeger/contracts?"+query, nil).Code)
 	}
+}
+
+func TestCareContractFailedDeliveryCanUseACorrectedAddressWithItsFrozenPDF(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Empfänger")
+	token := f.office.token
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	rec := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts", map[string]any{"contracts": []any{f.key()}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	created := decodeSchoolPortalData[careContractCreateBody](t, rec.Body.Bytes()).Created
+	require.Len(t, created, 1)
+	id := created[0].ID
+	send := func(address *string) *httptest.ResponseRecorder {
+		t.Helper()
+		body := map[string]any{"contract_ids": []int64{id}}
+		if address != nil {
+			body["recipient_email"] = *address
+		}
+		return traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send", body)
+	}
+	correctedBatch := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send", map[string]any{"contract_ids": []int64{id, id}, "recipient_email": "neu@example.org"})
+	require.Equal(t, http.StatusBadRequest, correctedBatch.Code, "a correction must identify exactly one contract")
+	corrected := "korrigiert@example.org"
+	// A new address is not a way to bypass draft review or a pending send.
+	rec = send(&corrected)
+	require.Equal(t, http.StatusAccepted, rec.Code)
+	assert.Contains(t, rec.Body.String(), "not_sendable")
+	require.Equal(t, http.StatusAccepted, send(nil).Code)
+	rec = send(&corrected)
+	assert.Contains(t, rec.Body.String(), "mail_pending")
+	fail := func() {
+		t.Helper()
+		_, err := f.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'dead_letter', dead_letter_at = NOW(), last_error = 'recipient rejected'
+   WHERE organization_id = ? AND kind = 'care_contract' AND related_entity_id = ?`, f.office.organization, id)
+		require.NoError(t, err)
+	}
+	fail()
+	for _, invalid := range []string{"kein-postfach", "", "Name <neu@example.org>", "neu@example.org\r\nBcc: fremd@example.org"} {
+		require.Equal(t, http.StatusBadRequest, send(&invalid).Code)
+	}
+	require.Equal(t, http.StatusAccepted, send(&corrected).Code)
+	fail()
+	require.Equal(t, http.StatusAccepted, send(nil).Code)
+	var mails []struct {
+		Recipient string `json:"recipient"`
+		PDF       []byte `json:"pdf"`
+	}
+	var payloads []json.RawMessage
+	require.NoError(t, f.db.NewRaw(`SELECT payload FROM platform.email_outbox WHERE organization_id = ? AND kind = 'care_contract' AND related_entity_id = ? ORDER BY id`, f.office.organization, id).Scan(context.Background(), &payloads))
+	for _, payload := range payloads {
+		var mail struct {
+			Recipient string `json:"recipient"`
+			PDF       []byte `json:"pdf"`
+		}
+		require.NoError(t, json.Unmarshal(payload, &mail))
+		mails = append(mails, mail)
+	}
+	require.Len(t, mails, 3)
+	assert.Equal(t, "erika.muster@example.org", mails[0].Recipient)
+	assert.Equal(t, corrected, mails[1].Recipient)
+	assert.Equal(t, corrected, mails[2].Recipient, "later retries keep the latest delivery address")
+	assert.Equal(t, mails[0].PDF, mails[1].PDF)
+	assert.Equal(t, mails[0].PDF, mails[2].PDF)
+	detail := decodeSchoolPortalData[careContractDetailBody](t, traegerJSON(t, f.traeger, token, http.MethodGet, contractPath(id, ""), nil).Body.Bytes())
+	assert.Equal(t, "erika.muster@example.org", detail.PartyEmail, "the original contract party stays frozen")
+	require.Len(t, detail.Mailings, 3, "the complete delivery history remains")
+}
+
+func TestCareContractWithoutAPartnerCannotFreezeOrSendItsPDF(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag ohne Namen")
+	terms := map[string]any{"term_kind": "school_year", "notice_months": 1, "notice_to": "month_end"}
+	token := f.office.token
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), terms).Code)
+	rec := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts", map[string]any{"contracts": []any{f.key()}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	created := decodeSchoolPortalData[careContractCreateBody](t, rec.Body.Bytes()).Created
+	require.Len(t, created, 1)
+	id := created[0].ID
+	rec = traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send", map[string]any{"contract_ids": []int64{id}})
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"reason":"partner_missing"`)
+	detail := decodeSchoolPortalData[careContractDetailBody](t, traegerJSON(t, f.traeger, token, http.MethodGet, contractPath(id, ""), nil).Body.Bytes())
+	assert.Equal(t, "entwurf", detail.Status)
+	assert.False(t, detail.DocumentFrozen)
+	var mails int
+	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM platform.email_outbox WHERE organization_id = ? AND kind = 'care_contract' AND related_entity_id = ?`, f.office.organization, id).Scan(context.Background(), &mails))
+	assert.Zero(t, mails)
 }

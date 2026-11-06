@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/mail"
 	"slices"
 	"strings"
 
@@ -166,6 +167,9 @@ func (c *Contracts) render(ctx context.Context, reviewer carecontract.Reviewer, 
 	if err != nil {
 		return carecontract.File{}, 0, fmt.Errorf("care contract: letterhead: %w", err)
 	}
+	if firstText(record.Version.Terms.ContractPartner, firstLine(textLines(head.SenderText))) == "" {
+		return carecontract.File{}, 0, &carecontract.ValidationError{Fields: map[string]string{"contract_partner": "required"}}
+	}
 	file, err := c.renderer.RenderContract(contractLetter(record, head), documentFilenameBase(record))
 	if err != nil {
 		return carecontract.File{}, 0, fmt.Errorf("care contract: render: %w", err)
@@ -183,12 +187,34 @@ func (c *Contracts) SendContracts(ctx context.Context, reviewer carecontract.Rev
 	if len(ids) == 0 || len(ids) > maxSendBatch {
 		return carecontract.SendResult{}, &carecontract.ValidationError{Fields: map[string]string{"contract_ids": "count"}}
 	}
+	return c.sendContracts(ctx, reviewer, ids, "")
+}
+
+// ResendContract changes the delivery destination only after a failed send.
+func (c *Contracts) ResendContract(ctx context.Context, reviewer carecontract.Reviewer, contractID int64, email string) (carecontract.SendResult, error) {
+	if err := checkReviewer(reviewer); err != nil {
+		return carecontract.SendResult{}, err
+	}
+	if contractID <= 0 {
+		return carecontract.SendResult{}, &carecontract.ValidationError{Fields: map[string]string{"contract_ids": "count"}}
+	}
+	address := strings.TrimSpace(email)
+	parsed, err := mail.ParseAddress(address)
+	if err != nil || address == "" || len(address) > 320 || strings.ContainsAny(email, "\r\n") || parsed.Address != address {
+		return carecontract.SendResult{}, &carecontract.ValidationError{Fields: map[string]string{"recipient_email": "invalid"}}
+	}
+	return c.sendContracts(ctx, reviewer, []int64{contractID}, address)
+}
+
+func (c *Contracts) sendContracts(ctx context.Context, reviewer carecontract.Reviewer, ids []int64, destination string) (carecontract.SendResult, error) {
 	result := carecontract.SendResult{Sent: []int64{}, Skipped: []carecontract.SendSkip{}}
 	for _, id := range ids {
-		err := c.send(ctx, reviewer, id)
+		err := c.send(ctx, reviewer, id, destination)
 		switch {
 		case err == nil:
 			result.Sent = append(result.Sent, id)
+		case missingContractPartner(err):
+			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipPartnerMissing})
 		case errors.Is(err, carecontract.ErrRecipientMissing):
 			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipRecipientMissing})
 		case errors.Is(err, carecontract.ErrMailPending):
@@ -202,10 +228,15 @@ func (c *Contracts) SendContracts(ctx context.Context, reviewer carecontract.Rev
 	return result, nil
 }
 
+func missingContractPartner(err error) bool {
+	var invalid *carecontract.ValidationError
+	return errors.As(err, &invalid) && invalid.Fields["contract_partner"] == "required"
+}
+
 // send freezes the PDF of a draft and sends it, or sends the stored PDF of
 // a sent contract again. The contract row is locked first, so two sends of
 // one contract run one after the other and freeze one PDF.
-func (c *Contracts) send(ctx context.Context, reviewer carecontract.Reviewer, contractID int64) error {
+func (c *Contracts) send(ctx context.Context, reviewer carecontract.Reviewer, contractID int64, destination string) error {
 	record, err := c.store.Contract(ctx, reviewer.OrganizationID, contractID, true)
 	if err != nil {
 		return err
@@ -213,11 +244,8 @@ func (c *Contracts) send(ctx context.Context, reviewer carecontract.Reviewer, co
 	if record.Summary.Status != carecontract.StatusDraft && record.Summary.Status != carecontract.StatusSent {
 		return carecontract.ErrContractNotSendable
 	}
-	party, ok := recipient(record.Parties)
-	if !ok {
-		return carecontract.ErrRecipientMissing
-	}
-	if err := c.checkNoPendingMail(ctx, reviewer.OrganizationID, contractID); err != nil {
+	party, previousSends, err := c.deliveryParty(ctx, reviewer.OrganizationID, record, destination)
+	if err != nil {
 		return err
 	}
 	file, documentID, err := c.frozenDocument(ctx, reviewer, record)
@@ -228,16 +256,12 @@ func (c *Contracts) send(ctx context.Context, reviewer carecontract.Reviewer, co
 	if err != nil {
 		return fmt.Errorf("care contract: letterhead: %w", err)
 	}
-	stored, err := c.store.Mailings(ctx, reviewer.OrganizationID, contractID)
-	if err != nil {
-		return err
-	}
 	outboxID, err := c.post.EnqueueContractMail(ctx, carecontract.ContractMail{
 		OrganizationID: reviewer.OrganizationID, ContractID: contractID, Recipient: party.Email,
 		GuardianName: fullName(party.FirstName, party.LastName), TraegerName: firstLine(textLines(head.SenderText)),
 		ChildName: fullName(record.Version.ChildFirstName, record.Version.ChildLastName),
 		Modules:   joinGerman(ModuleNames(record.Version.Services)), Filename: file.Filename, PDF: file.Data,
-		IdempotencyKey: fmt.Sprintf("care-contract:%d:%d", contractID, len(stored)+1),
+		IdempotencyKey: fmt.Sprintf("care-contract:%d:%d", contractID, previousSends+1),
 	})
 	if err != nil {
 		return fmt.Errorf("care contract: enqueue mail: %w", err)
@@ -250,18 +274,33 @@ func (c *Contracts) send(ctx context.Context, reviewer carecontract.Reviewer, co
 			return err
 		}
 	}
-	return c.record(ctx, reviewer, record, ActionSend, map[string]any{"document_id": documentID, "again": len(stored) > 0})
+	return c.record(ctx, reviewer, record, ActionSend, map[string]any{"document_id": documentID, "again": previousSends > 0})
 }
 
-func (c *Contracts) checkNoPendingMail(ctx context.Context, organizationID, contractID int64) error {
-	mailings, err := c.mailings(ctx, organizationID, contractID)
+// deliveryParty keeps delivery corrections separate from the frozen party.
+// A failed destination is corrected by a new mailing, never by editing history.
+func (c *Contracts) deliveryParty(ctx context.Context, organizationID int64, record ContractRecord, destination string) (carecontract.Party, int, error) {
+	party, ok := recipient(record.Parties)
+	if !ok {
+		return carecontract.Party{}, 0, carecontract.ErrRecipientMissing
+	}
+	mailings, err := c.mailings(ctx, organizationID, record.Summary.ID)
 	if err != nil {
-		return err
+		return carecontract.Party{}, 0, err
 	}
 	if len(mailings) > 0 && mailings[0].State == carecontract.MailQueued {
-		return carecontract.ErrMailPending
+		return carecontract.Party{}, 0, carecontract.ErrMailPending
 	}
-	return nil
+	if destination != "" && (record.Summary.Status != carecontract.StatusSent || record.DocumentID == nil || len(mailings) == 0 || mailings[0].State != carecontract.MailFailed) {
+		return carecontract.Party{}, 0, carecontract.ErrContractNotSendable
+	}
+	if len(mailings) > 0 {
+		party.Email = mailings[0].Recipient
+	}
+	if destination != "" {
+		party.Email = destination
+	}
+	return party, len(mailings), nil
 }
 
 // frozenDocument is the stored PDF, rendered and stored at the first send.

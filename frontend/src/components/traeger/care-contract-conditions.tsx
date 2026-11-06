@@ -384,13 +384,17 @@ function ConditionsForm({
         <Input
           controlSize="compact"
           name="contract_partner"
-          label="Vertragspartner (freiwillig)"
+          label="Vertragspartner"
           maxLength={300}
           value={draft.contractPartner}
           error={formErrors.fieldError("contract_partner")}
-          placeholder="Leer lassen: der Träger selbst"
+          placeholder="Name des Vertragspartners"
           onChange={(event) => set("contractPartner", event.target.value)}
         />
+        <p className="text-sm text-gray-600">
+          Leer lassen, wenn der Name im Briefkopf steht. Sonst tragen Sie den
+          Vertragspartner hier ein.
+        </p>
       </form>
     </SectionCard>
   );

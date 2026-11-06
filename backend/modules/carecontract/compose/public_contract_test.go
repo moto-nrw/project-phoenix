@@ -82,9 +82,12 @@ func (runtimeDouble) WithinTraeger(ctx context.Context, organizationID int64, fn
 	return tenant.WithinTraeger(ctx, organizationID, fn)
 }
 
-type letterheadDouble struct{}
+type letterheadDouble struct{ missing bool }
 
-func (letterheadDouble) Letterhead(context.Context, carecontract.Reviewer) (carecontract.Letterhead, error) {
+func (h letterheadDouble) Letterhead(context.Context, carecontract.Reviewer) (carecontract.Letterhead, error) {
+	if h.missing {
+		return carecontract.Letterhead{}, nil
+	}
 	return carecontract.Letterhead{SenderText: "Ganztag im Quartier e.V.\nAm Markt 4", ContactName: "Paula Kern"}, nil
 }
 
@@ -168,6 +171,19 @@ func TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtThe
 	post := &postDouble{next: testpkg.UniqueTestTenantID(t)}
 	contracts := compose.NewContracts(letterheadDouble{}, post)
 	id := created.Created[0].ID
+	// Missing identity cannot freeze an anonymous PDF or enqueue a mail.
+	unnamed := compose.NewContracts(letterheadDouble{missing: true}, post)
+	require.NoError(t, tenant.WithinTraeger(ctx, organization, func(txCtx context.Context) error {
+		_, previewErr := unnamed.ContractDocument(txCtx, reviewer, id)
+		var invalid *carecontract.ValidationError
+		assert.ErrorAs(t, previewErr, &invalid)
+		refused, sendErr := unnamed.SendContracts(txCtx, reviewer, []int64{id})
+		assert.NoError(t, sendErr)
+		assert.Empty(t, refused.Sent)
+		assert.Equal(t, []carecontract.SendSkip{{ID: id, Reason: carecontract.SkipPartnerMissing}}, refused.Skipped)
+		return nil
+	}))
+	assert.Empty(t, post.mails)
 	var detail carecontract.ContractDetail
 	var preview, frozen carecontract.File
 	require.NoError(t, tenant.WithinTraeger(ctx, organization, func(txCtx context.Context) error {
@@ -186,6 +202,7 @@ func TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtThe
 		return err
 	}))
 	assert.Equal(t, carecontract.StatusDraft, detail.Status)
+	assert.False(t, detail.DocumentFrozen, "a missing partner did not freeze an anonymous PDF")
 	require.NotNil(t, detail.Version.EndsOn, "a term of twelve months ends")
 	assert.Equal(t, calendar.NewDate(2028, 7, 31), *detail.Version.EndsOn)
 	assert.Equal(t, candidates[0].Services, detail.Version.Services, "the version keeps the services")

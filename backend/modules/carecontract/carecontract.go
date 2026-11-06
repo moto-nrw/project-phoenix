@@ -312,6 +312,7 @@ type SendSkip struct {
 // The reasons of a SendSkip.
 const (
 	SkipRecipientMissing = "recipient_missing"
+	SkipPartnerMissing   = "partner_missing"
 	SkipMailPending      = "mail_pending"
 	SkipNotSendable      = "not_sendable"
 )
@@ -331,6 +332,9 @@ type Contracts interface {
 	// gets its PDF and becomes versendet, a sent one is sent again with the
 	// same PDF.
 	SendContracts(ctx context.Context, reviewer Reviewer, contractIDs []int64) (SendResult, error)
+	// ResendContract corrects only the delivery address of a failed send,
+	// preserving the contract party, frozen PDF and previous mailings.
+	ResendContract(ctx context.Context, reviewer Reviewer, contractID int64, email string) (SendResult, error)
 	// DiscardContract removes a draft; a sent contract stays.
 	DiscardContract(ctx context.Context, reviewer Reviewer, contractID int64) error
 }

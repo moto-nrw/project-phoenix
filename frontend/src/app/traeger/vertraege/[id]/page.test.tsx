@@ -8,6 +8,7 @@ const { api, mockPush } = vi.hoisted(() => ({
     fetchCareContract: vi.fn(),
     downloadCareContract: vi.fn(),
     sendCareContracts: vi.fn(),
+    resendCareContract: vi.fn(),
     discardCareContract: vi.fn(),
   },
   mockPush: vi.fn(),
@@ -212,6 +213,39 @@ describe("TraegerVertragPage", () => {
       ).toBeEnabled(),
     );
     expect(screen.getByText(/kam nicht an/)).toBeInTheDocument();
+  });
+
+  it("retries a failed delivery at the entered address without changing the contract", async () => {
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      status: "versendet",
+      documentFrozen: true,
+      mailings: [
+        {
+          recipient: "alt@example.org",
+          sentAt: "2026-09-02T08:00:00Z",
+          state: "failed",
+        },
+      ],
+    });
+    api.resendCareContract.mockResolvedValue({ sent: ["7"], skipped: [] });
+    renderPage();
+    fireEvent.change(await screen.findByLabelText("Neue Versandadresse"), {
+      target: { value: "neu@example.org" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "An diese Adresse senden" }),
+    );
+    await waitFor(() =>
+      expect(api.resendCareContract).toHaveBeenCalledWith(
+        "7",
+        "neu@example.org",
+      ),
+    );
+    expect(
+      await screen.findByText("Der Vertrag ist an die neue Adresse unterwegs."),
+    ).toBeInTheDocument();
+    expect(api.sendCareContracts).not.toHaveBeenCalled();
   });
 
   it("shows an unknown delivery result without claiming success", async () => {
