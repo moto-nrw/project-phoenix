@@ -1,10 +1,4 @@
 {
-  "api/traeger/contract-templates": [
-    "GET traeger /traeger/contract-templates"
-  ],
-  "api/traeger/contract-templates/[schoolId]/[offeringId]": [
-    "PUT traeger /traeger/contract-templates/schoolId%2F1/offeringId%2F1"
-  ],
   "api/traeger/contracts": [
     "GET traeger /traeger/contracts",
     "POST traeger /traeger/contracts"
