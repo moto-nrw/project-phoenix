@@ -102,6 +102,60 @@ type SchoolsToday struct {
 	Total   SchoolFigures `json:"total"`
 }
 
+// The kinds of a hint on the Träger dashboard (#4675).
+const (
+	// AlertStaffShortage: present children and no present staff member, or
+	// more present children per present staff member than the threshold.
+	AlertStaffShortage = "staff_shortage"
+	// AlertSickChildren: at least the threshold share of the children sick
+	// today.
+	AlertSickChildren = "sick_children"
+	// AlertOpenEnrollments: at least the threshold of children of the online
+	// enrollment waiting for a decision.
+	AlertOpenEnrollments = "open_enrollments"
+)
+
+// AlertThresholds are the Träger's settings for the hints of its dashboard
+// (#4675). 0 switches a hint off.
+type AlertThresholds struct {
+	ChildrenPerStaff int `json:"children_per_staff"`
+	SickPercent      int `json:"sick_percent"`
+	OpenEnrollments  int `json:"open_enrollments"`
+}
+
+// SchoolAlerts is one school of the Träger with the figures its hints come
+// from and the hints that apply, in the order of the kinds above. It carries
+// no personal data.
+type SchoolAlerts struct {
+	School
+	Figures         SchoolFigures `json:"figures"`
+	OpenEnrollments int           `json:"open_enrollments"`
+	Alerts          []string      `json:"alerts"`
+}
+
+// SchoolsAlerts are the hints of every school of the Träger, ordered by
+// name, and the thresholds they were checked against (#4675). Every school is
+// listed, also one without a hint, so the dashboard can filter by school.
+type SchoolsAlerts struct {
+	Thresholds AlertThresholds `json:"thresholds"`
+	Schools    []SchoolAlerts  `json:"schools"`
+	AsOf       time.Time       `json:"as_of"`
+}
+
+// AlertSettings reads the Träger's thresholds at the settings system. It
+// opens its own Träger transaction, so the projection calls it outside its
+// administrative unit.
+type AlertSettings interface {
+	AlertThresholds(ctx context.Context, organizationID int64) (AlertThresholds, error)
+}
+
+// OpenEnrollments counts the children of the online enrollment waiting for
+// a decision, at Enrollment. It joins the projection's administrative
+// transaction and reads only the given schools.
+type OpenEnrollments interface {
+	OpenEnrollmentChildrenByTenant(ctx context.Context, schools []int64) (map[int64]int, error)
+}
+
 // SchoolRosters is who a school counts, at School Membership: the children
 // with their memberships and the staff members. It joins the projection's
 // administrative transaction and reads only the given schools, as the other
@@ -226,6 +280,11 @@ type Ports struct {
 	// KeyDates are the captured Stichtagszahlen of Organisation & Tenancy
 	// (#4673).
 	KeyDates KeyDateCountReads
+	// Enrollments are the waiting children of Enrollment and Alerts the
+	// Träger's thresholds at the settings system, behind the hints of the
+	// dashboard (#4675).
+	Enrollments OpenEnrollments
+	Alerts      AlertSettings
 }
 
 // Overview answers the Träger-Portal reads.
@@ -244,6 +303,9 @@ type Overview interface {
 	// KeyDateCounts returns the captured Stichtagszahlen of every school of
 	// the Träger and the sum of each month (#4673).
 	KeyDateCounts(ctx context.Context, organizationID int64) (KeyDateCounts, error)
+	// SchoolsAlerts returns the hints of every school of the Träger against
+	// the Träger's thresholds (#4675).
+	SchoolsAlerts(ctx context.Context, organizationID int64) (SchoolsAlerts, error)
 	// AccessLog lists one page of the access log, newest first.
 	AccessLog(ctx context.Context, viewer Viewer, filter AccessLogFilter, page int) (AccessLogPage, error)
 	// AccessLogExport lists every entry of the filter, newest first, up to
