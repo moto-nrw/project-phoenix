@@ -208,13 +208,19 @@ func (l careContractAccessLog) RecordAccess(ctx context.Context, access carecont
 	metadata := map[string]any{
 		"channel": "traeger_portal", "organization_id": access.OrganizationID, "view": access.View, "rows": access.Rows,
 	}
-	if access.Data == carecontract.SchoolAccessContracts {
+	start, end := now, now
+	switch access.Data {
+	case carecontract.SchoolAccessContracts:
 		resource = auditModels.ResourceTypeCareContracts
 		metadata["contract_ids"] = access.ContractIDs
+	case carecontract.SchoolAccessOverruns:
+		resource = auditModels.ResourceTypeCareTimeOverruns
+		metadata["student_ids"] = access.StudentIDs
+		start, end = access.RangeStart.BerlinMidnight(), access.RangeEnd.EndOfDay()
 	}
 	return l.log.Create(ctx, &auditModels.DataAccessLog{
 		ActorAccountID: access.AccountID, ActorRole: traegerAccessActorRole,
-		ResourceType: resource, RangeStart: now, RangeEnd: now, Metadata: metadata,
+		ResourceType: resource, RangeStart: start, RangeEnd: end, Metadata: metadata,
 	})
 }
 

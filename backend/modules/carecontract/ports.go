@@ -70,13 +70,18 @@ type Offering struct {
 type SchoolAccess struct {
 	OrganizationID int64
 	AccountID      int64
-	// Data names what was read: SchoolAccessApplications or
-	// SchoolAccessContracts.
+	// Data names what was read: SchoolAccessApplications,
+	// SchoolAccessContracts or SchoolAccessOverruns.
 	Data string
 	View string
 	Rows int
 	// ContractIDs are the contracts at this school a contract read showed.
 	ContractIDs []int64
+	// StudentIDs are the children an overrun read showed by name (#4683),
+	// over the window from RangeStart to RangeEnd.
+	StudentIDs []int64
+	RangeStart calendar.Date
+	RangeEnd   calendar.Date
 }
 
 // The data of a SchoolAccess.

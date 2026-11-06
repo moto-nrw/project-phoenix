@@ -7,6 +7,7 @@ import (
 
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 
+	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -49,7 +50,7 @@ func newStatisticsReports(db transactionruntime.Database, carePlan careplan.Stud
 			Rooms:           StatisticsReportRooms{rooms},
 			AccessLog:       StatisticsAuditLog{accessLog},
 			Retention:       settingsModule.NewStatisticsRetention(settings),
-			PlannedCareDays: StatisticsPlannedCareDays{careDays},
+			PlannedCareDays: StatisticsPlannedCareDays{CareDays: careDays, Contracts: careContractCompose.NewBookedCare()},
 			Logger:          logger.With("service", "statistics"),
 			Now:             now,
 		})

@@ -331,6 +331,9 @@ func classifyCareTimeDay(date calendar.Date, planned studentpresence.PlannedCare
 		}
 		day.ActualMinutes = spanMinutes(day.ActualStart, day.ActualEnd)
 	}
+	if !planned.NoPlan {
+		day.PlannedSource = planned.Source
+	}
 	switch {
 	case planned.NoPlan, planned.Expected && planned.Arrival == nil && planned.Pickup == nil && present:
 		// Nothing to compare against: no plan at all, or a booking that

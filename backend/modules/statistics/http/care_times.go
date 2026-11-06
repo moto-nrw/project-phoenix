@@ -132,9 +132,11 @@ type careTimeSummaryResponse struct {
 }
 
 type careTimeDayResponse struct {
-	Date             string  `json:"date"`
-	Kind             string  `json:"kind"`
-	Overrun          bool    `json:"overrun"`
+	Date    string `json:"date"`
+	Kind    string `json:"kind"`
+	Overrun bool   `json:"overrun"`
+	// PlannedSource is "contract" or "care_plan" (#4683); empty without a plan.
+	PlannedSource    string  `json:"planned_source"`
 	PlannedStart     *string `json:"planned_start"`
 	PlannedEnd       *string `json:"planned_end"`
 	ActualStart      *string `json:"actual_start"`
@@ -209,7 +211,7 @@ func toStudentCareTimesResponse(result *studentpresence.StudentCareTimes) studen
 	days := make([]careTimeDayResponse, 0, len(result.Days))
 	for _, day := range result.Days {
 		days = append(days, careTimeDayResponse{
-			Date: day.Date.String(), Kind: string(day.Kind), Overrun: day.Kind.IsOverrun(),
+			Date: day.Date.String(), Kind: string(day.Kind), Overrun: day.Kind.IsOverrun(), PlannedSource: string(day.PlannedSource),
 			PlannedStart: formatClock(day.PlannedStart), PlannedEnd: formatClock(day.PlannedEnd),
 			ActualStart: formatClock(day.ActualStart), ActualEnd: formatClock(day.ActualEnd),
 			PlannedMinutes: day.PlannedMinutes, ActualMinutes: day.ActualMinutes, DeviationMinutes: day.DeviationMinutes,

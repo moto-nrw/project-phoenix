@@ -78,12 +78,15 @@ func (k CareTimeDayKind) IsOverrun() bool {
 // wall clocks; a nil pointer means the value is not known. Minutes are nil
 // where the day does not take part in the comparison.
 type CareTimeDay struct {
-	Date         calendar.Date
-	Kind         CareTimeDayKind
-	PlannedStart *calendar.WallClock
-	PlannedEnd   *calendar.WallClock
-	ActualStart  *calendar.WallClock
-	ActualEnd    *calendar.WallClock
+	Date calendar.Date
+	Kind CareTimeDayKind
+	// PlannedSource names where the Soll of the day comes from: the care
+	// contract or the care plan (#4683). Empty when no plan is on file.
+	PlannedSource PlannedCareSource
+	PlannedStart  *calendar.WallClock
+	PlannedEnd    *calendar.WallClock
+	ActualStart   *calendar.WallClock
+	ActualEnd     *calendar.WallClock
 	// PlannedMinutes and ActualMinutes are the lengths of the two spans.
 	PlannedMinutes *int
 	ActualMinutes  *int
