@@ -201,8 +201,15 @@ export function CareContractVersions({
                 <div className="mt-3">
                   <DataGrid>
                     {serviceDays(version.services).map((day) => (
-                      <DataField key={day.weekday} label={day.label} inline>
-                        <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                      <DataField key={day.weekday} label={day.label}>
+                        <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                          {day.services.length === 0 ? (
+                            <span className="font-normal text-gray-500">
+                              Keine Betreuung
+                            </span>
+                          ) : (
+                            <span>{dayText(day.services)}</span>
+                          )}
                           {changed.has(day.weekday) ? (
                             <StatusBadge
                               label="Geändert"
@@ -210,13 +217,6 @@ export function CareContractVersions({
                               size="xs"
                             />
                           ) : null}
-                          {day.services.length === 0 ? (
-                            <span className="font-normal text-gray-500">
-                              Keine Betreuung
-                            </span>
-                          ) : (
-                            dayText(day.services)
-                          )}
                         </span>
                       </DataField>
                     ))}
