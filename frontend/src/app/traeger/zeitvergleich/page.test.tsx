@@ -40,7 +40,8 @@ const EVALUATION: OverrunEvaluation = {
       schoolId: "3",
       schoolName: "OGS Am Lindenhof",
       dataFrom: "2026-09-01",
-      attendedDays: 40,
+      comparedDays: 40,
+      uncomparedDays: 0,
       figures: {
         children: 1,
         overrunDays: 2,
@@ -52,7 +53,8 @@ const EVALUATION: OverrunEvaluation = {
       schoolId: "4",
       schoolName: "OGS Süd",
       dataFrom: "2026-09-03",
-      attendedDays: 12,
+      comparedDays: 12,
+      uncomparedDays: 0,
       figures: {
         children: 0,
         overrunDays: 0,
@@ -169,11 +171,11 @@ describe("Länger als gebucht", () => {
       ...EVALUATION,
       total: none,
       schools: [
-        { ...EVALUATION.schools[0]!, attendedDays: 0, figures: none },
+        { ...EVALUATION.schools[0]!, comparedDays: 0, figures: none },
         {
           ...EVALUATION.schools[1]!,
           dataFrom: "2026-09-20",
-          attendedDays: 0,
+          comparedDays: 0,
           figures: none,
         },
       ],
@@ -217,7 +219,7 @@ describe("Länger als gebucht", () => {
       ...EVALUATION,
       schools: [
         EVALUATION.schools[0]!,
-        { ...EVALUATION.schools[1]!, dataFrom: "2026-09-01", attendedDays: 0 },
+        { ...EVALUATION.schools[1]!, dataFrom: "2026-09-01", comparedDays: 0 },
       ],
       children: [],
     });
@@ -226,13 +228,49 @@ describe("Länger als gebucht", () => {
     expect(
       (
         await screen.findAllByText(
-          "Verglichen sind nur Schulen und Tage mit Check-ins.",
+          "Verglichen sind nur Tage mit Check-in und Buchung. Andere Tage zählen hier nicht.",
         )
       ).length,
     ).toBeGreaterThan(0);
     const table = screen.getAllByRole("table")[0] as HTMLElement;
     expect(
       within(table).getAllByText("Keine Check-ins im Zeitraum").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByText("In diesem Monat passen alle Zeiten zur Buchung."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("claims no all-clear while check-in days could not be compared", async () => {
+    mockUseSession.mockReturnValue(
+      session(["traeger_reports:read", "traeger_contracts:manage"]),
+    );
+    api.fetchOverrunChildren.mockResolvedValue({
+      ...EVALUATION,
+      schools: [
+        EVALUATION.schools[0]!,
+        {
+          ...EVALUATION.schools[1]!,
+          dataFrom: "2026-09-01",
+          uncomparedDays: 4,
+        },
+      ],
+      children: [],
+    });
+    renderPage();
+
+    expect(
+      (
+        await screen.findAllByText(
+          "Verglichen sind nur Tage mit Check-in und Buchung. Andere Tage zählen hier nicht.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    const table = screen.getAllByRole("table")[0] as HTMLElement;
+    expect(
+      within(table).getAllByText(
+        "4 Tage nicht verglichen: ohne Plan oder ohne Auschecken",
+      ).length,
     ).toBeGreaterThan(0);
     expect(
       screen.queryByText("In diesem Monat passen alle Zeiten zur Buchung."),

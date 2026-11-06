@@ -71,7 +71,7 @@ func (o *Overruns) evaluate(ctx context.Context, reviewer carecontract.Reviewer,
 		result.ToleranceMinutes = max(result.ToleranceMinutes, list.ToleranceMinutes)
 		figures := schoolFigures(list.Rows)
 		result.Schools = append(result.Schools, carecontract.SchoolOverruns{
-			SchoolID: school.ID, SchoolName: school.Name, DataFrom: list.DataFrom, AttendedDays: list.AttendedDays, Figures: figures,
+			SchoolID: school.ID, SchoolName: school.Name, DataFrom: list.DataFrom, ComparedDays: list.ComparedDays, UncomparedDays: list.UncomparedDays, Figures: figures,
 		})
 		result.Total = addFigures(result.Total, figures)
 		if named {

@@ -21,8 +21,10 @@ export interface SchoolOverruns {
   readonly schoolName: string;
   /** Erster verglichener Tag; die Löschfrist der Check-ins kann ihn kürzen. */
   readonly dataFrom: string;
-  /** Verglichene Kind-Tage mit Check-in; 0 heißt: keine Daten, keine Aussage. */
-  readonly attendedDays: number;
+  /** Mit der Buchung verglichene Kind-Tage; 0 heißt: keine Aussage. */
+  readonly comparedDays: number;
+  /** Kind-Tage mit Check-in, die sich nicht vergleichen ließen (kein Plan, noch nicht ausgecheckt). */
+  readonly uncomparedDays: number;
   readonly figures: OverrunFigures;
 }
 
@@ -64,7 +66,8 @@ interface BackendEvaluation {
         school_id: number | string;
         school_name: string;
         data_from: string;
-        attended_days: number;
+        compared_days: number;
+        uncompared_days: number;
         figures: BackendFigures;
       }[]
     | null;
@@ -104,7 +107,8 @@ function evaluationFromBackend(body: BackendEvaluation): OverrunEvaluation {
       schoolId: String(school.school_id),
       schoolName: school.school_name,
       dataFrom: school.data_from,
-      attendedDays: school.attended_days ?? 0,
+      comparedDays: school.compared_days ?? 0,
+      uncomparedDays: school.uncompared_days ?? 0,
       figures: figuresFromBackend(school.figures),
     })),
     children: (body.children ?? []).map((child) => ({
@@ -173,8 +177,8 @@ export function overrunDayCount(figures: {
 }
 
 /**
- * Wie weit die Auswahl verglichen ist. Eine Schule ohne Check-in im Zeitraum
- * (nie erfasst oder nach ihrer Frist gelöscht) hat keine Daten: ihre Nullen
+ * Wie weit die Auswahl verglichen ist. Eine Schule ohne verglichenen Tag
+ * (keine Check-ins, nach ihrer Frist gelöscht, kein Plan) hat keine Daten: ihre Nullen
  * sagen nichts über Überschreitungen. Fehlende Daten erscheinen nie als
  * „keine Abweichung“ (#4683).
  */
@@ -182,7 +186,7 @@ export type OverrunCoverage = "complete" | "partial" | "none";
 
 /** Ob eine Schule Check-ins im verglichenen Zeitraum hat. */
 export function schoolHasData(school: SchoolOverruns, to: string): boolean {
-  return school.attendedDays > 0 && school.dataFrom <= to;
+  return school.comparedDays > 0 && school.dataFrom <= to;
 }
 
 export function overrunCoverage(
@@ -191,7 +195,10 @@ export function overrunCoverage(
   const { schools, from, to } = evaluation;
   if (schools.every((school) => !schoolHasData(school, to))) return "none";
   return schools.some(
-    (school) => !schoolHasData(school, to) || school.dataFrom > from,
+    (school) =>
+      !schoolHasData(school, to) ||
+      school.dataFrom > from ||
+      school.uncomparedDays > 0,
   )
     ? "partial"
     : "complete";

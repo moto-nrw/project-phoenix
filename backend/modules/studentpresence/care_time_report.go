@@ -155,11 +155,14 @@ type CareTimeOverruns struct {
 	To               calendar.Date
 	DataFrom         calendar.Date
 	ToleranceMinutes int
-	// AttendedDays counts the compared child-days with a check-in, over all
-	// children of the selection. Zero means no attendance data: the list is
-	// empty because nothing was compared, not because nobody overran (#4683).
-	AttendedDays int
-	Students     []CareTimeOverrunRow
+	// ComparedDays counts the child-days with a check-in that were compared
+	// with a booking (within the booking, overrun, or unbooked). Zero means
+	// nothing was compared: an empty list is then no all-clear (#4683).
+	ComparedDays int
+	// UncomparedDays counts the child-days with a check-in that could not be
+	// compared: no care plan on file, or no check-out yet.
+	UncomparedDays int
+	Students       []CareTimeOverrunRow
 }
 
 // OverrunCount is the number of days marked as an overrun.

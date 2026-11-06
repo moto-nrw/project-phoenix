@@ -87,9 +87,10 @@ func (s *service) careTimeOverruns(ctx context.Context, filters studentpresence.
 		return nil, err
 	}
 	rows := make([]studentpresence.CareTimeOverrunRow, 0)
-	attended := 0
+	comparedDays, uncomparedDays := 0, 0
 	for _, student := range students {
-		attended += attendedDays(compared[student.ID].days)
+		done, open := comparedDayCounts(compared[student.ID].days)
+		comparedDays, uncomparedDays = comparedDays+done, uncomparedDays+open
 		summary := compared[student.ID].summary
 		if summary.OverrunCount() == 0 {
 			continue
@@ -110,19 +111,26 @@ func (s *service) careTimeOverruns(ctx context.Context, filters studentpresence.
 	})
 	return &studentpresence.CareTimeOverruns{
 		From: filters.From, To: filters.To, DataFrom: dataFrom,
-		ToleranceMinutes: studentpresence.CareTimeToleranceMinutes, AttendedDays: attended, Students: rows,
+		ToleranceMinutes: studentpresence.CareTimeToleranceMinutes, ComparedDays: comparedDays, UncomparedDays: uncomparedDays, Students: rows,
 	}, nil
 }
 
-// attendedDays counts the days with a check-in.
-func attendedDays(days []studentpresence.CareTimeDay) int {
-	count := 0
+// comparedDayCounts splits the days with a check-in into those compared
+// with a booking and those that could not be: no plan on file, or no
+// check-out yet.
+func comparedDayCounts(days []studentpresence.CareTimeDay) (compared, uncompared int) {
 	for _, day := range days {
-		if day.ActualStart != nil {
-			count++
+		if day.ActualStart == nil {
+			continue
+		}
+		switch day.Kind {
+		case studentpresence.CareTimeDayNoPlan, studentpresence.CareTimeDayOpen:
+			uncompared++
+		default:
+			compared++
 		}
 	}
-	return count
+	return compared, uncompared
 }
 
 func enrolledStudents(students []*ports.StatisticsStudent) []*ports.StatisticsStudent {

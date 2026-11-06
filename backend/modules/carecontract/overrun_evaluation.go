@@ -46,11 +46,13 @@ type SchoolOverruns struct {
 	SchoolID   int64         `json:"school_id"`
 	SchoolName string        `json:"school_name"`
 	DataFrom   calendar.Date `json:"data_from"`
-	// AttendedDays counts the compared child-days with a check-in. Zero
-	// means the school has no attendance data in the window; its zero
-	// figures then say nothing about overruns.
-	AttendedDays int            `json:"attended_days"`
-	Figures      OverrunFigures `json:"figures"`
+	// ComparedDays counts the child-days with a check-in compared with a
+	// booking. Zero means nothing was compared; the zero figures then say
+	// nothing about overruns. UncomparedDays counts the days with a check-in
+	// that could not be compared (no plan on file, no check-out yet).
+	ComparedDays   int            `json:"compared_days"`
+	UncomparedDays int            `json:"uncompared_days"`
+	Figures        OverrunFigures `json:"figures"`
 }
 
 // OverrunChild is one child with at least one overrun in the window.
@@ -91,9 +93,11 @@ type SchoolOverrunRow struct {
 type SchoolOverrunList struct {
 	DataFrom         calendar.Date
 	ToleranceMinutes int
-	// AttendedDays counts the compared child-days with a check-in.
-	AttendedDays int
-	Rows         []SchoolOverrunRow
+	// ComparedDays and UncomparedDays split the child-days with a check-in
+	// into compared with a booking and not comparable.
+	ComparedDays   int
+	UncomparedDays int
+	Rows           []SchoolOverrunRow
 }
 
 // SchoolCareTimes reads the overrun list of the school whose tenant

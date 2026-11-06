@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -34,9 +35,10 @@ type overrunEvaluationBody struct {
 	ToleranceMinutes int                `json:"tolerance_minutes"`
 	Total            overrunFiguresBody `json:"total"`
 	Schools          []struct {
-		SchoolID     int64              `json:"school_id"`
-		AttendedDays int                `json:"attended_days"`
-		Figures      overrunFiguresBody `json:"figures"`
+		SchoolID       int64              `json:"school_id"`
+		ComparedDays   int                `json:"compared_days"`
+		UncomparedDays int                `json:"uncompared_days"`
+		Figures        overrunFiguresBody `json:"figures"`
 	} `json:"schools"`
 	Children []struct {
 		SchoolID     int64  `json:"school_id"`
@@ -132,6 +134,11 @@ func (f overrunFixture) get(t *testing.T, token, path string) (int, overrunEvalu
 func TestCareTimeOverrunsSummariseEverySchoolFromTheContract(t *testing.T) {
 	t.Parallel()
 	f := newOverrunFixture(t)
+	// A child without any care plan or contract checks in once: the day
+	// cannot be compared and must not count as compared without overrun.
+	unplanned := testpkg.CreateTestStudent(t, f.db, "Nora", "Ohneplan", "2a")
+	device := testpkg.CreateTestDevice(t, f.db, "overrun-unplanned-device")
+	insertAttendanceSpan(t, f.db, f.school, unplanned.ID, device.ID, calendar.NewDate(2026, 6, 10), 8*time.Hour, 15*time.Hour)
 	code, body, raw := f.get(t, f.billing, overrunWindow)
 	require.Equal(t, http.StatusOK, code, raw)
 	// 8 June: 60 minutes after the contract's 13:00. 9 June: a Tuesday the
@@ -142,12 +149,15 @@ func TestCareTimeOverrunsSummariseEverySchoolFromTheContract(t *testing.T) {
 	assert.Equal(t, 15, body.ToleranceMinutes)
 	figures := map[int64]overrunFiguresBody{}
 	attended := map[int64]int{}
+	uncompared := map[int64]int{}
 	for _, school := range body.Schools {
 		figures[school.SchoolID] = school.Figures
-		attended[school.SchoolID] = school.AttendedDays
+		attended[school.SchoolID] = school.ComparedDays
+		uncompared[school.SchoolID] = school.UncomparedDays
 	}
 	assert.Equal(t, want, figures[f.school])
-	assert.Equal(t, 3, attended[f.school], "the child checked in on three days of the window")
+	assert.Equal(t, 3, attended[f.school], "the booked child's three check-in days were compared")
+	assert.Equal(t, 1, uncompared[f.school], "the day without a plan is attended but not compared")
 	assert.Equal(t, overrunFiguresBody{}, figures[f.other], "the other school is listed with nothing")
 	assert.Zero(t, attended[f.other], "no check-in at the other school: its zeros are missing data, not an all-clear")
 	assert.Empty(t, body.Children, "the summary names no child")

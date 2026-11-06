@@ -171,13 +171,20 @@ function schoolColumns(
             <span className="block text-xs text-gray-500">
               Keine Check-ins mehr gespeichert
             </span>
-          ) : school.attendedDays === 0 ? (
+          ) : school.comparedDays === 0 ? (
             <span className="block text-xs text-gray-500">
               Keine Check-ins im Zeitraum
             </span>
           ) : school.dataFrom > from ? (
             <span className="block text-xs text-gray-500">
               Check-ins erst ab {formatDate(school.dataFrom)} gespeichert
+            </span>
+          ) : null}
+          {school.uncomparedDays > 0 ? (
+            <span className="block text-xs text-gray-500">
+              {school.uncomparedDays === 1
+                ? "1 Tag nicht verglichen: ohne Plan oder ohne Auschecken"
+                : `${school.uncomparedDays} Tage nicht verglichen: ohne Plan oder ohne Auschecken`}
             </span>
           ) : null}
         </span>
@@ -317,7 +324,7 @@ function ChildrenEmptyState({
       title="Kein Kind war länger da als gebucht."
       description={
         coverage === "partial"
-          ? "Verglichen sind nur Schulen und Tage mit Check-ins."
+          ? "Verglichen sind nur Tage mit Check-in und Buchung. Andere Tage zählen hier nicht."
           : "In diesem Monat passen alle Zeiten zur Buchung."
       }
     />
