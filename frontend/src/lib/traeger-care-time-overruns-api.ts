@@ -184,19 +184,26 @@ export function overrunDayCount(figures: {
  */
 export type OverrunCoverage = "complete" | "partial" | "none";
 
-/** Ob eine Schule Check-ins im verglichenen Zeitraum hat. */
-export function schoolHasData(school: SchoolOverruns, to: string): boolean {
-  return school.comparedDays > 0 && school.dataFrom <= to;
+/**
+ * Ob eine Schule Zahlen zeigt: ein verglichener Tag, oder eine schon
+ * feststehende Überschreitung (frühe Ankunft an einem offenen Tag). Ohne
+ * beides sind die Zahlen offen und keine Nullen.
+ */
+export function schoolHasFigures(school: SchoolOverruns, to: string): boolean {
+  return (
+    school.dataFrom <= to &&
+    (school.comparedDays > 0 || overrunDayCount(school.figures) > 0)
+  );
 }
 
 export function overrunCoverage(
   evaluation: OverrunEvaluation,
 ): OverrunCoverage {
   const { schools, from, to } = evaluation;
-  if (schools.every((school) => !schoolHasData(school, to))) return "none";
+  if (schools.every((school) => !schoolHasFigures(school, to))) return "none";
   return schools.some(
     (school) =>
-      !schoolHasData(school, to) ||
+      school.comparedDays === 0 ||
       school.dataFrom > from ||
       school.uncomparedDays > 0,
   )

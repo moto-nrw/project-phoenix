@@ -340,9 +340,14 @@ func TestComparedDayCountsKeepsOpenDaysIncomplete(t *testing.T) {
 	t.Parallel()
 	in := wallClockAt(7, 0)
 	out := wallClockAt(15, 0)
+	end := wallClockAt(16, 0)
 	days := []studentpresence.CareTimeDay{
+		{Kind: studentpresence.CareTimeDayWithinPlan, ActualStart: in, ActualEnd: out, PlannedEnd: end},
+		{Kind: studentpresence.CareTimeDayOverrun, ActualStart: in, ActualEnd: out, PlannedEnd: end},
+		{Kind: studentpresence.CareTimeDayUnbooked, ActualStart: in, ActualEnd: out},
+		// A module without an end time: the pickup is unknown, so the end of
+		// the day cannot be compared.
 		{Kind: studentpresence.CareTimeDayWithinPlan, ActualStart: in, ActualEnd: out},
-		{Kind: studentpresence.CareTimeDayOverrun, ActualStart: in, ActualEnd: out},
 		{Kind: studentpresence.CareTimeDayOverrun, ActualStart: in},
 		{Kind: studentpresence.CareTimeDayUnbooked, ActualStart: in},
 		{Kind: studentpresence.CareTimeDayOpen, ActualStart: in},
@@ -350,6 +355,6 @@ func TestComparedDayCountsKeepsOpenDaysIncomplete(t *testing.T) {
 		{Kind: studentpresence.CareTimeDayAbsent},
 	}
 	compared, uncompared := comparedDayCounts(days)
-	assert.Equal(t, 2, compared, "only days with a check-in, a check-out and a plan are compared")
-	assert.Equal(t, 4, uncompared, "open days and days without a plan stay incomplete")
+	assert.Equal(t, 3, compared, "only days with a check-in, a check-out and a known booked end are compared")
+	assert.Equal(t, 5, uncompared, "open days, days without a plan and days without a booked end stay incomplete")
 }

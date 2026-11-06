@@ -278,6 +278,14 @@ describe("Länger als gebucht", () => {
       ).length,
     ).toBeGreaterThan(0);
     expect(
+      screen.getAllByText(
+        "In den verglichenen Tagen war kein Kind länger da als gebucht.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByText("Kein Kind war länger da als gebucht."),
+    ).not.toBeInTheDocument();
+    expect(
       screen.queryByText("In diesem Monat passen alle Zeiten zur Buchung."),
     ).not.toBeInTheDocument();
   });
@@ -375,5 +383,58 @@ describe("Länger als gebucht", () => {
         schoolId: undefined,
       }),
     );
+  });
+
+  it("shows a known overrun although no day was fully compared", async () => {
+    mockUseSession.mockReturnValue(session(["traeger_reports:read"]));
+    const early = {
+      children: 1,
+      overrunDays: 1,
+      unbookedDays: 0,
+      extraMinutes: 45,
+    };
+    const none = {
+      children: 0,
+      overrunDays: 0,
+      unbookedDays: 0,
+      extraMinutes: 0,
+    };
+    api.fetchOverrunSummary.mockResolvedValue({
+      ...EVALUATION,
+      total: early,
+      schools: [
+        {
+          ...EVALUATION.schools[0]!,
+          comparedDays: 0,
+          uncomparedDays: 1,
+          figures: early,
+        },
+        {
+          ...EVALUATION.schools[1]!,
+          dataFrom: "2026-09-01",
+          comparedDays: 0,
+          uncomparedDays: 0,
+          figures: none,
+        },
+      ],
+    });
+    renderPage();
+
+    await screen.findAllByText("OGS Am Lindenhof");
+    const table = screen.getAllByRole("table")[0] as HTMLElement;
+    const lindenhof = within(table)
+      .getAllByText("OGS Am Lindenhof")[0]!
+      .closest("tr") as HTMLElement;
+    expect(within(lindenhof).getByText("45 Min.")).toHaveStyle({
+      color: getAccessibleTextColor(LOCATION_COLORS.DANGER),
+    });
+    expect(
+      within(lindenhof).getByText(
+        "1 Tag nicht verglichen: ohne Plan oder ohne Auschecken",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Ein Kind war länger da als gebucht."),
+    ).toBeInTheDocument();
   });
 });

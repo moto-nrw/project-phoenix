@@ -16,7 +16,7 @@ import {
   useState,
 } from "react";
 import { useSession } from "next-auth/react";
-import { CalendarOff, CircleCheck } from "lucide-react";
+import { CalendarOff, CircleCheck, CircleDashed } from "lucide-react";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -42,7 +42,7 @@ import {
   fetchOverrunSummary,
   formatExtraTime,
   overrunCoverage,
-  schoolHasData,
+  schoolHasFigures,
   OVERRUN_NAMES_RIGHT,
   overrunDayCount,
   type OverrunChild,
@@ -210,20 +210,20 @@ function schoolColumns(
       header: "Kinder",
       align: "right",
       render: (school) =>
-        schoolHasData(school, to) ? (
+        schoolHasFigures(school, to) ? (
           <OverrunFigure value={school.figures.children} />
         ) : (
           <NoData />
         ),
       sortValue: (school) =>
-        schoolHasData(school, to) ? school.figures.children : null,
+        schoolHasFigures(school, to) ? school.figures.children : null,
     },
     {
       key: "days",
       header: "Tage",
       align: "right",
       render: (school) =>
-        schoolHasData(school, to) ? (
+        schoolHasFigures(school, to) ? (
           <DaysCell
             overrunDays={school.figures.overrunDays}
             unbookedDays={school.figures.unbookedDays}
@@ -232,14 +232,14 @@ function schoolColumns(
           <NoData />
         ),
       sortValue: (school) =>
-        schoolHasData(school, to) ? overrunDayCount(school.figures) : null,
+        schoolHasFigures(school, to) ? overrunDayCount(school.figures) : null,
     },
     {
       key: "extra",
       header: "Zusätzliche Zeit",
       align: "right",
       render: (school) =>
-        !schoolHasData(school, to) ? (
+        !schoolHasFigures(school, to) ? (
           <NoData />
         ) : (
           <span className="ml-auto flex w-full max-w-56 flex-col items-end gap-1.5">
@@ -257,7 +257,7 @@ function schoolColumns(
           </span>
         ),
       sortValue: (school) =>
-        schoolHasData(school, to) ? school.figures.extraMinutes : null,
+        schoolHasFigures(school, to) ? school.figures.extraMinutes : null,
     },
   ];
 }
@@ -335,15 +335,21 @@ function ChildrenEmptyState({
       />
     );
   }
+  if (coverage === "partial") {
+    // Not every day was compared: no check mark and no claim for the month.
+    return (
+      <EmptyState
+        icon={<CircleDashed className="h-12 w-12" aria-hidden="true" />}
+        title="In den verglichenen Tagen war kein Kind länger da als gebucht."
+        description="Verglichen sind nur Tage mit Check-in und Buchung. Andere Tage zählen hier nicht."
+      />
+    );
+  }
   return (
     <EmptyState
       icon={<CircleCheck className="h-12 w-12" aria-hidden="true" />}
       title="Kein Kind war länger da als gebucht."
-      description={
-        coverage === "partial"
-          ? "Verglichen sind nur Tage mit Check-in und Buchung. Andere Tage zählen hier nicht."
-          : "In diesem Monat passen alle Zeiten zur Buchung."
-      }
+      description="In diesem Monat passen alle Zeiten zur Buchung."
     />
   );
 }
