@@ -13,6 +13,7 @@ import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Skeleton } from "~/components/ui/skeleton";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 type SortDirection = "asc" | "desc";
@@ -367,9 +368,7 @@ function SurfaceHeading({ heading }: Readonly<{ heading: DataTableHeading }>) {
         {heading.title}
       </h3>
       {heading.count === undefined ? null : (
-        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-          {heading.count}
-        </span>
+        <StatusBadge tone="gray" compact label={String(heading.count)} />
       )}
     </div>
   );

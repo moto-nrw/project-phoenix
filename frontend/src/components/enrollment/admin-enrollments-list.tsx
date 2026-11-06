@@ -21,6 +21,7 @@ import {
   listAdminEnrollmentChangeRequests,
   listAdminRequests,
 } from "~/lib/enrollment-admin-api";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { listCareOfferings } from "~/lib/care-offering-api";
 import {
@@ -789,15 +790,17 @@ function EnrollmentSetupGuide({
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs">
-                    <StatusPill
+                    <StatusBadge
+                      compact
                       label={
                         readyForPreview ? "Eingerichtet" : "In Vorbereitung"
                       }
-                      tone={readyForPreview ? "success" : "neutral"}
+                      tone={readyForPreview ? "green" : "gray"}
                     />
-                    <StatusPill
+                    <StatusBadge
+                      compact
                       label={`${requestCount} Anmeldungen`}
-                      tone={requestCount > 0 ? "info" : "neutral"}
+                      tone={requestCount > 0 ? "blue" : "gray"}
                     />
                   </div>
                 </div>
@@ -958,28 +961,6 @@ function getStepIconClass(status: SetupStepStatus) {
     return "border-moto-green/30 bg-moto-green/15 text-moto-green-strong";
   }
   return "border-gray-200 bg-white text-gray-500";
-}
-
-function StatusPill({
-  label,
-  tone,
-}: Readonly<{
-  label: string;
-  tone: "success" | "info" | "neutral";
-}>) {
-  const className =
-    tone === "success"
-      ? "bg-moto-green/15 text-moto-green-strong"
-      : tone === "info"
-        ? "bg-moto-blue/10 text-moto-blue-hover"
-        : "bg-gray-100 text-gray-600";
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${className}`}
-    >
-      {label}
-    </span>
-  );
 }
 
 function StepMeta({

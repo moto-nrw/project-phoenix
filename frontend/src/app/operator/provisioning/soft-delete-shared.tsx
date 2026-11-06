@@ -9,6 +9,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import type { FormError, FormErrorInput } from "~/components/ui/form-error";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 const logger = createLogger({ component: "SoftDeleteShared" });
 
@@ -209,9 +210,7 @@ export function DeletedEntityCard({
             )}
           </div>
         </div>
-        <span className="bg-moto-red/15 text-moto-red-strong rounded-full px-2 py-0.5 text-xs font-medium">
-          Gelöscht
-        </span>
+        <StatusBadge tone="red" compact label="Gelöscht" />
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
         <p className="text-xs text-gray-400">

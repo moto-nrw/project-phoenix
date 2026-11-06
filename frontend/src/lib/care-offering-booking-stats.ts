@@ -109,7 +109,8 @@ export interface OfferingOccupancy {
 
 /** Occupancy of one offering; null while its stats are not loaded. */
 export function offeringOccupancy(
-  stats: CareOfferingBookingStats | null | undefined,
+  stats:
+    Pick<CareOfferingBookingStats, "booked" | "capacity"> | null | undefined,
 ): OfferingOccupancy | null {
   if (!stats) return null;
   const capacity = stats.capacity ?? null;
