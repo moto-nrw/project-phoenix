@@ -73,8 +73,15 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
             </span>
           </span>
           {reference ? (
-            <span className="block text-sm wrap-anywhere text-gray-500">
-              {reference}
+            <span className="block text-sm text-gray-500">{reference}</span>
+          ) : null}
+          {document.payment && document.payment.kind !== "family" ? (
+            <span className="mt-1 flex max-w-80 min-w-0">
+              <StatusBadge
+                label={paymentLabel(document.payment)}
+                tone={PAYMENT_TONES[document.payment.kind]}
+                truncate
+              />
             </span>
           ) : null}
         </span>
@@ -99,20 +106,6 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
     header: "Kinder",
     render: (document) =>
       document.childNames.length > 0 ? document.childNames.join(", ") : "–",
-  },
-  {
-    key: "payment",
-    header: "Zahlungsart",
-    render: (document) =>
-      document.payment ? (
-        <StatusBadge
-          label={paymentLabel(document.payment)}
-          tone={PAYMENT_TONES[document.payment.kind]}
-        />
-      ) : (
-        "–"
-      ),
-    stacked: "hidden",
   },
   {
     key: "amount",
@@ -207,7 +200,10 @@ export default function TraegerBillingFamilyPage() {
               { value: family.openInvoiceCount, label: "offen" },
               {
                 value: family.documentCount - family.invoiceCount,
-                label: "Storno und Gutschriften",
+                label:
+                  family.documentCount - family.invoiceCount === 1
+                    ? "Storno oder Gutschrift"
+                    : "Stornos und Gutschriften",
               },
             ]}
           />
@@ -239,12 +235,13 @@ export default function TraegerBillingFamilyPage() {
               </DataField>
               <DataField label="Zahlungsart" fullWidth>
                 {family.payments.length > 0 ? (
-                  <span className="flex flex-wrap gap-1.5">
+                  <span className="flex max-w-full min-w-0 flex-wrap gap-1.5">
                     {family.payments.map((payment) => (
                       <StatusBadge
                         key={`${payment.kind}-${payment.costBearerName}`}
                         label={paymentLabel(payment)}
                         tone={PAYMENT_TONES[payment.kind]}
+                        truncate
                       />
                     ))}
                   </span>

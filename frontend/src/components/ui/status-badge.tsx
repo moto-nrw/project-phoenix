@@ -111,6 +111,11 @@ interface StatusPillCommonProps {
   readonly compact?: boolean;
   /** `xs` for dense grids; wins over `compact`. */
   readonly size?: StatusBadgeSize;
+  /**
+   * Shortens a long label (a body's name) to the width of its container
+   * with an ellipsis; the full label stays in the tooltip.
+   */
+  readonly truncate?: boolean;
 }
 
 /**
@@ -127,6 +132,7 @@ export function StatusPillBase({
   backgroundColor,
   textColor,
   outline = false,
+  truncate = false,
 }: StatusPillCommonProps & {
   readonly backgroundColor?: string;
   readonly textColor?: string;
@@ -135,17 +141,17 @@ export function StatusPillBase({
   const iconNode = renderIcon(icon);
   return (
     <span
-      title={title}
+      title={title ?? (truncate ? label : undefined)}
       className={`inline-flex items-center rounded-full text-xs font-medium whitespace-nowrap ${
         iconNode ? "gap-1" : ""
-      } ${sizeClass(size, compact)} ${outline ? OUTLINE_CLASS : ""}`}
+      } ${truncate ? "max-w-full min-w-0" : ""} ${sizeClass(size, compact)} ${outline ? OUTLINE_CLASS : ""}`}
       style={outline ? undefined : { backgroundColor, color: textColor }}
     >
       {iconNode}
       {accessibleLabel ? (
         <span className="sr-only">{accessibleLabel}</span>
       ) : null}
-      {label}
+      {truncate ? <span className="truncate">{label}</span> : label}
     </span>
   );
 }

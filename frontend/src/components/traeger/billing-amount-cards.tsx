@@ -10,7 +10,7 @@ import type { BillingAmounts } from "~/lib/traeger-billing-families-api";
 import { formatEuro } from "./contribution-format";
 
 export const OPEN_AMOUNT_HINT =
-  "Ausgestellt, nicht storniert und nicht gutgeschrieben. Ob gezahlt wurde, prüft moto nicht.";
+  "Ohne Storno und Gutschrift. Zahlungen prüft moto nicht.";
 
 export function BillingAmountCards({
   amounts,
@@ -18,11 +18,11 @@ export function BillingAmountCards({
 }: Readonly<{ amounts: BillingAmounts | null; loading?: boolean }>) {
   const value = (cents: number | undefined) => formatEuro(cents ?? 0);
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
       <StatCard
         label="Ausgestellt"
         value={value(amounts?.issuedCents)}
-        hint="Summe aller Rechnungen."
+        hint="Alle Rechnungen."
         tone="neutral"
         compactValue
         loading={loading}
@@ -30,7 +30,7 @@ export function BillingAmountCards({
       <StatCard
         label="Storniert"
         value={value(amounts?.cancelledCents)}
-        hint="Durch Storno ganz zurückgenommen."
+        hint="Durch Storno aufgehoben."
         tone="gray"
         compactValue
         loading={loading}
@@ -38,7 +38,7 @@ export function BillingAmountCards({
       <StatCard
         label="Gutgeschrieben"
         value={value(amounts?.creditedCents)}
-        hint="Durch Gutschrift zurückgenommen."
+        hint="Durch Gutschrift erlassen."
         tone="blue"
         compactValue
         loading={loading}

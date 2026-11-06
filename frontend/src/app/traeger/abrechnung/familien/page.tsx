@@ -100,28 +100,19 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
     header: "Zahlungsart",
     render: (family) =>
       family.payments.length > 0 ? (
-        <span className="flex flex-wrap gap-1.5">
+        <span className="flex max-w-52 min-w-0 flex-wrap gap-1.5">
           {family.payments.map((payment) => (
             <StatusBadge
               key={`${payment.kind}-${payment.costBearerName}`}
               label={paymentLabel(payment)}
               tone={PAYMENT_TONES[payment.kind]}
+              truncate
             />
           ))}
         </span>
       ) : (
         "–"
       ),
-  },
-  {
-    key: "invoices",
-    header: "Rechnungen",
-    align: "right",
-    sortValue: (family) => family.invoiceCount,
-    render: (family) => (
-      <span className="tabular-nums">{family.invoiceCount}</span>
-    ),
-    stacked: "hidden",
   },
   {
     key: "issued",
