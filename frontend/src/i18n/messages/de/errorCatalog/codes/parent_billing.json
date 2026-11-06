@@ -26,6 +26,7 @@
   "cost_takeover_with_exemption": "Bitte wählen Sie entweder die Befreiung oder einen Kostenträger.",
   "debtor_number_invalid": "Bitte prüfen Sie die Debitorennummer.",
   "debtor_number_locked": "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
+  "family_not_found": "Zu dieser Familie gibt es keine Rechnung. Bitte öffnen Sie sie über die Liste „Familien“.",
   "holiday_quote_invalid": "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
   "invoice_cancelled": "Diese Rechnung ist schon storniert. Sie lässt sich nicht mehr ändern.",
   "invoice_credited": "Diese Rechnung hat schon eine Gutschrift. Schreiben Sie den Rest gut, statt zu stornieren.",

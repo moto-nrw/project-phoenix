@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.billing_families",
+  "max": 6,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/billing-families (#4691), every\nstatement: the Träger transaction and its binding, the issued documents\nof the Träger with their period, children and payers in one statement,\nand one insert for the entries in the trails of all their runs. Flat in\nthe number of families, documents and runs."
+}
