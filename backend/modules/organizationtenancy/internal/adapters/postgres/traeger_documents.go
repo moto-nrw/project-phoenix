@@ -21,7 +21,7 @@ import (
 // and the Träger policy of ADR 0105, so the Träger statements run in the
 // Träger transaction of the Träger they name and name it again. A school
 // reads no row of them: its statements call the SECURITY DEFINER functions
-// of migration 1.15.760, which answer for the school of the tenant
+// of migration 1.15.780, which answer for the school of the tenant
 // transaction with the documents an active release covers.
 
 // traegerDocumentReadRetention is how long a read stays recorded, the three

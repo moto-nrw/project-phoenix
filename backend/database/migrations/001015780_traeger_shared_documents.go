@@ -7,14 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerSharedDocumentsVersion = "1.15.760"
+const traegerSharedDocumentsVersion = "1.15.780"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     traegerSharedDocumentsVersion,
 		Description: "Träger-Portal: vorhandene Dokumente für Eltern und Schulen freigeben (#4692)",
 		DependsOn: []string{
-			emailDeliveryEventsVersion,      // the last migration before this one
+			careContractDraftsVersion,       // the last migration before this one
 			traegerDocumentTemplatesVersion, // the Träger tables of ADR 0105 it follows
 		},
 	})
