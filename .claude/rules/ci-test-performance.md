@@ -71,10 +71,3 @@ the `ci-cost` skill: it measures the baseline and holds the proven patterns.
   only on non-draft pull requests.
 - Report CI timings from at least two warm runs; the first run after a cache
   key change is cold.
-
-## Pushes
-
-Every push to a ready pull request starts a full CI run. Run
-`scripts/run-go-toolchain.sh scripts/check-changed.mjs` before each push, put
-all fixes for one review round in one push, and keep a pull request draft
-while you still expect follow-up pushes.
