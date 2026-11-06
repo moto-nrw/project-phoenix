@@ -43,7 +43,7 @@ on:
       - "frontend/src/components/staff-onboarding/**"
       - "frontend/src/components/ui/coach-mark.tsx"
       - "frontend/src/components/ui/page-header/OverflowMenu.tsx"
-      - "frontend/src/components/ui/database/database-form.tsx"
+      - "frontend/src/components/database/database-form.tsx"
       - "frontend/src/components/database/database-create-action.tsx"
       - "frontend/src/components/dashboard/sidebar*.tsx"
       - "frontend/src/components/dashboard/mobile-bottom-nav.tsx"

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { type ComponentProps } from "react";
-import { CatalogColorField } from "@/components/ui/database/catalog-color-field";
+import { CatalogColorField } from "@/components/database/catalog-color-field";
 import { LOCATION_COLORS } from "@/lib/location-helper";
 import { buildRoomFormSections } from "./room-form-sections";
 import type { Room } from "@/lib/room-helpers";

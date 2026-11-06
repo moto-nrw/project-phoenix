@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
-import { LogoutModal } from "~/components/ui/logout-modal";
+import { LogoutModal } from "~/components/auth/logout-modal";
 import {
   ParentShellProvider,
   TeacherShellProvider,

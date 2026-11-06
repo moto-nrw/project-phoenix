@@ -4,7 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 import { Alert } from "./alert";
 import { Button } from "./button";
-import { ModuleNotBookedAlert } from "./module-not-booked-state";
+import { useNotBookedSlots } from "./not-booked-slot";
 import {
   formErrorAttempt,
   formErrorDetail,
@@ -40,6 +40,7 @@ export function FormErrorAlert({ message, className }: FormErrorAlertProps) {
   const text = formErrorMessage(message);
   const attempt = formErrorAttempt(message);
   const detail = formErrorDetail(message);
+  const NotBookedAlert = useNotBookedSlots()?.Alert;
 
   useEffect(() => {
     if (!text) return;
@@ -58,10 +59,10 @@ export function FormErrorAlert({ message, className }: FormErrorAlertProps) {
 
   if (!text) return null;
 
-  if (detail?.notBookedModule) {
+  if (detail?.notBookedModule && NotBookedAlert) {
     return (
       <div ref={ref} className={className}>
-        <ModuleNotBookedAlert module={detail.notBookedModule} />
+        <NotBookedAlert module={detail.notBookedModule} />
       </div>
     );
   }
@@ -141,15 +142,13 @@ export function LoadErrorAlert({
 }) {
   const text = formErrorMessage(error);
   const detail = formErrorDetail(error);
+  const NotBookedAlert = useNotBookedSlots()?.Alert;
   if (!text) return null;
   // A module the school did not book is a state, not a failure (#4894): the
   // role-specific explanation names the next step, and there is nothing to retry.
-  if (detail?.notBookedModule) {
+  if (detail?.notBookedModule && NotBookedAlert) {
     return (
-      <ModuleNotBookedAlert
-        module={detail.notBookedModule}
-        className={className}
-      />
+      <NotBookedAlert module={detail.notBookedModule} className={className} />
     );
   }
   const layout = detail?.requestId ? "stacked" : actionLayout;

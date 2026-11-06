@@ -13,7 +13,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
-import { CoverageIndicator } from "~/components/ui/coverage-indicator";
+import { CoverageIndicator } from "~/components/ui/planning/coverage-indicator";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
 import type { GapInstance } from "~/lib/timetable-types";
 

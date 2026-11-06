@@ -30,7 +30,7 @@ import {
   useState,
 } from "react";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { MobilePageHelpTarget } from "~/components/help/mobile-page-help-target";
+import { MobilePageHelpTarget } from "~/components/ui/mobile-page-help-target";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";

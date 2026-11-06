@@ -12,8 +12,11 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import NavigationLink from "~/components/ui/navigation-link";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
-import { SearchBar } from "~/components/ui/page-header/SearchBar";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
+import {
+  SearchBarDraftProvider,
+  SharedSearchBar,
+} from "~/components/ui/page-header/SearchBar";
 import { StatCard } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
@@ -422,13 +425,20 @@ export default function TraegerKeyDateCountsPage() {
             todayLabel="Neuester Monat"
             actions={
               schools.length > 1 ? (
-                <SearchBar
+                <SearchBarDraftProvider
                   value={search}
                   onChange={setSearch}
-                  placeholder="Schule oder Ort suchen…"
-                  inputProps={{ "aria-label": "Schule oder Ort suchen" }}
-                  className="min-w-0 md:w-64"
-                />
+                  debounceMs={undefined}
+                  resetKey={undefined}
+                >
+                  <SharedSearchBar
+                    value={search}
+                    onChange={setSearch}
+                    placeholder="Schule oder Ort suchen…"
+                    inputProps={{ "aria-label": "Schule oder Ort suchen" }}
+                    className="min-w-0 md:w-64"
+                  />
+                </SearchBarDraftProvider>
               ) : undefined
             }
           />

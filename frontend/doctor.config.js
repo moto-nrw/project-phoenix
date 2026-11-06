@@ -28,7 +28,7 @@ export default {
       {
         // The stored value is a numeric UI countdown expiry. Password-reset
         // and authentication tokens never enter browser storage.
-        files: ["src/components/ui/password-reset-modal.tsx"],
+        files: ["src/components/auth/password-reset-modal.tsx"],
         rules: ["react-doctor/auth-token-in-web-storage"],
       },
       {

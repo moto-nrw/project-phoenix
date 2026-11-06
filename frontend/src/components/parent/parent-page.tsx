@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useTranslations } from "next-intl";
-import { MobilePageHelpTarget } from "~/components/help/mobile-page-help-target";
+import { MobilePageHelpTarget } from "~/components/ui/mobile-page-help-target";
 import { BackLink } from "~/components/ui/back-link";
 import { Skeleton } from "~/components/ui/skeleton";
 

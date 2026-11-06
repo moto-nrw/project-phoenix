@@ -32,6 +32,7 @@ const (
 		SET related_entity_type = NULL, related_entity_id = NULL,
 			recipient = '{}'::jsonb, payload = '{}'::jsonb, provider_result = NULL, last_error = NULL,
 			message_id = NULL, provider_message_id = NULL, delivery_state = NULL, delivery_state_at = NULL,
+			fallback_requested_at = NULL, delivery_checked_at = NULL,
 			delivery_token = uuid_generate_v4()::text
 		WHERE tenant_id = ?0 AND ` + intentEndedBefore + `
 			AND kind IN (?2)

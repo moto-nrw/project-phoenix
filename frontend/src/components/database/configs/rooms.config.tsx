@@ -1,7 +1,7 @@
 // Room Entity Configuration
 
 import { defineEntityConfig } from "@/lib/database/types";
-import { CatalogColorField } from "@/components/ui/database/catalog-color-field";
+import { CatalogColorField } from "@/components/database/catalog-color-field";
 import { mapRoomResponse, prepareRoomForBackend } from "@/lib/room-helpers";
 import type { Room, BackendRoom } from "@/lib/room-helpers";
 import { roomsConcept } from "~/lib/concepts/rooms";

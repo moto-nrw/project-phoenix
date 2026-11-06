@@ -74,7 +74,7 @@ vi.mock("~/components/auth/smart-redirect", () => ({
 }));
 
 // Mock PasswordResetModal
-vi.mock("~/components/ui/password-reset-modal", () => ({
+vi.mock("~/components/auth/password-reset-modal", () => ({
   PasswordResetModal: ({
     isOpen,
     onClose,

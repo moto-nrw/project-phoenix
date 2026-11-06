@@ -86,7 +86,7 @@ import {
   SIDEBAR_WIDTH_TRANSITION,
   sidebarLabelClasses,
   sidebarRowClasses,
-} from "~/components/dashboard/sidebar-geometry";
+} from "~/components/ui/sidebar-geometry";
 import { navigationIcons } from "~/lib/navigation-icons";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";

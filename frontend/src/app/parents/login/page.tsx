@@ -22,8 +22,7 @@ import {
   MotoBrand,
 } from "~/components/auth/auth-shell";
 import { buildParentAuthShellCopy } from "~/components/auth/parent-auth-shell-copy";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
-import { PasswordResetModal } from "~/components/ui/password-reset-modal";
+import { PasswordResetModal } from "~/components/auth/password-reset-modal";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError, unavailableApiError } from "~/lib/api-error";
@@ -111,7 +110,6 @@ function ParentLoginForm() {
   const [portalNotBooked, setPortalNotBooked] = useState(false);
   const locale = normalizeLocale(useLocale());
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   // Gesetzt, wenn die Personal-Anmeldung ein Elternkonto hierher geschickt hat.
   const searchParams = useSearchParams();
@@ -354,26 +352,20 @@ function ParentLoginForm() {
               <FieldLabel htmlFor="parent-password" required>
                 {t("passwordLabel")}
               </FieldLabel>
-              <div className="relative">
-                <Input
-                  id="parent-password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  controlSize="compact"
-                  autoComplete="current-password"
-                  required
-                  disabled={isSessionSettling}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pr-10"
-                />
-                <PasswordToggleButton
-                  showPassword={showPassword}
-                  onToggle={() => setShowPassword(!showPassword)}
-                  showLabel={t("showPassword")}
-                  hideLabel={t("hidePassword")}
-                />
-              </div>
+              <Input
+                id="parent-password"
+                name="password"
+                type="password"
+                controlSize="compact"
+                autoComplete="current-password"
+                required
+                disabled={isSessionSettling}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                revealable
+                showPasswordLabel={t("showPassword")}
+                hidePasswordLabel={t("hidePassword")}
+              />
             </div>
 
             <div className="text-center">

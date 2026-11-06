@@ -8,6 +8,7 @@ import (
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 )
 
@@ -23,6 +24,18 @@ type Runtime struct {
 	Observe func(domain.Observation)
 	// EmailWakeups reports committed e-mail enqueues; nil polls only.
 	EmailWakeups func(context.Context) <-chan struct{}
+	// EmailWebhooks takes in what mail providers report.
+	EmailWebhooks *EmailWebhooks
+	// EmailReconciliation compares open mails with the provider's record and
+	// lifts a block. On plain SMTP it compares nothing and lifts only the school's
+	// list.
+	EmailReconciliation *EmailReconciliation
+}
+
+// NewRuntime composes the module for this deployment's mail provider.
+func NewRuntime(module delivery.Capability, store *WorkerCommands, observe func(domain.Observation), wakeups func(context.Context) <-chan struct{}, provider mail.ProviderConfig) *Runtime {
+	webhooks, reconciliation := NewEmailEvents(provider, store, observe)
+	return &Runtime{Module: module, Store: store, Observe: observe, EmailWakeups: wakeups, EmailWebhooks: webhooks, EmailReconciliation: reconciliation}
 }
 
 // NewWorker composes the outbox worker over the store of runtime, sending
@@ -32,7 +45,7 @@ func NewWorkerBinding(runtime *Runtime, provider Provider) (*delivery.Worker, er
 		return nil, errors.New("delivery compose: runtime and provider are required")
 	}
 	worker := NewWorker(runtime.Store, ProviderAdapter{Provider: provider}, runtime.Observe)
-	return delivery.NewWorker(workerEngine{Worker: worker, workerBacklog: runtime.Store, wakeups: runtime.EmailWakeups}), nil
+	return delivery.NewWorker(workerEngine{Worker: worker, workerBacklog: runtime.Store, wakeups: runtime.EmailWakeups, EmailReconciliation: runtime.EmailReconciliation}), nil
 }
 
 // workerEngine runs the worker and counts the backlog, the intents still
@@ -40,6 +53,7 @@ func NewWorkerBinding(runtime *Runtime, provider Provider) (*delivery.Worker, er
 type workerEngine struct {
 	*Worker
 	workerBacklog
+	*EmailReconciliation
 	wakeups func(context.Context) <-chan struct{}
 }
 
@@ -88,7 +102,7 @@ type ProviderAdapter struct{ Provider Provider }
 func (p ProviderAdapter) Send(ctx context.Context, intent domain.Intent) (deliveryContract.ProviderResult, error) {
 	claimed := deliveryContract.ClaimedIntent{
 		ID: intent.ID, TenantID: intent.TenantID, OrganizationID: intent.OrganizationID, Transport: deliveryContract.Transport(intent.Transport),
-		Template: intent.Template, DeliveryToken: intent.DeliveryToken, RelatedEntityType: intent.RelatedEntityType,
+		Template: intent.Template, DeliveryToken: intent.DeliveryToken, Security: intent.Security, UseFallback: intent.UseFallback, RelatedEntityType: intent.RelatedEntityType,
 		RelatedEntityID: intent.RelatedEntityID, Attempts: intent.Attempts,
 	}
 	if intent.LeaseToken != nil {

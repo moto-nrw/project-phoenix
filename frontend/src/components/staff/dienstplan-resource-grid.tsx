@@ -15,19 +15,22 @@ import {
   ClosingDayConfirmModal,
 } from "~/components/planning/closing-day-marker";
 import { ShiftMoveDialog } from "~/components/staff/shift-move-dialog";
-import { CapacityStrip } from "~/components/ui/capacity-strip";
-import { CoverageIndicator } from "~/components/ui/coverage-indicator";
+import { CapacityStrip } from "~/components/ui/planning/capacity-strip";
+import { CoverageIndicator } from "~/components/ui/planning/coverage-indicator";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
-import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
-import { PlanBlock } from "~/components/ui/plan-block";
-import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
+import { PlanAddAffordance } from "~/components/ui/planning/plan-add-affordance";
+import { PlanBlock } from "~/components/ui/planning/plan-block";
+import {
+  PlanLegend,
+  type PlanLegendEntry,
+} from "~/components/ui/planning/plan-legend";
 import {
   ResourceGrid,
   type ResourceGridColumn,
-} from "~/components/ui/resource-grid";
+} from "~/components/ui/planning/resource-grid";
 import { Tooltip } from "~/components/ui/tooltip";
 import type { ClosingDayRange } from "~/lib/closing-day-helpers";
 import { PLAN_CACHE_KEY_PREFIXES } from "~/lib/hooks/use-dienstplan-data";

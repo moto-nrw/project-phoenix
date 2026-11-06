@@ -929,7 +929,7 @@ describe.concurrent("bauart rules", () => {
     it("sees the edit branch of a conditional title and of DatabaseFormModal mode", async () => {
       const { status, output } = await lintSource(
         `import { Modal } from "~/components/ui/modal";
-      import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
+      import { DatabaseFormModal } from "~/components/database/database-form-modal";
       export function Probe({ initial }: { initial: object | null }) {
         return (
           <>
@@ -951,7 +951,7 @@ describe.concurrent("bauart rules", () => {
       const { output } = await lintSource(
         `import { FormModal } from "~/components/ui/form-modal";
       import { ConfirmationModal } from "~/components/ui/modal";
-      import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
+      import { DatabaseFormModal } from "~/components/database/database-form-modal";
       export function Probe() {
         return (
           <>
