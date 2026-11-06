@@ -9,7 +9,6 @@ import {
   SelectWithChevron,
   PlusIcon,
 } from "./provisioning-shared";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 describe("FormField", () => {
   // #2519: a field error from the shared error path stays at the field.
@@ -130,8 +129,8 @@ describe("DeliveryStatusBadge", () => {
     render(<DeliveryStatusBadge status="sent" />);
 
     expect(screen.getByText("Gesendet")).toHaveStyle({
-      backgroundColor: MOTO_COLOR_PALETTE.green.soft,
-      color: MOTO_COLOR_PALETTE.green.strong,
+      backgroundColor: "#EEF9E1",
+      color: "#3F6F12",
     });
   });
 
@@ -139,8 +138,8 @@ describe("DeliveryStatusBadge", () => {
     render(<DeliveryStatusBadge status="pending" />);
 
     expect(screen.getByText("Ausstehend")).toHaveStyle({
-      backgroundColor: MOTO_COLOR_PALETTE.amber.soft,
-      color: MOTO_COLOR_PALETTE.amber.strong,
+      backgroundColor: "#FEF3C7",
+      color: "#92400E",
     });
   });
 
@@ -148,8 +147,8 @@ describe("DeliveryStatusBadge", () => {
     render(<DeliveryStatusBadge status="failed" />);
 
     expect(screen.getByText("Fehlgeschlagen")).toHaveStyle({
-      backgroundColor: MOTO_COLOR_PALETTE.red.soft,
-      color: MOTO_COLOR_PALETTE.red.strong,
+      backgroundColor: "#FEF2F2",
+      color: "#B91C1C",
     });
   });
 
@@ -163,7 +162,7 @@ describe("DeliveryStatusBadge", () => {
     render(<DeliveryStatusBadge status="something_else" />);
 
     expect(screen.getByText("something_else")).toHaveStyle({
-      backgroundColor: MOTO_COLOR_PALETTE.neutral.soft,
+      backgroundColor: "#F3F4F6",
       color: "#4B5563",
     });
   });
