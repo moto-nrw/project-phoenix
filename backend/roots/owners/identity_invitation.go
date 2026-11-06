@@ -8,12 +8,17 @@ import (
 	"time"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
+
+// invitationMailType names the mail of a staff invitation in the outbox.
+const invitationMailType = "invitation"
 
 // InvitationWiring is the configuration the invitation flows are composed
 // with. dispatcher may be nil: the link is then not mailed, as before.
@@ -37,6 +42,8 @@ type InvitationWiring struct {
 	Outbox MailOutbox
 	// WelcomeDelay holds the welcome behind the invitation; zero is immediate.
 	WelcomeDelay time.Duration
+	// Outcomes reads what became of the invitation mails; nil reports nothing.
+	Outcomes deliveryRuntime.EmailOutcomes
 }
 
 func InvitationDependencies(wiring *InvitationWiring, owners identityPorts.InvitationOwnerTokens, logger *slog.Logger) *identityPorts.SchoolInvitationDependencies {
@@ -54,7 +61,7 @@ func InvitationDependencies(wiring *InvitationWiring, owners identityPorts.Invit
 			return invitationDelivery{
 				dispatcher: wiring.Dispatcher, durable: wiring.Durable, from: wiring.DefaultFrom, staffURL: wiring.StaffURL, schoolURL: wiring.SchoolURL,
 				identity: wiring.MailIdentity, backoff: backoff, invitations: invitations, logger: logger,
-				settings: wiring.Settings, outbox: wiring.Outbox, welcomeDelay: wiring.WelcomeDelay,
+				settings: wiring.Settings, outbox: wiring.Outbox, welcomeDelay: wiring.WelcomeDelay, outcomes: wiring.Outcomes,
 			}
 		},
 		Passwords: passwordPolicy{},
@@ -97,6 +104,26 @@ type invitationDelivery struct {
 	settings     tenantSettingsResolver
 	outbox       MailOutbox
 	welcomeDelay time.Duration
+	outcomes     deliveryRuntime.EmailOutcomes
+}
+
+// InvitationMailStates reads the last mail of each invitation. The durable mail
+// names the invitation as its related entity under the type "invitation".
+func (d invitationDelivery) InvitationMailStates(ctx context.Context, tenantID int64, invitationIDs []int64) (map[int64]identityaccess.InvitationMailState, error) {
+	states := make(map[int64]identityaccess.InvitationMailState, len(invitationIDs))
+	if d.outcomes == nil || len(invitationIDs) == 0 {
+		return states, nil
+	}
+	reports, err := d.outcomes.EmailOutcomes(ctx, tenantID, deliveryContract.EmailOutcomeQuery{
+		RelatedType: invitationMailType, RelatedIDs: invitationIDs, Kinds: []string{TransactionalMailKind},
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, report := range reports {
+		states[report.RelatedID] = identityaccess.InvitationMailState{Outcome: string(report.Outcome), AddressMark: string(report.Mark)}
+	}
+	return states, nil
 }
 
 func (d invitationDelivery) portalURL(portal identityaccess.InvitationPortal) string {
@@ -116,7 +143,7 @@ func (d invitationDelivery) dispatchSchoolInvitation(ctx context.Context, invita
 	message := *identityMessage(d.from, email.NewEmail("", invitation.Email), mail)
 	message.ReplyTo = email.NewEmail(replyIdentity.Name, replyIdentity.Address)
 	return enqueueDurableMail(ctx, d.durable, DurableMail{
-		TenantID: invitation.TenantID, Message: message, Type: "invitation", ReferenceID: invitation.ID,
+		TenantID: invitation.TenantID, Message: message, Type: invitationMailType, ReferenceID: invitation.ID,
 		Backoff: d.backoff, BaseRetry: invitation.Delivery.RetryCount, ExpiresAt: invitation.ExpiresAt,
 	})
 }

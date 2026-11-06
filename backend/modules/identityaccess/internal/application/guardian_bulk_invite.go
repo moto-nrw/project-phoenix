@@ -111,6 +111,15 @@ func (l *AccountLifecycle) loadBulkInviteProfiles(ctx context.Context, req ident
 
 func (l *AccountLifecycle) newBulkInviteRun(ctx context.Context, req identityaccess.BulkInviteRequest, tenantID int64, result *identityaccess.BulkInviteResult, profiles map[int64]domain.GuardianProfile) (*bulkInviteRun, error) {
 	run := &bulkInviteRun{req: req, tenantID: tenantID, result: result, seenEmails: map[string]bool{}, existingAccounts: map[string]domain.Account{}}
+	addresses := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		addresses = append(addresses, profile.Email)
+	}
+	blocks, err := l.delivery.GuardianMailBlocks(ctx, tenantID, addresses)
+	if err != nil {
+		return nil, failed(opGuardianBulkInvite, err)
+	}
+	run.mailBlocks = blocks
 	if !req.DryRun {
 		existingAccounts, err := l.bulkInviteExistingAccounts(ctx, profiles)
 		if err != nil {
@@ -258,6 +267,8 @@ type bulkInviteRun struct {
 	// existingAccounts was read in one statement before the loop. It is only
 	// needed on the write path; previews deliberately remain side-effect free.
 	existingAccounts map[string]domain.Account
+	// mailBlocks was read in one statement pair before the loop.
+	mailBlocks map[string]domain.GuardianMailBlock
 	// problemStudents keeps the children per problem, in result order, until
 	// the names are resolved in one read.
 	problemStudents [][]int64
@@ -285,6 +296,10 @@ func (l *AccountLifecycle) bulkInviteOne(ctx context.Context, run *bulkInviteRun
 	if l.skipBulkInviteEmailProblem(run, candidate, profile, email) {
 		return nil
 	}
+	if reason, blocked := bulkInviteMailBlock(run.mailBlocks[email]); blocked && !profile.HasAccount {
+		run.problem(candidate, profile, reason)
+		return nil
+	}
 	linked, err := l.linkBulkExistingAccount(ctx, run, candidate, profile, email)
 	if err != nil {
 		return err
@@ -293,6 +308,19 @@ func (l *AccountLifecycle) bulkInviteOne(ctx context.Context, run *bulkInviteRun
 		return nil
 	}
 	return l.inviteEligibleBulkGuardian(ctx, run, candidate, profile, email, open)
+}
+
+// bulkInviteMailBlock names the problem of an address a new invitation would not
+// reach. An account holder needs no invitation, so the caller lets them through.
+func bulkInviteMailBlock(block domain.GuardianMailBlock) (string, bool) {
+	switch block {
+	case domain.GuardianMailBlockAddress:
+		return domain.BulkInviteProblemAddressBlocked, true
+	case domain.GuardianMailBlockDelayed:
+		return domain.BulkInviteProblemMailDelayed, true
+	default:
+		return "", false
+	}
 }
 
 func (l *AccountLifecycle) handleActiveBulkGuardian(ctx context.Context, run *bulkInviteRun, candidate bulkInviteCandidate, profile domain.GuardianProfile, email string) (bool, error) {

@@ -45,6 +45,9 @@ const { mockGuardianApiError } = vi.hoisted(() => ({
 
 vi.mock("@/lib/guardian-api", () => ({
   fetchStudentGuardians: () => mockFetchStudentGuardians(),
+  fetchStudentGuardianEmailStates: () => Promise.resolve({}),
+  stopGuardianEmails: () => Promise.resolve(),
+  liftGuardianEmailBlock: () => Promise.resolve(),
   createStudentGuardians: (studentId: string, guardians: unknown) =>
     mockCreateStudentGuardians(studentId, guardians),
   updateGuardian: (id: string, data: unknown) => mockUpdateGuardian(id, data),
@@ -1400,7 +1403,7 @@ describe("StudentGuardianManager", () => {
         fireEvent.click(screen.getByTestId("invite-guardian-2"));
         await waitFor(() =>
           expect(mockToastSuccess).toHaveBeenCalledWith(
-            "Hans Müller hat schon ein Konto. Ein Hinweis zum Elternportal ist an hans@example.com gesendet.",
+            "Hans Müller hat schon ein Konto. Ein Hinweis zum Elternportal wird an hans@example.com gesendet.",
           ),
         );
       },

@@ -16,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -519,4 +520,76 @@ func renderWelcomeTemplate(t *testing.T, msg *testpkg.EmailMessage) string {
 	var buf bytes.Buffer
 	require.NoError(t, tmpl.ExecuteTemplate(&buf, msg.Template, msg.Content))
 	return buf.String()
+}
+
+// The list says what Delivery knows, and a delayed mail is not sent twice (#5934).
+func TestSchoolInvitationShowsItsMailAndRefusesAResendWhileDelayed(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db),
+		api.WithAuthTestMailer(&retryingInvitationMailer{}),
+		api.WithAuthTestPasswordResetBackoff(time.Millisecond),
+	)
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	creator := testpkg.CreateTestAccount(t, db, "mail-state-creator")
+	role := testpkg.CreateTestRole(t, db, "mail-state-caregiver")
+	invitation, err := module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+		Email: inviteeAddress("mail-state"), RoleID: role.ID, CreatedBy: creator.ID,
+		ActorPermissions: []string{usersManagePermission},
+	})
+	require.NoError(t, err)
+
+	outcomeOf := func() string {
+		invitations, listErr := module.Invitation.ListPendingSchoolInvitations(ctx)
+		require.NoError(t, listErr)
+		for _, listed := range invitations {
+			if listed.ID == invitation.ID {
+				return listed.Delivery.Outcome
+			}
+		}
+		require.Failf(t, "not listed", "invitation %d is missing", invitation.ID)
+		return ""
+	}
+	assert.NotEqual(t, "delivered", outcomeOf(), "no event, no delivery")
+
+	_, err = db.ExecContext(ctx, `UPDATE platform.email_outbox SET status = 'sent', delivery_state = 'delayed', delivery_state_at = NOW()
+		WHERE tenant_id = ? AND related_entity_type = 'invitation' AND related_entity_id = ?`, testpkg.Tenant(t), invitation.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "delayed", outcomeOf())
+
+	err = module.Invitation.ResendSchoolInvitation(ctx, invitation.ID, creator.ID)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationMailDelayed)
+}
+
+func TestSchoolInvitationListQueryBudget(t *testing.T) {
+	db := testpkg.SetupIsolatedTestDB(t)
+	counter := testpkg.CaptureQueries(t, db)
+	module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db),
+		api.WithAuthTestMailer(&retryingInvitationMailer{}),
+		api.WithAuthTestPasswordResetBackoff(time.Millisecond),
+	)
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	creator := testpkg.CreateTestAccount(t, db, "mail-budget-creator")
+	role := testpkg.CreateTestRole(t, db, "mail-budget-caregiver")
+	invite := func(seed string) {
+		_, inviteErr := module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+			Email: inviteeAddress(seed), RoleID: role.ID, CreatedBy: creator.ID,
+			ActorPermissions: []string{usersManagePermission},
+		})
+		require.NoError(t, inviteErr)
+	}
+	read := func() int {
+		counter.Reset()
+		_, listErr := module.Invitation.ListPendingSchoolInvitations(counter.Context(ctx))
+		require.NoError(t, listErr)
+		return len(counter.Queries())
+	}
+	invite("mail-budget-1")
+	first := read()
+	querybudgets.AssertQueryBudget(t, "api.invitations.pending", counter.Queries())
+	invite("mail-budget-2")
+	invite("mail-budget-3")
+	assert.Equal(t, first, read(), "a further invitation adds no statement")
 }

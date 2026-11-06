@@ -414,3 +414,146 @@ describe("GuardianList", () => {
     expect(screen.queryByText("Einladen")).not.toBeInTheDocument();
   });
 });
+
+describe("GuardianList mail state (#5934)", () => {
+  const guardian = {
+    id: "7",
+    firstName: "Ada",
+    lastName: "Muster",
+    email: "ada@example.com",
+    relationshipId: "1",
+    relationshipType: "mother",
+    isPrimary: false,
+    isEmergencyContact: false,
+    canPickup: false,
+    emergencyPriority: 1,
+    accountStatus: "pending",
+  } as unknown as Parameters<typeof GuardianList>[0]["guardians"][number];
+
+  function openMenu() {
+    fireEvent.click(rowMenuTriggers()[0]!);
+  }
+
+  it("never reads an accepted mail as delivered", () => {
+    render(
+      <GuardianList
+        guardians={[guardian]}
+        emailStates={{ "7": { mailOutcome: "accepted" } }}
+        onInvite={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Versendet")).toBeInTheDocument();
+    expect(screen.queryByText("Zugestellt")).not.toBeInTheDocument();
+  });
+
+  it("shows a delivery only after the report", () => {
+    render(
+      <GuardianList
+        guardians={[guardian]}
+        emailStates={{ "7": { mailOutcome: "delivered" } }}
+      />,
+    );
+    expect(screen.getByText("Zugestellt")).toBeInTheDocument();
+  });
+
+  it("explains a blocked address, its next step and offers no invitation", () => {
+    render(
+      <GuardianList
+        guardians={[guardian]}
+        emailStates={{
+          "7": {
+            mailOutcome: "blocked",
+            addressMark: "failed",
+            sendBlock: "address",
+          },
+        }}
+        onInvite={() => undefined}
+        onEdit={() => undefined}
+        onLiftEmailBlock={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Adresse prüfen")).toBeInTheDocument();
+    expect(screen.getByText(/Sie ist deshalb gesperrt/)).toBeInTheDocument();
+    expect(screen.getByText(/„Sperre aufheben“/)).toBeInTheDocument();
+    openMenu();
+    expect(
+      screen.getByRole("menuitem", { name: "Sperre aufheben" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Erneut einladen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers no lift for a complaint", () => {
+    render(
+      <GuardianList
+        guardians={[guardian]}
+        emailStates={{
+          "7": { addressMark: "complained", sendBlock: "address" },
+        }}
+        onEdit={() => undefined}
+        onLiftEmailBlock={() => undefined}
+      />,
+    );
+    expect(screen.getByText(/als unerwünscht gemeldet/)).toBeInTheDocument();
+    openMenu();
+    expect(
+      screen.getByRole("menuitem", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Sperre aufheben" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Mails wieder senden" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("blocks a new invitation while the mail is delayed and says why", () => {
+    render(
+      <GuardianList
+        guardians={[guardian]}
+        emailStates={{ "7": { mailOutcome: "delayed", sendBlock: "delayed" } }}
+        onInvite={() => undefined}
+        onEdit={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Verzögert")).toBeInTheDocument();
+    expect(screen.getByText(/nicht noch einmal/)).toBeInTheDocument();
+    openMenu();
+    expect(
+      screen.getByRole("menuitem", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Erneut einladen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets the school stop mail and take the stop back", () => {
+    const onStop = vi.fn();
+    const { rerender } = render(
+      <GuardianList
+        guardians={[guardian]}
+        emailStates={{}}
+        onStopEmails={onStop}
+      />,
+    );
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Mails stoppen" }));
+    expect(onStop).toHaveBeenCalledWith(guardian);
+
+    rerender(
+      <GuardianList
+        guardians={[guardian]}
+        emailStates={{
+          "7": { addressMark: "school_stop", sendBlock: "address" },
+        }}
+        onLiftEmailBlock={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Versand gestoppt")).toBeInTheDocument();
+    expect(screen.getByText(/Anmeldecodes/)).toBeInTheDocument();
+  });
+});

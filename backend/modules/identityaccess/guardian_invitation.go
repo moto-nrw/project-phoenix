@@ -76,7 +76,22 @@ func (i GuardianInvitation) IsRejected() bool {
 type GuardianInvitationRequest struct {
 	GuardianProfileID int64
 	CreatedBy         int64
+	// RefuseBlockedAddress fails the request while the school's list would hold
+	// the mail back. A person who invites sets it, to learn that at once. A
+	// decision that only invites on the side leaves it off: it must not fail on
+	// the address, and the guardian's status shows the block.
+	RefuseBlockedAddress bool
 }
+
+// GuardianMailBlock says why a new mail to a guardian would change nothing.
+type GuardianMailBlock string
+
+const (
+	// GuardianMailBlockAddress: the school's list holds the mail back.
+	GuardianMailBlockAddress GuardianMailBlock = "address"
+	// GuardianMailBlockDelayed: the mail server still tries the last mail.
+	GuardianMailBlockDelayed GuardianMailBlock = "delayed"
+)
 
 // GuardianInvitationPreview is the public-safe view of a redeemable
 // invitation: enough to pre-fill and brand the accept page, and no internal

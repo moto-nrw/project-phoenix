@@ -40,5 +40,6 @@
   "recipient_email_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "sibling_group_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "sibling_group_invoiced": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "sibling_group_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "sibling_group_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "letter_mail_delayed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }

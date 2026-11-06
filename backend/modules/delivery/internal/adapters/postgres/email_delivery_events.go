@@ -41,11 +41,16 @@ const emailEventRerouteSQL = `UPDATE platform.email_outbox
 		updated_at = ?0
 	WHERE id = ?1`
 
-// A complaint is the stronger reason and stays once it is recorded.
+// A complaint is the strongest reason and stays once it is recorded. The stop of
+// a school comes next: a later bounce must not turn it into something the school
+// did not decide.
 const emailSuppressionUpsertSQL = `INSERT INTO platform.email_suppressions (tenant_id, address, reason)
 	VALUES (?, ?, ?)
 	ON CONFLICT (tenant_id, address) DO UPDATE SET
-		reason = CASE WHEN platform.email_suppressions.reason = 'complained' THEN 'complained' ELSE EXCLUDED.reason END,
+		reason = CASE
+			WHEN platform.email_suppressions.reason = 'complained' OR EXCLUDED.reason = 'complained' THEN 'complained'
+			WHEN platform.email_suppressions.reason = 'school_stop' OR EXCLUDED.reason = 'school_stop' THEN 'school_stop'
+			ELSE EXCLUDED.reason END,
 		updated_at = NOW()`
 
 type emailEventMailRow struct {
@@ -124,7 +129,7 @@ func applyEmailEvent(ctx context.Context, db bun.IDB, mail emailEventMailRow, ev
 	if !event.State.BlocksAddress() || event.KeepsAddress || mail.TenantID == nil || mail.Address == nil || *mail.Address == "" {
 		return nil
 	}
-	_, err := db.ExecContext(ctx, emailSuppressionUpsertSQL, *mail.TenantID, strings.ToLower(*mail.Address), string(event.State))
+	_, err := db.ExecContext(ctx, emailSuppressionUpsertSQL, *mail.TenantID, normalizedAddress(*mail.Address), string(event.State.SuppressionReason()))
 	return err
 }
 
@@ -133,7 +138,7 @@ func (s *Store) EmailAddressSuppressed(ctx context.Context, tenantID int64, addr
 	var suppressed bool
 	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
 		return db.NewRaw(`SELECT EXISTS (SELECT 1 FROM platform.email_suppressions WHERE tenant_id = ? AND address = ?)`,
-			tenantID, strings.ToLower(strings.TrimSpace(address))).Scan(txCtx, &suppressed)
+			tenantID, normalizedAddress(address)).Scan(txCtx, &suppressed)
 	})
 	if err != nil {
 		return false, fmt.Errorf("delivery postgres: read email suppression: %w", err)
@@ -152,19 +157,20 @@ func (s *Store) DeleteExpiredEmailDeliveryEvents(ctx context.Context, tenantID i
 			SELECT id FROM platform.email_outbox WHERE tenant_id = ?0 AND `+intentEndedBefore+`)`, tenantID, before))
 }
 
-// DeleteExpiredEmailSuppressions implements ports.RetentionStore.
-func (s *Store) DeleteExpiredEmailSuppressions(ctx context.Context, tenantID int64, before time.Time) (int, error) {
+// DeleteUnheldEmailSuppressions implements ports.RetentionStore. An address stays
+// marked until someone at the school checked it, however old the mark is (#5934).
+// An address nobody at the school holds any more goes with the first run: this
+// covers every path that deletes an account or a guardian, without each of them
+// knowing the list. A new bounce would put it back.
+func (s *Store) DeleteUnheldEmailSuppressions(ctx context.Context, tenantID int64) (int, error) {
 	db, err := s.tenantDB(ctx, tenantID)
 	if err != nil {
 		return 0, err
 	}
-	// An address nobody at the school holds any more goes with the first run:
-	// this covers every path that deletes an account or a guardian, without each
-	// of them knowing the list. A new bounce would put it back.
-	return affected("delete expired email suppressions")(db.ExecContext(ctx, `DELETE FROM platform.email_suppressions AS suppression
-		WHERE suppression.tenant_id = ?0 AND (suppression.updated_at < ?1 OR NOT EXISTS (
+	return affected("delete unheld email suppressions")(db.ExecContext(ctx, `DELETE FROM platform.email_suppressions AS suppression
+		WHERE suppression.tenant_id = ?0 AND NOT EXISTS (
 			SELECT 1 FROM platform.delivery_known_email_addresses AS known
-			WHERE known.tenant_id = ?0 AND known.address = suppression.address))`, tenantID, before))
+			WHERE known.tenant_id = ?0 AND known.address = suppression.address)`, tenantID))
 }
 
 const openProviderMailsSQL = `SELECT id, provider_message_id, delivery_state, sent_at
@@ -214,31 +220,48 @@ func (s *Store) MarkEmailDeliveryChecked(ctx context.Context, id int64, at time.
 	return nil
 }
 
-// EmailSuppressionReason implements ports.EmailReconciliationStore.
-func (s *Store) EmailSuppressionReason(ctx context.Context, tenantID int64, address string) (domain.EmailDeliveryState, bool, error) {
+// EmailSuppressionReason implements ports.EmailReconciliationStore. It runs in
+// the caller's tenant transaction.
+func (s *Store) EmailSuppressionReason(ctx context.Context, tenantID int64, address string) (domain.EmailSuppressionReason, bool, error) {
+	db, err := s.tenantDB(ctx, tenantID)
+	if err != nil {
+		return "", false, err
+	}
 	var reason string
-	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
-		return db.NewRaw(`SELECT reason FROM platform.email_suppressions WHERE tenant_id = ? AND address = ?`,
-			tenantID, normalizedAddress(address)).Scan(txCtx, &reason)
-	})
+	err = db.NewRaw(`SELECT reason FROM platform.email_suppressions WHERE tenant_id = ? AND address = ?`,
+		tenantID, normalizedAddress(address)).Scan(ctx, &reason)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil
 	}
 	if err != nil {
 		return "", false, fmt.Errorf("delivery postgres: read email suppression reason: %w", err)
 	}
-	return domain.EmailDeliveryState(reason), true, nil
+	return domain.EmailSuppressionReason(reason), true, nil
 }
 
-// DeleteEmailSuppression implements ports.EmailReconciliationStore.
+// DeleteEmailSuppression implements ports.EmailReconciliationStore. It runs in
+// the caller's tenant transaction.
 func (s *Store) DeleteEmailSuppression(ctx context.Context, tenantID int64, address string) error {
-	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
-		_, err := db.ExecContext(txCtx, `DELETE FROM platform.email_suppressions WHERE tenant_id = ? AND address = ?`,
-			tenantID, normalizedAddress(address))
-		return err
-	})
+	db, err := s.tenantDB(ctx, tenantID)
 	if err != nil {
+		return err
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM platform.email_suppressions WHERE tenant_id = ? AND address = ?`,
+		tenantID, normalizedAddress(address)); err != nil {
 		return fmt.Errorf("delivery postgres: delete email suppression: %w", err)
+	}
+	return nil
+}
+
+// StopEmailsToAddress implements ports.EmailReconciliationStore. It runs in the
+// caller's tenant transaction.
+func (s *Store) StopEmailsToAddress(ctx context.Context, tenantID int64, address string) error {
+	db, err := s.tenantDB(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	if _, err := db.ExecContext(ctx, emailSuppressionUpsertSQL, tenantID, normalizedAddress(address), string(domain.EmailSuppressionSchoolStop)); err != nil {
+		return fmt.Errorf("delivery postgres: stop emails to an address: %w", err)
 	}
 	return nil
 }

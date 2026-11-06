@@ -284,7 +284,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 		})
 	}
 	mfa.Capability = settingsOverrides.mfaCapability
-	guardianMail, enrollmentClaims, err := owners.GuardianInvitationDependencies(settings.Settings, organizations, owners.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
+	guardianMail, enrollmentClaims, err := owners.GuardianInvitationDependencies(settings.Settings, organizations, owners.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}, deliveryModule.Runtime.EmailOutcomes,
 		parentPortal.ParentEnrollmentRequest, parentsURL, logger)
 	if err != nil {
 		return AuthTestModule{}, err
@@ -308,6 +308,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 		return AuthTestModule{}, err
 	}
 	invitationDependencies := owners.InvitationDependencies(&owners.InvitationWiring{
+		Outcomes:   deliveryModule.Runtime.EmailOutcomes,
 		Dispatcher: dispatcher, DefaultFrom: defaultFrom, Durable: durable, StaffURL: frontendURL, SchoolURL: schoolURL,
 		MailIdentity: identity, Expiry: time.Duration(inviteHours) * time.Hour,
 		Backoff: settingsOverrides.resetBackoff, Settings: settings.Settings,

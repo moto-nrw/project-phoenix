@@ -60,6 +60,11 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 		if err != nil {
 			return failed(opGuardianInviteCreate, err)
 		}
+		if request.RefuseBlockedAddress {
+			if err := l.refuseBlockedMail(txCtx, l.runtime.TenantID(txCtx), profile); err != nil {
+				return failed(opGuardianInviteCreate, err)
+			}
+		}
 		var insertErr error
 		invitation, insertErr = l.invitations.InsertGuardianInvitation(txCtx, domain.GuardianInvitation{
 			TenantID:          l.runtime.TenantID(txCtx),
@@ -103,6 +108,24 @@ func (l *AccountLifecycle) lockInvitationProfile(ctx context.Context, profileID 
 		return domain.GuardianProfile{}, fmt.Errorf("guardian already has an account")
 	}
 	return profile, nil
+}
+
+// refuseBlockedMail fails when a new mail to the guardian would change nothing:
+// the school's list holds it back, or the server still tries the last one. Nobody
+// should read that as sent, so the person learns it while they are looking.
+func (l *AccountLifecycle) refuseBlockedMail(ctx context.Context, tenantID int64, profile domain.GuardianProfile) error {
+	blocks, err := l.delivery.GuardianMailBlocks(ctx, tenantID, []string{profile.Email})
+	if err != nil {
+		return fmt.Errorf("read the mail block of the guardian: %w", err)
+	}
+	switch blocks[strings.ToLower(strings.TrimSpace(profile.Email))] {
+	case domain.GuardianMailBlockAddress:
+		return domain.ErrGuardianEmailAddressBlocked
+	case domain.GuardianMailBlockDelayed:
+		return domain.ErrInvitationMailDelayed
+	default:
+		return nil
+	}
 }
 
 // mailNewInvitation queues the mail of a new token invitation and the
@@ -333,6 +356,9 @@ func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitat
 		}
 		if !found {
 			return failed(opGuardianInviteResend, fmt.Errorf("guardian profile not found"))
+		}
+		if err := l.refuseBlockedMail(ctx, invitation.TenantID, profile); err != nil {
+			return failed(opGuardianInviteResend, err)
 		}
 		// The delivery bookkeeping starts over; the previous attempt's outcome
 		// says nothing about the send that follows. Only the hash of a token

@@ -79,6 +79,9 @@ type TokenDelivery struct {
 	SentAt     *time.Time
 	Error      *string
 	RetryCount int
+	// Outcome and AddressMark are what Delivery knows about the last mail.
+	Outcome     string
+	AddressMark string
 }
 
 // Bounded returns the delivery with its error truncated to the stored limit.

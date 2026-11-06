@@ -2,11 +2,13 @@ package postgres_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
 
+	postgresadapter "github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -263,15 +265,20 @@ func TestRetentionRemovesExpiredEventsAndSuppressions(t *testing.T) {
 		if events, err = store.DeleteExpiredEmailDeliveryEvents(txCtx, school, time.Now().Add(-domain.RetentionWindow)); err != nil {
 			return err
 		}
-		if keptSuppressions, err = store.DeleteExpiredEmailSuppressions(txCtx, school, time.Now().Add(-domain.SuppressionRetention)); err != nil {
+		if keptSuppressions, err = store.DeleteUnheldEmailSuppressions(txCtx, school); err != nil {
 			return err
 		}
-		suppressions, err = store.DeleteExpiredEmailSuppressions(txCtx, school, time.Now().Add(time.Minute))
+		// However old the mark, it stays until someone at the school checked the
+		// address (#5934).
+		if _, err = tenantTxExec(txCtx, `UPDATE platform.email_suppressions SET updated_at = NOW() - INTERVAL '10 years' WHERE tenant_id = ?`, school); err != nil {
+			return err
+		}
+		suppressions, err = store.DeleteUnheldEmailSuppressions(txCtx, school)
 		return err
 	}))
 	assert.Equal(t, 1, events)
-	assert.Zero(t, keptSuppressions, "a fresh entry of a known address stays for the period")
-	assert.Equal(t, 1, suppressions)
+	assert.Zero(t, keptSuppressions, "a fresh entry of a known address stays")
+	assert.Zero(t, suppressions, "an old entry of a known address stays too")
 }
 
 // Deleting a person must end the entry, whichever path deleted them (#5932).
@@ -287,7 +294,7 @@ func TestRetentionRemovesASuppressionNobodyAtTheSchoolHolds(t *testing.T) {
 	var removed int
 	require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
-		removed, err = store.DeleteExpiredEmailSuppressions(txCtx, school, time.Now().Add(-domain.SuppressionRetention))
+		removed, err = store.DeleteUnheldEmailSuppressions(txCtx, school)
 		return err
 	}))
 	assert.Equal(t, 1, removed)
@@ -580,15 +587,19 @@ func TestLiftEmailSuppressionFreesOnlyABounceOfThatSchool(t *testing.T) {
 	insert(other, "bounce@example.com", "failed")
 	insert(school, "complaint@example.com", "complained")
 
-	reason, listed, err := store.EmailSuppressionReason(ctx, school, " Complaint@Example.com ")
-	require.NoError(t, err)
-	assert.True(t, listed)
-	assert.Equal(t, domain.EmailDeliveryComplained, reason)
-	_, listed, err = store.EmailSuppressionReason(ctx, school, "nobody@example.com")
-	require.NoError(t, err)
-	assert.False(t, listed)
-
-	require.NoError(t, store.DeleteEmailSuppression(ctx, school, "Bounce@Example.com"))
+	inSchool := func(run func(txCtx context.Context) error) {
+		require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error { return run(txCtx) }))
+	}
+	inSchool(func(txCtx context.Context) error {
+		reason, listed, err := store.EmailSuppressionReason(txCtx, school, " Complaint@Example.com ")
+		require.NoError(t, err)
+		assert.True(t, listed)
+		assert.Equal(t, domain.EmailSuppressionComplained, reason)
+		_, listed, err = store.EmailSuppressionReason(txCtx, school, "nobody@example.com")
+		require.NoError(t, err)
+		assert.False(t, listed)
+		return store.DeleteEmailSuppression(txCtx, school, "Bounce@Example.com")
+	})
 
 	stillListed, err := store.EmailAddressSuppressed(ctx, school, "bounce@example.com")
 	require.NoError(t, err)
@@ -596,4 +607,12 @@ func TestLiftEmailSuppressionFreesOnlyABounceOfThatSchool(t *testing.T) {
 	stillListed, err = store.EmailAddressSuppressed(ctx, other, "bounce@example.com")
 	require.NoError(t, err)
 	assert.True(t, stillListed, "the other school keeps its own list")
+}
+
+func tenantTxExec(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	db, err := postgresadapter.RequireTenantDatabase(ctx, args[0].(int64))
+	if err != nil {
+		return nil, err
+	}
+	return db.ExecContext(ctx, query, args...)
 }

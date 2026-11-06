@@ -23,8 +23,9 @@ type EmailDeliveryEventStore interface {
 type EmailReconciliationStore interface {
 	OpenProviderMails(context.Context, domain.ProviderMailQuery) ([]domain.ProviderMail, error)
 	MarkEmailDeliveryChecked(ctx context.Context, id int64, at time.Time) error
-	EmailSuppressionReason(ctx context.Context, tenantID int64, address string) (domain.EmailDeliveryState, bool, error)
+	EmailSuppressionReason(ctx context.Context, tenantID int64, address string) (domain.EmailSuppressionReason, bool, error)
 	DeleteEmailSuppression(ctx context.Context, tenantID int64, address string) error
+	StopEmailsToAddress(ctx context.Context, tenantID int64, address string) error
 }
 
 // EmailProviderAPI is the mail provider's own record of its mails. Without a

@@ -601,6 +601,8 @@ export const ERROR_CATALOG = {
         "Die E-Mail-Adresse wurde zu oft geändert. Bitte versuchen Sie es in einer Stunde erneut.",
       "identity.email_change_same_email":
         "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
+      "identity.guardian_email_address_blocked":
+        "Die Einladung wurde nicht gesendet, weil diese Adresse gesperrt ist. Den Grund und den nächsten Schritt sehen Sie bei der Person.",
       "identity.guardian_invitation_email_not_queued":
         "Die Einladung konnte gerade nicht verschickt werden. Bitte versuchen Sie es noch einmal.",
       "identity.invalid_credentials":
@@ -611,6 +613,8 @@ export const ERROR_CATALOG = {
         "Sie sind mit einem anderen Konto angemeldet. Bitte melden Sie sich mit der eingeladenen E-Mail-Adresse an.",
       "identity.invitation_expired":
         "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie die Person, die Sie eingeladen hat, nach einer neuen Einladung.",
+      "identity.invitation_mail_delayed":
+        "Die letzte Einladung ist noch unterwegs. Bitte warten Sie, sonst kommt sie doppelt an.",
       "identity.invitation_not_found":
         "Diese Einladung gibt es nicht. Bitte prüfen Sie den Link in der E-Mail.",
       "identity.invitation_rate_limited":
@@ -795,6 +799,8 @@ export const ERROR_CATALOG = {
         "Diese Rechnung hat schon eine Gutschrift. Schreiben Sie den Rest gut, statt zu stornieren.",
       "parent_billing.invoice_number_taken":
         "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnungsvorgaben“.",
+      "parent_billing.letter_mail_delayed":
+        "Die letzte Mail an diese Familie ist noch unterwegs. Bitte warten Sie, sonst kommt sie doppelt an.",
       "parent_billing.letter_mail_pending":
         "Die Mail an diese Familie wird gerade gesendet. Bitte warten Sie, bis sie gesendet ist oder nicht zugestellt wurde.",
       "parent_billing.letterhead_too_long":
@@ -1067,6 +1073,10 @@ export const ERROR_CATALOG = {
         "Die anfragende Person hat keinen Zugriff mehr auf das Kind. Bitte lehnen Sie {object} ab.",
       "students.guardian_account_holder_too_long":
         "Der Name des Kontoinhabers ist zu lang. Bitte kürzen Sie ihn.",
+      "students.guardian_email_block_lift_failed":
+        "Die Sperre konnte gerade nicht aufgehoben werden. Bitte versuchen Sie es noch einmal.",
+      "students.guardian_email_block_needs_review":
+        "Diese Sperre können Sie nicht aufheben, weil die Person eine Mail als unerwünscht gemeldet hat. Bitte sprechen Sie die Person direkt an.",
       "students.guardian_email_taken":
         "Diese E-Mail-Adresse gehört schon zu einer anderen Person. Bitte wählen Sie die vorhandene Person über die Suche aus.",
       "students.guardian_iban_invalid":
@@ -1951,6 +1961,8 @@ export const ERROR_CATALOG = {
         "The demo school is being prepared. Please try again in a moment.",
       "identity.email_already_exists":
         "There is already an account for this email address. Please use a different address.",
+      "identity.guardian_email_address_blocked":
+        "The invitation could not be sent right now. Please try again.",
       "identity.guardian_invitation_email_not_queued":
         "The invitation could not be sent right now. Please try again.",
       "identity.invalid_credentials":
@@ -1961,6 +1973,8 @@ export const ERROR_CATALOG = {
         "You are signed in with a different account. Please sign in with the invited email address.",
       "identity.invitation_expired":
         "This invitation has expired or has already been used. Please ask the person who invited you for a new invitation.",
+      "identity.invitation_mail_delayed":
+        "The invitation could not be sent right now. Please try again.",
       "identity.invitation_not_found":
         "This invitation does not exist. Please check the link in the email.",
       "identity.mfa_blocked":
@@ -2041,6 +2055,10 @@ export const ERROR_CATALOG = {
         "{object} has been changed in the meantime. Please reload the page.",
       "students.export_selection_too_large":
         "The selection has {total} children. A list can have at most {limit} children. Please narrow the selection, for example by group or class.",
+      "students.guardian_email_block_lift_failed":
+        "{object} could not be saved. Please check your entries.",
+      "students.guardian_email_block_needs_review":
+        "{object} could not be saved. Please check your entries.",
       "students.offering_change_capacity_full":
         "One of the offerings has no free places left. Please check the occupancy.",
       "students.offering_changes_no_enrollment":
@@ -2417,6 +2435,8 @@ export const ERROR_CATALOG = {
         "Демо-школа сейчас готовится. Попробуйте ещё раз через минуту.",
       "identity.email_already_exists":
         "Для этого адреса электронной почты уже есть учётная запись. Укажите другой адрес.",
+      "identity.guardian_email_address_blocked":
+        "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.guardian_invitation_email_not_queued":
         "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.invalid_credentials":
@@ -2427,6 +2447,8 @@ export const ERROR_CATALOG = {
         "Вы вошли в другой аккаунт. Войдите с адресом электронной почты из приглашения.",
       "identity.invitation_expired":
         "Это приглашение истекло или уже было использовано. Попросите человека, который вас пригласил, отправить новое приглашение.",
+      "identity.invitation_mail_delayed":
+        "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.invitation_not_found":
         "Такого приглашения нет. Проверьте ссылку в письме.",
       "identity.mfa_blocked":
@@ -2489,6 +2511,10 @@ export const ERROR_CATALOG = {
         "Данные изменились: {object}. Обновите страницу.",
       "students.export_selection_too_large":
         "Выбрано детей: {total}. В списке может быть не больше {limit} детей. Сузьте выбор, например по группе или классу.",
+      "students.guardian_email_block_lift_failed":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
+      "students.guardian_email_block_needs_review":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
       "students.offering_change_capacity_full":
         "В одном из вариантов больше нет свободных мест. Проверьте заполненность.",
       "students.offering_changes_no_enrollment":
@@ -2846,6 +2872,8 @@ export const ERROR_CATALOG = {
         "Shkolla demo po përgatitet. Provoni përsëri pas pak.",
       "identity.email_already_exists":
         "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
+      "identity.guardian_email_address_blocked":
+        "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.guardian_invitation_email_not_queued":
         "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.invalid_credentials":
@@ -2856,6 +2884,8 @@ export const ERROR_CATALOG = {
         "Jeni i identifikuar me një llogari tjetër. Hyni me adresën e e-mailit që është ftuar.",
       "identity.invitation_expired":
         "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini personit që ju ftoi një ftesë të re.",
+      "identity.invitation_mail_delayed":
+        "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.invitation_not_found":
         "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
       "identity.mfa_blocked":
@@ -2919,6 +2949,10 @@ export const ERROR_CATALOG = {
         "Ndërkohë është ndryshuar: {object}. Ju lutemi ringarkoni faqen.",
       "students.export_selection_too_large":
         "Përzgjedhja ka {total} fëmijë. Një listë mund të ketë më së shumti {limit} fëmijë. Ju lutemi ngushtoni përzgjedhjen, p.sh. sipas grupit ose klasës.",
+      "students.guardian_email_block_lift_failed":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+      "students.guardian_email_block_needs_review":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
       "students.offering_change_capacity_full":
         "Në njërën nga ofertat nuk ka më vende të lira. Kontrolloni zënien e vendeve.",
       "students.offering_changes_no_enrollment":
@@ -3265,6 +3299,8 @@ export const ERROR_CATALOG = {
         "Szkoła demo jest właśnie przygotowywana. Spróbuj ponownie za chwilę.",
       "identity.email_already_exists":
         "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
+      "identity.guardian_email_address_blocked":
+        "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.guardian_invitation_email_not_queued":
         "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.invalid_credentials":
@@ -3275,6 +3311,8 @@ export const ERROR_CATALOG = {
         "Jesteś zalogowany na inne konto. Zaloguj się adresem e-mail, na który przyszło zaproszenie.",
       "identity.invitation_expired":
         "To zaproszenie wygasło lub zostało już użyte. Poproś osobę, która Cię zaprosiła, o nowe zaproszenie.",
+      "identity.invitation_mail_delayed":
+        "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.invitation_not_found":
         "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
       "identity.mfa_blocked":
@@ -3338,6 +3376,10 @@ export const ERROR_CATALOG = {
         "W międzyczasie zmieniono: {object}. Odśwież stronę.",
       "students.export_selection_too_large":
         "Wybrano {total} dzieci. Lista może mieć najwyżej {limit} dzieci. Zawęź wybór, na przykład według grupy lub klasy.",
+      "students.guardian_email_block_lift_failed":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+      "students.guardian_email_block_needs_review":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
       "students.offering_change_capacity_full":
         "W jednej z ofert nie ma już wolnych miejsc. Sprawdź obłożenie.",
       "students.offering_changes_no_enrollment":
@@ -3689,6 +3731,8 @@ export const ERROR_CATALOG = {
         "Demo okul hazırlanıyor. Lütfen birazdan tekrar deneyin.",
       "identity.email_already_exists":
         "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
+      "identity.guardian_email_address_blocked":
+        "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.guardian_invitation_email_not_queued":
         "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.invalid_credentials":
@@ -3699,6 +3743,8 @@ export const ERROR_CATALOG = {
         "Başka bir hesapla giriş yaptınız. Lütfen davet edilen e-posta adresiyle giriş yapın.",
       "identity.invitation_expired":
         "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen sizi davet eden kişiden yeni bir davet isteyin.",
+      "identity.invitation_mail_delayed":
+        "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.invitation_not_found":
         "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
       "identity.mfa_blocked":
@@ -3761,6 +3807,10 @@ export const ERROR_CATALOG = {
         "{object} bu arada değiştirildi. Lütfen sayfayı yenileyin.",
       "students.export_selection_too_large":
         "Seçimde {total} çocuk var. Bir liste en fazla {limit} çocuk içerebilir. Lütfen seçimi daraltın, örneğin gruba veya sınıfa göre.",
+      "students.guardian_email_block_lift_failed":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+      "students.guardian_email_block_needs_review":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
       "students.offering_change_capacity_full":
         "Tekliflerden birinde boş yer kalmadı. Lütfen doluluk durumunu kontrol edin.",
       "students.offering_changes_no_enrollment":
@@ -4105,6 +4155,8 @@ export const ERROR_CATALOG = {
         "Демо-школа зараз готується. Спробуйте ще раз за хвилину.",
       "identity.email_already_exists":
         "Для цієї адреси електронної пошти вже є обліковий запис. Укажіть іншу адресу.",
+      "identity.guardian_email_address_blocked":
+        "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.guardian_invitation_email_not_queued":
         "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.invalid_credentials":
@@ -4115,6 +4167,8 @@ export const ERROR_CATALOG = {
         "Ви увійшли в інший обліковий запис. Увійдіть з адресою ел. пошти, на яку надійшло запрошення.",
       "identity.invitation_expired":
         "Це запрошення вже недійсне або його вже використали. Попросіть людину, яка вас запросила, надіслати нове запрошення.",
+      "identity.invitation_mail_delayed":
+        "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.invitation_not_found":
         "Такого запрошення немає. Перевірте посилання в листі.",
       "identity.mfa_blocked":
@@ -4177,6 +4231,10 @@ export const ERROR_CATALOG = {
         "Дані змінилися: {object}. Оновіть сторінку.",
       "students.export_selection_too_large":
         "Вибрано дітей: {total}. У списку може бути не більше {limit} дітей. Звузьте вибір, наприклад за групою або класом.",
+      "students.guardian_email_block_lift_failed":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
+      "students.guardian_email_block_needs_review":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
       "students.offering_change_capacity_full":
         "В одній із пропозицій більше немає вільних місць. Перевірте заповненість.",
       "students.offering_changes_no_enrollment":

@@ -1,3 +1,7 @@
+import type {
+  EmailAddressMark,
+  MailOutcome,
+} from "~/lib/email-delivery-status";
 import { type ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 // Guardian API Client
 // Calls Next.js API routes which proxy to the Go backend
@@ -154,6 +158,84 @@ export async function fetchStudentGuardians(
   >;
 
   return (result.data ?? []).map(mapGuardianWithRelationshipResponse);
+}
+
+/** What the school knows about mail to one guardian's address (#5934). */
+export interface GuardianEmailState {
+  readonly mailOutcome?: MailOutcome;
+  readonly addressMark?: EmailAddressMark;
+  /** Why a new invitation would change nothing. */
+  readonly sendBlock?: "address" | "delayed";
+  readonly outcomeAt?: string;
+}
+
+interface BackendGuardianEmailState {
+  guardian_profile_id: number;
+  mail_outcome?: MailOutcome;
+  address_mark?: EmailAddressMark;
+  send_block?: "address" | "delayed";
+  outcome_at?: string;
+}
+
+/** The mail state of every guardian of a student, keyed by guardian ID. */
+export async function fetchStudentGuardianEmailStates(
+  studentId: string,
+): Promise<Record<string, GuardianEmailState>> {
+  const response = await transportFetch(
+    `/api/guardians/students/${studentId}/email-status`,
+  );
+  if (!response.ok) {
+    throw await guardianApiError(
+      response,
+      "fetch_guardian_email_status",
+      "Failed to fetch the guardian email status",
+    );
+  }
+  const result = (await response.json()) as ApiResponse<
+    BackendGuardianEmailState[]
+  >;
+  const states: Record<string, GuardianEmailState> = {};
+  for (const line of result.data ?? []) {
+    states[String(line.guardian_profile_id)] = {
+      mailOutcome: line.mail_outcome,
+      addressMark: line.address_mark,
+      sendBlock: line.send_block,
+      outcomeAt: line.outcome_at,
+    };
+  }
+  return states;
+}
+
+/** The school stops mail to this guardian's address. */
+export async function stopGuardianEmails(guardianId: string): Promise<void> {
+  const response = await transportFetch(
+    `/api/guardians/${guardianId}/email-block`,
+    { method: "POST" },
+  );
+  if (!response.ok) {
+    throw await guardianApiError(
+      response,
+      "stop_guardian_emails",
+      "Failed to stop the guardian emails",
+    );
+  }
+}
+
+/** Someone checked the address, or the school takes its stop back. */
+export async function liftGuardianEmailBlock(
+  guardianId: string,
+): Promise<void> {
+  const response = await transportFetch(
+    `/api/guardians/${guardianId}/email-block`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) {
+    throw await guardianApiError(
+      response,
+      "lift_guardian_email_block",
+      "Failed to lift the guardian email block",
+    );
+  }
 }
 
 /**

@@ -116,10 +116,10 @@ func mountPeopleRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, reports owners.PresenceReports, renderer *lists.RendererService,
 	persons *peopleCompose.Directory, guardians peoplePorts.GuardianService, identity identityaccess.Owner, caller *owners.CallerRows,
 	feedback feedbackModule.Capability, mealPlan mealplanModule.Capability, birthdays birthdaysAPI.Service,
-	emergency emergencysnapshot.Query, settings settingsCompose.SettingsService,
+	emergency emergencysnapshot.Query, settings settingsCompose.SettingsService, guardianEmail GuardianEmailDelivery,
 ) {
 	tenant.Mount("/statistics", statisticsAPI.NewResource(reports.Statistics, statisticsHTTPRuntime(renderer), logger.With("handler", "statistics")).Router(ProtectedTenantRoutes))
-	tenant.Mount("/guardians", newGuardiansResource(persons, NewGuardianDirectoryRuntime(guardians, renderer, identity, caller.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool())), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
+	tenant.Mount("/guardians", newGuardiansResource(persons, NewGuardianDirectoryRuntime(guardians, renderer, identity, caller.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), guardianEmail), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
 	tenant.Mount("/feedback", newFeedbackResource(feedback).Router())
 	tenant.Mount("/meal-plan", newMealPlanResource(mealPlan, newMealPlanExportRenderer()).Router())
 	tenant.Mount("/users", newUsersResource(persons, identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {

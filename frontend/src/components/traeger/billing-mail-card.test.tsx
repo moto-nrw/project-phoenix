@@ -103,6 +103,40 @@ describe("BillingMailCard", () => {
     expect(api.fetchLetterMailings).toHaveBeenCalledWith("9");
   });
 
+  it("reads only a report as delivered and offers no second mail while delayed", async () => {
+    api.fetchLetterMailings.mockResolvedValue([
+      mailing({ status: "sent", mailOutcome: "accepted", sends: 1 }),
+      mailing({
+        documentId: "52",
+        status: "sent",
+        mailOutcome: "delivered",
+        sends: 1,
+      }),
+      mailing({
+        documentId: "53",
+        status: "sent",
+        mailOutcome: "delayed",
+        sends: 1,
+      }),
+      mailing({
+        documentId: "54",
+        status: "sent",
+        mailOutcome: "undeliverable",
+        sends: 1,
+      }),
+    ]);
+    renderCard();
+
+    expect(await screen.findByText("Gesendet")).toBeInTheDocument();
+    expect(screen.getByText("Zugestellt")).toBeInTheDocument();
+    expect(screen.getByText("Verzögert")).toBeInTheDocument();
+    expect(screen.getByText("Nicht zustellbar")).toBeInTheDocument();
+    expect(screen.getByText(/nicht noch einmal/)).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Erneut senden" }),
+    ).toHaveLength(3);
+  });
+
   it("offers no send while a mail waits and none without an address", async () => {
     api.fetchLetterMailings.mockResolvedValue([
       mailing({ status: "queued", sends: 1 }),

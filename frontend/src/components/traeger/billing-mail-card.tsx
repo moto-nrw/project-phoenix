@@ -31,6 +31,8 @@ import {
 } from "~/lib/traeger-billing-api";
 import { BILLING_DOCUMENT_KIND_LABELS } from "./billing-format";
 
+import { type MailOutcome, mailStatusCopy } from "~/lib/email-delivery-status";
+
 const logger = createLogger({ component: "BillingMailCard" });
 
 // While a mail waits, the card looks again after this many milliseconds.
@@ -42,7 +44,7 @@ const STATUS_TONES: Record<
 > = {
   not_sent: "gray",
   queued: "blue",
-  sent: "green",
+  sent: "gray",
   failed: "red",
   unknown: "gray",
 };
@@ -55,10 +57,28 @@ const STATUS_LABELS: Record<LetterMailStatus, string> = {
   unknown: "Ergebnis unbekannt",
 };
 
+// The provider's word outranks the outbox: "Gesendet" alone only means a server
+// took the mail, so it never turns green before a report says so (#5934).
+const MAIL_OUTCOME_BADGES: Partial<
+  Record<
+    MailOutcome,
+    { label: string; tone: "green" | "orange" | "red" | "gray" }
+  >
+> = {
+  accepted: { label: "Gesendet", tone: "gray" },
+  delivered: { label: "Zugestellt", tone: "green" },
+  delayed: { label: "Verzögert", tone: "orange" },
+  undeliverable: { label: "Nicht zustellbar", tone: "red" },
+  complained: { label: "Nicht zustellbar", tone: "red" },
+};
+
 // The date beside the short status; it wraps on small screens.
 function statusDetail(mailing: LetterMailing): string | null {
   const at = (iso: string) =>
     `${formatBerlinDate(iso)}, ${formatTime(iso)} Uhr`;
+  if (mailing.mailOutcome === "delayed") {
+    return mailStatusCopy("delayed")?.explanation ?? null;
+  }
   if (mailing.status === "sent" && mailing.sentAt) {
     return `am ${at(mailing.sentAt)}`;
   }
@@ -233,15 +253,25 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
                 </div>
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <StatusBadge
-                    label={STATUS_LABELS[mailing.status]}
-                    tone={STATUS_TONES[mailing.status]}
+                    label={
+                      (mailing.mailOutcome &&
+                        MAIL_OUTCOME_BADGES[mailing.mailOutcome]?.label) ||
+                      STATUS_LABELS[mailing.status]
+                    }
+                    tone={
+                      (mailing.mailOutcome &&
+                        MAIL_OUTCOME_BADGES[mailing.mailOutcome]?.tone) ||
+                      STATUS_TONES[mailing.status]
+                    }
                   />
                   {statusDetail(mailing) ? (
                     <span className="text-sm text-gray-600">
                       {statusDetail(mailing)}
                     </span>
                   ) : null}
-                  {mailing.recipientEmail && mailing.status !== "queued" ? (
+                  {mailing.recipientEmail &&
+                  mailing.status !== "queued" &&
+                  mailing.mailOutcome !== "delayed" ? (
                     <Button
                       type="button"
                       variant="ghost"

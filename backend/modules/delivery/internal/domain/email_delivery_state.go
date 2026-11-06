@@ -51,9 +51,28 @@ func NextEmailDeliveryState(current, event EmailDeliveryState) EmailDeliveryStat
 }
 
 // BlocksAddress reports whether the state puts the address on the school's
-// suppression list.
+// suppression list. A provider that holds a mail back knows the address from
+// another school or an older block; only the school's list can tell the school
+// why its mail did not leave, so the address goes there too.
 func (s EmailDeliveryState) BlocksAddress() bool {
-	return s == EmailDeliveryFailed || s == EmailDeliveryComplained
+	return s == EmailDeliveryFailed || s == EmailDeliveryComplained || s == EmailDeliverySuppressed
+}
+
+// EmailSuppressionReason is why a school's list holds an address.
+type EmailSuppressionReason string
+
+const (
+	EmailSuppressionFailed     EmailSuppressionReason = "failed"
+	EmailSuppressionComplained EmailSuppressionReason = "complained"
+	EmailSuppressionSchoolStop EmailSuppressionReason = "school_stop"
+)
+
+// SuppressionReason is the reason the state leaves on the school's list.
+func (s EmailDeliveryState) SuppressionReason() EmailSuppressionReason {
+	if s == EmailDeliveryComplained {
+		return EmailSuppressionComplained
+	}
+	return EmailSuppressionFailed
 }
 
 // EmailDeliveryEvent is one reported event of a mail. The mail is named by
@@ -110,10 +129,6 @@ type ProviderMail struct {
 	State             EmailDeliveryState
 	SentAt            time.Time
 }
-
-// SuppressionRetention is how long the suppression list keeps an address after
-// its last event. A new bounce or complaint starts the period again.
-const SuppressionRetention = 365 * 24 * time.Hour
 
 var diagnosticAddress = regexp.MustCompile(`(?:"[^"]*"|[^\s<>,;:()\[\]"]+)@[^\s<>,;:()\[\]"]+`)
 

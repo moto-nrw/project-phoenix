@@ -34,13 +34,14 @@ func (run AdminUnitOfWork) WithinAdmin(ctx context.Context, fn func(context.Cont
 type WorkerCommands struct {
 	WorkerRecords
 	transactions AdminUnitOfWork
+	withinTenant func(context.Context, int64, func(context.Context) error) error
 }
 
-func NewWorkerCommands(records WorkerRecords, withinAdmin func(context.Context, func(context.Context) error) error) *WorkerCommands {
-	if records == nil || withinAdmin == nil {
-		panic("delivery: worker records and unit of work are required")
+func NewWorkerCommands(records WorkerRecords, withinAdmin func(context.Context, func(context.Context) error) error, withinTenant func(context.Context, int64, func(context.Context) error) error) *WorkerCommands {
+	if records == nil || withinAdmin == nil || withinTenant == nil {
+		panic("delivery: worker records and units of work are required")
 	}
-	return &WorkerCommands{WorkerRecords: records, transactions: AdminUnitOfWork(withinAdmin)}
+	return &WorkerCommands{WorkerRecords: records, transactions: AdminUnitOfWork(withinAdmin), withinTenant: withinTenant}
 }
 
 func (c *WorkerCommands) ClaimPush(ctx context.Context, tenantID, id int64, now, expires time.Time) (result0 domain.Intent, result1 bool, err error) {
@@ -177,8 +178,10 @@ func (c *WorkerCommands) MarkEmailDeliveryChecked(ctx context.Context, id int64,
 	})
 }
 
-func (c *WorkerCommands) EmailSuppressionReason(ctx context.Context, tenantID int64, address string) (result0 domain.EmailDeliveryState, result1 bool, err error) {
-	err = c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+// The school's list is changed in the school's own transaction: a person of the
+// school asks for it, and row-level security holds the school's boundary.
+func (c *WorkerCommands) EmailSuppressionReason(ctx context.Context, tenantID int64, address string) (result0 domain.EmailSuppressionReason, result1 bool, err error) {
+	err = c.withinTenant(ctx, tenantID, func(txCtx context.Context) error {
 		result0, result1, err = c.WorkerRecords.EmailSuppressionReason(txCtx, tenantID, address)
 		return err
 	})
@@ -186,7 +189,13 @@ func (c *WorkerCommands) EmailSuppressionReason(ctx context.Context, tenantID in
 }
 
 func (c *WorkerCommands) DeleteEmailSuppression(ctx context.Context, tenantID int64, address string) error {
-	return c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+	return c.withinTenant(ctx, tenantID, func(txCtx context.Context) error {
 		return c.WorkerRecords.DeleteEmailSuppression(txCtx, tenantID, address)
+	})
+}
+
+func (c *WorkerCommands) StopEmailsToAddress(ctx context.Context, tenantID int64, address string) error {
+	return c.withinTenant(ctx, tenantID, func(txCtx context.Context) error {
+		return c.WorkerRecords.StopEmailsToAddress(txCtx, tenantID, address)
 	})
 }

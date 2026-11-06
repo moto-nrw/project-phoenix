@@ -53,5 +53,7 @@
   "lehrkraft_role_immutable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "access_name_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "caterer_address_taken": "Kjo adresë email i përket tashmë një llogarie tjetër moto. Ju lutemi përdorni një adresë tjetër.",
-  "caterer_without_school": "Aktualisht nuk furnizoni asnjë shkollë përmes moto. Ju lutemi pyesni shkollën."
+  "caterer_without_school": "Aktualisht nuk furnizoni asnjë shkollë përmes moto. Ju lutemi pyesni shkollën.",
+  "guardian_email_address_blocked": "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
+  "invitation_mail_delayed": "Ftesa nuk mund të dërgohej tani. Provoni përsëri."
 }

@@ -46,6 +46,9 @@ var (
 	// ErrLetterMailPending reports a send while the last mail of the family
 	// still waits.
 	ErrLetterMailPending = errors.New("the last mail of this letter is still being sent")
+	// ErrLetterMailDelayed reports a send while the mail server still tries to
+	// deliver the last mail: a second one would only arrive twice.
+	ErrLetterMailDelayed = errors.New("the last mail of this letter is delayed")
 	// ErrRecipientEmailMissing reports a family without an e-mail address.
 	ErrRecipientEmailMissing = errors.New("the family has no e-mail address")
 )
@@ -66,6 +69,9 @@ type BillingLetterMailing struct {
 	Attempts           int        `json:"attempts"`
 	RequestedAt        *time.Time `json:"requested_at"`
 	SentAt             *time.Time `json:"sent_at"`
+	// MailOutcome is what Delivery knows about the last mail; Status only tells
+	// whether a server took it (#5934). Empty before the first mail.
+	MailOutcome string `json:"mail_outcome,omitempty"`
 }
 
 // BillingLetterMailings are the mail states of every family of a run.
@@ -123,7 +129,11 @@ type BillingLetterMailState struct {
 	Status     string
 	Attempts   int
 	SentAt     *time.Time
+	Outcome    string
 }
+
+// LetterMailOutcomeDelayed is the outcome that stops a further mail.
+const LetterMailOutcomeDelayed = "delayed"
 
 // BillingLetterPost is Delivery and the letterhead of the Träger as the
 // letters are mailed. The root binds it; every operation joins the caller's

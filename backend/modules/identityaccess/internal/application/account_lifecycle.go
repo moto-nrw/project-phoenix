@@ -283,6 +283,19 @@ type GuardianInvitationDelivery struct {
 	identityPorts.GuardianInvitationDelivery
 }
 
+// GuardianMailBlocks translates Delivery's answer into the flow's vocabulary.
+func (d GuardianInvitationDelivery) GuardianMailBlocks(ctx context.Context, tenantID int64, addresses []string) (map[string]domain.GuardianMailBlock, error) {
+	blocks, err := d.GuardianInvitationDelivery.GuardianMailBlocks(ctx, tenantID, addresses)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]domain.GuardianMailBlock, len(blocks))
+	for address, block := range blocks {
+		result[address] = domain.GuardianMailBlock(block)
+	}
+	return result, nil
+}
+
 func (d GuardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) (int64, error) {
 	return d.GuardianInvitationDelivery.EnqueueInvitationEmail(ctx, identityaccess.GuardianInvitation(invitation), identityPorts.GuardianProfile(profile), schoolName)
 }

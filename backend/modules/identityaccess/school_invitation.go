@@ -13,6 +13,8 @@ import (
 const (
 	MailKindStaffWelcome        = "staff_welcome"
 	MailRelatedSchoolInvitation = "school_invitation"
+	// InvitationMailOutcomeDelayed is the outcome that stops a resend.
+	InvitationMailOutcomeDelayed = "delayed"
 )
 
 // The deployment's invitation link lifetime (invitation_token_expiry_hours)
@@ -239,4 +241,11 @@ type SchoolInvitations interface {
 	// SchoolInvitationSubdomain resolves the school host of an accepted
 	// invitation; it is best-effort and answers "" when it cannot.
 	SchoolInvitationSubdomain(ctx context.Context, token string) string
+}
+
+// InvitationMailState is what Delivery knows about the last mail of an
+// invitation (#5934).
+type InvitationMailState struct {
+	Outcome     string
+	AddressMark string
 }

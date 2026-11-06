@@ -85,6 +85,11 @@ type InvitationResponse struct {
 	EmailSentAt         *time.Time                      `json:"email_sent_at,omitempty"`
 	EmailError          *string                         `json:"email_error,omitempty"`
 	EmailRetryCount     int                             `json:"email_retry_count"`
+	// MailOutcome is what Delivery knows about the last mail; "sent" above only
+	// says the mail server took it. AddressMark is set while the school's list
+	// holds the address (#5934).
+	MailOutcome string `json:"mail_outcome,omitempty"`
+	AddressMark string `json:"address_mark,omitempty"`
 }
 
 // InvitationValidationResponse is the public-safe view of a redeemable
@@ -222,6 +227,8 @@ func toInvitationResponse(invitation identityaccess.SchoolInvitation) Invitation
 		EmailSentAt:     invitation.Delivery.SentAt,
 		EmailError:      invitation.Delivery.Error,
 		EmailRetryCount: invitation.Delivery.RetryCount,
+		MailOutcome:     invitation.Delivery.Outcome,
+		AddressMark:     invitation.Delivery.AddressMark,
 	}
 }
 
@@ -619,6 +626,16 @@ func renderInvitationError(w http.ResponseWriter, r *http.Request, err error) bo
 		return true
 	case errors.Is(err, identityaccess.ErrInvitationExpired), errors.Is(err, identityaccess.ErrInvitationUsed):
 		if render.Render(w, r, common.ErrorGoneWithCode(err, common.CodeIdentityInvitationExpired)) != nil {
+			return false
+		}
+		return true
+	case errors.Is(err, identityaccess.ErrGuardianEmailAddressBlocked):
+		if render.Render(w, r, common.ErrorConflictWithCode(err, common.CodeIdentityGuardianEmailAddressBlocked)) != nil {
+			return false
+		}
+		return true
+	case errors.Is(err, identityaccess.ErrInvitationMailDelayed):
+		if render.Render(w, r, common.ErrorConflictWithCode(err, common.CodeIdentityInvitationMailDelayed)) != nil {
 			return false
 		}
 		return true

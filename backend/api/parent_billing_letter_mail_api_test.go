@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,6 +32,7 @@ type letterMailingBody struct {
 	Attempts       int        `json:"attempts"`
 	RequestedAt    *time.Time `json:"requested_at"`
 	SentAt         *time.Time `json:"sent_at"`
+	MailOutcome    string     `json:"mail_outcome"`
 }
 
 type letterSeriesBody struct {
@@ -79,6 +82,47 @@ func queuedLetterMails(t *testing.T, f reviewFixture, runID int64) []queuedLette
 		WHERE organization_id = ? AND kind = 'parent_billing_letter' AND related_entity_type = 'parent_billing_run' AND related_entity_id = ?
 		ORDER BY id`, f.office.organization, runID).Scan(context.Background(), &mails))
 	return mails
+}
+
+// The Träger reads the provider's word, and a delayed mail is not sent twice
+// (#5934). "Sent" alone never reads as delivered: the outcome stays "accepted".
+func TestBillingLetterMailShowsTheProvidersWord(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Zustellung Ferien")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	run := lettersOfRun(t, f, billing)
+	rec := traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/letters"), lettersBody("2099-01-15"))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/mailings"), nil)
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	mails := queuedLetterMails(t, f, run.ID)
+	require.Len(t, mails, 2)
+	ctx := context.Background()
+	_, err := f.db.ExecContext(ctx, `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW() WHERE id IN (?)`, bun.List([]int64{mails[0].ID, mails[1].ID}))
+	require.NoError(t, err)
+	for _, mailing := range letterMailings(t, f, billing, run.ID) {
+		assert.Equal(t, "sent", mailing.Status)
+		assert.Equal(t, "accepted", mailing.MailOutcome, "acceptance is no delivery")
+	}
+
+	_, err = f.db.ExecContext(ctx, `UPDATE platform.email_outbox SET delivery_state = 'delayed', delivery_state_at = NOW() WHERE id = ?`, mails[0].ID)
+	require.NoError(t, err)
+	_, err = f.db.ExecContext(ctx, `UPDATE platform.email_outbox SET delivery_state = 'delivered', delivery_state_at = NOW() WHERE id = ?`, mails[1].ID)
+	require.NoError(t, err)
+	outcomes := map[string]int{}
+	var delayedDocument int64
+	for _, mailing := range letterMailings(t, f, billing, run.ID) {
+		outcomes[mailing.MailOutcome]++
+		if mailing.MailOutcome == "delayed" {
+			delayedDocument = mailing.DocumentID
+		}
+	}
+	assert.Equal(t, map[string]int{"delayed": 1, "delivered": 1}, outcomes)
+
+	refused := traegerJSON(t, f.traeger, billing, http.MethodPost, letterMailPath(run.ID, delayedDocument), nil)
+	require.Equal(t, http.StatusConflict, refused.Code, refused.Body.String())
+	code, _ := registrationRefusalOf(t, refused)
+	assert.Equal(t, "parent_billing.letter_mail_delayed", code)
 }
 
 func TestBillingLetterMailsReachEveryFamilyOnceAndShowTheirState(t *testing.T) {

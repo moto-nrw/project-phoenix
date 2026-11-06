@@ -53,5 +53,7 @@
   "lehrkraft_role_immutable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "access_name_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "caterer_address_taken": "Ten adres e-mail należy już do innego konta moto. Proszę użyć innego adresu.",
-  "caterer_without_school": "Obecnie nie zaopatrujesz żadnej szkoły przez moto. Proszę zapytać szkołę."
+  "caterer_without_school": "Obecnie nie zaopatrujesz żadnej szkoły przez moto. Proszę zapytać szkołę.",
+  "guardian_email_address_blocked": "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
+  "invitation_mail_delayed": "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie."
 }

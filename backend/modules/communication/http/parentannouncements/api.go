@@ -533,13 +533,15 @@ type pollChildResponse struct {
 // bestätigt" are different facts, and collapsing them into one status is exactly
 // what would let a school believe a letter arrived when it did not.
 //
-// email_status "sent" means handed to the mail server — the UI must label it
-// "Versendet", never "Zugestellt", until provider delivery events exist (#1937).
+// email_status "sent" means handed to the mail server. Only mail_outcome
+// "delivered" is a delivery, and it needs a provider's event (#5934).
 type letterRecipientResponse struct {
 	FirstName    string     `json:"first_name"`
 	LastName     string     `json:"last_name"`
 	Email        *string    `json:"email,omitempty"`
 	EmailStatus  string     `json:"email_status"`
+	MailOutcome  string     `json:"mail_outcome,omitempty"`
+	AddressMark  string     `json:"address_mark,omitempty"`
 	Reachability string     `json:"reachability"`
 	LastError    *string    `json:"last_error,omitempty"`
 	SentAt       *time.Time `json:"sent_at,omitempty"`
@@ -584,6 +586,8 @@ func (rs *Resource) letterStatus(w http.ResponseWriter, r *http.Request) {
 			LastName:     rcpt.LastName,
 			Email:        rcpt.RecipientEmail,
 			EmailStatus:  rcpt.EmailStatus,
+			MailOutcome:  rcpt.MailOutcome,
+			AddressMark:  rcpt.AddressMark,
 			Reachability: rcpt.Reachability,
 			LastError:    rcpt.LastError,
 			SentAt:       rcpt.SentAt,

@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
@@ -30,8 +32,8 @@ type GuardianEnrollmentClaims interface {
 func GuardianInvitationDependencies(settings interface {
 	welcomeHelpSettings
 	ResolveInt(context.Context, string) (int, error)
-}, schools organizationtenancy.SchoolQuery, outbox MailResultOutbox, enrollments GuardianEnrollmentClaims, parentsURL string, logger *slog.Logger) (identityPorts.GuardianInvitationDelivery, identityPorts.GuardianEnrollments, error) {
-	if schools == nil || outbox == nil || enrollments == nil {
+}, schools organizationtenancy.SchoolQuery, outbox MailResultOutbox, outcomes deliveryRuntime.EmailOutcomes, enrollments GuardianEnrollmentClaims, parentsURL string, logger *slog.Logger) (identityPorts.GuardianInvitationDelivery, identityPorts.GuardianEnrollments, error) {
+	if schools == nil || outbox == nil || outcomes == nil || enrollments == nil {
 		return nil, nil, errors.New("identity access composition: the guardian invitation seams need the school directory, the e-mail outbox and the enrollment claim")
 	}
 	if logger == nil {
@@ -41,7 +43,7 @@ func GuardianInvitationDependencies(settings interface {
 		return nil, nil, errors.New("identity access composition: guardian invitation settings are required")
 	}
 	return guardianInvitationDelivery{
-		settings: settings, schools: schools, outbox: outbox,
+		settings: settings, schools: schools, outbox: outbox, outcomes: outcomes,
 		parentsURL: parentsURL, logger: logger,
 	}, identityaccessCompose.NewSavepointGuardianEnrollments(enrollments), nil
 }
@@ -55,6 +57,7 @@ type guardianInvitationDelivery struct {
 	}
 	schools    schoolFinder
 	outbox     MailResultOutbox
+	outcomes   deliveryRuntime.EmailOutcomes
 	parentsURL string
 	logger     *slog.Logger
 }
@@ -80,6 +83,30 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 		return ""
 	}
 	return school.Name
+}
+
+// GuardianMailBlocks asks Delivery what a new invitation to the addresses would
+// run into: the school's list, or a last mail the server still tries.
+func (d guardianInvitationDelivery) GuardianMailBlocks(ctx context.Context, tenantID int64, addresses []string) (map[string]identityaccess.GuardianMailBlock, error) {
+	marks, err := d.outcomes.EmailAddressMarks(ctx, tenantID, addresses)
+	if err != nil {
+		return nil, err
+	}
+	latest, err := d.outcomes.LatestEmailOutcomes(ctx, tenantID, []string{identityaccess.MailKindGuardianInvitation}, addresses)
+	if err != nil {
+		return nil, err
+	}
+	blocks := make(map[string]identityaccess.GuardianMailBlock, len(marks))
+	for _, address := range addresses {
+		key := deliveryContract.NormalizedEmailAddress(address)
+		switch deliveryContract.EmailSendBlockOf(marks[key], latest[key].Outcome) {
+		case deliveryContract.EmailSendBlockAddress:
+			blocks[key] = identityaccess.GuardianMailBlockAddress
+		case deliveryContract.EmailSendBlockDelayed:
+			blocks[key] = identityaccess.GuardianMailBlockDelayed
+		}
+	}
+	return blocks, nil
 }
 
 func (d guardianInvitationDelivery) mailer() GuardianInvitationMailer {

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -26,6 +28,16 @@ func renderPeopleDirectoryFailure(w http.ResponseWriter, r *http.Request, kind u
 	// Nothing of the invitation was kept; the school can send it again (#4602).
 	if errors.Is(err, identityaccess.ErrGuardianAccessMailNotQueued) {
 		apiCommon.RenderError(w, r, apiCommon.ErrorServiceUnavailableWithCode(err, apiCommon.CodeIdentityGuardianInvitationEmailNotQueued))
+		return
+	}
+	for _, rule := range guardianConflictCodes {
+		if errors.Is(err, rule.sentinel) {
+			apiCommon.RenderError(w, r, apiCommon.ErrorConflictWithCode(err, rule.code))
+			return
+		}
+	}
+	if errors.Is(err, errGuardianEmailBlockLiftFailed) {
+		apiCommon.RenderError(w, r, apiCommon.ErrorServiceUnavailableWithCode(err, apiCommon.CodeStudentsGuardianEmailBlockLiftFailed))
 		return
 	}
 	for _, rule := range guardianInputCodes {
@@ -64,6 +76,16 @@ var guardianInputCodes = []struct {
 	{peopleModule.ErrGuardianEmailTaken, apiCommon.CodeStudentsGuardianEmailTaken, ""},
 	{peopleModule.ErrGuardianIBANInvalid, apiCommon.CodeStudentsGuardianIbanInvalid, "iban"},
 	{peopleModule.ErrGuardianAccountHolderTooLong, apiCommon.CodeStudentsGuardianAccountHolderTooLong, "account_holder"},
+}
+
+// guardianConflictCodes are the mails nobody should read as sent (#5934).
+var guardianConflictCodes = []struct {
+	sentinel error
+	code     string
+}{
+	{identityaccess.ErrGuardianEmailAddressBlocked, apiCommon.CodeIdentityGuardianEmailAddressBlocked},
+	{identityaccess.ErrInvitationMailDelayed, apiCommon.CodeIdentityInvitationMailDelayed},
+	{deliveryContract.ErrEmailSuppressionNeedsReview, apiCommon.CodeStudentsGuardianEmailBlockNeedsReview},
 }
 
 func guardianFailureKind(kind GuardianFailureKind) usersAPI.FailureKind {
@@ -179,6 +201,9 @@ func newGuardiansResource(module peopleModule.Capability, runtime GuardianDirect
 		ApproveInvitation:          runtime.ApproveInvitation,
 		RejectInvitation:           runtime.RejectInvitation,
 
+		GuardianEmailStates:    runtime.GuardianEmailStates,
+		StopGuardianEmails:     runtime.StopGuardianEmails,
+		LiftGuardianEmailBlock: runtime.LiftGuardianEmailBlock,
 		RenderPaymentExport: func(rows []peopleModule.GuardianPaymentRow, format string) (usersAPI.ExportFile, error) {
 			file, err := runtime.RenderPaymentExport(rows, format)
 			if err != nil {

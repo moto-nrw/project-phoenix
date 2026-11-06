@@ -146,8 +146,12 @@ func (m *BillingLetterMail) MailBillingLetter(ctx context.Context, reviewer pare
 	if err != nil {
 		return parentbilling.BillingLetterMailing{}, err
 	}
-	if documentMailing(document, current.mailings[document.ID], states).Status == parentbilling.LetterMailQueued {
+	last := documentMailing(document, current.mailings[document.ID], states)
+	if last.Status == parentbilling.LetterMailQueued {
 		return parentbilling.BillingLetterMailing{}, parentbilling.ErrLetterMailPending
+	}
+	if last.MailOutcome == parentbilling.LetterMailOutcomeDelayed {
+		return parentbilling.BillingLetterMailing{}, parentbilling.ErrLetterMailDelayed
 	}
 	file, err := m.store.DocumentLetter(ctx, reviewer.OrganizationID, current.run.ID, document.ID)
 	if err != nil {
@@ -323,7 +327,7 @@ func documentMailing(document parentbilling.BillingDocument, mailings []parentbi
 		mailing.Status = parentbilling.LetterMailUnknown
 		return mailing
 	}
-	mailing.Status, mailing.Attempts, mailing.SentAt = state.Status, state.Attempts, state.SentAt
+	mailing.Status, mailing.Attempts, mailing.SentAt, mailing.MailOutcome = state.Status, state.Attempts, state.SentAt, state.Outcome
 	return mailing
 }
 

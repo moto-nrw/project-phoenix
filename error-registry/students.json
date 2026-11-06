@@ -543,6 +543,18 @@
       "class": "input",
       "parameters": [],
       "legacy": "students.accident_signature_invalid"
+    },
+    {
+      "code": "students.guardian_email_block_needs_review",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.guardian_email_block_needs_review"
+    },
+    {
+      "code": "students.guardian_email_block_lift_failed",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "students.guardian_email_block_lift_failed"
     }
   ]
 }

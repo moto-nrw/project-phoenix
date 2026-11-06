@@ -253,6 +253,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.family_not_found"
+    },
+    {
+      "code": "parent_billing.letter_mail_delayed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.letter_mail_delayed"
     }
   ]
 }

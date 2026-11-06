@@ -44,6 +44,12 @@ var (
 	// outbox did not take. Nothing of the access was kept; the school can try
 	// again (#4602).
 	ErrGuardianAccessMailNotQueued = errors.New("guardian access email could not be queued")
+	// ErrGuardianEmailAddressBlocked reports an invitation the school's list
+	// would hold back: nothing was kept, and the school checks the address first.
+	ErrGuardianEmailAddressBlocked = errors.New("the guardian's email address is blocked")
+	// ErrInvitationMailDelayed reports a send while the mail server still tries
+	// to deliver the last mail: a second one would only arrive twice.
+	ErrInvitationMailDelayed = errors.New("the last invitation mail is delayed")
 
 	// ErrAccountLifecycleUnavailable reports a module composed without the
 	// account-lifecycle dependencies (repository fixtures, CLI roots that

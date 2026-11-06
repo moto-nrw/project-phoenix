@@ -265,6 +265,9 @@ func (l *AccountLifecycle) resolveInviteNow(ctx context.Context, req domain.Invi
 
 	// No account yet: issue a token invitation for this child. The upgrade
 	// (if any) was already applied above, so the row's flag stays false.
+	if err := l.refuseBlockedMail(ctx, tenantID, profile); err != nil {
+		return nil, failed(opGuardianInviteToStudent, err)
+	}
 	invitation, err := l.createStudentInvitation(ctx, req, profile, tenantID, domain.GuardianInvitationApprovalNotRequired, profileCreated, false)
 	if err != nil {
 		return nil, err

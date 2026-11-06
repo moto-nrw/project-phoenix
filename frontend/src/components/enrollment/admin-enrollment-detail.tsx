@@ -39,7 +39,13 @@ import {
   listAdminChildOfferingAdjustments,
   restoreAdminRequest,
   updateAdminChildOfferings,
+  getAdminRequestMails,
+  type AdminRequestMail,
 } from "~/lib/enrollment-admin-api";
+import {
+  CHECK_ADDRESS_AT_GUARDIAN,
+  mailStatusCopy,
+} from "~/lib/email-delivery-status";
 import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
 import {
   availableCareOfferings,
@@ -503,6 +509,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           </div>
 
           <aside className="border-t border-gray-100 bg-gray-50/70 p-4 sm:p-6 lg:border-t-0 lg:border-l">
+            <RequestMailsCard requestId={requestId} />
             <ReviewSidebar
               childStats={childStats}
               data={data}
@@ -746,6 +753,79 @@ function ChildInformationCard({
         )}
       </div>
     </article>
+  );
+}
+
+const REQUEST_MAIL_LABELS: Record<string, string> = {
+  enrollment_submitted: "Eingangsbestätigung",
+  enrollment_approved: "Zusage",
+  enrollment_waitlisted: "Warteliste",
+  enrollment_rejected: "Absage",
+  enrollment_rollover_opt_in: "Verlängerung",
+  enrollment_rollover_opt_out: "Verlängerung",
+  enrollment_change_request_question: "Rückfrage zur Änderung",
+  enrollment_change_request_approved: "Änderung angenommen",
+  enrollment_change_request_rejected: "Änderung abgelehnt",
+};
+
+// What became of the mails to the family (#5934). Stays away while none exists:
+// a card that always reads „keine Mail“ tells the school nothing.
+function RequestMailsCard({ requestId }: Readonly<{ requestId: string }>) {
+  const [mails, setMails] = useState<AdminRequestMail[]>([]);
+  const load = useApiLoadError();
+  const { show: showLoadError, clear: clearLoadError } = load;
+  const refresh = useCallback(async () => {
+    try {
+      setMails(await getAdminRequestMails(requestId));
+      clearLoadError();
+    } catch (err) {
+      logger.error("enrollment_request_mails_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showLoadError(err, {
+        object: "der Stand der E-Mails",
+        retry: () => void refresh(),
+      });
+    }
+  }, [requestId, showLoadError, clearLoadError]);
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  if (load.error) return <LoadErrorAlert error={load.error} className="mb-4" />;
+  if (mails.length === 0) return null;
+  const marked = mails.some((mail) => mail.address_mark);
+  return (
+    <SectionCard
+      title="E-Mails an die Familie"
+      description="Hier sehen Sie, ob die Mails zu dieser Anmeldung angekommen sind."
+      className="mb-4"
+    >
+      <ul className="divide-y divide-gray-100">
+        {mails.map((mail, index) => {
+          const copy = mailStatusCopy(mail.outcome, mail.address_mark);
+          return (
+            <li
+              key={`${mail.kind}-${index}`}
+              className="flex flex-wrap items-center justify-between gap-2 py-2"
+            >
+              <span className="text-sm text-gray-900">
+                {REQUEST_MAIL_LABELS[mail.kind] ?? "E-Mail"}
+              </span>
+              {copy && (
+                <StatusBadge label={copy.label} tone={copy.tone} compact />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {marked && (
+        <p className="mt-2 text-sm text-gray-600">
+          An die Adresse dieser Anmeldung geht keine Mail raus. Bitte sprechen
+          Sie die Familie direkt an. {CHECK_ADDRESS_AT_GUARDIAN}
+        </p>
+      )}
+    </SectionCard>
   );
 }
 

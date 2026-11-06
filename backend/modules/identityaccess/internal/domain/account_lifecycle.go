@@ -169,6 +169,12 @@ var (
 	// ErrGuardianAccessMailNotQueued reports an access mail the outbox did not
 	// take; the access it announces rolls back with it (#4602).
 	ErrGuardianAccessMailNotQueued = errors.New("guardian access email could not be queued")
+	// ErrGuardianEmailAddressBlocked reports an invitation the school's list
+	// would hold back.
+	ErrGuardianEmailAddressBlocked = errors.New("the guardian's email address is blocked")
+	// ErrInvitationMailDelayed reports a send while the mail server still tries
+	// to deliver the last mail.
+	ErrInvitationMailDelayed = errors.New("the last invitation mail is delayed")
 )
 
 // GuardianInvitationValidationError marks input rejected by the guardian
@@ -317,3 +323,22 @@ type PendingApprovalView struct {
 	ExpiresAt         time.Time
 	RoleUpgrade       bool
 }
+
+// GuardianMailBlock says why a new mail to a guardian would change nothing.
+type GuardianMailBlock string
+
+const (
+	// GuardianMailBlockAddress: the school's list holds the mail back.
+	GuardianMailBlockAddress GuardianMailBlock = "address"
+	// GuardianMailBlockDelayed: the mail server still tries the last mail.
+	GuardianMailBlockDelayed GuardianMailBlock = "delayed"
+)
+
+// InvitationMailState is what Delivery knows about the last mail of an invitation.
+type InvitationMailState struct {
+	Outcome     string
+	AddressMark string
+}
+
+// InvitationMailOutcomeDelayed is the outcome that stops a resend.
+const InvitationMailOutcomeDelayed = "delayed"

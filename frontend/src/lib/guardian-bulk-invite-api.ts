@@ -8,7 +8,12 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "GuardianBulkInviteAPI" });
 
 type BulkInviteProblemReason =
-  "missing_email" | "invalid_email" | "duplicate_email" | "email_not_queued";
+  | "missing_email"
+  | "invalid_email"
+  | "duplicate_email"
+  | "email_not_queued"
+  | "address_blocked"
+  | "mail_delayed";
 
 export interface BulkInviteProblem {
   guardianProfileId: string;

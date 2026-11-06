@@ -177,3 +177,12 @@ type CaptchaVerifier interface {
 	// Safe to expose on a public endpoint.
 	SiteKey(ctx context.Context) (string, error)
 }
+
+// RequestMailOutcome is what became of one mail to the family of an application
+// (#5934). Kind is one of the MailKind values.
+type RequestMailOutcome struct {
+	Kind        string     `json:"kind"`
+	Outcome     string     `json:"outcome"`
+	AddressMark string     `json:"address_mark,omitempty"`
+	OutcomeAt   *time.Time `json:"outcome_at,omitempty"`
+}

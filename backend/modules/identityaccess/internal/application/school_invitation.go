@@ -529,6 +529,13 @@ func (s *SchoolInvitation) ResendInvitation(ctx context.Context, invitationID, a
 		if err != nil {
 			return err
 		}
+		states, err := s.delivery.InvitationMailStates(ctx, invitation.TenantID, []int64{invitationID})
+		if err != nil {
+			return failed(opResendInvitation, err)
+		}
+		if states[invitationID].Outcome == domain.InvitationMailOutcomeDelayed {
+			return failed(opResendInvitation, domain.ErrInvitationMailDelayed)
+		}
 		token := uuid.Must(uuid.NewV4()).String()
 		extended, _, err := s.store.ExtendSchoolInvitation(ctx, invitationID, now.Add(s.expiry), now, token)
 		if err != nil {
@@ -559,6 +566,27 @@ func (s *SchoolInvitation) inUnitListPendingInvitations(ctx context.Context) ([]
 	invitations, _, err := s.store.ListRedeemableSchoolInvitations(ctx, s.now())
 	if err != nil {
 		return nil, failed("list invitations", err)
+	}
+	return s.withMailStates(ctx, invitations)
+}
+
+// withMailStates adds what Delivery knows about the last mail of each
+// invitation, in one read for the whole list.
+func (s *SchoolInvitation) withMailStates(ctx context.Context, invitations []domain.SchoolInvitation) ([]domain.SchoolInvitation, error) {
+	if len(invitations) == 0 {
+		return invitations, nil
+	}
+	ids := make([]int64, len(invitations))
+	for i, invitation := range invitations {
+		ids[i] = invitation.ID
+	}
+	states, err := s.delivery.InvitationMailStates(ctx, invitations[0].TenantID, ids)
+	if err != nil {
+		return nil, failed("read invitation mail states", err)
+	}
+	for i := range invitations {
+		state := states[invitations[i].ID]
+		invitations[i].Delivery.Outcome, invitations[i].Delivery.AddressMark = state.Outcome, state.AddressMark
 	}
 	return invitations, nil
 }
@@ -728,6 +756,19 @@ type SchoolInvitationDelivery struct {
 
 func (d SchoolInvitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, expiry time.Duration) error {
 	return d.Source.DispatchSchoolInvitation(ctx, PublicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), expiry)
+}
+
+// InvitationMailStates translates Delivery's answer into the flow's vocabulary.
+func (d SchoolInvitationDelivery) InvitationMailStates(ctx context.Context, tenantID int64, invitationIDs []int64) (map[int64]domain.InvitationMailState, error) {
+	states, err := d.Source.InvitationMailStates(ctx, tenantID, invitationIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]domain.InvitationMailState, len(states))
+	for id, state := range states {
+		result[id] = domain.InvitationMailState(state)
+	}
+	return result, nil
 }
 
 func (d SchoolInvitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, rolePermissions []string) error {

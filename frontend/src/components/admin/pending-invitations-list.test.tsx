@@ -343,3 +343,51 @@ describe("PendingInvitationsList", () => {
     });
   });
 });
+
+describe("PendingInvitationsList mail state (#5934)", () => {
+  const invitation = (
+    overrides: Partial<PendingInvitation>,
+  ): PendingInvitation => ({
+    id: 1,
+    email: "neu@example.com",
+    roleId: "2",
+    roleName: "Betreuer",
+    createdBy: 1,
+    expiresAt: "2099-01-01T12:00:00Z",
+    ...overrides,
+  });
+
+  it.each([
+    ["accepted", "Versendet"],
+    ["delivered", "Zugestellt"],
+    ["undeliverable", "Nicht zustellbar"],
+  ] as const)("names the mail state %s", async (mailOutcome, label) => {
+    mockListPendingInvitations.mockResolvedValue([invitation({ mailOutcome })]);
+    render(<PendingInvitationsList refreshKey={0} />);
+    expect(await screen.findByText(label)).toBeInTheDocument();
+  });
+
+  it("explains a delay and offers no second mail", async () => {
+    mockListPendingInvitations.mockResolvedValue([
+      invitation({ mailOutcome: "delayed" }),
+    ]);
+    render(<PendingInvitationsList refreshKey={0} />);
+    expect(await screen.findByText("Verzögert")).toBeInTheDocument();
+    expect(screen.getByText(/nicht noch einmal/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für/ }));
+    expect(
+      screen.getByRole("menuitem", { name: "Löschen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Erneut senden" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("tells the next step for an address that refused the mail", async () => {
+    mockListPendingInvitations.mockResolvedValue([
+      invitation({ mailOutcome: "undeliverable", addressMark: "failed" }),
+    ]);
+    render(<PendingInvitationsList refreshKey={0} />);
+    expect(await screen.findByText(/laden Sie neu ein/)).toBeInTheDocument();
+  });
+});

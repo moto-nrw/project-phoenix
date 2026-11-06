@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	api "github.com/moto-nrw/project-phoenix/roots/owners"
 
@@ -32,6 +33,22 @@ func (a testEnrollmentDelivery) CountRelatedEmails(ctx context.Context, relatedT
 	}
 	rows, err := a.module.Statuses(ctx, tenantID.Int64(), deliveryContract.TransportEmail, deliveryContract.RelatedEntity{Type: relatedType, ID: relatedID})
 	return len(rows), err
+}
+
+func (a testEnrollmentDelivery) RelatedEmailOutcomes(ctx context.Context, relatedType string, relatedID int64) ([]capability.RequestMailOutcome, error) {
+	tenantID, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	reports, err := a.module.(delivery.EmailOutcomes).EmailOutcomes(ctx, tenantID.Int64(), deliveryContract.EmailOutcomeQuery{RelatedType: relatedType, RelatedIDs: []int64{relatedID}})
+	if err != nil {
+		return nil, err
+	}
+	outcomes := make([]capability.RequestMailOutcome, 0, len(reports))
+	for _, report := range reports {
+		outcomes = append(outcomes, capability.RequestMailOutcome{Kind: report.Kind, Outcome: string(report.Outcome), AddressMark: string(report.Mark), OutcomeAt: report.OutcomeAt})
+	}
+	return outcomes, nil
 }
 
 func (a testEnrollmentDelivery) CancelRelatedEmails(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error) {

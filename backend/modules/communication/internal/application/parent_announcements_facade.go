@@ -40,6 +40,7 @@ func (a parentAnnouncementDeliveryAdapter) ListForEntity(ctx context.Context, te
 			DeliveryID: row.DeliveryID, GuardianProfileID: row.GuardianProfileID, AccountID: row.AccountID,
 			FirstName: row.FirstName, LastName: row.LastName, RecipientEmail: row.RecipientEmail,
 			Reachability: row.Reachability, EmailStatus: row.EmailStatus, LastError: row.LastError,
+			MailOutcome: row.MailOutcome, AddressMark: row.AddressMark,
 			SentAt: row.SentAt, Attempts: row.Attempts,
 		})
 	}
@@ -180,6 +181,8 @@ func (p *parentAnnouncements) ParentAnnouncementLetterStatus(ctx context.Context
 			ChildrenFulfilled: status.Summary.ChildrenFulfilled, ChildrenOpen: status.Summary.ChildrenOpen,
 			ChildrenWithoutPortal: status.Summary.ChildrenWithoutPortal, RecipientsTotal: status.Summary.RecipientsTotal,
 			EmailsSent: status.Summary.EmailsSent, EmailsPending: status.Summary.EmailsPending,
+			EmailsDelivered: status.Summary.EmailsDelivered, EmailsDelayed: status.Summary.EmailsDelayed,
+			EmailsAddressCheck: status.Summary.EmailsAddressCheck, EmailsResendable: status.Summary.EmailsResendable,
 			EmailsFailed: status.Summary.EmailsFailed, WithoutEmail: status.Summary.WithoutEmail,
 			WithoutPortal: status.Summary.WithoutPortal,
 		},
@@ -188,6 +191,7 @@ func (p *parentAnnouncements) ParentAnnouncementLetterStatus(ctx context.Context
 		result.Recipients = append(result.Recipients, communication.ParentAnnouncementLetterRecipient{
 			FirstName: recipient.FirstName, LastName: recipient.LastName, RecipientEmail: recipient.RecipientEmail,
 			EmailStatus: recipient.EmailStatus, Reachability: recipient.Reachability,
+			MailOutcome: recipient.MailOutcome, AddressMark: recipient.AddressMark,
 			LastError: recipient.LastError, SentAt: recipient.SentAt,
 		})
 	}

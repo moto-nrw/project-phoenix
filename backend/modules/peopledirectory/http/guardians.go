@@ -165,6 +165,14 @@ type GuardianRuntime struct {
 	ApproveInvitation          func(ctx context.Context, invitationID, actorAccountID int64) error
 	RejectInvitation           func(ctx context.Context, invitationID, actorAccountID int64) error
 
+	// GuardianEmailStates reports the state of the addresses in the request's
+	// transaction, keyed by the address in lower case (#5934).
+	GuardianEmailStates func(ctx context.Context, addresses []string) (map[string]GuardianEmailState, error)
+	// StopGuardianEmails and LiftGuardianEmailBlock open their own short
+	// transactions: lifting waits for the mail provider.
+	StopGuardianEmails     func(ctx context.Context, guardianID int64) error
+	LiftGuardianEmailBlock func(ctx context.Context, guardianID int64) error
+
 	RenderPaymentExport func(rows []peopledirectory.GuardianPaymentRow, format string) (ExportFile, error)
 
 	Log *slog.Logger
@@ -226,6 +234,10 @@ func (rs *GuardianResource) Router() chi.Router {
 		// (emergency cases); writes add the per-student check in the handler.
 		r.With(usersRead, withTx).Get("/students/{studentId}/guardians", rs.getStudentGuardians)
 		r.With(usersRead, withTx).Get("/{id}/students", rs.getGuardianStudents)
+		r.With(usersRead, withTx).Get("/students/{studentId}/email-status", rs.getStudentGuardianEmailStatus)
+		// No request transaction: lifting waits for the mail provider (#5934).
+		r.With(usersUpdate).Post("/{id}/email-block", rs.stopGuardianEmails)
+		r.With(usersUpdate).Delete("/{id}/email-block", rs.liftGuardianEmailBlock)
 		r.With(usersUpdate, withTx).Post("/students/{studentId}/guardians", rs.linkGuardianToStudent)
 		// Atomic create-or-link of one or more guardians (#819).
 		r.With(usersUpdate, withTx).Post("/students/{studentId}/guardians/batch", rs.createStudentGuardians)

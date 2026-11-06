@@ -284,9 +284,19 @@ func intentStatuses(transport deliveryContract.Transport, rows []domain.Intent) 
 			ID: row.ID, IdempotencyKey: row.IdempotencyKey, Transport: transport, State: deliveryContract.State(row.Status), Attempts: row.Attempts,
 			LastError: row.LastError, ProviderResult: providerResult, NextAttemptAt: row.NextRetryAt,
 			SentAt: row.SentAt, DeadLetterAt: row.DeadLetterAt, CancelledAt: row.CancelledAt,
+			Outcome: intentOutcome(transport, row),
 		})
 	}
 	return statuses, nil
+}
+
+// intentOutcome is the outcome of a mail. A Träger has no school list, so a mail
+// of a Träger never carries a mark.
+func intentOutcome(transport deliveryContract.Transport, row domain.Intent) deliveryContract.EmailOutcome {
+	if transport != deliveryContract.TransportEmail {
+		return ""
+	}
+	return deliveryContract.EmailOutcomeOf(row.Status, row.DeliveryState, row.LastError, "")
 }
 
 // intents reads the intents of one related entity and observes the store's answer.

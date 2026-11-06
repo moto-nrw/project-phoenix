@@ -1,5 +1,6 @@
 DELETE /api/guardians/students/{studentId}/guardians/{guardianId}
 DELETE /api/guardians/{id}
+DELETE /api/guardians/{id}/email-block
 DELETE /api/guardians/{id}/phone-numbers/{phoneId}
 GET /api/guardians/
 GET /api/guardians/invitable
@@ -7,6 +8,7 @@ GET /api/guardians/invitations/pending
 GET /api/guardians/invitations/pending-approval
 GET /api/guardians/payment-overview
 GET /api/guardians/search
+GET /api/guardians/students/{studentId}/email-status
 GET /api/guardians/students/{studentId}/guardians
 GET /api/guardians/without-account
 GET /api/guardians/{id}
@@ -22,6 +24,7 @@ POST /api/guardians/payment-overview/export
 POST /api/guardians/students/{studentId}/guardians
 POST /api/guardians/students/{studentId}/guardians/batch
 POST /api/guardians/students/{studentId}/invite
+POST /api/guardians/{id}/email-block
 POST /api/guardians/{id}/invite
 POST /api/guardians/{id}/payment/reveal
 POST /api/guardians/{id}/phone-numbers/

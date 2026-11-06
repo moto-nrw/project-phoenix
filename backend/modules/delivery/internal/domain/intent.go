@@ -73,6 +73,7 @@ type Intent struct {
 	LeaseExpiresAt    *time.Time
 	ProviderResult    json.RawMessage
 	LastError         *string
+	DeliveryState     *string
 	SentAt            *time.Time
 	DeadLetterAt      *time.Time
 	CancelledAt       *time.Time

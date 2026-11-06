@@ -26,6 +26,8 @@ const PROBLEM_LABEL: Record<BulkInviteProblem["reason"], string> = {
   invalid_email: "E-Mail-Adresse ist falsch geschrieben",
   duplicate_email: "Gleiche E-Mail-Adresse wie eine andere Person",
   email_not_queued: "E-Mail konnte gerade nicht verschickt werden",
+  address_blocked: "E-Mail-Adresse ist gesperrt",
+  mail_delayed: "Die letzte E-Mail ist noch unterwegs",
 };
 
 const PROBLEM_ACTION: Record<BulkInviteProblem["reason"], string> = {
@@ -33,6 +35,9 @@ const PROBLEM_ACTION: Record<BulkInviteProblem["reason"], string> = {
   invalid_email: "Prüfen Sie die E-Mail-Adresse beim Kind.",
   duplicate_email: "Prüfen Sie die E-Mail-Adressen bei den Eltern.",
   email_not_queued: "Versuchen Sie es später noch einmal.",
+  address_blocked:
+    "Prüfen Sie die Adresse beim Kind unter „Erziehungsberechtigte“.",
+  mail_delayed: "Bitte warten Sie, sonst kommt die Mail doppelt an.",
 };
 
 function parents(count: number): string {

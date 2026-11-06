@@ -27,6 +27,8 @@ import {
   resendInvitation,
   revokeInvitation,
 } from "~/lib/invitation-api";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { mailStatusCopy } from "~/lib/email-delivery-status";
 import type { PendingInvitation } from "~/lib/invitation-helpers";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { isValidDateString, isDateExpired } from "~/lib/utils/date-helpers";
@@ -39,6 +41,17 @@ interface PendingInvitationsListProps {
   /** Nach dem Widerrufen: eine externe Person steht wieder auf „Kein
    * Konto“ (#4573), die Personalliste lädt ihren Stand neu. */
   readonly onRevoked?: () => void;
+}
+
+// Invitations to staff still go out from a marked address until the list has
+// proven itself (#5935), so the note names the address, not a block. The address
+// of an invitation is fixed: the next step is a new invitation.
+function staffMailNote(invitation: PendingInvitation): string | null {
+  if (invitation.addressMark || invitation.mailOutcome === "undeliverable") {
+    return "Die Mail kam nicht an. Stimmt die Adresse nicht, löschen Sie die Einladung und laden Sie neu ein.";
+  }
+  if (invitation.mailOutcome === "accepted") return null;
+  return mailStatusCopy(invitation.mailOutcome)?.explanation ?? null;
 }
 
 export function PendingInvitationsList({
@@ -234,14 +247,32 @@ export function PendingInvitationsList({
                 const expiresDate = isValidDate
                   ? new Date(invitation.expiresAt)
                   : null;
+                const mailCopy = mailStatusCopy(
+                  invitation.mailOutcome,
+                  invitation.addressMark,
+                );
 
                 return (
                   <tr
                     key={invitation.id}
                     className="transition-colors hover:bg-gray-50/50"
                   >
-                    <td className="max-w-0 truncate px-3 py-2 text-xs font-medium text-gray-900 md:px-4 md:py-3 md:text-sm">
-                      {invitation.email}
+                    <td className="max-w-0 px-3 py-2 text-xs font-medium text-gray-900 md:px-4 md:py-3 md:text-sm">
+                      <span className="block truncate">{invitation.email}</span>
+                      {mailCopy && (
+                        <span className="mt-1 block">
+                          <StatusBadge
+                            label={mailCopy.label}
+                            tone={mailCopy.tone}
+                            compact
+                          />
+                        </span>
+                      )}
+                      {staffMailNote(invitation) && (
+                        <span className="mt-1 block text-xs font-normal whitespace-normal text-gray-600">
+                          {staffMailNote(invitation)}
+                        </span>
+                      )}
                     </td>
                     <td className="hidden truncate px-3 py-2 text-xs text-gray-600 sm:table-cell md:px-4 md:py-3 md:text-sm">
                       {getRoleDisplayName(invitation.roleName)}
@@ -279,7 +310,8 @@ export function PendingInvitationsList({
                         <OverflowMenu
                           ariaLabel={`Aktionen für ${invitation.email}`}
                           items={[
-                            ...(isExpired
+                            ...(isExpired ||
+                            invitation.mailOutcome === "delayed"
                               ? []
                               : [
                                   {

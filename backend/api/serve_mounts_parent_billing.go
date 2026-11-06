@@ -130,7 +130,7 @@ func (p parentBillingLetterPost) LetterMailStates(ctx context.Context, organizat
 	states := make([]parentbilling.BillingLetterMailState, len(statuses))
 	for i, status := range statuses {
 		states[i] = parentbilling.BillingLetterMailState{
-			DeliveryID: status.ID, Status: parentBillingMailStatus(status), Attempts: status.Attempts, SentAt: status.SentAt,
+			DeliveryID: status.ID, Status: parentBillingMailStatus(status), Attempts: status.Attempts, SentAt: status.SentAt, Outcome: string(status.Outcome),
 		}
 	}
 	return states, nil

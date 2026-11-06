@@ -197,10 +197,13 @@ func (r *EmailReconciliation) LiftEmailSuppression(ctx context.Context, tenantID
 	if err != nil {
 		return err
 	}
-	if listed && reason == domain.EmailDeliveryComplained {
+	if listed && reason == domain.EmailSuppressionComplained {
 		return deliveryContract.ErrEmailSuppressionNeedsReview
 	}
-	if r.api != nil {
+	// The school's own stop says nothing about the provider's list. On plain SMTP
+	// there is no provider list at all: the school's list is the only block, and
+	// the next refusal of the server puts the address back.
+	if r.api != nil && reason != domain.EmailSuppressionSchoolStop {
 		if err := r.api.LiftSuppression(ctx, address); err != nil {
 			if errors.Is(err, domain.ErrSuppressionNeedsReview) {
 				return deliveryContract.ErrEmailSuppressionNeedsReview
@@ -209,4 +212,13 @@ func (r *EmailReconciliation) LiftEmailSuppression(ctx context.Context, tenantID
 		}
 	}
 	return r.store.DeleteEmailSuppression(ctx, tenantID, address)
+}
+
+// StopEmails marks an address on the school's own decision.
+func (r *EmailReconciliation) StopEmails(ctx context.Context, tenantID int64, address string) error {
+	address = strings.TrimSpace(address)
+	if tenantID <= 0 || address == "" {
+		return errors.New("delivery: school and address are required")
+	}
+	return r.store.StopEmailsToAddress(ctx, tenantID, address)
 }

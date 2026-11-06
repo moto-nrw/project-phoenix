@@ -16,11 +16,12 @@ import (
 var reconcileNow = time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
 
 type reconcileStore struct {
+	stopped   int
 	mails     []domain.ProviderMail
 	query     domain.ProviderMailQuery
 	checked   []int64
 	recorded  []domain.EmailDeliveryEvent
-	reason    domain.EmailDeliveryState
+	reason    domain.EmailSuppressionReason
 	listed    bool
 	deleted   int
 	recordErr error
@@ -36,7 +37,12 @@ func (s *reconcileStore) MarkEmailDeliveryChecked(_ context.Context, id int64, _
 	return nil
 }
 
-func (s *reconcileStore) EmailSuppressionReason(context.Context, int64, string) (domain.EmailDeliveryState, bool, error) {
+func (s *reconcileStore) StopEmailsToAddress(context.Context, int64, string) error {
+	s.stopped++
+	return nil
+}
+
+func (s *reconcileStore) EmailSuppressionReason(context.Context, int64, string) (domain.EmailSuppressionReason, bool, error) {
 	return s.reason, s.listed, nil
 }
 
@@ -79,6 +85,10 @@ func (a *stubProviderAPI) MessageEvents(_ context.Context, id string) ([]domain.
 func (a *stubProviderAPI) LiftSuppression(_ context.Context, address string) error {
 	a.lifted = append(a.lifted, address)
 	return a.liftErr
+}
+
+func reconcilerWithoutProvider(store *reconcileStore) *EmailReconciliation {
+	return NewEmailReconciliation(store, nil, false, slog.New(slog.DiscardHandler), func(domain.Observation) {})
 }
 
 func reconciler(store *reconcileStore, api *stubProviderAPI) *EmailReconciliation {
@@ -202,7 +212,7 @@ func TestReconciliationKeepsGoingAfterOneFailedMail(t *testing.T) {
 
 func TestLiftSuppressionFreesTheAddress(t *testing.T) {
 	t.Parallel()
-	store := &reconcileStore{listed: true, reason: domain.EmailDeliveryFailed}
+	store := &reconcileStore{listed: true, reason: domain.EmailSuppressionFailed}
 	api := &stubProviderAPI{}
 
 	require.NoError(t, reconciler(store, api).LiftEmailSuppression(context.Background(), 7, " eltern@example.com "))
@@ -213,7 +223,7 @@ func TestLiftSuppressionFreesTheAddress(t *testing.T) {
 
 func TestLiftSuppressionRefusesAComplaint(t *testing.T) {
 	t.Parallel()
-	store := &reconcileStore{listed: true, reason: domain.EmailDeliveryComplained}
+	store := &reconcileStore{listed: true, reason: domain.EmailSuppressionComplained}
 	api := &stubProviderAPI{}
 
 	err := reconciler(store, api).LiftEmailSuppression(context.Background(), 7, "eltern@example.com")
@@ -225,7 +235,7 @@ func TestLiftSuppressionRefusesAComplaint(t *testing.T) {
 
 func TestLiftSuppressionHonorsTheProvidersRefusal(t *testing.T) {
 	t.Parallel()
-	store := &reconcileStore{listed: true, reason: domain.EmailDeliveryFailed}
+	store := &reconcileStore{listed: true, reason: domain.EmailSuppressionFailed}
 
 	err := reconciler(store, &stubProviderAPI{liftErr: domain.ErrSuppressionNeedsReview}).LiftEmailSuppression(context.Background(), 7, "eltern@example.com")
 
@@ -235,7 +245,7 @@ func TestLiftSuppressionHonorsTheProvidersRefusal(t *testing.T) {
 
 func TestLiftSuppressionKeepsTheListWhenTheProviderFails(t *testing.T) {
 	t.Parallel()
-	store := &reconcileStore{listed: true, reason: domain.EmailDeliveryFailed}
+	store := &reconcileStore{listed: true, reason: domain.EmailSuppressionFailed}
 
 	err := reconciler(store, &stubProviderAPI{liftErr: errors.New("answered 500")}).LiftEmailSuppression(context.Background(), 7, "eltern@example.com")
 
@@ -245,10 +255,38 @@ func TestLiftSuppressionKeepsTheListWhenTheProviderFails(t *testing.T) {
 
 func TestLiftSuppressionWithoutProviderFreesTheSchoolsList(t *testing.T) {
 	t.Parallel()
-	store := &reconcileStore{listed: true, reason: domain.EmailDeliveryFailed}
+	store := &reconcileStore{listed: true, reason: domain.EmailSuppressionFailed}
 	reconciliation := NewEmailReconciliation(store, nil, false, slog.New(slog.DiscardHandler), func(domain.Observation) {})
 
 	require.NoError(t, reconciliation.LiftEmailSuppression(context.Background(), 7, "eltern@example.com"))
 
 	assert.Equal(t, 1, store.deleted)
+}
+
+// Strato and Brevo have no provider list to ask: the school's list is the only
+// block, so it is what lifting clears. The next refusal of the server puts the
+// address back (#5934).
+func TestLiftSuppressionWorksWithoutAProvider(t *testing.T) {
+	t.Parallel()
+	store := &reconcileStore{listed: true, reason: domain.EmailSuppressionFailed}
+	require.NoError(t, reconcilerWithoutProvider(store).LiftEmailSuppression(context.Background(), 7, "eltern@example.com"))
+	assert.Equal(t, 1, store.deleted)
+}
+
+func TestLiftSuppressionOfASchoolStopLeavesTheProviderAlone(t *testing.T) {
+	t.Parallel()
+	store := &reconcileStore{listed: true, reason: domain.EmailSuppressionSchoolStop}
+	api := &stubProviderAPI{}
+	require.NoError(t, reconciler(store, api).LiftEmailSuppression(context.Background(), 7, "eltern@example.com"))
+	assert.Empty(t, api.lifted)
+	assert.Equal(t, 1, store.deleted)
+}
+
+func TestStopEmailsMarksTheAddress(t *testing.T) {
+	t.Parallel()
+	store := &reconcileStore{}
+	require.NoError(t, reconcilerWithoutProvider(store).StopEmails(context.Background(), 7, " eltern@example.com "))
+	assert.Equal(t, 1, store.stopped)
+	require.Error(t, reconcilerWithoutProvider(store).StopEmails(context.Background(), 7, " "))
+	assert.Equal(t, 1, store.stopped)
 }

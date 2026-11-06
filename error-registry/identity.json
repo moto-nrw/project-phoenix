@@ -331,6 +331,18 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "identity.username_taken"
+    },
+    {
+      "code": "identity.guardian_email_address_blocked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.guardian_email_address_blocked"
+    },
+    {
+      "code": "identity.invitation_mail_delayed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.invitation_mail_delayed"
     }
   ]
 }

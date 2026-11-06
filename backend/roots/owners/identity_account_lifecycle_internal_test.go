@@ -27,10 +27,10 @@ func TestLifecycleDependenciesRequireEveryDependency(t *testing.T) {
 func TestGuardianInvitationDependenciesRequireEveryDependency(t *testing.T) {
 	t.Parallel()
 
-	_, _, err := GuardianInvitationDependencies(nil, nil, nil, nil, "http://localhost:3000", slog.Default())
+	_, _, err := GuardianInvitationDependencies(nil, nil, nil, nil, nil, "http://localhost:3000", slog.Default())
 	require.EqualError(t, err, "identity access composition: the guardian invitation seams need the school directory, the e-mail outbox and the enrollment claim")
 
-	_, _, err = GuardianInvitationDependencies(nil, struct{ organizationtenancy.Query }{}, struct{ MailResultOutbox }{}, struct {
+	_, _, err = GuardianInvitationDependencies(nil, struct{ organizationtenancy.Query }{}, struct{ MailResultOutbox }{}, NoEmailOutcomes{}, struct {
 		GuardianEnrollmentClaims
 	}{}, "http://localhost:3000", nil)
 	require.EqualError(t, err, "identity access composition: the guardian invitation seams need a logger")

@@ -26,6 +26,9 @@ type Store interface {
 	Cancel(context.Context, int64, domain.Transport, string, int64, string, time.Time) (int64, error)
 	Statuses(context.Context, int64, domain.Transport, string, int64) ([]domain.Intent, error)
 	TraegerEmailStatuses(context.Context, int64, string, int64) ([]domain.Intent, error)
+	EmailOutcomes(context.Context, int64, deliveryContract.EmailOutcomeQuery) ([]deliveryContract.EmailOutcomeReport, error)
+	LatestEmailOutcomes(ctx context.Context, tenantID int64, kinds, addresses []string) (map[string]deliveryContract.EmailOutcomeReport, error)
+	EmailAddressMarks(ctx context.Context, tenantID int64, addresses []string) (map[string]deliveryContract.EmailAddressMark, error)
 	EmailStatus(context.Context, int64, int64) (domain.Intent, bool, error)
 	Backlog(context.Context) (int, error)
 	OldestPendingAge(context.Context, time.Time) (time.Duration, error)
@@ -53,9 +56,9 @@ type RetentionStore interface {
 	// DeleteExpiredEmailDeliveryEvents removes the events of the mails that
 	// ended before the instant, including those of cleared key-only mails.
 	DeleteExpiredEmailDeliveryEvents(ctx context.Context, tenantID int64, before time.Time) (int, error)
-	// DeleteExpiredEmailSuppressions removes addresses whose last event is
-	// older than the instant and addresses nobody at the school holds any more.
-	DeleteExpiredEmailSuppressions(ctx context.Context, tenantID int64, before time.Time) (int, error)
+	// DeleteUnheldEmailSuppressions removes marked addresses nobody at the
+	// school holds any more. Every other mark stays until the school checked it.
+	DeleteUnheldEmailSuppressions(ctx context.Context, tenantID int64) (int, error)
 	// DeleteExpiredEmailDeliveryLogs removes the delivery logs of the
 	// expired mails and the logs without a mail written before the instant.
 	DeleteExpiredEmailDeliveryLogs(ctx context.Context, tenantID int64, before time.Time) (int, error)

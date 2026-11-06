@@ -8,6 +8,7 @@ import (
 
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
 	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -59,7 +60,7 @@ func (a announcementDeliveryAdapter) ListForEntity(ctx context.Context, tenantID
 			DeliveryID: row.DeliveryID, GuardianProfileID: row.GuardianProfileID, AccountID: row.AccountID,
 			FirstName: row.FirstName, LastName: row.LastName, RecipientEmail: row.RecipientEmail,
 			Reachability: row.Reachability, EmailStatus: row.EmailStatus, LastError: row.LastError,
-			SentAt: row.SentAt, Attempts: row.Attempts,
+			SentAt: row.SentAt, Attempts: row.Attempts, MailOutcome: string(row.Outcome), AddressMark: string(row.AddressMark),
 		})
 	}
 	return result, nil
@@ -75,7 +76,10 @@ func (a announcementDeliveryAdapter) ClaimFailedDelivery(ctx context.Context, te
 
 // enrollmentDeliveryAdapter counts and cancels the mails of an application
 // of the school in context.
-type enrollmentDeliveryAdapter struct{ module delivery.Capability }
+type enrollmentDeliveryAdapter struct {
+	module   delivery.Capability
+	outcomes delivery.EmailOutcomes
+}
 
 func (a enrollmentDeliveryAdapter) CountRelatedEmails(ctx context.Context, relatedType string, relatedID int64) (int, error) {
 	tenantID, err := tenant.TenantFromContext(ctx)
@@ -84,6 +88,25 @@ func (a enrollmentDeliveryAdapter) CountRelatedEmails(ctx context.Context, relat
 	}
 	rows, err := a.module.Statuses(ctx, tenantID.Int64(), deliveryContract.TransportEmail, deliveryContract.RelatedEntity{Type: relatedType, ID: relatedID})
 	return len(rows), err
+}
+
+// RelatedEmailOutcomes reports what became of the mails of an application.
+func (a enrollmentDeliveryAdapter) RelatedEmailOutcomes(ctx context.Context, relatedType string, relatedID int64) ([]enrollment.RequestMailOutcome, error) {
+	tenantID, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	reports, err := a.outcomes.EmailOutcomes(ctx, tenantID.Int64(), deliveryContract.EmailOutcomeQuery{RelatedType: relatedType, RelatedIDs: []int64{relatedID}})
+	if err != nil {
+		return nil, err
+	}
+	outcomes := make([]enrollment.RequestMailOutcome, 0, len(reports))
+	for _, report := range reports {
+		if deliveryContract.IsParentMail(report.Kind) {
+			outcomes = append(outcomes, enrollment.RequestMailOutcome{Kind: report.Kind, Outcome: string(report.Outcome), AddressMark: string(report.Mark), OutcomeAt: report.OutcomeAt})
+		}
+	}
+	return outcomes, nil
 }
 
 func (a enrollmentDeliveryAdapter) CancelRelatedEmails(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error) {

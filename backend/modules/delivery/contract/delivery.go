@@ -89,6 +89,9 @@ type EmailDeliveryStatus struct {
 	LastError         *string    `json:"last_error,omitempty"`
 	SentAt            *time.Time `json:"sent_at,omitempty"`
 	Attempts          int        `json:"attempts"`
+	// Outcome is empty before a mail exists; AddressMark can be set without one.
+	Outcome     EmailOutcome     `json:"outcome,omitempty"`
+	AddressMark EmailAddressMark `json:"address_mark,omitempty"`
 }
 
 type GuardianDisplay struct {
@@ -220,6 +223,8 @@ type Status struct {
 	SentAt         *time.Time
 	DeadLetterAt   *time.Time
 	CancelledAt    *time.Time
+	// Outcome is set for a mail; a push has none.
+	Outcome EmailOutcome
 }
 
 type Observation struct {

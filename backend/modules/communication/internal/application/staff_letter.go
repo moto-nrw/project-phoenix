@@ -38,6 +38,8 @@ type EmailDeliveryStatus struct {
 	RecipientEmail    *string    `json:"recipient_email,omitempty"`
 	Reachability      string     `json:"reachability"`
 	EmailStatus       string     `json:"email_status"`
+	MailOutcome       string     `json:"mail_outcome,omitempty"`
+	AddressMark       string     `json:"address_mark,omitempty"`
 	LastError         *string    `json:"last_error,omitempty"`
 	SentAt            *time.Time `json:"sent_at,omitempty"`
 	Attempts          int        `json:"attempts"`
@@ -318,6 +320,10 @@ type LetterSummary struct {
 	ChildrenWithoutPortal int `json:"children_without_portal"`
 	RecipientsTotal       int `json:"recipients_total"`
 	EmailsSent            int `json:"emails_sent"`
+	EmailsDelivered       int `json:"emails_delivered"`
+	EmailsDelayed         int `json:"emails_delayed"`
+	EmailsAddressCheck    int `json:"emails_address_check"`
+	EmailsResendable      int `json:"emails_resendable"`
 	EmailsPending         int `json:"emails_pending"`
 	EmailsFailed          int `json:"emails_failed"`
 	WithoutEmail          int `json:"without_email"`
@@ -375,6 +381,7 @@ func (s *service) LetterStatus(ctx context.Context, id int64) (*LetterStatus, er
 		case "failed":
 			out.Summary.EmailsFailed++
 		}
+		addLetterMailOutcome(&out.Summary, r)
 		switch r.Reachability {
 		case reachabilityNoEmail:
 			out.Summary.WithoutEmail++
@@ -385,7 +392,29 @@ func (s *service) LetterStatus(ctx context.Context, id int64) (*LetterStatus, er
 	return out, nil
 }
 
+// addLetterMailOutcome counts what the provider reported and what a resend could
+// still change. A marked address is never resendable: the list would hold the
+// mail back again (#5934).
+func addLetterMailOutcome(summary *LetterSummary, r EmailDeliveryStatus) {
+	switch {
+	case r.AddressMark != "":
+		summary.EmailsAddressCheck++
+	case r.MailOutcome == mailOutcomeDelivered:
+		summary.EmailsDelivered++
+	case r.MailOutcome == mailOutcomeDelayed:
+		summary.EmailsDelayed++
+	case r.EmailStatus == "failed":
+		summary.EmailsResendable++
+	}
+}
+
 // --- Erinnern und Nachversenden (#2384) --------------------------------------
+
+// The outcomes of a mail the letter status counts, as Delivery names them.
+const (
+	mailOutcomeDelivered = "delivered"
+	mailOutcomeDelayed   = "delayed"
+)
 
 const letterReminderKicker = "Elternbrief — Bestätigung fehlt"
 

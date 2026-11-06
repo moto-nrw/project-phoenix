@@ -4,6 +4,8 @@ package api
 
 import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -59,7 +61,12 @@ func newGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	return GuardianTestModule{PeopleDirectory: people, runtime: NewGuardianDirectoryRuntime(guardian, lists.NewRendererService(), auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil
+	mailDelivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{DB: db.Pool(), People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {}})
+	if err != nil {
+		return GuardianTestModule{}, err
+	}
+	return GuardianTestModule{PeopleDirectory: people, runtime: NewGuardianDirectoryRuntime(guardian, lists.NewRendererService(), auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()),
+		GuardianEmailDelivery{Outcomes: mailDelivery.EmailOutcomes, Suppressions: mailDelivery.EmailReconciliation, Guardians: people})}, nil
 }
 
 // ParentGuardianRoleFixture supplies the canonical role preset as stored

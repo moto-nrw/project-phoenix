@@ -18,6 +18,11 @@ import {
   buildGuardianMailtoHref,
   buildGuardianTelHref,
 } from "./guardian-contact-actions";
+import type { GuardianEmailState } from "@/lib/guardian-api";
+import {
+  guardianAddressNextStep,
+  mailStatusCopy,
+} from "~/lib/email-delivery-status";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { displayEmail } from "~/lib/demo-build";
 import {
@@ -29,6 +34,8 @@ import {
   Shield,
   Globe,
   Send,
+  MailCheck,
+  MailX,
 } from "lucide-react";
 import {
   OverflowMenu,
@@ -80,6 +87,10 @@ interface GuardianListProps {
   readonly onEdit?: (guardian: GuardianWithRelationship) => void;
   readonly onInvite?: (guardian: GuardianWithRelationship) => void;
   readonly invitingGuardianId?: string | null;
+  /** Mail state per guardian ID; a guardian without an entry shows none. */
+  readonly emailStates?: Readonly<Record<string, GuardianEmailState>>;
+  readonly onStopEmails?: (guardian: GuardianWithRelationship) => void;
+  readonly onLiftEmailBlock?: (guardian: GuardianWithRelationship) => void;
   readonly readOnly?: boolean;
   readonly showRelationship?: boolean;
 }
@@ -115,6 +126,9 @@ export default function GuardianList({
   onEdit,
   onInvite,
   invitingGuardianId,
+  emailStates,
+  onStopEmails,
+  onLiftEmailBlock,
   readOnly = false,
   showRelationship = true,
 }: GuardianListProps) {
@@ -157,13 +171,42 @@ export default function GuardianList({
         onClick: () => onEdit(guardian),
       });
     }
+    const mark = emailStates?.[guardian.id]?.addressMark;
+    if (guardian.email && mark === "failed" && onLiftEmailBlock) {
+      items.push({
+        label: "Sperre aufheben",
+        icon: <MailCheck className="h-4 w-4" aria-hidden />,
+        onClick: () => onLiftEmailBlock(guardian),
+      });
+    }
+    if (guardian.email && mark === "school_stop" && onLiftEmailBlock) {
+      items.push({
+        label: "Mails wieder senden",
+        icon: <MailCheck className="h-4 w-4" aria-hidden />,
+        onClick: () => onLiftEmailBlock(guardian),
+      });
+    }
+    if (guardian.email && !mark && emailStates && onStopEmails) {
+      items.push({
+        label: "Mails stoppen",
+        icon: <MailX className="h-4 w-4" aria-hidden />,
+        onClick: () => onStopEmails(guardian),
+      });
+    }
     return items;
   };
 
   return (
     <div className="space-y-3">
       {guardians.map((guardian) => {
-        const showInvite = canInviteGuardian(guardian, onInvite);
+        const emailState = emailStates?.[guardian.id];
+        const mailCopy = mailStatusCopy(
+          emailState?.mailOutcome,
+          emailState?.addressMark,
+        );
+        // A new invitation would change nothing: the note below says why.
+        const showInvite =
+          canInviteGuardian(guardian, onInvite) && !emailState?.sendBlock;
         const showMissingEmailHint = inviteNeedsEmail(guardian, onInvite);
         const menuItems = buildGuardianMenu(guardian, showInvite);
 
@@ -183,6 +226,13 @@ export default function GuardianList({
                     <StatusBadge label="Primär" tone="gray" compact />
                   )}
                   <AccountStatusBadge status={guardian.accountStatus} />
+                  {mailCopy && (
+                    <StatusBadge
+                      label={mailCopy.label}
+                      tone={mailCopy.tone}
+                      compact
+                    />
+                  )}
                 </h4>
                 {showRelationship && (
                   <p className="mt-1 text-xs text-gray-600 sm:text-sm">
@@ -207,6 +257,15 @@ export default function GuardianList({
             {showMissingEmailHint && !readOnly && (
               <p className="-mt-1 mb-3 text-sm text-gray-600">
                 Für die Einladung fehlt die E-Mail-Adresse.
+              </p>
+            )}
+
+            {mailCopy?.explanation && (
+              <p className="-mt-1 mb-3 text-sm text-gray-600">
+                {mailCopy.explanation}
+                {emailState?.addressMark && !readOnly
+                  ? ` ${guardianAddressNextStep(emailState.addressMark)}`
+                  : null}
               </p>
             )}
 
