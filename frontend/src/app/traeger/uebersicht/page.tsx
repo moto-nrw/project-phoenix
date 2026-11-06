@@ -379,8 +379,8 @@ function figureColumns(
 }
 
 export default function TraegerDashboardPage() {
-  const { today, error } = useTraegerSchoolsToday();
   const { alerts, error: alertsError } = useTraegerSchoolsAlerts();
+  const { today, error } = useTraegerSchoolsToday(alerts !== null);
   const { data: session } = useSession();
   const router = useRouter();
   const { canOpen, opening, open } = useOpenTraegerSchool();
