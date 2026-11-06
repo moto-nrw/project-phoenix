@@ -10,9 +10,7 @@ import type {
   CareContractStatus,
   ContractMailState,
   ContractNoticeTo,
-  ContractTermKind,
   ContractTerms,
-  CreateSkipReason,
   SendSkipReason,
   Weekday,
 } from "~/lib/traeger-care-contracts-api";
@@ -87,15 +85,6 @@ export function formatWeekdays(days: readonly Weekday[]): string {
   return shown.length > 0 ? shown.join(", ") : "–";
 }
 
-export const WEEKDAY_CHIPS: readonly { day: Weekday; label: string }[] =
-  WEEKDAY_ORDER.slice(0, 5).map((day) => ({ day, label: WEEKDAY_SHORT[day] }));
-
-export const TERM_KIND_LABELS: Record<ContractTermKind, string> = {
-  school_year: "Bis zum Ende des Schuljahres",
-  open_ended: "Unbefristet",
-  fixed_months: "Feste Zahl an Monaten",
-};
-
 export const NOTICE_TO_LABELS: Record<ContractNoticeTo, string> = {
   month_end: "zum Monatsende",
   half_year: "zum Halbjahr (31. Januar oder 31. Juli)",
@@ -133,12 +122,6 @@ export function formatNotice(
   if (terms.noticeMonths === 1) return `1 Monat Frist ${to}`;
   return `${terms.noticeMonths} Monate Frist ${to}`;
 }
-
-export const CREATE_SKIP_LABELS: Record<CreateSkipReason, string> = {
-  template_missing: "Vertragsbedingungen fehlen",
-  contract_exists: "Hat schon einen Vertrag",
-  application_not_found: "Anmeldung nicht mehr angenommen",
-};
 
 export const SEND_SKIP_LABELS: Record<SendSkipReason, string> = {
   recipient_missing: "keine E-Mail-Adresse",

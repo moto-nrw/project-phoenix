@@ -69,7 +69,7 @@ var resetSchemas = []string{
 	"display",        // created by migration 1.15.175
 	"documents",      // created by migration 1.15.332
 	"parent_billing", // created by migration 1.15.645
-	"care_contract",  // created by migration 1.15.757
+	"care_contract",  // created by migration 1.15.758
 }
 
 // resetDatabase drops all schemas and recreates them to start fresh.

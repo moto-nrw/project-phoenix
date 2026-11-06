@@ -35,7 +35,7 @@ export interface ContractTerms {
   readonly contractPartner: string;
 }
 
-export interface ContractTemplate extends ContractTerms {
+interface ContractTemplate extends ContractTerms {
   readonly id: string;
   readonly updatedAt: string;
 }
@@ -122,7 +122,7 @@ export interface CareContractDetail extends CareContractSummary {
   readonly documentFrozen: boolean;
 }
 
-export type CreateSkipReason =
+type CreateSkipReason =
   "template_missing" | "contract_exists" | "application_not_found";
 
 export interface CreateResult {
