@@ -1,7 +1,7 @@
 {
   ".claude/rules/backend-conventions.md": 35054,
   ".claude/rules/calendar-dates.md": 9185,
-  ".claude/rules/ci-test-performance.md": 3774,
+  ".claude/rules/ci-test-performance.md": 3584,
   ".claude/rules/env-docker-sync.md": 7455,
   ".claude/rules/error-path.md": 3670,
   ".claude/rules/frontend-ui-kit.md": 43238,
