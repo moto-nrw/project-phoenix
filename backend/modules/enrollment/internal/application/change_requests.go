@@ -362,15 +362,7 @@ func (s *ChangeRequests) listAdmin(ctx context.Context, filters enrollmentNative
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*changeRequestCase, 0, len(rows))
-	for _, row := range rows {
-		agg, err := s.loadAggregate(ctx, row.ID, true)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, agg)
-	}
-	return out, nil
+	return s.adminChangeCases(ctx, rows)
 }
 
 func (s *ChangeRequests) askQuestion(ctx context.Context, changeRequestID int64, input enrollmentNative.ChangeRequestMessageInput) (*changeRequestCase, error) {
