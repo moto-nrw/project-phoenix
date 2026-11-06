@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -19,7 +20,8 @@ func TestAppendHandoffJoinsTheTraegerTransaction(t *testing.T) {
 	traeger := func(ctx context.Context) int64 { v, _ := ctx.Value(handoffKey{"traeger"}).(int64); return v }
 	tx := func(ctx context.Context) (any, bool) { v := ctx.Value(handoffKey{"tx"}); return v, v != nil }
 
-	inTraeger := context.WithValue(context.WithValue(t.Context(), handoffKey{"traeger"}, int64(3)), handoffKey{"tx"}, "träger-tx")
+	traegerID := time.Now().UnixNano()%1_000_000 + 1
+	inTraeger := context.WithValue(context.WithValue(t.Context(), handoffKey{"traeger"}, traegerID), handoffKey{"tx"}, "träger-tx")
 	transaction, ok, schoolID := NewAppendHandoff(school, admin, traeger, tx)(inTraeger)
 	assert.True(t, ok)
 	assert.Equal(t, "träger-tx", transaction)

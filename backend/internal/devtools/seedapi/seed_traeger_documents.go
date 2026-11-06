@@ -78,9 +78,13 @@ func (seedTraegerDocumentsStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	// The OGS-Leitung of the demo school opens the house rule once.
+	// The OGS-Leitung of the demo school opens the house rule once, and the
+	// Träger-Büro downloads it once for its download ledger (ADR 0157).
 	if _, err := rt.Client.Get(fmt.Sprintf("/api/traeger-documents/%d/file", opened)); err != nil {
 		return fmt.Errorf("open a Träger document at the school: %w", err)
+	}
+	if _, err := rt.Client.GetWithAuth(auth, fmt.Sprintf("/traeger/documents/%d/file", opened)); err != nil {
+		return fmt.Errorf("download a Träger document at the Träger: %w", err)
 	}
 	fmt.Printf("  Träger documents: %d documents, released for parents and schools\n", len(seedTraegerDocuments))
 	return nil

@@ -11,6 +11,8 @@ func fakeTraegerDocumentData(method, path string) (any, bool) {
 		return []any{}, true
 	case method == "POST" && path == "/traeger/documents/":
 		return map[string]any{"id": 1}, true
+	case method == "GET" && path == "/traeger/documents/1/file":
+		return map[string]any{}, true
 	}
 	return nil, false
 }
