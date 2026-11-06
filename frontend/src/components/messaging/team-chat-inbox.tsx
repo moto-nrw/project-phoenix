@@ -12,10 +12,14 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { MessagesSquare, UsersRound } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { formErrorMessage, type FormError } from "~/components/ui/form-error";
+import { formErrorMessage } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { TileCard } from "~/components/ui/tile-card";
 import { renderInboxFrame } from "~/components/messaging/team-chat-frames";
+import type {
+  TeamChatEmptyState,
+  TeamChatInboxParts,
+} from "~/components/messaging/team-chat-frame-parts";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { NewTeamMessageModal } from "~/components/messaging/new-team-message-modal";
 import { NewTeamGroupModal } from "~/components/messaging/team-group-modals";
@@ -38,56 +42,7 @@ const DISABLED_TITLE = "Der Team-Chat ist ausgeschaltet";
 const DISABLED_DESCRIPTION =
   "Ihre Schule hat den Team-Chat ausgeschaltet. Wenden Sie sich an die OGS-Leitung, wenn Sie ihn nutzen möchten.";
 
-/** Leerzustand des Posteingangs — Form wie `TenantPage.empty`. */
-interface TeamChatEmptyState {
-  readonly icon?: ReactNode;
-  readonly title: string;
-  readonly description?: string;
-}
-
-/**
- * Was das Seitengerüst vom Posteingang bekommt. Die Logik (Laden, Filtern,
- * Aus-Zustand, Fehler) liegt hier, das Gerüst in `team-chat-frames.tsx`.
- */
-export interface TeamChatInboxParts {
-  readonly title: string;
-  /**
-   * Statuszeile aus echten Zahlen: Unterhaltungen und ungelesene. `null`,
-   * solange keine Liste geladen ist (#2517).
-   */
-  readonly stats: string | null;
-  readonly statsLoading: boolean;
-  readonly chatEnabled: boolean;
-  /**
-   * Zahl der sichtbaren (gefilterten) Unterhaltungen — für die
-   * Zähler-Plakette. `null`, solange keine Liste geladen ist (#2517).
-   */
-  readonly count: number | null;
-  readonly search: {
-    readonly value: string;
-    readonly onChange: (value: string) => void;
-    readonly placeholder: string;
-  };
-  readonly onlyUnread: boolean;
-  readonly setOnlyUnread: (next: boolean) => void;
-  /** Hauptaktion; `null`, solange der Chat ausgeschaltet ist. */
-  readonly composeButton: ReactNode | null;
-  /** Skelett statt Liste. */
-  readonly loading: boolean;
-  /** Ersetzt die Liste, sobald nichts zu zeigen ist. */
-  readonly empty: TeamChatEmptyState | null;
-  /**
-   * Ladefehler OHNE Daten (#2517): ersetzt die Liste, mit Wiederholen und
-   * Vorgangskennung. Nie als Leerzustand.
-   */
-  readonly error: FormError | null;
-  /** Fehler NEBEN vorhandenen (möglicherweise veralteten) Daten. */
-  readonly staleWarning: ReactNode | null;
-  /** Die Liste der Unterhaltungen. */
-  readonly list: ReactNode;
-  /** Dialoge; bleiben in jedem Zustand gemountet. */
-  readonly overlays: ReactNode;
-}
+export type { TeamChatInboxParts } from "~/components/messaging/team-chat-frame-parts";
 
 export function TeamChatInbox({
   portal,

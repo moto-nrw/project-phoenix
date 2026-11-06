@@ -12,7 +12,6 @@ import {
   useRef,
   useState,
   type ReactNode,
-  type RefObject,
 } from "react";
 import { useSWRAuth, useSWRSeedFrom } from "~/lib/swr";
 import { TEAM_CHAT_SEND_REFUSALS } from "~/lib/message-send-refusals";
@@ -21,9 +20,13 @@ import { useSwitchedOffWhileOpen } from "~/lib/hooks/use-switched-off-while-open
 import { MessagesSquare } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { renderThreadFrame } from "~/components/messaging/team-chat-frames";
+import type {
+  TeamChatThreadBack,
+  TeamChatThreadParts,
+} from "~/components/messaging/team-chat-frame-parts";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
-import { formErrorMessage, type FormError } from "~/components/ui/form-error";
+import { formErrorMessage } from "~/components/ui/form-error";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -56,65 +59,10 @@ const DISABLED_TITLE = "Der Team-Chat ist ausgeschaltet";
 const DISABLED_DESCRIPTION =
   "Ihre Schule hat den Team-Chat ausgeschaltet. Wenden Sie sich an die OGS-Leitung, wenn Sie ihn nutzen möchten.";
 
-/**
- * Rückweg zum Posteingang. Die Hülle setzt ihn über den Titel der
- * Kopfkarte; `href` ist der Pfad so, wie die Hülle ihn erwartet (das
- * OGS-Portal ohne Schulpräfix, das Schul-Portal fertig aufgelöst).
- */
-export interface TeamChatThreadBack {
-  readonly href: string;
-  readonly label: string;
-}
-
-/**
- * Was das Seitengerüst vom Chat-Fenster bekommt. Wie beim Posteingang liegt
- * die Logik hier, das Gerüst in `team-chat-frames.tsx`.
- */
-export interface TeamChatThreadParts {
-  /** Name des Gegenübers, sobald geladen; davor „Unterhaltung". */
-  readonly title: string;
-  readonly previewTitle?: string;
-  /** Rollenzusatz zum Namen (z. B. „Lehrkraft"); `null` ohne Zusatz. */
-  readonly roleLabel: string | null;
-  /** Statuszeile aus echten Zahlen: Nachrichten und bei Gruppen Mitglieder. */
-  readonly stats: string;
-  /** Eine Zeile unter dem Titel: wer die Nachrichten sieht. */
-  readonly audience: string;
-  /**
-   * Kopfaktion; bei einer Gruppe (#4776) der Wechsel zwischen Verlauf und
-   * Mitgliedern, sonst `null`.
-   */
-  readonly actions: ReactNode | null;
-  readonly statsLoading: boolean;
-  /**
-   * `ready`: Verlauf (oder sein Skelett) steht in `body`.
-   * `disabled`: die Schule hat den Chat aus — `empty` beschreibt es.
-   * `error`: der Verlauf ist nicht ladbar oder es gibt ihn nicht —
-   * `error` sagt, was.
-   */
-  readonly state: "ready" | "disabled" | "error";
-  readonly empty: {
-    readonly icon: ReactNode;
-    readonly title: string;
-    readonly description: string;
-  };
-  /**
-   * Ladefehler über den gemeinsamen Anzeigeweg (#2517), mit Wiederholen und
-   * Vorgangskennung; ein Satz, wenn es die Unterhaltung nicht gibt.
-   */
-  readonly error: FormError | string | null;
-  /** Skelett statt Verlauf. */
-  readonly loading: boolean;
-  /** Rückweg zum Posteingang, unverändert durchgereicht. */
-  readonly back: TeamChatThreadBack;
-  /**
-   * Der Container, der die Viewport-Sperre trägt; die Hülle hängt ihn an das
-   * Element, das Verlauf und Composer umschließt.
-   */
-  readonly containerRef: RefObject<HTMLDivElement | null>;
-  /** Verlauf (oder Skelett), Sendefehler und Composer. */
-  readonly body: ReactNode;
-}
+export type {
+  TeamChatThreadBack,
+  TeamChatThreadParts,
+} from "~/components/messaging/team-chat-frame-parts";
 
 /**
  * One conversation, shared by both portals (#2208). The back target is

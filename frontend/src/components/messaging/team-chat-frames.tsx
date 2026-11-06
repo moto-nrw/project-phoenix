@@ -5,8 +5,10 @@ import { formErrorDetail, formErrorMessage } from "~/components/ui/form-error";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
-import type { TeamChatInboxParts } from "~/components/messaging/team-chat-inbox";
-import type { TeamChatThreadParts } from "~/components/messaging/team-chat-thread";
+import type {
+  TeamChatInboxParts,
+  TeamChatThreadParts,
+} from "~/components/messaging/team-chat-frame-parts";
 
 /**
  * Die Hülle um den geteilten Posteingang, im OGS- wie im Schul-Portal (#5604): Kopfkarte mit
