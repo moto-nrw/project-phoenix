@@ -243,8 +243,12 @@ func plannedTimeline() AmendableContract {
 // dropped, and February kept the old Monday.
 func TestAChangeBeforeAPlannedVersionGoesInFrontOfIt(t *testing.T) {
 	t.Parallel()
+	// The first approval wrote Monday and Wednesday in the short module from
+	// 1 March (planned version 2); the second moves Monday to the long
+	// module from 1 February.
 	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
 		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1), ValidUntil: date(2031, 2, 1)},
+		{CareOfferingID: 1, Days: []string{"mon", "wed"}, ValidFrom: date(2031, 3, 1)},
 		{CareOfferingID: 2, Days: []string{"mon"}, ValidFrom: date(2031, 2, 1)},
 	}}
 	contract := plannedTimeline()
@@ -333,4 +337,92 @@ func TestASecondChangeOnTheSameDayReplacesTheFirstCumulatively(t *testing.T) {
 		{Weekday: "mon", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"},
 		{Weekday: "thu", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"},
 	}, plan.version.Services)
+}
+
+// Overdue changes hold together (#4681 design, quorum critical): two modules
+// changed on different past days without a version since. Both reach today's
+// version; before, the first made today's version and the second was skipped
+// for good, because a version had started after it.
+func TestOverdueChangesHoldTogetherFromToday(t *testing.T) {
+	t.Parallel()
+	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1), ValidUntil: date(2030, 12, 1)},
+		{CareOfferingID: 1, Days: []string{"mon", "thu"}, ValidFrom: date(2030, 12, 1)},
+		{CareOfferingID: 2, Days: []string{"tue"}, ValidFrom: date(2030, 11, 1)},
+	}}
+	today := *date(2031, 1, 10)
+	version, reason := nextVersion(amendmentRead(), application, amendable(), today)
+	require.Empty(t, reason)
+	require.NotNil(t, version)
+	assert.Equal(t, today, version.EffectiveFrom)
+	assert.Equal(t, []carecontract.Service{
+		{Weekday: "mon", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
+		{Weekday: "tue", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"},
+		{Weekday: "thu", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
+	}, version.Services, "both overdue changes")
+}
+
+// An overdue switch from one module to another a fortnight later is one
+// change from today, not the end of care.
+func TestAnOverdueSwitchIsNoEndOfCare(t *testing.T) {
+	t.Parallel()
+	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1), ValidUntil: date(2030, 12, 1)},
+		{CareOfferingID: 2, Days: []string{"mon"}, ValidFrom: date(2030, 12, 15)},
+	}}
+	version, reason := nextVersion(amendmentRead(), application, amendable(), *date(2031, 1, 10))
+	require.Empty(t, reason)
+	require.NotNil(t, version)
+	assert.Equal(t, []carecontract.Service{{Weekday: "mon", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"}},
+		version.Services)
+}
+
+// A version never promises unbooked care (#5928), quorum critical: the
+// planned version books module 1 from 1 March; the school replaced it by
+// module 2 on the same day and deleted its booking. The replacement drops
+// module 1.
+func TestReplacingAPlannedModuleDropsTheDeletedBooking(t *testing.T) {
+	t.Parallel()
+	// Version 2 plans the long module (B) on Monday from 1 March. The school
+	// replaces it by the short module (C) on Monday and Wednesday from the
+	// same day and deletes B's booking.
+	contract := plannedTimeline()
+	contract.Latest.Services = []carecontract.Service{{Weekday: "mon", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"}}
+	contract.Versions[1] = contract.Latest
+	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1), ValidUntil: date(2031, 3, 1)},
+		{CareOfferingID: 1, Days: []string{"mon", "wed"}, ValidFrom: date(2031, 3, 1)},
+	}}
+	plan, reason := nextAmendment(amendmentRead(), application, contract, *date(2031, 1, 10))
+	require.Empty(t, reason)
+	require.NotNil(t, plan)
+	require.NotNil(t, plan.replace)
+	assert.Equal(t, []carecontract.Service{
+		{Weekday: "mon", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
+		{Weekday: "wed", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
+	}, plan.version.Services, "module B is booked no more")
+}
+
+// A module booked longer than the version promised (quorum suggestion):
+// version 1 promises Monday until 30 June, the school extends the booking to
+// 30 September. From 1 July a version carries the module on.
+func TestAnExtendedModuleIsCarriedOnAfterItsPromisedEnd(t *testing.T) {
+	t.Parallel()
+	contract := amendable()
+	june := *date(2031, 6, 30)
+	contract.Latest.Services = []carecontract.Service{
+		{Weekday: "mon", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00", LastDay: &june},
+		{Weekday: "tue", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"},
+	}
+	contract.Versions = []carecontract.Version{contract.Latest}
+	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1), ValidUntil: date(2031, 10, 1)},
+		{CareOfferingID: 2, Days: []string{"tue"}, ValidFrom: date(2030, 8, 1)},
+	}}
+	version, reason := nextVersion(amendmentRead(), application, contract, *date(2031, 1, 10))
+	require.Empty(t, reason)
+	require.NotNil(t, version)
+	assert.Equal(t, *date(2031, 7, 1), version.EffectiveFrom)
+	assert.Len(t, version.ServicesOn(*date(2031, 7, 7)), 1, "a Monday in July books the module")
+	assert.Len(t, version.ServicesOn(*date(2031, 9, 29)), 1, "a Monday in September too")
 }

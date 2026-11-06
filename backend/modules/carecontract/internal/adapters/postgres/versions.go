@@ -62,7 +62,8 @@ func versionsOf(rows []versionRow) ([]carecontract.Version, error) {
 }
 
 // AmendableContracts reads every active contract with its effective
-// versions by effective date, the start of the first and its next version
+// versions by effective date, the start of version 1, which a fixed term
+// counts from even when a later change goes before it, and its next version
 // number.
 func (Store) AmendableContracts(ctx context.Context, organizationID int64) ([]ports.AmendableContract, error) {
 	db, err := traegerDB(ctx, organizationID)
@@ -77,9 +78,9 @@ func (Store) AmendableContracts(ctx context.Context, organizationID int64) ([]po
 		NextNumber     int           `bun:"next_number"`
 	}
 	if err := db.NewRaw(`SELECT c.id AS contract_id, c.school_id, c.request_child_id,
-			(SELECT MIN(f.effective_from) FROM care_contract.contract_versions AS f
+			(SELECT f.effective_from FROM care_contract.contract_versions AS f
 				WHERE f.organization_id = c.organization_id AND f.contract_id = c.id
-					AND f.status IN `+effectiveStatusSQL+`) AS first_from,
+					AND f.version_number = 1) AS first_from,
 			(SELECT MAX(m.version_number) + 1 FROM care_contract.contract_versions AS m
 				WHERE m.organization_id = c.organization_id AND m.contract_id = c.id) AS next_number
 		FROM care_contract.contracts AS c

@@ -252,6 +252,16 @@ func TestTimelineOfVersionsKeepsEveryApprovalAndOneVersionPerDay(t *testing.T) {
 		assert.Equal(t, 1, byDay[aug].Number, "from August the first version as before")
 	})
 
+	t.Run("a version before the first one keeps the fixed term counted from version 1", func(t *testing.T) {
+		t.Parallel()
+		jun, dec := calendar.NewDate(2099, 6, 1), calendar.NewDate(2099, 12, 1)
+		f := newTableFixture(t, 6, []tableVersion{{"wirksam", "2099-08-01", []string{"mon"}}})
+		f.step(t, booking(f.short, []string{"mon"}, &jun, nil), booking(f.long, []string{"fri"}, &dec, nil))
+		byDay := f.assertOneVersionPerDay(t, jun, fixedEnd(6))
+		assert.Equal(t, []string{"lang@16:30"}, f.on(byDay[calendar.NewDate(2099, 12, 4)], calendar.NewDate(2099, 12, 4)),
+			"December Friday: within the six months from August, not from June")
+	})
+
 	t.Run("D after the end of the contract: no version, and no contract on those days", func(t *testing.T) {
 		t.Parallel()
 		f := newTableFixture(t, 6, []tableVersion{{"wirksam", "2099-08-01", []string{"mon"}}})

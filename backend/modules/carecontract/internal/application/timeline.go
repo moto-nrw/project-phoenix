@@ -24,7 +24,11 @@ import (
 //  4. E > D: a version that starts later stays as it is; it does not take
 //     the change over.
 //
-// A D before today holds from today, unless a version started since then.
+// The offerings a change concerns: their booking starts or ends on D, their
+// promised end (last day, end of the version) is D-1, or no booking runs
+// for them on D any more; a version never promises unbooked care (#5928),
+// which goes before rule 4. A D before today holds from today, unless a
+// version started since then; all such overdue changes hold together.
 
 // amendmentPlan is the next version of a contract and the version it
 // replaces (rule 3), if any.
@@ -33,10 +37,11 @@ type amendmentPlan struct {
 	replace *carecontract.Version
 }
 
-// change is a day on which bookings change: origin is the day of the
-// booking boundary, day the day the change holds from (origin, or today).
+// change is a day a change holds from, with the days it comes from: the
+// day itself, or for overdue changes every past day they happened on.
 type change struct {
-	origin, day calendar.Date
+	day     calendar.Date
+	origins []calendar.Date
 }
 
 // nextAmendment is the first change of the contract that its timeline does
@@ -61,7 +66,7 @@ func planChange(read schoolRead, application carecontract.Application, contract 
 		base = promised(current, next.day)
 	}
 	booked := servicesAt(read, application, next.day)
-	services := withChange(base, booked.services, changedOfferings(read, application, next.origin))
+	services := withChange(base, booked.services, changedOfferings(read, application, contract.Versions, next, base, booked.services))
 	if sameCare(services, base) {
 		return nil, ""
 	}
@@ -112,20 +117,53 @@ func withChange(base, booked []carecontract.Service, changed map[int64]bool) []c
 	return services
 }
 
-// changedOfferings are the offerings whose booking starts or ends on day.
-func changedOfferings(read schoolRead, application carecontract.Application, day calendar.Date) map[int64]bool {
+// changedOfferings are the offerings the change concerns: a booking starts
+// or ends on one of its days, a version's promise for them ends the day
+// before, or no booking runs for a promised offering on the change's day.
+func changedOfferings(read schoolRead, application carecontract.Application, timeline []carecontract.Version,
+	next change, base, booked []carecontract.Service) map[int64]bool {
 	changed := map[int64]bool{}
-	for _, booking := range application.Bookings {
-		offering, ok := read.offerings[booking.CareOfferingID]
-		if !ok {
-			continue
+	for _, origin := range next.origins {
+		for _, booking := range application.Bookings {
+			if clipped, ok := clippedBooking(read, booking); ok && (sameDay(clipped.ValidFrom, origin) || sameDay(clipped.ValidUntil, origin)) {
+				changed[booking.CareOfferingID] = true
+			}
 		}
-		clipped, ok := bookingWithinPhase(booking, offering, calendar.Date("0001-01-01"))
-		if ok && (sameDay(clipped.ValidFrom, day) || sameDay(clipped.ValidUntil, day)) {
-			changed[booking.CareOfferingID] = true
+		for _, offering := range endedPromises(timeline, origin) {
+			changed[offering] = true
+		}
+	}
+	for _, service := range base {
+		if !slices.ContainsFunc(booked, func(b carecontract.Service) bool { return b.CareOfferingID == service.CareOfferingID }) {
+			changed[service.CareOfferingID] = true
 		}
 	}
 	return changed
+}
+
+// endedPromises are the offerings whose promise in a version ends the day
+// before day: a module's last day, or the end of the whole version.
+func endedPromises(timeline []carecontract.Version, day calendar.Date) []int64 {
+	offerings := []int64{}
+	for _, version := range timeline {
+		ended := version.EndsOn != nil && version.EndsOn.AddDays(1) == day
+		for _, service := range version.Services {
+			if ended || (service.LastDay != nil && service.LastDay.AddDays(1) == day) {
+				offerings = append(offerings, service.CareOfferingID)
+			}
+		}
+	}
+	return offerings
+}
+
+// clippedBooking is the booking within its offering's phase, ended ones
+// included; false for an offering that is no care or an empty window.
+func clippedBooking(read schoolRead, booking carecontract.Booking) (carecontract.Booking, bool) {
+	offering, ok := read.offerings[booking.CareOfferingID]
+	if !ok {
+		return booking, false
+	}
+	return bookingWithinPhase(booking, offering, calendar.Date("0001-01-01"))
 }
 
 func sameDay(date *calendar.Date, day calendar.Date) bool { return date != nil && *date == day }
@@ -174,34 +212,54 @@ func versionAfter(timeline []carecontract.Version, day calendar.Date) (carecontr
 	return carecontract.Version{}, false
 }
 
-// changeDays are the changes of the bookings: every day a booking starts or
-// ends. Only a fixed term ends the contract itself; changes after it belong
-// to the termination (#4682). A day before today holds from today, since no
-// version reaches into the past, unless a version started since then: that
-// version settled the day.
+// changeDays are the days something changes: a booking starts or ends, a
+// version starts, or a promise in a version ends the day before. Only a
+// fixed term ends the contract itself; changes after it belong to the
+// termination (#4682). A day before today holds from today, since no version
+// reaches into the past, unless a version started since then: that version
+// settled the day. Changes on the same day hold together.
 func changeDays(read schoolRead, application carecontract.Application, contract AmendableContract, today calendar.Date) []change {
 	window := changeWindow{today: today, timeline: contract.Versions,
 		termEnd: endsOn(contract.Versions[0].Terms, contract.FirstFrom, nil)}
-	changes := []change{}
-	for _, booking := range application.Bookings {
-		offering, ok := read.offerings[booking.CareOfferingID]
-		if !ok {
-			continue
-		}
-		clipped, ok := bookingWithinPhase(booking, offering, calendar.Date("0001-01-01"))
-		if !ok {
-			continue
-		}
-		for _, origin := range []*calendar.Date{clipped.ValidFrom, clipped.ValidUntil} {
-			if next, ok := window.change(origin); ok && !slices.Contains(changes, next) {
-				changes = append(changes, next)
-			}
+	byDay := map[calendar.Date][]calendar.Date{}
+	for _, origin := range changeOrigins(read, application, contract.Versions) {
+		if day, ok := window.day(origin); ok && !slices.Contains(byDay[day], *origin) {
+			byDay[day] = append(byDay[day], *origin)
 		}
 	}
-	slices.SortFunc(changes, func(a, b change) int {
-		return firstNonZero(a.day.Compare(b.day), a.origin.Compare(b.origin))
-	})
+	changes := make([]change, 0, len(byDay))
+	for day, origins := range byDay {
+		slices.SortFunc(origins, func(a, b calendar.Date) int { return a.Compare(b) })
+		changes = append(changes, change{day: day, origins: origins})
+	}
+	slices.SortFunc(changes, func(a, b change) int { return a.day.Compare(b.day) })
 	return changes
+}
+
+// changeOrigins are the days something changes, before the window.
+func changeOrigins(read schoolRead, application carecontract.Application, timeline []carecontract.Version) []*calendar.Date {
+	origins := []*calendar.Date{}
+	for _, booking := range application.Bookings {
+		if clipped, ok := clippedBooking(read, booking); ok {
+			origins = append(origins, clipped.ValidFrom, clipped.ValidUntil)
+		}
+	}
+	for _, version := range timeline {
+		start := version.EffectiveFrom
+		origins = append(origins, &start, dayAfter(version.EndsOn))
+		for _, service := range version.Services {
+			origins = append(origins, dayAfter(service.LastDay))
+		}
+	}
+	return origins
+}
+
+func dayAfter(day *calendar.Date) *calendar.Date {
+	if day == nil {
+		return nil
+	}
+	next := day.AddDays(1)
+	return &next
 }
 
 // changeWindow bounds the days a change may hold from: not before today,
@@ -212,24 +270,24 @@ type changeWindow struct {
 	timeline []carecontract.Version
 }
 
-// change is the change of a booking boundary on origin, or false outside
-// the window. A past origin holds from today, unless a version started
-// between it and today.
-func (w changeWindow) change(origin *calendar.Date) (change, bool) {
+// day is the day a change on origin holds from, or false outside the
+// window. A past origin holds from today, unless a version started between
+// it and today.
+func (w changeWindow) day(origin *calendar.Date) (calendar.Date, bool) {
 	if origin == nil || origin.IsZero() {
-		return change{}, false
+		return "", false
 	}
 	day := *origin
 	if day.Before(w.today) {
 		if started, ok := versionAfter(w.timeline, day); ok && !started.EffectiveFrom.After(w.today) {
-			return change{}, false
+			return "", false
 		}
 		day = w.today
 	}
 	if w.termEnd != nil && day.After(*w.termEnd) {
-		return change{}, false
+		return "", false
 	}
-	return change{origin: *origin, day: day}, true
+	return day, true
 }
 
 // servicesAt is the care the child books on one day: every booking that
