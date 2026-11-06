@@ -14,8 +14,8 @@ func init() {
 		Version:     careContractSchoolReadVersion,
 		Description: "Betreuungsvertrag: die Schule liest die gebuchten Leistungen ihrer versendeten Verträge (#4683)",
 		DependsOn: []string{
-			emailDeliveryFallbackVersion, // the last migration before this one
-			careContractDraftsVersion,    // the tables this policy reads
+			emailAddressMarksVersion,  // the last migration before this one
+			careContractDraftsVersion, // the tables this policy reads
 		},
 	})
 	Migrations.MustRegister(careContractSchoolReadUp, careContractSchoolReadDown)
