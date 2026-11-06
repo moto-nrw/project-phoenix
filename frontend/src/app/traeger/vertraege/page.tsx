@@ -222,6 +222,9 @@ export default function TraegerVertraegePage() {
                       ...candidate,
                       templateIssue:
                         candidate.templateIssue ??
+                        (!candidate.guardianEmail.trim()
+                          ? ("recipient_missing" as const)
+                          : null) ??
                         candidate.acceptanceIssue ??
                         ("conclusion_automatic" as const),
                     }

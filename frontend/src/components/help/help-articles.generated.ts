@@ -344,6 +344,8 @@ import type { traegerKeyDateCountsTopic as authored_traegerKeyDateCountsTopic } 
 
 import type { traegerLoginTopic as authored_traegerLoginTopic } from "./articles/traeger-login";
 
+import type { traegerOccupancyTopic as authored_traegerOccupancyTopic } from "./articles/traeger-occupancy";
+
 import type { traegerSchoolSwitchTopic as authored_traegerSchoolSwitchTopic } from "./articles/traeger-school-switch";
 
 import type { traegerSchoolViewTopic as authored_traegerSchoolViewTopic } from "./articles/traeger-school-view";
@@ -10057,12 +10059,13 @@ export const traegerCareContractsTopic =
             "Müssen die Eltern eine Satzung anerkennen? Setzen Sie den Haken bei `Satzung`. Tragen Sie den Namen und, wenn vorhanden, den Link ein.",
             "Tragen Sie den Namen des `Vertragspartners` ein, wenn er nicht im Briefkopf steht.",
             "Wählen Sie `Bedingungen speichern`.",
+            "Für `Bei der Annahme`: Tragen Sie den `Vertragspartner` immer ein. Speichern Sie die Bedingungen. Kopieren Sie den Text aus `Gespeicherter Text für das Anmeldeformular` unverändert. Die Schule wählt im Anmeldeformular `Eigene Zustimmung hinzufügen`. Sie trägt ihn unter `Rechtstext / Erklärung` ein. Sie setzt `Muss bestätigt werden` und behält bestehende Rechtstexte bei. Bei mehreren Modulen müssen deren Bedingungen übereinstimmen.",
           ],
         },
         {
           title: "Bei der Annahme: nichts zu tun",
           steps: [
-            "Im Anmeldeformular stimmen die Eltern den Vertragsbedingungen zu. Dafür ist bei `AGB / Teilnahmebedingungen im Anmeldeformular anzeigen` der Schalter an. Die Schule nimmt die Anmeldung an.",
+            "Im Anmeldeformular stimmen die Eltern dem vollständigen gespeicherten Bedingungstext zu. Die eigene Zustimmung muss bestätigt werden. Ein allgemeiner Verweis auf Bedingungen reicht nicht. Die Schule nimmt die Anmeldung an.",
             "Nach wenigen Minuten steht der Vertrag in der Liste. Sein Status ist `Aktiv`.",
             "Die Eltern bekommen das PDF per Mail und in der Eltern-App. Sie müssen nichts unterschreiben.",
             "Auf der Vertragsseite steht unter `Abgeschlossen`, wann der Vertrag gilt.",
@@ -10119,6 +10122,7 @@ export const traegerCareContractsTopic =
       troubleshootingDetails: [
         "Die Schule hat angenommen, aber nach einigen Minuten steht kein aktiver Vertrag da? Dann fehlt etwas. Das Kind steht in `Verträge erstellen` mit dem Grund, zum Beispiel `Vertragsbedingungen fehlen`. Fehlt die E-Mail-Adresse der Eltern, ergänzt die Schule sie in der Anmeldung. moto versucht es danach von selbst noch einmal.",
         "Ein Kind zeigt `Zustimmung zum Vertrag fehlt` oder `Bedingungen nach der Anmeldung geändert`? Die Eltern haben in der Anmeldung den Vertragsbedingungen nicht zugestimmt, oder Sie haben die Bedingungen danach geändert. Dann entsteht kein aktiver Vertrag. Stellen Sie die Schule auf `Später verschicken` und schicken Sie den Vertrag. Eine frühere Anmeldung wird nicht nachträglich verbindlich.",
+        "Nach Änderungen an den Bedingungen: Speichern Sie diese zuerst. Ersetzen Sie danach den Text im Anmeldeformular durch den neuen gespeicherten Text. Unverändertes Speichern lässt eine passende Zustimmung weiter gelten.",
         "Schulen mit `Bei der Annahme` erlauben keine manuellen Entwürfe. Bereits vorhandene Entwürfe werden nicht automatisch abgeschlossen. Prüfen und verwerfen Sie diese bei Bedarf.",
         "Ein Kind fehlt in `Verträge erstellen`? Die Schule hat die Anmeldung noch nicht angenommen, oder das Kind hat schon einen Vertrag.",
         "Ein Kind zeigt `Bedingungen der Module weichen ab`? Das Kind hat mehrere Module gebucht, und deren Vertragsbedingungen sind verschieden. Ein Vertrag hat eine Laufzeit und eine Frist. Gleichen Sie die Bedingungen der Module an.",
@@ -10875,6 +10879,42 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
     related: [HELP_TOPICS.errorMessages],
   };
 } satisfies typeof authored_traegerLoginTopic;
+
+/** `/traeger/belegung` (#4676): die Kinder von heute je Schule, Gruppe und Betreuungsform. */
+export const traegerOccupancyTopic =
+  function traegerOccupancyTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerOccupancy,
+      title: "Belegung der Schulen",
+      question: "Wie viele Kinder hat jede Schule, Gruppe und Betreuungsform?",
+      summary:
+        "Die Belegung zeigt, wie viele Kinder Ihre Schulen heute betreuen: je Schule, je OGS-Gruppe und je Betreuungsform.",
+      group: "einstieg",
+      audience: "traeger",
+      icon: "ChartLine",
+      steps: [
+        "Wählen Sie in der Navigation `Belegung`.",
+        "Lesen Sie oben die Summe für alle Schulen.",
+        "Wählen Sie einen Reiter: `Schulen`, `Gruppen` oder `Betreuungsformen`.",
+        "Wählen Sie `Herunterladen` und dann `CSV`, um alle Zahlen als Tabelle zu speichern.",
+      ],
+      result:
+        "Sie sehen für jede Schule, wie viele Kinder in welcher Gruppe sind und welches Betreuungsangebot sie heute gebucht haben.",
+      notes: [
+        "Suchen Sie oben nach einer Schule oder einem Ort. Die Summe zählt dann nur diese Schulen.",
+        "Es zählen dieselben Kinder wie bei der Stichtagszahl, aber von heute.",
+        "Eine Betreuungsform ist ein Betreuungsangebot, das als Betreuung zählt, zum Beispiel „OGS bis 16 Uhr“. Mittagessen zählt nicht.",
+        "Unter `Betreuungsformen` stehen Angebote mit gleichem Namen an mehreren Schulen auch zusammengezählt.",
+        "Sie sehen nur Zahlen, keine Namen von Kindern.",
+      ],
+      differences: [
+        "Steht bei einem Angebot `Keine Grenze`, hat die Schule keine Plätze festgelegt.",
+        "Steht bei einem Angebot `Voll` oder `Überbelegt`, sind alle Plätze vergeben. Die Plätze legt die Schule fest.",
+        "Steht bei einer Schule `Ohne Betreuungsform`, haben diese Kinder heute kein Betreuungsangebot gebucht. Das ist bei Schulen mit Wochenplan üblich.",
+      ],
+      related: [HELP_TOPICS.traegerDashboard, HELP_TOPICS.traegerKeyDateCounts],
+    };
+  } satisfies typeof authored_traegerOccupancyTopic;
 
 /** `/traeger` (#4654): Absprung in eine Schule des Trägers. */
 export const traegerSchoolSwitchTopic =

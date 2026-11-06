@@ -18,4 +18,8 @@ type SchoolRosters interface {
 	// ActiveStaffIDsByTenant lists the live staff members without a current
 	// external caregiver record.
 	ActiveStaffIDsByTenant(ctx context.Context, schools []int64, at time.Time) (map[int64][]int64, error)
+	// MembershipGroupIDsByTenant maps each live membership with an OGS group
+	// to the group, for the Träger's occupancy (#4676); a membership without
+	// a group is missing.
+	MembershipGroupIDsByTenant(ctx context.Context, schools []int64) (map[int64]map[int64]int64, error)
 }

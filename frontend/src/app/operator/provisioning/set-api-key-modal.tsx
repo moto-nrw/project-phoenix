@@ -1,6 +1,7 @@
 import { API_KEY_COPY_FAILED_MESSAGE } from "~/lib/operator/provisioning-helpers";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "~/components/ui/button";
+import { CopyField } from "~/components/ui/copy-field";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
@@ -30,14 +31,12 @@ export function SetApiKeyModal({
   const [updatedDevice, setUpdatedDevice] = useState<OperatorDevice | null>(
     null,
   );
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setUpdatedDevice(null);
     if (isOpen) {
       clearError();
       setUpdatedDevice(null);
-      setCopied(false);
     }
   }, [isOpen, clearError]);
 
@@ -63,19 +62,12 @@ export function SetApiKeyModal({
     }
   }, [device, onKeySet, clearError, showError]);
 
-  const handleCopyApiKey = useCallback(async () => {
-    if (!updatedDevice?.apiKey) return;
-    try {
-      await navigator.clipboard.writeText(updatedDevice.apiKey);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      logger.error("clipboard_copy_failed", {
-        error: "Failed to copy API key to clipboard",
-      });
-      showMessage(API_KEY_COPY_FAILED_MESSAGE);
-    }
-  }, [updatedDevice, showMessage]);
+  const handleCopyFailed = useCallback(() => {
+    logger.error("clipboard_copy_failed", {
+      error: "Failed to copy API key to clipboard",
+    });
+    showMessage(API_KEY_COPY_FAILED_MESSAGE);
+  }, [showMessage]);
 
   const deviceLabel = device?.name ?? device?.deviceId ?? "Gerät";
 
@@ -94,20 +86,11 @@ export function SetApiKeyModal({
               <p className="text-sm font-medium text-gray-700">
                 Neuer API-Key:
               </p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-xs break-all">
-                  {updatedDevice.apiKey}
-                </code>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={() => void handleCopyApiKey()}
-                  className="shrink-0"
-                >
-                  {copied ? "Kopiert!" : "Kopieren"}
-                </Button>
-              </div>
+              <CopyField
+                value={updatedDevice.apiKey}
+                monospace
+                onCopyFailed={handleCopyFailed}
+              />
               <p className="text-xs text-gray-500">
                 Kopieren Sie den API-Key jetzt. Er wird nur einmal angezeigt.
                 Der alte Key ist ab sofort ungültig.

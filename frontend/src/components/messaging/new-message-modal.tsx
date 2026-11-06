@@ -38,6 +38,7 @@ import {
   relationshipLabel,
 } from "~/lib/parent-messages-api";
 import { createLogger } from "~/lib/logger";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 const logger = createLogger({ component: "NewMessageModal" });
 
@@ -400,9 +401,7 @@ export function NewMessageModal({
                       </span>
                       <span className="ml-2 flex flex-shrink-0 items-center gap-2">
                         {g.is_primary && (
-                          <span className="bg-moto-green/10 text-moto-green-strong rounded-full px-2 py-0.5 text-xs font-medium">
-                            primär
-                          </span>
+                          <StatusBadge label="primär" tone="green" compact />
                         )}
                         {openingId === g.account_id && (
                           <span className="text-xs text-gray-400">

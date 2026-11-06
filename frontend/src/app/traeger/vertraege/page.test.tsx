@@ -286,6 +286,12 @@ describe("TraegerVertraegePage", () => {
         childFirstName: "Ole",
         acceptanceIssue: "acceptance_missing",
       },
+      {
+        ...CANDIDATE,
+        requestChildId: "46",
+        childFirstName: "Eva",
+        guardianEmail: "  ",
+      },
     ]);
     renderPage();
     await screen.findAllByText("Lina Muster");
@@ -293,6 +299,15 @@ describe("TraegerVertraegePage", () => {
     expect(await screen.findByLabelText("Mia Kern auswählen")).toBeDisabled();
     expect(screen.getByLabelText("Ben Kern auswählen")).toBeDisabled();
     expect(screen.getByLabelText("Ole Kern auswählen")).toBeDisabled();
+    expect(screen.getByLabelText("Eva Kern auswählen")).toBeDisabled();
+    expect(
+      screen.getByText("E-Mail-Adresse der Eltern fehlt"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Die Schule ergänzt die E-Mail-Adresse in der Anmeldung/,
+      ),
+    ).toBeInTheDocument();
 
     // Only the child with the proof comes about by itself.
     expect(screen.getAllByText("Entsteht bei der Annahme")).toHaveLength(1);

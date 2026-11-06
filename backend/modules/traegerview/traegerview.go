@@ -285,6 +285,8 @@ type Ports struct {
 	// dashboard (#4675).
 	Enrollments OpenEnrollments
 	Alerts      AlertSettings
+	// Occupancy are the reads behind the occupancy of the schools (#4676).
+	Occupancy OccupancyPorts
 }
 
 // Overview answers the Träger-Portal reads.
@@ -306,6 +308,9 @@ type Overview interface {
 	// SchoolsAlerts returns the hints of every school of the Träger against
 	// the Träger's thresholds (#4675).
 	SchoolsAlerts(ctx context.Context, organizationID int64) (SchoolsAlerts, error)
+	// Occupancy returns the children of every school of the Träger by OGS
+	// group and care form, today (#4676).
+	Occupancy(ctx context.Context, organizationID int64) (Occupancy, error)
 	// AccessLog lists one page of the access log, newest first.
 	AccessLog(ctx context.Context, viewer Viewer, filter AccessLogFilter, page int) (AccessLogPage, error)
 	// AccessLogExport lists every entry of the filter, newest first, up to

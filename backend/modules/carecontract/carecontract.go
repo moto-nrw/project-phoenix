@@ -143,6 +143,9 @@ type OfferingTemplate struct {
 	PriceCents   *int      `json:"price_cents"`
 	Active       bool      `json:"active"`
 	Template     *Template `json:"template"`
+	// AcceptanceText is the complete saved conditions text for the enrollment
+	// form. It is empty without a template or an explicit contract partner.
+	AcceptanceText string `json:"acceptance_text"`
 }
 
 // CandidateKey names one accepted application child.

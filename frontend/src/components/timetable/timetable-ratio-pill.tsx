@@ -2,8 +2,8 @@
 
 /**
  * TimetableRatioPill — shared "X / Y" ratio indicator for the timetable
- * feature (issue #1838). Renders a tone-colored pill, compact inline text,
- * or a bare dot depending on available space (detail slide-over vs. weekly
+ * feature (issue #1838). Renders the kit pill with its symbol in front,
+ * compact inline text, or a bare dot depending on available space (detail slide-over vs. weekly
  * grid block vs. month/year grid cells).
  *
  * Purely presentational: callers compute their own TimetableTone via a
@@ -14,20 +14,8 @@
 import type { ReactNode } from "react";
 
 import { timetableToneColors, type TimetableTone } from "./timetable-style";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { StatusDot } from "~/components/ui/status-dot";
-
-/** Subtracts `amount` (0-255) from each RGB channel, clamped at 0 — a
- * simple, dependency-free darken so tone text/icons stay legible on the
- * light tint background (mirrors why the old StatPill's "accent" colors
- * were hand-picked darker than the raw brand hex, e.g. amber #EAB308 as
- * plain text has poor contrast on white). */
-function darkenHex(hex: string, amount: number): string {
-  const num = Number.parseInt(hex.slice(1), 16);
-  const r = Math.max(0, (num >> 16) - amount);
-  const g = Math.max(0, ((num >> 8) & 0xff) - amount);
-  const b = Math.max(0, (num & 0xff) - amount);
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
-}
 
 interface TimetableRatioPillProps {
   readonly icon: ReactNode;
@@ -70,24 +58,12 @@ export function TimetableRatioPill({
     );
   }
 
-  const textColor = darkenHex(color, 70);
-
   return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
-      style={{
-        backgroundColor: `${color}1A`,
-        borderColor: `${color}33`,
-        color: textColor,
-      }}
-    >
+    <span className="inline-flex items-center gap-1">
       <span aria-hidden className="flex shrink-0 items-center">
         {icon}
       </span>
-      <span className="font-medium" style={{ color: `${textColor}CC` }}>
-        {label}
-      </span>
-      <span className="font-bold tabular-nums">{value}</span>
+      <StatusColorBadge label={`${label} ${value}`} color={color} />
     </span>
   );
 }

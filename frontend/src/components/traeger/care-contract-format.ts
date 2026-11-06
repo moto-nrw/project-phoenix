@@ -169,6 +169,7 @@ export const TEMPLATE_ISSUE_LABELS: Record<TemplateIssue, string> = {
   conclusion_automatic: "Entsteht bei der Annahme",
   acceptance_missing: "Zustimmung zum Vertrag fehlt",
   acceptance_changed: "Bedingungen nach der Anmeldung geändert",
+  recipient_missing: "E-Mail-Adresse der Eltern fehlt",
 };
 
 /**
@@ -177,6 +178,8 @@ export const TEMPLATE_ISSUE_LABELS: Record<TemplateIssue, string> = {
  */
 export const TEMPLATE_ISSUE_REASONS: Partial<Record<TemplateIssue, string>> = {
   conclusion_automatic: "Der Vertrag entsteht in wenigen Minuten von selbst.",
+  recipient_missing:
+    "Die Schule ergänzt die E-Mail-Adresse in der Anmeldung. Danach versucht moto es erneut. Bis dahin entsteht kein Vertrag.",
   acceptance_missing:
     "Die Eltern haben in der Anmeldung den Vertragsbedingungen nicht zugestimmt. Es entsteht kein Vertrag. Zum Senden stellen Sie die Schule auf „Später verschicken“.",
   acceptance_changed:

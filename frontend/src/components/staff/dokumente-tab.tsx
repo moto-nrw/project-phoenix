@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { FileText, FileImage, File as FileIcon, Upload } from "lucide-react";
-import { Button } from "~/components/ui/button";
+import { useMemo, useState } from "react";
+import { FileText, FileImage, File as FileIcon } from "lucide-react";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { Dropzone } from "~/components/ui/dropzone";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
@@ -101,7 +101,6 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
   const [uploadCategory, setUploadCategory] =
     useState<StaffDocumentCategory | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [dragActive, setDragActive] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StaffDocument | null>(null);
   const [deleting, setDeleting] = useState(false);
   const uploadErrors = useApiErrorDisplay();
@@ -109,7 +108,6 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
   // Ein Ladefehler steht an der Stelle der Liste, nie als „Noch keine
   // Dokumente“ (#2514).
   const loadError = useSwrLoadError(error, "die Liste der Dokumente", mutate);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const visibleCategories = useMemo(
     () => data?.visibleCategories ?? [],
@@ -132,9 +130,8 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
       ? documents
       : documents.filter((doc) => doc.category === filter);
 
-  const handleFiles = async (files: FileList | File[] | null) => {
-    const file = files?.[0];
-    if (!file || uploading) {
+  const handleFile = async (file: File) => {
+    if (uploading) {
       return;
     }
     if (!effectiveUploadCategory) {
@@ -163,9 +160,6 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
       await uploadErrors.show(err, { object: "das Dokument" });
     } finally {
       setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     }
   };
 
@@ -320,48 +314,19 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
             />
           </div>
 
-          <div
-            className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
-              dragActive
-                ? "border-moto-green bg-moto-green/5"
-                : "border-gray-200 bg-gray-50/50"
-            }`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragActive(true);
-            }}
-            onDragLeave={() => setDragActive(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragActive(false);
-              void handleFiles(e.dataTransfer.files);
-            }}
-          >
-            <Upload className="h-5 w-5 text-gray-400" aria-hidden="true" />
-            <p className="text-sm text-gray-600">
-              Datei hierher ziehen oder{" "}
-              <Button
-                type="button"
-                variant="link"
-                size="md"
-                disabled={uploading || !effectiveUploadCategory}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {uploading ? "Wird hochgeladen…" : "Datei auswählen"}
-              </Button>
-            </p>
-            <p className="text-xs text-gray-400">
-              PDF, DOCX, PNG oder JPG · max. 10 MB
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={ACCEPTED_FILE_TYPES}
-              className="hidden"
-              aria-label="Dokument auswählen"
-              onChange={(e) => void handleFiles(e.target.files)}
-            />
-          </div>
+          <Dropzone
+            accept={ACCEPTED_FILE_TYPES}
+            legend="Bereich zum Hochladen eines Dokuments"
+            label="Datei hierher ziehen"
+            dragLabel="Datei hier ablegen"
+            buttonLabel="Datei auswählen"
+            inputLabel="Dokument auswählen"
+            hint="PDF, DOCX, PNG oder JPG · max. 10 MB"
+            loading={uploading}
+            loadingLabel="Wird hochgeladen…"
+            disabled={!effectiveUploadCategory}
+            onFile={(file) => void handleFile(file)}
+          />
         </div>
 
         {/* Category filter */}

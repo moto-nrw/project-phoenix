@@ -86,9 +86,11 @@ func TestAcceptanceIssueNeedsTickedConditionsShownBeforeTheAcceptance(t *testing
 	t.Parallel()
 	submitted := time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC)
 	accepted := submitted.Add(24 * time.Hour)
-	proof := carecontract.AcceptedText{Key: "terms", Text: "Bedingungen", SHA256: "abc", SubmittedAt: submitted}
+	terms := carecontract.TemplateInput{TermKind: carecontract.TermOpenEnded, NoticeMonths: 1,
+		NoticeTo: carecontract.NoticeMonthEnd, ContractPartner: "Träger"}
+	proof := carecontract.AcceptedText{Key: "terms", Text: acceptanceText(terms), SHA256: "abc", SubmittedAt: submitted}
 	draft := func(at *time.Time, proofs ...carecontract.AcceptedText) NewContract {
-		return NewContract{AcceptedAt: at, Acceptances: proofs}
+		return NewContract{AcceptedAt: at, Acceptances: proofs, Version: carecontract.Version{Terms: terms}}
 	}
 	before := submitted.Add(-time.Hour)
 
@@ -101,6 +103,52 @@ func TestAcceptanceIssueNeedsTickedConditionsShownBeforeTheAcceptance(t *testing
 	late := proof
 	late.SubmittedAt = accepted.Add(time.Minute)
 	assert.Equal(t, carecontract.SkipAcceptanceMissing, acceptanceIssue(draft(&accepted, late), before), "a submission after the acceptance")
-	assert.Equal(t, carecontract.SkipAcceptanceChanged, acceptanceIssue(draft(&accepted, proof), submitted.Add(time.Minute)),
-		"conditions changed after the submission")
+	unrelated := proof
+	unrelated.Text = "Ich stimme der Schulordnung zu."
+	assert.Equal(t, carecontract.SkipAcceptanceMissing, acceptanceIssue(draft(&accepted, unrelated), before),
+		"a checked terms block must cover the actual contract conditions")
+	assert.Empty(t, acceptanceIssue(draft(&accepted, proof), submitted.Add(time.Minute)),
+		"saving identical conditions does not invalidate consent")
+	changed := draft(&accepted, proof)
+	changed.Version.Terms.NoticeMonths++
+	assert.Equal(t, carecontract.SkipAcceptanceChanged, acceptanceIssue(changed, submitted.Add(time.Minute)),
+		"different conditions after the submission")
+	assert.Equal(t, carecontract.SkipAcceptanceMissing, acceptanceIssue(changed, before),
+		"a pre-existing template does not prove consent to its different conditions")
+	unrelated.SubmittedAt = submitted.Add(time.Minute)
+	matched, ok := acceptanceProof(draft(&accepted, proof, unrelated))
+	require.True(t, ok)
+	assert.Equal(t, proof, matched, "the trail must record the matching block, not a later unrelated one")
+}
+
+func TestAcceptanceTextBindsEveryTemplateCondition(t *testing.T) {
+	t.Parallel()
+	months := 12
+	terms := carecontract.TemplateInput{
+		TermKind: carecontract.TermFixedMonths, TermMonths: &months, NoticeMonths: 1,
+		NoticeTo: carecontract.NoticeMonthEnd, ContractPartner: "Träger",
+		SpecialTermination: true, SpecialTerminationNote: "Bei Umzug",
+		StatuteRequired: true, StatuteTitle: "Beitragsordnung", StatuteURL: "https://example.org/satzung",
+	}
+	text := acceptanceText(terms)
+	assert.Equal(t, "Vertragsbedingungen für die Betreuung\n\nLaufzeit:\n  12 Monate\n\nKündigung:\n  mit 1 Monat Frist zum Monatsende\n\nVertragspartner:\n  Träger\n\nSonderkündigung:\n  Ja\n  Bei Umzug\n\nSatzung:\n  Ja\n  Beitragsordnung\n\nLink zur Satzung:\n  https://example.org/satzung", text)
+	changes := map[string]func(*carecontract.TemplateInput){
+		"term kind":           func(v *carecontract.TemplateInput) { v.TermKind = carecontract.TermSchoolYear },
+		"term months":         func(v *carecontract.TemplateInput) { n := 11; v.TermMonths = &n },
+		"notice months":       func(v *carecontract.TemplateInput) { v.NoticeMonths++ },
+		"notice to":           func(v *carecontract.TemplateInput) { v.NoticeTo = carecontract.NoticeHalfYear },
+		"partner":             func(v *carecontract.TemplateInput) { v.ContractPartner = "Anderer Träger" },
+		"special termination": func(v *carecontract.TemplateInput) { v.SpecialTermination = false },
+		"special note":        func(v *carecontract.TemplateInput) { v.SpecialTerminationNote += " oder Schulwechsel" },
+		"statute required":    func(v *carecontract.TemplateInput) { v.StatuteRequired = false },
+		"statute title":       func(v *carecontract.TemplateInput) { v.StatuteTitle += " Neu" },
+		"statute URL":         func(v *carecontract.TemplateInput) { v.StatuteURL += "/neu" },
+	}
+	for name, change := range changes {
+		changed := terms
+		change(&changed)
+		assert.NotEqual(t, text, acceptanceText(changed), name)
+	}
+	terms.ContractPartner = ""
+	assert.Empty(t, acceptanceText(terms), "the letterhead fallback is not part of the accepted conditions")
 }

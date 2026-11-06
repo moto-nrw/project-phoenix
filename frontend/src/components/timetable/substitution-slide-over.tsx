@@ -62,9 +62,12 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { useApiFormError } from "~/contexts/ToastContext";
 
 import {
+  instanceStatusTone,
   timetableMutedSurface,
   timetableNestedSurface,
 } from "./timetable-style";
@@ -576,16 +579,17 @@ export function SubstitutionSlideOver({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <SlideOverTitle>{instance.title}</SlideOverTitle>
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-gray-600 uppercase">
-                      {getStatusLabel(instance.status)}
-                    </span>
+                    <StatusBadge
+                      label={getStatusLabel(instance.status)}
+                      tone={instanceStatusTone[instance.status]}
+                      compact
+                    />
                     {typeBadge && (
-                      <span
-                        className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white uppercase"
-                        style={{ backgroundColor: typeBadge.bg }}
-                      >
-                        {typeBadge.label}
-                      </span>
+                      <StatusColorBadge
+                        label={typeBadge.label}
+                        color={typeBadge.color}
+                        compact
+                      />
                     )}
                   </div>
                   <SlideOverDescription>
@@ -784,21 +788,29 @@ export function SubstitutionSlideOver({
                                 </span>
                                 <div className="flex flex-wrap items-center justify-end gap-2">
                                   {removed ? (
-                                    <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
-                                      Wird entfernt
-                                    </span>
+                                    <StatusBadge
+                                      label="Wird entfernt"
+                                      tone="gray"
+                                      size="xs"
+                                    />
                                   ) : row.isAbsent && !restored ? (
-                                    <span className="bg-moto-red/10 text-moto-red-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
-                                      Abwesend
-                                    </span>
+                                    <StatusBadge
+                                      label="Abwesend"
+                                      tone="red"
+                                      size="xs"
+                                    />
                                   ) : restored ? (
-                                    <span className="bg-moto-green/20 text-moto-green-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
-                                      Wird wiederhergestellt
-                                    </span>
+                                    <StatusBadge
+                                      label="Wird wiederhergestellt"
+                                      tone="green"
+                                      size="xs"
+                                    />
                                   ) : (
-                                    <span className="bg-moto-green/20 text-moto-green-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
-                                      Ersatz
-                                    </span>
+                                    <StatusBadge
+                                      label="Ersatz"
+                                      tone="green"
+                                      size="xs"
+                                    />
                                   )}
                                   {canEdit && !row.isSickAbsence && (
                                     <Button
@@ -1238,9 +1250,7 @@ function HistoryTab({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         <div className="mb-3">
-          <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] text-gray-600">
-            {contextChip}
-          </span>
+          <StatusBadge label={contextChip} tone="gray" compact wrap />
         </div>
 
         {showSkeleton ? (

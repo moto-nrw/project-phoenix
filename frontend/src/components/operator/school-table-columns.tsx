@@ -2,6 +2,8 @@ import { DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
 import { formatCount } from "~/lib/format-utils";
 import type { SchoolSummary } from "~/lib/operator/provisioning-helpers";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 interface BuildSchoolColumnsOptions {
   readonly showOrgColumn?: boolean;
@@ -20,9 +22,11 @@ export function buildSchoolColumns(
           <div className="flex items-center gap-2">
             <span className="font-semibold text-gray-900">{row.name}</span>
             {row.hidden && (
-              <span className="bg-moto-amber/15 text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
-                Verborgen
-              </span>
+              <StatusColorBadge
+                label="Verborgen"
+                color={LOCATION_COLORS.WARNING}
+                compact
+              />
             )}
           </div>
           <div className="font-mono text-xs text-gray-500">{row.subdomain}</div>
