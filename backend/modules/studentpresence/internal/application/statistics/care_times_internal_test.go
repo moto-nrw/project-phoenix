@@ -333,3 +333,23 @@ func TestClassifyCareTimeDayShowsTimeInClassWithoutDeducting(t *testing.T) {
 		assert.Equal(t, minutes(-450), day.DeviationMinutes)
 	})
 }
+
+// A day without a check-out is never fully compared, also when an early
+// arrival already made it an overrun: its later minutes are unknown (#4683).
+func TestComparedDayCountsKeepsOpenDaysIncomplete(t *testing.T) {
+	t.Parallel()
+	in := wallClockAt(7, 0)
+	out := wallClockAt(15, 0)
+	days := []studentpresence.CareTimeDay{
+		{Kind: studentpresence.CareTimeDayWithinPlan, ActualStart: in, ActualEnd: out},
+		{Kind: studentpresence.CareTimeDayOverrun, ActualStart: in, ActualEnd: out},
+		{Kind: studentpresence.CareTimeDayOverrun, ActualStart: in},
+		{Kind: studentpresence.CareTimeDayUnbooked, ActualStart: in},
+		{Kind: studentpresence.CareTimeDayOpen, ActualStart: in},
+		{Kind: studentpresence.CareTimeDayNoPlan, ActualStart: in, ActualEnd: out},
+		{Kind: studentpresence.CareTimeDayAbsent},
+	}
+	compared, uncompared := comparedDayCounts(days)
+	assert.Equal(t, 2, compared, "only days with a check-in, a check-out and a plan are compared")
+	assert.Equal(t, 4, uncompared, "open days and days without a plan stay incomplete")
+}

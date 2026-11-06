@@ -32,7 +32,8 @@ import { hasPermission } from "~/lib/auth-utils";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { childrenConcept } from "~/lib/concepts/children";
-import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import { formatDate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { schoolClassLabel } from "~/lib/school-class-label";
@@ -396,9 +397,17 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
 export default function TraegerZeitvergleichPage() {
   const { data: session, status } = useSession();
   const canSeeNames = hasPermission(session ?? null, OVERRUN_NAMES_RIGHT);
-  const today = berlinTodayISO();
+  // Stays mounted across midnight: the window ends today, and the current
+  // month follows the calendar while the person is looking at it.
+  const today = useBerlinToday();
   const months = useMemo(() => recentMonths(today), [today]);
   const [month, setMonth] = useState(() => monthOf(today));
+  const shownToday = useRef(today);
+  useEffect(() => {
+    const before = monthOf(shownToday.current);
+    shownToday.current = today;
+    setMonth((current) => (current === before ? monthOf(today) : current));
+  }, [today]);
   const [schoolId, setSchoolId] = useState(ALL_SCHOOLS);
   const [evaluation, setEvaluation] = useState<OverrunEvaluation | null>(null);
   const [schools, setSchools] = useState<readonly SchoolOverruns[]>([]);

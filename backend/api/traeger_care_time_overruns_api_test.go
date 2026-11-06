@@ -7,6 +7,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 type overrunFiguresBody struct {
@@ -67,7 +69,13 @@ type overrunFixture struct {
 // Tuesday. The care plan says Monday 08:00 to 14:00.
 func newOverrunFixture(t *testing.T) overrunFixture {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	return newOverrunFixtureOn(t, testpkg.SetupTestDB(t))
+}
+
+// newOverrunFixtureOn builds the fixture on db; a test that counts
+// statements passes its own isolated database.
+func newOverrunFixtureOn(t *testing.T, db *bun.DB) overrunFixture {
+	t.Helper()
 	unit := testpkg.TenantRuntime(t, db)
 	traeger, _ := traegerPortalOn(t, db, unit)
 	organization := traegerOrganization(t, db, "Träger Zeitvergleich", true)
@@ -203,4 +211,41 @@ func TestCareTimeOverrunsStayWithTheirTraeger(t *testing.T) {
 		code, _, raw := f.get(t, f.admin, "/traeger/care-time-overruns?"+window)
 		assert.Equal(t, http.StatusBadRequest, code, "%s: %s", window, raw)
 	}
+}
+
+// The evaluation reads every school in its own unit: its statements grow
+// with the schools of the Träger, never with the children (#4683).
+func TestCareTimeOverrunsQueryBudget(t *testing.T) {
+	t.Parallel()
+	f := newOverrunFixtureOn(t, testpkg.SetupIsolatedTestDB(t))
+	counter := testpkg.CaptureQueries(t, f.db)
+	run := func(token, path string) []string {
+		t.Helper()
+		counter.Reset()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		f.router.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return counter.Queries()
+	}
+	const childrenPath = "/traeger/care-time-overruns/children?from=2026-06-08&to=2026-06-16"
+	// The first reads record the report access; the budget measures the
+	// steady state after it, like the school's overrun list.
+	run(f.billing, overrunWindow)
+	run(f.admin, childrenPath)
+	summaryOne := run(f.billing, overrunWindow)
+	childrenOne := run(f.admin, childrenPath)
+
+	staff, _ := testpkg.CreateTestStaffWithAccountForTenant(t, f.db, f.school, "Budget", "Kind")
+	for i := 0; i < 3; i++ {
+		careTimeChild(t, &statisticsHTTPTestContext{db: f.db}, staff.ID)
+	}
+	summaryMany := run(f.billing, overrunWindow)
+	childrenMany := run(f.admin, childrenPath)
+
+	assert.Len(t, summaryMany, len(summaryOne), "the summary must batch its children")
+	assert.Len(t, childrenMany, len(childrenOne), "the named list must batch its children")
+	querybudgets.AssertQueryBudget(t, "api.traeger.care_time_overruns", summaryMany)
+	querybudgets.AssertQueryBudget(t, "api.traeger.care_time_overrun_children", childrenMany)
 }

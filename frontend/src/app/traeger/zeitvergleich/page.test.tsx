@@ -1,10 +1,11 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
 import type { OverrunEvaluation } from "~/lib/traeger-care-time-overruns-api";
 
-const { api, mockUseSession } = vi.hoisted(() => ({
+const { api, mockUseSession, clock } = vi.hoisted(() => ({
+  clock: { today: "2026-09-09" },
   api: {
     fetchOverrunSummary: vi.fn(),
     fetchOverrunChildren: vi.fn(),
@@ -19,6 +20,9 @@ vi.mock("~/lib/traeger-care-time-overruns-api", async (importOriginal) => ({
   ...api,
 }));
 vi.mock("next-auth/react", () => ({ useSession: () => mockUseSession() }));
+vi.mock("~/lib/hooks/use-berlin-today", () => ({
+  useBerlinToday: () => clock.today,
+}));
 vi.mock("~/lib/traeger-url", () => ({
   traegerPath: (path: string) => path.replace(/^\/traeger/, "") || "/",
 }));
@@ -83,6 +87,7 @@ function renderPage() {
 
 describe("Länger als gebucht", () => {
   beforeEach(() => {
+    clock.today = "2026-09-09";
     api.fetchOverrunSummary.mockReset();
     api.fetchOverrunChildren.mockReset();
   });
@@ -338,5 +343,37 @@ describe("Länger als gebucht", () => {
       screen.queryByText("Für diesen Zeitraum gibt es keine Check-ins."),
     ).not.toBeInTheDocument();
     expect(within(table).queryByText("0")).not.toBeInTheDocument();
+  });
+
+  it("follows the current month across midnight", async () => {
+    mockUseSession.mockReturnValue(session(["traeger_reports:read"]));
+    api.fetchOverrunSummary.mockResolvedValue(EVALUATION);
+    clock.today = "2026-09-30";
+    const { rerender } = render(
+      <ToastProvider>
+        <TraegerZeitvergleichPage />
+      </ToastProvider>,
+    );
+    await waitFor(() =>
+      expect(api.fetchOverrunSummary).toHaveBeenLastCalledWith({
+        from: "2026-09-01",
+        to: "2026-09-30",
+        schoolId: undefined,
+      }),
+    );
+
+    clock.today = "2026-10-01";
+    rerender(
+      <ToastProvider>
+        <TraegerZeitvergleichPage />
+      </ToastProvider>,
+    );
+    await waitFor(() =>
+      expect(api.fetchOverrunSummary).toHaveBeenLastCalledWith({
+        from: "2026-10-01",
+        to: "2026-10-01",
+        schoolId: undefined,
+      }),
+    );
   });
 });

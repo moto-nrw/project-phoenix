@@ -115,16 +115,16 @@ func (s *service) careTimeOverruns(ctx context.Context, filters studentpresence.
 	}, nil
 }
 
-// comparedDayCounts splits the days with a check-in into those compared
-// with a booking and those that could not be: no plan on file, or no
-// check-out yet.
+// comparedDayCounts splits the days with a check-in into those fully
+// compared with a booking and those that were not: no plan on file, or no
+// check-out yet. A day without a check-out stays incomplete even when an
+// early arrival already makes it an overrun: its later minutes are unknown.
 func comparedDayCounts(days []studentpresence.CareTimeDay) (compared, uncompared int) {
 	for _, day := range days {
-		if day.ActualStart == nil {
+		switch {
+		case day.ActualStart == nil:
 			continue
-		}
-		switch day.Kind {
-		case studentpresence.CareTimeDayNoPlan, studentpresence.CareTimeDayOpen:
+		case day.ActualEnd == nil, day.Kind == studentpresence.CareTimeDayNoPlan:
 			uncompared++
 		default:
 			compared++

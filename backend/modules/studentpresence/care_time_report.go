@@ -159,8 +159,9 @@ type CareTimeOverruns struct {
 	// with a booking (within the booking, overrun, or unbooked). Zero means
 	// nothing was compared: an empty list is then no all-clear (#4683).
 	ComparedDays int
-	// UncomparedDays counts the child-days with a check-in that could not be
-	// compared: no care plan on file, or no check-out yet.
+	// UncomparedDays counts the child-days with a check-in that were not fully
+	// compared: no care plan on file, or no check-out yet (also when an early
+	// arrival already made the day an overrun).
 	UncomparedDays int
 	Students       []CareTimeOverrunRow
 }
