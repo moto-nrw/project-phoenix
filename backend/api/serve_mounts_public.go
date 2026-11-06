@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 
 	emailWebhooksHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/webhooks"
 
