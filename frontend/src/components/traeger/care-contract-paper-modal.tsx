@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { Dropzone } from "~/components/ui/dropzone";
+import { RequiredMark } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -123,7 +124,7 @@ export function PaperSignatureModal({
         </div>
         <div className="space-y-1.5">
           <span className="block text-sm font-medium text-gray-700">
-            Unterschriebener Vertrag
+            Unterschriebener Vertrag <RequiredMark />
           </span>
           <Dropzone
             accept="application/pdf,.pdf"
