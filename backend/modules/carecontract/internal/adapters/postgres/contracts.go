@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
@@ -267,11 +267,11 @@ const inboxSQL = `SELECT c.id, v.child_first_name, v.child_last_name, ` + module
 	JOIN LATERAL (SELECT * FROM care_contract.contract_versions AS cv
 		WHERE cv.organization_id = c.organization_id AND cv.contract_id = c.id
 		ORDER BY cv.version_number DESC LIMIT 1) AS v ON true
-	WHERE c.organization_id = ?
+	WHERE c.organization_id = ? AND ` + inboxChildScopeSQL + `
 	ORDER BY m.first_sent DESC, c.id DESC`
 
 // InboxContracts lists the contracts sent to the address, newest first.
-func (Store) InboxContracts(ctx context.Context, organizationID int64, email string) ([]carecontract.InboxContract, error) {
+func (Store) InboxContracts(ctx context.Context, organizationID int64, reader carecontract.InboxReader) ([]carecontract.InboxContract, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
@@ -285,7 +285,8 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, email str
 		EffectiveFrom  calendar.Date `bun:"effective_from,type:date"`
 		SentAt         time.Time     `bun:"sent_at"`
 	}
-	if err := db.NewRaw(inboxSQL, organizationID, strings.TrimSpace(email), organizationID).
+	schools, students := inboxChildScope(reader.Children)
+	if err := db.NewRaw(inboxSQL, organizationID, reader.Email, organizationID, pgdialect.Array(schools), pgdialect.Array(students)).
 		Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: read inbox: %w", err)
 	}
@@ -300,15 +301,33 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, email str
 }
 
 // InboxDocument reads the PDF of a contract sent to the address.
-func (Store) InboxDocument(ctx context.Context, organizationID, contractID int64, email string) (carecontract.File, error) {
+func (Store) InboxDocument(ctx context.Context, organizationID, contractID int64, reader carecontract.InboxReader) (carecontract.File, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return carecontract.File{}, err
 	}
 	var row documentRow
+	schools, students := inboxChildScope(reader.Children)
 	err = db.NewRaw(`SELECT d.filename, d.pdf FROM care_contract.contract_mailings AS m
 		JOIN care_contract.contract_documents AS d ON d.organization_id = m.organization_id AND d.id = m.contract_document_id
-		WHERE m.organization_id = ? AND m.contract_id = ? AND lower(m.recipient_email) = lower(?)
-		ORDER BY m.sent_at DESC, m.id DESC LIMIT 1`, organizationID, contractID, strings.TrimSpace(email)).Scan(ctx, &row)
+		JOIN care_contract.contracts AS c ON c.organization_id = m.organization_id AND c.id = m.contract_id
+		WHERE m.organization_id = ? AND m.contract_id = ? AND lower(m.recipient_email) = lower(?) AND `+inboxChildScopeSQL+`
+		ORDER BY m.sent_at DESC, m.id DESC LIMIT 1`, organizationID, contractID, reader.Email, pgdialect.Array(schools), pgdialect.Array(students)).Scan(ctx, &row)
 	return row.file(err, carecontract.ErrInboxDocumentNotFound)
+}
+
+// inboxChildScopeSQL binds school and student as pairs, never as independent
+// lists. An empty scope or an unassigned contract child grants no access.
+const inboxChildScopeSQL = `EXISTS (SELECT 1 FROM unnest(?::bigint[], ?::bigint[]) AS allowed(school_id, student_id)
+ WHERE allowed.school_id = c.school_id AND allowed.student_id = c.student_id)`
+
+func inboxChildScope(children map[int64][]int64) ([]int64, []int64) {
+	schools, students := []int64{}, []int64{}
+	for school, permitted := range children {
+		for _, student := range permitted {
+			schools = append(schools, school)
+			students = append(students, student)
+		}
+	}
+	return schools, students
 }

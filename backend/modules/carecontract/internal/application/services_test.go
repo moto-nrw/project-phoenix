@@ -119,3 +119,34 @@ func TestBookedCareResolvesFixedDaysButNotAnEmptyChoice(t *testing.T) {
 	}, got.services)
 	assert.Equal(t, []int64{1}, got.offerings)
 }
+
+func TestBookedCarePreservesExplicitFixedDays(t *testing.T) {
+	t.Parallel()
+	offering := carecontract.Offering{ID: 1, Name: "Betreuung", DaysOfWeekMode: "fixed", AvailableDays: []string{"mon", "tue"}}
+	got := bookedCare(schoolRead{offerings: map[int64]carecontract.Offering{1: offering}}, carecontract.Application{Bookings: []carecontract.Booking{{CareOfferingID: 1, Days: []string{"mon"}}}}, calendar.NewDate(2026, 11, 6))
+	assert.Equal(t, []carecontract.Service{{Weekday: "mon", CareOfferingID: 1, ModuleName: "Betreuung"}}, got.services)
+}
+
+func TestBookedCareBoundsBookingsToTheirOfferingPhase(t *testing.T) {
+	t.Parallel()
+	today := calendar.NewDate(2026, 11, 6)
+	start, end := calendar.NewDate(2026, 8, 1), calendar.NewDate(2027, 7, 31)
+	offering := carecontract.Offering{ID: 1, Name: "Betreuung", DaysOfWeekMode: "fixed", AvailableDays: []string{"mon"}, ServiceStart: &start, ServiceEnd: &end}
+	read := schoolRead{offerings: map[int64]carecontract.Offering{1: offering}}
+	application := carecontract.Application{Bookings: []carecontract.Booking{{CareOfferingID: 1}}}
+	got := bookedCare(read, application, today)
+	assert.Equal(t, start, got.effectiveFrom(application, today))
+	assert.Equal(t, &end, endsOn(carecontract.TemplateInput{TermKind: carecontract.TermSchoolYear}, start, got.until))
+	// An open row cannot outlive its phase or re-enter the candidates afterwards.
+	assert.Empty(t, bookedCare(read, application, end.AddDays(1)).services)
+	// Explicit booking bounds still narrow the phase.
+	from, until := start.AddDays(20), end.AddDays(-20)
+	application.Bookings[0].ValidFrom, application.Bookings[0].ValidUntil = &from, &until
+	got = bookedCare(read, application, today)
+	assert.Equal(t, from, got.effectiveFrom(application, today))
+	assert.Equal(t, &until, got.until)
+	// A booking that starts after the phase has no valid service window.
+	after := end.AddDays(1)
+	application.Bookings[0].ValidFrom, application.Bookings[0].ValidUntil = &after, nil
+	assert.Empty(t, bookedCare(read, application, today).services)
+}

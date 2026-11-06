@@ -65,6 +65,7 @@ type careContractDetailBody struct {
 		Status         string                    `json:"status"`
 		ChildFirstName string                    `json:"child_first_name"`
 		ChildBirthDate string                    `json:"child_birth_date"`
+		EndsOn         *string                   `json:"ends_on"`
 		Services       []careContractServiceBody `json:"services"`
 		PriceCents     *int64                    `json:"price_cents"`
 		Terms          struct {
@@ -219,6 +220,8 @@ func TestCareContractDraftFromTheAcceptedApplicationIsSentWithItsFrozenPDF(t *te
 	assert.Equal(t, 1, detail.Version.Number)
 	assert.Equal(t, "beantragt", detail.Version.Status)
 	assert.Equal(t, "2019-03-04", detail.Version.ChildBirthDate)
+	require.NotNil(t, detail.Version.EndsOn)
+	assert.Equal(t, "2028-07-31", *detail.Version.EndsOn, "the offering phase bounds the contract")
 	assert.Equal(t, candidates[0].Services, detail.Version.Services, "the version keeps the services")
 	require.NotNil(t, detail.Version.PriceCents)
 	assert.Equal(t, int64(9500), *detail.Version.PriceCents)

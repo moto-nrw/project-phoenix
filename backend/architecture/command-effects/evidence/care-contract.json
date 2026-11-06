@@ -114,10 +114,10 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractApplications.NamePhases",
-      "binding_digest": "af9dee7abbbdfb5d7fb37cbad2f382fd",
+      "binding_digest": "8d03fd585154a0ab00084fcc0a6be100",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolApplications.NamePhases",
       "source_owner": "care-contract",
-      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.ContractPhaseNames",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.ContractPhases",
       "target_owner": "enrollment"
     },
     {

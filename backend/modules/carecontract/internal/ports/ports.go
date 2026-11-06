@@ -89,6 +89,6 @@ type Store interface {
 	MarkSent(ctx context.Context, organizationID, contractID int64, at time.Time) error
 	DeleteDraft(ctx context.Context, organizationID, contractID int64) (bool, error)
 	InsertEvents(ctx context.Context, organizationID int64, events []Event) error
-	InboxContracts(ctx context.Context, organizationID int64, email string) ([]carecontract.InboxContract, error)
-	InboxDocument(ctx context.Context, organizationID, contractID int64, email string) (carecontract.File, error)
+	InboxContracts(ctx context.Context, organizationID int64, reader carecontract.InboxReader) ([]carecontract.InboxContract, error)
+	InboxDocument(ctx context.Context, organizationID, contractID int64, reader carecontract.InboxReader) (carecontract.File, error)
 }

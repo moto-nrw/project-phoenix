@@ -135,13 +135,15 @@ func (a careContractApplications) NamePhases(ctx context.Context, offerings []ca
 			phaseIDs = append(phaseIDs, offering.PhaseID)
 		}
 	}
-	names, err := a.applications.ContractPhaseNames(ctx, phaseIDs)
+	names, err := a.applications.ContractPhases(ctx, phaseIDs)
 	if err != nil {
 		return nil, err
 	}
 	named := slices.Clone(offerings)
 	for i := range named {
-		named[i].PhaseName = names[named[i].PhaseID]
+		phase := names[named[i].PhaseID]
+		named[i].PhaseName = phase.Name
+		named[i].ServiceStart, named[i].ServiceEnd = phase.ServiceStart, phase.ServiceEnd
 	}
 	return named, nil
 }

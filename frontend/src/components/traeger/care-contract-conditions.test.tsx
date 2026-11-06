@@ -25,6 +25,31 @@ const OPEN: OfferingTemplate = {
 describe("CareContractConditions", () => {
   beforeEach(() => api.saveContractTemplate.mockReset());
 
+  it("selects a fixed term through the shared width-constrained selector", async () => {
+    const onSaved = vi.fn();
+    api.saveContractTemplate.mockResolvedValue(OPEN);
+    render(
+      <ToastProvider>
+        <CareContractConditions offerings={[OPEN]} onSaved={onSaved} />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole("combobox", { name: "Laufzeit" }));
+    fireEvent.click(screen.getByRole("option", { name: "Feste Monate" }));
+    fireEvent.change(screen.getByLabelText("Anzahl der Monate"), {
+      target: { value: "6" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Bedingungen speichern" }),
+    );
+    await waitFor(() =>
+      expect(api.saveContractTemplate).toHaveBeenCalledWith(
+        "3",
+        "5",
+        expect.objectContaining({ termKind: "fixed_months", termMonths: 6 }),
+      ),
+    );
+  });
+
   it("opens the first offering without conditions and saves them", async () => {
     const onSaved = vi.fn();
     api.saveContractTemplate.mockImplementation(

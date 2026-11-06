@@ -153,9 +153,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolApplications.NamePhases",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.ContractPhaseNames: names the enrollment phases of the school's offerings in its tenant transaction (#4678, ADR 0153).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.ContractPhases: reads the names and inclusive service bounds of the enrollment phases of the school's offerings in its tenant transaction (#4678, ADR 0153).",
       "source_owner": "care-contract",
-      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.ContractPhaseNames",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.ContractPhases",
       "target_owner": "enrollment"
     },
     {

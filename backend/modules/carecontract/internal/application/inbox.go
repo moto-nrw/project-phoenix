@@ -10,7 +10,7 @@ import (
 
 // Inbox serves carecontract.Inbox (ADR 0088 section 7, ADR 0126, ADR 0153):
 // a contract lies in the inbox of the account its mail went to. The parents
-// portal decides beforehand which Träger the account may read at all.
+// portal supplies the schools and children its relationship checks permit.
 type Inbox struct {
 	store Store
 }
@@ -32,7 +32,8 @@ func (in *Inbox) InboxContracts(ctx context.Context, organizationID int64, reade
 	if err != nil {
 		return nil, err
 	}
-	contracts, err := in.store.InboxContracts(ctx, organizationID, email)
+	reader.Email = email
+	contracts, err := in.store.InboxContracts(ctx, organizationID, reader)
 	if err != nil {
 		return nil, fmt.Errorf("care contract: read inbox: %w", err)
 	}
@@ -61,7 +62,8 @@ func (in *Inbox) InboxContractDocument(ctx context.Context, organizationID, cont
 	if contractID <= 0 {
 		return carecontract.File{}, carecontract.ErrInboxDocumentNotFound
 	}
-	file, err := in.store.InboxDocument(ctx, organizationID, contractID, email)
+	reader.Email = email
+	file, err := in.store.InboxDocument(ctx, organizationID, contractID, reader)
 	if err != nil {
 		return carecontract.File{}, err
 	}

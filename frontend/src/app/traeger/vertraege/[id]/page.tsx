@@ -65,6 +65,7 @@ export default function TraegerVertragPage() {
   const [contract, setContract] = useState<CareContractDetail | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const pageLoad = useApiLoadError();
@@ -119,6 +120,15 @@ export default function TraegerVertragPage() {
     // `frozen` is no input of the effect: a new PDF exists only after the
     // first send, so the preview reloads then.
   }, [id, frozen, loaded]);
+
+  const refreshDelivery = async () => {
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const send = async () => {
     if (!contract) return;
@@ -221,12 +231,24 @@ export default function TraegerVertragPage() {
               <Download className="mr-2 h-4 w-4" aria-hidden="true" />
               PDF herunterladen
             </Button>
+            {!isDraft && contract.mailings.length > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                disabled={refreshing || sending}
+                onClick={() => void refreshDelivery()}
+              >
+                <RotateCw className="mr-2 h-4 w-4" aria-hidden="true" />
+                {refreshing ? "Wird aktualisiert …" : "Versand aktualisieren"}
+              </Button>
+            ) : null}
             {canSend ? (
               <Button
                 type="button"
                 variant={isDraft ? "success" : "outline"}
                 size="md"
-                disabled={sending || lastMail?.state === "queued"}
+                disabled={sending || refreshing || lastMail?.state === "queued"}
                 onClick={() => void send()}
               >
                 {isDraft ? (
@@ -417,10 +439,10 @@ export default function TraegerVertragPage() {
             </div>
           </div>
           <SectionCard
-            title={contract.documentFrozen ? "Versendetes PDF" : "Vorschau"}
+            title={contract.documentFrozen ? "PDF für die Eltern" : "Vorschau"}
             description={
               contract.documentFrozen
-                ? "Dieses PDF haben die Eltern bekommen. Es ändert sich nicht mehr."
+                ? "Dieses PDF gehört zum Versand. Es ändert sich nicht mehr."
                 : "So sieht der Vertrag mit Ihrem Briefkopf aus."
             }
           >
@@ -455,11 +477,27 @@ function StatusNotice({
       />
     );
   }
-  if (contract.status === "versendet" && contract.sentAt) {
+  if (last?.state === "queued") {
+    return (
+      <Alert
+        type="info"
+        message="Die Mail wartet auf den Versand. Mit „Versand aktualisieren“ prüfen Sie den Stand."
+      />
+    );
+  }
+  if (last?.state === "unknown") {
+    return (
+      <Alert
+        type="warning"
+        message="Das Ergebnis des Mail-Versands ist unbekannt. Mit „Versand aktualisieren“ prüfen Sie den Stand."
+      />
+    );
+  }
+  if (last?.state === "sent") {
     return (
       <Alert
         type="success"
-        message={`Versendet am ${formatBerlinDate(contract.sentAt)}. Die Eltern haben den Vertrag per Mail${contract.parties[0]?.hasAccount ? " und in der Eltern-App" : ""}.`}
+        message={`Gesendet am ${formatBerlinDate(last.sentAt)}. Die Mail ging an ${last.recipient}.`}
       />
     );
   }

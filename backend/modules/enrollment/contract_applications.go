@@ -26,11 +26,18 @@ type ContractApplication struct {
 	ActivateOn        *calendar.Date
 }
 
+// ContractPhase is an offering phase's name and inclusive service window.
+type ContractPhase struct {
+	Name         string
+	ServiceStart *calendar.Date
+	ServiceEnd   *calendar.Date
+}
+
 // ContractApplications reads the accepted application children of the
 // school whose tenant transaction the caller holds. A non-empty
 // requestChildIDs keeps only those. It reads nothing else.
 type ContractApplications interface {
 	AcceptedContractApplications(ctx context.Context, requestChildIDs []int64) ([]ContractApplication, error)
-	// ContractPhaseNames names the school's phases by ID.
-	ContractPhaseNames(ctx context.Context, phaseIDs []int64) (map[int64]string, error)
+	// ContractPhases reads phase names and service bounds by ID.
+	ContractPhases(ctx context.Context, phaseIDs []int64) (map[int64]ContractPhase, error)
 }

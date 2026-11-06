@@ -60,6 +60,9 @@ type Offering struct {
 	EndTimes       map[string]string
 	DaysOfWeekMode string
 	AvailableDays  []string
+	// ServiceStart and ServiceEnd are the inclusive bounds of the offering phase.
+	ServiceStart *calendar.Date
+	ServiceEnd   *calendar.Date
 }
 
 // SchoolAccess is one read of personal data of a school by the Träger-Büro,
@@ -77,7 +80,7 @@ type SchoolApplications interface {
 	// AcceptedApplications lists the accepted application children without
 	// their bookings; a non-empty requestChildIDs keeps only those.
 	AcceptedApplications(ctx context.Context, requestChildIDs []int64) ([]Application, error)
-	// NamePhases fills in the name of each offering's enrollment phase.
+	// NamePhases fills in the name and service window of each offering's enrollment phase.
 	NamePhases(ctx context.Context, offerings []Offering) ([]Offering, error)
 }
 

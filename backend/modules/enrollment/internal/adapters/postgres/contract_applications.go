@@ -71,9 +71,9 @@ type contractApplicationRow struct {
 	ActivateOn        *calendar.Date `bun:"activate_on,type:date"`
 }
 
-// ContractPhaseNames names the school's phases by ID.
-func (ContractApplicationStore) ContractPhaseNames(ctx context.Context, phaseIDs []int64) (map[int64]string, error) {
-	names := map[int64]string{}
+// ContractPhases reads the school's phase names and inclusive service bounds.
+func (ContractApplicationStore) ContractPhases(ctx context.Context, phaseIDs []int64) (map[int64]enrollment.ContractPhase, error) {
+	names := map[int64]enrollment.ContractPhase{}
 	if len(phaseIDs) == 0 {
 		return names, nil
 	}
@@ -82,15 +82,17 @@ func (ContractApplicationStore) ContractPhaseNames(ctx context.Context, phaseIDs
 		return nil, fmt.Errorf("enrollment postgres: phase names need the school transaction: %w", err)
 	}
 	var rows []struct {
-		ID   int64  `bun:"id"`
-		Name string `bun:"name"`
+		ID           int64          `bun:"id"`
+		Name         string         `bun:"name"`
+		ServiceStart *calendar.Date `bun:"service_start_date,type:date"`
+		ServiceEnd   *calendar.Date `bun:"service_end_date,type:date"`
 	}
-	if err := tx.NewRaw(`SELECT id, name FROM enrollment.phases WHERE tenant_id = ? AND id = ANY(?)`,
+	if err := tx.NewRaw(`SELECT id, name, service_start_date, service_end_date FROM enrollment.phases WHERE tenant_id = ? AND id = ANY(?)`,
 		tenantID, pgdialect.Array(phaseIDs)).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: phase names: %w", err)
 	}
 	for _, row := range rows {
-		names[row.ID] = row.Name
+		names[row.ID] = enrollment.ContractPhase{Name: row.Name, ServiceStart: row.ServiceStart, ServiceEnd: row.ServiceEnd}
 	}
 	return names, nil
 }

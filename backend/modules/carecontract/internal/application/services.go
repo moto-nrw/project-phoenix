@@ -28,7 +28,7 @@ type booked struct {
 func bookedCare(read schoolRead, application carecontract.Application, today calendar.Date) booked {
 	result := booked{services: []carecontract.Service{}}
 	open := false
-	for _, booking := range currentBookings(application.Bookings, today) {
+	for _, booking := range currentBookings(application.Bookings, read.offerings, today) {
 		offering, ok := read.offerings[booking.CareOfferingID]
 		if !ok {
 			continue
@@ -71,7 +71,7 @@ func bookedCare(read schoolRead, application carecontract.Application, today cal
 // effectiveBookingDays resolves the fixed schedule even when the booking
 // stores no selection; a choice offering keeps only its selected days.
 func effectiveBookingDays(booking carecontract.Booking, offering carecontract.Offering) []string {
-	if offering.DaysOfWeekMode == "fixed" {
+	if len(booking.Days) == 0 && offering.DaysOfWeekMode == "fixed" {
 		return offering.AvailableDays
 	}
 	return booking.Days
@@ -132,11 +132,16 @@ func (b booked) effectiveFrom(application carecontract.Application, today calend
 
 // currentBookings keeps per offering the booking that holds today or starts
 // later, the earliest of them; ended bookings drop out.
-func currentBookings(bookings []carecontract.Booking, today calendar.Date) []carecontract.Booking {
+func currentBookings(bookings []carecontract.Booking, offerings map[int64]carecontract.Offering, today calendar.Date) []carecontract.Booking {
 	chosen := map[int64]carecontract.Booking{}
 	order := []int64{}
 	for _, booking := range bookings {
-		if booking.ValidUntil != nil && !booking.ValidUntil.After(today) {
+		offering, ok := offerings[booking.CareOfferingID]
+		if !ok {
+			continue
+		}
+		booking, ok = bookingWithinPhase(booking, offering, today)
+		if !ok {
 			continue
 		}
 		previous, seen := chosen[booking.CareOfferingID]
@@ -152,6 +157,24 @@ func currentBookings(bookings []carecontract.Booking, today calendar.Date) []car
 		result = append(result, chosen[id])
 	}
 	return result
+}
+
+// bookingWithinPhase intersects the half-open booking with the offering's
+// phase, whose service end is inclusive. Empty and ended windows drop out.
+func bookingWithinPhase(booking carecontract.Booking, offering carecontract.Offering, today calendar.Date) (carecontract.Booking, bool) {
+	if offering.ServiceStart != nil && (booking.ValidFrom == nil || booking.ValidFrom.Before(*offering.ServiceStart)) {
+		booking.ValidFrom = offering.ServiceStart
+	}
+	if offering.ServiceEnd != nil {
+		until := offering.ServiceEnd.AddDays(1)
+		if booking.ValidUntil == nil || booking.ValidUntil.After(until) {
+			booking.ValidUntil = &until
+		}
+	}
+	if booking.ValidUntil != nil && (!booking.ValidUntil.After(today) || (booking.ValidFrom != nil && !booking.ValidFrom.Before(*booking.ValidUntil))) {
+		return booking, false
+	}
+	return booking, true
 }
 
 func startsBefore(a, b *calendar.Date) bool {

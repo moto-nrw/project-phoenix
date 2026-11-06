@@ -130,9 +130,11 @@ describe("TraegerVertragPage", () => {
     expect(
       screen.getByText("Offene Ganztagsschule bis 16:30 Uhr"),
     ).toBeInTheDocument();
-    expect(await screen.findByTestId("pdf-preview")).toHaveAttribute(
-      "data-loaded",
-      "true",
+    await waitFor(() =>
+      expect(screen.getByTestId("pdf-preview")).toHaveAttribute(
+        "data-loaded",
+        "true",
+      ),
     );
     // Wednesday to Friday carry no care.
     expect(screen.getAllByText("Keine Betreuung")).toHaveLength(3);
@@ -176,6 +178,65 @@ describe("TraegerVertragPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("refreshes a queued delivery and enables retry when it fails", async () => {
+    const pending: CareContractDetail = {
+      ...DRAFT,
+      status: "versendet",
+      sentAt: "2026-09-02T08:00:00Z",
+      documentFrozen: true,
+      mailings: [
+        {
+          recipient: "erika@example.org",
+          sentAt: "2026-09-02T08:00:00Z",
+          state: "queued",
+        },
+      ],
+    };
+    api.fetchCareContract.mockResolvedValueOnce(pending).mockResolvedValue({
+      ...pending,
+      mailings: [{ ...pending.mailings[0]!, state: "failed" }],
+    });
+    renderPage();
+    expect(
+      await screen.findByRole("button", { name: "Erneut senden" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/Die Mail wartet auf den Versand/),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Versand aktualisieren" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Erneut senden" }),
+      ).toBeEnabled(),
+    );
+    expect(screen.getByText(/kam nicht an/)).toBeInTheDocument();
+  });
+
+  it("shows an unknown delivery result without claiming success", async () => {
+    api.fetchCareContract.mockResolvedValue({
+      ...DRAFT,
+      status: "versendet",
+      sentAt: "2026-09-02T08:00:00Z",
+      documentFrozen: true,
+      mailings: [
+        {
+          recipient: "erika@example.org",
+          sentAt: "2026-09-02T08:00:00Z",
+          state: "unknown",
+        },
+      ],
+    });
+    renderPage();
+    expect(
+      await screen.findByText(/Das Ergebnis des Mail-Versands ist unbekannt/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Die Eltern haben den Vertrag/),
+    ).not.toBeInTheDocument();
+  });
+
   it("offers to send a sent contract again and no discard", async () => {
     api.fetchCareContract.mockResolvedValue({
       ...DRAFT,
@@ -196,7 +257,10 @@ describe("TraegerVertragPage", () => {
       await screen.findByRole("button", { name: /Erneut senden/ }),
     ).toBeEnabled();
     expect(screen.getByText("Gesendet")).toBeInTheDocument();
-    expect(screen.getByText("Versendetes PDF")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Die Mail ging an erika@example.org/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("PDF für die Eltern")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Vertrag senden/ }),
     ).not.toBeInTheDocument();

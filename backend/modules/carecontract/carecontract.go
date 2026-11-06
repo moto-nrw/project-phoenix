@@ -355,10 +355,12 @@ type Intake interface {
 }
 
 // InboxReader is the parents' account that reads its inbox, with its
-// current address.
+// current address and the children the workflow authorized.
 type InboxReader struct {
 	AccountID int64
 	Email     string
+	// Children contains only permitted student IDs, grouped by school.
+	Children map[int64][]int64
 }
 
 // InboxContract is one sent contract in the inbox of the parents portal.
@@ -373,7 +375,8 @@ type InboxContract struct {
 
 // Inbox serves the contracts of one Träger in the parents' inbox (ADR 0088
 // section 7, ADR 0126): a contract shows once it was sent to the address of
-// the account. Both operations run in the Träger transaction the caller
+// the account and the matching child relationship permits it. Both operations
+// run in the Träger transaction the caller
 // opens and record the read with the account.
 type Inbox interface {
 	InboxContracts(ctx context.Context, organizationID int64, reader InboxReader) ([]InboxContract, error)

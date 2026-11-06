@@ -36,6 +36,8 @@ var ErrBillingDocumentNotFound = errors.New("parent: document not found in the i
 type BillingDocumentReader struct {
 	AccountID int64
 	Email     string
+	// Children contains only permitted student IDs, grouped by school.
+	Children map[int64][]int64
 }
 
 // BillingDocument is one document of a Träger in the inbox.
@@ -201,7 +203,7 @@ func (s *Service) BillingDocumentLetter(ctx context.Context, accountID, organiza
 }
 
 // ContractDocumentFile reads the PDF of one care contract in the inbox of
-// the account, under the same two conditions as a letter.
+// the account, addressed to it and covered by the matching child permission.
 func (s *Service) ContractDocumentFile(ctx context.Context, accountID, organizationID, contractID int64) (BillingDocumentFile, error) {
 	traeger, reader, err := s.billingDocumentAccess(ctx, accountID)
 	if err != nil {
@@ -247,7 +249,7 @@ func (s *Service) billingDocumentAccess(ctx context.Context, accountID int64) ([
 	if len(access.traeger) == 0 {
 		return nil, BillingDocumentReader{}, ErrGuardianPermissionDenied
 	}
-	return access.traeger, BillingDocumentReader{AccountID: accountID, Email: strings.TrimSpace(email)}, nil
+	return access.traeger, BillingDocumentReader{AccountID: accountID, Email: strings.TrimSpace(email), Children: access.permittedChildren()}, nil
 }
 
 // documentAccess is what an account's relationships open for the inbox:
@@ -257,6 +259,18 @@ type documentAccess struct {
 	traeger  []Traeger
 	children map[int64][]*ChildSummary
 	schools  map[int64]Traeger
+}
+
+// permittedChildren retains the identities behind the relationship check;
+// organization access alone must never open another child's contract.
+func (a documentAccess) permittedChildren() map[int64][]int64 {
+	children := make(map[int64][]int64, len(a.children))
+	for school, permitted := range a.children {
+		for _, child := range permitted {
+			children[school] = append(children[school], child.StudentID)
+		}
+	}
+	return children
 }
 
 // documentAccess keeps the children whose relationship grants the inbox and

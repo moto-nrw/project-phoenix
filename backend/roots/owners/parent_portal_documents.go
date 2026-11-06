@@ -52,7 +52,7 @@ func NewParentBillingDocuments() parentportal.BillingDocumentsPort {
 }
 
 func (d parentBillingDocuments) ListBillingDocuments(ctx context.Context, organizationID int64, reader parentportal.BillingDocumentReader) ([]parentportal.BillingDocument, error) {
-	found, err := d.documents.ListParentDocuments(ctx, organizationID, parentbilling.ParentDocumentReader(reader))
+	found, err := d.documents.ListParentDocuments(ctx, organizationID, parentbilling.ParentDocumentReader{AccountID: reader.AccountID, Email: reader.Email})
 	if errors.Is(err, parentbilling.ErrParentDocumentNotFound) {
 		return nil, nil
 	}
@@ -71,7 +71,7 @@ func (d parentBillingDocuments) ListBillingDocuments(ctx context.Context, organi
 }
 
 func (d parentBillingDocuments) BillingDocumentLetter(ctx context.Context, organizationID, documentID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {
-	file, err := d.documents.ParentDocumentLetter(ctx, organizationID, documentID, parentbilling.ParentDocumentReader(reader))
+	file, err := d.documents.ParentDocumentLetter(ctx, organizationID, documentID, parentbilling.ParentDocumentReader{AccountID: reader.AccountID, Email: reader.Email})
 	if errors.Is(err, parentbilling.ErrParentDocumentNotFound) {
 		return parentportal.BillingDocumentFile{}, fmt.Errorf("%w: %w", parentportal.ErrBillingDocumentNotFound, err)
 	}

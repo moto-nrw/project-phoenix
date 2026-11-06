@@ -14,7 +14,6 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
-import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -248,12 +247,14 @@ function ConditionsForm({
           <legend className="text-sm font-medium text-gray-900">
             Laufzeit
           </legend>
-          <SegmentedControl
-            items={TERM_ITEMS}
+          <CustomSelect
+            id="care-contract-term-kind"
+            name="term_kind"
+            options={TERM_ITEMS}
             value={draft.termKind}
-            onChange={(value) => set("termKind", value)}
+            onChange={(value) => set("termKind", value as ContractTermKind)}
+            error={formErrors.fieldError("term_kind")}
             ariaLabel="Laufzeit"
-            fullWidth
           />
           {draft.termKind === "fixed_months" ? (
             <Input

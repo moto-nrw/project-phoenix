@@ -266,7 +266,7 @@ func TestContractInboxQueryBudget(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, chain.TenantID).Scan(ctx, &organization))
 	testpkg.OwnTraegerCareContracts(t, db, organization)
 	for _, child := range []string{"Felix", "Mia", "Lena"} {
-		inboxContract(t, db, organization, chain.TenantID, child, chain.Email)
+		inboxContract(t, db, organization, chain.TenantID, chain.StudentID, child, chain.Email)
 	}
 
 	counter := testpkg.CaptureQueriesForContext(t, db)
@@ -278,7 +278,7 @@ func TestContractInboxQueryBudget(t *testing.T) {
 
 // inboxContract stores a care contract of the Träger for child as the
 // Betreuungsvertrag does; sentTo records a send of its PDF to that address.
-func inboxContract(t *testing.T, db *bun.DB, organization, school int64, child, sentTo string) int64 {
+func inboxContract(t *testing.T, db *bun.DB, organization, school, studentID int64, child, sentTo string) int64 {
 	t.Helper()
 	ctx := context.Background()
 	status := "entwurf"
@@ -286,9 +286,9 @@ func inboxContract(t *testing.T, db *bun.DB, organization, school int64, child, 
 		status = "versendet"
 	}
 	var contract, version, document int64
-	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id, status, sent_at)
-		VALUES (?, ?, ?, ?, CASE WHEN ? = 'entwurf' THEN NULL ELSE NOW() END) RETURNING id`,
-		organization, school, testpkg.UniqueTestTenantID(t), status, status).Scan(ctx, &contract))
+	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id, student_id, status, sent_at)
+		VALUES (?, ?, ?, ?, ?, CASE WHEN ? = 'entwurf' THEN NULL ELSE NOW() END) RETURNING id`,
+		organization, school, testpkg.UniqueTestTenantID(t), studentID, status, status).Scan(ctx, &contract))
 	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contract_versions (organization_id, contract_id, version_number, effective_from,
 			child_first_name, child_last_name, school_name, term_kind, notice_months, notice_to, special_termination,
 			special_termination_note, statute_required, statute_title, statute_url, contract_partner)
@@ -323,9 +323,9 @@ func TestDocumentInboxShowsTheFamilysSentContracts(t *testing.T) {
 	var organization int64
 	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, chain.TenantID).Scan(ctx, &organization))
 	testpkg.OwnTraegerCareContracts(t, db, organization)
-	sent := inboxContract(t, db, organization, chain.TenantID, "Felix", chain.Email)
-	otherFamily := inboxContract(t, db, organization, chain.TenantID, "Tom", "andere.familie@example.org")
-	draft := inboxContract(t, db, organization, chain.TenantID, "Mia", "")
+	sent := inboxContract(t, db, organization, chain.TenantID, chain.StudentID, "Felix", chain.Email)
+	otherFamily := inboxContract(t, db, organization, chain.TenantID, chain.StudentID, "Tom", "andere.familie@example.org")
+	draft := inboxContract(t, db, organization, chain.TenantID, chain.StudentID, "Mia", "")
 
 	letters, err := portal.ListBillingDocuments(ctx, chain.AccountID, parentService.DocumentInboxLetters)
 	require.NoError(t, err)
@@ -349,4 +349,32 @@ func TestDocumentInboxShowsTheFamilysSentContracts(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM care_contract.contract_events WHERE organization_id = ? AND account_id = ?
 		AND action = 'read' AND details->>'inbox' IS NOT NULL`, organization, chain.AccountID).Scan(ctx, &reads))
 	assert.Equal(t, 2, reads, "the list and the download are in the trail")
+}
+
+func TestContractInboxRevokesOnlyTheChildWhosePermissionWasRemoved(t *testing.T) {
+	t.Parallel()
+	portal, _, _, db := documentInbox(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	sibling := testpkg.CreateTestStudent(t, db, "Mia", "Schneider", "1a")
+	link := testpkg.CreateTestStudentGuardianLink(t, db, sibling.ID, chain.GuardianProfileID, "primary_guardian")
+	var organization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, chain.TenantID).Scan(ctx, &organization))
+	testpkg.OwnTraegerCareContracts(t, db, organization)
+	first := inboxContract(t, db, organization, chain.TenantID, chain.StudentID, "Felix", chain.Email)
+	second := inboxContract(t, db, organization, chain.TenantID, sibling.ID, "Mia", chain.Email)
+	documents, err := portal.ListBillingDocuments(ctx, chain.AccountID, parentService.DocumentInboxContracts)
+	require.NoError(t, err)
+	require.Len(t, documents, 2)
+	_, err = portal.ContractDocumentFile(ctx, chain.AccountID, organization, second)
+	require.NoError(t, err)
+	require.NoError(t, testpkg.SetTestStudentGuardianPermissions(ctx, db, link.ID, map[string]interface{}{"parent_portal.access": true}))
+	documents, err = portal.ListBillingDocuments(ctx, chain.AccountID, parentService.DocumentInboxContracts)
+	require.NoError(t, err)
+	require.Len(t, documents, 1)
+	assert.Equal(t, first, documents[0].ID)
+	_, err = portal.ContractDocumentFile(ctx, chain.AccountID, organization, second)
+	assert.ErrorIs(t, err, parentService.ErrBillingDocumentNotFound)
+	_, err = portal.ContractDocumentFile(ctx, chain.AccountID, organization, first)
+	assert.NoError(t, err)
 }
