@@ -52,3 +52,39 @@ func TestWeeklyListStopsBeforeLaterCalendarFailure(t *testing.T) {
 	assert.Equal(t, [][2]string{{monday.String(), monday.String()}}, calendarReads)
 	assert.Equal(t, []string{monday.String()}, rosterReads)
 }
+
+type weeklyReadStore struct{ seamStore }
+
+func (weeklyReadStore) FindDailyParticipation(context.Context, []int64, domain.Date, time.Time) (map[int64]domain.DailyParticipation, domain.OperationStats, error) {
+	return map[int64]domain.DailyParticipation{}, domain.OperationStats{}, nil
+}
+
+func TestWeeklyListRangeFailureKeepsEarlierRosterFailure(t *testing.T) {
+	t.Parallel()
+	monday := domain.Date("2026-09-07")
+	rosterErr := errors.New("Tuesday roster unavailable")
+	calendarErr := errors.New("invalid later holiday period")
+	var rosterReads []string
+	directory := NewParticipantDirectory(func(_ context.Context, date string) ([]mealplan.ParticipantCandidate, error) {
+		rosterReads = append(rosterReads, date)
+		if date != monday.String() {
+			return nil, rosterErr
+		}
+		return nil, nil
+	}, func(context.Context, []int64) ([]mealplan.ParticipantCandidate, error) {
+		t.Fatal("names are not reached")
+		return nil, nil
+	})
+	calendar := NewSchoolCalendar(func(_ context.Context, from, to string) (map[string]bool, []mealplan.HolidayPeriod, error) {
+		if from != to {
+			return nil, nil, calendarErr
+		}
+		return map[string]bool{}, nil, nil
+	})
+	service := New(weeklyReadStore{}, directory, calendar, weeklyReadSettings{}, seamTransaction{}, func(ports.Observation) {}, func() time.Time { return monday.BerlinMidnight() })
+	_, err := service.WeeklyList(context.Background(), mealplan.Date(monday.String()))
+
+	require.ErrorIs(t, err, rosterErr)
+	assert.NotErrorIs(t, err, calendarErr)
+	assert.Equal(t, []string{monday.String(), monday.AddDays(1).String()}, rosterReads)
+}
