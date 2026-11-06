@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resetSWRScope } from "~/lib/swr/scope";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { SWRConfig, useSWRConfig } from "~/lib/swr/testing";
@@ -70,6 +71,8 @@ const CASES: readonly Case[] = [
 ];
 
 beforeEach(() => {
+  // A refusal holds per key for the whole tab; start every test clean.
+  resetSWRScope({ revalidate: false });
   sessionState.data = {
     user: { id: "A", orgId: 7, scope: "org" },
     expires: "2099-01-01",

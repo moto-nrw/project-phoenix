@@ -2,6 +2,7 @@ import { SWRConfig, useSWRConfig } from "~/lib/swr/testing";
 vi.unmock("swr");
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { resetSWRScope } from "~/lib/swr/scope";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { TraegerOccupancy } from "~/lib/traeger-occupancy-api";
@@ -116,6 +117,8 @@ function rowOf(table: HTMLElement, text: string): HTMLElement {
 
 describe("TraegerOccupancyPage", () => {
   beforeEach(() => {
+    // A refusal holds per key for the whole tab; start every test clean.
+    resetSWRScope({ revalidate: false });
     mockFetchOccupancy.mockReset();
     mockDownload.mockReset();
     mockDownloadBlob.mockReset();
