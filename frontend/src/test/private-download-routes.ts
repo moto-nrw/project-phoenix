@@ -38,6 +38,7 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
     "GET",
   ],
   ["parent/me/news/[announcementId]/declaration/proof/pdf", "GET"],
+  ["public/care-contract-signing/[link]/document", "GET"],
   ["public/payroll-download/[link]", "POST"],
   ["rooms/export", "POST"],
   ["school/class-day/absence-list/export", "GET"],
@@ -64,6 +65,7 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["traeger/billing-runs/[id]/letters/preview", "POST"],
   ["traeger/billing-runs/[id]/letters/print", "GET"],
   ["traeger/contracts/[id]/document", "GET"],
+  ["traeger/contracts/[id]/paper-signature", "GET"],
   ["traeger/holiday-periods/[id]/form/documents/[documentId]", "GET"],
   ["traeger/holiday-periods/[id]/registrations/export", "GET"],
   [

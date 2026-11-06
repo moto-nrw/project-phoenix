@@ -15,7 +15,7 @@ export interface SigningService {
 }
 
 /** The signature after signing, as the parents see it. */
-export interface SigningSignature {
+interface SigningSignature {
   readonly method: "drawn" | "typed";
   readonly signerName: string;
   readonly signedAt: string;
@@ -75,7 +75,7 @@ interface BackendSigningView {
 }
 
 /** Maps the backend view to the camelCase view the screens read. */
-export function mapSigningView(raw: BackendSigningView): SigningView {
+function mapSigningView(raw: BackendSigningView): SigningView {
   const version = raw.version;
   return {
     contractId: String(raw.contract_id),

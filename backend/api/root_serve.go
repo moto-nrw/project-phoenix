@@ -427,8 +427,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			parent, err = owners.BuildParentPortal(db, env, hub, settings.Service, people, portalReads, messaging, presence, carePlanRows,
-				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, announcements, audit, organizations,
-				careContractCompose.NewInboxSigning(careContractSignaturePorts(organizations, settings.Traeger, delivery.Runtime.Module, env.Links.ParentsURL)))
+				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, announcements, audit, organizations, careContractCompose.NewInboxSigning(careContractSignaturePorts(organizations, settings.Traeger, delivery.Runtime.Module, env.Links.ParentsURL)))
 			return
 		},
 		func() (err error) {
@@ -587,8 +586,7 @@ func composeServeRoot(
 	worker, err := owners.NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, audit.Persistence.DataAccessLog, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
-		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, analyticsSchoolNames(tracker), PlannedStaffExitsJob(db, hub, env.Logger), WeekProtocolDayLog, env.HealthData,
-		owners.CareContractRemindersJob(db.UnitOfWork(), organizations, settings.Traeger, delivery.Runtime.Module, env.Links.ParentsURL))
+		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, analyticsSchoolNames(tracker), PlannedStaffExitsJob(db, hub, env.Logger), WeekProtocolDayLog, env.HealthData, owners.CareContractRemindersJob(db.UnitOfWork(), organizations, settings.Traeger, delivery.Runtime.Module, env.Links.ParentsURL))
 	if err != nil {
 		return nil, nil, err
 	}

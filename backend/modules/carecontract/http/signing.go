@@ -64,19 +64,19 @@ func (rs *Resource) recordPaper(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, carecontract.PaperMaxBytes+paperFormOverhead)
 	if err := r.ParseMultipartForm(carecontract.PaperMaxBytes + paperFormOverhead); err != nil {
-		renderSignatureError(w, r, fmt.Errorf("%w: %v", carecontract.ErrPaperDocumentInvalid, err))
+		renderSignatureError(w, r, fmt.Errorf("%w: %w", carecontract.ErrPaperDocumentInvalid, err))
 		return
 	}
 	defer func() { _ = r.MultipartForm.RemoveAll() }()
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		renderSignatureError(w, r, fmt.Errorf("%w: %v", carecontract.ErrPaperDocumentInvalid, err))
+		renderSignatureError(w, r, fmt.Errorf("%w: %w", carecontract.ErrPaperDocumentInvalid, err))
 		return
 	}
 	defer func() { _ = file.Close() }()
 	data, err := io.ReadAll(io.LimitReader(file, carecontract.PaperMaxBytes+1))
 	if err != nil {
-		renderSignatureError(w, r, fmt.Errorf("%w: %v", carecontract.ErrPaperDocumentInvalid, err))
+		renderSignatureError(w, r, fmt.Errorf("%w: %w", carecontract.ErrPaperDocumentInvalid, err))
 		return
 	}
 	input := carecontract.PaperInput{SignerName: r.FormValue("signer_name"), Filename: header.Filename, PDF: data}

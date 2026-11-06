@@ -30,6 +30,8 @@ func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 	sort.Strings(want)
 	wantTraeger := []string{
 		config.KeyBrandingFooterText, config.KeyBrandingLetterheadText, config.KeyBrandingPrimaryColor,
+		// The reminder of an unsigned care contract (#4679).
+		config.KeyCareContractSignatureReminderDays,
 		config.KeyParentBillingCostTakeoverOrder, config.KeyParentBillingDebtorNumberOnConfirm,
 		config.KeyParentBillingPaymentText, config.KeyParentBillingSiblingRank,
 	}

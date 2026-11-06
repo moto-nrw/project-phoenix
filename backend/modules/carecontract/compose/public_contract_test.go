@@ -3,6 +3,8 @@ package compose_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"testing"
 
@@ -85,6 +87,33 @@ func (runtimeDouble) WithinSchool(_ context.Context, _ int64, fn func(context.Co
 
 func (runtimeDouble) WithinTraeger(ctx context.Context, organizationID int64, fn func(context.Context) error) error {
 	return tenant.WithinTraeger(ctx, organizationID, fn)
+}
+
+// ledgerDouble and tokenDouble stand in for the signature ports (#4679),
+// which this test of the draft and the send does not reach.
+type ledgerDouble struct{}
+
+func (ledgerDouble) RecordContractSignature(context.Context, carecontract.ContractSignatureEntry) (int64, error) {
+	return 0, nil
+}
+
+func (ledgerDouble) ContractSignatureProofs(context.Context, []int64) (map[int64]carecontract.SignatureProof, error) {
+	return map[int64]carecontract.SignatureProof{}, nil
+}
+
+type tokenDouble struct{ next int }
+
+func (d *tokenDouble) NewToken() (string, string, error) {
+	d.next++
+	raw := fmt.Sprintf("token-%04d-of-the-signing-link", d.next)
+	return raw, sha256Hex([]byte(raw)), nil
+}
+
+func (*tokenDouble) Fingerprint(raw string) string { return sha256Hex([]byte(raw)) }
+
+func sha256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 type letterheadDouble struct{ missing bool }
@@ -177,7 +206,8 @@ func TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtThe
 	post := &postDouble{next: testpkg.UniqueTestTenantID(t)}
 	reads := []carecontract.SchoolAccess{}
 	school.reads = &reads
-	ports := compose.ContractPorts{Letterheads: letterheadDouble{}, Post: post, Runtime: runtimeDouble{}, Access: school}
+	ports := compose.ContractPorts{Letterheads: letterheadDouble{}, Post: post, Runtime: runtimeDouble{}, Access: school,
+		Ledger: ledgerDouble{}, Links: carecontract.SigningLinks{Tokens: &tokenDouble{}, ParentsURL: "http://parents.localhost", Fingerprint: sha256Hex}}
 	contracts := compose.NewContracts(ports)
 	id := created.Created[0].ID
 	// Missing identity cannot freeze an anonymous PDF or enqueue a mail.

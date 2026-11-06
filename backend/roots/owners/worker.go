@@ -149,8 +149,7 @@ func NewWorker(
 		OverdueBroadcaster:           newSchedulerOverdueBroadcaster(hub),
 		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)), WeekProtocols: NewWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, dayLog),
 		PayrollDispatch:       workforce.PayrollDispatch.RunDue,
-		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, organizations, carePlan, services.Users, accessLog, healthData), PlannedStaffExits: plannedExits(identity, notifications, people.Staff), StaffQualificationReminders: qualificationRemindersJob(workforce.QualificationReminders), SchoolVacations: schoolVacationSync(),
-		CareContractReminders: careContractReminders,
+		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, organizations, carePlan, services.Users, accessLog, healthData), PlannedStaffExits: plannedExits(identity, notifications, people.Staff), StaffQualificationReminders: qualificationRemindersJob(workforce.QualificationReminders), SchoolVacations: schoolVacationSync(), CareContractReminders: careContractReminders,
 	})
 }
 
