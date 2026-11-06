@@ -77,7 +77,14 @@ const COLUMNS: DataTableColumn<CareTimeDay>[] = [
   {
     key: "planned",
     header: "Gebucht",
-    render: (day) => formatClockSpan(day.planned_start, day.planned_end),
+    render: (day) => (
+      <span className="inline-flex flex-col">
+        <span>{formatClockSpan(day.planned_start, day.planned_end)}</span>
+        {day.planned_source === "contract" ? (
+          <span className="text-xs text-gray-500">laut Vertrag</span>
+        ) : null}
+      </span>
+    ),
   },
   {
     key: "actual",
@@ -89,7 +96,14 @@ const COLUMNS: DataTableColumn<CareTimeDay>[] = [
     header: "Abweichung",
     align: "right",
     render: (day) => (
-      <span className="tabular-nums">
+      <span
+        className="tabular-nums"
+        style={
+          day.overrun
+            ? { color: getAccessibleTextColor(LOCATION_COLORS.DANGER) }
+            : undefined
+        }
+      >
         {formatDeviation(day.deviation_minutes)}
       </span>
     ),
@@ -209,7 +223,7 @@ export function StudentCareTimesSection({
                 style={{
                   color:
                     summary.overrun_count > 0
-                      ? getAccessibleTextColor(LOCATION_COLORS.SCHOOLYARD)
+                      ? getAccessibleTextColor(LOCATION_COLORS.DANGER)
                       : undefined,
                 }}
               >

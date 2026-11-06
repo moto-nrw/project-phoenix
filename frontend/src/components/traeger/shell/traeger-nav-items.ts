@@ -14,6 +14,7 @@ import type { MotoConcept } from "~/lib/moto-concepts";
 import { backConcept } from "~/lib/concepts/back";
 import { billingConcept } from "~/lib/concepts/billing";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 import { contributionsConcept } from "~/lib/concepts/contributions";
 import { dashboardConcept } from "~/lib/concepts/dashboard";
@@ -31,6 +32,8 @@ const ACCOUNTS_RIGHT = "traeger_accounts:manage";
 const ENROLLMENT_RIGHT = "traeger_enrollment:manage";
 /** Das Recht, das die Betreuungsverträge öffnet (#4678). */
 const CONTRACTS_RIGHT = "traeger_contracts:manage";
+/** Das Recht, das „Länger als gebucht“ ohne Namen öffnet (#4683). */
+const REPORTS_RIGHT = "traeger_reports:read";
 /** Das Recht, das die Abrechnungsläufe öffnet (#4668). */
 const BILLING_RIGHT = "traeger_billing:manage";
 /** Das Recht, das das Zugriffsprotokoll öffnet (#4655). */
@@ -109,6 +112,14 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         label: "Verträge",
         concept: careContractsConcept,
         right: CONTRACTS_RIGHT,
+      },
+      {
+        // Kinder, die länger da waren als gebucht, je Schule (#4683).
+        key: "zeitvergleich",
+        href: "/traeger/zeitvergleich",
+        label: "Länger als gebucht",
+        concept: careTimesConcept,
+        right: REPORTS_RIGHT,
       },
     ],
   },

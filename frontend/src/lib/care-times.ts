@@ -32,6 +32,8 @@ export interface CareTimeDay {
   date: string;
   kind: CareTimeDayKind;
   overrun: boolean;
+  /** Woher das Soll kommt (#4683): Vertrag des Trägers oder Betreuungsplan. */
+  planned_source?: "contract" | "care_plan" | "";
   planned_start: string | null;
   planned_end: string | null;
   actual_start: string | null;
