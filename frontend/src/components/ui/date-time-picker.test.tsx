@@ -41,16 +41,19 @@ function Controlled({
   initial,
   min,
   onChange,
+  required = false,
 }: Readonly<{
   initial: string;
   min?: string;
   onChange?: (value: string) => void;
+  required?: boolean;
 }>) {
   const [value, setValue] = useState(initial);
   return (
     <DateTimePicker
       value={value}
       min={min}
+      required={required}
       onChange={(next) => {
         setValue(next);
         onChange?.(next);
@@ -192,6 +195,48 @@ describe("DateTimePicker", () => {
     fireEvent.change(time, { target: { value: "15:30" } });
 
     expect(onChange).toHaveBeenLastCalledWith("2026-09-01T15:30");
+  });
+
+  it("keeps an erased time required while its day is held", () => {
+    const onChange = vi.fn();
+    render(
+      <Controlled initial="2026-09-01T09:30" onChange={onChange} required />,
+    );
+
+    const time = screen.getByLabelText("Zeit");
+    fireEvent.change(time, { target: { value: "" } });
+
+    expect(onChange).toHaveBeenLastCalledWith("");
+    expect(time).toBeRequired();
+    expect(time).toBeInvalid();
+    expect(screen.getByLabelText("Tag")).toHaveValue("2026-09-01");
+  });
+
+  it("discards a pending time when the day changes", () => {
+    const onChange = vi.fn();
+    render(<Controlled initial="2026-09-01T09:30" onChange={onChange} />);
+
+    const time = screen.getByLabelText("Zeit");
+    fireEvent.change(time, { target: { value: "15" } });
+    expect(time).toHaveValue("15");
+
+    fireEvent.change(screen.getByLabelText("Tag"), {
+      target: { value: "2026-09-02" },
+    });
+
+    expect(onChange).toHaveBeenLastCalledWith("2026-09-02T09:30");
+    expect(time).toHaveValue("09:30");
+  });
+
+  it("clears the held day when the day is deleted after its time", () => {
+    render(<Controlled initial="2026-09-01T09:30" />);
+
+    const time = screen.getByLabelText("Zeit");
+    fireEvent.change(time, { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Tag"), { target: { value: "" } });
+
+    expect(screen.getByLabelText("Tag")).toHaveValue("");
+    expect(time).toBeDisabled();
   });
 
   it("drops the day when the field is left with an erased time", () => {

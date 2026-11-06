@@ -105,6 +105,11 @@ export function DateTimePicker({
         value={day}
         min={minParts.day || undefined}
         onChange={(nextDay) => {
+          // A calendar change commits the saved time. Incomplete or invalid
+          // text is only a temporary edit and must not look selected for the
+          // new day.
+          setTypedTime(null);
+          setHeldDay("");
           if (!nextDay) {
             onChange("");
             return;
@@ -133,6 +138,7 @@ export function DateTimePicker({
           hint="Uhrzeit im Format 15:30"
           placeholder="Uhrzeit"
           value={typedTime ?? time}
+          required={required}
           invalid={invalid}
           disabled={disabled || !day}
           onChange={(nextTime) => {
