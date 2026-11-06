@@ -265,7 +265,7 @@ export function LocationBadge({
     ) : null;
 
   return (
-    <div className="flex flex-col items-end">
+    <div className="flex max-w-full min-w-0 flex-col items-end">
       <StatusColorBadge
         {...locationPillShape(sizeKey, variant)}
         wrap

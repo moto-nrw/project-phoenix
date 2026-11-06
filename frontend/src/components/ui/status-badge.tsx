@@ -152,7 +152,7 @@ export function StatusPillBase({
     <span
       title={title ?? (truncate ? label : undefined)}
       className={`inline-flex items-center rounded-full text-xs font-medium ${
-        wrap ? "whitespace-normal" : "whitespace-nowrap"
+        wrap ? "max-w-full min-w-0 whitespace-normal" : "whitespace-nowrap"
       } ${
         iconNode ? "gap-1" : ""
       } ${truncate ? "max-w-full min-w-0" : ""} ${sizeClass(size, compact)} ${outline ? OUTLINE_CLASS : ""}`}
