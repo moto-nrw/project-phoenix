@@ -1,5 +1,7 @@
 "use client";
 
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import type {
   GuardianAccountStatus,
   GuardianWithRelationship,
@@ -37,15 +39,15 @@ import {
 // app's connection-indicator idiom. Routes color through LOCATION_COLORS.
 const ACCOUNT_STATUS_META: Record<
   GuardianAccountStatus,
-  { label: string; dot: string }
+  { label: string; color: string }
 > = {
-  active: { label: "Konto aktiv", dot: LOCATION_COLORS.GROUP_ROOM },
+  active: { label: "Konto aktiv", color: LOCATION_COLORS.GROUP_ROOM },
   active_no_access: {
     label: "Konto aktiv, kein Portalzugriff",
-    dot: LOCATION_COLORS.SCHOOLYARD,
+    color: LOCATION_COLORS.SCHOOLYARD,
   },
-  pending: { label: "Einladung offen", dot: LOCATION_COLORS.WARNING },
-  none: { label: "Kein Konto", dot: LOCATION_COLORS.UNKNOWN },
+  pending: { label: "Einladung offen", color: LOCATION_COLORS.WARNING },
+  none: { label: "Kein Konto", color: LOCATION_COLORS.UNKNOWN },
 };
 
 // Visible label for the invite action per account status. "active_no_access"
@@ -69,13 +71,7 @@ function AccountStatusBadge({
 }: Readonly<{ status?: GuardianAccountStatus }>) {
   const meta = ACCOUNT_STATUS_META[status ?? "none"];
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-      <span
-        className="h-2 w-2 rounded-full"
-        style={{ backgroundColor: meta.dot }}
-      />
-      {meta.label}
-    </span>
+    <StatusColorBadge label={meta.label} color={meta.color} compact wrap />
   );
 }
 
@@ -184,9 +180,7 @@ export default function GuardianList({
                     {getGuardianFullName(guardian)}
                   </span>
                   {guardian.isPrimary && (
-                    <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                      Primär
-                    </span>
+                    <StatusBadge label="Primär" tone="gray" compact />
                   )}
                   <AccountStatusBadge status={guardian.accountStatus} />
                 </h4>
@@ -262,22 +256,29 @@ export default function GuardianList({
             {/* Badges: Flags and Language */}
             <div className="mt-2 flex flex-wrap gap-1.5 border-t border-gray-100 pt-2 sm:mt-3 sm:pt-3">
               {guardian.canPickup && (
-                <span className="bg-moto-green/15 text-moto-green-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
-                  <Shield className="h-3 w-3" />
-                  {pickupBadgeLabel(guardian.pickupWeekdays)}
-                </span>
+                <StatusBadge
+                  label={pickupBadgeLabel(guardian.pickupWeekdays)}
+                  tone="green"
+                  icon={Shield}
+                  compact
+                  wrap
+                />
               )}
               {guardian.isEmergencyContact && (
-                <span className="bg-moto-red/10 text-moto-red-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
-                  <AlertCircle className="h-3 w-3" />
-                  Notfallkontakt
-                </span>
+                <StatusBadge
+                  label="Notfallkontakt"
+                  tone="red"
+                  icon={AlertCircle}
+                  compact
+                />
               )}
               {guardian.languagePreference && (
-                <span className="bg-moto-blue/15 text-moto-blue-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
-                  <Globe className="h-3 w-3" />
-                  {getLanguageLabel(guardian.languagePreference)}
-                </span>
+                <StatusBadge
+                  label={getLanguageLabel(guardian.languagePreference)}
+                  tone="blue"
+                  icon={Globe}
+                  compact
+                />
               )}
             </div>
 

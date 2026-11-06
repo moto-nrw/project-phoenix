@@ -1,5 +1,6 @@
 "use client";
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   useCallback,
   useEffect,
@@ -174,10 +175,10 @@ function EnrollmentRequestCard({
             Eingegangen am {submittedAt}
           </p>
         </div>
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
-          {request.children.length} Kind
-          {request.children.length === 1 ? "" : "er"}
-        </span>
+        <StatusBadge
+          label={`${request.children.length} Kind${request.children.length === 1 ? "" : "er"}`}
+          tone="gray"
+        />
       </div>
 
       <div className="space-y-4 p-4">

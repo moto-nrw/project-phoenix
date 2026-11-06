@@ -1,5 +1,6 @@
 "use client";
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   useState,
   useEffect,
@@ -672,11 +673,14 @@ export default function StudentGuardianManager({
       actions={
         <div className="flex items-center gap-2">
           {readOnly && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 sm:px-2.5">
-              <Eye className="h-3 w-3 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
-              <span className="hidden sm:inline">Nur Ansicht</span>
-              <span className="sm:hidden">Ansicht</span>
-            </span>
+            <>
+              <span className="hidden sm:inline-flex">
+                <StatusBadge label="Nur Ansicht" tone="gray" icon={Eye} />
+              </span>
+              <span className="inline-flex sm:hidden">
+                <StatusBadge label="Ansicht" tone="gray" icon={Eye} />
+              </span>
+            </>
           )}
           {!readOnly && (
             <>

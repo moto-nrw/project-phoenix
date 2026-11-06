@@ -1182,12 +1182,12 @@ function StaffPageContent() {
                               {cardInfo.length > 0 && (
                                 <div className="flex flex-wrap gap-2">
                                   {cardInfo.map((info) => (
-                                    <span
+                                    <StatusBadge
                                       key={info}
-                                      className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700"
-                                    >
-                                      {info}
-                                    </span>
+                                      label={info}
+                                      tone="gray"
+                                      compact
+                                    />
                                   ))}
                                 </div>
                               )}

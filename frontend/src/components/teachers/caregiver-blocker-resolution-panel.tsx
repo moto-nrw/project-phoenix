@@ -1,5 +1,6 @@
 "use client";
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRightLeft, Trash2 } from "lucide-react";
@@ -567,8 +568,12 @@ export function CaregiverBlockerResolutionPanel({
                       {item.activityName}
                     </span>
                     {item.isPrimary ? (
-                      <span className="bg-moto-orange/20 text-moto-orange-hover ml-2 inline-flex rounded-full px-2 py-0.5 text-xs font-medium">
-                        Hauptleitung
+                      <span className="ml-2 inline-flex">
+                        <StatusBadge
+                          label="Hauptleitung"
+                          tone="orange"
+                          compact
+                        />
                       </span>
                     ) : null}
                   </div>
