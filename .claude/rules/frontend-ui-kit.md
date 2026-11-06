@@ -15,14 +15,14 @@ This kit is the de-facto MOTO design system for project-phoenix (much by Florian
 
 ## Source of truth
 
-| Concern                          | Location                                                                    |
-| -------------------------------- | --------------------------------------------------------------------------- |
-| UI components                    | `frontend/src/components/ui/`                                               |
-| Header / list-page kit           | `frontend/src/components/ui/page-header/`                                   |
-| Semantic brand colors            | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
-| Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in     |
+| Concern | Location |
+|---|---|
+| UI components | `frontend/src/components/ui/` |
+| Header / list-page kit | `frontend/src/components/ui/page-header/` |
+| Semantic brand colors | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
+| Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in |
 
-Imports are always by direct file path: `import { Button } from "~/components/ui/button"`. There is no `ui/index.ts` barrel — import every component from its own file.
+Imports are always by direct file path: `import { Button } from "~/components/ui/button"`. There is no `ui/index.ts` barrel.
 
 ## Page scaffolding — one shell, no per-page layout
 
@@ -125,7 +125,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Label/value fields | `DataField` in a `dl`, `InfoSection`, `DataGrid`, `InfoText` | `~/components/ui/detail-modal-components` |
 | Select | `CustomSelect`, `MultiSelect`; own content: `ListboxDropdown` | `~/components/ui/<kebab-name>` |
 | Date / range picker | `DatePicker`, `DateRangePicker` (selection gray-900, today blue); with time: `DateTimePicker` | `~/components/ui/<kebab-name>` |
-| Loading | Area: `Loading fullPage={false}`; beside text or in an icon button: `SpinnerIcon`; in a text button: `Button isLoading loadingText`; known shape: `SectionCard loading`, `page-skeletons` in `SkeletonRegion`, `Skeleton` (`shape`, never a radius class), `SkeletonRows` | `~/components/ui/loading`, `ui/icons`, `ui/button`, `ui/page-skeletons`, `ui/skeleton` |
+| Loading | Area: `Loading fullPage={false}`; beside text, in an icon button: `SpinnerIcon`; text button: `Button isLoading loadingText`; known shape: `SectionCard loading`, `page-skeletons` in `SkeletonRegion`, `Skeleton` (`shape`), `SkeletonRows` | `~/components/ui/loading`, `ui/icons`, `ui/button`, `ui/page-skeletons`, `ui/skeleton` |
 | Avatar | `Avatar` | `~/components/ui/avatar` |
 | File drop or choice | `Dropzone`; caller checks beyond `accept` | `~/components/ui/dropzone` |
 | Key or link to copy | `CopyField`; button only: `useClipboardCopy` | `~/components/ui/copy-field` |
