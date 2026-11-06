@@ -81,13 +81,26 @@ const pushStartDeliverySQL = `UPDATE platform.push_outbox
 	WHERE id = ? AND status = 'claimed' AND lease_token = ?
 	RETURNING lease_token`
 
+// A provider's acceptance can come after its event that it cannot deliver the
+// mail. Then the mail goes back in the queue for the fallback transport, which
+// reports no provider ID and has attempts of its own.
 const emailFinalizeSentSQL = `UPDATE platform.email_outbox
-	SET status = 'sent', provider_result = ?,
-		message_id = ?::jsonb->>'message_id',
-		provider_message_id = ?::jsonb->>'provider_message_id',
-		sent_at = ?, last_error = NULL,
-		lease_token = NULL, lease_expires_at = NULL, updated_at = ?
-	WHERE id = ? AND status = 'claimed' AND lease_token = ?`
+	SET status = CASE WHEN fallback_requested_at IS NOT NULL AND ?0::jsonb->>'provider_message_id' IS NOT NULL
+			AND NOT COALESCE((?0::jsonb->>'used_fallback')::boolean, false)
+			THEN 'pending' ELSE 'sent' END,
+		attempts = CASE WHEN fallback_requested_at IS NOT NULL AND ?0::jsonb->>'provider_message_id' IS NOT NULL
+			AND NOT COALESCE((?0::jsonb->>'used_fallback')::boolean, false)
+			THEN 0 ELSE attempts END,
+		provider_result = ?0,
+		message_id = ?0::jsonb->>'message_id',
+		provider_message_id = ?0::jsonb->>'provider_message_id',
+		fallback_requested_at = CASE WHEN (?0::jsonb->>'used_fallback')::boolean
+			THEN COALESCE(fallback_requested_at, ?1) ELSE fallback_requested_at END,
+		delivery_state = CASE WHEN (?0::jsonb->>'used_fallback')::boolean THEN NULL ELSE delivery_state END,
+		delivery_state_at = CASE WHEN (?0::jsonb->>'used_fallback')::boolean THEN NULL ELSE delivery_state_at END,
+		sent_at = ?1, last_error = NULL,
+		lease_token = NULL, lease_expires_at = NULL, updated_at = ?1
+	WHERE id = ?2 AND status = 'claimed' AND lease_token = ?3`
 
 const pushFinalizeSentSQL = `UPDATE platform.push_outbox
 	SET status = 'sent', provider_result = ?, sent_at = ?, last_error = NULL,
@@ -157,6 +170,8 @@ type intentRow struct {
 	OrganizationID    *int64          `bun:"organization_id"`
 	Kind              string          `bun:"kind"`
 	Security          bool            `bun:"security"`
+	FallbackRequested *time.Time      `bun:"fallback_requested_at"`
+	DeliveryChecked   *time.Time      `bun:"delivery_checked_at"`
 	DeliveryToken     string          `bun:"delivery_token"`
 	MessageID         *string         `bun:"message_id"`
 	ProviderMessageID *string         `bun:"provider_message_id"`
@@ -376,7 +391,7 @@ func (s *Store) FinalizeSent(ctx context.Context, transport domain.Transport, id
 		var execErr error
 		switch transport {
 		case domain.TransportEmail:
-			resultResult, execErr = db.NewRaw(emailFinalizeSentSQL, providerResult, providerResult, providerResult, sentAt, sentAt, id, token).Exec(txCtx)
+			resultResult, execErr = db.NewRaw(emailFinalizeSentSQL, providerResult, sentAt, id, token).Exec(txCtx)
 		case domain.TransportPush:
 			resultResult, execErr = db.NewRaw(pushFinalizeSentSQL, providerResult, sentAt, sentAt, id, token).Exec(txCtx)
 		default:
@@ -726,7 +741,7 @@ func toDomainRows(transport domain.Transport, rows []intentRow) []domain.Intent 
 		result = append(result, domain.Intent{
 			ID: row.ID, TenantID: row.TenantID, OrganizationID: organizationID, Transport: transport, Template: row.Kind,
 			DeliveryState: deliveryState,
-			Security:      row.Security, DeliveryToken: row.DeliveryToken,
+			Security:      row.Security, UseFallback: row.FallbackRequested != nil, DeliveryToken: row.DeliveryToken,
 			IdempotencyKey: row.IdempotencyKey, RelatedEntityType: row.RelatedEntityType,
 			RelatedEntityID: row.RelatedEntityID, Recipient: row.Recipient, Payload: row.Payload,
 			Status: row.Status, Attempts: row.Attempts, NextRetryAt: row.NextRetryAt,

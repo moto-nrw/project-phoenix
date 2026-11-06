@@ -29,7 +29,7 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { devicesConfig } from "@/components/database/configs/devices.config";
 import { getDeviceTypeDisplayName, type Device } from "@/lib/iot-helpers";
 import { DevicesMasterDetail } from "@/components/devices/devices-master-detail";
-import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
+import { DatabaseFormModal } from "~/components/database/database-form-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";

@@ -91,7 +91,7 @@ class MockResizeObserver {
 vi.stubGlobal("ResizeObserver", MockResizeObserver);
 
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
-import { ModalProvider, useModal } from "../dashboard/modal-context";
+import { ModalProvider, useModal } from "~/components/ui/modal-context";
 import { MasterDetailLayout } from "./master-detail-layout";
 
 function ModalSwitch({ open }: { open: boolean }) {

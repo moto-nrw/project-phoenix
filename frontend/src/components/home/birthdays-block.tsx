@@ -11,7 +11,7 @@ import { useHomeCardRows } from "~/components/home/home-card-rows";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   fetchBirthdayOverviewClient,

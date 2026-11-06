@@ -6,7 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ModalProvider } from "~/components/dashboard/modal-context";
+import { ModalProvider } from "~/components/ui/modal-context";
 import { ParentNotificationOnboarding } from "./parent-notification-onboarding";
 
 const mocks = vi.hoisted(() => ({

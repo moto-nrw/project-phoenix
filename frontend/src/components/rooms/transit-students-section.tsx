@@ -10,7 +10,7 @@ import type { Session } from "next-auth";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
-import { DatabaseSelect } from "~/components/ui/database/database-select";
+import { DatabaseSelect } from "~/components/database/database-select";
 import {
   FormErrorAlert,
   LoadErrorAlert,

@@ -26,9 +26,9 @@ import {
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
 import { Alert } from "~/components/ui/alert";
-import { CapacityStrip } from "~/components/ui/capacity-strip";
+import { CapacityStrip } from "~/components/ui/planning/capacity-strip";
 import { EmptyState } from "~/components/ui/empty-state";
-import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
+import { PlanAddAffordance } from "~/components/ui/planning/plan-add-affordance";
 import {
   assignBlockLanes,
   buildDayColumnTemplate,

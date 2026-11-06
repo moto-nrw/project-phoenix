@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import {
   DatabaseForm,
   type DatabaseFormErrorPath,
-} from "~/components/ui/database/database-form";
+} from "~/components/database/database-form";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";

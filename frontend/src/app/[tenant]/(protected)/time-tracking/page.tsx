@@ -25,7 +25,7 @@ import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { Skeleton } from "~/components/ui/skeleton";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import {

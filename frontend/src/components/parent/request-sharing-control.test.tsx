@@ -8,7 +8,7 @@ import {
 import { ApiError } from "~/lib/api-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ModalProvider } from "~/components/dashboard/modal-context";
+import { ModalProvider } from "~/components/ui/modal-context";
 import { catalogText } from "~/test/error-catalog-text";
 import {
   getRequestSharing,

@@ -28,7 +28,6 @@ import {
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
 import { TenantPasswordResetModal } from "~/components/auth/tenant-password-reset-modal";
-import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { useTenant } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -142,7 +141,6 @@ function LoginForm() {
   const latestPasskeyRef = useRef<() => void>(() => undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
@@ -578,31 +576,25 @@ function LoginForm() {
                   >
                     Passwort
                   </FieldLabel>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      name="password"
-                      type={showPassword ? "text" : "password"}
-                      controlSize="compact"
-                      data-testid="input-password"
-                      autoComplete="current-password"
-                      required
-                      disabled={isSubmitting}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      aria-invalid={Boolean(formErrors.fieldError("password"))}
-                      aria-describedby={
-                        formErrors.fieldError("password")
-                          ? "password-error"
-                          : undefined
-                      }
-                      className="pr-10"
-                    />
-                    <PasswordToggleButton
-                      showPassword={showPassword}
-                      onToggle={() => setShowPassword(!showPassword)}
-                    />
-                  </div>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    controlSize="compact"
+                    data-testid="input-password"
+                    autoComplete="current-password"
+                    required
+                    disabled={isSubmitting}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    aria-invalid={Boolean(formErrors.fieldError("password"))}
+                    aria-describedby={
+                      formErrors.fieldError("password")
+                        ? "password-error"
+                        : undefined
+                    }
+                    revealable
+                  />
                   <AuthFieldError
                     id="password-error"
                     message={formErrors.fieldError("password")}

@@ -49,7 +49,7 @@ import {
   guardianNoticePayload,
   type GuardianNoticeDraft,
 } from "./guardian-notice-fields";
-import { OriginChip } from "~/components/ui/origin-chip";
+import { OriginChip } from "~/components/ui/planning/origin-chip";
 import {
   GROUP_ROOM_SHADES,
   LOCATION_COLORS,

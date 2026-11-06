@@ -16,7 +16,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";

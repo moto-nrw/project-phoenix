@@ -32,7 +32,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
-import { DatabaseSelect } from "~/components/ui/database/database-select";
+import { DatabaseSelect } from "~/components/database/database-select";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import {
   FormErrorAlert,
