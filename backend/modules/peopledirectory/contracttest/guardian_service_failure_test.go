@@ -24,6 +24,59 @@ func guardianAmbientTxContext() context.Context {
 	return tenant.WithTransactionForTest(context.Background(), struct{}{})
 }
 
+// A fresh create fact replaces only the guardian existence read. Missing,
+// reused or differently scoped facts keep the guardian-before-child error.
+func TestLinkGuardian_CreatedProfileFactPreservesLookupFallback(t *testing.T) {
+	t.Parallel()
+	const guardianID, studentID, schoolID int64 = 21, 22, 23
+	ctx := tenant.WithTenantID(guardianAmbientTxContext(), schoolID)
+	created := peopleValues.Guardian{ID: guardianID, TenantID: schoolID}
+	reused, foreign, mismatched := created, created, created
+	reused.ReusedExisting = true
+	foreign.TenantID++
+	mismatched.ID++
+	guardianFailure := errors.New("guardian lookup failed")
+	studentFailure := errors.New("student lookup failed")
+	for _, tc := range []struct {
+		name    string
+		ctx     context.Context
+		created *peopleValues.Guardian
+		want    []string
+		err     error
+	}{
+		{"new in transaction", ctx, &created, []string{"student"}, studentFailure},
+		{"no fact", ctx, nil, []string{"guardian"}, guardianFailure},
+		{"reused profile", ctx, &reused, []string{"guardian"}, guardianFailure},
+		{"other tenant", ctx, &foreign, []string{"guardian"}, guardianFailure},
+		{"other profile", ctx, &mismatched, []string{"guardian"}, guardianFailure},
+		{"no transaction", tenant.WithTenantID(context.Background(), schoolID), &created, []string{"guardian"}, guardianFailure},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var reads []string
+			service := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
+				GuardianProfileRepo: &fakeProfileRepo{findByIDFn: func(_ context.Context, id int64) (*peopleValues.GuardianProfileSnapshot, error) {
+					require.Equal(t, guardianID, id)
+					reads = append(reads, "guardian")
+					return nil, guardianFailure
+				}},
+				StudentRepo: &fakeStudentRepo{findByIDFn: func(_ context.Context, id interface{}) (*peopleValues.StudentState, error) {
+					require.Equal(t, studentID, id)
+					reads = append(reads, "student")
+					return nil, studentFailure
+				}},
+			}, nil)
+			link, err := service.LinkGuardianToStudent(tc.ctx, peoplePorts.StudentGuardianCreateRequest{
+				StudentID: studentID, GuardianProfileID: guardianID, CreatedGuardian: tc.created,
+			})
+			require.ErrorIs(t, err, tc.err)
+			require.ErrorIs(t, err, peopleValues.ErrGuardianNotFound)
+			require.Nil(t, link)
+			require.Equal(t, tc.want, reads)
+		})
+	}
+}
+
 // --- fakes -----------------------------------------------------------------
 //
 // Each fake embeds the full repository interface so it satisfies the type;

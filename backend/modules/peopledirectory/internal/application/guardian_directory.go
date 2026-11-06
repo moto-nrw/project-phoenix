@@ -272,7 +272,8 @@ func (p *GuardianDirectory) LinkGuardianToStudent(ctx context.Context, input peo
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
 		link, txErr = p.guardians.LinkGuardianToStudent(txCtx, peoplePorts.StudentGuardianCreateRequest{
-			StudentID: input.StudentID, GuardianProfileID: input.GuardianProfileID,
+			CreatedGuardian: input.CreatedGuardian,
+			StudentID:       input.StudentID, GuardianProfileID: input.GuardianProfileID,
 			RelationshipType: input.RelationshipType, GuardianRole: input.GuardianRole,
 			IsPrimary: input.IsPrimary, IsEmergencyContact: input.IsEmergencyContact, CanPickup: input.CanPickup,
 			PickupNotes: input.PickupNotes, EmergencyPriority: input.EmergencyPriority,

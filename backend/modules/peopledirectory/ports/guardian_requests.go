@@ -21,6 +21,8 @@ type GuardianCreateRequest struct {
 // GuardianInvitationRequest represents data for inviting a guardian
 // StudentGuardianCreateRequest represents data for linking a guardian to a student
 type StudentGuardianCreateRequest struct {
+	// CreatedGuardian carries LinkGuardian's same-transaction create fact.
+	CreatedGuardian    *peopleValues.Guardian `json:"-"`
 	StudentID          int64
 	GuardianProfileID  int64
 	RelationshipType   string // parent, guardian, relative, other

@@ -1,6 +1,6 @@
 {
   "scenario": "modules.dataimport.student_batch.phone_growth.n8",
-  "max": 239,
+  "max": 231,
   "exact": true,
-  "description": "Complete 8-row import with one guardian, phone and pickup schedule per child; prepared write-name matching saves five statements. Measured by TestStudentImportPhoneGrowthQueryBudget."
+  "description": "Complete 8-row import with one guardian, phone and pickup schedule per child; prepared write-name matching saves five statements. Measured by TestStudentImportPhoneGrowthQueryBudget. Newly inserted guardian profiles are passed to the link command in the same transaction instead of being read again."
 }

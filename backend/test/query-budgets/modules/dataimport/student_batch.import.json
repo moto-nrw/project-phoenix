@@ -1,6 +1,6 @@
 {
   "scenario": "modules.dataimport.student_batch.import",
-  "max": 295,
+  "max": 285,
   "exact": false,
-  "description": "Ten-row create import after two warmups. The write attempt batches name matches through the existing directory readers and consumes each name before later namesakes. Measured by TestStudentImportBatchQueryBudget."
+  "description": "Ten-row create import after two warmups. The write attempt batches name matches through the existing directory readers and consumes each name before later namesakes. Measured by TestStudentImportBatchQueryBudget. Newly inserted guardian profiles are passed to the link command in the same transaction instead of being read again."
 }

@@ -136,9 +136,12 @@ func (s *RetainedGuardianService) applyRolePreset(relationship *peopleValues.Gua
 
 // LinkGuardianToStudent creates a relationship between guardian and student
 func (s *RetainedGuardianService) LinkGuardianToStudent(ctx context.Context, req peoplePorts.StudentGuardianCreateRequest) (*peopleValues.GuardianRelationshipSnapshot, error) {
-	// Validate guardian profile exists
-	if _, err := s.GuardianProfileRepo.FindByID(ctx, req.GuardianProfileID); err != nil {
-		return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
+	// A profile inserted by this caller in the ambient transaction cannot be
+	// deleted concurrently. Other profiles retain the guardian-before-child read.
+	if !s.createdGuardianExists(ctx, req) {
+		if _, err := s.GuardianProfileRepo.FindByID(ctx, req.GuardianProfileID); err != nil {
+			return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf(errMsgGuardianNotFound, err))
+		}
 	}
 
 	// Validate student exists
@@ -190,6 +193,13 @@ func (s *RetainedGuardianService) LinkGuardianToStudent(ctx context.Context, req
 	// (who can pick up the child, who the emergency contact is) mutable only via
 	// that explicit endpoint, with no silent overwrite from a stray re-link.
 	return s.existingGuardianLink(ctx, req.StudentID, req.GuardianProfileID)
+}
+
+func (s *RetainedGuardianService) createdGuardianExists(ctx context.Context, req peoplePorts.StudentGuardianCreateRequest) bool {
+	created := req.CreatedGuardian
+	return created != nil && !created.ReusedExisting && created.ID > 0 &&
+		created.ID == req.GuardianProfileID && created.TenantID == s.transactions.TenantID(ctx) &&
+		created.TenantID > 0 && (RepositoryRuntime{}).InTransaction(ctx)
 }
 
 // existingGuardianLink returns the stored link of the guardian to the student.
