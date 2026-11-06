@@ -34,7 +34,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractPost.ContractMailStates",
-      "binding_digest": "a6714e3acb5d1cfaffebdfbf18a63e51",
+      "binding_digest": "8a34bb64805de20c693a2d0e99059ec5",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Post.ContractMailStates",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",

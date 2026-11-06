@@ -296,6 +296,11 @@ func (p careContractPost) ContractMailStates(ctx context.Context, organizationID
 	for i, status := range statuses {
 		state := carecontract.MailQueued
 		switch {
+		case status.State == deliveryContract.StateSent && (status.DeliveryState == deliveryContract.DeliveryFailed ||
+			status.DeliveryState == deliveryContract.DeliverySuppressed):
+			// Accepted, then bounced for good or withheld for a bad
+			// address: the parents never got it (#5932).
+			state = carecontract.MailFailed
 		case status.State == deliveryContract.StateSent:
 			state = carecontract.MailSent
 		case status.State == deliveryContract.StateDeadLetter && status.LastError != nil &&

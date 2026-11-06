@@ -526,6 +526,42 @@ func TestCareContractFailedDeliveryCanUseACorrectedAddressWithItsFrozenPDF(t *te
 	require.Len(t, detail.Mailings, 3, "the complete delivery history remains")
 }
 
+// A mail the server accepted can still bounce for good (#5932). The
+// contract then shows the send as not arrived and takes a corrected
+// address, instead of reporting it as sent.
+func TestCareContractBouncedAfterAcceptanceShowsAsFailedAndTakesACorrection(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Bounce")
+	token := f.office.token
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	rec := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts", map[string]any{"contracts": []any{f.key()}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	id := decodeSchoolPortalData[careContractCreateBody](t, rec.Body.Bytes()).Created[0].ID
+	require.Equal(t, http.StatusAccepted, traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send",
+		map[string]any{"contract_ids": []int64{id}}).Code)
+	mailState := func() string {
+		t.Helper()
+		rec := traegerJSON(t, f.traeger, token, http.MethodGet, contractPath(id, ""), nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		mailings := decodeSchoolPortalData[careContractDetailBody](t, rec.Body.Bytes()).Mailings
+		require.NotEmpty(t, mailings)
+		return mailings[0].State
+	}
+	_, err := f.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW()
+		WHERE organization_id = ? AND kind = 'care_contract' AND related_entity_id = ?`, f.office.organization, id)
+	require.NoError(t, err)
+	assert.Equal(t, "sent", mailState())
+
+	_, err = f.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET delivery_state = 'failed', delivery_state_at = NOW()
+		WHERE organization_id = ? AND kind = 'care_contract' AND related_entity_id = ?`, f.office.organization, id)
+	require.NoError(t, err)
+	assert.Equal(t, "failed", mailState(), "a bounce after acceptance did not arrive")
+	rec = traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send",
+		map[string]any{"contract_ids": []int64{id}, "recipient_email": "korrigiert@example.org"})
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), fmt.Sprintf(`"sent":[%d]`, id), "the corrected address takes the contract")
+}
+
 func TestCareContractWithoutAPartnerCannotFreezeOrSendItsPDF(t *testing.T) {
 	t.Parallel()
 	f := newCareContractFixture(t, "Träger Vertrag ohne Namen")

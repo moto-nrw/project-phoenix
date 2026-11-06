@@ -152,7 +152,7 @@ export function CareContractConditions({
                           </span>
                         ) : null}
                       </span>
-                      <ConditionBadge offering={offering} />
+                      <StatusBadge {...conditionBadge(offering)} />
                     </ChoiceTile>
                   );
                 })}
@@ -400,10 +400,12 @@ function ConditionsForm({
   );
 }
 
-function ConditionBadge({
-  offering,
-}: Readonly<{ offering: OfferingTemplate }>) {
-  if (offering.template) return <StatusBadge tone="green" label="Festgelegt" />;
-  if (!offering.active) return <StatusBadge tone="gray" label="Nicht aktiv" />;
-  return <StatusBadge tone="orange" label="Fehlt" />;
+/** Whether an offering has its conditions, as the list badge says it. */
+function conditionBadge(offering: OfferingTemplate): {
+  tone: "green" | "gray" | "orange";
+  label: string;
+} {
+  if (offering.template) return { tone: "green", label: "Festgelegt" };
+  if (!offering.active) return { tone: "gray", label: "Nicht aktiv" };
+  return { tone: "orange", label: "Fehlt" };
 }
