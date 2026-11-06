@@ -211,7 +211,7 @@ const mockSchema = {
 };
 
 interface TabsResult {
-  tabs: { id: string; label: string; icon: MotoConcept }[];
+  tabs: readonly { id: string; label: string; icon: MotoConcept }[];
   renderTab: (tabId: string) => React.ReactNode;
   highlightTabId: string | null;
   highlightNeedsNfc: boolean;

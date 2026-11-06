@@ -35,8 +35,11 @@ const OWNER_KEY = "moto:personal-storage-owner";
  * ab, damit sie beim ersten Räumen nach dem Update verschwindet.
  */
 export const PERSONAL_STORAGE_PREFIXES: readonly string[] = [
-  // Rückweg aus den Träger-Einstellungen: zuletzt offene Seite samt Filter.
+  // Rückweg aus den Einstellungen: zuletzt offene Seite samt Filter.
   "traeger-settings-return-path",
+  "staff-settings-return-path",
+  "school-settings-return-path",
+  "parent-settings-return-path",
   // Seitenleiste: zuletzt gewählte Gruppe und Raum samt Namen, laufende
   // Aufsicht, zuletzt offene Seite der Datenverwaltung (sidebar-memory.ts).
   "sidebar-last-",

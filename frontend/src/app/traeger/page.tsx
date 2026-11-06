@@ -5,7 +5,7 @@
 // Ansicht der Schule im Träger-Portal (#5686). Wer das Recht „In OGS wechseln"
 // hat, öffnet die Schul-App ohne neue Anmeldung in einem neuen Tab (#4654).
 
-import { useMemo } from "react";
+import { type MouseEvent, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, School } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
@@ -33,7 +33,9 @@ const COLUMNS: DataTableColumn<TraegerSchool>[] = [
       <NavigationLink
         href={traegerPath(`/traeger/schulen/${school.id}`)}
         className="font-medium text-gray-900 hover:underline"
-        onClick={(event) => event.stopPropagation()}
+        onClick={(event: MouseEvent<HTMLAnchorElement>) =>
+          event.stopPropagation()
+        }
       >
         {school.name}
       </NavigationLink>

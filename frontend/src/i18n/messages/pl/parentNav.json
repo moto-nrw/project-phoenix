@@ -32,5 +32,7 @@
   "unreadCount": "Nieprzeczytane: {count}",
   "openCount": "Otwarte: {count}",
   "noticeCount": "Informacje: {count}",
-  "documents": "Dokumenty"
+  "documents": "Dokumenty",
+  "privacy": "Prywatność",
+  "backToApp": "Powrót do aplikacji"
 }

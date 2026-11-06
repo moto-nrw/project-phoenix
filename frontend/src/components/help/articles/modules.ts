@@ -2,7 +2,7 @@ import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
 /**
- * Gebuchte Module (#4894). Der Reiter `Module` unter Einstellungen zeigt sie
+ * Gebuchte Module (#4894). Der Bereich `Module` unter Einstellungen zeigt sie
  * lesend (#4892); Navigation, Startseite und Seiten folgen dem Modul-Register
  * (lib/module-register.ts). Das Schloss sieht nur, wer die Schule leitet.
  */
@@ -18,7 +18,7 @@ export function modulesTopic(): HelpTopic {
     icon: "PuzzlePiece",
     steps: [
       "Öffnen Sie unten in der Seitenleiste `Einstellungen`.",
-      "Wählen Sie den Reiter `Module`.",
+      "Wählen Sie den Bereich `Module`.",
       "Klappen Sie `Gebuchte Module` auf. Dort steht jedes Zusatzmodul mit einem Satz, was dazugehört.",
       "Ein eingeschalteter Schalter heißt: Ihre OGS hat das Modul gebucht.",
     ],

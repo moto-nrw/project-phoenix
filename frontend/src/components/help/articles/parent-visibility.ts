@@ -13,7 +13,7 @@ export function parentVisibilityTopic(): HelpTopic {
     icon: "Eye",
     steps: [
       "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
-      "Bleiben Sie oben im Reiter `Betrieb`.",
+      "Bleiben Sie im Bereich `Betrieb`.",
       "Tragen Sie in `Einstellung suchen` `Elternportal` ein.",
       "Gehen Sie zur Gruppe `Elternportal`.",
       "Schalten Sie ein oder aus, was Eltern dürfen sollen.",
@@ -24,7 +24,7 @@ export function parentVisibilityTopic(): HelpTopic {
       "Wählen Sie bei `Krankmeldungen durch Eltern` die Möglichkeit `Erst bestätigen`, wenn Ihr Team jede Meldung freigeben soll.",
       "Bei `Wer gibt Änderungswünsche von Eltern frei?` wählen Sie, wer Anfragen zu Stammdaten, Abholung und Angeboten freigibt.",
       "`Berechtigtes Team` heißt: alle, die Kinderdaten bearbeiten dürfen. Das passt auch für ein gemeinsames Tablet.",
-      "Speiseplan und Anmeldung zum Mittagessen stehen im Reiter `Mittagessen`.",
+      "Speiseplan und Anmeldung zum Mittagessen stehen im Bereich `Mittagessen`.",
     ],
     differences: [
       "Ist ein Schalter aus, sehen Eltern den Bereich gar nicht. Er wird nicht ausgegraut.",

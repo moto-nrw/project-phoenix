@@ -2,7 +2,7 @@ import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
 /**
- * Anmeldemodell und Fristen fürs Mittagessen (#3873): Einstellungen, Reiter
+ * Anmeldemodell und Fristen fürs Mittagessen (#3873): Einstellungen, Bereich
  * `Mittagessen`. Die Fristen gelten für Eltern; die Schule ändert jederzeit.
  */
 export function mealOrderingTopic(): HelpTopic {
@@ -18,7 +18,7 @@ export function mealOrderingTopic(): HelpTopic {
     requirements: ["`Anmeldung zum Mittagessen` ist eingeschaltet."],
     steps: [
       "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
-      "Wählen Sie oben den Reiter `Mittagessen`.",
+      "Wählen Sie den Bereich `Mittagessen`.",
       "Wählen Sie bei `Wie Eltern anmelden` eine Möglichkeit.",
       "Legen Sie unter `Fristen` die `Anmeldefrist` fest: Tage vor dem Essenstag oder ein Wochentag der Vorwoche, dazu die Uhrzeit.",
       "Nutzen Sie eine eigene Abmeldefrist, legen Sie auch die `Abmeldefrist` fest.",

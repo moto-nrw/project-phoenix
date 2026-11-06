@@ -124,6 +124,10 @@ import { rfidConcept } from "~/lib/concepts/rfid";
 import { roomsConcept } from "~/lib/concepts/rooms";
 import { schoolsConcept } from "~/lib/concepts/schools";
 import { settingsConcept } from "~/lib/concepts/settings";
+import {
+  StaffSettingsBottomNav,
+  useIsStaffSettingsPage,
+} from "./staff-settings-nav";
 import { staffConcept } from "~/lib/concepts/staff";
 import { staffPlanConcept } from "~/lib/concepts/staffPlan";
 import { supervisionConcept } from "~/lib/concepts/supervision";
@@ -699,7 +703,19 @@ interface MobileBottomNavProps {
   readonly className?: string;
 }
 
-export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
+/**
+ * In den Einstellungen folgt die Leiste der Seitenleiste (#5750): Rückweg zur
+ * App und die Bereiche statt der Hauptnavigation.
+ */
+export function MobileBottomNav(props: MobileBottomNavProps) {
+  return useIsStaffSettingsPage() ? (
+    <StaffSettingsBottomNav />
+  ) : (
+    <MainMobileBottomNav {...props} />
+  );
+}
+
+function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Ungelesene Anmeldungen (#3778) an der Zeile „Anmeldungen" im Menü.
   const { unreadCount: enrollmentsUnreadCount } = useEnrollmentsUnread();
   const rawPathname = usePathname();

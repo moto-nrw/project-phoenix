@@ -190,3 +190,56 @@ export function PortalSidebarLink({
     </li>
   );
 }
+
+export interface PortalSettingsNavItem {
+  readonly key: string;
+  readonly href: string;
+  readonly label: string;
+  readonly concept: MotoConcept;
+  readonly active: boolean;
+}
+
+/**
+ * Der Inhalt der Seitenleiste in den Einstellungen (#5685, #5750): oben der
+ * Rückweg zur App, darunter die Bereiche. Die Leiste behält Position und
+ * Breite, nur ihr Inhalt wechselt. `groupLabel` ist die Überschrift der
+ * Bereiche, `navItemAttribute` benennt jede Zeile für Touren und Tests.
+ */
+export function PortalSettingsSidebarEntries({
+  back,
+  groupLabel,
+  items,
+  navItemAttribute,
+}: {
+  readonly back: Pick<
+    PortalSettingsNavItem,
+    "key" | "href" | "label" | "concept"
+  >;
+  readonly groupLabel: string;
+  readonly items: readonly PortalSettingsNavItem[];
+  readonly navItemAttribute: `data-${string}`;
+}) {
+  return (
+    <>
+      <PortalSidebarLink
+        href={back.href}
+        label={back.label}
+        concept={back.concept}
+        active={false}
+        {...{ [navItemAttribute]: back.key }}
+      />
+      <PortalSidebarGroup label={groupLabel}>
+        {items.map((item) => (
+          <PortalSidebarLink
+            key={item.key}
+            href={item.href}
+            label={item.label}
+            concept={item.concept}
+            active={item.active}
+            {...{ [navItemAttribute]: item.key }}
+          />
+        ))}
+      </PortalSidebarGroup>
+    </>
+  );
+}
