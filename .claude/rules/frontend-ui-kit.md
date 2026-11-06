@@ -9,7 +9,7 @@ paths:
 
 This kit is the de-facto MOTO design system for project-phoenix (much by Florian / `fl0r14n28`). It encodes the correct radii, brand colors, shadows, and interaction patterns. Hand-rolling chrome is the drift.
 
-Read this rule before frontend UI changes; the root entry point and `frontend/CLAUDE.md` route here. [ADR 0149](../../docs/adr/0149-ui-kit-entscheidet-jede-konkurrierende-variante-einmal.md) decides between competing kit variants, including pieces not built yet; read it before adding or migrating kit pieces.
+[ADR 0149](../../docs/adr/0149-ui-kit-entscheidet-jede-konkurrierende-variante-einmal.md) decides between competing kit variants, including pieces not built yet; read it before adding or migrating kit pieces.
 
 ## Source of truth
 
@@ -123,6 +123,8 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Date / range picker | `DatePicker`, `DateRangePicker` (selection gray-900, today blue); with time: `DateTimePicker` | `~/components/ui/<kebab-name>` |
 | Loading / skeleton | `Loading`, `Skeleton` | `~/components/ui/loading`, `~/components/ui/skeleton` |
 | Avatar | `Avatar` | `~/components/ui/avatar` |
+| File drop or choice | `Dropzone`; caller checks beyond `accept` | `~/components/ui/dropzone` |
+| Key or link to copy | `CopyField`; button only: `useClipboardCopy` | `~/components/ui/copy-field` |
 | Location / presence badge | `LocationBadge`, `PresenceBadge`, `StudentPresenceBadge` | `~/components/ui/location-badge`, etc. |
 | Status pill | `StatusBadge` (#5584) | `~/components/ui/status-badge` |
 | Pill in a data colour (amber: `WARNING`) | `StatusColorBadge` | `~/components/ui/status-color-badge` |
@@ -177,7 +179,7 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 
 **Defaults.** No `scale` animation. `Alert` actions are `compact`. Equal actions on one surface share size and variant. Every overlay close X is `ghost` `icon`; on a coloured notice (toast) `ghost_tone` `icon`.
 
-**Deliberate exceptions (do not align):** the stamp buttons and the break stepper −/+ of time tracking; `global-error` (inline styles, loads no CSS; only colour, radius and weight follow kit `primary`); event rows and month chips in the parents calendar. **Not buttons in this sense:** list and selection rows, tiles (`TileCard`), tabs, `SegmentedControl`, checkboxes, switches, menu entries, navigation rows, steppers inside fields, dropzones.
+**Deliberate exceptions (do not align):** the stamp buttons and the break stepper −/+ of time tracking; `global-error` (inline styles, loads no CSS; only colour, radius and weight follow kit `primary`); event rows and month chips in the parents calendar. **Not buttons in this sense:** list and selection rows, tiles (`TileCard`), tabs, `SegmentedControl`, checkboxes, switches, menu entries, navigation rows, steppers inside fields.
 
 **Ratchet.** `ui-kit/no-hand-rolled-button` fails a native `button`/`a`/`Link`/`NavLink`/`NavigationLink`/`role="button"` with background or ring/border colour plus radius plus padding or height; `ui-kit/no-button-override` fails such classes on `Button`/`ButtonLink` or in `buttonClassName({ className })`. Findings in `frontend/scripts/ui-kit-button-baseline.json`; extras fail, removals require lowering it (`pnpm run ui-kit:button-baseline`). Exceptions with reasons: `ui-kit-button-baseline.mjs`. `ui-kit/no-grey-button-fill` (zero) fails resting `bg-gray-100`/`-200`/`-300`; exempt: switches, tabs, menus, `aria-pressed` choices, nav rows.
 
@@ -262,7 +264,7 @@ Each concept's definition in `lib/concepts/<key>.ts` (collected in `MOTO_CONCEPT
 Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 · `3`=12 · `4`=16 · `5`=20 · `6`=24 · `8`=32 · `10`=40 · `12`=48 · `16`=64 px. Canonical component padding (from the design-system component tokens):
 
 - Card → `p-5` (20px), `p-4` on a phone (`SectionCard`)
-- Button → `md` (default action) `px-4 py-2 text-sm`; `field` `h-10 px-4 text-sm`; `compact` `h-8 px-2.5`; single large actions `px-5 py-3`; under a finger at least 44 px (see [Buttons](#buttons))
+- Button → [Buttons](#buttons)
 - Input → `px-4 py-3`
 
 ### Shadows
@@ -271,7 +273,7 @@ Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 
 
 ## Kit gaps — extend the kit, don't inline a bespoke control
 
-Buttons, `Checkbox`, `OverflowMenu`, `StatusBadge`, `EmptyState`, `SegmentedControl` (a **value** choice; `ui/Tabs` stays for real content panels — Radix tabs activate on **mousedown**, so tests driving a switcher with `fireEvent.click` need `SegmentedControl`) and the selects (no styled native `<select>`) all EXIST — see the table above. When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
+Buttons, `Checkbox`, `OverflowMenu`, `StatusBadge`, `EmptyState`, `SegmentedControl` and the selects (no styled native `<select>`) all EXIST — see the table above. When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
 
 ## Gotchas
 
@@ -297,7 +299,7 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 ## Detection
 
 **CI-enforced ratchet** (since #1629): the oxlint plugin `frontend/scripts/oxlint-plugin-ui-kit.mjs` fails `pnpm run check` on drift patterns, first these five — `ui-kit/no-generic-brand-colors` (all chromatic Tailwind hues), `ui-kit/no-hand-rolled-overlay` (`fixed inset-0` across a complete `className` expression outside `ui/`), `ui-kit/no-hand-rolled-surface` (unprefixed `rounded-xl/2xl` + `border` + `bg-white` on one element, also across conditional branches; use `moto-content-surface`, `moto-popover-surface`, `ChoiceTile` or a kit surface component — #2933), `ui-kit/no-rounded-3xl` (off-scale radius, `rounded-t-3xl` too), and `ui-kit/require-checkbox-label` (unlabeled shared checkboxes; a Checkbox inside a label-shaped `ChoiceTile` counts as labeled). These five are hard-zero. A deliberate non-card match (white pill) may stay behind `{/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- <reason> */}` with the reason in the PR description; no baseline. Test/stories files are exempt from the class-string rules.
-The tenant page scaffold (#2619) adds four more rules in the same plugin: `ui-kit/no-tenant-kicker` (no mini-heading in the tenant portal), `ui-kit/no-hand-rolled-page-card` (`moto-content-surface` + `rounded-2xl` spelled out in a tenant or Träger page/loading file instead of a kit card), `ui-kit/no-tabs-as-value-switcher` (`ui/Tabs` carrying a value choice), and `ui-kit/no-tiny-text` (sub-12px text utilities; shrink-only per-file baseline). `ui-kit/green-fill-white-text` (#5141, hard-zero) keeps text on opaque green surfaces white and on the dark fill steps. #5577: `no-dynamic-color-class`, `no-white-on-warm-fill` (white on orange only `-strong`). `ui-kit/no-hand-rolled-button` and `ui-kit/no-button-override` (#5531) are the button ratchet with a shrink-only per-file baseline and a reasoned allowlist ([Buttons](#buttons)). #5579: `no-shadcn-tokens`, `no-raw-z-index` (`z-[n]`). #5580: `no-select-override` (no look classes on selects, `DateRangePicker`). #5581: `no-important-override` (`!` on kit components, baseline), `no-section-card-bleed`. #5582: `no-hand-rolled-icon-tile` (also in `ui/`). #5583: `no-shadow-kit-name` (no local name equal to a kit export). #5584 (shrink-only): `no-hand-rolled-pill`, `no-pill-dot`, `no-hex-alpha-tint`. `ui-kit/no-raw-input` (#5217, hard-zero) fails a hand-built `<input>`/`<textarea>` except in the primitives of `RAW_INPUT_KIT_PRIMITIVES`; `type="hidden"` and `type="file"` stay native. A field with no kit counterpart (OTP grid) stays behind `oxlint-disable-next-line ui-kit/no-raw-input -- <reason>`. A form jumps to its first failed field only through `FormErrorAlert`; there is no second scroll hook.
+The tenant page scaffold (#2619) adds four more rules in the same plugin: `ui-kit/no-tenant-kicker` (no mini-heading in the tenant portal), `ui-kit/no-hand-rolled-page-card` (`moto-content-surface` + `rounded-2xl` spelled out in a tenant or Träger page/loading file instead of a kit card), `ui-kit/no-tabs-as-value-switcher` (`ui/Tabs` carrying a value choice), and `ui-kit/no-tiny-text` (sub-12px text utilities; shrink-only per-file baseline). `ui-kit/green-fill-white-text` (#5141, hard-zero) keeps text on opaque green surfaces white and on the dark fill steps. #5577: `no-dynamic-color-class`, `no-white-on-warm-fill` (white on orange only `-strong`). `ui-kit/no-hand-rolled-button` and `ui-kit/no-button-override` (#5531) are the button ratchet with a shrink-only per-file baseline and a reasoned allowlist ([Buttons](#buttons)). #5579: `no-shadcn-tokens`, `no-raw-z-index` (`z-[n]`). #5580: `no-select-override` (no look classes on selects, `DateRangePicker`). #5581: `no-important-override` (`!` on kit components, baseline), `no-section-card-bleed`. #5582: `no-hand-rolled-icon-tile` (also in `ui/`). #5583: `no-shadow-kit-name` (no local name equal to a kit export). #5584 (shrink-only): `no-hand-rolled-pill`, `no-pill-dot`, `no-hex-alpha-tint`. #5599: `no-hand-rolled-dropzone` (`onDrop`), `no-hand-rolled-copy-field` (framed `<code>`, `navigator.clipboard`). `ui-kit/no-raw-input` (#5217, hard-zero) fails a hand-built `<input>`/`<textarea>` except in the primitives of `RAW_INPUT_KIT_PRIMITIVES`; `type="hidden"` and `type="file"` stay native. A field with no kit counterpart (OTP grid) stays behind `oxlint-disable-next-line ui-kit/no-raw-input -- <reason>`. A form jumps to its first failed field only through `FormErrorAlert`; there is no second scroll hook.
 
 `ui-kit/no-kit-domain-import` (#5586, hard-zero): `components/ui/` imports no other component folder and calls no `fetch`/`useSWR*`; context comes through props and slots. Planning pieces live in `ui/planning/`. `no-hand-rolled-surface` applies in `ui/` too.
 

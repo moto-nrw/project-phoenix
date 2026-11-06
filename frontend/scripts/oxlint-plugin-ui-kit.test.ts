@@ -122,6 +122,93 @@ describe.concurrent("ui-kit/no-hand-rolled-portal-nav", () => {
   });
 });
 
+describe.concurrent("ui-kit/no-hand-rolled-dropzone", () => {
+  const source = `function Probe() {
+    return <div onDrop={() => undefined}>Ablegen</div>;
+  }
+  void Probe;`;
+
+  it("reports a hand-built drop area", async () => {
+    const result = await lintSource(source, "src/components/probe.tsx");
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-dropzone)");
+  });
+
+  it("allows the kit Dropzone itself", async () => {
+    const result = await lintSource(source, "src/components/ui/dropzone.tsx");
+
+    expect(result.output).not.toContain("ui-kit(no-hand-rolled-dropzone)");
+  });
+});
+
+describe.concurrent("ui-kit/no-hand-rolled-copy-field", () => {
+  it("reports a framed code value", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <code className="rounded-lg border px-3 py-2">wert</code>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-copy-field)");
+  });
+
+  it("reports a direct clipboard write", async () => {
+    const result = await lintSource(
+      `export const copy = (text: string) => navigator.clipboard.writeText(text);`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-copy-field)");
+  });
+
+  it("reports a clipboard write through window", async () => {
+    const result = await lintSource(
+      `export const copy = (text: string) => window.navigator.clipboard.writeText(text);`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain("ui-kit(no-hand-rolled-copy-field)");
+  });
+
+  it("allows inline code and only the shared copy primitives", async () => {
+    const inline = await lintSource(
+      `function Probe() {
+        return <code className="shrink-0">wert</code>;
+      }
+      void Probe;`,
+      "src/components/probe.tsx",
+    );
+    const hook = await lintSource(
+      `export const copy = (text: string) => navigator.clipboard.writeText(text);`,
+      "src/lib/use-clipboard-copy.ts",
+    );
+    const copyField = await lintSource(
+      `function Probe() {
+        return <code className="rounded-lg border px-3 py-2">wert</code>;
+      }
+      void Probe;`,
+      "src/components/ui/copy-field.tsx",
+    );
+    const otherUiComponent = await lintSource(
+      `export const copy = (text: string) => navigator.clipboard.writeText(text);`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(inline.output).not.toContain("ui-kit(no-hand-rolled-copy-field)");
+    expect(hook.output).not.toContain("ui-kit(no-hand-rolled-copy-field)");
+    expect(copyField.output).not.toContain("ui-kit(no-hand-rolled-copy-field)");
+    expect(otherUiComponent.status).toBe(1);
+    expect(otherUiComponent.output).toContain(
+      "ui-kit(no-hand-rolled-copy-field)",
+    );
+  });
+});
+
 describe.concurrent("ui-kit/no-tiny-text", () => {
   it("rejects a legacy token reintroduced at a different source location", async () => {
     const result = await lintSource(

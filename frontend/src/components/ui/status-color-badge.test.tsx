@@ -16,6 +16,20 @@ describe("StatusColorBadge", () => {
     expect(screen.getByText("Stammdaten")).toBeInTheDocument();
   });
 
+  it("legt data-Attribute auf die Pille selbst", () => {
+    render(
+      <StatusColorBadge
+        label="Schulhof"
+        color={LOCATION_COLORS.SCHOOLYARD}
+        data-location-status="Schulhof"
+      />,
+    );
+    expect(screen.getByText("Schulhof")).toHaveAttribute(
+      "data-location-status",
+      "Schulhof",
+    );
+  });
+
   it("färbt Fläche und Text über den Ton der Farbe", () => {
     render(
       <StatusColorBadge

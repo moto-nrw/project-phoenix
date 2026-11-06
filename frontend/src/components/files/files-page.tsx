@@ -6,7 +6,7 @@
 // rendered as-is. Follows the calm Anmeldungen/Planung surface language: one
 // content section, gray-50 stat blocks, no colored chips.
 
-import { FileText, FolderOpen, Lock, Upload, Users } from "lucide-react";
+import { FileText, FolderOpen, Lock, Users } from "lucide-react";
 import Link from "~/components/ui/navigation-link";
 import { useSession } from "next-auth/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -15,6 +15,7 @@ import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { Dropzone } from "~/components/ui/dropzone";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
@@ -27,7 +28,6 @@ import {
 } from "~/components/ui/page-header/OverflowMenu";
 import { formatDate } from "~/lib/date-helpers";
 import { hasPermission } from "~/lib/auth-utils";
-import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
 import {
   filesService,
   FOLDER_VISIBILITY_LABELS,
@@ -358,19 +358,15 @@ function FolderFilesPanel({
   );
 
   const [uploading, setUploading] = useState(false);
-  const [dragActive, setDragActive] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StoredFile | null>(null);
   const [deleting, setDeleting] = useState(false);
   // Fehler beim Löschen bleiben im offenen Bestätigungsdialog.
   const deleteErrors = useApiFormError();
   const { show: showError, showMessage } = useApiErrorDisplay();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const latestDeleteRef = useRef<() => void>(() => undefined);
 
-  const handleFiles = async (list: FileList | File[] | null) => {
-    if (!list || uploading || !canUpload) return;
-    const picked = Array.from(list);
-    if (picked.length === 0) return;
+  const handleFiles = async (picked: File[]) => {
+    if (uploading || !canUpload) return;
     const tooLarge = picked.find((file) => file.size > MAX_FILE_SIZE_BYTES);
     if (tooLarge) {
       showMessage(
@@ -393,7 +389,6 @@ function FolderFilesPanel({
       void showError(err, { object: "das Hochladen der Datei" });
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
     // Auch nach einem Fehler: Dateien vor dem Fehlschlag sind gespeichert.
     await mutate();
@@ -563,57 +558,18 @@ function FolderFilesPanel({
       <LoadErrorAlert error={loadError} />
 
       {canUpload ? (
-        <div
-          className={cn(
-            "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-5 text-center transition-colors",
-            dragActive ? "" : "border-gray-200 bg-gray-50/50",
-          )}
-          style={
-            dragActive
-              ? {
-                  borderColor: LOCATION_COLORS.GROUP_ROOM,
-                  backgroundColor: GROUP_ROOM_SHADES.bgHover,
-                }
-              : undefined
-          }
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragActive(true);
-          }}
-          onDragLeave={() => setDragActive(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragActive(false);
-            void handleFiles(e.dataTransfer.files);
-          }}
-        >
-          <Upload className="h-5 w-5 text-gray-400" aria-hidden="true" />
-          <p className="text-sm text-gray-600">
-            Dateien hierher ziehen oder{" "}
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              style={{ color: LOCATION_COLORS.OTHER_ROOM }}
-              disabled={uploading}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {uploading ? "Wird hochgeladen…" : "Dateien auswählen"}
-            </Button>
-          </p>
-          <p className="text-xs text-gray-400">
-            PDF, Word, Excel, PowerPoint, PNG oder JPG · höchstens 25 MB
-          </p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept={ACCEPTED_FILE_TYPES}
-            className="hidden"
-            aria-label="Dateien auswählen"
-            onChange={(e) => void handleFiles(e.target.files)}
-          />
-        </div>
+        <Dropzone
+          accept={ACCEPTED_FILE_TYPES}
+          legend="Bereich zum Hochladen von Dateien"
+          label="Dateien hierher ziehen"
+          dragLabel="Dateien hier ablegen"
+          buttonLabel="Dateien auswählen"
+          hint="PDF, Word, Excel, PowerPoint, PNG oder JPG · höchstens 25 MB"
+          loading={uploading}
+          loadingLabel="Wird hochgeladen…"
+          multiple
+          onFiles={(files) => void handleFiles(files)}
+        />
       ) : (
         <Alert
           type="info"
