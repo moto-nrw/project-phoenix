@@ -3,6 +3,7 @@ package architecture
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -90,15 +91,11 @@ func candidateQueryBudgets(project string) (map[string]querybudget.Budget, error
 }
 
 func baseQueryBudgets(root, project, sha string) (map[string]querybudget.Budget, error) {
-	prefix, err := repositoryRelativePath(root, project, "test/query-budgets")
+	prefix, err := repositoryRelativePath(root, project, ".")
 	if err != nil {
 		return nil, err
 	}
-	retiredPrefix, err := repositoryRelativePath(root, project, "architecture/retired-query-budgets")
-	if err != nil {
-		return nil, err
-	}
-	listing, err := gitOutput(root, "ls-tree", "-r", "-z", sha, "--", prefix, retiredPrefix)
+	listing, err := gitOutput(root, "ls-tree", "-r", "-z", sha, "--", path.Join(prefix, "test/query-budgets"), path.Join(prefix, "architecture/retired-query-budgets"))
 	if err != nil {
 		return nil, err
 	}
