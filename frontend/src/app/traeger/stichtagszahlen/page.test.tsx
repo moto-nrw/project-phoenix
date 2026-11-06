@@ -185,6 +185,83 @@ describe("TraegerKeyDateCountsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps school and city search available alongside month navigation", async () => {
+    mockFetchCounts.mockResolvedValue(COUNTS);
+    renderPage();
+    await screen.findByText("84 mehr als im September 2026.");
+
+    const search = screen.getByPlaceholderText("Schule oder Ort suchen…");
+    fireEvent.change(search, { target: { value: "bach" } });
+    expect(
+      within(schoolTable()).getByRole("link", { name: "OGS Am Bach" }),
+    ).toBeVisible();
+    expect(
+      within(schoolTable()).queryByRole("link", { name: "OGS Lindenweg" }),
+    ).toBeNull();
+
+    fireEvent.change(search, { target: { value: "melle" } });
+    expect(
+      within(schoolTable()).getByRole("link", { name: "OGS Lindenweg" }),
+    ).toBeVisible();
+    expect(
+      within(schoolTable()).queryByRole("link", { name: "OGS Am Bach" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Monat davor" }));
+    expect(await screen.findByText("1 von 2")).toBeVisible();
+    expect(
+      within(schoolTable()).getByRole("link", { name: "OGS Lindenweg" }),
+    ).toBeVisible();
+    expect(
+      within(schoolTable()).queryByRole("link", { name: "OGS Am Bach" }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Suche löschen" }));
+    expect(
+      within(schoolTable()).getByRole("link", { name: "OGS Am Bach" }),
+    ).toBeVisible();
+  });
+
+  it("shows every actual key date when schools have different dates in one month", async () => {
+    mockFetchCounts.mockResolvedValue({
+      ...COUNTS,
+      schools: COUNTS.schools.map((school) => ({
+        ...school,
+        counts: school.counts.map((count) =>
+          school.id === "3"
+            ? {
+                ...count,
+                keyDate: "2026-10-20",
+                recordedAt: "2026-10-20T04:00:00Z",
+              }
+            : count,
+        ),
+      })),
+    });
+    renderPage();
+
+    await screen.findByText("84 mehr als im September 2026.");
+    expect(
+      screen.getAllByRole("heading", {
+        name: "Zahlen je Schule im Oktober 2026",
+      }).length,
+    ).toBeGreaterThan(0);
+    const bach = within(schoolTable())
+      .getByRole("link", { name: "OGS Am Bach" })
+      .closest("tr") as HTMLElement;
+    expect(within(bach).getByText("15.10.2026")).toBeVisible();
+    const linden = within(schoolTable())
+      .getByRole("link", { name: "OGS Lindenweg" })
+      .closest("tr") as HTMLElement;
+    expect(within(linden).getByText("20.10.2026")).toBeVisible();
+
+    const months = screen.getAllByRole("table")[1] as HTMLElement;
+    expect(within(months).getByText("15.10.2026, 20.10.2026")).toBeVisible();
+    fireEvent.change(screen.getByPlaceholderText("Schule oder Ort suchen…"), {
+      target: { value: "melle" },
+    });
+    expect(within(months).getByText("15.10.2026, 20.10.2026")).toBeVisible();
+  });
+
   it("says when no month is captured yet", async () => {
     mockFetchCounts.mockResolvedValue({
       schools: COUNTS.schools.map((school) => ({ ...school, counts: [] })),

@@ -22,12 +22,14 @@ export function traegerKeyDateCountsTopic(): HelpTopic {
     result:
       "Sie sehen für jede Schule, wie viele aktive Kinder und aktive Terminals moto am Stichtag gezählt hat.",
     notes: [
+      "Suchen Sie oben nach einer Schule oder einem Ort.",
       "moto hält die Zahlen am Stichtag einmal fest. Danach ändern sie sich nicht mehr.",
       "Das moto-Team sieht in seinem Bericht dieselben Zahlen.",
       "Neben jeder Zahl steht, wie sie sich zum Monat davor verändert hat.",
       "Sie sehen nur Zahlen, keine Namen.",
     ],
     differences: [
+      "Bei unterschiedlichen Stichtagen stehen unter `Alle Monate` mehrere Daten. Das genaue Datum finden Sie bei jeder Schule unter `Stichtag`.",
       "Steht bei einer Schule `Keine Zahlen zu diesem Stichtag`, gab es die Schule am Stichtag noch nicht in moto.",
       "Steht bei einer Schule `Nachgeholt`, hat moto die Zahlen erst nach dem Stichtag festgehalten. Sie gelten trotzdem für den Stichtag.",
     ],

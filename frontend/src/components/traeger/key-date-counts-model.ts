@@ -21,6 +21,32 @@ export function formatKeyDateMonth(period: string): string {
   return monthFormat.format(parseISODate(period));
 }
 
+/** Ein Monat mit allen tatsächlich erfassten Stichtagen seiner Schulen. */
+export interface KeyDateMonthRow extends TraegerKeyDateMonth {
+  readonly keyDates: readonly string[];
+}
+
+export function keyDateMonthRows(
+  schools: readonly TraegerSchoolKeyDateCounts[],
+  months: readonly TraegerKeyDateMonth[],
+): KeyDateMonthRow[] {
+  const dates = new Map<string, Set<string>>();
+  for (const school of schools) {
+    for (const count of school.counts) {
+      let days = dates.get(count.period);
+      if (!days) {
+        days = new Set<string>();
+        dates.set(count.period, days);
+      }
+      days.add(count.keyDate);
+    }
+  }
+  return months.map((month) => ({
+    ...month,
+    keyDates: [...(dates.get(month.period) ?? [])].sort(),
+  }));
+}
+
 /** Eine Schule im gewählten Monat und im erfassten Monat davor. */
 export interface KeyDateSchoolRow {
   readonly school: TraegerSchoolKeyDateCounts;

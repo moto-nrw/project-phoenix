@@ -13,6 +13,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import NavigationLink from "~/components/ui/navigation-link";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { SearchBar } from "~/components/ui/page-header/SearchBar";
 import { StatCard } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
@@ -21,6 +22,8 @@ import {
   formatKeyDateChange,
   formatKeyDateMonth,
   keyDateChange,
+  keyDateMonthRows,
+  type KeyDateMonthRow,
   type KeyDateSchoolRow,
   selectKeyDateMonth,
 } from "~/components/traeger/key-date-counts-model";
@@ -125,6 +128,16 @@ function schoolColumns(
       stacked: "title",
     },
     {
+      key: "keyDate",
+      header: "Stichtag",
+      render: (row) => (
+        <span className="text-sm text-gray-700 tabular-nums">
+          {row.count ? formatDate(row.count.keyDate) : EMPTY_VALUE}
+        </span>
+      ),
+      sortValue: (row) => row.count?.keyDate ?? null,
+    },
+    {
       key: "students",
       header: "Aktive Kinder",
       align: "right",
@@ -189,7 +202,7 @@ function schoolColumns(
   ];
 }
 
-const MONTH_COLUMNS: DataTableColumn<TraegerKeyDateMonth>[] = [
+const MONTH_COLUMNS: DataTableColumn<KeyDateMonthRow>[] = [
   {
     key: "period",
     header: "Monat",
@@ -203,13 +216,13 @@ const MONTH_COLUMNS: DataTableColumn<TraegerKeyDateMonth>[] = [
   },
   {
     key: "keyDate",
-    header: "Stichtag",
+    header: "Stichtage",
     render: (month) => (
       <span className="text-sm text-gray-700 tabular-nums">
-        {formatDate(month.keyDate)}
+        {month.keyDates.map((date) => formatDate(date)).join(", ")}
       </span>
     ),
-    sortValue: (month) => month.keyDate,
+    sortValue: (month) => month.keyDates[0] ?? null,
     stacked: "meta",
   },
   {
@@ -306,7 +319,10 @@ export default function TraegerKeyDateCountsPage() {
   const [search, setSearch] = useState("");
   const loading = counts === null && !error;
   const schools = counts?.schools ?? [];
-  const months = counts?.months ?? [];
+  const months = useMemo(
+    () => (counts ? keyDateMonthRows(counts.schools, counts.months) : []),
+    [counts],
+  );
   const selection = useMemo(
     () =>
       counts ? selectKeyDateMonth(counts.schools, counts.months, period) : null,
@@ -366,15 +382,6 @@ export default function TraegerKeyDateCountsPage() {
             }
           : null
       }
-      search={
-        selection && schools.length > 1
-          ? {
-              value: search,
-              onChange: setSearch,
-              placeholder: "Schule oder Ort suchen…",
-            }
-          : undefined
-      }
       searchSlot={
         selection ? (
           <PlanningContextBar
@@ -398,6 +405,17 @@ export default function TraegerKeyDateCountsPage() {
             nextLabel="Monat danach"
             onToday={newer ? () => setPeriod(null) : undefined}
             todayLabel="Neuester Monat"
+            actions={
+              schools.length > 1 ? (
+                <SearchBar
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Schule oder Ort suchen…"
+                  inputProps={{ "aria-label": "Schule oder Ort suchen" }}
+                  className="min-w-0 md:w-64"
+                />
+              ) : undefined
+            }
           />
         ) : undefined
       }
@@ -411,7 +429,7 @@ export default function TraegerKeyDateCountsPage() {
           />
           <DataTable
             heading={{
-              title: `Zahlen je Schule am ${formatDate(selection.month.keyDate)}`,
+              title: `Zahlen je Schule im ${formatKeyDateMonth(selection.month.period)}`,
               count: rows.length,
             }}
             columns={columns}
