@@ -5,7 +5,7 @@
 // Nur Zahlen, keine Namen. Eine Zeile führt in die Ansicht der Schule (#5686);
 // wer das Recht „In OGS wechseln" hat, öffnet von hier auch die Schul-App.
 
-import { useMemo, useState } from "react";
+import { type MouseEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, School } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -168,7 +168,9 @@ const COLUMNS: DataTableColumn<TraegerSchoolToday>[] = [
         <NavigationLink
           href={schoolPath(school)}
           className="font-medium text-gray-900 hover:underline"
-          onClick={(event) => event.stopPropagation()}
+          onClick={(event: MouseEvent<HTMLAnchorElement>) =>
+            event.stopPropagation()
+          }
         >
           {school.name}
         </NavigationLink>
