@@ -22,6 +22,7 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { isSystemActivity, type Activity } from "@/lib/activity-helpers";
 import { buildActivityFormSections } from "./activity-form-sections";
 import { activitiesConcept } from "~/lib/concepts/activities";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 interface ActivitiesMasterDetailProps {
   activities: Activity[];
@@ -245,20 +246,17 @@ function ActivitySummary({ activity }: { activity: Activity }) {
     <section className="moto-content-surface rounded-xl border p-4">
       <div className="flex flex-wrap items-center gap-2">
         {activity.category_name ? (
-          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-            {activity.category_name}
-          </span>
+          <StatusBadge label={activity.category_name} tone="gray" />
         ) : null}
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-          {activity.max_participant == null
-            ? "Unbegrenzt"
-            : `${activity.max_participant} Plätze`}
-        </span>
-        {isSystem ? (
-          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-            Systemaktivität
-          </span>
-        ) : null}
+        <StatusBadge
+          label={
+            activity.max_participant == null
+              ? "Unbegrenzt"
+              : `${activity.max_participant} Plätze`
+          }
+          tone="gray"
+        />
+        {isSystem ? <StatusBadge label="Systemaktivität" tone="gray" /> : null}
       </div>
 
       {activity.supervisor_name ? (

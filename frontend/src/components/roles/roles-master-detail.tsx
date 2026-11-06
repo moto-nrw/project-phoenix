@@ -35,6 +35,9 @@ import {
   type Role,
 } from "@/lib/auth-helpers";
 import { rolesConcept } from "~/lib/concepts/roles";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 interface RolesMasterDetailProps {
   roles: Role[];
@@ -297,19 +300,20 @@ function RoleStammdatenTab({
       <section className="moto-content-surface rounded-xl border p-4">
         <div className="flex flex-wrap items-center gap-2">
           {role.isSystem ? (
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-              Vorgegeben
-            </span>
+            <StatusBadge label="Vorgegeben" tone="gray" />
           ) : null}
           {!role.isSystem && !role.baseRole ? (
-            <span className="bg-moto-amber-soft text-moto-amber-strong rounded-full px-2.5 py-1 text-xs font-medium">
-              Zuordnung fehlt
-            </span>
+            <StatusColorBadge
+              label="Zuordnung fehlt"
+              color={LOCATION_COLORS.WARNING}
+            />
           ) : null}
-          <span className="bg-moto-purple-soft text-moto-purple-strong rounded-full px-2.5 py-1 text-xs font-medium">
-            {role.permissions?.length ?? 0}{" "}
-            {role.permissions?.length === 1 ? "Berechtigung" : "Berechtigungen"}
-          </span>
+          <StatusBadge
+            label={`${role.permissions?.length ?? 0} ${
+              role.permissions?.length === 1 ? "Berechtigung" : "Berechtigungen"
+            }`}
+            tone="purple"
+          />
         </div>
       </section>
 
