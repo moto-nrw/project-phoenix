@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/traegerview"
@@ -71,6 +72,28 @@ func insertSickDay(t *testing.T, db *bun.DB, school, studentID int64) {
 		(tenant_id, student_id, date, status, reported_at, source) VALUES (?, ?, ?, 'sick', NOW(), 'manual')`,
 		school, studentID, calendar.TodayDate())
 	require.NoError(t, err)
+}
+
+func TestOpenEnrollmentsCountTheWaitingChildrenOfEachSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	school, _ := testpkg.CreateTestTenant(t, db)
+	other, _ := testpkg.CreateTestTenant(t, db)
+	unasked, _ := testpkg.CreateTestTenant(t, db)
+	insertEnrollmentChildren(t, db, school, false, "submitted", "under_review", "pending_admin_review", "approved", "waitlisted", "rejected")
+	insertEnrollmentChildren(t, db, school, true, "submitted", "under_review")
+	insertEnrollmentChildren(t, db, other, false, "approved")
+	insertEnrollmentChildren(t, db, unasked, false, "submitted")
+
+	open := enrollmentCompose.NewOpenEnrollments()
+	require.NoError(t, testpkg.WithinAdminContext(t, context.Background(), db, func(adminCtx context.Context) error {
+		counts, err := open.OpenEnrollmentChildrenByTenant(adminCtx, []int64{school, other})
+		require.NoError(t, err)
+		assert.Equal(t, map[int64]int{school: 3}, counts, "the three undecided children of a request still open; no other school")
+		return nil
+	}))
+	_, err := open.OpenEnrollmentChildrenByTenant(testpkg.TenantContext(school), []int64{school})
+	assert.Error(t, err, "outside the administrative transaction it refuses")
 }
 
 func traegerAlertsOf(t *testing.T, got traegerview.SchoolsAlerts, school int64) traegerview.SchoolAlerts {
