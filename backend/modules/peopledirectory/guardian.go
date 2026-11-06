@@ -220,6 +220,10 @@ type GuardianPhoneUpdate struct {
 
 // LinkGuardian attaches an existing guardian to a child.
 type LinkGuardian struct {
+	// CreatedStudent is the successful CreateEnrollmentStudent result from this
+	// same ambient transaction. Its insert protects existence until commit;
+	// existing children must retain the scalar existence check.
+	CreatedStudent *CreatedEnrollmentStudent `json:"-"`
 	// CreatedGuardian is the successful create result from this same ambient
 	// transaction. Only a newly inserted profile qualifies: its insert protects
 	// existence until commit. Reused profiles keep the scalar existence check.

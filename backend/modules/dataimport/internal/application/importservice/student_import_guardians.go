@@ -9,27 +9,27 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
 )
 
-func (c *StudentImportConfig) createGuardianRelationships(ctx context.Context, studentID int64, guardians []importModels.GuardianImportData) error {
+func (c *StudentImportConfig) createGuardianRelationships(ctx context.Context, student ports.CreatedEnrollmentStudent, guardians []importModels.GuardianImportData) error {
 	for i, guardianData := range guardians {
-		if err := c.createSingleGuardianRelationship(ctx, studentID, guardianData, i+1); err != nil {
+		if err := c.createSingleGuardianRelationship(ctx, student, guardianData, i+1); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Context, studentID int64, guardianData importModels.GuardianImportData, index int) error {
+func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Context, student ports.CreatedEnrollmentStudent, guardianData importModels.GuardianImportData, index int) error {
 	guardian, err := c.createOrFindGuardian(ctx, guardianData)
 	if err != nil {
 		return fmt.Errorf("guardian %d: %w", index, err)
 	}
-	return c.createGuardianRelationship(ctx, studentID, guardian.ID, guardianData, index, &guardian)
+	return c.createGuardianRelationship(ctx, student.ID, guardian.ID, guardianData, index, &guardian, &student)
 }
 
 // createGuardianRelationship links the guardian to the child. The role preset
 // of the row wins; an unknown or empty preset leaves the owner to derive the
 // default from the relationship flags.
-func (c *StudentImportConfig) createGuardianRelationship(ctx context.Context, studentID, guardianID int64, guardianData importModels.GuardianImportData, index int, created *ports.Guardian) error {
+func (c *StudentImportConfig) createGuardianRelationship(ctx context.Context, studentID, guardianID int64, guardianData importModels.GuardianImportData, index int, created *ports.Guardian, createdStudent *ports.CreatedEnrollmentStudent) error {
 	link := ports.LinkGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  guardianID,
@@ -39,6 +39,9 @@ func (c *StudentImportConfig) createGuardianRelationship(ctx context.Context, st
 		CanPickup:          guardianData.CanPickup,
 		PickupNotes:        importModels.OptionalCell(guardianData.PickupNotes),
 		EmergencyPriority:  guardianData.EmergencyPriority,
+	}
+	if c.Transactions.HasTransaction(ctx) {
+		link.CreatedStudent = createdStudent
 	}
 	if created != nil && !created.ReusedExisting && c.Transactions.HasTransaction(ctx) {
 		link.CreatedGuardian = created
@@ -279,7 +282,7 @@ func (c *StudentImportConfig) mergeGuardianRelationship(ctx context.Context, stu
 	}
 	link, linked := byGuardianID[guardianID]
 	if !linked {
-		if err := c.createGuardianRelationship(ctx, studentID, guardianID, data, index, created); err != nil {
+		if err := c.createGuardianRelationship(ctx, studentID, guardianID, data, index, created, nil); err != nil {
 			return err
 		}
 		return nil

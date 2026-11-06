@@ -1,6 +1,6 @@
 {
   "scenario": "modules.dataimport.student_batch.phone_growth.n3",
-  "max": 96,
+  "max": 93,
   "exact": true,
-  "description": "Complete 3-row import with one guardian, phone and pickup schedule per child; small execution-growth point. Newly inserted guardian profiles are passed to the link command in the same transaction instead of being read again."
+  "description": "Complete 3-row import with one guardian, phone and pickup schedule per child; small execution-growth point. Newly inserted guardian profiles are passed to the link command in the same transaction instead of being read again. Newly created children also carry the enrollment command result to the link, avoiding the repeated child read while its insert remains protected by the same transaction."
 }

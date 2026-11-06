@@ -144,9 +144,8 @@ func (s *RetainedGuardianService) LinkGuardianToStudent(ctx context.Context, req
 		}
 	}
 
-	// Validate student exists
-	if _, err := s.StudentRepo.FindByID(ctx, req.StudentID); err != nil {
-		return nil, guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf("student not found: %w", err))
+	if err := s.validateGuardianLinkStudent(ctx, req); err != nil {
+		return nil, err
 	}
 
 	if s.RolePresets == nil {
@@ -200,6 +199,21 @@ func (s *RetainedGuardianService) createdGuardianExists(ctx context.Context, req
 	return created != nil && !created.ReusedExisting && created.ID > 0 &&
 		created.ID == req.GuardianProfileID && created.TenantID == s.transactions.TenantID(ctx) &&
 		created.TenantID > 0 && (RepositoryRuntime{}).InTransaction(ctx)
+}
+
+// A child created in this transaction stays present until commit. Existing
+// children and invalid facts retain the scalar read, after the guardian.
+func (s *RetainedGuardianService) validateGuardianLinkStudent(ctx context.Context, req peoplePorts.StudentGuardianCreateRequest) error {
+	created := req.CreatedStudent
+	if created != nil && created.ID > 0 && created.ID == req.StudentID &&
+		created.TenantID > 0 && created.TenantID == s.transactions.TenantID(ctx) &&
+		(RepositoryRuntime{}).InTransaction(ctx) {
+		return nil
+	}
+	if _, err := s.StudentRepo.FindByID(ctx, req.StudentID); err != nil {
+		return guardianLookupFailure(peopleValues.ErrGuardianNotFound, fmt.Errorf("student not found: %w", err))
+	}
+	return nil
 }
 
 // existingGuardianLink returns the stored link of the guardian to the student.
