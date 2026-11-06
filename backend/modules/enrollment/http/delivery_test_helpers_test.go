@@ -17,13 +17,18 @@ import (
 	orm "github.com/uptrace/bun"
 )
 
-type testEnrollmentDelivery struct{ module delivery.Capability }
+type testEnrollmentDelivery struct {
+	module   delivery.Capability
+	outcomes delivery.EmailOutcomes
+}
 
 func newTestEnrollmentDelivery(t *testing.T, db *orm.DB) testEnrollmentDelivery {
 	t.Helper()
 	module, err := api.NewEnrollmentFlowDelivery(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	return testEnrollmentDelivery{module: module}
+	outcomes, err := api.NewEnrollmentFlowOutcomes(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	return testEnrollmentDelivery{module: module, outcomes: outcomes}
 }
 
 func (a testEnrollmentDelivery) CountRelatedEmails(ctx context.Context, relatedType string, relatedID int64) (int, error) {
@@ -40,7 +45,7 @@ func (a testEnrollmentDelivery) RelatedEmailOutcomes(ctx context.Context, relate
 	if err != nil {
 		return nil, err
 	}
-	reports, err := a.module.(delivery.EmailOutcomes).EmailOutcomes(ctx, tenantID.Int64(), deliveryContract.EmailOutcomeQuery{RelatedType: relatedType, RelatedIDs: []int64{relatedID}})
+	reports, err := a.outcomes.EmailOutcomes(ctx, tenantID.Int64(), deliveryContract.EmailOutcomeQuery{RelatedType: relatedType, RelatedIDs: []int64{relatedID}})
 	if err != nil {
 		return nil, err
 	}
