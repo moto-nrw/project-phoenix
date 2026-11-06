@@ -11,15 +11,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// AmendableContract is an active contract with its newest effective
-// version (#4681): the start of its first effective version, which a fixed
-// term counts from, and the number its next version gets.
+// AmendableContract is an active contract with its timeline (#4681): every
+// effective version by effective date, the newest of them, the start of the
+// first, which a fixed term counts from, and the number its next version
+// gets.
 type AmendableContract struct {
 	ID         int64
 	Key        ContractKey
 	FirstFrom  calendar.Date
 	NextNumber int
 	Latest     carecontract.Version
+	Versions   []carecontract.Version
 }
 
 // ErrVersionMoved reports that the version a new version should follow is
@@ -133,9 +135,10 @@ type Store interface {
 	// AmendableContracts reads every active contract with its newest
 	// effective version.
 	AmendableContracts(ctx context.Context, organizationID int64) ([]AmendableContract, error)
-	// InsertVersion supersedes the version previousID and stores version as
-	// the newest effective one; ErrVersionMoved when previousID is no longer
-	// wirksam.
+	// InsertVersion stores version. With a previousID it is the newest: the
+	// version previousID becomes abgeloest, and ErrVersionMoved when it is no
+	// longer wirksam. Without one (0) it goes before a planned version and
+	// supersedes nothing.
 	InsertVersion(ctx context.Context, organizationID, contractID, previousID int64, version carecontract.Version) (int64, error)
 	// VersionsInForce reads the effective versions holding between from and
 	// to; VersionPeriod.From and Until stay for the caller to fill.

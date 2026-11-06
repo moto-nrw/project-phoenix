@@ -13,8 +13,9 @@ import (
 
 // TestCareContractVersionsFormOneTimeline pins the invariants of #4681 on
 // the versions of a contract under the request role: the effective versions
-// never overlap (one wirksam version, no shared or earlier start), and a
-// follow-up version never takes effect in the past.
+// never overlap (one wirksam version, the newest; no shared start), a change
+// may go in front of a planned version but never before the first one, and
+// a follow-up version never takes effect in the past.
 func TestCareContractVersionsFormOneTimeline(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -70,6 +71,14 @@ func TestCareContractVersionsFormOneTimeline(t *testing.T) {
 		"a follow-up version never takes effect in the past")
 	require.NoError(t, asTraeger(supersede, version(2, "wirksam", "2099-03-01")),
 		"a superseded predecessor and a later start make a valid timeline")
+	require.NoError(t, asTraeger(version(4, "abgeloest", "2099-02-01")),
+		"a change before the planned version goes in front of it as superseded")
+	require.ErrorContains(t, asTraeger(version(5, "abgeloest", "2099-05-01")), "needs a later effective version",
+		"a superseded version without a later one would leave two newest versions")
+	require.ErrorContains(t, asTraeger(version(5, "abgeloest", "2026-07-15")), "must start after the first version",
+		"no version goes before the contract's first one")
+	require.ErrorContains(t, asTraeger(version(5, "abgeloest", "2099-02-01")), "uq_contract_versions_timeline",
+		"two versions never start on the same day")
 	require.ErrorContains(t, asTraeger(version(3, "beantragt", "2099-04-01"),
 		fmt.Sprintf(`UPDATE care_contract.contract_versions SET status = 'wirksam' WHERE contract_id = %d AND version_number = 3`, contract)), "uq_contract_versions_effective",
 		"a requested version becomes effective only after its predecessor is superseded")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
@@ -110,14 +111,17 @@ func (c *Conclusions) amendContract(ctx context.Context, organizationID int64, r
 func (c *Conclusions) amend(ctx context.Context, organizationID int64, contract AmendableContract, version carecontract.Version) (bool, error) {
 	amended := false
 	err := c.intake.runtime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
-		record, err := c.intake.store.Contract(txCtx, organizationID, contract.ID, true)
-		if err != nil {
+		unchanged, err := c.lockedTimeline(txCtx, organizationID, contract)
+		if err != nil || !unchanged {
 			return err
 		}
-		if record.Summary.Status != carecontract.StatusActive {
-			return nil
+		// Only the newest version supersedes the wirksam one; a version that
+		// goes before a planned one supersedes nothing.
+		previousID := int64(0)
+		if version.Status == carecontract.VersionEffective {
+			previousID = contract.Latest.ID
 		}
-		versionID, err := c.intake.store.InsertVersion(txCtx, organizationID, contract.ID, contract.Latest.ID, version)
+		versionID, err := c.intake.store.InsertVersion(txCtx, organizationID, contract.ID, previousID, version)
 		if errors.Is(err, ports.ErrVersionMoved) {
 			return nil
 		}
@@ -129,7 +133,7 @@ func (c *Conclusions) amend(ctx context.Context, organizationID int64, contract 
 			ContractID: &contractID, SchoolID: &schoolID, Action: ActionCreate,
 			Details: map[string]any{
 				"version_id": versionID, "version_number": version.Number, "source": version.Source,
-				"effective_from": version.EffectiveFrom.String(), "previous_version_id": contract.Latest.ID,
+				"effective_from": version.EffectiveFrom.String(), "status": version.Status,
 			},
 		}}); err != nil {
 			return fmt.Errorf("care contract: record amendment: %w", err)
@@ -141,6 +145,40 @@ func (c *Conclusions) amend(ctx context.Context, organizationID int64, contract 
 		return false, fmt.Errorf("care contract: amend contract %d: %w", contract.ID, err)
 	}
 	return amended, nil
+}
+
+// lockedTimeline takes the row lock of the contract, the same lock the
+// conclusion takes (#4680), and tells whether the contract is still active
+// with the timeline the new version was planned on. A contract that ended
+// or got another version meanwhile is left for the next run.
+func (c *Conclusions) lockedTimeline(ctx context.Context, organizationID int64, contract AmendableContract) (bool, error) {
+	record, err := c.intake.store.Contract(ctx, organizationID, contract.ID, true)
+	if err != nil || record.Summary.Status != carecontract.StatusActive {
+		return false, err
+	}
+	versions, err := c.intake.store.Versions(ctx, organizationID, contract.ID)
+	if err != nil {
+		return false, err
+	}
+	return sameTimeline(versions, contract.Versions), nil
+}
+
+// sameTimeline compares the effective versions of all versions with the
+// planned timeline by ID and status.
+func sameTimeline(all, planned []carecontract.Version) bool {
+	effective := []string{}
+	for _, version := range all {
+		if version.Status == carecontract.VersionEffective || version.Status == carecontract.VersionSuperseded {
+			effective = append(effective, fmt.Sprint(version.ID, version.Status))
+		}
+	}
+	want := make([]string, len(planned))
+	for i, version := range planned {
+		want[i] = fmt.Sprint(version.ID, version.Status)
+	}
+	slices.Sort(effective)
+	slices.Sort(want)
+	return slices.Equal(effective, want)
 }
 
 func findApplication(applications []carecontract.Application, requestChildID int64) (carecontract.Application, bool) {

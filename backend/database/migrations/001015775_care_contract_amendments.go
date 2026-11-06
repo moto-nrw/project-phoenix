@@ -31,11 +31,12 @@ func init() {
 //   - The effective versions of a contract (wirksam and abgeloest) form one
 //     timeline: a version holds from its effective date to the day before
 //     the next one starts, or to its own end. At most one version is wirksam,
-//     the newest; its predecessors are abgeloest. Two effective versions
+//     the newest; every earlier one is abgeloest. Two effective versions
 //     never start on the same day.
-//   - A new effective version starts after every effective version of its
-//     contract, so it never cuts into the middle of the timeline, and a
-//     follow-up version (number 2 and up) never starts before the day it
+//   - A new version is the newest (wirksam, starting after every effective
+//     version) or is inserted before a planned one (abgeloest, with a later
+//     effective version); either way it starts after the first version, and
+//     a follow-up version (number 2 and up) never starts before the day it
 //     becomes effective (Berlin date): no change reaches back into a month
 //     that may be billed already. #4684 can tighten this to the last issued
 //     invoice in the same trigger.
@@ -55,11 +56,24 @@ CREATE UNIQUE INDEX uq_contract_versions_timeline ON care_contract.contract_vers
 CREATE OR REPLACE FUNCTION care_contract.guard_version_timeline() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-	IF NEW.status = 'wirksam' AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM NEW.status) THEN
-		IF EXISTS (SELECT 1 FROM care_contract.contract_versions AS v
+	IF NEW.status IN ('wirksam', 'abgeloest')
+		AND (TG_OP = 'INSERT' OR OLD.status NOT IN ('wirksam', 'abgeloest')) THEN
+		IF NEW.status = 'wirksam' AND EXISTS (SELECT 1 FROM care_contract.contract_versions AS v
 			WHERE v.organization_id = NEW.organization_id AND v.contract_id = NEW.contract_id AND v.id <> NEW.id
 				AND v.status IN ('wirksam', 'abgeloest') AND v.effective_from >= NEW.effective_from) THEN
 			RAISE EXCEPTION 'care contract version of contract % must start after every effective version', NEW.contract_id
+				USING ERRCODE = 'check_violation';
+		END IF;
+		IF NEW.status = 'abgeloest' AND NOT EXISTS (SELECT 1 FROM care_contract.contract_versions AS v
+			WHERE v.organization_id = NEW.organization_id AND v.contract_id = NEW.contract_id AND v.id <> NEW.id
+				AND v.status IN ('wirksam', 'abgeloest') AND v.effective_from > NEW.effective_from) THEN
+			RAISE EXCEPTION 'care contract version of contract % inserted as superseded needs a later effective version', NEW.contract_id
+				USING ERRCODE = 'check_violation';
+		END IF;
+		IF NEW.version_number > 1 AND NOT EXISTS (SELECT 1 FROM care_contract.contract_versions AS v
+			WHERE v.organization_id = NEW.organization_id AND v.contract_id = NEW.contract_id AND v.id <> NEW.id
+				AND v.status IN ('wirksam', 'abgeloest') AND v.effective_from < NEW.effective_from) THEN
+			RAISE EXCEPTION 'care contract version of contract % must start after the first version', NEW.contract_id
 				USING ERRCODE = 'check_violation';
 		END IF;
 		IF NEW.version_number > 1 AND NEW.effective_from < (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date THEN

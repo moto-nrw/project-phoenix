@@ -21,9 +21,12 @@ import (
 //     overlap: a version holds from its effective date to the day before the
 //     next one, or to its own end. VersionsInForce therefore answers at most
 //     one version per contract and day.
-//   - A new version starts after every effective version and never before
-//     the day it is made (Berlin date), so no change reaches back into a
-//     month that may be billed already. The database refuses both.
+//   - A change with effective date D makes a version from D. A version
+//     already planned from E > D stays; the new one holds from D to E-1, and
+//     the planned version does not take the change over automatically.
+//   - A new version never starts before the day it is made (Berlin date),
+//     so no change reaches back into a month that may be billed already.
+//     The database refuses it, and an overlap.
 //   - A module never runs longer in a version than it is booked: a service
 //     carries the last booked day of a module that ends before the version
 //     does, and ServicesOn drops it after that day.
@@ -47,8 +50,9 @@ const (
 	SkipCareEnds = "care_ends"
 	// SkipApplicationGone: the application child is no longer accepted.
 	SkipApplicationGone = "application_gone"
-	// SkipBeforeLaterVersion: the change takes effect before a version that
-	// is already planned; the timeline only grows at its end.
+	// SkipBeforeLaterVersion: the booked care differs on the first day of a
+	// planned version. The planned version stays as it is; whether it has to
+	// take a change over is not decided automatically (#4681).
 	SkipBeforeLaterVersion = "before_later_version"
 )
 

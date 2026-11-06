@@ -61,8 +61,9 @@ func versionsOf(rows []versionRow) ([]carecontract.Version, error) {
 	return versions, nil
 }
 
-// AmendableContracts reads every active contract with its newest effective
-// version, the start of its first one and its next version number.
+// AmendableContracts reads every active contract with its effective
+// versions by effective date, the start of the first and its next version
+// number.
 func (Store) AmendableContracts(ctx context.Context, organizationID int64) ([]ports.AmendableContract, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -72,11 +73,10 @@ func (Store) AmendableContracts(ctx context.Context, organizationID int64) ([]po
 		ContractID     int64         `bun:"contract_id"`
 		SchoolID       int64         `bun:"school_id"`
 		RequestChildID int64         `bun:"request_child_id"`
-		VersionID      int64         `bun:"version_id"`
 		FirstFrom      calendar.Date `bun:"first_from,type:date"`
 		NextNumber     int           `bun:"next_number"`
 	}
-	if err := db.NewRaw(`SELECT c.id AS contract_id, c.school_id, c.request_child_id, v.id AS version_id,
+	if err := db.NewRaw(`SELECT c.id AS contract_id, c.school_id, c.request_child_id,
 			(SELECT MIN(f.effective_from) FROM care_contract.contract_versions AS f
 				WHERE f.organization_id = c.organization_id AND f.contract_id = c.id
 					AND f.status IN `+effectiveStatusSQL+`) AS first_from,
@@ -92,32 +92,47 @@ func (Store) AmendableContracts(ctx context.Context, organizationID int64) ([]po
 	if len(heads) == 0 {
 		return []ports.AmendableContract{}, nil
 	}
-	ids := make([]int64, len(heads))
+	contractIDs := make([]int64, len(heads))
 	for i, head := range heads {
-		ids[i] = head.VersionID
+		contractIDs[i] = head.ContractID
 	}
-	var rows []versionRow
-	if err := db.NewRaw(`SELECT `+versionColumns+`, v.source, `+servicesSQL+` AS services, `+validUntilSQL+` AS valid_until
-		FROM care_contract.contract_versions AS v WHERE v.organization_id = ? AND v.id = ANY(?)`,
-		organizationID, pgdialect.Array(ids)).Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("care contract postgres: read effective versions: %w", err)
-	}
-	byID := make(map[int64]versionRow, len(rows))
-	for _, row := range rows {
-		byID[row.ID] = row
+	timelines, err := effectiveTimelines(ctx, db, organizationID, contractIDs)
+	if err != nil {
+		return nil, err
 	}
 	result := make([]ports.AmendableContract, 0, len(heads))
 	for _, head := range heads {
-		latest, err := byID[head.VersionID].version()
-		if err != nil {
-			return nil, err
+		timeline := timelines[head.ContractID]
+		if len(timeline) == 0 {
+			continue
 		}
 		result = append(result, ports.AmendableContract{
 			ID: head.ContractID, Key: ports.ContractKey{SchoolID: head.SchoolID, RequestChildID: head.RequestChildID},
-			FirstFrom: head.FirstFrom, NextNumber: head.NextNumber, Latest: latest,
+			FirstFrom: head.FirstFrom, NextNumber: head.NextNumber, Latest: timeline[len(timeline)-1], Versions: timeline,
 		})
 	}
 	return result, nil
+}
+
+// effectiveTimelines reads the effective versions of the contracts by
+// effective date, in one statement.
+func effectiveTimelines(ctx context.Context, db bun.IDB, organizationID int64, ids []int64) (map[int64][]carecontract.Version, error) {
+	var rows []periodRow
+	if err := db.NewRaw(`SELECT v.contract_id, `+versionColumns+`, v.source, `+servicesSQL+` AS services, `+validUntilSQL+` AS valid_until
+		FROM care_contract.contract_versions AS v
+		WHERE v.organization_id = ? AND v.contract_id = ANY(?) AND v.status IN `+effectiveStatusSQL+`
+		ORDER BY v.contract_id, v.effective_from`, organizationID, pgdialect.Array(ids)).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("care contract postgres: read effective versions: %w", err)
+	}
+	timelines := make(map[int64][]carecontract.Version, len(ids))
+	for _, row := range rows {
+		version, err := row.version()
+		if err != nil {
+			return nil, err
+		}
+		timelines[row.ContractID] = append(timelines[row.ContractID], version)
+	}
+	return timelines, nil
 }
 
 // InsertVersion makes version the newest effective version of the contract:
@@ -130,6 +145,9 @@ func (Store) InsertVersion(ctx context.Context, organizationID, contractID, prev
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return 0, err
+	}
+	if previousID == 0 {
+		return insertVersion(ctx, db, organizationID, contractID, version)
 	}
 	result, err := db.ExecContext(ctx, `UPDATE care_contract.contract_versions SET status = ?
 		WHERE organization_id = ? AND contract_id = ? AND id = ? AND status = ?`,

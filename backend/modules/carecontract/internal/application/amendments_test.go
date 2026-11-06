@@ -32,7 +32,7 @@ func date(year int, month time.Month, day int) *calendar.Date {
 // amendable is an active contract whose only version books the short module
 // on Monday from 1 August 2030.
 func amendable() AmendableContract {
-	return AmendableContract{
+	contract := AmendableContract{
 		ID: 9, Key: ContractKey{SchoolID: 4, RequestChildID: 5}, FirstFrom: *date(2030, 8, 1), NextNumber: 2,
 		Latest: carecontract.Version{
 			ID: 31, Number: 1, Status: carecontract.VersionEffective, EffectiveFrom: *date(2030, 8, 1),
@@ -42,6 +42,8 @@ func amendable() AmendableContract {
 			Source:   carecontract.SourceConclusion,
 		},
 	}
+	contract.Versions = []carecontract.Version{contract.Latest}
+	return contract
 }
 
 // The parents asked to switch Monday to the long module and add Tuesday
@@ -119,6 +121,9 @@ func TestAShorterModuleIsNeverPromisedBeyondItsBooking(t *testing.T) {
 	amended := amendable()
 	amended.Latest = *version
 	amended.Latest.ID, amended.NextNumber = 32, 3
+	first := amendable().Latest
+	first.Status = carecontract.VersionSuperseded
+	amended.Versions = []carecontract.Version{first, amended.Latest}
 	next, reason := nextAmendment(amendmentRead(), application, amended, *date(2031, 1, 10))
 	assert.Nil(t, next)
 	assert.Empty(t, reason)
@@ -133,20 +138,6 @@ func TestCareThatStopsIsNoVersion(t *testing.T) {
 	version, reason := nextAmendment(amendmentRead(), application, amendable(), *date(2031, 1, 10))
 	assert.Nil(t, version)
 	assert.Equal(t, carecontract.SkipCareEnds, reason)
-}
-
-// Invariant: the timeline only grows at its end. A change that takes effect
-// before a version that is still ahead is reported, not written.
-func TestAChangeBeforeAPlannedVersionIsHeldBack(t *testing.T) {
-	t.Parallel()
-	planned := amendable()
-	planned.Latest.EffectiveFrom = *date(2031, 3, 1)
-	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
-		{CareOfferingID: 2, Days: []string{"mon"}, ValidFrom: date(2031, 2, 1)},
-	}}
-	version, reason := nextAmendment(amendmentRead(), application, planned, *date(2031, 1, 10))
-	assert.Nil(t, version)
-	assert.Equal(t, carecontract.SkipBeforeLaterVersion, reason)
 }
 
 // The billing span of a version is its validity within the asked span.
@@ -169,6 +160,7 @@ func TestAModuleSwitchAfterTheFirstVersionsEndContinuesTheContract(t *testing.T)
 	t.Parallel()
 	contract := amendable()
 	contract.Latest.EndsOn = date(2031, 2, 28)
+	contract.Versions = []carecontract.Version{contract.Latest}
 	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
 		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1), ValidUntil: date(2031, 3, 1)},
 		{CareOfferingID: 2, Days: []string{"mon"}, ValidFrom: date(2031, 3, 1)},
@@ -185,6 +177,7 @@ func TestAModuleSwitchAfterTheFirstVersionsEndContinuesTheContract(t *testing.T)
 	contract.Latest.Terms = carecontract.TemplateInput{TermKind: carecontract.TermFixedMonths, TermMonths: &six,
 		NoticeMonths: 1, NoticeTo: carecontract.NoticeMonthEnd}
 	contract.Latest.EndsOn = date(2031, 1, 31)
+	contract.Versions = []carecontract.Version{contract.Latest}
 	version, reason = nextAmendment(amendmentRead(), application, contract, *date(2031, 1, 10))
 	assert.Nil(t, version)
 	assert.Empty(t, reason)
@@ -198,6 +191,7 @@ func TestAModuleThatEndedUnseenIsDroppedFromToday(t *testing.T) {
 	contract := amendable()
 	contract.Latest.Services = append(contract.Latest.Services,
 		carecontract.Service{Weekday: "tue", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"})
+	contract.Versions = []carecontract.Version{contract.Latest}
 	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
 		{CareOfferingID: 1, Days: []string{"mon"}},
 		{CareOfferingID: 2, Days: []string{"tue"}, ValidUntil: date(2031, 1, 5)},
@@ -223,4 +217,53 @@ func TestASendAgainAfterAnAmendmentDeliversTheSentPDF(t *testing.T) {
 	assert.Equal(t, 1, sent.Version.Number)
 	require.NotNil(t, sent.DocumentID)
 	assert.Equal(t, int64(31), *sent.DocumentID)
+}
+
+// plannedTimeline is the contract of amendable() with version 2 already
+// planned from 1 March 2031: Monday stays short, Wednesday is added.
+func plannedTimeline() AmendableContract {
+	contract := amendable()
+	first := contract.Latest
+	first.Status = carecontract.VersionSuperseded
+	march := carecontract.Version{ID: 32, Number: 2, Status: carecontract.VersionEffective, EffectiveFrom: *date(2031, 3, 1),
+		ChildFirstName: "Lina", ChildLastName: "Muster", SchoolName: "OGS Am Lindenhof", Terms: first.Terms,
+		Source: carecontract.SourceBookingChange, Services: []carecontract.Service{
+			{Weekday: "mon", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
+			{Weekday: "wed", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
+		}}
+	contract.Latest, contract.NextNumber = march, 3
+	contract.Versions = []carecontract.Version{first, march}
+	return contract
+}
+
+// Invariant 1 (#4681, reproduced case): version 2 is planned from 1 March.
+// The school approves a change from 1 February (Monday until 16:30). The
+// change becomes version 3 from 1 February, superseded in the timeline by
+// the planned version, which stays as it is. Before the fix the change was
+// dropped, and February kept the old Monday.
+func TestAChangeBeforeAPlannedVersionGoesInFrontOfIt(t *testing.T) {
+	t.Parallel()
+	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon"}, ValidFrom: date(2030, 8, 1), ValidUntil: date(2031, 2, 1)},
+		{CareOfferingID: 2, Days: []string{"mon"}, ValidFrom: date(2031, 2, 1)},
+	}}
+	contract := plannedTimeline()
+	version, reason := nextAmendment(amendmentRead(), application, contract, *date(2031, 1, 10))
+	require.Empty(t, reason)
+	require.NotNil(t, version)
+	assert.Equal(t, *date(2031, 2, 1), version.EffectiveFrom)
+	assert.Equal(t, 3, version.Number)
+	assert.Equal(t, carecontract.VersionSuperseded, version.Status, "a planned version follows it")
+	assert.Equal(t, []carecontract.Service{{Weekday: "mon", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"}},
+		version.ServicesOn(*date(2031, 2, 3)), "Monday 3 February books the long module")
+
+	// With version 3 in the timeline the run is done: the planned version
+	// does not take the change over automatically.
+	inserted := *version
+	inserted.ID = 33
+	contract.Versions = []carecontract.Version{contract.Versions[0], inserted, contract.Versions[1]}
+	contract.NextNumber = 4
+	next, reason := nextAmendment(amendmentRead(), application, contract, *date(2031, 1, 10))
+	assert.Nil(t, next, "the planned version stays as it is")
+	assert.Empty(t, reason)
 }
