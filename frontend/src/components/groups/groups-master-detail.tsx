@@ -20,6 +20,7 @@ import { groupsConfig } from "@/components/database/configs/groups.config";
 import { configToFormSection } from "@/lib/database/types";
 import type { Group } from "@/lib/group-helpers";
 import { groupsConcept } from "~/lib/concepts/groups";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 interface GroupsMasterDetailProps {
   groups: Group[];
@@ -208,12 +209,11 @@ function GroupSummary({ group }: { group: Group }) {
   return (
     <section className="moto-content-surface rounded-xl border p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-          {group.room_name ?? "Kein Gruppenraum"}
-        </span>
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-          {group.student_count ?? 0} Kinder
-        </span>
+        <StatusBadge
+          label={group.room_name ?? "Kein Gruppenraum"}
+          tone="gray"
+        />
+        <StatusBadge label={`${group.student_count ?? 0} Kinder`} tone="gray" />
       </div>
 
       <div className="mt-4">
