@@ -38,10 +38,10 @@ import { traegerPath } from "~/lib/traeger-url";
 const INITIAL_ROW_COUNT = 5;
 
 /** The value of the school filter that shows every school. */
-export const ALL_SCHOOLS = "";
+const ALL_SCHOOLS = "";
 
 /** The settings area with the thresholds (`?bereich=` on the settings page). */
-export const ALERT_SETTINGS_PATH = "/traeger/einstellungen?bereich=dashboard";
+const ALERT_SETTINGS_PATH = "/traeger/einstellungen?bereich=dashboard";
 
 const ALERT_CONCEPTS: Readonly<Record<TraegerAlertKind, MotoConcept>> = {
   staff_shortage: staffConcept,
