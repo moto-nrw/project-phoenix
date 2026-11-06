@@ -112,6 +112,7 @@ function ParentDocumentCard({
   const awaitingSignature =
     document.kind === "care_contract" &&
     document.contract_status === "versendet";
+  const canSign = awaitingSignature && document.can_sign === true;
   const amount = new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "EUR",
@@ -144,14 +145,14 @@ function ParentDocumentCard({
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
-            variant={awaitingSignature ? "outline" : "primary"}
+            variant={canSign ? "outline" : "primary"}
             size="md"
             onClick={() => void download()}
             disabled={downloading}
           >
             {downloading ? t("downloading") : t("download")}
           </Button>
-          {awaitingSignature ? (
+          {canSign ? (
             // Ein versendeter Vertrag wartet auf die Unterschrift (#4679).
             <ButtonLink
               href={parentPath(

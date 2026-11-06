@@ -298,7 +298,7 @@ func (c CareContractSignatures) ContractSignatureProofs(ctx context.Context, ids
 	out := make(map[int64]carecontract.SignatureProof, len(stored))
 	for id, s := range stored {
 		out[id] = carecontract.SignatureProof{
-			VersionID: s.ContractVersionID, Method: s.Method, TypedName: s.TypedName, PNG: s.PNG,
+			VersionID: s.ContractVersionID, Method: s.Method, TypedName: s.TypedName, PNG: s.PNG, SignerName: s.SignerName, SignedAt: s.SignedAt,
 			DocumentSHA256: s.DocumentSHA256, Intact: s.IntegrityOK && s.Purpose == auditlog.SignaturePurposeCareContract,
 		}
 	}

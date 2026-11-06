@@ -94,7 +94,7 @@ CREATE TABLE care_contract.contract_signatures (
 	early_start_requested BOOLEAN NOT NULL DEFAULT false,
 	paper_filename TEXT,
 	paper_pdf BYTEA,
-	paper_pdf_sha256 TEXT GENERATED ALWAYS AS (CASE WHEN paper_pdf IS NULL THEN NULL ELSE encode(sha256(paper_pdf), 'hex') END) STORED,
+	paper_pdf_sha256 TEXT,
 	signed_on DATE NOT NULL,
 	signed_at TIMESTAMPTZ NOT NULL,
 	recorded_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
@@ -111,14 +111,16 @@ CREATE TABLE care_contract.contract_signatures (
 	CONSTRAINT chk_contract_signatures_method CHECK (method IN ('drawn', 'typed', 'paper')),
 	CONSTRAINT chk_contract_signatures_channel CHECK (channel IN ('parent_account', 'mail_link', 'office')),
 	-- Online the ledger holds the signature and the PDF it was given on;
-	-- on paper the upload is the proof and the office recorded it.
+	-- on paper the upload and its original digest are the proof. The application
+	-- requires a recorder at creation; account deletion may clear that reference.
 	CONSTRAINT chk_contract_signatures_proof CHECK (
 		(method IN ('drawn', 'typed') AND channel IN ('parent_account', 'mail_link') AND audit_signature_id IS NOT NULL
 			AND contract_document_id IS NOT NULL AND paper_pdf IS NULL AND withdrawal_notice_at IS NOT NULL)
 		OR (method = 'paper' AND channel = 'office' AND audit_signature_id IS NULL AND paper_pdf IS NOT NULL
-			AND recorded_by_account_id IS NOT NULL)),
+			AND paper_pdf_sha256 IS NOT NULL)),
 	CONSTRAINT chk_contract_signatures_link CHECK ((channel = 'mail_link') = (signing_link_id IS NOT NULL)),
-	CONSTRAINT chk_contract_signatures_hashes CHECK (version_sha256 ~ '^[0-9a-f]{64}$' AND document_sha256 ~ '^[0-9a-f]{64}$'),
+	CONSTRAINT chk_contract_signatures_hashes CHECK (version_sha256 ~ '^[0-9a-f]{64}$' AND document_sha256 ~ '^[0-9a-f]{64}$'
+		AND (paper_pdf_sha256 IS NULL OR paper_pdf_sha256 ~ '^[0-9a-f]{64}$')),
 	CONSTRAINT chk_contract_signatures_signer CHECK (BTRIM(signer_name) <> '' AND char_length(signer_name) <= 300),
 	CONSTRAINT chk_contract_signatures_paper CHECK (paper_pdf IS NULL OR (octet_length(paper_pdf) BETWEEN 5 AND 10485760
 		AND paper_filename IS NOT NULL AND char_length(paper_filename) <= 255))

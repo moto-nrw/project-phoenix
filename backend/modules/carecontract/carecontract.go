@@ -377,6 +377,8 @@ type InboxReader struct {
 	Email     string
 	// Children contains only permitted student IDs, grouped by school.
 	Children map[int64][]int64
+	// SigningChildren contains only children the workflow permits signing for.
+	SigningChildren map[int64][]int64
 }
 
 // InboxContract is one sent contract in the inbox of the parents portal.
@@ -389,6 +391,7 @@ type InboxContract struct {
 	EffectiveOn calendar.Date `json:"effective_on"`
 	// Status and SignedAt tell the parents whether the contract waits for
 	// their signature (#4679).
+	CanSign  bool       `json:"can_sign"`
 	Status   string     `json:"status"`
 	SignedAt *time.Time `json:"signed_at"`
 }

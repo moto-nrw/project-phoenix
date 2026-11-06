@@ -9,10 +9,12 @@ import (
 	"image/color"
 	"image/png"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -43,8 +45,11 @@ type signingViewBody struct {
 	DocumentSHA256   string   `json:"document_sha256"`
 	WithdrawalNotice []string `json:"withdrawal_notice"`
 	Signature        *struct {
-		Method     string `json:"method"`
-		SignerName string `json:"signer_name"`
+		Method           string         `json:"method"`
+		SignerName       string         `json:"signer_name"`
+		SignedAt         time.Time      `json:"signed_at"`
+		EarlyStart       bool           `json:"early_start_requested"`
+		WithdrawalEndsOn *calendar.Date `json:"withdrawal_ends_on"`
 	} `json:"signature"`
 }
 
@@ -87,6 +92,15 @@ func TestContractSigningInTheInboxNeedsTheOwnAddressAndTheChildsSubmitRight(t *t
 	}))
 	_, err = portal.SignContract(ctx, chain.AccountID, organization, siblings, signature)
 	assert.ErrorIs(t, err, parentService.ErrBillingDocumentNotFound, "the relationship must grant enrollment.submit")
+	documents, err := portal.ListBillingDocuments(ctx, chain.AccountID, parentService.DocumentInboxContracts)
+	require.NoError(t, err)
+	eligibility := make(map[int64]bool)
+	for _, document := range documents {
+		eligibility[document.ID] = document.CanSign
+	}
+	require.Contains(t, eligibility, siblings, "view-only contracts remain downloadable")
+	assert.False(t, eligibility[siblings], "the sibling's viewing right does not permit signing")
+	assert.True(t, eligibility[sent], "the other child's explicit submit right permits signing")
 	_, err = portal.ContractDocumentFile(ctx, chain.AccountID, organization, siblings)
 	assert.NoError(t, err, "reading stays with the inbox right")
 
@@ -105,6 +119,19 @@ func TestContractSigningInTheInboxNeedsTheOwnAddressAndTheChildsSubmitRight(t *t
 	assert.Equal(t, "aktiv", view.Status, "the signature concludes the contract")
 	require.NotNil(t, view.Signature)
 	assert.Equal(t, "drawn", view.Signature.Method)
+	confirmed := *view.Signature
+	raw, err = portal.ContractSigningView(ctx, chain.AccountID, organization, sent)
+	require.NoError(t, err)
+	view = signingViewBody{}
+	require.NoError(t, json.Unmarshal(raw, &view))
+	require.NotNil(t, view.Signature, "reload retains the confirmation")
+	assert.Equal(t, confirmed.Method, view.Signature.Method)
+	assert.Equal(t, confirmed.SignerName, view.Signature.SignerName)
+	assert.WithinDuration(t, confirmed.SignedAt, view.Signature.SignedAt, time.Microsecond)
+	assert.Equal(t, confirmed.EarlyStart, view.Signature.EarlyStart)
+	assert.Equal(t, confirmed.WithdrawalEndsOn, view.Signature.WithdrawalEndsOn)
+	assert.True(t, view.Signature.EarlyStart)
+	assert.NotNil(t, view.Signature.WithdrawalEndsOn)
 
 	_, err = portal.SignContract(ctx, chain.AccountID, organization, sent, signature)
 	assert.ErrorIs(t, err, parentService.ErrContractNotSignable, "a contract signs once")

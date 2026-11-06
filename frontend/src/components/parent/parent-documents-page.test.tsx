@@ -178,6 +178,43 @@ describe("ParentDocumentsPage", () => {
     }
   });
 
+  it.each([true, false])(
+    "offers signing only with per-contract eligibility: %s",
+    async (canSign) => {
+      const contract: ParentDocument = {
+        ...letter,
+        kind: "care_contract",
+        contract_status: "versendet",
+        can_sign: canSign,
+      };
+      mocks.listMyDocuments.mockResolvedValue({
+        documents: [contract],
+        failedSource: null,
+        error: null,
+      });
+      render(<ParentDocumentsPage />);
+      expect(
+        await screen.findByRole("heading", { name: "Betreuungsvertrag" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Als PDF laden" }),
+      ).toBeInTheDocument();
+      if (canSign) {
+        expect(
+          screen.getByRole("link", {
+            name: deMessages.parentDocuments.signNow,
+          }),
+        ).toBeInTheDocument();
+      } else {
+        expect(
+          screen.queryByRole("link", {
+            name: deMessages.parentDocuments.signNow,
+          }),
+        ).not.toBeInTheDocument();
+      }
+    },
+  );
+
   it("explains an empty inbox and how letters arrive", async () => {
     mocks.listMyDocuments.mockResolvedValue({
       documents: [],

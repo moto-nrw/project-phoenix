@@ -101,7 +101,11 @@ func (Store) UseSigningLink(ctx context.Context, organizationID, linkID int64, a
 	if err != nil {
 		return fmt.Errorf("care contract postgres: use signing link: %w", err)
 	}
-	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("care contract postgres: count used signing links: %w", err)
+	}
+	if affected != 1 {
 		return carecontract.ErrSigningLinkInvalid
 	}
 	return nil
@@ -114,20 +118,20 @@ func (Store) InsertSignature(ctx context.Context, organizationID int64, s ports.
 	if err != nil {
 		return err
 	}
-	var paperName *string
+	var paperName, paperSHA256 *string
 	if s.PaperPDF != nil {
-		paperName = &s.PaperFilename
+		paperName, paperSHA256 = &s.PaperFilename, &s.PaperSHA256
 	}
 	var id int64
 	err = db.NewRaw(`INSERT INTO care_contract.contract_signatures (organization_id, contract_id,
 			contract_version_id, contract_document_id, method, channel, audit_signature_id, signer_name, signer_account_id,
 			signing_link_id, version_sha256, document_sha256, withdrawal_notice_at, early_start_requested, paper_filename,
-			paper_pdf, signed_on, signed_at, recorded_by_account_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			paper_pdf, paper_pdf_sha256, signed_on, signed_at, recorded_by_account_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (contract_version_id) DO NOTHING RETURNING id`,
 		organizationID, s.ContractID, s.VersionID, s.DocumentID, s.Method, s.Channel, s.AuditSignatureID, s.SignerName,
 		s.SignerAccountID, s.SigningLinkID, s.VersionSHA256, s.DocumentSHA256, s.WithdrawalNoticeAt, s.EarlyStartRequested,
-		paperName, s.PaperPDF, s.SignedOn, s.SignedAt, s.RecordedByAccountID).Scan(ctx, &id)
+		paperName, s.PaperPDF, paperSHA256, s.SignedOn, s.SignedAt, s.RecordedByAccountID).Scan(ctx, &id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return carecontract.ErrContractNotSignable
 	}
@@ -156,11 +160,13 @@ func (Store) Signature(ctx context.Context, organizationID, contractID, versionI
 		EarlyStartRequested bool          `bun:"early_start_requested"`
 		PaperFilename       *string       `bun:"paper_filename"`
 		PaperSHA256         *string       `bun:"paper_pdf_sha256"`
+		PaperIntact         bool          `bun:"paper_intact"`
 		SignedOn            calendar.Date `bun:"signed_on,type:date"`
 		SignedAt            time.Time     `bun:"signed_at"`
 	}
 	if err := db.NewRaw(`SELECT contract_version_id, contract_document_id, method, channel, audit_signature_id, signer_name,
 			version_sha256, document_sha256, withdrawal_notice_at, early_start_requested, paper_filename, paper_pdf_sha256,
+			COALESCE(paper_pdf_sha256 = encode(sha256(paper_pdf), 'hex'), false) AS paper_intact,
 			signed_on, signed_at
 		FROM care_contract.contract_signatures WHERE organization_id = ? AND contract_id = ? AND contract_version_id = ?`,
 		organizationID, contractID, versionID).Scan(ctx, &rows); err != nil {
@@ -174,7 +180,7 @@ func (Store) Signature(ctx context.Context, organizationID, contractID, versionI
 		VersionID: row.VersionID, DocumentID: row.DocumentID, Method: row.Method, Channel: row.Channel,
 		AuditSignatureID: row.AuditSignatureID, SignerName: row.SignerName, VersionSHA256: row.VersionSHA256,
 		DocumentSHA256: row.DocumentSHA256, WithdrawalNoticeAt: row.WithdrawalNoticeAt,
-		EarlyStartRequested: row.EarlyStartRequested, SignedOn: row.SignedOn, SignedAt: row.SignedAt,
+		EarlyStartRequested: row.EarlyStartRequested, SignedOn: row.SignedOn, SignedAt: row.SignedAt, PaperIntact: row.PaperIntact,
 	}
 	if row.PaperFilename != nil {
 		stored.PaperFilename = *row.PaperFilename

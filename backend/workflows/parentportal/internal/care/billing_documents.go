@@ -38,6 +38,8 @@ type BillingDocumentReader struct {
 	Email     string
 	// Children contains only permitted student IDs, grouped by school.
 	Children map[int64][]int64
+	// SigningChildren contains only children the workflow permits signing for.
+	SigningChildren map[int64][]int64
 }
 
 // BillingDocument is one document of a Träger in the inbox.
@@ -57,6 +59,7 @@ type BillingDocument struct {
 	// ContractStatus and SignedAt tell whether a care contract waits for
 	// the parents' signature (#4679); empty for a letter.
 	ContractStatus string
+	CanSign        bool
 	SignedAt       *time.Time
 }
 
@@ -257,7 +260,8 @@ func (s *Service) billingDocumentAccess(ctx context.Context, accountID int64) ([
 	if len(access.traeger) == 0 {
 		return nil, BillingDocumentReader{}, ErrGuardianPermissionDenied
 	}
-	return access.traeger, BillingDocumentReader{AccountID: accountID, Email: strings.TrimSpace(email), Children: access.permittedChildren()}, nil
+	return access.traeger, BillingDocumentReader{AccountID: accountID, Email: strings.TrimSpace(email),
+		Children: access.permittedChildren(), SigningChildren: access.signingChildren()}, nil
 }
 
 // documentAccess is what an account's relationships open for the inbox:
@@ -276,6 +280,19 @@ func (a documentAccess) permittedChildren() map[int64][]int64 {
 	for school, permitted := range a.children {
 		for _, child := range permitted {
 			children[school] = append(children[school], child.StudentID)
+		}
+	}
+	return children
+}
+
+// signingChildren narrows the visible children to their explicit signing right.
+func (a documentAccess) signingChildren() map[int64][]int64 {
+	children := make(map[int64][]int64)
+	for school, permitted := range a.children {
+		for _, child := range permitted {
+			if childHasPermission(child, GuardianPermissionEnrollmentSubmit) {
+				children[school] = append(children[school], child.StudentID)
+			}
 		}
 	}
 	return children

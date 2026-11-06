@@ -22,7 +22,10 @@ import {
 import { PdfPreview, useObjectUrl } from "~/components/ui/pdf-preview";
 import { SectionCard } from "~/components/ui/section-card";
 import { SignaturePad } from "~/components/ui/signature-pad";
-import { Skeleton } from "~/components/ui/skeleton";
+import {
+  CardGridSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { ApiError, transportFetch } from "~/lib/api-error";
 import {
@@ -109,7 +112,12 @@ export function ContractSigningView({
     );
   }
   if (loadError.error) return <LoadErrorAlert error={loadError.error} />;
-  if (!view) return <SigningSkeleton label={t("loading")} />;
+  if (!view)
+    return (
+      <SkeletonRegion label={t("loading")}>
+        <CardGridSkeleton cards={3} className="grid grid-cols-1 gap-5" />
+      </SkeletonRegion>
+    );
   if (view.signature || view.status !== "versendet") {
     return <SignedConfirmation view={view} />;
   }
@@ -120,16 +128,6 @@ export function ContractSigningView({
       <ContractDocument source={source} view={view} />
       <WithdrawalNotice view={view} />
       <SignForm source={source} view={view} onSigned={setView} />
-    </div>
-  );
-}
-
-function SigningSkeleton({ label }: Readonly<{ label: string }>) {
-  return (
-    <div role="status" aria-label={label} className="space-y-5">
-      <Skeleton className="h-40 w-full rounded-2xl" />
-      <Skeleton className="h-56 w-full rounded-2xl" />
-      <Skeleton className="h-72 w-full rounded-2xl" />
     </div>
   );
 }

@@ -181,6 +181,17 @@ func TestCareContractMailLinkSignsOnceOnlyItsContract(t *testing.T) {
 		AND payload->>'purpose' = 'signed' AND payload->>'pdf' IS NOT NULL`, f.office.organization, contract).Scan(context.Background(), &mails))
 	assert.Equal(t, 1, mails, "the confirmation carries the signed PDF")
 
+	// Independent edits of displayed metadata must break the evidence check.
+	for _, change := range []string{"signer_name = 'Anderer Name'", "signed_at = signed_at + INTERVAL '1 day'"} {
+		_, err := f.db.ExecContext(context.Background(), `UPDATE care_contract.contract_signatures SET `+change+` WHERE contract_id = ?`, contract)
+		require.NoError(t, err)
+		assert.False(t, signedDetail(t, f, contract).Signature.Intact, "changed metadata: %s", change)
+		_, err = f.db.ExecContext(context.Background(), `UPDATE care_contract.contract_signatures AS s
+			SET signer_name = a.signer_name, signed_at = a.signed_at FROM audit.traeger_signatures AS a
+			WHERE s.audit_signature_id = a.id AND s.contract_id = ?`, contract)
+		require.NoError(t, err)
+	}
+
 	// A changed ledger entry no longer matches its record hash.
 	_, err := f.db.ExecContext(context.Background(), `UPDATE audit.traeger_signatures SET signer_name = 'Jemand anderes'
 		WHERE organization_id = ? AND care_contract_version_id = (SELECT contract_version_id FROM care_contract.contract_signatures WHERE contract_id = ?)`,
@@ -259,6 +270,21 @@ func TestCareContractSignedOnPaperNeedsAPDFAndTheRight(t *testing.T) {
 	var frozen int
 	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM care_contract.contract_documents WHERE contract_id = ?`, draft).Scan(context.Background(), &frozen))
 	assert.Equal(t, 1, frozen, "the paper contract froze the PDF the parents signed")
+
+	_, err := f.db.ExecContext(context.Background(), `UPDATE care_contract.contract_signatures SET paper_pdf = ? WHERE contract_id = ?`, []byte("%PDF-1.4 anderer Vertrag"), draft)
+	require.NoError(t, err)
+	assert.False(t, signedDetail(t, f, draft).Signature.Intact, "replacing the signed scan breaks its original checksum")
+
+	_, err = f.db.ExecContext(context.Background(), `UPDATE care_contract.contract_signatures SET paper_pdf = ? WHERE contract_id = ?`, pdf, draft)
+	require.NoError(t, err)
+
+	// Deleting the recording account retains the historical paper proof.
+	recorder := testpkg.CreateTestAccount(t, f.db, "papier-archiv@example.org")
+	_, err = f.db.ExecContext(context.Background(), `UPDATE care_contract.contract_signatures SET recorded_by_account_id = ? WHERE contract_id = ?`, recorder.ID, draft)
+	require.NoError(t, err)
+	_, err = f.db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, recorder.ID)
+	require.NoError(t, err)
+	assert.True(t, signedDetail(t, f, draft).Signature.Intact, "account deletion retains the proof")
 }
 
 type reminderTraeger struct{ id int64 }

@@ -49,6 +49,7 @@ type NewSignature struct {
 	EarlyStartRequested bool
 	PaperFilename       string
 	PaperPDF            []byte
+	PaperSHA256         string
 	SignedOn            calendar.Date
 	SignedAt            time.Time
 	RecordedByAccountID *int64
@@ -68,6 +69,7 @@ type StoredSignature struct {
 	EarlyStartRequested bool
 	PaperFilename       string
 	PaperSHA256         string
+	PaperIntact         bool
 	SignedOn            calendar.Date
 	SignedAt            time.Time
 }

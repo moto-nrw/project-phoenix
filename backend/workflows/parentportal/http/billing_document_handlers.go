@@ -33,6 +33,7 @@ type BillingDocumentResponse struct {
 	SentAt         time.Time     `json:"sent_at"`
 	// ContractStatus and SignedAt of a care contract (#4679).
 	ContractStatus string     `json:"contract_status,omitempty"`
+	CanSign        bool       `json:"can_sign,omitempty"`
 	SignedAt       *time.Time `json:"signed_at,omitempty"`
 }
 
@@ -65,7 +66,7 @@ func (rs *Resource) respondInbox(w http.ResponseWriter, r *http.Request, inbox p
 			TraegerName: document.TraegerName, Kind: document.Kind, Number: document.Number, PeriodName: document.PeriodName,
 			ServiceFrom: document.ServiceFrom, ServiceUntil: document.ServiceUntil, IssuedOn: document.IssuedOn,
 			TotalCents: document.TotalCents, ChildNames: document.ChildNames, SentAt: document.SentAt,
-			ContractStatus: document.ContractStatus, SignedAt: document.SignedAt,
+			ContractStatus: document.ContractStatus, SignedAt: document.SignedAt, CanSign: document.CanSign,
 		}
 	}
 	common.Respond(w, r, http.StatusOK, out, "Documents retrieved")

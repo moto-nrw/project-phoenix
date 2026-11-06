@@ -154,7 +154,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractSignatures.ContractSignatureProofs",
-      "binding_digest": "f2597bb78207322548391013372b932a",
+      "binding_digest": "bf6e395b362106948fa5a3d6107bcc9e",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SignatureLedger.ContractSignatureProofs",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.TraegerSignatureLedger.TraegerSignatures",

@@ -179,6 +179,8 @@ type ContractSignatureEntry struct {
 
 // SignatureProof is a stored signature of the ledger.
 type SignatureProof struct {
+	SignerName     string
+	SignedAt       time.Time
 	VersionID      int64
 	Method         string
 	TypedName      string

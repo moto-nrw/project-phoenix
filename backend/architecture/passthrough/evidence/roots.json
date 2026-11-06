@@ -1997,7 +1997,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (c CareContractSignatures) ContractSignatureProofs(ctx context.Context, ids []int64) (map[int64]carecontract.SignatureProof, error) {\n\tstored, err := c.Ledger.TraegerSignatures(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tout := make(map[int64]carecontract.SignatureProof, len(stored))\n\tfor id, s := range stored {\n\t\tout[id] = carecontract.SignatureProof{VersionID: s.ContractVersionID, Method: s.Method, TypedName: s.TypedName, PNG: s.PNG, DocumentSHA256: s.DocumentSHA256, Intact: s.IntegrityOK \u0026\u0026 s.Purpose == auditlog.SignaturePurposeCareContract}\n\t}\n\treturn out, nil\n}",
+      "evidence": "func (c CareContractSignatures) ContractSignatureProofs(ctx context.Context, ids []int64) (map[int64]carecontract.SignatureProof, error) {\n\tstored, err := c.Ledger.TraegerSignatures(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tout := make(map[int64]carecontract.SignatureProof, len(stored))\n\tfor id, s := range stored {\n\t\tout[id] = carecontract.SignatureProof{VersionID: s.ContractVersionID, Method: s.Method, TypedName: s.TypedName, PNG: s.PNG, SignerName: s.SignerName, SignedAt: s.SignedAt, DocumentSHA256: s.DocumentSHA256, Intact: s.IntegrityOK \u0026\u0026 s.Purpose == auditlog.SignaturePurposeCareContract}\n\t}\n\treturn out, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/CareContractSignatures.ContractSignatureProofs",
       "owner": "roots"

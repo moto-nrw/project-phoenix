@@ -80,6 +80,7 @@ func (c *Contracts) signatureOf(ctx context.Context, organizationID int64, recor
 			stored.DocumentID != nil && *stored.DocumentID == document.ID,
 	}
 	if stored.Method == carecontract.SignaturePaper {
+		signature.Intact = signature.Intact && stored.PaperIntact
 		return signature, nil
 	}
 	ends := withdrawalEnd(stored.SignedAt)
@@ -94,7 +95,8 @@ func (c *Contracts) signatureOf(ctx context.Context, organizationID int64, recor
 	}
 	proof, ok := proofs[*stored.AuditSignatureID]
 	signature.Intact = signature.Intact && ok && proof.Intact && proof.VersionID == record.Version.ID &&
-		proof.DocumentSHA256 == stored.DocumentSHA256 && proof.Method == stored.Method
+		proof.DocumentSHA256 == stored.DocumentSHA256 && proof.Method == stored.Method &&
+		proof.SignerName == stored.SignerName && proof.SignedAt.Equal(stored.SignedAt)
 	signature.TypedName, signature.ImagePNG = proof.TypedName, proof.PNG
 	return signature, nil
 }

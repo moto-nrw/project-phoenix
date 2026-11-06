@@ -63,7 +63,7 @@ func (s *Signatures) RecordPaperSignature(ctx context.Context, reviewer carecont
 		ContractID: contractID, VersionID: record.Version.ID, DocumentID: &documentID, Method: carecontract.SignaturePaper,
 		Channel: carecontract.ChannelOffice, SignerName: input.SignerName, VersionSHA256: checksum,
 		DocumentSHA256: document.SHA256, PaperFilename: input.Filename, PaperPDF: input.PDF, SignedOn: input.SignedOn,
-		SignedAt: now, RecordedByAccountID: &recorder,
+		SignedAt: now, RecordedByAccountID: &recorder, PaperSHA256: s.ports.Links.Fingerprint(input.PDF),
 	}); err != nil {
 		return err
 	}

@@ -2470,6 +2470,7 @@ export interface ParentDocument {
   readonly sent_at: string;
   /** The state of a care contract (#4679); absent for a letter. */
   readonly contract_status?: string;
+  readonly can_sign?: boolean;
   readonly signed_at?: string | null;
 }
 

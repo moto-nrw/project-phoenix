@@ -84,8 +84,8 @@ type linkTarget struct {
 
 // openLink resolves an open link in the Träger transaction: it must be
 // unused and unexpired, its contract must wait for a signature, and the
-// PDF it was sent with must still be the contract's PDF. Every failure is
-// the same ErrSigningLinkInvalid.
+// PDF it was sent with must still be the contract's PDF. Only failed link
+// validation answers ErrSigningLinkInvalid; operational errors stay retryable.
 func (s *Signatures) openLink(ctx context.Context, organizationID int64, token string, now time.Time) (linkTarget, error) {
 	link, err := s.store.SigningLink(ctx, organizationID, s.ports.Links.Tokens.Fingerprint(token))
 	if err != nil {
@@ -95,11 +95,20 @@ func (s *Signatures) openLink(ctx context.Context, organizationID int64, token s
 		return linkTarget{}, carecontract.ErrSigningLinkInvalid
 	}
 	record, err := s.store.Contract(ctx, organizationID, link.ContractID, true)
-	if err != nil {
+	if errors.Is(err, carecontract.ErrContractNotFound) {
 		return linkTarget{}, carecontract.ErrSigningLinkInvalid
 	}
+	if err != nil {
+		return linkTarget{}, err
+	}
 	document, err := s.store.CurrentDocument(ctx, organizationID, link.ContractID)
-	if err != nil || document.ID != link.DocumentID || record.Summary.Status != carecontract.StatusSent {
+	if errors.Is(err, carecontract.ErrContractNotSignable) {
+		return linkTarget{}, carecontract.ErrSigningLinkInvalid
+	}
+	if err != nil {
+		return linkTarget{}, err
+	}
+	if document.ID != link.DocumentID || record.Summary.Status != carecontract.StatusSent {
 		return linkTarget{}, carecontract.ErrSigningLinkInvalid
 	}
 	return linkTarget{link: link, record: record, document: document}, nil
@@ -170,24 +179,12 @@ func (s *Signatures) SignByLink(ctx context.Context, link string, input carecont
 	return view, err
 }
 
-// withinLink opens the Träger transaction of a link. A Träger the runtime
-// refuses is no Träger a link can name.
+// withinLink opens the Träger transaction without reclassifying operational failures.
 func (s *Signatures) withinLink(ctx context.Context, organizationID int64, fn func(context.Context) error) error {
-	err := s.ports.Runtime.WithinTraeger(ctx, organizationID, fn)
-	if err != nil && !isSigningError(err) {
-		return fmt.Errorf("%w: %w", carecontract.ErrSigningLinkInvalid, err)
+	if err := s.ports.Runtime.WithinTraeger(ctx, organizationID, fn); err != nil {
+		return fmt.Errorf("care contract: signing link transaction: %w", err)
 	}
-	return err
-}
-
-func isSigningError(err error) bool {
-	for _, known := range []error{carecontract.ErrSigningLinkInvalid, carecontract.ErrSignatureInvalid,
-		carecontract.ErrWithdrawalNoticeRequired, carecontract.ErrContractNotSignable} {
-		if errors.Is(err, known) {
-			return true
-		}
-	}
-	return false
+	return nil
 }
 
 // InboxSigningView shows a contract addressed to the reader, for one of
@@ -200,6 +197,20 @@ func (s *Signatures) InboxSigningView(ctx context.Context, organizationID, contr
 	view, err := s.view(ctx, organizationID, record, document)
 	if err != nil {
 		return carecontract.SigningView{}, err
+	}
+	stored, err := s.store.Signature(ctx, organizationID, record.Summary.ID, record.Version.ID)
+	if err != nil {
+		return carecontract.SigningView{}, err
+	}
+	if stored != nil {
+		view.Signature = &carecontract.SigningSignature{
+			Method: stored.Method, SignerName: stored.SignerName, SignedAt: stored.SignedAt,
+			EarlyStartRequested: stored.EarlyStartRequested,
+		}
+		if stored.Method != carecontract.SignaturePaper {
+			ends := withdrawalEnd(stored.SignedAt)
+			view.Signature.WithdrawalEndsOn = &ends
+		}
 	}
 	return view, s.event(ctx, organizationID, record, reader.AccountID, ports.ActionRead, map[string]any{"via": carecontract.ChannelParentAccount})
 }
