@@ -61,7 +61,9 @@ func nextAmendment(read schoolRead, application carecontract.Application, contra
 func changeDays(read schoolRead, application carecontract.Application, contract AmendableContract, today calendar.Date) []calendar.Date {
 	latest := contract.Latest
 	window := changeWindow{after: latest.EffectiveFrom, today: today, termEnd: endsOn(latest.Terms, contract.FirstFrom, nil)}
-	days := []*calendar.Date{dayAfter(latest.EndsOn)}
+	// Today is always a candidate: a change whose booking boundary already
+	// passed (a module that ended before the run saw it) shows on today.
+	days := []*calendar.Date{&today, dayAfter(latest.EndsOn)}
 	for _, booking := range application.Bookings {
 		if offering, ok := read.offerings[booking.CareOfferingID]; ok {
 			if clipped, ok := bookingWithinPhase(booking, offering, today); ok {

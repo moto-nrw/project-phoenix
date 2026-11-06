@@ -365,6 +365,9 @@ func (c *Contracts) send(ctx context.Context, reviewer carecontract.Reviewer, co
 	if err != nil {
 		return err
 	}
+	if record, err = c.sentVersionRecord(ctx, reviewer.OrganizationID, record); err != nil {
+		return err
+	}
 	return c.deliver(ctx, reviewer, record, destination)
 }
 

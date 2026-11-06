@@ -22,6 +22,8 @@ type (
 	// AmendableContract is an active contract with its newest effective
 	// version (#4681).
 	AmendableContract = ports.AmendableContract
+	// SentDocument is the newest stored PDF of a contract (#4681).
+	SentDocument = ports.SentDocument
 )
 
 // The actions of the trail.

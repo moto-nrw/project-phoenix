@@ -149,15 +149,33 @@ func (Store) Contract(ctx context.Context, organizationID, contractID int64, for
 			FirstName: party.FirstName, LastName: party.LastName, Email: party.Email, HasAccount: party.AccountID != nil,
 		})
 	}
-	var documentIDs []int64
-	if err := db.NewRaw(`SELECT id FROM care_contract.contract_documents WHERE organization_id = ? AND contract_version_id = ?`,
-		organizationID, version.ID).Scan(ctx, &documentIDs); err != nil {
-		return ports.ContractRecord{}, fmt.Errorf("care contract postgres: read document: %w", err)
-	}
-	if len(documentIDs) > 0 {
-		record.DocumentID = &documentIDs[0]
+	if err := readDocuments(ctx, db, organizationID, &record); err != nil {
+		return ports.ContractRecord{}, err
 	}
 	return record, nil
+}
+
+// readDocuments fills in the stored PDF of the record's version and the
+// newest stored PDF of the contract with its version (#4681).
+func readDocuments(ctx context.Context, db bun.IDB, organizationID int64, record *ports.ContractRecord) error {
+	var documents []struct {
+		ID        int64 `bun:"id"`
+		VersionID int64 `bun:"contract_version_id"`
+	}
+	if err := db.NewRaw(`SELECT id, contract_version_id FROM care_contract.contract_documents
+		WHERE organization_id = ? AND contract_id = ? ORDER BY id DESC`, organizationID, record.Summary.ID).Scan(ctx, &documents); err != nil {
+		return fmt.Errorf("care contract postgres: read documents: %w", err)
+	}
+	for i, document := range documents {
+		if i == 0 {
+			record.SentDocument = &ports.SentDocument{ID: document.ID, VersionID: document.VersionID}
+		}
+		if document.VersionID == record.Version.ID && record.DocumentID == nil {
+			id := document.ID
+			record.DocumentID = &id
+		}
+	}
+	return nil
 }
 
 // Mailings reads the sends of a contract, newest first.

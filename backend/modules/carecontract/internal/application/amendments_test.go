@@ -189,3 +189,38 @@ func TestAModuleSwitchAfterTheFirstVersionsEndContinuesTheContract(t *testing.T)
 	assert.Nil(t, version)
 	assert.Empty(t, reason)
 }
+
+// A module that ended before the run saw it leaves no boundary ahead and,
+// without dates on the remaining booking, no other day to look at. Today is
+// always looked at, so the contract still drops the module.
+func TestAModuleThatEndedUnseenIsDroppedFromToday(t *testing.T) {
+	t.Parallel()
+	contract := amendable()
+	contract.Latest.Services = append(contract.Latest.Services,
+		carecontract.Service{Weekday: "tue", CareOfferingID: 2, ModuleName: "Ganztag", EndsAt: "16:30"})
+	application := carecontract.Application{RequestChildID: 5, Bookings: []carecontract.Booking{
+		{CareOfferingID: 1, Days: []string{"mon"}},
+		{CareOfferingID: 2, Days: []string{"tue"}, ValidUntil: date(2031, 1, 5)},
+	}}
+	today := *date(2031, 1, 10)
+	version, reason := nextAmendment(amendmentRead(), application, contract, today)
+	require.Empty(t, reason)
+	require.NotNil(t, version)
+	assert.Equal(t, today, version.EffectiveFrom)
+	assert.Equal(t, []carecontract.Service{{Weekday: "mon", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"}},
+		version.Services)
+}
+
+// Once a later version holds, a send again delivers the PDF the parents
+// have, with its own version, not the newer version without a PDF.
+func TestASendAgainAfterAnAmendmentDeliversTheSentPDF(t *testing.T) {
+	t.Parallel()
+	first := carecontract.Version{ID: 11, Number: 1, ChildFirstName: "Lina"}
+	second := carecontract.Version{ID: 12, Number: 2, ChildFirstName: "Lina"}
+	record := ContractRecord{Summary: carecontract.ContractSummary{ID: 7, Status: carecontract.StatusActive}, Version: second,
+		SentDocument: &SentDocument{ID: 31, VersionID: 11}}
+	sent := withSentVersion(record, []carecontract.Version{first, second})
+	assert.Equal(t, 1, sent.Version.Number)
+	require.NotNil(t, sent.DocumentID)
+	assert.Equal(t, int64(31), *sent.DocumentID)
+}

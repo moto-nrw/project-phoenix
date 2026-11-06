@@ -71,6 +71,34 @@ func (c *Contracts) versionDocument(ctx context.Context, reviewer carecontract.R
 	return file, record.Summary.SchoolID, nil
 }
 
+// sentVersionRecord points a send again at the PDF the parents have (#4681):
+// once a later version holds, the current version has no stored PDF, so the
+// record carries the version and document of the newest stored PDF instead.
+// A contract whose current version has its PDF, or that has none yet, stays
+// as it is.
+func (c *Contracts) sentVersionRecord(ctx context.Context, organizationID int64, record ContractRecord) (ContractRecord, error) {
+	if record.DocumentID != nil || record.SentDocument == nil {
+		return record, nil
+	}
+	versions, err := c.store.Versions(ctx, organizationID, record.Summary.ID)
+	if err != nil {
+		return ContractRecord{}, err
+	}
+	return withSentVersion(record, versions), nil
+}
+
+// withSentVersion replaces the record's version by the one its newest stored
+// PDF shows.
+func withSentVersion(record ContractRecord, versions []carecontract.Version) ContractRecord {
+	for _, version := range versions {
+		if version.ID == record.SentDocument.VersionID {
+			documentID := record.SentDocument.ID
+			record.Version, record.DocumentID = version, &documentID
+		}
+	}
+	return record
+}
+
 // Versions serves carecontract.ContractVersions for the parents' billing
 // (#4684) in the caller's Träger transaction.
 type Versions struct {

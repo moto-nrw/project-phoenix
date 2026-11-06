@@ -69,6 +69,16 @@ type ContractRecord struct {
 	// conclusion at acceptance sets it before the PDF is rendered, so the
 	// frozen PDF and the mail say that the contract is concluded.
 	Concluded *carecontract.Concluded
+	// SentDocument is the newest stored PDF of the contract with its version
+	// (#4681). Once a later version holds, the current version has no PDF of
+	// its own; a send again or an address correction delivers this one.
+	SentDocument *SentDocument
+}
+
+// SentDocument is a stored PDF of a contract and the version it shows.
+type SentDocument struct {
+	ID        int64
+	VersionID int64
 }
 
 // StoredMailing is a send of the contract as stored.
