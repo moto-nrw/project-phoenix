@@ -7,14 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const careContractDraftsVersion = "1.15.759"
+const careContractDraftsVersion = "1.15.770"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     careContractDraftsVersion,
 		Description: "Betreuungsvertrag: Vorlagen je Angebot, Verträge aus der Anmeldung, Versand (#4678)",
 		DependsOn: []string{
-			storedNamesNFCVersion, // the last migration before this one
+			emailDeliveryEventsVersion, // the last migration before this one
 		},
 	})
 	Migrations.MustRegister(careContractDraftsUp, careContractDraftsDown)
