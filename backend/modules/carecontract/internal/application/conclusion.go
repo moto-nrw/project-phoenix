@@ -140,11 +140,7 @@ func (c *Conclusions) readContracts(ctx context.Context, organizationID int64, r
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("care contract: read contracts: %w", err)
 	}
-	templates, changed := make(templateIndex, len(rows)), make(templateChanges, len(rows))
-	for _, row := range rows {
-		key := [2]int64{row.SchoolID, row.OfferingID}
-		templates[key], changed[key] = row.Template.TemplateInput, row.Template.UpdatedAt
-	}
+	templates, changed := indexTemplates(rows)
 	return existing, templates, changed, nil
 }
 

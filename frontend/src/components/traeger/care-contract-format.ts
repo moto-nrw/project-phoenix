@@ -164,6 +164,19 @@ export const TEMPLATE_ISSUE_LABELS: Record<TemplateIssue, string> = {
   templates_differ: "Bedingungen der Module weichen ab",
   conclusion_automatic: "Entsteht bei der Annahme",
   acceptance_missing: "Zustimmung zum Vertrag fehlt",
+  acceptance_changed: "Bedingungen nach der Anmeldung geändert",
+};
+
+/**
+ * The reason in one plain sentence, with the next step, where the label
+ * alone does not tell what happens (#4680).
+ */
+export const TEMPLATE_ISSUE_REASONS: Partial<Record<TemplateIssue, string>> = {
+  conclusion_automatic: "Der Vertrag entsteht in wenigen Minuten von selbst.",
+  acceptance_missing:
+    "Die Eltern haben in der Anmeldung den Vertragsbedingungen nicht zugestimmt. Es entsteht kein Vertrag. Zum Senden stellen Sie die Schule auf „Später verschicken“.",
+  acceptance_changed:
+    "Sie haben die Bedingungen nach der Anmeldung geändert. Die Eltern haben ihnen nicht zugestimmt. Es entsteht kein Vertrag. Zum Senden stellen Sie die Schule auf „Später verschicken“.",
 };
 
 export const NOTICE_TO_LABELS: Record<ContractNoticeTo, string> = {

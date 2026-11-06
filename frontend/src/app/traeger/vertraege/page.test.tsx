@@ -95,6 +95,7 @@ const CANDIDATE: ContractCandidate = {
   ],
   effectiveFrom: "2027-08-01",
   templateIssue: null,
+  acceptanceIssue: null,
 };
 
 function renderPage() {
@@ -267,15 +268,54 @@ describe("TraegerVertraegePage", () => {
     ).toHaveAttribute("href", "/einstellungen");
   });
 
-  it("does not offer manual drafts for schools concluding at acceptance", async () => {
+  it("does not offer manual drafts for schools concluding at acceptance and says why each child waits", async () => {
     api.fetchConclusionModes.mockResolvedValue([
       { schoolId: "3", schoolName: "OGS Am Lindenhof", mode: "bei_annahme" },
+    ]);
+    api.fetchContractCandidates.mockResolvedValue([
+      CANDIDATE,
+      {
+        ...CANDIDATE,
+        requestChildId: "44",
+        childFirstName: "Ben",
+        acceptanceIssue: "acceptance_changed",
+      },
+      {
+        ...CANDIDATE,
+        requestChildId: "45",
+        childFirstName: "Ole",
+        acceptanceIssue: "acceptance_missing",
+      },
     ]);
     renderPage();
     await screen.findAllByText("Lina Muster");
     fireEvent.click(screen.getByRole("button", { name: /Verträge erstellen/ }));
     expect(await screen.findByLabelText("Mia Kern auswählen")).toBeDisabled();
-    expect(screen.getAllByText("Zustimmung zum Vertrag fehlt")).toHaveLength(1);
+    expect(screen.getByLabelText("Ben Kern auswählen")).toBeDisabled();
+    expect(screen.getByLabelText("Ole Kern auswählen")).toBeDisabled();
+
+    // Only the child with the proof comes about by itself.
+    expect(screen.getAllByText("Entsteht bei der Annahme")).toHaveLength(1);
+    expect(
+      screen.getByText("Der Vertrag entsteht in wenigen Minuten von selbst."),
+    ).toBeInTheDocument();
+    // Changed conditions name the real state and the next step.
+    expect(
+      screen.getByText("Bedingungen nach der Anmeldung geändert"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Sie haben die Bedingungen nach der Anmeldung geändert\. Die Eltern haben ihnen nicht zugestimmt\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Zustimmung zum Vertrag fehlt"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText(
+        /Zum Senden stellen Sie die Schule auf „Später verschicken“\./,
+      ),
+    ).toHaveLength(2);
     expect(
       screen.getByText(/sind hier keine Entwürfe nötig/),
     ).toBeInTheDocument();

@@ -83,11 +83,18 @@ export type TemplateIssue =
   | "template_missing"
   | "templates_differ"
   | "conclusion_automatic"
-  | "acceptance_missing";
+  | "acceptance_missing"
+  | "acceptance_changed";
+
+/**
+ * Why the application gives no proof of the parents' agreement for a
+ * conclusion at the acceptance (#4680); null when it does.
+ */
+type AcceptanceIssue = "acceptance_missing" | "acceptance_changed";
 
 /** An accepted application child with booked care and no contract. */
 export interface ContractCandidate extends CandidateKey {
-  readonly hasAcceptance?: boolean;
+  readonly acceptanceIssue: AcceptanceIssue | null;
   readonly schoolName: string;
   readonly childFirstName: string;
   readonly childLastName: string;
@@ -240,7 +247,7 @@ interface BackendService {
 }
 
 interface BackendCandidate {
-  has_acceptance?: boolean;
+  acceptance_issue?: AcceptanceIssue | "";
   school_id: number;
   request_child_id: number;
   school_name: string;
@@ -368,7 +375,7 @@ function candidateFromBackend(row: BackendCandidate): ContractCandidate {
     services: servicesFromBackend(row.services),
     effectiveFrom: row.effective_from,
     templateIssue: row.template_issue === "" ? null : row.template_issue,
-    hasAcceptance: row.has_acceptance ?? false,
+    acceptanceIssue: row.acceptance_issue ? row.acceptance_issue : null,
   };
 }
 

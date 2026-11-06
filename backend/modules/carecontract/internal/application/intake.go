@@ -80,26 +80,28 @@ func (in *Intake) Candidates(ctx context.Context, reviewer carecontract.Reviewer
 		return nil, err
 	}
 	var existing map[ContractKey]bool
-	var templates templateIndex
+	var rows []TemplateRow
 	err = in.runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(txCtx context.Context) error {
 		var err error
 		if existing, err = in.store.ContractKeys(txCtx, reviewer.OrganizationID, schoolIDs(schools)); err != nil {
 			return err
 		}
-		templates, err = in.templateIndex(txCtx, reviewer.OrganizationID)
+		rows, err = in.store.Templates(txCtx, reviewer.OrganizationID)
 		return err
 	})
 	if err != nil {
 		return nil, fmt.Errorf("care contract: read contracts: %w", err)
 	}
-	candidates := collectCandidates(reads, existing, templates, in.today())
+	templates, changed := indexTemplates(rows)
+	candidates := collectCandidates(reads, existing, templates, changed, in.today())
 	sortCandidates(candidates)
 	return candidates, nil
 }
 
 // collectCandidates keeps every accepted application child with booked care
 // and no contract.
-func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templates templateIndex, today calendar.Date) []carecontract.Candidate {
+func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templates templateIndex, changed templateChanges,
+	today calendar.Date) []carecontract.Candidate {
 	candidates := []carecontract.Candidate{}
 	for _, read := range reads {
 		for _, application := range read.applications {
@@ -118,7 +120,9 @@ func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templa
 				PhaseName:     firstText(booked.phaseName, application.PhaseName),
 				Services:      boundServices(booked.services, lastDay(booked.until)),
 				EffectiveFrom: booked.effectiveFrom(application, today),
-				TemplateIssue: issue, HasAcceptance: len(application.Acceptances) > 0,
+				TemplateIssue: issue,
+				AcceptanceIssue: acceptanceIssue(NewContract{AcceptedAt: application.AcceptedAt, Acceptances: application.Acceptances},
+					changed.since(read.school.ID, booked.offerings)),
 			})
 		}
 	}
@@ -516,6 +520,17 @@ func (in *Intake) offerings(ctx context.Context, ids []int64) ([]carecontract.Of
 		return offerings, err
 	}
 	return in.applications.NamePhases(ctx, offerings)
+}
+
+// indexTemplates holds the conditions of every offering and when they last
+// changed.
+func indexTemplates(rows []TemplateRow) (templateIndex, templateChanges) {
+	templates, changed := make(templateIndex, len(rows)), make(templateChanges, len(rows))
+	for _, row := range rows {
+		key := [2]int64{row.SchoolID, row.OfferingID}
+		templates[key], changed[key] = row.Template.TemplateInput, row.Template.UpdatedAt
+	}
+	return templates, changed
 }
 
 func (in *Intake) templateIndex(ctx context.Context, organizationID int64) (templateIndex, error) {
