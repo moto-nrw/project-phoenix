@@ -1305,6 +1305,20 @@ describe("proxy", () => {
       }
     });
 
+    it("rewrites the Stichtagszahlen to /traeger/stichtagszahlen (#4673)", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TRAEGER_HOSTNAME}/stichtagszahlen`,
+          TRAEGER_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/stichtagszahlen",
+      );
+    });
+
     it("rewrites the holiday periods to /traeger/ferien (#4659)", () => {
       for (const path of ["/ferien", "/ferien/neu", "/ferien/12"]) {
         const res = proxy(

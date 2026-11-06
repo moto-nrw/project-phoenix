@@ -147,6 +147,7 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
 > = [
   ["/schulen", "Schulen"],
   ["/uebersicht", "Dashboard"],
+  ["/stichtagszahlen", "Stichtagszahlen"],
   ["/ferien", "Ferienbetreuung"],
   ["/abrechnung", "Abrechnung"],
   ["/vertraege", "Verträge"],

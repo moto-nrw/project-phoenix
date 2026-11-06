@@ -48,6 +48,11 @@ type TraegerMembershipQuery interface {
 	// ListTraegerSchoolIDs returns the undeleted schools of the Träger: the
 	// tenant set the Träger projection filters on (ADR 0084 section 1).
 	ListTraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
+	// ListTraegerBillingKeyDateCounts returns the captured Stichtagszahlen
+	// of the undeleted schools of the Träger, newest month first (#4673):
+	// the very rows of the operator billing report, so the Träger-Portal and
+	// the operator report cannot show different numbers.
+	ListTraegerBillingKeyDateCounts(ctx context.Context, organizationID int64) ([]BillingKeyDateCount, error)
 	// ListTraegerMemberships returns every membership of the Träger.
 	ListTraegerMemberships(ctx context.Context, organizationID int64) ([]TraegerMembership, error)
 }

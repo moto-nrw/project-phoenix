@@ -234,6 +234,7 @@ export const HELP_TOPICS = {
   traegerSchoolSwitch: "in-eine-schule-wechseln",
   traegerSchoolView: "zahlen-und-stammdaten-einer-schule-ansehen",
   traegerDashboard: "alle-schulen-auf-einen-blick",
+  traegerKeyDateCounts: "stichtagszahlen-der-schulen-ansehen",
   teacherSettings: "als-lehrkraft-benachrichtigungen-einstellen",
   teacherClassDay: "meinen-klassentag-ansehen",
   teacherClassList: "die-liste-einer-klasse-lesen",

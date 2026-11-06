@@ -57,9 +57,14 @@ ORDER BY school.id`
 const insertBillingKeyDateCountsSQL = `SELECT platform.capture_billing_key_date_counts(
  ?::bigint[], ?::text[], ?::text[], ?::text[], ?::text[], ?::integer[], ?::integer[])`
 
-const selectBillingKeyDateCountsSQL = `SELECT school_id, school_name, organization_name,
+// billingKeyDateCountColumns are the columns of a captured row. The operator
+// report and the Träger-Portal's read (#4673) select the same columns and map
+// them through billingKeyDateCountRow, so both show the same numbers.
+const billingKeyDateCountColumns = `school_id, school_name, organization_name,
   period::text AS period, key_date::text AS key_date,
-  active_students, active_terminals, recorded_at
+  active_students, active_terminals, recorded_at`
+
+const selectBillingKeyDateCountsSQL = `SELECT ` + billingKeyDateCountColumns + `
 FROM platform.live_billing_key_date_counts
 ORDER BY period DESC, organization_name, school_name, school_id`
 
@@ -189,32 +194,36 @@ func (s *BillingStore) InsertBillingKeyDateCounts(ctx context.Context, counts []
 	return affected, nil
 }
 
+// billingKeyDateCountRow is one captured row as billingKeyDateCountColumns
+// select it.
+type billingKeyDateCountRow struct {
+	SchoolID         int64     `bun:"school_id"`
+	SchoolName       string    `bun:"school_name"`
+	OrganizationName string    `bun:"organization_name"`
+	Period           string    `bun:"period"`
+	KeyDate          string    `bun:"key_date"`
+	ActiveStudents   int       `bun:"active_students"`
+	ActiveTerminals  int       `bun:"active_terminals"`
+	RecordedAt       time.Time `bun:"recorded_at"`
+}
+
+func billingKeyDateCounts(rows []billingKeyDateCountRow) []domain.BillingKeyDateCount {
+	counts := make([]domain.BillingKeyDateCount, 0, len(rows))
+	for _, row := range rows {
+		counts = append(counts, domain.BillingKeyDateCount(row))
+	}
+	return counts
+}
+
 // ListBillingKeyDateCounts reads every captured row, newest month first.
 func (s *BillingStore) ListBillingKeyDateCounts(ctx context.Context) ([]domain.BillingKeyDateCount, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var rows []struct {
-		SchoolID         int64     `bun:"school_id"`
-		SchoolName       string    `bun:"school_name"`
-		OrganizationName string    `bun:"organization_name"`
-		Period           string    `bun:"period"`
-		KeyDate          string    `bun:"key_date"`
-		ActiveStudents   int       `bun:"active_students"`
-		ActiveTerminals  int       `bun:"active_terminals"`
-		RecordedAt       time.Time `bun:"recorded_at"`
-	}
+	var rows []billingKeyDateCountRow
 	if err := db.NewRaw(selectBillingKeyDateCountsSQL).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("organization tenancy postgres: list billing key-date counts: %w", err)
 	}
-	counts := make([]domain.BillingKeyDateCount, 0, len(rows))
-	for _, row := range rows {
-		counts = append(counts, domain.BillingKeyDateCount{
-			SchoolID: row.SchoolID, SchoolName: row.SchoolName, OrganizationName: row.OrganizationName,
-			Period: row.Period, KeyDate: row.KeyDate,
-			ActiveStudents: row.ActiveStudents, ActiveTerminals: row.ActiveTerminals, RecordedAt: row.RecordedAt,
-		})
-	}
-	return counts, nil
+	return billingKeyDateCounts(rows), nil
 }
