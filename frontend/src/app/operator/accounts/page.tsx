@@ -22,6 +22,7 @@ import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { AccountTenantAccessModal } from "~/components/operator/account-tenant-access-modal";
 import { accountsConcept } from "~/lib/concepts/accounts";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 function OperatorAccountsPageContent() {
   useSetBreadcrumb({ pageTitle: "Konten" });
@@ -255,10 +256,13 @@ function OperatorAccountsPageContent() {
               </span>
             )}
             {schoolAccounts && (
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-                {schoolAccounts.length}{" "}
-                {schoolAccounts.length === 1 ? "Konto" : "Konten"}
-              </span>
+              <StatusBadge
+                tone="gray"
+                compact
+                label={`${schoolAccounts.length} ${
+                  schoolAccounts.length === 1 ? "Konto" : "Konten"
+                }`}
+              />
             )}
           </div>
           {!schoolAccountsError &&

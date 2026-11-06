@@ -78,6 +78,19 @@ describe("AccountsTable", () => {
     expect(screen.getByText("Keine Einträge vorhanden.")).toBeInTheDocument();
   });
 
+  it("falls back for inherited status-map keys", () => {
+    render(
+      <AccountsTable
+        accounts={[makeSchoolAccount({ status: "constructor" })]}
+      />,
+    );
+
+    expect(screen.getByText("constructor")).toHaveStyle({
+      backgroundColor: "#F3F4F6",
+      color: "#4B5563",
+    });
+  });
+
   it("sorts by Rolle when the header is clicked (covers roleName sortValue)", () => {
     render(
       <AccountsTable

@@ -24,6 +24,7 @@ import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
 import { TransferDeviceModal } from "~/components/operator/transfer-device-modal";
 import { devicesConcept } from "~/lib/concepts/devices";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 function OperatorDevicesPageContent() {
   useSetBreadcrumb({ pageTitle: "Geräte" });
@@ -244,10 +245,13 @@ function OperatorDevicesPageContent() {
               </span>
             )}
             {schoolDevices && (
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-                {schoolDevices.length}{" "}
-                {schoolDevices.length === 1 ? "Gerät" : "Geräte"}
-              </span>
+              <StatusBadge
+                tone="gray"
+                compact
+                label={`${schoolDevices.length} ${
+                  schoolDevices.length === 1 ? "Gerät" : "Geräte"
+                }`}
+              />
             )}
           </div>
           {!schoolDevicesError &&

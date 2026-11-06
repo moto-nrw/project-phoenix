@@ -5,6 +5,12 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState as UIEmptyState } from "~/components/ui/empty-state";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 /**
  * Label, control and its field error (#2519) for a control without a `label`
@@ -64,23 +70,26 @@ export function FieldWarning({ message }: { readonly message: string }) {
 }
 
 export function DeliveryStatusBadge({ status }: { readonly status: string }) {
-  const styles: Record<string, string> = {
-    sent: "bg-moto-green/15 text-moto-green-strong",
-    pending: "bg-moto-amber-soft text-moto-amber-strong",
-    failed: "bg-moto-red/10 text-moto-red-strong",
+  if (status === "pending") {
+    return (
+      <StatusColorBadge
+        label="Ausstehend"
+        color={LOCATION_COLORS.WARNING}
+        compact
+      />
+    );
+  }
+  const badges: Record<string, { label: string; tone: StatusBadgeTone }> = {
+    sent: { label: "Gesendet", tone: "green" },
+    failed: { label: "Fehlgeschlagen", tone: "red" },
   };
-  const labels: Record<string, string> = {
-    sent: "Gesendet",
-    pending: "Ausstehend",
-    failed: "Fehlgeschlagen",
-  };
-  return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] ?? "bg-gray-100 text-gray-500"}`}
-    >
-      {labels[status] ?? status}
-    </span>
-  );
+  const badge: { label: string; tone: StatusBadgeTone } = Object.hasOwn(
+    badges,
+    status,
+  )
+    ? badges[status]!
+    : { label: status, tone: "gray" };
+  return <StatusBadge tone={badge.tone} compact label={badge.label} />;
 }
 
 export function ProvisioningEmptyState({

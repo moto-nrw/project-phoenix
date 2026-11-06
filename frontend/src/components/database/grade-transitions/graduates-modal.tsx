@@ -39,6 +39,7 @@ import {
   type GraduateState,
   type TransitionHistoryEntry,
 } from "~/lib/grade-transition-api";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 const logger = createLogger({ component: "GraduatesModal" });
 
@@ -56,15 +57,11 @@ const STATE_COLORS: Record<GraduateState, string> = {
 
 function StateBadge({ state }: { readonly state: GraduateState }) {
   return (
-    <span
-      className="inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-      style={{
-        backgroundColor: `${STATE_COLORS[state]}1A`,
-        color: STATE_COLORS[state],
-      }}
-    >
-      {STATE_LABELS[state]}
-    </span>
+    <StatusColorBadge
+      label={STATE_LABELS[state]}
+      color={STATE_COLORS[state]}
+      compact
+    />
   );
 }
 

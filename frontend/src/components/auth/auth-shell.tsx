@@ -6,6 +6,7 @@ import { Hammer, Quote, ShieldCheck, UsersRound } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Skeleton } from "~/components/ui/skeleton";
 import { IconTile } from "~/components/ui/icon-tile";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 /** The hint under a refused auth field, linked by `aria-describedby`. */
 export function AuthFieldError({
@@ -446,9 +447,7 @@ function TestimonialCard({
             tone="inverse"
             icon={<Quote aria-hidden="true" />}
           />
-          <span className="bg-moto-green-soft text-moto-green-strong rounded-full px-3 py-1 text-xs font-semibold">
-            {testimonial.metric}
-          </span>
+          <StatusBadge tone="green" label={testimonial.metric} />
         </div>
         <p className="text-xl leading-8 font-medium text-gray-950">
           "{testimonial.quote}"
