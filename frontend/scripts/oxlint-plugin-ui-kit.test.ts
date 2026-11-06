@@ -90,6 +90,15 @@ describe.concurrent("ui-kit/no-hand-rolled-portal-nav", () => {
     expect(output).toContain(RULE);
   });
 
+  it("finds shell classes combined by cn", async () => {
+    const { output } = await lintSource(
+      `declare function cn(...classes: string[]): string;
+      export const Probe = () => <aside className={cn("border-r border-gray-200/70", "bg-white/95")} />;`,
+      "src/components/dashboard/probe-nav.tsx",
+    );
+    expect(output).toContain(RULE);
+  });
+
   it("rejects the kit's sidebar row classes outside the kit", async () => {
     const { output } = await lintSource(
       `import { portalSidebarRowClasses } from "~/components/ui/sidebar-geometry";
