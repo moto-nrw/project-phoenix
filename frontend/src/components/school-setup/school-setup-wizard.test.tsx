@@ -66,6 +66,7 @@ vi.mock("~/lib/school-setup-api", async (importOriginal) => ({
 
 import { SchoolSetupWizard } from "./school-setup-wizard";
 import { ApiError } from "~/lib/api-error";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 
 function newSchool(): SchoolSetupState {
   return {
@@ -85,10 +86,8 @@ function newSchool(): SchoolSetupState {
   };
 }
 
-/** Ein sichtbares Tour-Ziel; jsdom misst sonst alles mit Größe 0. */
-function visibleTarget(tourId: string): HTMLButtonElement {
-  const element = document.createElement("button");
-  element.dataset.setupTour = tourId;
+/** Eine sichtbare Stelle; jsdom misst sonst alles mit Größe 0. */
+function visibleElement<T extends HTMLElement>(element: T): T {
   element.getClientRects = () => [{}] as unknown as DOMRectList;
   element.getBoundingClientRect = () =>
     ({
@@ -99,8 +98,15 @@ function visibleTarget(tourId: string): HTMLButtonElement {
       bottom: 50,
       right: 130,
     }) as DOMRect;
-  document.body.appendChild(element);
   return element;
+}
+
+/** Ein sichtbares Tour-Ziel. */
+function visibleTarget(tourId: string): HTMLButtonElement {
+  const element = document.createElement("button");
+  element.dataset.setupTour = tourId;
+  document.body.appendChild(element);
+  return visibleElement(element);
 }
 
 /** Eine sichtbare Fläche, gemessen wie ein Tour-Ziel. */
@@ -880,8 +886,29 @@ describe("SchoolSetupWizard", () => {
   it("continues with the import when the person chooses Importieren", async () => {
     setupState = studentsNext();
     pathname = "/database/students";
-    const { rerender } = render(<SchoolSetupWizard />);
-    visibleTarget("student-menu");
+    const { rerender } = render(
+      <>
+        <SchoolSetupWizard />
+        <div data-setup-tour="student-menu">
+          <OverflowMenu
+            ariaLabel="Weitere Aktionen"
+            items={[
+              {
+                label: "Importieren",
+                href: "/database/students/import",
+                onClick: () => undefined,
+                tourTarget: "student-import",
+              },
+            ]}
+          />
+        </div>
+      </>,
+    );
+    const studentMenu = document.querySelector<HTMLElement>(
+      '[data-setup-tour="student-menu"]',
+    );
+    expect(studentMenu).not.toBeNull();
+    visibleElement(studentMenu!);
 
     fireEvent.click(screen.getByRole("button", { name: "Zeig es mir" }));
     expect(
@@ -890,7 +917,11 @@ describe("SchoolSetupWizard", () => {
     await waitForHighlight();
 
     // Die Person öffnet das Menü: Die Tour zeigt auf den Eintrag.
-    const importLink = visibleTarget("student-import");
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    const importLink = screen.getByRole("menuitem", { name: "Importieren" });
+    expect(importLink).toHaveAttribute("data-setup-tour", "student-import");
+    visibleElement(importLink);
+    await act(() => vi.advanceTimersByTimeAsync(200));
     expect(
       await screen.findByRole("dialog", { name: "Importieren wählen" }),
     ).toBeInTheDocument();
@@ -898,7 +929,6 @@ describe("SchoolSetupWizard", () => {
 
     // Die Person klickt „Importieren“: Die Import-Seite öffnet sich.
     fireEvent.click(importLink);
-    importLink.remove();
     pathname = "/database/students/import";
     rerender(<SchoolSetupWizard />);
     visibleSection("format-select");
