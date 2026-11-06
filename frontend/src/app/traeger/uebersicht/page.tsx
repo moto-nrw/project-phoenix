@@ -21,7 +21,7 @@ import { useSession } from "next-auth/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { Alert } from "~/components/ui/alert";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -35,7 +35,6 @@ import {
   SCHOOL_SWITCH_MISSING_HINT,
   useOpenTraegerSchool,
 } from "~/components/traeger/use-open-traeger-school";
-import { useTraegerSchoolsToday } from "~/components/traeger/use-traeger-schools-today";
 import { useTraegerSchoolsAlerts } from "~/components/traeger/use-traeger-schools-alerts";
 import {
   ALERT_LABELS,
@@ -379,8 +378,7 @@ function figureColumns(
 }
 
 export default function TraegerDashboardPage() {
-  const { alerts, error: alertsError } = useTraegerSchoolsAlerts();
-  const { today, error } = useTraegerSchoolsToday(alerts !== null);
+  const { alerts, error, refreshFailed, reload } = useTraegerSchoolsAlerts();
   const { data: session } = useSession();
   const router = useRouter();
   const { canOpen, opening, open } = useOpenTraegerSchool();
@@ -419,10 +417,10 @@ export default function TraegerDashboardPage() {
     : alertRows.slice(0, INITIAL_ROW_COUNT);
   const quiet = !alertsLoading && affected.length === 0;
 
-  // Once hints are confirmed, every figure and the timestamp belong to that
-  // snapshot, even when only /today refreshes successfully afterwards.
+  // One snapshot carries every figure, the hints and the timestamp, so the
+  // sums, the rows and their markers never disagree.
   const snapshot = useMemo<TraegerSchoolsToday | null>(() => {
-    if (!alerts) return today;
+    if (!alerts) return null;
     const total = alerts.schools.reduce(
       (sum, { figures }) => ({
         childrenTotal: sum.childrenTotal + figures.childrenTotal,
@@ -450,7 +448,7 @@ export default function TraegerDashboardPage() {
         asOf: alerts.asOf,
       },
     };
-  }, [alerts, today]);
+  }, [alerts]);
   const loading = snapshot === null && !error;
   const schools = snapshot?.schools ?? [];
   const alertsBySchool = useMemo<AlertsBySchool>(
@@ -544,13 +542,28 @@ export default function TraegerDashboardPage() {
           : undefined
       }
     >
+      {refreshFailed && snapshot ? (
+        // Bestätigte Zahlen bleiben stehen; der Hinweis sagt, wie alt sie sind.
+        <Alert
+          type="warning"
+          message={`Stand ${formatBerlinTime(snapshot.total.asOf)} Uhr, Aktualisierung fehlgeschlagen. Die Zahlen sind vielleicht nicht mehr aktuell.`}
+          action={
+            <Button
+              type="button"
+              variant="ghost_tone"
+              size="compact"
+              onClick={reload}
+            >
+              Erneut laden
+            </Button>
+          }
+        />
+      ) : null}
       <TotalFigures
         total={snapshot?.total ?? null}
         schoolCount={schools.length}
       />
-      {alertsError ? (
-        <LoadErrorAlert error={alertsError} actionLayout="responsive" />
-      ) : alerts?.schools.length === 0 ? null : (
+      {alerts?.schools.length === 0 ? null : (
         <SectionCard
           title="Auffälligkeiten"
           testId="traeger-school-alerts"

@@ -1,6 +1,13 @@
 import { SWRConfig } from "~/lib/swr/testing";
 vi.unmock("swr");
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -12,19 +19,13 @@ import type {
   TraegerSchoolsToday,
 } from "~/lib/traeger-api";
 
-const {
-  mockFetchToday,
-  mockFetchAlerts,
-  mockStartSession,
-  mockUseSession,
-  mockPush,
-} = vi.hoisted(() => ({
-  mockFetchToday: vi.fn(),
-  mockFetchAlerts: vi.fn(),
-  mockStartSession: vi.fn(),
-  mockUseSession: vi.fn(),
-  mockPush: vi.fn(),
-}));
+const { mockFetchAlerts, mockStartSession, mockUseSession, mockPush } =
+  vi.hoisted(() => ({
+    mockFetchAlerts: vi.fn(),
+    mockStartSession: vi.fn(),
+    mockUseSession: vi.fn(),
+    mockPush: vi.fn(),
+  }));
 
 vi.mock("~/lib/traeger-url", () => ({
   traegerPath: (path: string) => path,
@@ -37,7 +38,6 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("~/lib/traeger-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/traeger-api")>()),
-  fetchTraegerSchoolsToday: mockFetchToday,
   fetchTraegerSchoolsAlerts: mockFetchAlerts,
   startTraegerSchoolSession: mockStartSession,
 }));
@@ -159,7 +159,6 @@ function renderPage() {
 
 describe("TraegerDashboardPage", () => {
   beforeEach(() => {
-    mockFetchToday.mockReset();
     mockFetchAlerts.mockReset();
     mockFetchAlerts.mockResolvedValue(ALERTS);
     mockStartSession.mockReset();
@@ -168,7 +167,6 @@ describe("TraegerDashboardPage", () => {
   });
 
   it("sums the figures of all schools with an explaining sentence each", async () => {
-    mockFetchToday.mockResolvedValue(TODAY);
     renderPage();
 
     expect(await screen.findByText("1 : 13,3")).toBeInTheDocument();
@@ -196,7 +194,6 @@ describe("TraegerDashboardPage", () => {
   });
 
   it("lists every school with its figures and leads into its view", async () => {
-    mockFetchToday.mockResolvedValue(TODAY);
     renderPage();
 
     const table = await screen.findByRole("table");
@@ -223,7 +220,6 @@ describe("TraegerDashboardPage", () => {
   });
 
   it("finds a school by its town", async () => {
-    mockFetchToday.mockResolvedValue(TODAY);
     renderPage();
     const table = await screen.findByRole("table");
 
@@ -240,7 +236,6 @@ describe("TraegerDashboardPage", () => {
   });
 
   it("opens the Schul-App only with the right", async () => {
-    mockFetchToday.mockResolvedValue(TODAY);
     renderPage();
     const table = await screen.findByRole("table");
     expect(
@@ -257,7 +252,6 @@ describe("TraegerDashboardPage", () => {
     mockUseSession.mockReturnValue(
       sessionWith(["traeger_overview:read", "traeger_school:switch"]),
     );
-    mockFetchToday.mockResolvedValue(TODAY);
     mockStartSession.mockResolvedValue("token");
     const tab = { opener: {}, location: { href: "" }, close: vi.fn() };
     const openSpy = vi
@@ -278,9 +272,9 @@ describe("TraegerDashboardPage", () => {
   });
 
   it.each([403, 404])(
-    "shows a refusal instead of figures for HTTP %i even when hints load",
+    "shows a refusal instead of figures for HTTP %i",
     async (status) => {
-      mockFetchToday.mockRejectedValue(new ApiError("refused", status));
+      mockFetchAlerts.mockRejectedValue(new ApiError("refused", status));
       await act(async () => {
         renderPage();
       });
@@ -293,36 +287,8 @@ describe("TraegerDashboardPage", () => {
     },
   );
 
-  it("keeps the alert snapshot visible when today's initial request fails", async () => {
-    mockFetchToday.mockRejectedValue(
-      new ApiError("boom", 500, { code: "general.internal" }),
-    );
-    renderPage();
-
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
-    expect(await screen.findByText("200")).toBeInTheDocument();
-    expect(screen.getByText("80")).toBeInTheDocument();
-    expect(screen.getByText("6 von 17")).toBeInTheDocument();
-    expect(screen.getByText("Stand 12:00 Uhr")).toBeInTheDocument();
-    const card = screen.getByTestId("traeger-school-alerts");
-    expect(
-      within(card).getByRole("link", { name: "Zur Schule: OGS Lindenweg" }),
-    ).toBeInTheDocument();
-    const table = screen.getByRole("table");
-    expect(
-      within(table).getByRole("link", { name: "OGS Am Bach" }),
-    ).toBeInTheDocument();
-    expect(within(table).getAllByText(", erreicht Ihre Grenze")).toHaveLength(
-      2,
-    );
-    expect(
-      screen.getByRole("button", { name: "Wiederholen" }),
-    ).toBeInTheDocument();
-  });
-
-  it("keeps the load error blocking when neither request has a snapshot", async () => {
+  it("shows the load error without confirmed figures", async () => {
     const failure = new ApiError("boom", 500, { code: "general.internal" });
-    mockFetchToday.mockRejectedValue(failure);
     mockFetchAlerts.mockRejectedValue(failure);
     renderPage();
 
@@ -333,8 +299,44 @@ describe("TraegerDashboardPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps confirmed figures with a hint when a refresh fails, and reloads them", async () => {
+    vi.useFakeTimers();
+    await act(async () => {
+      renderPage();
+    });
+    expect(screen.getByText("Stand 12:00 Uhr")).toBeInTheDocument();
+
+    mockFetchAlerts.mockRejectedValue(
+      new ApiError("boom", 500, { code: "general.internal" }),
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    releaseFakeTimers();
+
+    // Ein Abruf je Minute: das Dashboard fragt nur noch eine Quelle.
+    expect(mockFetchAlerts).toHaveBeenCalledTimes(2);
+    const hint = await screen.findByText(
+      "Stand 12:00 Uhr, Aktualisierung fehlgeschlagen. Die Zahlen sind vielleicht nicht mehr aktuell.",
+    );
+    expect(hint).toBeVisible();
+    // Die bestätigten Zahlen bleiben stehen, keine Fehlerkarte statt Inhalt.
+    expect(screen.getByText("80")).toBeInTheDocument();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByTestId("traeger-school-alerts")).toBeInTheDocument();
+
+    mockFetchAlerts.mockResolvedValue(ALERTS);
+    fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/Aktualisierung fehlgeschlagen/),
+      ).not.toBeInTheDocument(),
+    );
+    expect(mockFetchAlerts).toHaveBeenCalledTimes(3);
+    expect(screen.getByText("80")).toBeInTheDocument();
+  });
+
   it("shows the hints of every school and marks the figures in the table", async () => {
-    mockFetchToday.mockResolvedValue(TODAY);
     renderPage();
 
     const card = await screen.findByTestId("traeger-school-alerts");
@@ -367,7 +369,6 @@ describe("TraegerDashboardPage", () => {
   });
 
   it("uses the alert snapshot for table figures, warning markers, totals and timestamp", async () => {
-    mockFetchToday.mockResolvedValue(TODAY);
     mockFetchAlerts.mockResolvedValue({
       ...ALERTS,
       asOf: new Date(TEST_CLOCK_INSTANT.getTime() - 60_000).toISOString(),
@@ -420,63 +421,12 @@ describe("TraegerDashboardPage", () => {
     fireEvent.change(field!, { target: { value: "melle" } });
     expect(screen.getByText("50")).toBeInTheDocument();
   });
-
-  it("keeps the whole alert snapshot when only today's figures refresh", async () => {
-    vi.useFakeTimers();
-    mockFetchToday.mockResolvedValue(TODAY);
-    await act(async () => {
-      renderPage();
-    });
-    expect(screen.getByText("Stand 12:00 Uhr")).toBeInTheDocument();
-
-    mockFetchToday.mockResolvedValue({
-      ...TODAY,
-      schools: [TODAY.schools[0]!],
-      total: {
-        ...figures(120, 60, 2, 12, 3),
-        asOf: new Date(TEST_CLOCK_INSTANT.getTime() + 60_000).toISOString(),
-      },
-    } satisfies TraegerSchoolsToday);
-    mockFetchAlerts.mockRejectedValue(
-      new ApiError("boom", 500, { code: "general.internal" }),
-    );
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(60_000);
-    });
-    releaseFakeTimers();
-
-    expect(mockFetchToday).toHaveBeenCalledTimes(2);
-    expect(mockFetchAlerts).toHaveBeenCalledTimes(2);
-    expect(screen.getByText("Stand 12:00 Uhr")).toBeInTheDocument();
-    expect(screen.getByText("80")).toBeInTheDocument();
-    expect(screen.getByText("6 von 17")).toBeInTheDocument();
-    const table = screen.getByRole("table");
-    expect(
-      within(table).getByRole("link", { name: "OGS Lindenweg" }),
-    ).toBeInTheDocument();
-    expect(within(table).getAllByText(", erreicht Ihre Grenze")).toHaveLength(
-      2,
-    );
-  });
-
-  it("keeps the figures when the hints fail", async () => {
-    mockFetchToday.mockResolvedValue(TODAY);
-    mockFetchAlerts.mockRejectedValue(
-      new ApiError("boom", 500, { code: "general.internal" }),
-    );
-    renderPage();
-
-    expect(await screen.findByText("1 : 13,3")).toBeInTheDocument();
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
-    expect(screen.getByRole("table")).toBeInTheDocument();
-  });
 });
 
 function renderAlerts(
   alerts: TraegerSchoolsAlerts | null,
   options: { error?: string | null; canChange?: boolean } = {},
 ) {
-  mockFetchToday.mockResolvedValue(TODAY);
   mockFetchAlerts.mockResolvedValue(alerts);
   if (options.error) {
     mockFetchAlerts.mockRejectedValue(new Error(options.error));

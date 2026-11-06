@@ -194,11 +194,6 @@ interface BackendSchoolView extends BackendSchool {
   figures: BackendSchoolFigures;
 }
 
-interface BackendSchoolsToday {
-  schools: (BackendSchool & { figures: BackendSchoolFigures })[] | null;
-  total: BackendSchoolFigures;
-}
-
 interface BackendSchoolsAlerts {
   thresholds: {
     children_per_staff: number;
@@ -335,33 +330,6 @@ function toSchoolFigures(figures: BackendSchoolFigures): TraegerSchoolFigures {
     staffPresent: figures.staff_present,
     careRatio: figures.care_ratio,
     asOf: figures.as_of,
-  };
-}
-
-/**
- * Every school of the Träger with its figures of now and their sum (#4674):
- * numbers only, no names.
- */
-export async function fetchTraegerSchoolsToday(): Promise<TraegerSchoolsToday> {
-  const response = await transportFetch("/api/traeger/schools/today", {
-    credentials: "include",
-    cache: "no-store",
-  });
-  const data = await readJson(response);
-  if (!response.ok) {
-    throw apiErrorFromBody(
-      `Request failed (${response.status})`,
-      response.status,
-      data,
-    );
-  }
-  const today = (data as { data: BackendSchoolsToday }).data;
-  return {
-    schools: (today.schools ?? []).map((school) => ({
-      ...toTraegerSchool(school),
-      figures: toSchoolFigures(school.figures),
-    })),
-    total: toSchoolFigures(today.total),
   };
 }
 
