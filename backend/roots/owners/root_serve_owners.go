@@ -181,7 +181,7 @@ func ObservePeopleDirectory(observation peopleCompose.Observation) {
 
 // BuildServeMealPlan composes the Meal Plan over its settings and the
 // participants of the day.
-func BuildServeMealPlan(db transactionruntime.Database, settings *mealplanCompose.Settings, students StudentRootReads, names studentNames, calendarRecords schoolcalendar.Days) (mealplanModule.Capability, error) {
+func BuildServeMealPlan(db transactionruntime.Database, settings *mealplanCompose.Settings, students StudentRootReads, names mealPlanPeople, calendarRecords schoolcalendar.Days) (mealplanModule.Capability, error) {
 	if calendarRecords == nil {
 		return nil, errors.New("meal plan: the school calendar is required")
 	}
@@ -191,10 +191,11 @@ func BuildServeMealPlan(db transactionruntime.Database, settings *mealplanCompos
 		Observe: func(observation mealplanCompose.Observation) {
 			observability.ObserveMealPlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, observation.Err)
 		},
-		Now:          time.Now,
-		Participants: mealPlanParticipantFinder(students, time.Now),
-		StudentNames: mealPlanStudentNames(names),
-		Calendar:     mealPlanCalendar(calendarRecords),
+		Now:             time.Now,
+		Participants:    mealPlanParticipantFinder(students, time.Now),
+		ParticipantDays: mealPlanParticipantDaysFinder(names, time.Now),
+		StudentNames:    mealPlanStudentNames(names),
+		Calendar:        mealPlanCalendar(calendarRecords),
 	})
 }
 

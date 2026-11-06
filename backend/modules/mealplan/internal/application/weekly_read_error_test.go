@@ -37,7 +37,7 @@ func TestWeeklyListStopsBeforeLaterCalendarFailure(t *testing.T) {
 	}, func(context.Context, []int64) ([]mealplan.ParticipantCandidate, error) {
 		t.Fatal("names are not reached")
 		return nil, nil
-	})
+	}, unavailableParticipantDays)
 	calendar := NewSchoolCalendar(func(_ context.Context, from, to string) (map[string]bool, []mealplan.HolidayPeriod, error) {
 		calendarReads = append(calendarReads, [2]string{from, to})
 		if to > monday.String() {
@@ -74,7 +74,7 @@ func TestWeeklyListRangeFailureKeepsEarlierRosterFailure(t *testing.T) {
 	}, func(context.Context, []int64) ([]mealplan.ParticipantCandidate, error) {
 		t.Fatal("names are not reached")
 		return nil, nil
-	})
+	}, unavailableParticipantDays)
 	calendar := NewSchoolCalendar(func(_ context.Context, from, to string) (map[string]bool, []mealplan.HolidayPeriod, error) {
 		if from != to {
 			return nil, nil, calendarErr

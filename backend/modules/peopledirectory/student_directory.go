@@ -204,6 +204,10 @@ type StudentRosterQuery interface {
 	// one day of a window. Unlike the live roster it keeps children whose care
 	// has since ended and omits later enrolments.
 	ListStudentRosterOverlapping(context.Context, string, string, string) ([]StudentRosterEntry, error)
+	// ListStudentRosterOnDates resolves the same overlapping roster for each
+	// requested date, using one range read. today retains immediate activation
+	// and the arrival rule for holiday guests.
+	ListStudentRosterOnDates(context.Context, []string, string) (map[string][]StudentRosterEntry, error)
 	// ListEnrolledStudentIDsByNameAndBirthday resolves already-enrolled
 	// children by name and birthday. The tenant is explicit because the parent
 	// submit path runs outside a tenant transaction.

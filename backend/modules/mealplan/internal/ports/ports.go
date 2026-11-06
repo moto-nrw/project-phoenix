@@ -56,6 +56,7 @@ type Calendar interface {
 }
 
 type Directory interface {
+	FindCandidatesOnDates(context.Context, []domain.Date) (map[domain.Date][]domain.DailyCandidate, domain.OperationStats, error)
 	FindDailyCandidates(context.Context, domain.Date) ([]domain.DailyCandidate, domain.OperationStats, error)
 	// FindStudentNames names the children of past orders, enrolled or not.
 	FindStudentNames(context.Context, []int64) (map[int64]domain.DailyCandidate, domain.OperationStats, error)

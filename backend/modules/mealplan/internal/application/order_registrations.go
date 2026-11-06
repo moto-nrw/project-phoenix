@@ -3,14 +3,15 @@ package application
 import (
 	"context"
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 )
 
 // prepareOrderRegistrations replaces the per-day participation reads in the
-// existing read-local registrations with one ID/date-set load. Roster reads
-// remain on their original day, and writes keep their daily reads under locks.
+// existing read-local registrations with ID/date-set loads. Writes keep their
+// daily reads under locks.
 func prepareOrderRegistrations(seen registrations, rules domain.OrderingRules, days domain.CalendarDays, from, to domain.Date, now time.Time) {
 	first := reconciliationStart(rules, domain.DateFromInstant(now))
 	for date := from; !date.After(to); date = date.AddDays(1) {
@@ -21,13 +22,49 @@ func prepareOrderRegistrations(seen registrations, rules domain.OrderingRules, d
 	}
 }
 
+func (s *Service) orderCandidates(ctx context.Context, date domain.Date, seen registrations) ([]domain.DailyCandidate, domain.OperationStats, error) {
+	prepared, exists := seen[date]
+	if !exists || len(seen) == 1 {
+		return s.directory.FindDailyCandidates(ctx, date)
+	}
+	if prepared.roster != nil {
+		return prepared.roster, domain.OperationStats{}, nil
+	}
+	dates := make([]domain.Date, 0, len(seen))
+	for day := range seen {
+		dates = append(dates, day)
+	}
+	slices.Sort(dates)
+	loaded, stats, err := s.directory.FindCandidatesOnDates(ctx, dates)
+	if err != nil {
+		// A later child's health decode failure must not preempt this day's
+		// participation error. Retry only the original point read.
+		daily, dailyStats, dailyErr := s.directory.FindDailyCandidates(ctx, date)
+		return daily, addStats(stats, dailyStats), dailyErr
+	}
+	for day, candidates := range loaded {
+		registration := seen[day]
+		registration.roster = candidates
+		seen[day] = registration
+	}
+	return seen[date].roster, stats, nil
+}
+
 func (s *Service) orderParticipation(ctx context.Context, ids []int64, date domain.Date, until time.Time, seen registrations) (map[int64]domain.DailyParticipation, domain.OperationStats, error) {
 	prepared, exists := seen[date]
 	if !exists || len(seen) == 1 || prepared.until.Before(until) {
 		return s.store.FindDailyParticipation(ctx, ids, date, until)
 	}
-	missing := make([]int64, 0, len(ids))
-	for _, id := range ids {
+	requested := slices.Clone(ids)
+	for _, registration := range seen {
+		for _, candidate := range registration.roster {
+			requested = append(requested, candidate.StudentID)
+		}
+	}
+	slices.Sort(requested)
+	requested = slices.Compact(requested)
+	missing := make([]int64, 0, len(requested))
+	for _, id := range requested {
 		if _, known := prepared.states[id]; !known {
 			missing = append(missing, id)
 		}

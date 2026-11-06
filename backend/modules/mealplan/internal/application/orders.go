@@ -30,6 +30,7 @@ type changeAuthor struct {
 // dayRegistration is a day's candidates and their registration, with the
 // absence changes up to the instant it was read at.
 type dayRegistration struct {
+	roster     []domain.DailyCandidate // prepared by the date-set read, before participation
 	candidates []domain.DailyCandidate
 	states     map[int64]domain.DailyParticipation
 	until      time.Time
@@ -79,7 +80,7 @@ func (s *Service) childrenOn(ctx context.Context, rules domain.OrderingRules, da
 // registrationOn reads the day's candidates and their registration with the
 // absence changes up to until.
 func (s *Service) registrationOn(ctx context.Context, date domain.Date, until time.Time, seen registrations) (dayRegistration, domain.OperationStats, error) {
-	candidates, stats, err := s.directory.FindDailyCandidates(ctx, date)
+	candidates, stats, err := s.orderCandidates(ctx, date, seen)
 	if err != nil {
 		return dayRegistration{}, stats, err
 	}
