@@ -219,7 +219,7 @@ export function childName(contract: {
 }
 
 /** How a contract was concluded, as the office reads it. */
-export const CONCLUSION_METHOD_LABELS: Record<ConclusionMethod, string> = {
+const CONCLUSION_METHOD_LABELS: Record<ConclusionMethod, string> = {
   mit_anmeldung: "bei der Annahme der Anmeldung",
   einfach_elektronisch: "mit der Unterschrift der Eltern",
   papier: "mit dem unterschriebenen Vertrag auf Papier",
