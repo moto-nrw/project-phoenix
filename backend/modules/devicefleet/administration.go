@@ -134,20 +134,15 @@ func (s *administration) UpdateDevice(ctx context.Context, device *Device) error
 	if device == nil || device.ID <= 0 {
 		return &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationInvalidDeviceData}
 	}
-	columns := []string{"device_id", "device_type", "name", "registered_by_id"}
-	if device.Status != "" {
-		columns = append(columns, "status")
-	}
+	// Read before validation, which defaults an empty status.
+	editsStatus := device.Status != ""
 	if err := validateAdministrationDevice(device); err != nil {
 		return &AdministrationError{Op: "UpdateDevice", Err: err}
 	}
 
-	existing, err := s.devices.FindDevice(ctx, device.ID)
+	existing, err := s.findDevice(ctx, "UpdateDevice", device.ID)
 	if err != nil {
-		if errors.Is(err, ErrDeviceNotFound) {
-			return &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationDeviceNotFound}
-		}
-		return &AdministrationError{Op: "UpdateDevice", Err: err}
+		return err
 	}
 	if existing.ID <= 0 {
 		return &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationDeviceNotFound}
@@ -163,25 +158,46 @@ func (s *administration) UpdateDevice(ctx context.Context, device *Device) error
 		}
 	}
 
+	updated, err := s.writeDeviceEdit(ctx, device, editsStatus)
+	if err != nil {
+		return err
+	}
+	*device = *administrationDevicePointer(updated)
+	return nil
+}
+
+// writeDeviceEdit stores the columns a school's edit owns, status only when
+// the edit named one, and returns the device as stored afterwards, including
+// the columns other flows wrote.
+func (s *administration) writeDeviceEdit(ctx context.Context, device *Device, editsStatus bool) (Device, error) {
+	columns := []string{"device_id", "device_type", "name", "registered_by_id"}
+	if editsStatus {
+		columns = append(columns, "status")
+	}
 	affected, err := s.devices.UpdateDeviceColumns(ctx, UpdateDevice{
 		ID: device.ID, DeviceID: device.DeviceID, DeviceType: device.DeviceType, Name: device.Name,
 		Status: DeviceStatus(device.Status), RegisteredByID: device.RegisteredByID,
 	}, columns)
 	if err != nil {
-		return &AdministrationError{Op: "UpdateDevice", Err: err}
+		return Device{}, &AdministrationError{Op: "UpdateDevice", Err: err}
 	}
 	if affected == 0 {
-		return &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationDeviceNotFound}
+		return Device{}, &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationDeviceNotFound}
 	}
-	updated, err := s.devices.FindDevice(ctx, device.ID)
+	return s.findDevice(ctx, "UpdateDevice", device.ID)
+}
+
+// findDevice loads one device by primary key for op and reports a missing
+// row as ErrAdministrationDeviceNotFound.
+func (s *administration) findDevice(ctx context.Context, op string, id int64) (Device, error) {
+	device, err := s.devices.FindDevice(ctx, id)
+	if errors.Is(err, ErrDeviceNotFound) {
+		return Device{}, &AdministrationError{Op: op, Err: ErrAdministrationDeviceNotFound}
+	}
 	if err != nil {
-		if errors.Is(err, ErrDeviceNotFound) {
-			return &AdministrationError{Op: "UpdateDevice", Err: ErrAdministrationDeviceNotFound}
-		}
-		return &AdministrationError{Op: "UpdateDevice", Err: err}
+		return Device{}, &AdministrationError{Op: op, Err: err}
 	}
-	*device = *administrationDevicePointer(updated)
-	return nil
+	return device, nil
 }
 
 // DeleteDevice deletes an IoT device by its ID.
