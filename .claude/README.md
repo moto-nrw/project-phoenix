@@ -29,7 +29,7 @@ including UI comprehension, test contracts, and guardian permissions, have
 path scopes. Semantic triggers in the root table cover tasks that need a rule
 before touching those paths (including kiosk changes in a sibling repo).
 The quorum workflow has no reliable source-file trigger: it lives in
-`docs/agents/quorum-review-loop.md`, loaded by the root task table. The quorum Stop hook remains unchanged.
+`docs/agents/quorum-review-loop.md`, loaded by the root task table.
 
 ## Skills
 
@@ -57,7 +57,6 @@ hooks, but runtime tool matchers still determine which calls are intercepted.
 | `check-commit-message.sh` | Commit convention validation |
 | `check-env-files.sh` | Session-start env file check |
 | `skill-reminder.sh` | Task-relevant skill pointers |
-| `scripts/quorum-rerequest.sh --stop-hook` | Re-request quorum after pushed review fixes |
 
 No hook enforces the absolute rules (production requests, SOPS ciphertext,
 RLS in migrations, commit-hook bypass); agents follow the prose rules. Keep
