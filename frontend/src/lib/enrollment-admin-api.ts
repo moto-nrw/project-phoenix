@@ -438,6 +438,7 @@ export interface AdminRequestMail {
   kind: string;
   outcome: MailOutcome;
   address_mark?: EmailAddressMark;
+  stopped?: boolean;
   outcome_at?: string;
 }
 

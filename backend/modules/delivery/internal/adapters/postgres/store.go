@@ -223,7 +223,9 @@ type emailDeliveryStatusRow struct {
 	Attempts          int        `bun:"attempts"`
 	OutboxStatus      *string    `bun:"outbox_status"`
 	DeliveryState     *string    `bun:"delivery_state"`
+	DeliveryStateAt   *time.Time `bun:"delivery_state_at"`
 	AddressMark       *string    `bun:"address_mark"`
+	Stopped           bool       `bun:"stopped"`
 }
 
 func New(tenantDB TenantDatabase, adminDB AdminDatabase) *Store {
@@ -681,7 +683,10 @@ func (s *Store) ClaimFailedEmailDelivery(ctx context.Context, tenantID, delivery
 			AND delivery.outbox_id = outbox.id
 			AND outbox.tenant_id = delivery.tenant_id
 			AND (outbox.status = 'dead_letter'
-				OR (outbox.status = 'cancelled' AND outbox.delivery_state = 'suppressed'))`, tenantID, deliveryID).Exec(ctx)
+				OR (outbox.status = 'cancelled' AND outbox.delivery_state = 'suppressed')
+				OR (outbox.status = 'sent' AND outbox.delivery_state IN ('failed', 'suppressed'))
+				OR (outbox.status = 'sent' AND outbox.delivery_state = 'delayed' AND outbox.delivery_state_at < ?))`,
+		tenantID, deliveryID, time.Now().Add(-deliveryContract.EmailDelayLimit)).Exec(ctx)
 	if err != nil {
 		return false, fmt.Errorf("delivery postgres: claim failed email delivery: %w", err)
 	}
@@ -700,20 +705,26 @@ func (s *Store) EmailDeliveryStatuses(ctx context.Context, tenantID int64, relat
 	var rows []emailDeliveryStatusRow
 	if err := db.NewRaw(`
 		SELECT delivery.id AS delivery_id, delivery.guardian_profile_id, delivery.account_id,
-			delivery.recipient_email, delivery.reachability,
+			CASE WHEN contact.guardian_profile_id IS NOT NULL THEN contact.address ELSE LOWER(TRIM(delivery.recipient_email)) END AS recipient_email,
+			delivery.reachability,
 			CASE
 				WHEN delivery.outbox_id IS NULL THEN 'not_sent'
+				WHEN outbox.status = 'sent' AND outbox.delivery_state IN ('failed', 'suppressed') THEN 'failed'
 				WHEN outbox.status = 'sent' THEN 'sent'
 				WHEN outbox.status IN ('dead_letter', 'cancelled') THEN 'failed'
 				ELSE 'pending'
 			END AS email_status,
 			outbox.last_error, outbox.sent_at, COALESCE(outbox.attempts, 0) AS attempts,
-			outbox.status AS outbox_status, outbox.delivery_state, suppression.reason AS address_mark
+			outbox.status AS outbox_status, outbox.delivery_state, outbox.delivery_state_at,
+			suppression.reason AS address_mark, contact.emails_stopped_at IS NOT NULL AS stopped
 		FROM platform.delivery_email_deliveries AS delivery
 		LEFT JOIN platform.email_outbox AS outbox ON outbox.id = delivery.outbox_id
+		LEFT JOIN platform.delivery_guardian_contacts AS contact
+			ON contact.tenant_id = delivery.tenant_id AND contact.source = 'profile'
+			AND contact.guardian_profile_id = delivery.guardian_profile_id
 		LEFT JOIN platform.email_suppressions AS suppression
 			ON suppression.tenant_id = delivery.tenant_id
-			AND suppression.address = LOWER(TRIM(delivery.recipient_email))
+			AND suppression.address = CASE WHEN contact.guardian_profile_id IS NOT NULL THEN contact.address ELSE LOWER(TRIM(delivery.recipient_email)) END
 		WHERE delivery.tenant_id = ? AND delivery.related_entity_type = ?
 			AND delivery.related_entity_id = ?
 		ORDER BY delivery.id`, tenantID, relatedType, relatedID).Scan(ctx, &rows); err != nil {
@@ -727,11 +738,16 @@ func (s *Store) EmailDeliveryStatuses(ctx context.Context, tenantID int64, relat
 			Reachability:   row.Reachability, EmailStatus: row.EmailStatus, LastError: row.LastError,
 			SentAt: row.SentAt, Attempts: row.Attempts,
 		}
+		status.Stopped = row.Stopped
 		if row.AddressMark != nil {
 			status.AddressMark = deliveryContract.EmailAddressMark(*row.AddressMark)
 		}
 		if row.OutboxStatus != nil {
-			status.Outcome = deliveryContract.EmailOutcomeOf(*row.OutboxStatus, row.DeliveryState, row.LastError, status.AddressMark)
+			status.Outcome = deliveryContract.EmailOutcomeAt(deliveryContract.EmailOutcomeOf(*row.OutboxStatus, row.DeliveryState, row.LastError, status.AddressMark), row.DeliveryStateAt, time.Now())
+			// The wait has ended: the status says a new mail can go out (#5934).
+			if status.Outcome == deliveryContract.EmailOverdue {
+				status.EmailStatus = "failed"
+			}
 		}
 		statuses = append(statuses, status)
 	}
@@ -755,8 +771,8 @@ func toDomainRows(transport domain.Transport, rows []intentRow) []domain.Intent 
 		}
 		result = append(result, domain.Intent{
 			ID: row.ID, TenantID: row.TenantID, OrganizationID: organizationID, Transport: transport, Template: row.Kind,
-			DeliveryState: deliveryState,
-			Security:      row.Security, UseFallback: row.FallbackRequested != nil, DeliveryToken: row.DeliveryToken,
+			DeliveryState: deliveryState, DeliveryStateAt: row.DeliveryStateAt,
+			Security: row.Security, UseFallback: row.FallbackRequested != nil, DeliveryToken: row.DeliveryToken,
 			IdempotencyKey: row.IdempotencyKey, RelatedEntityType: row.RelatedEntityType,
 			RelatedEntityID: row.RelatedEntityID, Recipient: row.Recipient, Payload: row.Payload,
 			Status: row.Status, Attempts: row.Attempts, NextRetryAt: row.NextRetryAt,

@@ -88,12 +88,30 @@ func (c *workerCommandsForTest) RecordEmailDeliveryEvent(ctx context.Context, ev
 	return
 }
 
-func (c *workerCommandsForTest) EmailAddressSuppressed(ctx context.Context, tenantID int64, address string) (result0 bool, err error) {
+func (c *workerCommandsForTest) SchoolEmailHolds(ctx context.Context, tenantID int64, address string) (listed, stopped bool, err error) {
 	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
-		result0, err = c.Store.EmailAddressSuppressed(txCtx, tenantID, address)
+		listed, stopped, err = c.Store.SchoolEmailHolds(txCtx, tenantID, address)
 		return err
 	})
 	return
+}
+
+func (c *workerCommandsForTest) TraegerEmailHolds(ctx context.Context, organizationID int64, address string) (listed, stopped bool, err error) {
+	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
+		listed, stopped, err = c.Store.TraegerEmailHolds(txCtx, organizationID, address)
+		return err
+	})
+	return
+}
+
+func (c *workerCommandsForTest) EmailAddressSuppressed(ctx context.Context, tenantID int64, address string) (bool, error) {
+	var listed bool
+	err := c.withinAdmin(ctx, func(txCtx context.Context) error {
+		var err error
+		listed, _, err = c.Store.SchoolEmailHolds(txCtx, tenantID, address)
+		return err
+	})
+	return listed, err
 }
 
 func (c *workerCommandsForTest) OpenProviderMails(ctx context.Context, query domain.ProviderMailQuery) (result0 []domain.ProviderMail, err error) {
@@ -122,12 +140,4 @@ func (c *workerCommandsForTest) DeleteEmailSuppression(ctx context.Context, tena
 	return c.withinTenant(ctx, tenantID, func(txCtx context.Context) error {
 		return c.Store.DeleteEmailSuppression(txCtx, tenantID, address)
 	})
-}
-
-func (c *workerCommandsForTest) SchoolMailedAddress(ctx context.Context, tenantID int64, address string) (result0 bool, err error) {
-	err = c.withinTenant(ctx, tenantID, func(txCtx context.Context) error {
-		result0, err = c.Store.SchoolMailedAddress(txCtx, tenantID, address)
-		return err
-	})
-	return
 }

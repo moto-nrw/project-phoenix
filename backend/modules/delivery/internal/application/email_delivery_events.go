@@ -28,8 +28,14 @@ const (
 //nolint:staticcheck // user-visible sentence, not a wrapped message
 var errAddressSuppressed = errors.New("Diese Adresse ist gesperrt, weil eine frühere Mail nicht zugestellt werden konnte.")
 
+// errGuardianEmailsStopped is the reason of a mail to a person the school stopped
+// mail to. Like the one above it is shown to the school.
+//
+//nolint:staticcheck // user-visible sentence, not a wrapped message
+var errGuardianEmailsStopped = errors.New("Die Schule hat die Mails an diese Person gestoppt.")
+
 var eventStates = []domain.EmailDeliveryState{
-	domain.EmailDeliveryDelayed, domain.EmailDeliveryDelivered, domain.EmailDeliverySuppressed,
+	domain.EmailDeliveryDelayed, domain.EmailDeliveryDelivered, domain.EmailDeliverySuppressed, domain.EmailDeliveryUnsubscribed,
 	domain.EmailDeliveryFailed, domain.EmailDeliveryComplained,
 }
 
@@ -70,35 +76,50 @@ func truncateDiagnostic(text string) string {
 	return text
 }
 
-// addressSuppressed reports whether the suppression list holds this mail back.
-// It applies to mail a school sends to parents only: staff mail goes out until
-// the list has proven itself in production (#5935), security mail always goes
-// out, and system and Träger mail has no school list.
-func (w *Worker) addressSuppressed(ctx context.Context, intent domain.Intent) (bool, error) {
-	if intent.Transport != domain.TransportEmail || intent.Security || intent.TenantID <= 0 ||
-		!deliveryContract.IsParentMail(intent.Template) {
-		return false, nil
+// mailHold says why a mail stays back: the address is on a school's list, or the
+// school stopped mail to the person who holds it. The empty value lets it go.
+func (w *Worker) mailHold(ctx context.Context, intent domain.Intent) (error, error) {
+	if intent.Transport != domain.TransportEmail || intent.Security || !deliveryContract.IsParentMail(intent.Template) {
+		return nil, nil
 	}
 	store, ok := w.store.(ports.EmailDeliveryEventStore)
 	if !ok {
-		return false, nil
+		return nil, nil
 	}
 	var recipient deliveryContract.EmailRecipient
 	if err := json.Unmarshal(intent.Recipient, &recipient); err != nil {
-		return false, fmt.Errorf("delivery: decode email recipient: %w", err)
+		return nil, fmt.Errorf("delivery: decode email recipient: %w", err)
 	}
-	suppressed, err := store.EmailAddressSuppressed(ctx, intent.TenantID, recipient.Address)
-	if err != nil {
-		return false, fmt.Errorf("delivery: read suppression list: %w", err)
+	listed, stopped, err := heldAddress(ctx, store, intent, recipient.Address)
+	switch {
+	case err != nil:
+		return nil, fmt.Errorf("delivery: read the mail holds: %w", err)
+	case stopped:
+		return errGuardianEmailsStopped, nil
+	case listed:
+		return errAddressSuppressed, nil
 	}
-	return suppressed, nil
+	return nil, nil
 }
 
-// recordSuppressedSend marks the mail the list held back, so the school sees
-// why it did not go out. The mail is already final: a failure here is only
-// observed.
-func (w *Worker) recordSuppressedSend(ctx context.Context, intent domain.Intent) {
-	w.recordOwnEvent(ctx, intent, domain.EmailDeliverySuppressed, "suppressed", errAddressSuppressed.Error())
+// heldAddress reads the holds of a school's mail, or of a Träger's mail across
+// the schools of that Träger: a Träger has no list of its own, and a contract
+// goes to a family one of its schools knows.
+func heldAddress(ctx context.Context, store ports.EmailDeliveryEventStore, intent domain.Intent, address string) (listed, stopped bool, err error) {
+	switch {
+	case intent.TenantID > 0:
+		return store.SchoolEmailHolds(ctx, intent.TenantID, address)
+	case intent.OrganizationID > 0:
+		return store.TraegerEmailHolds(ctx, intent.OrganizationID, address)
+	}
+	return false, false, nil
+}
+
+// recordHeldSend marks the mail that stayed back, so the school sees why. The
+// event says nothing new about the address: it fills no list, and a lift a moment
+// ago stays lifted. The mail is already final: a failure here is only observed.
+func (w *Worker) recordHeldSend(ctx context.Context, intent domain.Intent, reason error) {
+	w.recordOwnEvent(ctx, intent, domain.EmailDeliverySuppressed, "held-back", reason.Error())
 }
 
 // recordRecipientRejection puts an address the mail server refused for good on

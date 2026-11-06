@@ -147,6 +147,7 @@ var seedCoverageTransient = map[string]string{
 	"auth.account_avatar_file_cleanup": "transient deletion intents for anonymized accounts; drained hourly, never create orphan files as demo data",
 	"auth.invitation_tokens":           "short-lived invitation state; the seed accepts some and leaves some open",
 	"platform.push_outbox":             "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
+	"platform.email_suppressions":      "addresses that bounced for good or complained (#5932); the local mail catcher never refuses an address",
 	"platform.email_delivery_events":   "events a mail provider reports after sending (#5932); the seed stack sends to the local mail catcher, which reports none",
 	"platform.realtime_notifications":  "two-minute copies of in-app notifications for other API processes (#5504); present only right after a notification and removed by the nightly delivery retention",
 }

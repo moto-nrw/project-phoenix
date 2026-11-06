@@ -48,6 +48,7 @@ vi.mock("@/lib/guardian-api", () => ({
   fetchStudentGuardianEmailStates: () => Promise.resolve({}),
   stopGuardianEmails: () => Promise.resolve(),
   liftGuardianEmailBlock: () => Promise.resolve(),
+  resumeGuardianEmails: () => Promise.resolve(),
   createStudentGuardians: (studentId: string, guardians: unknown) =>
     mockCreateStudentGuardians(studentId, guardians),
   updateGuardian: (id: string, data: unknown) => mockUpdateGuardian(id, data),
@@ -1387,6 +1388,25 @@ describe("StudentGuardianManager", () => {
   });
 
   describe("Invite for an existing account (#3320)", () => {
+    it("does not promise a portal mail that cannot go out", async () => {
+      mockInviteGuardianToStudent.mockResolvedValueOnce({
+        outcome: "linked_existing_account",
+        guardian_profile_id: "guardian-2",
+        mail_held: true,
+      });
+
+      render(<StudentGuardianManager studentId="student-123" />);
+      await waitFor(() =>
+        expect(screen.getByTestId("guardian-list")).toBeInTheDocument(),
+      );
+
+      fireEvent.click(screen.getByTestId("invite-guardian-2"));
+      await waitFor(() => expect(mockToastSuccess).toHaveBeenCalled());
+      const message = String(mockToastSuccess.mock.calls[0]?.[0]);
+      expect(message).toMatch(/geht kein Hinweis raus/);
+      expect(message).not.toMatch(/wird an .* gesendet/);
+    });
+
     it.each(["already_linked", "linked_existing_account"] as const)(
       "reports the portal mail for outcome %s",
       async (outcome) => {

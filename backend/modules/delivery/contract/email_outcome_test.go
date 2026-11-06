@@ -2,6 +2,7 @@ package contract
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -41,9 +42,36 @@ func TestEmailOutcomeOfNeverCallsAnAcceptedMailDelivered(t *testing.T) {
 
 func TestEmailSendBlockOf(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, EmailSendBlockAddress, EmailSendBlockOf(EmailMarkFailed, EmailDelivered))
-	assert.Equal(t, EmailSendBlockAddress, EmailSendBlockOf(EmailMarkComplained, EmailDelayed), "a mark outranks a delay")
-	assert.Equal(t, EmailSendBlockDelayed, EmailSendBlockOf("", EmailDelayed))
-	assert.Empty(t, EmailSendBlockOf("", EmailBlocked), "a lifted address can be mailed again")
-	assert.Empty(t, EmailSendBlockOf("", ""))
+	assert.Equal(t, EmailSendBlockStopped, EmailSendBlockOf(EmailMarkFailed, true, EmailDelivered), "the school's decision comes first")
+	assert.Equal(t, EmailSendBlockAddress, EmailSendBlockOf(EmailMarkFailed, false, EmailDelivered))
+	assert.Equal(t, EmailSendBlockAddress, EmailSendBlockOf(EmailMarkComplained, false, EmailDelayed), "a mark outranks a delay")
+	assert.Equal(t, EmailSendBlockDelayed, EmailSendBlockOf("", false, EmailDelayed))
+	assert.Empty(t, EmailSendBlockOf("", false, EmailOverdue), "after the wait a new mail is allowed")
+	assert.Empty(t, EmailSendBlockOf("", false, EmailBlocked), "a lifted address can be mailed again")
+	assert.Empty(t, EmailSendBlockOf("", false, ""))
+}
+
+func TestEmailOutcomeAtEndsTheWaitForADelayedMail(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	justBefore := now.Add(-EmailDelayLimit + time.Minute)
+	justAfter := now.Add(-EmailDelayLimit - time.Minute)
+	assert.Equal(t, EmailDelayed, EmailOutcomeAt(EmailDelayed, &justBefore, now))
+	assert.Equal(t, EmailOverdue, EmailOutcomeAt(EmailDelayed, &justAfter, now))
+	assert.Equal(t, EmailDelayed, EmailOutcomeAt(EmailDelayed, nil, now))
+	assert.Equal(t, EmailDelivered, EmailOutcomeAt(EmailDelivered, &justAfter, now), "only a delay ends")
+}
+
+func TestUnsubscribedIsNoBrokenAddress(t *testing.T) {
+	t.Parallel()
+	state := "unsubscribed"
+	assert.Equal(t, EmailUnsubscribed, EmailOutcomeOf("sent", &state, nil, ""))
+}
+
+// The calendar portal's test holds these names on its side.
+func TestAppointmentMailsAreParentMails(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{"appointment_published", "appointment_updated", "appointment_cancelled", "appointment_reminder"} {
+		assert.True(t, IsParentMail(kind), kind)
+	}
 }

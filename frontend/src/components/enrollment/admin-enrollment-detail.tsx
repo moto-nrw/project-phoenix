@@ -44,6 +44,7 @@ import {
 } from "~/lib/enrollment-admin-api";
 import {
   CHECK_ADDRESS_AT_GUARDIAN,
+  GUARDIAN_STOPPED_COPY,
   mailStatusCopy,
 } from "~/lib/email-delivery-status";
 import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
@@ -146,6 +147,8 @@ interface Props {
 }
 
 export function AdminEnrollmentDetail({ requestId }: Props) {
+  const { mails: requestMails, loadError: requestMailsError } =
+    useRequestMails(requestId);
   const careOfferingsEnabled = useCareOfferingsEnabled();
   const waitlistEnabled = useWaitlistEnabled();
   const tenantPath = useTenantAwarePath();
@@ -509,7 +512,57 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           </div>
 
           <aside className="border-t border-gray-100 bg-gray-50/70 p-4 sm:p-6 lg:border-t-0 lg:border-l">
-            <RequestMailsCard requestId={requestId} />
+            <LoadErrorAlert error={requestMailsError} className="mb-4" />
+            {/* Stays away while no mail exists: a card that always reads „keine
+                Mail“ tells the school nothing. */}
+            {requestMails.length > 0 && (
+              <SectionCard
+                title="E-Mails an die Familie"
+                description="Hier sehen Sie, ob die Mails zu dieser Anmeldung angekommen sind."
+                className="mb-4"
+              >
+                <ul className="divide-y divide-gray-100">
+                  {requestMails.map((mail, index) => {
+                    const copy = mailStatusCopy(
+                      mail.outcome,
+                      mail.address_mark,
+                      mail.stopped,
+                    );
+                    return (
+                      <li
+                        key={`${mail.kind}-${index}`}
+                        className="flex flex-wrap items-center justify-between gap-2 py-2"
+                      >
+                        <span className="text-sm text-gray-900">
+                          {REQUEST_MAIL_LABELS[mail.kind] ?? "E-Mail"}
+                        </span>
+                        {copy && (
+                          <StatusBadge
+                            label={copy.label}
+                            tone={copy.tone}
+                            compact
+                          />
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                {requestMails.some((mail) => mail.address_mark) && (
+                  <p className="mt-2 text-sm text-gray-600">
+                    An die Adresse dieser Anmeldung geht keine Mail raus. Bitte
+                    sprechen Sie die Familie direkt an. {CHECK_REQUEST_ADDRESS}
+                  </p>
+                )}
+                {requestMails.some(
+                  (mail) => mail.stopped && !mail.address_mark,
+                ) && (
+                  <p className="mt-2 text-sm text-gray-600">
+                    {GUARDIAN_STOPPED_COPY.explanation} Bitte sprechen Sie die
+                    Familie direkt an.
+                  </p>
+                )}
+              </SectionCard>
+            )}
             <ReviewSidebar
               childStats={childStats}
               data={data}
@@ -768,9 +821,11 @@ const REQUEST_MAIL_LABELS: Record<string, string> = {
   enrollment_change_request_rejected: "Änderung abgelehnt",
 };
 
-// What became of the mails to the family (#5934). Stays away while none exists:
-// a card that always reads „keine Mail“ tells the school nothing.
-function RequestMailsCard({ requestId }: Readonly<{ requestId: string }>) {
+// A request can come before any child exists at the school.
+const CHECK_REQUEST_ADDRESS = `Ist das Kind schon aufgenommen: ${CHECK_ADDRESS_AT_GUARDIAN}`;
+
+// What became of the mails to the family (#5934).
+function useRequestMails(requestId: string) {
   const [mails, setMails] = useState<AdminRequestMail[]>([]);
   const load = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = load;
@@ -791,42 +846,7 @@ function RequestMailsCard({ requestId }: Readonly<{ requestId: string }>) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  if (load.error) return <LoadErrorAlert error={load.error} className="mb-4" />;
-  if (mails.length === 0) return null;
-  const marked = mails.some((mail) => mail.address_mark);
-  return (
-    <SectionCard
-      title="E-Mails an die Familie"
-      description="Hier sehen Sie, ob die Mails zu dieser Anmeldung angekommen sind."
-      className="mb-4"
-    >
-      <ul className="divide-y divide-gray-100">
-        {mails.map((mail, index) => {
-          const copy = mailStatusCopy(mail.outcome, mail.address_mark);
-          return (
-            <li
-              key={`${mail.kind}-${index}`}
-              className="flex flex-wrap items-center justify-between gap-2 py-2"
-            >
-              <span className="text-sm text-gray-900">
-                {REQUEST_MAIL_LABELS[mail.kind] ?? "E-Mail"}
-              </span>
-              {copy && (
-                <StatusBadge label={copy.label} tone={copy.tone} compact />
-              )}
-            </li>
-          );
-        })}
-      </ul>
-      {marked && (
-        <p className="mt-2 text-sm text-gray-600">
-          An die Adresse dieser Anmeldung geht keine Mail raus. Bitte sprechen
-          Sie die Familie direkt an. {CHECK_ADDRESS_AT_GUARDIAN}
-        </p>
-      )}
-    </SectionCard>
-  );
+  return { mails, loadError: load.error };
 }
 
 function ReviewSidebar({

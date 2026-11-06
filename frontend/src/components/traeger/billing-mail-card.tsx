@@ -68,17 +68,33 @@ const MAIL_OUTCOME_BADGES: Partial<
   accepted: { label: "Gesendet", tone: "gray" },
   delivered: { label: "Zugestellt", tone: "green" },
   delayed: { label: "Verzögert", tone: "orange" },
+  overdue: { label: "Überfällig", tone: "orange" },
   undeliverable: { label: "Nicht zustellbar", tone: "red" },
   complained: { label: "Nicht zustellbar", tone: "red" },
+  blocked: { label: "Nicht gesendet", tone: "gray" },
+  unsubscribed: { label: "Abgemeldet", tone: "gray" },
+};
+
+// A further mail would only repeat these; the backend refuses it as well. The
+// family still needs the letter, so the note points to the print.
+const HELD_BACK_NOTES: Partial<Record<MailOutcome, string>> = {
+  blocked:
+    "Die Mail ging nicht raus, weil die Adresse gesperrt ist. Bitte drucken Sie das Schreiben.",
+  unsubscribed:
+    "Diese Person hat sich von den Mails abgemeldet. Bitte drucken Sie das Schreiben.",
+  complained:
+    "Diese Person hat eine Mail als unerwünscht gemeldet. Bitte drucken Sie das Schreiben.",
 };
 
 // The date beside the short status; it wraps on small screens.
 function statusDetail(mailing: LetterMailing): string | null {
   const at = (iso: string) =>
     `${formatBerlinDate(iso)}, ${formatTime(iso)} Uhr`;
-  if (mailing.mailOutcome === "delayed") {
-    return mailStatusCopy("delayed")?.explanation ?? null;
+  if (mailing.mailOutcome === "delayed" || mailing.mailOutcome === "overdue") {
+    return mailStatusCopy(mailing.mailOutcome)?.explanation ?? null;
   }
+  const heldBack = mailing.mailOutcome && HELD_BACK_NOTES[mailing.mailOutcome];
+  if (heldBack) return heldBack;
   if (mailing.status === "sent" && mailing.sentAt) {
     return `am ${at(mailing.sentAt)}`;
   }
@@ -271,7 +287,10 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
                   ) : null}
                   {mailing.recipientEmail &&
                   mailing.status !== "queued" &&
-                  mailing.mailOutcome !== "delayed" ? (
+                  mailing.mailOutcome !== "delayed" &&
+                  !(
+                    mailing.mailOutcome && HELD_BACK_NOTES[mailing.mailOutcome]
+                  ) ? (
                     <Button
                       type="button"
                       variant="ghost"

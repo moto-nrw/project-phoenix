@@ -74,6 +74,7 @@ type GuardianInviteResult struct {
 	GuardianProfileID int64
 	InvitationID      *int64
 	ExistingRole      string
+	MailHeld          bool
 }
 
 // GuardianBulkInvite invites the guardians of many children in one run
@@ -168,10 +169,14 @@ type GuardianRuntime struct {
 	// GuardianEmailStates reports the state of the addresses in the request's
 	// transaction, keyed by the address in lower case (#5934).
 	GuardianEmailStates func(ctx context.Context, addresses []string) (map[string]GuardianEmailState, error)
-	// StopGuardianEmails and LiftGuardianEmailBlock open their own short
-	// transactions: lifting waits for the mail provider.
-	StopGuardianEmails     func(ctx context.Context, guardianID int64) error
-	LiftGuardianEmailBlock func(ctx context.Context, guardianID int64) error
+	// SetGuardianEmailsStopped records the school's decision in the request's
+	// transaction, with its audit row.
+	SetGuardianEmailsStopped func(r *http.Request, guardianID int64, stopped bool) error
+	// LiftGuardianEmailBlock frees the address on file and writes its audit row.
+	// It opens its own transactions: lifting waits for the mail provider.
+	LiftGuardianEmailBlock func(r *http.Request, guardianID int64, address string) error
+	// InTenantTx runs a read in a short tenant transaction of its own.
+	InTenantTx func(context.Context, func(context.Context) error) error
 
 	RenderPaymentExport func(rows []peopledirectory.GuardianPaymentRow, format string) (ExportFile, error)
 
@@ -274,8 +279,9 @@ func (rs *GuardianResource) mountRelatedAccounts(r chi.Router, withTx Middleware
 	r.With(usersCreate, withTx).Post("/students/{studentId}/invite", rs.inviteGuardianToStudent)
 	r.With(usersCreate, withTx).Post("/bulk-invite", rs.bulkInviteGuardians)
 	r.With(rs.runtime.Permission(permissions.UsersRead), withTx).Get("/students/{studentId}/email-status", rs.getStudentGuardianEmailStatus)
+	r.With(usersUpdate, withTx).Post("/{id}/email-stop", rs.stopGuardianEmails)
+	r.With(usersUpdate, withTx).Delete("/{id}/email-stop", rs.resumeGuardianEmails)
 	// No request transaction: lifting waits for the mail provider (#5934).
-	r.With(usersUpdate).Post("/{id}/email-block", rs.stopGuardianEmails)
 	r.With(usersUpdate).Delete("/{id}/email-block", rs.liftGuardianEmailBlock)
 	r.With(usersManage, withTx).Get("/invitations/pending-approval", rs.listPendingApprovals)
 	r.With(usersUpdate, withTx).Post("/invitations/{invitationId}/approve", rs.approveInvitation)

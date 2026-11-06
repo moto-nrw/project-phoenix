@@ -33,6 +33,7 @@ const CodeParentBillingHolidayQuoteInvalid = "parent_billing.holiday_quote_inval
 const CodeParentBillingInvoiceCancelled = "parent_billing.invoice_cancelled"
 const CodeParentBillingInvoiceCredited = "parent_billing.invoice_credited"
 const CodeParentBillingInvoiceNumberTaken = "parent_billing.invoice_number_taken"
+const CodeParentBillingLetterMailBlocked = "parent_billing.letter_mail_blocked"
 const CodeParentBillingLetterMailDelayed = "parent_billing.letter_mail_delayed"
 const CodeParentBillingLetterMailPending = "parent_billing.letter_mail_pending"
 const CodeParentBillingLetterheadTooLong = "parent_billing.letterhead_too_long"
@@ -78,6 +79,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingInvoiceCancelled, "business_rejection"},
 	{CodeParentBillingInvoiceCredited, "business_rejection"},
 	{CodeParentBillingInvoiceNumberTaken, "business_rejection"},
+	{CodeParentBillingLetterMailBlocked, "business_rejection"},
 	{CodeParentBillingLetterMailDelayed, "business_rejection"},
 	{CodeParentBillingLetterMailPending, "business_rejection"},
 	{CodeParentBillingLetterheadTooLong, "business_rejection"},

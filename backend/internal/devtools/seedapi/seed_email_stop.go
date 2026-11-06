@@ -8,8 +8,7 @@ import (
 
 // seedEmailStopStep stops mail to one guardian through the route a school uses
 // (#5934), so the guardian tab shows „Versand gestoppt“. It runs after every
-// invitation of the seed, because a stopped address gets no new invitation. A
-// bounce needs a mail provider, which the local mail catcher is not.
+// invitation of the seed, because a stopped person gets no new invitation.
 type seedEmailStopStep struct{}
 
 func (seedEmailStopStep) Name() string { return "Seeding a stopped guardian address" }
@@ -27,7 +26,7 @@ func (seedEmailStopStep) Run(ctx context.Context, rt *Runtime) error {
 		return fmt.Errorf("login admin for the guardian email stop: %w", err)
 	}
 	guardianID := slices.Max(ids)
-	if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/api/guardians/%d/email-block", guardianID), map[string]any{}); err != nil {
+	if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/api/guardians/%d/email-stop", guardianID), map[string]any{}); err != nil {
 		return fmt.Errorf("seed the guardian email stop: %w", err)
 	}
 	fmt.Printf("  mail to guardian %d stopped\n", guardianID)

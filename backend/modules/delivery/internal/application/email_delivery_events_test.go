@@ -17,7 +17,11 @@ import (
 type eventWorkerStore struct {
 	workerStore
 	suppressed bool
-	events     []domain.EmailDeliveryEvent
+	stopped    bool
+	// traegerListed answers the read of a Träger's mail, so a test tells it apart
+	// from the school's.
+	traegerListed bool
+	events        []domain.EmailDeliveryEvent
 }
 
 func (s *eventWorkerStore) RecordEmailDeliveryEvent(_ context.Context, event domain.EmailDeliveryEvent) (domain.EmailDeliveryEventResult, error) {
@@ -25,8 +29,12 @@ func (s *eventWorkerStore) RecordEmailDeliveryEvent(_ context.Context, event dom
 	return domain.EmailDeliveryEventResult{Matched: true, Recorded: true, State: event.State}, nil
 }
 
-func (s *eventWorkerStore) EmailAddressSuppressed(context.Context, int64, string) (bool, error) {
-	return s.suppressed, nil
+func (s *eventWorkerStore) SchoolEmailHolds(context.Context, int64, string) (bool, bool, error) {
+	return s.suppressed, s.stopped, nil
+}
+
+func (s *eventWorkerStore) TraegerEmailHolds(context.Context, int64, string) (bool, bool, error) {
+	return s.traegerListed, false, nil
 }
 
 func eventMail(security bool) domain.Intent {
@@ -53,6 +61,37 @@ func TestWorkerHoldsBackAMailToASuppressedAddress(t *testing.T) {
 	assert.Equal(t, domain.EmailDeliverySuppressed, store.events[0].State)
 	assert.Equal(t, "token-1", store.events[0].Token)
 	assert.Equal(t, "lease-token", store.cancelledToken, "the mail ends before the dispatch fence")
+}
+
+func TestWorkerHoldsBackAMailToAStoppedGuardianWithoutMarkingTheAddress(t *testing.T) {
+	t.Parallel()
+	store := &eventWorkerStore{stopped: true}
+	store.claimed, store.renewed, store.finalizeCancelled = []domain.Intent{eventMail(false)}, true, true
+	provider := &workerProvider{}
+
+	stats, err := NewWorker(store, provider, func(domain.Observation) {}).RunOnce(context.Background(), 1, 6)
+
+	require.NoError(t, err)
+	assert.Zero(t, provider.calls)
+	assert.Equal(t, 1, stats.Cancelled)
+	require.Len(t, store.events, 1)
+	assert.False(t, store.events[0].State.BlocksAddress(), "the stop is the school's decision, not a problem of the address")
+}
+
+func TestWorkerAsksTheTraegersSchoolsForATraegerMail(t *testing.T) {
+	t.Parallel()
+	store := &eventWorkerStore{traegerListed: true}
+	mail := eventMail(false)
+	mail.TenantID, mail.OrganizationID = 0, 9
+	mail.Template = "care_contract"
+	store.claimed, store.renewed, store.finalizeCancelled = []domain.Intent{mail}, true, true
+	provider := &workerProvider{}
+
+	stats, err := NewWorker(store, provider, func(domain.Observation) {}).RunOnce(context.Background(), 1, 6)
+
+	require.NoError(t, err)
+	assert.Zero(t, provider.calls)
+	assert.Equal(t, 1, stats.Cancelled)
 }
 
 func TestWorkerSendsSecurityMailToASuppressedAddress(t *testing.T) {

@@ -137,6 +137,44 @@ describe("BillingMailCard", () => {
     ).toHaveLength(3);
   });
 
+  it.each([
+    ["blocked", "Nicht gesendet"],
+    ["unsubscribed", "Abgemeldet"],
+    ["complained", "Nicht zustellbar"],
+  ] as const)(
+    "points to the print and offers no useless resend for %s",
+    async (mailOutcome, label) => {
+      api.fetchLetterMailings.mockResolvedValue([
+        mailing({ documentId: "60", status: "sent", mailOutcome, sends: 1 }),
+      ]);
+      renderCard();
+
+      expect(await screen.findByText(label)).toBeInTheDocument();
+      expect(screen.queryByText("Gesendet")).toBeNull();
+      expect(screen.getByText(/drucken Sie das Schreiben/)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Erneut senden" }),
+      ).toBeNull();
+    },
+  );
+
+  it("offers the resend again after a delay ran past its limit", async () => {
+    api.fetchLetterMailings.mockResolvedValue([
+      mailing({
+        documentId: "61",
+        status: "sent",
+        mailOutcome: "overdue",
+        sends: 1,
+      }),
+    ]);
+    renderCard();
+
+    expect(await screen.findByText("Überfällig")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Erneut senden" }),
+    ).toBeInTheDocument();
+  });
+
   it("offers no send while a mail waits and none without an address", async () => {
     api.fetchLetterMailings.mockResolvedValue([
       mailing({ status: "queued", sends: 1 }),

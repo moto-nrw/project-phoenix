@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"net/http"
 	"time"
 
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
@@ -67,6 +69,7 @@ type GuardianInviteResult struct {
 	GuardianProfileID int64
 	InvitationID      *int64
 	ExistingRole      string
+	MailHeld          bool
 }
 
 // The bulk invitation (#3378) passes Identity & Access' own contract through.
@@ -119,9 +122,10 @@ type GuardianDirectoryRuntime struct {
 	RejectInvitation           func(ctx context.Context, invitationID, actorAccountID int64) error
 
 	// The mail state of a guardian's address (#5934).
-	GuardianEmailStates    func(context.Context, []string) (map[string]usersAPI.GuardianEmailState, error)
-	StopGuardianEmails     func(context.Context, int64) error
-	LiftGuardianEmailBlock func(context.Context, int64) error
+	GuardianEmailStates      func(context.Context, []string) (map[string]usersAPI.GuardianEmailState, error)
+	SetGuardianEmailsStopped func(*http.Request, int64, bool) error
+	LiftGuardianEmailBlock   func(*http.Request, int64, string) error
+	InTenantTx               func(context.Context, func(context.Context) error) error
 
 	// RenderPaymentExport renders the Bankverbindungen list; format is one
 	// of pdf, docx or xlsx, validated by the adapter beforehand.
@@ -140,8 +144,8 @@ type GuardianDirectoryInvitations interface {
 // serves the invitation writes, verifiedStaff tells a verified staff caller.
 // runtime is the People Directory's tenant runtime the invitation writes run
 // in.
-func NewGuardianDirectoryRuntime(guardians peoplePorts.GuardianService, renderer *lists.RendererService, invitations GuardianDirectoryInvitations, verifiedStaff func(context.Context) (bool, error), runtime peopleCompose.LegacyRepositoryRuntime, delivery GuardianEmailDelivery) GuardianDirectoryRuntime {
-	stopEmails, liftBlock := guardianEmailBlockFlows(delivery, runtime)
+func NewGuardianDirectoryRuntime(guardians peoplePorts.GuardianService, renderer *lists.RendererService, invitations GuardianDirectoryInvitations, verifiedStaff func(context.Context) (bool, error), runtime peopleCompose.LegacyRepositoryRuntime, delivery GuardianEmailDelivery, audit guardianEmailAudit, logger *slog.Logger) GuardianDirectoryRuntime {
+	setStopped, liftBlock := guardianEmailStopFlows(delivery, guardians, audit, runtime, logger)
 	sendInvitation, inviteGuardian, bulkInvite := guardianInvitationFlows(invitations, runtime)
 	listApprovals, approve, reject := guardianApprovalFlows(invitations, runtime)
 	return GuardianDirectoryRuntime{
@@ -159,8 +163,9 @@ func NewGuardianDirectoryRuntime(guardians peoplePorts.GuardianService, renderer
 		ApproveInvitation:          approve,
 		RejectInvitation:           reject,
 		GuardianEmailStates:        delivery.guardianEmailStates,
-		StopGuardianEmails:         stopEmails,
+		SetGuardianEmailsStopped:   setStopped,
 		LiftGuardianEmailBlock:     liftBlock,
+		InTenantTx:                 runtime.InTenantTx,
 		RenderPaymentExport:        guardianPaymentExport(renderer),
 	}
 }
@@ -202,7 +207,7 @@ func guardianInvitationFlows(invitations GuardianDirectoryInvitations, runtime p
 		}
 		return GuardianInviteResult{
 			Outcome: string(result.Outcome), GuardianProfileID: result.GuardianProfileID,
-			InvitationID: result.InvitationID, ExistingRole: result.ExistingRole,
+			InvitationID: result.InvitationID, ExistingRole: result.ExistingRole, MailHeld: result.MailHeld,
 		}, nil
 	}
 	bulk := func(ctx context.Context, req GuardianBulkInviteRequest) (*GuardianBulkInviteResult, error) {

@@ -181,6 +181,7 @@ type ParentAnnouncementLetterRecipient struct {
 	Reachability   string
 	MailOutcome    string
 	AddressMark    string
+	Stopped        bool
 	LastError      *string
 	SentAt         *time.Time
 }
@@ -209,6 +210,7 @@ type ParentAnnouncementLetterSummary struct {
 	EmailsDelivered       int `json:"emails_delivered"`
 	EmailsDelayed         int `json:"emails_delayed"`
 	EmailsAddressCheck    int `json:"emails_address_check"`
+	EmailsStopped         int `json:"emails_stopped"`
 	EmailsResendable      int `json:"emails_resendable"`
 	EmailsPending         int `json:"emails_pending"`
 	EmailsFailed          int `json:"emails_failed"`
@@ -245,6 +247,7 @@ type ParentAnnouncementEmailDeliveryStatus struct {
 	EmailStatus       string
 	MailOutcome       string
 	AddressMark       string
+	Stopped           bool
 	LastError         *string
 	SentAt            *time.Time
 	Attempts          int

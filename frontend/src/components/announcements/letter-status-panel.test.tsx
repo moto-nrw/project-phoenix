@@ -95,6 +95,21 @@ describe("LetterStatusPanel mail state (#5934)", () => {
     );
   });
 
+  it("does not count a stop as an address to check", async () => {
+    fetchLetterStatus.mockResolvedValue(
+      status({ emails_stopped: 1, emails_resendable: 0 }, [
+        recipient({ stopped: true }),
+      ]),
+    );
+    renderPanel();
+    expect(await screen.findAllByText("Versand gestoppt")).not.toHaveLength(0);
+    expect(screen.getByText(/die Schule sie gestoppt hat/)).toBeInTheDocument();
+    expect(screen.queryByText("Adresse prüfen")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/„Erziehungsberechtigte“/),
+    ).not.toBeInTheDocument();
+  });
+
   it("explains a delay and keeps the resend for what it can change", async () => {
     fetchLetterStatus.mockResolvedValue(
       status(

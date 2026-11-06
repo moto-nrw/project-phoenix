@@ -41,5 +41,6 @@
   "sibling_group_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "sibling_group_invoiced": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "sibling_group_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "letter_mail_delayed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+  "letter_mail_delayed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "letter_mail_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }

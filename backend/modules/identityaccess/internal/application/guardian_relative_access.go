@@ -250,6 +250,7 @@ func (l *AccountLifecycle) resolveInviteNow(ctx context.Context, req domain.Invi
 		if err := l.mailExistingAccountAccess(ctx, profile, tenantID); err != nil {
 			return nil, failed(opGuardianInviteToStudent, err)
 		}
+		mailHeld := errors.Is(l.refuseBlockedMail(ctx, tenantID, profile), domain.ErrGuardianEmailAddressBlocked)
 		outcome := domain.InviteOutcomeLinkedExistingAccount
 		if !linkCreated {
 			outcome = domain.InviteOutcomeAlreadyLinked
@@ -260,7 +261,7 @@ func (l *AccountLifecycle) resolveInviteNow(ctx context.Context, req domain.Invi
 			slog.Int64("created_by", req.CreatedBy),
 			slog.String("outcome", string(outcome)),
 		)
-		return &domain.InviteToStudentResult{Outcome: outcome, GuardianProfileID: profile.ID}, nil
+		return &domain.InviteToStudentResult{Outcome: outcome, GuardianProfileID: profile.ID, MailHeld: mailHeld}, nil
 	}
 
 	// No account yet: issue a token invitation for this child. The upgrade

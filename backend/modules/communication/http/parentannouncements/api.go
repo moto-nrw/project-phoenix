@@ -542,6 +542,7 @@ type letterRecipientResponse struct {
 	EmailStatus  string     `json:"email_status"`
 	MailOutcome  string     `json:"mail_outcome,omitempty"`
 	AddressMark  string     `json:"address_mark,omitempty"`
+	Stopped      bool       `json:"stopped,omitempty"`
 	Reachability string     `json:"reachability"`
 	LastError    *string    `json:"last_error,omitempty"`
 	SentAt       *time.Time `json:"sent_at,omitempty"`
@@ -588,6 +589,7 @@ func (rs *Resource) letterStatus(w http.ResponseWriter, r *http.Request) {
 			EmailStatus:  rcpt.EmailStatus,
 			MailOutcome:  rcpt.MailOutcome,
 			AddressMark:  rcpt.AddressMark,
+			Stopped:      rcpt.Stopped,
 			Reachability: rcpt.Reachability,
 			LastError:    rcpt.LastError,
 			SentAt:       rcpt.SentAt,

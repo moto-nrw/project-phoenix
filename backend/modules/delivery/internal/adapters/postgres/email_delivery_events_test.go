@@ -2,13 +2,11 @@ package postgres_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
 
-	postgresadapter "github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -268,11 +266,14 @@ func TestRetentionRemovesExpiredEventsAndSuppressions(t *testing.T) {
 		if keptSuppressions, err = store.DeleteUnheldEmailSuppressions(txCtx, school); err != nil {
 			return err
 		}
-		// However old the mark, it stays until someone at the school checked the
-		// address (#5934).
-		if _, err = tenantTxExec(txCtx, `UPDATE platform.email_suppressions SET updated_at = NOW() - INTERVAL '10 years' WHERE tenant_id = ?`, school); err != nil {
-			return err
-		}
+		return err
+	}))
+	// However old the mark, it stays until someone at the school checked the
+	// address (#5934).
+	_, err = db.ExecContext(context.Background(), `UPDATE platform.email_suppressions SET updated_at = NOW() - INTERVAL '10 years' WHERE tenant_id = ?`, school)
+	require.NoError(t, err)
+	require.NoError(t, tenant.WithTenantTx(ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
+		var err error
 		suppressions, err = store.DeleteUnheldEmailSuppressions(txCtx, school)
 		return err
 	}))
@@ -753,14 +754,6 @@ func TestLiftSuppressionPreservesAComplaintRecordedAfterTheEligibilityCheck(t *t
 	assert.Equal(t, domain.EmailSuppressionComplained, reason)
 }
 
-func tenantTxExec(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	db, err := postgresadapter.RequireTenantDatabase(ctx, args[0].(int64))
-	if err != nil {
-		return nil, err
-	}
-	return db.ExecContext(ctx, query, args...)
-}
-
 // A mail that arrived or drew a complaint is not sent a second time, whatever
 // reaches moto later.
 func TestLateFailureDoesNotRerouteADeliveredOrComplainedMail(t *testing.T) {
@@ -923,29 +916,6 @@ func TestOpenProviderMailsNameTheirLastCheck(t *testing.T) {
 	require.Len(t, mails, 1)
 	require.NotNil(t, mails[0].CheckedAt)
 	assert.True(t, mails[0].CheckedAt.Equal(checkedAt))
-}
-
-func TestSchoolMailedAddressIsExactAndOfThatSchool(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	store, ctx := testStore(t, db)
-	school, other := testpkg.Tenant(t), testpkg.NewTenantScope(t, db).TenantID
-	enqueueEventMail(t, db, store, ctx, school, "mailed", false)
-
-	for name, test := range map[string]struct {
-		school  int64
-		address string
-		want    bool
-	}{
-		"same address":   {school, "guardian@example.com", true},
-		"any case":       {school, " GUARDIAN@example.com ", true},
-		"part of it":     {school, "guardian@example.co", false},
-		"another school": {other, "guardian@example.com", false},
-	} {
-		mailed, err := store.SchoolMailedAddress(ctx, test.school, test.address)
-		require.NoError(t, err, name)
-		assert.Equal(t, test.want, mailed, name)
-	}
 }
 
 // Only the bounce goes, under the school's own row-level security.

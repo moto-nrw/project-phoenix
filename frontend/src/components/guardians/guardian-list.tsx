@@ -20,6 +20,7 @@ import {
 } from "./guardian-contact-actions";
 import type { GuardianEmailState } from "@/lib/guardian-api";
 import {
+  GUARDIAN_STOPPED_COPY,
   guardianAddressNextStep,
   mailStatusCopy,
 } from "~/lib/email-delivery-status";
@@ -91,6 +92,7 @@ interface GuardianListProps {
   readonly emailStates?: Readonly<Record<string, GuardianEmailState>>;
   readonly onStopEmails?: (guardian: GuardianWithRelationship) => void;
   readonly onLiftEmailBlock?: (guardian: GuardianWithRelationship) => void;
+  readonly onResumeEmails?: (guardian: GuardianWithRelationship) => void;
   readonly readOnly?: boolean;
   readonly showRelationship?: boolean;
 }
@@ -129,6 +131,7 @@ export default function GuardianList({
   emailStates,
   onStopEmails,
   onLiftEmailBlock,
+  onResumeEmails,
   readOnly = false,
   showRelationship = true,
 }: GuardianListProps) {
@@ -179,14 +182,15 @@ export default function GuardianList({
         onClick: () => onLiftEmailBlock(guardian),
       });
     }
-    if (guardian.email && mark === "school_stop" && onLiftEmailBlock) {
+    const stopped = emailStates?.[guardian.id]?.emailsStopped;
+    if (stopped && onResumeEmails) {
       items.push({
         label: "Mails wieder senden",
         icon: <MailCheck className="h-4 w-4" aria-hidden />,
-        onClick: () => onLiftEmailBlock(guardian),
+        onClick: () => onResumeEmails(guardian),
       });
     }
-    if (guardian.email && !mark && emailStates && onStopEmails) {
+    if (guardian.email && !stopped && emailStates && onStopEmails) {
       items.push({
         label: "Mails stoppen",
         icon: <MailX className="h-4 w-4" aria-hidden />,
@@ -204,6 +208,7 @@ export default function GuardianList({
           emailState?.mailOutcome,
           emailState?.addressMark,
         );
+        const stopped = emailState?.emailsStopped === true;
         // A new invitation would change nothing: the note below says why.
         const showInvite =
           canInviteGuardian(guardian, onInvite) && !emailState?.sendBlock;
@@ -230,6 +235,13 @@ export default function GuardianList({
                     <StatusBadge
                       label={mailCopy.label}
                       tone={mailCopy.tone}
+                      compact
+                    />
+                  )}
+                  {stopped && (
+                    <StatusBadge
+                      label={GUARDIAN_STOPPED_COPY.label}
+                      tone={GUARDIAN_STOPPED_COPY.tone}
                       compact
                     />
                   )}
@@ -266,6 +278,15 @@ export default function GuardianList({
                 {emailState?.addressMark && !readOnly
                   ? ` ${guardianAddressNextStep(emailState.addressMark)}`
                   : null}
+              </p>
+            )}
+
+            {stopped && (
+              <p className="-mt-1 mb-3 text-sm text-gray-600">
+                {GUARDIAN_STOPPED_COPY.explanation}
+                {readOnly
+                  ? null
+                  : " Mit „Mails wieder senden“ heben Sie den Stopp auf."}
               </p>
             )}
 

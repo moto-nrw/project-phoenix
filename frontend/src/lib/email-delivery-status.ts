@@ -10,13 +10,15 @@ export type MailOutcome =
   | "delayed"
   | "undeliverable"
   | "blocked"
+  | "unsubscribed"
+  | "overdue"
   | "complained"
   | "send_failed"
   | "unknown"
   | "cancelled";
 
 /** Why the school's list holds an address. It stays until someone checked it. */
-export type EmailAddressMark = "failed" | "complained" | "school_stop";
+export type EmailAddressMark = "failed" | "complained";
 
 export interface MailStatusCopy {
   readonly label: string;
@@ -38,12 +40,17 @@ const ADDRESS_COPY: Record<EmailAddressMark, MailStatusCopy> = {
     explanation:
       "Diese Person hat eine Mail als unerwünscht gemeldet. Die Adresse ist deshalb gesperrt. Sprechen Sie die Person direkt an.",
   },
-  school_stop: {
-    label: "Versand gestoppt",
-    tone: "gray",
-    explanation:
-      "Ihre Schule hat die Mails an diese Adresse gestoppt. Anmeldecodes und Mails zum Passwort kommen weiter an.",
-  },
+};
+
+/**
+ * The school's decision about a person, not a problem of an address. It follows
+ * the person to a new address, so it never reads like "Adresse prüfen".
+ */
+export const GUARDIAN_STOPPED_COPY: MailStatusCopy = {
+  label: "Versand gestoppt",
+  tone: "gray",
+  explanation:
+    "Ihre Schule hat die Mails an diese Person gestoppt. Anmeldecodes, Mails zum Passwort und Abrechnungsbriefe des Trägers kommen weiter an.",
 };
 
 const OUTCOME_COPY: Record<MailOutcome, MailStatusCopy> = {
@@ -64,13 +71,25 @@ const OUTCOME_COPY: Record<MailOutcome, MailStatusCopy> = {
   undeliverable: {
     label: "Nicht zustellbar",
     tone: "red",
-    explanation: "Die Mail kam nicht an. Bitte prüfen Sie die Adresse.",
+    explanation: "Die Mail kam nicht an.",
   },
   blocked: {
     label: "Nicht gesendet",
     tone: "gray",
     explanation:
-      "Die Mail ging nicht raus, weil die Adresse gesperrt war. Die Sperre ist aufgehoben, Sie können neu senden.",
+      "Die Mail ging nicht raus, weil die Adresse gesperrt war. Sie können es noch einmal versuchen.",
+  },
+  unsubscribed: {
+    label: "Abgemeldet",
+    tone: "gray",
+    explanation:
+      "Diese Person hat sich von den Mails abgemeldet. Sprechen Sie sie direkt an.",
+  },
+  overdue: {
+    label: "Überfällig",
+    tone: "orange",
+    explanation:
+      "Die Mail ist seit Tagen verzögert. Sie können sie noch einmal senden.",
   },
   complained: {
     label: "Nicht zustellbar",
@@ -92,21 +111,24 @@ const OUTCOME_COPY: Record<MailOutcome, MailStatusCopy> = {
 
 /**
  * The words for one mail and its address. A mark outranks the mail: while the
- * address is held, the next step is to check it, whatever the last mail did.
+ * address is held, the next step is to check it, whatever the last mail did. A
+ * stop outranks the mail too, since no next mail goes out either.
  * Returns null when nothing is known yet, so a caller shows no status at all.
  */
 export function mailStatusCopy(
   outcome?: MailOutcome | "",
   mark?: EmailAddressMark | "",
+  stopped?: boolean,
 ): MailStatusCopy | null {
   if (mark) return ADDRESS_COPY[mark];
+  if (stopped) return GUARDIAN_STOPPED_COPY;
   if (!outcome) return null;
   return OUTCOME_COPY[outcome] ?? null;
 }
 
 /**
  * The next step on a guardian's card. Only a bounced address can be freed by the
- * school: a complaint stays, and a stop is the school's own decision.
+ * school: a complaint stays.
  */
 export function guardianAddressNextStep(mark: EmailAddressMark): string {
   switch (mark) {
@@ -114,11 +136,13 @@ export function guardianAddressNextStep(mark: EmailAddressMark): string {
       return "Stimmt die Adresse nicht, ändern Sie sie unter „Bearbeiten“. Stimmt sie, wählen Sie „Sperre aufheben“.";
     case "complained":
       return "Sie können diese Sperre nicht aufheben. Eine andere Adresse tragen Sie unter „Bearbeiten“ ein.";
-    case "school_stop":
-      return "Mit „Mails wieder senden“ heben Sie den Stopp auf.";
   }
 }
 
 /** Where a school corrects an address it sees outside the guardian's card. */
 export const CHECK_ADDRESS_AT_GUARDIAN =
   "Korrigieren Sie die Adresse beim Kind unter „Erziehungsberechtigte“.";
+
+/** Whoever sees a letter without the OGS's access to the guardian's card. */
+export const TELL_THE_OGS_ABOUT_THE_ADDRESS =
+  "Sagen Sie der OGS Bescheid. Dort lässt sich die Adresse korrigieren.";

@@ -54,6 +54,6 @@
   "access_name_required": "Für diese Schule fehlt der Name der Person. Bitte geben Sie Vor- und Nachnamen ein.",
   "caterer_address_taken": "Diese E-Mail-Adresse gehört schon zu einem anderen moto-Konto. Bitte nehmen Sie eine andere Adresse.",
   "caterer_without_school": "Sie beliefern zurzeit keine Schule über moto. Bitte fragen Sie die Schule.",
-  "guardian_email_address_blocked": "Die Einladung wurde nicht gesendet, weil diese Adresse gesperrt ist. Den Grund und den nächsten Schritt sehen Sie bei der Person.",
+  "guardian_email_address_blocked": "Die Einladung wurde nicht gesendet, weil an diese Person keine Mails gehen. Den Grund und den nächsten Schritt sehen Sie bei der Person.",
   "invitation_mail_delayed": "Die letzte Einladung ist noch unterwegs. Bitte warten Sie, sonst kommt sie doppelt an."
 }

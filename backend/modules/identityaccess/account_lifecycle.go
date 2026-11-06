@@ -340,6 +340,8 @@ type InviteToStudentResult struct {
 	GuardianProfileID int64
 	InvitationID      *int64
 	ExistingRole      string
+	// MailHeld says the access exists but no mail will reach the person (#5934).
+	MailHeld bool
 }
 
 // RevokeAccessRequest removes one account's access to one child by deleting

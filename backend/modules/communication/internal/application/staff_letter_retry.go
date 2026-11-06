@@ -154,9 +154,10 @@ func (s *service) resendFailedLetterRecipient(ctx context.Context, a *StaffParen
 	if row.RecipientEmail == nil || *row.RecipientEmail == "" {
 		return false, nil
 	}
-	// A marked address stays out: the list would hold the mail back again and the
-	// school would read the resend as done. The status names the address instead.
-	if row.EmailStatus != "failed" || row.AddressMark != "" {
+	// A marked address and a stopped person stay out: the mail would stay back
+	// again and the school would read the resend as done. RecipientEmail is the
+	// person's current address, so a correction goes to the new one.
+	if row.EmailStatus != "failed" || row.AddressMark != "" || row.Stopped {
 		return false, nil
 	}
 	claimed, err := s.deliveries.ClaimFailedDelivery(ctx, tenantID, row.DeliveryID)

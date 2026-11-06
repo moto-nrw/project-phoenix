@@ -76,12 +76,39 @@ func TestGuardianEmailStatusNeedsItsPermissions(t *testing.T) {
 	testpkg.CreateTestStudentGuardianLink(t, c.db, student.ID, guardian.ID, "primary_guardian")
 
 	statusPath := fmt.Sprintf("/students/%d/email-status", student.ID)
-	blockPath := fmt.Sprintf("/%d/email-block", guardian.ID)
 	testutil.AssertErrorResponse(t, c.do(t, account.ID, http.MethodGet, statusPath, permissions.StudentsRead), http.StatusForbidden)
-	testutil.AssertErrorResponse(t, c.do(t, account.ID, http.MethodPost, blockPath, permissions.UsersRead), http.StatusForbidden)
-	testutil.AssertErrorResponse(t, c.do(t, account.ID, http.MethodDelete, blockPath, permissions.UsersRead), http.StatusForbidden)
+	for _, path := range []string{fmt.Sprintf("/%d/email-stop", guardian.ID), fmt.Sprintf("/%d/email-block", guardian.ID)} {
+		testutil.AssertErrorResponse(t, c.do(t, account.ID, http.MethodDelete, path, permissions.UsersRead), http.StatusForbidden)
+	}
+	testutil.AssertErrorResponse(t, c.do(t, account.ID, http.MethodPost, fmt.Sprintf("/%d/email-stop", guardian.ID), permissions.UsersRead), http.StatusForbidden)
 
 	assert.Equal(t, http.StatusOK, c.do(t, account.ID, http.MethodGet, statusPath, permissions.UsersRead).Code)
+}
+
+// Finding 1 (#2329): users:update alone is not enough. An account without a staff
+// record, and staff on a contact without a child, are refused like on every other
+// change to a guardian.
+func TestGuardianEmailChangesNeedARightToModifyTheGuardian(t *testing.T) {
+	t.Parallel()
+	c := setupGuardianEmailRoute(t)
+	guardian := testpkg.CreateTestGuardianProfile(t, c.db, "mail-modify")
+	student := testpkg.CreateTestStudent(t, c.db, "Mail", "Modify", "1a")
+	testpkg.CreateTestStudentGuardianLink(t, c.db, student.ID, guardian.ID, "primary_guardian")
+	withoutChild := testpkg.CreateTestGuardianProfile(t, c.db, "mail-no-child")
+	_, staff := testpkg.CreateTestStaffWithAccount(t, c.db, "Mail", "Personal")
+	noStaff := testpkg.CreateTestAccount(t, c.db, "mail-no-staff")
+
+	for _, request := range []struct{ method, path string }{
+		{http.MethodPost, "/%d/email-stop"}, {http.MethodDelete, "/%d/email-stop"}, {http.MethodDelete, "/%d/email-block"},
+	} {
+		rr := c.do(t, noStaff.ID, request.method, fmt.Sprintf(request.path, guardian.ID), permissions.UsersUpdate)
+		testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
+		rr = c.do(t, staff.ID, request.method, fmt.Sprintf(request.path, withoutChild.ID), permissions.UsersUpdate)
+		testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
+	}
+	var stopped int
+	require.NoError(t, c.db.NewRaw(`SELECT count(*) FROM users.guardian_profiles WHERE id IN (?, ?) AND emails_stopped_at IS NOT NULL`, guardian.ID, withoutChild.ID).Scan(testpkg.Ctx(t), &stopped))
+	assert.Zero(t, stopped)
 }
 
 func TestGuardianEmailRoutesStayInsideTheSchool(t *testing.T) {
@@ -90,22 +117,24 @@ func TestGuardianEmailRoutesStayInsideTheSchool(t *testing.T) {
 	_, account := testpkg.CreateTestStaffWithAccount(t, c.db, "Mail", "Schule")
 	other := testpkg.NewTenantScope(t, c.db)
 	otherStudent := testpkg.CreateTestStudentForTenant(t, c.db, other.TenantID, "Fremd", "Kind", "1a")
-	var otherGuardian int64
-	require.NoError(t, c.db.NewRaw(`INSERT INTO users.guardian_profiles (tenant_id, first_name, last_name, email)
-		VALUES (?, 'Fremd', 'Eltern', 'fremd@example.com') RETURNING id`, other.TenantID).Scan(testpkg.Ctx(t), &otherGuardian))
+	otherGuardian := testpkg.CreateTestGuardianProfileForTenant(t, c.db, other.TenantID, "Fremd", "Eltern", "fremd-mail")
 
 	statusRR := c.do(t, account.ID, http.MethodGet, fmt.Sprintf("/students/%d/email-status", otherStudent.ID), permissions.UsersRead)
 	assert.Equal(t, http.StatusNotFound, statusRR.Code, statusRR.Body.String())
-	stopRR := c.do(t, account.ID, http.MethodPost, fmt.Sprintf("/%d/email-block", otherGuardian), permissions.UsersUpdate)
-	assert.Equal(t, http.StatusNotFound, stopRR.Code, stopRR.Body.String())
-
-	var marks int
-	require.NoError(t, c.db.NewRaw(`SELECT count(*) FROM platform.email_suppressions WHERE address = 'fremd@example.com'`).Scan(testpkg.Ctx(t), &marks))
-	assert.Zero(t, marks, "another school's address stays untouched")
+	for _, request := range []struct{ method, path string }{
+		{http.MethodPost, "/%d/email-stop"}, {http.MethodDelete, "/%d/email-block"},
+	} {
+		rr := c.do(t, account.ID, request.method, fmt.Sprintf(request.path, otherGuardian.ID), permissions.UsersUpdate)
+		assert.Contains(t, []int{http.StatusForbidden, http.StatusNotFound}, rr.Code, rr.Body.String())
+	}
+	var stopped int
+	require.NoError(t, c.db.NewRaw(`SELECT count(*) FROM users.guardian_profiles WHERE id = ? AND emails_stopped_at IS NOT NULL`, otherGuardian.ID).Scan(testpkg.Ctx(t), &stopped))
+	assert.Zero(t, stopped, "another school's guardian stays untouched")
 }
 
-// The whole path a school walks: stop, read, invite refused, lift, invite again.
-func TestGuardianEmailStopRefusesTheInvitationUntilLifted(t *testing.T) {
+// The whole path a school walks: stop, read, invite refused, new address, still
+// stopped, take the stop back, invite. Both changes leave an audit row.
+func TestGuardianEmailStopBelongsToThePerson(t *testing.T) {
 	t.Parallel()
 	c := setupGuardianEmailRoute(t)
 	_, account := testpkg.CreateTestStaffWithAccount(t, c.db, "Mail", "Stopp")
@@ -113,24 +142,79 @@ func TestGuardianEmailStopRefusesTheInvitationUntilLifted(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, c.db, "Mail", "Stoppkind", "1a")
 	testpkg.CreateTestStudentGuardianLink(t, c.db, student.ID, guardian.ID, "primary_guardian")
 	statusPath := fmt.Sprintf("/students/%d/email-status", student.ID)
-	blockPath := fmt.Sprintf("/%d/email-block", guardian.ID)
+	stopPath := fmt.Sprintf("/%d/email-stop", guardian.ID)
 	invitePath := fmt.Sprintf("/%d/invite", guardian.ID)
 
-	require.Equal(t, http.StatusOK, c.do(t, account.ID, http.MethodPost, blockPath, permissions.UsersUpdate).Code)
+	require.Equal(t, http.StatusOK, c.do(t, account.ID, http.MethodPost, stopPath, permissions.UsersUpdate).Code)
 	line := emailStatusLine(t, c.do(t, account.ID, http.MethodGet, statusPath, permissions.UsersRead), guardian.ID)
-	assert.Equal(t, "school_stop", line["address_mark"])
-	assert.Equal(t, "address", line["send_block"])
+	assert.Equal(t, true, line["emails_stopped"])
+	assert.Equal(t, "stopped", line["send_block"])
+	assert.Nil(t, line["address_mark"], "the stop is not on the address list")
 
 	refused := c.do(t, account.ID, http.MethodPost, invitePath, permissions.UsersCreate)
 	testutil.AssertErrorResponse(t, refused, http.StatusConflict)
 	assert.Contains(t, refused.Body.String(), common.CodeIdentityGuardianEmailAddressBlocked)
 
-	require.Equal(t, http.StatusOK, c.do(t, account.ID, http.MethodDelete, blockPath, permissions.UsersUpdate).Code)
+	// A new address, the way the school or the parent changes it, ends nothing.
+	_, err := c.db.ExecContext(testpkg.Ctx(t), `UPDATE users.guardian_profiles SET email = 'neu-' || email WHERE id = ?`, guardian.ID)
+	require.NoError(t, err)
 	line = emailStatusLine(t, c.do(t, account.ID, http.MethodGet, statusPath, permissions.UsersRead), guardian.ID)
-	assert.Nil(t, line["address_mark"])
+	assert.Equal(t, true, line["emails_stopped"])
+	refused = c.do(t, account.ID, http.MethodPost, invitePath, permissions.UsersCreate)
+	testutil.AssertErrorResponse(t, refused, http.StatusConflict)
 
+	require.Equal(t, http.StatusOK, c.do(t, account.ID, http.MethodDelete, stopPath, permissions.UsersUpdate).Code)
+	line = emailStatusLine(t, c.do(t, account.ID, http.MethodGet, statusPath, permissions.UsersRead), guardian.ID)
+	assert.Nil(t, line["emails_stopped"])
 	invited := c.do(t, account.ID, http.MethodPost, invitePath, permissions.UsersCreate)
 	assert.Less(t, invited.Code, 300, invited.Body.String())
+
+	var audited int
+	require.NoError(t, c.db.NewRaw(`SELECT count(*) FROM audit.data_access_log
+		WHERE resource_type = 'guardian_email_stop' AND actor_account_id = ? AND metadata->>'guardian_profile_id' = ?`,
+		account.ID, fmt.Sprint(guardian.ID)).Scan(testpkg.Ctx(t), &audited))
+	assert.Equal(t, 2, audited)
+}
+
+// Saving a guardian's profile, as staff and the parent portal do, keeps the stop.
+func TestSavingAGuardianKeepsTheStop(t *testing.T) {
+	t.Parallel()
+	c := setupGuardianEmailRoute(t)
+	_, account := testpkg.CreateTestStaffWithAccount(t, c.db, "Mail", "Speichern")
+	guardian := testpkg.CreateTestGuardianProfile(t, c.db, "mail-save")
+	student := testpkg.CreateTestStudent(t, c.db, "Mail", "Speicherkind", "1a")
+	testpkg.CreateTestStudentGuardianLink(t, c.db, student.ID, guardian.ID, "primary_guardian")
+	require.Equal(t, http.StatusOK, c.do(t, account.ID, http.MethodPost, fmt.Sprintf("/%d/email-stop", guardian.ID), permissions.UsersUpdate).Code)
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/guardians/%d", guardian.ID),
+		map[string]any{"first_name": "Neu", "email": "neu-" + *guardian.Email}, bearer(t, guardianStaffClaims(account.ID, permissions.UsersUpdate)))
+	rr := testutil.ExecuteRequest(c.router, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	var stopped bool
+	require.NoError(t, c.db.NewRaw(`SELECT emails_stopped_at IS NOT NULL FROM users.guardian_profiles WHERE id = ?`, guardian.ID).Scan(testpkg.Ctx(t), &stopped))
+	assert.True(t, stopped)
+}
+
+// Lifting only clears what the school caused, and the audit row names no address.
+func TestGuardianEmailLiftIsAuditedWithoutTheAddress(t *testing.T) {
+	t.Parallel()
+	c := setupGuardianEmailRoute(t)
+	_, account := testpkg.CreateTestStaffWithAccount(t, c.db, "Mail", "Sperre")
+	guardian := testpkg.CreateTestGuardianProfile(t, c.db, "mail-lift")
+	student := testpkg.CreateTestStudent(t, c.db, "Mail", "Sperrkind", "1a")
+	testpkg.CreateTestStudentGuardianLink(t, c.db, student.ID, guardian.ID, "primary_guardian")
+	c.mark(t, *guardian.Email, "failed")
+
+	require.Equal(t, http.StatusOK, c.do(t, account.ID, http.MethodDelete, fmt.Sprintf("/%d/email-block", guardian.ID), permissions.UsersUpdate).Code)
+	var metadata string
+	require.NoError(t, c.db.NewRaw(`SELECT metadata::text FROM audit.data_access_log
+		WHERE resource_type = 'guardian_email_lift' AND actor_account_id = ?`, account.ID).Scan(testpkg.Ctx(t), &metadata))
+	assert.Contains(t, metadata, fmt.Sprint(guardian.ID))
+	assert.NotContains(t, metadata, *guardian.Email)
+
+	// Nothing on the list: the address is free as far as moto knows.
+	require.Equal(t, http.StatusOK, c.do(t, account.ID, http.MethodDelete, fmt.Sprintf("/%d/email-block", guardian.ID), permissions.UsersUpdate).Code)
 }
 
 func TestGuardianEmailComplaintIsNotLiftedByTheSchool(t *testing.T) {
@@ -138,6 +222,8 @@ func TestGuardianEmailComplaintIsNotLiftedByTheSchool(t *testing.T) {
 	c := setupGuardianEmailRoute(t)
 	_, account := testpkg.CreateTestStaffWithAccount(t, c.db, "Mail", "Beschwerde")
 	guardian := testpkg.CreateTestGuardianProfile(t, c.db, "mail-complaint")
+	student := testpkg.CreateTestStudent(t, c.db, "Mail", "Beschwerdekind", "1a")
+	testpkg.CreateTestStudentGuardianLink(t, c.db, student.ID, guardian.ID, "primary_guardian")
 	c.mark(t, *guardian.Email, "complained")
 
 	rr := c.do(t, account.ID, http.MethodDelete, fmt.Sprintf("/%d/email-block", guardian.ID), permissions.UsersUpdate)

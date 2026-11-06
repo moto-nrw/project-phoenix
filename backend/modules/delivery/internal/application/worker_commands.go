@@ -165,9 +165,17 @@ func (c *WorkerCommands) RecordEmailDeliveryEvent(ctx context.Context, event dom
 	return
 }
 
-func (c *WorkerCommands) EmailAddressSuppressed(ctx context.Context, tenantID int64, address string) (result0 bool, err error) {
+func (c *WorkerCommands) SchoolEmailHolds(ctx context.Context, tenantID int64, address string) (listed, stopped bool, err error) {
 	err = c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
-		result0, err = c.WorkerRecords.EmailAddressSuppressed(txCtx, tenantID, address)
+		listed, stopped, err = c.WorkerRecords.SchoolEmailHolds(txCtx, tenantID, address)
+		return err
+	})
+	return
+}
+
+func (c *WorkerCommands) TraegerEmailHolds(ctx context.Context, organizationID int64, address string) (listed, stopped bool, err error) {
+	err = c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+		listed, stopped, err = c.WorkerRecords.TraegerEmailHolds(txCtx, organizationID, address)
 		return err
 	})
 	return
@@ -199,18 +207,4 @@ func (c *WorkerCommands) DeleteEmailSuppression(ctx context.Context, tenantID in
 	return c.schools.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
 		return c.WorkerRecords.DeleteEmailSuppression(txCtx, tenantID, address)
 	})
-}
-
-func (c *WorkerCommands) StopEmailsToAddress(ctx context.Context, tenantID int64, address string) error {
-	return c.schools.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
-		return c.WorkerRecords.StopEmailsToAddress(txCtx, tenantID, address)
-	})
-}
-
-func (c *WorkerCommands) SchoolMailedAddress(ctx context.Context, tenantID int64, address string) (result0 bool, err error) {
-	err = c.schools.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
-		result0, err = c.WorkerRecords.SchoolMailedAddress(txCtx, tenantID, address)
-		return err
-	})
-	return
 }

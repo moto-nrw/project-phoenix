@@ -2354,7 +2354,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "2938c0ac8d793e0ea49f9e7b2ece8e5a",
+      "binding_digest": "7880166efdb2bf4dda752db3c9e97a3e",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -2362,10 +2362,18 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "a57d1122fbe1925b36a81f3656ccdc87",
+      "binding_digest": "2ed27c3d2ff7de2fe40adb7751de2241",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
+      "binding_digest": "f72b16ff75d0606d16d181b6162f8bde",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {
@@ -3618,7 +3626,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "2938c0ac8d793e0ea49f9e7b2ece8e5a",
+      "binding_digest": "7880166efdb2bf4dda752db3c9e97a3e",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
@@ -3626,10 +3634,18 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
-      "binding_digest": "a57d1122fbe1925b36a81f3656ccdc87",
+      "binding_digest": "2ed27c3d2ff7de2fe40adb7751de2241",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
+      "binding_digest": "f72b16ff75d0606d16d181b6162f8bde",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {

@@ -4,14 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
+	"log/slog"
+	"net/http"
+	"time"
 
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -23,16 +27,15 @@ var errGuardianEmailBlockLiftFailed = errors.New("the email block could not be l
 type GuardianEmailDelivery struct {
 	Outcomes     deliveryRuntime.EmailOutcomes
 	Suppressions deliveryRuntime.EmailSuppressions
-	Stops        deliveryRuntime.EmailStops
-	// Guardians finds the address on file; it answers ErrGuardianNotFound for a
-	// guardian of another school.
-	Guardians interface {
-		FindGuardian(ctx context.Context, id int64) (peopledirectory.Guardian, error)
-	}
+}
+
+// guardianEmailAudit appends the audit row of a change to a guardian's mail.
+type guardianEmailAudit interface {
+	Create(ctx context.Context, entry *auditModels.DataAccessLog) error
 }
 
 // guardianEmailStates reads the state of a child's guardians' addresses in the
-// request's tenant transaction.
+// request's tenant transaction. The stop of a guardian is the guardian's own value.
 func (d GuardianEmailDelivery) guardianEmailStates(ctx context.Context, addresses []string) (map[string]usersAPI.GuardianEmailState, error) {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
@@ -53,34 +56,23 @@ func (d GuardianEmailDelivery) guardianEmailStates(ctx context.Context, addresse
 		states[key] = usersAPI.GuardianEmailState{
 			MailOutcome: string(report.Outcome),
 			AddressMark: string(marks[key]),
-			SendBlock:   string(deliveryContract.EmailSendBlockOf(marks[key], report.Outcome)),
+			SendBlock:   string(deliveryContract.EmailSendBlockOf(marks[key], false, report.Outcome)),
 			OutcomeAt:   report.OutcomeAt,
 		}
 	}
 	return states, nil
 }
 
-// emailBlockAddress reads the address on file. It never comes from the request,
-// so only an address of this school can be changed; the lookup runs under the
-// school's row-level security. The list is changed outside this transaction,
-// because lifting waits for the provider.
-func (d GuardianEmailDelivery) emailBlockAddress(ctx context.Context, runtime peopleCompose.LegacyRepositoryRuntime, guardianID int64) (int64, string, error) {
-	tenantID, err := tenant.TenantFromContext(ctx)
-	if err != nil {
-		return 0, "", err
-	}
-	var address string
-	err = runtime.InTenantTx(ctx, func(txCtx context.Context) error {
-		guardian, findErr := d.Guardians.FindGuardian(txCtx, guardianID)
-		if findErr == nil && guardian.Email != nil {
-			address = strings.TrimSpace(*guardian.Email)
-		}
-		return findErr
+// recordGuardianEmailChange writes who changed a guardian's mail. The address stays
+// out: the row names the guardian.
+func recordGuardianEmailChange(r *http.Request, audit guardianEmailAudit, resourceType, action string, guardianID int64) error {
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	now := time.Now()
+	return audit.Create(r.Context(), &auditModels.DataAccessLog{
+		ActorAccountID: int64(claims.ID), ActorRole: guardianActorRole(claims.Roles),
+		ResourceType: resourceType, RangeStart: now, RangeEnd: now, AccessedAt: now,
+		Metadata: map[string]any{"guardian_profile_id": guardianID, "action": action},
 	})
-	if err == nil && address == "" {
-		err = usersAPI.ErrGuardianHasNoEmail
-	}
-	return tenantID.Int64(), address, err
 }
 
 // liftGuardianEmailBlockFailure keeps what the school can act on and turns the
@@ -97,20 +89,34 @@ func liftGuardianEmailBlockFailure(err error) error {
 	}
 }
 
-func guardianEmailBlockFlows(delivery GuardianEmailDelivery, runtime peopleCompose.LegacyRepositoryRuntime) (stop, lift func(context.Context, int64) error) {
-	stop = func(ctx context.Context, guardianID int64) error {
-		tenantID, address, err := delivery.emailBlockAddress(ctx, runtime, guardianID)
+// guardianEmailStopFlows binds the school's two writes on a guardian's mail. The
+// stop runs in the request's transaction, the lift outside of it because it waits
+// for the provider; its audit row then opens a transaction of its own.
+func guardianEmailStopFlows(delivery GuardianEmailDelivery, guardians peoplePorts.GuardianService, audit guardianEmailAudit, runtime peopleCompose.LegacyRepositoryRuntime, logger *slog.Logger) (
+	func(*http.Request, int64, bool) error, func(*http.Request, int64, string) error,
+) {
+	setStopped := func(r *http.Request, guardianID int64, stopped bool) error {
+		if err := guardians.GuardianProfiles().SetEmailsStopped(r.Context(), guardianID, stopped); err != nil {
+			return err
+		}
+		action := "resumed"
+		if stopped {
+			action = "stopped"
+		}
+		return recordGuardianEmailChange(r, audit, auditModels.ResourceTypeGuardianEmailStop, action, guardianID)
+	}
+	lift := func(r *http.Request, guardianID int64, address string) error {
+		tenantID, err := tenant.TenantFromContext(r.Context())
 		if err != nil {
 			return err
 		}
-		return delivery.Stops.StopEmailsToAddress(ctx, tenantID, address)
-	}
-	lift = func(ctx context.Context, guardianID int64) error {
-		tenantID, address, err := delivery.emailBlockAddress(ctx, runtime, guardianID)
-		if err != nil {
+		if err := liftGuardianEmailBlockFailure(delivery.Suppressions.LiftEmailSuppression(r.Context(), tenantID.Int64(), address)); err != nil {
 			return err
 		}
-		return liftGuardianEmailBlockFailure(delivery.Suppressions.LiftEmailSuppression(ctx, tenantID, address))
+		logger.Info("guardian email block lifted", slog.Int64("guardian_profile_id", guardianID))
+		return runtime.InTenantTx(r.Context(), func(txCtx context.Context) error {
+			return recordGuardianEmailChange(r.WithContext(txCtx), audit, auditModels.ResourceTypeGuardianEmailLift, "lifted", guardianID)
+		})
 	}
-	return stop, lift
+	return setStopped, lift
 }

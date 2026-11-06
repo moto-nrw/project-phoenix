@@ -20,6 +20,10 @@ const (
 	// EmailBlocked is a mail that never left because the address is blocked.
 	EmailBlocked    EmailOutcome = "blocked"
 	EmailComplained EmailOutcome = "complained"
+	// EmailUnsubscribed is a person who unsubscribed. The address itself is fine.
+	EmailUnsubscribed EmailOutcome = "unsubscribed"
+	// EmailOverdue is a delayed mail past EmailDelayLimit without a final event.
+	EmailOverdue EmailOutcome = "overdue"
 	// EmailSendFailed is a mail moto gave up on before a server took it.
 	EmailSendFailed EmailOutcome = "send_failed"
 	// EmailOutcomeUnknown is a mail whose worker stopped during the provider call.
@@ -37,9 +41,12 @@ const (
 	// EmailMarkComplained is an address whose owner reported a mail as unwanted.
 	// The school cannot lift it.
 	EmailMarkComplained EmailAddressMark = "complained"
-	// EmailMarkSchoolStop is an address the school itself stopped mail to.
-	EmailMarkSchoolStop EmailAddressMark = "school_stop"
 )
+
+// EmailDelayLimit ends the wait for a delayed mail. Mail servers give up after a
+// few days, usually with a bounce (RFC 5321 suggests four to five). If no final
+// event came by then, a new mail is allowed again and an alarm goes off.
+const EmailDelayLimit = 5 * 24 * time.Hour
 
 // EmailSendBlock says why sending again would do nothing or do harm.
 type EmailSendBlock string
@@ -47,6 +54,8 @@ type EmailSendBlock string
 const (
 	// EmailSendBlockAddress: the list holds the mail back.
 	EmailSendBlockAddress EmailSendBlock = "address"
+	// EmailSendBlockStopped: the school stopped mail to this person.
+	EmailSendBlockStopped EmailSendBlock = "stopped"
 	// EmailSendBlockDelayed: the server is still trying, a second mail would
 	// only arrive twice.
 	EmailSendBlockDelayed EmailSendBlock = "delayed"
@@ -65,6 +74,8 @@ func EmailOutcomeOf(status string, deliveryState, lastError *string, mark EmailA
 			return EmailUndeliverable
 		case "suppressed":
 			return EmailBlocked
+		case "unsubscribed":
+			return EmailUnsubscribed
 		case "complained":
 			return EmailComplained
 		}
@@ -88,13 +99,23 @@ func EmailOutcomeOf(status string, deliveryState, lastError *string, mark EmailA
 	}
 }
 
-// EmailSendBlockOf decides whether a new mail is pointless. The mark only holds
-// a new mail back when the mail is one the list applies to; the caller knows.
-func EmailSendBlockOf(mark EmailAddressMark, latest EmailOutcome) EmailSendBlock {
-	if mark != "" {
-		return EmailSendBlockAddress
+// EmailOutcomeAt lets a delayed mail count as overdue once the wait has ended.
+func EmailOutcomeAt(outcome EmailOutcome, stateAt *time.Time, now time.Time) EmailOutcome {
+	if outcome == EmailDelayed && stateAt != nil && now.Sub(*stateAt) > EmailDelayLimit {
+		return EmailOverdue
 	}
-	if latest == EmailDelayed {
+	return outcome
+}
+
+// EmailSendBlockOf decides whether a new mail is pointless. It only holds for mail
+// the list and the stop apply to; the caller knows.
+func EmailSendBlockOf(mark EmailAddressMark, stopped bool, latest EmailOutcome) EmailSendBlock {
+	switch {
+	case stopped:
+		return EmailSendBlockStopped
+	case mark != "":
+		return EmailSendBlockAddress
+	case latest == EmailDelayed:
 		return EmailSendBlockDelayed
 	}
 	return ""
@@ -110,6 +131,7 @@ type EmailOutcomeReport struct {
 	Address     string
 	Outcome     EmailOutcome
 	Mark        EmailAddressMark
+	Stopped     bool
 	OutcomeAt   *time.Time
 	Attempts    int
 }

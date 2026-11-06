@@ -14,8 +14,12 @@ import (
 // in the list's form, which idx_email_outbox_school_kind_address serves.
 const emailOutcomeColumns = `outbox.id, outbox.kind, outbox.related_entity_type, outbox.related_entity_id,
 		outbox.status, outbox.delivery_state, COALESCE(outbox.delivery_state_at, outbox.sent_at) AS outcome_at,
-		outbox.attempts, outbox.last_error, LOWER(TRIM(outbox.recipient->>'address')) AS address,
-		suppression.reason AS address_mark
+		outbox.delivery_state_at, outbox.attempts, outbox.last_error, LOWER(TRIM(outbox.recipient->>'address')) AS address,
+		suppression.reason AS address_mark,
+		EXISTS (SELECT 1 FROM platform.delivery_guardian_contacts AS contact
+			WHERE contact.tenant_id = outbox.tenant_id AND contact.address = LOWER(TRIM(outbox.recipient->>'address')) AND contact.emails_stopped_at IS NOT NULL)
+		AND NOT EXISTS (SELECT 1 FROM platform.delivery_guardian_contacts AS contact
+			WHERE contact.tenant_id = outbox.tenant_id AND contact.address = LOWER(TRIM(outbox.recipient->>'address')) AND contact.emails_stopped_at IS NULL) AS stopped
 	FROM platform.email_outbox AS outbox
 	LEFT JOIN platform.email_suppressions AS suppression
 		ON suppression.tenant_id = outbox.tenant_id
@@ -29,6 +33,8 @@ type emailOutcomeRow struct {
 	Status        string     `bun:"status"`
 	DeliveryState *string    `bun:"delivery_state"`
 	OutcomeAt     *time.Time `bun:"outcome_at"`
+	StateAt       *time.Time `bun:"delivery_state_at"`
+	Stopped       bool       `bun:"stopped"`
 	Attempts      int        `bun:"attempts"`
 	LastError     *string    `bun:"last_error"`
 	Address       string     `bun:"address"`
@@ -37,7 +43,7 @@ type emailOutcomeRow struct {
 
 func (row emailOutcomeRow) report() deliveryContract.EmailOutcomeReport {
 	report := deliveryContract.EmailOutcomeReport{
-		MailID: row.ID, Kind: row.Kind, Address: row.Address, OutcomeAt: row.OutcomeAt, Attempts: row.Attempts,
+		MailID: row.ID, Kind: row.Kind, Address: row.Address, OutcomeAt: row.OutcomeAt, Attempts: row.Attempts, Stopped: row.Stopped,
 	}
 	if row.RelatedType != nil {
 		report.RelatedType = *row.RelatedType
@@ -48,7 +54,7 @@ func (row emailOutcomeRow) report() deliveryContract.EmailOutcomeReport {
 	if row.AddressMark != nil {
 		report.Mark = deliveryContract.EmailAddressMark(*row.AddressMark)
 	}
-	report.Outcome = deliveryContract.EmailOutcomeOf(row.Status, row.DeliveryState, row.LastError, report.Mark)
+	report.Outcome = deliveryContract.EmailOutcomeAt(deliveryContract.EmailOutcomeOf(row.Status, row.DeliveryState, row.LastError, report.Mark), row.StateAt, time.Now())
 	return report
 }
 
@@ -130,6 +136,31 @@ func (s *Store) EmailAddressMarks(ctx context.Context, tenantID int64, addresses
 		marks[row.Address] = deliveryContract.EmailAddressMark(row.Reason)
 	}
 	return marks, nil
+}
+
+// StoppedEmailAddresses reports the addresses whose holders all carry the school's
+// stop, in the caller's tenant transaction.
+func (s *Store) StoppedEmailAddresses(ctx context.Context, tenantID int64, addresses []string) (map[string]bool, error) {
+	normalized := normalizedAddresses(addresses)
+	stopped := make(map[string]bool, len(normalized))
+	if len(normalized) == 0 {
+		return stopped, nil
+	}
+	db, err := s.tenantDB(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []string
+	if err := db.NewRaw(`SELECT contact.address FROM platform.delivery_guardian_contacts AS contact
+		WHERE contact.tenant_id = ? AND contact.address IN (?)
+		GROUP BY contact.address
+		HAVING bool_and(contact.emails_stopped_at IS NOT NULL)`, tenantID, bun.List(normalized)).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("delivery postgres: read stopped email addresses: %w", err)
+	}
+	for _, address := range rows {
+		stopped[address] = true
+	}
+	return stopped, nil
 }
 
 func normalizedAddresses(addresses []string) []string {

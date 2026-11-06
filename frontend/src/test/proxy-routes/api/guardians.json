@@ -7,8 +7,11 @@
     "GET tenant /api/guardians/id%2F1/delete-preview"
   ],
   "api/guardians/[id]/email-block": [
-    "DELETE tenant /api/guardians/id%2F1/email-block",
-    "POST tenant /api/guardians/id%2F1/email-block"
+    "DELETE tenant /api/guardians/id%2F1/email-block"
+  ],
+  "api/guardians/[id]/email-stop": [
+    "DELETE tenant /api/guardians/id%2F1/email-stop",
+    "POST tenant /api/guardians/id%2F1/email-stop"
   ],
   "api/guardians/[id]/payment": [
     "GET tenant /api/guardians/id%2F1/payment",
@@ -28,9 +31,7 @@
   "api/guardians/[id]/phone-numbers/[phoneId]/set-primary": [
     "POST tenant /api/guardians/id%2F1/phone-numbers/phoneId%2F1/set-primary"
   ],
-  "api/guardians/bulk-invite": [
-    "POST tenant /api/guardians/bulk-invite"
-  ],
+  "api/guardians/bulk-invite": ["POST tenant /api/guardians/bulk-invite"],
   "api/guardians/invitations/pending-approval": [
     "GET tenant /api/guardians/invitations/pending-approval"
   ],
@@ -40,9 +41,7 @@
   "api/guardians/relationships/[relationshipId]": [
     "PUT tenant /api/guardians/relationships/relationshipId%2F1"
   ],
-  "api/guardians/search": [
-    "GET tenant /api/guardians/search"
-  ],
+  "api/guardians/search": ["GET tenant /api/guardians/search"],
   "api/guardians/students/[studentId]/guardians": [
     "GET tenant /api/guardians/students/studentId%2F1/guardians",
     "POST tenant /api/guardians/students/studentId%2F1/guardians"

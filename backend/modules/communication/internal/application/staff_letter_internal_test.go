@@ -740,11 +740,44 @@ func TestLetterSummaryCountsWhatAResendCanChange(t *testing.T) {
 		{EmailStatus: "sent", MailOutcome: "undeliverable", AddressMark: "failed"},
 		{EmailStatus: "sent", MailOutcome: "undeliverable"},
 		{EmailStatus: "failed", MailOutcome: "send_failed"},
+		// Delivery now reports a mail that came back or was held back as failed
+		// (#5934). Without a mark, a new mail can change it.
+		{EmailStatus: "failed", MailOutcome: "undeliverable"},
+		{EmailStatus: "failed", MailOutcome: "blocked"},
+		{EmailStatus: "failed", MailOutcome: "overdue"},
+		// A stop is the school's decision: neither an address to check nor resendable.
+		{EmailStatus: "failed", MailOutcome: "blocked", Stopped: true},
+		{EmailStatus: "failed", MailOutcome: "undeliverable", AddressMark: "failed", Stopped: true},
 	} {
 		addLetterMailOutcome(&summary, row)
 	}
-	if summary.EmailsDelivered != 1 || summary.EmailsDelayed != 1 || summary.EmailsAddressCheck != 2 || summary.EmailsResendable != 1 {
+	if summary.EmailsDelivered != 1 || summary.EmailsDelayed != 1 || summary.EmailsAddressCheck != 2 ||
+		summary.EmailsResendable != 4 || summary.EmailsStopped != 2 {
 		t.Fatalf("summary = %+v", summary)
+	}
+}
+
+func TestResendFailedEmailsLeavesAStoppedOrMarkedAddressAlone(t *testing.T) {
+	t.Parallel()
+
+	published := time.Now().Add(-time.Hour)
+	a := letterDraft(StaffParentAnnouncementDeliveryLetter, StaffEmailAudiencePortalOnly)
+	a.PublishedAt = &published
+	stopped, marked, free := "gestoppt@example.test", "gesperrt@example.test", "frei@example.test"
+	deliveries := &letterDeliveries{list: []EmailDeliveryStatus{
+		{DeliveryID: 1, RecipientEmail: &stopped, EmailStatus: "failed", Stopped: true},
+		{DeliveryID: 2, RecipientEmail: &marked, EmailStatus: "failed", AddressMark: "failed"},
+		{DeliveryID: 3, RecipientEmail: &free, EmailStatus: "failed"},
+	}}
+	outbox := &letterOutbox{}
+	svc := newLetterService(&letterRepo{announcement: a}, outbox, deliveries)
+
+	count, err := svc.ResendFailedEmails(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("ResendFailedEmails: %v", err)
+	}
+	if count != 1 || len(outbox.requests) != 1 {
+		t.Fatalf("queued %d addresses in %d request(s), want only the free one", count, len(outbox.requests))
 	}
 }
 

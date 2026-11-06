@@ -164,8 +164,10 @@ export async function fetchStudentGuardians(
 export interface GuardianEmailState {
   readonly mailOutcome?: MailOutcome;
   readonly addressMark?: EmailAddressMark;
+  /** The school stopped mail to this person; a mark stays beside it. */
+  readonly emailsStopped?: boolean;
   /** Why a new invitation would change nothing. */
-  readonly sendBlock?: "address" | "delayed";
+  readonly sendBlock?: "address" | "delayed" | "stopped";
   readonly outcomeAt?: string;
 }
 
@@ -173,7 +175,8 @@ interface BackendGuardianEmailState {
   guardian_profile_id: number;
   mail_outcome?: MailOutcome;
   address_mark?: EmailAddressMark;
-  send_block?: "address" | "delayed";
+  emails_stopped?: boolean;
+  send_block?: "address" | "delayed" | "stopped";
   outcome_at?: string;
 }
 
@@ -199,6 +202,7 @@ export async function fetchStudentGuardianEmailStates(
     states[String(line.guardian_profile_id)] = {
       mailOutcome: line.mail_outcome,
       addressMark: line.address_mark,
+      emailsStopped: line.emails_stopped,
       sendBlock: line.send_block,
       outcomeAt: line.outcome_at,
     };
@@ -206,10 +210,10 @@ export async function fetchStudentGuardianEmailStates(
   return states;
 }
 
-/** The school stops mail to this guardian's address. */
+/** The school stops mail to this person, whatever address they hold later. */
 export async function stopGuardianEmails(guardianId: string): Promise<void> {
   const response = await transportFetch(
-    `/api/guardians/${guardianId}/email-block`,
+    `/api/guardians/${guardianId}/email-stop`,
     { method: "POST" },
   );
   if (!response.ok) {
@@ -221,7 +225,22 @@ export async function stopGuardianEmails(guardianId: string): Promise<void> {
   }
 }
 
-/** Someone checked the address, or the school takes its stop back. */
+/** The school takes its stop back. */
+export async function resumeGuardianEmails(guardianId: string): Promise<void> {
+  const response = await transportFetch(
+    `/api/guardians/${guardianId}/email-stop`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) {
+    throw await guardianApiError(
+      response,
+      "resume_guardian_emails",
+      "Failed to resume the guardian emails",
+    );
+  }
+}
+
+/** Someone checked the address after a mail bounced. */
 export async function liftGuardianEmailBlock(
   guardianId: string,
 ): Promise<void> {
@@ -575,6 +594,8 @@ export interface InviteGuardianResult {
   outcome: InviteGuardianOutcome;
   guardian_profile_id: string;
   invitation_id?: string;
+  // The access exists, but no mail will reach the person.
+  mail_held?: boolean;
   // Current guardian role for the existing_contact_restricted outcome, so the
   // UI can name it in the upgrade confirmation (#2172).
   existing_role?: string;

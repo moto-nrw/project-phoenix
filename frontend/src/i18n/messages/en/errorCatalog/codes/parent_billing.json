@@ -41,5 +41,6 @@
   "sibling_group_invalid": "{object} could not be saved. Please check your entries.",
   "sibling_group_invoiced": "{object} could not be changed. Please check its current status.",
   "sibling_group_not_found": "{object} could not be changed. Please check its current status.",
-  "letter_mail_delayed": "{object} could not be changed. Please check its current status."
+  "letter_mail_delayed": "{object} could not be changed. Please check its current status.",
+  "letter_mail_blocked": "{object} could not be changed. Please check its current status."
 }

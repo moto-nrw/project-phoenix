@@ -102,6 +102,8 @@ func guardianFailureKind(kind GuardianFailureKind) usersAPI.FailureKind {
 	}
 }
 
+func guardianActorRole(roles []string) string { return strings.Join(roles, ",") }
+
 func guardianActorID(r *http.Request) int64 {
 	return int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 }
@@ -128,10 +130,8 @@ func newGuardiansResource(module peopleModule.Capability, runtime GuardianDirect
 		ObserveResponse: observability.ObserveGuardianDirectoryHTTPResponse,
 		ParseIDParam:    apiCommon.ParseIDParam,
 
-		ActorID: guardianActorID,
-		ActorRole: func(r *http.Request) string {
-			return strings.Join(sessiontoken.ClaimsFromCtx(r.Context()).Roles, ",")
-		},
+		ActorID:   guardianActorID,
+		ActorRole: func(r *http.Request) string { return guardianActorRole(sessiontoken.ClaimsFromCtx(r.Context()).Roles) },
 		HasPermission: func(r *http.Request, permission string) bool {
 			return apiCommon.HasPermission(permission, sessiontoken.PermissionsFromCtx(r.Context()))
 		},
@@ -179,7 +179,7 @@ func newGuardiansResource(module peopleModule.Capability, runtime GuardianDirect
 			}
 			return usersAPI.GuardianInviteResult{
 				Outcome: result.Outcome, GuardianProfileID: result.GuardianProfileID,
-				InvitationID: result.InvitationID, ExistingRole: result.ExistingRole,
+				InvitationID: result.InvitationID, ExistingRole: result.ExistingRole, MailHeld: result.MailHeld,
 			}, nil
 		},
 		BulkInviteGuardians: bulkInviteGuardians(runtime),
@@ -206,9 +206,10 @@ func newGuardiansResource(module peopleModule.Capability, runtime GuardianDirect
 		ApproveInvitation:          runtime.ApproveInvitation,
 		RejectInvitation:           runtime.RejectInvitation,
 
-		GuardianEmailStates:    runtime.GuardianEmailStates,
-		StopGuardianEmails:     runtime.StopGuardianEmails,
-		LiftGuardianEmailBlock: runtime.LiftGuardianEmailBlock,
+		GuardianEmailStates:      runtime.GuardianEmailStates,
+		SetGuardianEmailsStopped: runtime.SetGuardianEmailsStopped,
+		LiftGuardianEmailBlock:   runtime.LiftGuardianEmailBlock,
+		InTenantTx:               runtime.InTenantTx,
 		RenderPaymentExport: func(rows []peopleModule.GuardianPaymentRow, format string) (usersAPI.ExportFile, error) {
 			file, err := runtime.RenderPaymentExport(rows, format)
 			if err != nil {

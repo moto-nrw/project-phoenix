@@ -89,9 +89,11 @@ type EmailDeliveryStatus struct {
 	LastError         *string    `json:"last_error,omitempty"`
 	SentAt            *time.Time `json:"sent_at,omitempty"`
 	Attempts          int        `json:"attempts"`
-	// Outcome is empty before a mail exists; AddressMark can be set without one.
+	// Outcome is empty before a mail exists; AddressMark and Stopped can be set
+	// without one. RecipientEmail is the person's current address.
 	Outcome     EmailOutcome     `json:"outcome,omitempty"`
 	AddressMark EmailAddressMark `json:"address_mark,omitempty"`
+	Stopped     bool             `json:"stopped,omitempty"`
 }
 
 type GuardianDisplay struct {
@@ -247,11 +249,12 @@ type Status struct {
 // for good, DeliverySuppressed a mail the provider withheld for a known bad
 // address; neither reached the recipient.
 const (
-	DeliveryDelayed    = "delayed"
-	DeliveryDelivered  = "delivered"
-	DeliverySuppressed = "suppressed"
-	DeliveryFailed     = "failed"
-	DeliveryComplained = "complained"
+	DeliveryDelayed      = "delayed"
+	DeliveryDelivered    = "delivered"
+	DeliverySuppressed   = "suppressed"
+	DeliveryUnsubscribed = "unsubscribed"
+	DeliveryFailed       = "failed"
+	DeliveryComplained   = "complained"
 )
 
 type Observation struct {
@@ -263,8 +266,10 @@ type Observation struct {
 	Err       error
 }
 
-// parentMailTemplates are the mails a school sends to parents, the only mail the
-// suppression list holds back so far (#5932). An unlisted template goes out.
+// parentMailTemplates are the mails to parents, the only mail the suppression list
+// and a school's stop hold back (#5932, #5934). A Träger's care contract counts:
+// it goes to a family of one of its schools. A Träger's billing letter does not,
+// and neither does mail to staff. An unlisted template goes out.
 var parentMailTemplates = map[string]bool{
 	"guardian_invitation":                true,
 	"guardian_welcome":                   true,
@@ -280,6 +285,11 @@ var parentMailTemplates = map[string]bool{
 	"enrollment_change_request_approved": true,
 	"enrollment_change_request_rejected": true,
 	"holiday_registration_received":      true,
+	"appointment_published":              true,
+	"appointment_updated":                true,
+	"appointment_cancelled":              true,
+	"appointment_reminder":               true,
+	"care_contract":                      true,
 }
 
 // IsParentMail reports whether a mail template goes to parents.

@@ -240,6 +240,8 @@ export interface LetterRecipient {
   /** What became of the mail; only a provider's report says delivered. */
   mail_outcome?: MailOutcome;
   address_mark?: EmailAddressMark;
+  /** The school stopped mail to this person. */
+  stopped?: boolean;
   reachability: "ok" | "no_email" | "no_portal" | "excluded";
   last_error?: string;
   sent_at?: string;
@@ -274,6 +276,7 @@ interface LetterSummary {
   emails_delivered?: number;
   emails_delayed?: number;
   emails_address_check?: number;
+  emails_stopped?: number;
   emails_resendable?: number;
   emails_pending: number;
   emails_failed: number;

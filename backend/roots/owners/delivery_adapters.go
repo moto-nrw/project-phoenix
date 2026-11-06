@@ -60,7 +60,7 @@ func (a announcementDeliveryAdapter) ListForEntity(ctx context.Context, tenantID
 			DeliveryID: row.DeliveryID, GuardianProfileID: row.GuardianProfileID, AccountID: row.AccountID,
 			FirstName: row.FirstName, LastName: row.LastName, RecipientEmail: row.RecipientEmail,
 			Reachability: row.Reachability, EmailStatus: row.EmailStatus, LastError: row.LastError,
-			SentAt: row.SentAt, Attempts: row.Attempts, MailOutcome: string(row.Outcome), AddressMark: string(row.AddressMark),
+			SentAt: row.SentAt, Attempts: row.Attempts, MailOutcome: string(row.Outcome), AddressMark: string(row.AddressMark), Stopped: row.Stopped,
 		})
 	}
 	return result, nil
@@ -103,7 +103,7 @@ func (a enrollmentDeliveryAdapter) RelatedEmailOutcomes(ctx context.Context, rel
 	outcomes := make([]enrollment.RequestMailOutcome, 0, len(reports))
 	for _, report := range reports {
 		if deliveryContract.IsParentMail(report.Kind) {
-			outcomes = append(outcomes, enrollment.RequestMailOutcome{Kind: report.Kind, Outcome: string(report.Outcome), AddressMark: string(report.Mark), OutcomeAt: report.OutcomeAt})
+			outcomes = append(outcomes, enrollment.RequestMailOutcome{Kind: report.Kind, Outcome: string(report.Outcome), AddressMark: string(report.Mark), Stopped: report.Stopped, OutcomeAt: report.OutcomeAt})
 		}
 	}
 	return outcomes, nil

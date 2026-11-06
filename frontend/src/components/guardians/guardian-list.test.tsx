@@ -548,12 +548,43 @@ describe("GuardianList mail state (#5934)", () => {
       <GuardianList
         guardians={[guardian]}
         emailStates={{
-          "7": { addressMark: "school_stop", sendBlock: "address" },
+          "7": { emailsStopped: true, sendBlock: "stopped" },
         }}
-        onLiftEmailBlock={() => undefined}
+        onResumeEmails={() => undefined}
       />,
     );
     expect(screen.getByText("Versand gestoppt")).toBeInTheDocument();
     expect(screen.getByText(/Anmeldecodes/)).toBeInTheDocument();
+    expect(screen.queryByText("Adresse prüfen")).not.toBeInTheDocument();
+  });
+
+  it("shows a bounce and a stop side by side, each with its own step", () => {
+    const onLift = vi.fn();
+    const onResume = vi.fn();
+    render(
+      <GuardianList
+        guardians={[guardian]}
+        emailStates={{
+          "7": {
+            addressMark: "failed",
+            emailsStopped: true,
+            sendBlock: "stopped",
+          },
+        }}
+        onLiftEmailBlock={onLift}
+        onResumeEmails={onResume}
+        onStopEmails={() => undefined}
+      />,
+    );
+    expect(screen.getByText("Adresse prüfen")).toBeInTheDocument();
+    expect(screen.getByText("Versand gestoppt")).toBeInTheDocument();
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sperre aufheben" }));
+    expect(onLift).toHaveBeenCalledWith(guardian);
+    openMenu();
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Mails wieder senden" }),
+    );
+    expect(onResume).toHaveBeenCalledWith(guardian);
   });
 });

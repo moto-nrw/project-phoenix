@@ -8,14 +8,14 @@ import (
 	"time"
 )
 
-// ErrGuardianHasNoEmail refuses a change to the mail state of a guardian without
-// an address.
+// ErrGuardianHasNoEmail refuses to lift a block for a guardian without an address.
 var ErrGuardianHasNoEmail = errors.New("guardian has no email address on file")
 
 // GuardianEmailState is what the school knows about mail to one guardian's
 // address (#5934). MailOutcome names the last invitation mail and stays empty
 // before one exists. AddressMark is why the school's list holds the address.
-// SendBlock says why a new invitation would change nothing.
+// SendBlock says why a new invitation would change nothing. The stop is the
+// person's and comes from the guardian itself.
 type GuardianEmailState struct {
 	MailOutcome string
 	AddressMark string
@@ -23,11 +23,14 @@ type GuardianEmailState struct {
 	OutcomeAt   *time.Time
 }
 
+const sendBlockStopped = "stopped"
+
 // guardianEmailStatusResponse is one guardian's line of the student's status.
 type guardianEmailStatusResponse struct {
 	GuardianProfileID int64      `json:"guardian_profile_id"`
 	MailOutcome       string     `json:"mail_outcome,omitempty"`
 	AddressMark       string     `json:"address_mark,omitempty"`
+	EmailsStopped     bool       `json:"emails_stopped,omitempty"`
 	SendBlock         string     `json:"send_block,omitempty"`
 	OutcomeAt         *time.Time `json:"outcome_at,omitempty"`
 }
@@ -61,40 +64,86 @@ func (rs *GuardianResource) getStudentGuardianEmailStatus(w http.ResponseWriter,
 	}
 	responses := make([]guardianEmailStatusResponse, 0, len(rows))
 	for _, row := range rows {
-		line := guardianEmailStatusResponse{GuardianProfileID: row.Guardian.ID}
+		line := guardianEmailStatusResponse{GuardianProfileID: row.Guardian.ID, EmailsStopped: row.Guardian.EmailsStopped}
 		if row.Guardian.Email != nil {
 			state := states[strings.ToLower(strings.TrimSpace(*row.Guardian.Email))]
 			line.MailOutcome, line.AddressMark, line.SendBlock, line.OutcomeAt = state.MailOutcome, state.AddressMark, state.SendBlock, state.OutcomeAt
+		}
+		if line.EmailsStopped {
+			line.SendBlock = sendBlockStopped
 		}
 		responses = append(responses, line)
 	}
 	rs.succeed(w, r, http.StatusOK, responses, "Guardian email status retrieved successfully")
 }
 
-// stopGuardianEmails serves POST /{id}/email-block: the school stops mail to this
-// guardian's address.
+// stopGuardianEmails serves POST /{id}/email-stop: the school stops mail to this
+// person. The stop stays with the person, whatever address they hold later.
 func (rs *GuardianResource) stopGuardianEmails(w http.ResponseWriter, r *http.Request) {
-	rs.changeGuardianEmailBlock(w, r, rs.runtime.StopGuardianEmails, "Guardian emails stopped")
+	rs.setGuardianEmailsStopped(w, r, true, "Guardian emails stopped")
 }
 
-// liftGuardianEmailBlock serves DELETE /{id}/email-block: someone checked the
-// address, or the school takes its stop back.
-func (rs *GuardianResource) liftGuardianEmailBlock(w http.ResponseWriter, r *http.Request) {
-	rs.changeGuardianEmailBlock(w, r, rs.runtime.LiftGuardianEmailBlock, "Guardian email block lifted")
+// resumeGuardianEmails serves DELETE /{id}/email-stop.
+func (rs *GuardianResource) resumeGuardianEmails(w http.ResponseWriter, r *http.Request) {
+	rs.setGuardianEmailsStopped(w, r, false, "Guardian emails resumed")
 }
 
-func (rs *GuardianResource) changeGuardianEmailBlock(w http.ResponseWriter, r *http.Request, change func(ctx context.Context, guardianID int64) error, message string) {
+func (rs *GuardianResource) setGuardianEmailsStopped(w http.ResponseWriter, r *http.Request, stopped bool, message string) {
 	id, ok := rs.parseGuardianID(w, r)
 	if !ok {
 		return
 	}
-	if err := change(r.Context(), id); err != nil {
-		if errors.Is(err, ErrGuardianHasNoEmail) {
-			rs.fail(w, r, FailureInvalidRequest, err)
-			return
-		}
+	if canModify, err := rs.canModifyGuardian(r, id); !canModify {
+		rs.fail(w, r, FailureForbidden, err)
+		return
+	}
+	if err := rs.runtime.SetGuardianEmailsStopped(r, id, stopped); err != nil {
 		rs.guardianLookupFailure(w, r, err)
 		return
 	}
 	rs.succeed(w, r, http.StatusOK, nil, message)
+}
+
+// liftGuardianEmailBlock serves DELETE /{id}/email-block: someone checked the
+// address on file. The route has no request transaction because lifting waits for
+// the mail provider, so the check reads in a short transaction of its own. The
+// address never comes from the request.
+func (rs *GuardianResource) liftGuardianEmailBlock(w http.ResponseWriter, r *http.Request) {
+	id, ok := rs.parseGuardianID(w, r)
+	if !ok {
+		return
+	}
+	var address string
+	var forbidden bool
+	err := rs.runtime.InTenantTx(r.Context(), func(txCtx context.Context) error {
+		txRequest := r.WithContext(txCtx)
+		canModify, reason := rs.canModifyGuardian(txRequest, id)
+		if !canModify {
+			forbidden = true
+			return reason
+		}
+		guardian, err := rs.directory.FindGuardian(txCtx, id)
+		if err == nil && guardian.Email != nil {
+			address = strings.TrimSpace(*guardian.Email)
+		}
+		return err
+	})
+	switch {
+	case forbidden:
+		rs.fail(w, r, FailureForbidden, err)
+	case err != nil:
+		rs.guardianLookupFailure(w, r, err)
+	case address == "":
+		rs.fail(w, r, FailureInvalidRequest, ErrGuardianHasNoEmail)
+	default:
+		rs.finishGuardianEmailLift(w, r, id, address)
+	}
+}
+
+func (rs *GuardianResource) finishGuardianEmailLift(w http.ResponseWriter, r *http.Request, id int64, address string) {
+	if err := rs.runtime.LiftGuardianEmailBlock(r, id, address); err != nil {
+		rs.guardianLookupFailure(w, r, err)
+		return
+	}
+	rs.succeed(w, r, http.StatusOK, nil, "Guardian email block lifted")
 }

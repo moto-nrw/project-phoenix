@@ -2128,9 +2128,26 @@ export const emailDeliveryTopic = function emailDeliveryTopic(): HelpTopic {
           "`Versendet`: Die Mail ist raus. Ob sie im Postfach ankam, ist nicht bekannt.",
           "`Zugestellt`: Die Mail ist angekommen.",
           "`Verzögert`: Die Mail kommt später an. Es wird weiter versucht. Bitte senden Sie sie nicht noch einmal.",
+          "`Überfällig`: Die Mail ist seit Tagen verzögert. Sie können sie noch einmal senden.",
           "`Nicht zustellbar`: Die Mail kam nicht an.",
+          "`Nicht gesendet`: Die Mail ging nicht raus, weil die Adresse gesperrt war.",
+          "`Nicht versendet`: Es gab keine Mail, zum Beispiel weil die Adresse fehlt.",
+          "`Fehlgeschlagen`: Das Senden hat nicht geklappt. Bitte senden Sie neu.",
+          "`Ergebnis unbekannt`: Ob die Mail rausging, ist nicht bekannt.",
+          "`Abgebrochen`: Die Mail wurde nicht mehr gesendet.",
+          "`Abgemeldet`: Die Person hat sich von den Mails abgemeldet. Sprechen Sie sie direkt an.",
           "`Adresse prüfen`: An diese Adresse geht keine Mail mehr raus, weil sie gesperrt ist.",
-          "`Versand gestoppt`: Ihre Schule hat die Mails an diese Adresse gestoppt.",
+          "`Versand gestoppt`: Ihre Schule hat die Mails an diese Person gestoppt.",
+        ],
+      },
+      {
+        title: "Einen Elternbrief neu senden",
+        description:
+          "Das geht für Mails, die nicht ankamen. Gesperrte Adressen und gestoppte Personen bekommen keine neue Mail.",
+        steps: [
+          "Öffnen Sie den Elternbrief und sehen Sie sich den Status an.",
+          "Steht bei einer Person `Adresse prüfen`? Prüfen Sie zuerst die Adresse wie unten beschrieben.",
+          "Wählen Sie `Fehlgeschlagene erneut senden`. moto sendet an die aktuelle Adresse der Person.",
         ],
       },
       {
@@ -2148,7 +2165,7 @@ export const emailDeliveryTopic = function emailDeliveryTopic(): HelpTopic {
       {
         title: "Mails an eine Person stoppen",
         description:
-          "Zum Beispiel, wenn eine Person keine Mails der Schule mehr bekommen möchte.",
+          "Zum Beispiel, wenn eine Person keine Mails der Schule mehr bekommen möchte. Der Stopp bleibt, auch wenn sich die Adresse ändert.",
         steps: [
           "Öffnen Sie das Kind und den Reiter `Erziehungsberechtigte`.",
           "Wählen Sie im Menü der Person `Mails stoppen` und bestätigen Sie mit `Stoppen`.",
@@ -2158,6 +2175,7 @@ export const emailDeliveryTopic = function emailDeliveryTopic(): HelpTopic {
     ],
     notes: [
       "Anmeldecodes und Mails zum Passwort kommen auch an eine gesperrte Adresse.",
+      "Abrechnungsbriefe des Trägers gehen auch an gesperrte Adressen und gestoppte Personen.",
       "Mails an das Team hält eine Sperre nicht zurück. Die Einladung zeigt den Hinweis trotzdem.",
     ],
     troubleshootingDetails: [
@@ -9904,7 +9922,8 @@ export const traegerBillingRunTopic =
           steps: [
             "Wählen Sie im freigegebenen Lauf bei `Versand per Mail` den Knopf `An alle Familien senden`. moto schickt nur Mails, die noch nicht gesendet sind.",
             "Neben jeder Familie steht, was aus der Mail geworden ist. `Gesendet` heißt: Die Mail ist raus. `Zugestellt` heißt: Sie ist angekommen. `Nicht angekommen` und `Nicht zustellbar` heißen: Die Mail kam nicht an.",
-            "Bei `Verzögert` kommt die Mail später an. Warten Sie dann. `Erneut senden` steht erst danach wieder bereit.",
+            "Bei `Verzögert` kommt die Mail später an. Warten Sie dann. `Erneut senden` steht erst danach wieder bereit. Spätestens bei `Überfällig` können Sie neu senden.",
+            "Bei `Nicht gesendet` und `Abgemeldet` geht auch eine neue Mail nicht raus. Drucken Sie das Schreiben und geben Sie es der Familie.",
             "Wählen Sie bei dieser Familie `Erneut senden`. Mit `Senden` schicken Sie das Schreiben an eine einzelne Familie.",
             "Wählen Sie `Alle Schreiben drucken`. Sie bekommen alle Schreiben des Laufs in einer Datei.",
           ],

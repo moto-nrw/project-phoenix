@@ -49,6 +49,9 @@ var (
 	// ErrLetterMailDelayed reports a send while the mail server still tries to
 	// deliver the last mail: a second one would only arrive twice.
 	ErrLetterMailDelayed = errors.New("the last mail of this letter is delayed")
+	// ErrLetterMailBlocked reports a send to an address the provider holds back.
+	// Another mail would stay back too, so the Träger prints the letter.
+	ErrLetterMailBlocked = errors.New("the last mail of this letter was held back")
 	// ErrRecipientEmailMissing reports a family without an e-mail address.
 	ErrRecipientEmailMissing = errors.New("the family has no e-mail address")
 )
@@ -134,6 +137,11 @@ type BillingLetterMailState struct {
 
 // LetterMailOutcomeDelayed is the outcome that stops a further mail.
 const LetterMailOutcomeDelayed = "delayed"
+
+// LetterMailOutcomeHeldBack reports an outcome another mail would only repeat.
+func LetterMailOutcomeHeldBack(outcome string) bool {
+	return outcome == "blocked" || outcome == "unsubscribed" || outcome == "complained"
+}
 
 // BillingLetterPost is Delivery and the letterhead of the Träger as the
 // letters are mailed. The root binds it; every operation joins the caller's

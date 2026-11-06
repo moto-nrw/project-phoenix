@@ -153,6 +153,9 @@ func (m *BillingLetterMail) MailBillingLetter(ctx context.Context, reviewer pare
 	if last.MailOutcome == parentbilling.LetterMailOutcomeDelayed {
 		return parentbilling.BillingLetterMailing{}, parentbilling.ErrLetterMailDelayed
 	}
+	if parentbilling.LetterMailOutcomeHeldBack(last.MailOutcome) {
+		return parentbilling.BillingLetterMailing{}, parentbilling.ErrLetterMailBlocked
+	}
 	file, err := m.store.DocumentLetter(ctx, reviewer.OrganizationID, current.run.ID, document.ID)
 	if err != nil {
 		return parentbilling.BillingLetterMailing{}, err

@@ -184,5 +184,6 @@ type RequestMailOutcome struct {
 	Kind        string     `json:"kind"`
 	Outcome     string     `json:"outcome"`
 	AddressMark string     `json:"address_mark,omitempty"`
+	Stopped     bool       `json:"stopped,omitempty"`
 	OutcomeAt   *time.Time `json:"outcome_at,omitempty"`
 }

@@ -92,6 +92,10 @@ func (d guardianInvitationDelivery) GuardianMailBlocks(ctx context.Context, tena
 	if err != nil {
 		return nil, err
 	}
+	stopped, err := d.outcomes.StoppedEmailAddresses(ctx, tenantID, addresses)
+	if err != nil {
+		return nil, err
+	}
 	latest, err := d.outcomes.LatestEmailOutcomes(ctx, tenantID, []string{identityaccess.MailKindGuardianInvitation}, addresses)
 	if err != nil {
 		return nil, err
@@ -99,8 +103,8 @@ func (d guardianInvitationDelivery) GuardianMailBlocks(ctx context.Context, tena
 	blocks := make(map[string]string, len(marks))
 	for _, address := range addresses {
 		key := deliveryContract.NormalizedEmailAddress(address)
-		switch deliveryContract.EmailSendBlockOf(marks[key], latest[key].Outcome) {
-		case deliveryContract.EmailSendBlockAddress:
+		switch deliveryContract.EmailSendBlockOf(marks[key], stopped[key], latest[key].Outcome) {
+		case deliveryContract.EmailSendBlockAddress, deliveryContract.EmailSendBlockStopped:
 			blocks[key] = identityaccess.GuardianMailBlockAddress
 		case deliveryContract.EmailSendBlockDelayed:
 			blocks[key] = identityaccess.GuardianMailBlockDelayed
@@ -289,4 +293,6 @@ var parentGuardianSentinels = []retainedSentinel{
 	{identityaccess.ErrCannotRemovePayerGuardian, parentportal.ErrCannotRemovePayerGuardian},
 	{identityaccess.ErrInviteSocialWorkerManaged, parentportal.ErrInviteSocialWorkerManaged},
 	{identityaccess.ErrGuardianAccessMailNotQueued, parentportal.ErrInviteMailNotQueued},
+	{identityaccess.ErrGuardianEmailAddressBlocked, parentportal.ErrInviteMailUnavailable},
+	{identityaccess.ErrInvitationMailDelayed, parentportal.ErrInviteMailUnavailable},
 }

@@ -18,11 +18,11 @@ type EmailWebhooks interface {
 // and at the provider. nil means it is free as far as moto knows. Any error means
 // it stays blocked and the list is unchanged:
 //
-//   - ErrEmailSuppressionNotFound: not on the school's list and, with a provider,
-//     no mail of the school to exactly this address. Nothing was asked of the
-//     provider. A caller that only wants the address free can treat this as done.
-//   - ErrEmailSuppressionNeedsReview: a complaint's block, here or at the provider.
-//   - ErrEmailSuppressionStaysAtProvider: a manual or unsubscribe block.
+//   - ErrEmailSuppressionNotFound: not on the school's list. Nothing was asked of
+//     the provider. A caller that only wants the address free can treat this as done.
+//   - ErrEmailSuppressionNeedsReview: a complaint on the school's own list.
+//   - ErrEmailSuppressionStaysAtProvider: a block at the provider the school cannot
+//     lift. It does not say why: the reason may belong to another school.
 //   - anything else: a failure worth another try.
 //
 // Plain SMTP has no provider, so only the school's list counts there. Each method
@@ -33,12 +33,6 @@ type EmailSuppressions interface {
 	// the school's list and at the provider. A complaint's block stays: the
 	// failure is ErrEmailSuppressionNeedsReview of the contract.
 	LiftEmailSuppression(ctx context.Context, tenantID int64, address string) error
-}
-
-// EmailStops puts an address on a school's list on the school's own decision, in
-// its own tenant transaction. The mark of a complaint stays.
-type EmailStops interface {
-	StopEmailsToAddress(ctx context.Context, tenantID int64, address string) error
 }
 
 // EmailOutcomes reads what became of a school's mails, in the caller's tenant
@@ -52,6 +46,9 @@ type EmailOutcomes interface {
 	// EmailAddressMarks reports the marked addresses among the given ones. The
 	// key is the normalized address.
 	EmailAddressMarks(ctx context.Context, tenantID int64, addresses []string) (map[string]deliveryContract.EmailAddressMark, error)
+	// StoppedEmailAddresses reports the addresses among the given ones whose
+	// holders all carry the school's stop. The key is the normalized address.
+	StoppedEmailAddresses(ctx context.Context, tenantID int64, addresses []string) (map[string]bool, error)
 }
 
 // ReconcileEmailDelivery compares open mails with the provider's record. Its

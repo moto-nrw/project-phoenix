@@ -390,4 +390,14 @@ describe("PendingInvitationsList mail state (#5934)", () => {
     render(<PendingInvitationsList refreshKey={0} />);
     expect(await screen.findByText(/laden Sie neu ein/)).toBeInTheDocument();
   });
+
+  it("does not speak of a stop or a failed mail for a mark alone", async () => {
+    mockListPendingInvitations.mockResolvedValue([
+      invitation({ mailOutcome: "accepted", addressMark: "complained" }),
+    ]);
+    render(<PendingInvitationsList refreshKey={0} />);
+    expect(await screen.findByText(/Beschwerde/)).toBeInTheDocument();
+    expect(screen.queryByText(/kam nicht an/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/gestoppt/)).not.toBeInTheDocument();
+  });
 });

@@ -3,6 +3,8 @@
 package api
 
 import (
+	"log/slog"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
@@ -66,7 +68,7 @@ func newGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return GuardianTestModule{}, err
 	}
 	return GuardianTestModule{PeopleDirectory: people, runtime: NewGuardianDirectoryRuntime(guardian, lists.NewRendererService(), auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()),
-		GuardianEmailDelivery{Outcomes: mailDelivery.EmailOutcomes, Suppressions: mailDelivery.EmailReconciliation, Stops: mailDelivery.Store, Guardians: people})}, nil
+		GuardianEmailDelivery{Outcomes: mailDelivery.EmailOutcomes, Suppressions: mailDelivery.EmailReconciliation}, audits.DataAccessLog, slog.Default())}, nil
 }
 
 // ParentGuardianRoleFixture supplies the canonical role preset as stored

@@ -297,7 +297,7 @@ func intentOutcome(transport deliveryContract.Transport, row domain.Intent) deli
 	if transport != deliveryContract.TransportEmail {
 		return ""
 	}
-	return deliveryContract.EmailOutcomeOf(row.Status, &row.DeliveryState, row.LastError, "")
+	return deliveryContract.EmailOutcomeAt(deliveryContract.EmailOutcomeOf(row.Status, &row.DeliveryState, row.LastError, ""), row.DeliveryStateAt, time.Now())
 }
 
 // intents reads the intents of one related entity and observes the store's answer.

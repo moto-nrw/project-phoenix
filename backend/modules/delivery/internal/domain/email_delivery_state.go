@@ -29,8 +29,10 @@ const (
 	EmailDeliveryDelayed    EmailDeliveryState = "delayed"
 	EmailDeliveryDelivered  EmailDeliveryState = "delivered"
 	EmailDeliverySuppressed EmailDeliveryState = "suppressed"
-	EmailDeliveryFailed     EmailDeliveryState = "failed"
-	EmailDeliveryComplained EmailDeliveryState = "complained"
+	// EmailDeliveryUnsubscribed is a person who unsubscribed at the provider.
+	EmailDeliveryUnsubscribed EmailDeliveryState = "unsubscribed"
+	EmailDeliveryFailed       EmailDeliveryState = "failed"
+	EmailDeliveryComplained   EmailDeliveryState = "complained"
 )
 
 // emailDeliveryStateOrder ranks the states by how much they say about the
@@ -41,6 +43,7 @@ var emailDeliveryStateOrder = []EmailDeliveryState{
 	EmailDeliveryDelayed,
 	EmailDeliveryDelivered,
 	EmailDeliverySuppressed,
+	EmailDeliveryUnsubscribed,
 	EmailDeliveryFailed,
 	EmailDeliveryComplained,
 }
@@ -54,11 +57,11 @@ func NextEmailDeliveryState(current, event EmailDeliveryState) EmailDeliveryStat
 }
 
 // BlocksAddress reports whether the state puts the address on the school's
-// suppression list. A provider that holds a mail back knows the address from
-// another school or an older block; only the school's list can tell the school
-// why its mail did not leave, so the address goes there too.
+// suppression list. Only a bounce for good and a complaint do (#5936). A mail the
+// provider or the list held back says nothing new about the address, and an
+// unsubscribe is a person's wish, not a broken address.
 func (s EmailDeliveryState) BlocksAddress() bool {
-	return s == EmailDeliveryFailed || s == EmailDeliveryComplained || s == EmailDeliverySuppressed
+	return s == EmailDeliveryFailed || s == EmailDeliveryComplained
 }
 
 // EmailSuppressionReason is why a school's list holds an address.
@@ -67,7 +70,6 @@ type EmailSuppressionReason string
 const (
 	EmailSuppressionFailed     EmailSuppressionReason = "failed"
 	EmailSuppressionComplained EmailSuppressionReason = "complained"
-	EmailSuppressionSchoolStop EmailSuppressionReason = "school_stop"
 )
 
 // SuppressionReason is the reason the state leaves on the school's list.
@@ -130,6 +132,7 @@ type ProviderMail struct {
 	ID                int64
 	ProviderMessageID string
 	State             EmailDeliveryState
+	StateAt           *time.Time
 	SentAt            time.Time
 	// CheckedAt is when the reconciliation last asked about the mail, if ever.
 	CheckedAt *time.Time

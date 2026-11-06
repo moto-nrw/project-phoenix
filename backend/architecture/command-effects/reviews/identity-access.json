@@ -3163,6 +3163,16 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.GuardianMailBlocks",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.GuardianInvitationDelivery.GuardianMailBlocks",
+      "reason": "Read-only delivery state: identity-access reads which addresses belong to a stopped guardian through runtime.EmailOutcomes.StoppedEmailAddresses in its tenant transaction (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.GuardianInvitationDelivery.InvitationExpiry",
       "classification": "query",
       "effect": "query",
@@ -4813,6 +4823,16 @@
       "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.LatestEmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect.",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
+      "reason": "Read-only delivery state: identity-access reads which addresses belong to a stopped guardian through runtime.EmailOutcomes.StoppedEmailAddresses in its tenant transaction (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.StoppedEmailAddresses",
       "target_owner": "delivery-platform"
     },
     {

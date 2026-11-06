@@ -259,6 +259,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.letter_mail_delayed"
+    },
+    {
+      "code": "parent_billing.letter_mail_blocked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.letter_mail_blocked"
     }
   ]
 }

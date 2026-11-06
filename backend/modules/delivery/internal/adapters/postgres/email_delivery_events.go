@@ -43,16 +43,11 @@ const emailEventRerouteSQL = `UPDATE platform.email_outbox
 		updated_at = ?0
 	WHERE id = ?1`
 
-// A complaint is the strongest reason and stays once it is recorded. The stop of
-// a school comes next: a later bounce must not turn it into something the school
-// did not decide.
+// A complaint is the stronger reason and stays once it is recorded.
 const emailSuppressionUpsertSQL = `INSERT INTO platform.email_suppressions (tenant_id, address, reason)
 	VALUES (?, ?, ?)
 	ON CONFLICT (tenant_id, address) DO UPDATE SET
-		reason = CASE
-			WHEN platform.email_suppressions.reason = 'complained' OR EXCLUDED.reason = 'complained' THEN 'complained'
-			WHEN platform.email_suppressions.reason = 'school_stop' OR EXCLUDED.reason = 'school_stop' THEN 'school_stop'
-			ELSE EXCLUDED.reason END,
+		reason = CASE WHEN platform.email_suppressions.reason = 'complained' THEN 'complained' ELSE EXCLUDED.reason END,
 		updated_at = NOW()`
 
 type emailEventMailRow struct {
@@ -147,17 +142,49 @@ func suppressEmailEventAddress(ctx context.Context, db bun.IDB, mail emailEventM
 	return err
 }
 
-// EmailAddressSuppressed implements ports.EmailDeliveryEventStore.
-func (s *Store) EmailAddressSuppressed(ctx context.Context, tenantID int64, address string) (bool, error) {
-	var suppressed bool
+// A stop holds a mail back only if every person who holds the address carries it,
+// so a shared address still reaches the person nobody stopped.
+const (
+	schoolEmailHoldsSQL = `SELECT
+		EXISTS (SELECT 1 FROM platform.email_suppressions WHERE tenant_id = ?0 AND address = ?1) AS listed,
+		EXISTS (SELECT 1 FROM platform.delivery_guardian_contacts WHERE tenant_id = ?0 AND address = ?1 AND emails_stopped_at IS NOT NULL)
+		AND NOT EXISTS (SELECT 1 FROM platform.delivery_guardian_contacts WHERE tenant_id = ?0 AND address = ?1 AND emails_stopped_at IS NULL) AS stopped`
+	traegerEmailHoldsSQL = `SELECT
+		EXISTS (SELECT 1 FROM platform.email_suppressions AS list JOIN platform.delivery_traeger_schools AS school ON school.tenant_id = list.tenant_id
+			WHERE school.organization_id = ?0 AND list.address = ?1) AS listed,
+		EXISTS (SELECT 1 FROM platform.delivery_guardian_contacts AS contact JOIN platform.delivery_traeger_schools AS school ON school.tenant_id = contact.tenant_id
+			WHERE school.organization_id = ?0 AND contact.address = ?1 AND contact.emails_stopped_at IS NOT NULL)
+		AND NOT EXISTS (SELECT 1 FROM platform.delivery_guardian_contacts AS contact JOIN platform.delivery_traeger_schools AS school ON school.tenant_id = contact.tenant_id
+			WHERE school.organization_id = ?0 AND contact.address = ?1 AND contact.emails_stopped_at IS NULL) AS stopped`
+)
+
+type emailHoldsRow struct {
+	Listed  bool `bun:"listed"`
+	Stopped bool `bun:"stopped"`
+}
+
+// SchoolEmailHolds implements ports.EmailDeliveryEventStore.
+func (s *Store) SchoolEmailHolds(ctx context.Context, tenantID int64, address string) (bool, bool, error) {
+	var row emailHoldsRow
 	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
-		return db.NewRaw(`SELECT EXISTS (SELECT 1 FROM platform.email_suppressions WHERE tenant_id = ? AND address = ?)`,
-			tenantID, normalizedAddress(address)).Scan(txCtx, &suppressed)
+		return db.NewRaw(schoolEmailHoldsSQL, tenantID, normalizedAddress(address)).Scan(txCtx, &row)
 	})
 	if err != nil {
-		return false, fmt.Errorf("delivery postgres: read email suppression: %w", err)
+		return false, false, fmt.Errorf("delivery postgres: read the holds of a school's mail: %w", err)
 	}
-	return suppressed, nil
+	return row.Listed, row.Stopped, nil
+}
+
+// TraegerEmailHolds implements ports.EmailDeliveryEventStore.
+func (s *Store) TraegerEmailHolds(ctx context.Context, organizationID int64, address string) (bool, bool, error) {
+	var row emailHoldsRow
+	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
+		return db.NewRaw(traegerEmailHoldsSQL, organizationID, normalizedAddress(address)).Scan(txCtx, &row)
+	})
+	if err != nil {
+		return false, false, fmt.Errorf("delivery postgres: read the holds of a Träger's mail: %w", err)
+	}
+	return row.Listed, row.Stopped, nil
 }
 
 // DeleteExpiredEmailDeliveryEvents implements ports.RetentionStore.
@@ -187,7 +214,7 @@ func (s *Store) DeleteUnheldEmailSuppressions(ctx context.Context, tenantID int6
 			WHERE known.tenant_id = ?0 AND known.address = suppression.address)`, tenantID))
 }
 
-const openProviderMailsSQL = `SELECT id, provider_message_id, delivery_state, sent_at, delivery_checked_at
+const openProviderMailsSQL = `SELECT id, provider_message_id, delivery_state, delivery_state_at, sent_at, delivery_checked_at
 	FROM platform.email_outbox
 	WHERE status = 'sent' AND provider_message_id IS NOT NULL AND fallback_requested_at IS NULL
 		AND (delivery_state IS NULL OR delivery_state = 'delayed')
@@ -199,6 +226,7 @@ type providerMailRow struct {
 	ID                int64      `bun:"id"`
 	ProviderMessageID string     `bun:"provider_message_id"`
 	DeliveryState     *string    `bun:"delivery_state"`
+	DeliveryStateAt   *time.Time `bun:"delivery_state_at"`
 	SentAt            time.Time  `bun:"sent_at"`
 	CheckedAt         *time.Time `bun:"delivery_checked_at"`
 }
@@ -214,7 +242,7 @@ func (s *Store) OpenProviderMails(ctx context.Context, query domain.ProviderMail
 	}
 	mails := make([]domain.ProviderMail, 0, len(rows))
 	for _, row := range rows {
-		mail := domain.ProviderMail{ID: row.ID, ProviderMessageID: row.ProviderMessageID, SentAt: row.SentAt, CheckedAt: row.CheckedAt}
+		mail := domain.ProviderMail{ID: row.ID, ProviderMessageID: row.ProviderMessageID, StateAt: row.DeliveryStateAt, SentAt: row.SentAt, CheckedAt: row.CheckedAt}
 		if row.DeliveryState != nil {
 			mail.State = domain.EmailDeliveryState(*row.DeliveryState)
 		}
@@ -276,34 +304,6 @@ func (s *Store) DeleteEmailSuppression(ctx context.Context, tenantID int64, addr
 		return domain.ErrSuppressionNeedsReview
 	}
 	return nil
-}
-
-// StopEmailsToAddress implements ports.EmailReconciliationStore. It runs in the
-// caller's tenant transaction.
-func (s *Store) StopEmailsToAddress(ctx context.Context, tenantID int64, address string) error {
-	db, err := s.tenantDB(ctx, tenantID)
-	if err != nil {
-		return err
-	}
-	if _, err := db.ExecContext(ctx, emailSuppressionUpsertSQL, tenantID, normalizedAddress(address), string(domain.EmailSuppressionSchoolStop)); err != nil {
-		return fmt.Errorf("delivery postgres: stop emails to an address: %w", err)
-	}
-	return nil
-}
-
-// SchoolMailedAddress implements ports.EmailReconciliationStore.
-func (s *Store) SchoolMailedAddress(ctx context.Context, tenantID int64, address string) (bool, error) {
-	db, err := s.tenantDB(ctx, tenantID)
-	if err != nil {
-		return false, err
-	}
-	var mailed bool
-	err = db.NewRaw(`SELECT EXISTS (SELECT 1 FROM platform.email_outbox
-		WHERE tenant_id = ? AND LOWER(recipient->>'address') = ?)`, tenantID, normalizedAddress(address)).Scan(ctx, &mailed)
-	if err != nil {
-		return false, fmt.Errorf("delivery postgres: read the school's mail to an address: %w", err)
-	}
-	return mailed, nil
 }
 
 func normalizedAddress(address string) string { return strings.ToLower(strings.TrimSpace(address)) }

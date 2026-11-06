@@ -87,6 +87,8 @@ export const ERROR_CATALOG = {
         "Diese E-Mail-Adresse wird bereits verwendet. Bitte prüfen Sie die Adresse.",
       "care.guardian_has_own_account":
         "Diese Person verwaltet ihre Kontaktdaten über ein eigenes Elternkonto. Sie kann die Angaben dort selbst ändern.",
+      "care.guardian_invite_unavailable":
+        "Diese Einladung konnte gerade nicht gesendet werden. Bitte wenden Sie sich an die OGS.",
       "care.guardian_management_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "care.guardian_no_change":
@@ -618,7 +620,7 @@ export const ERROR_CATALOG = {
       "identity.email_change_same_email":
         "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
       "identity.guardian_email_address_blocked":
-        "Die Einladung wurde nicht gesendet, weil diese Adresse gesperrt ist. Den Grund und den nächsten Schritt sehen Sie bei der Person.",
+        "Die Einladung wurde nicht gesendet, weil an diese Person keine Mails gehen. Den Grund und den nächsten Schritt sehen Sie bei der Person.",
       "identity.guardian_invitation_email_not_queued":
         "Die Einladung konnte gerade nicht verschickt werden. Bitte versuchen Sie es noch einmal.",
       "identity.invalid_credentials":
@@ -815,6 +817,8 @@ export const ERROR_CATALOG = {
         "Diese Rechnung hat schon eine Gutschrift. Schreiben Sie den Rest gut, statt zu stornieren.",
       "parent_billing.invoice_number_taken":
         "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnungsvorgaben“.",
+      "parent_billing.letter_mail_blocked":
+        "An diese Adresse geht keine Mail mehr raus. Bitte drucken Sie das Schreiben.",
       "parent_billing.letter_mail_delayed":
         "Die letzte Mail an diese Familie ist noch unterwegs. Bitte warten Sie, sonst kommt sie doppelt an.",
       "parent_billing.letter_mail_pending":
@@ -1691,6 +1695,8 @@ export const ERROR_CATALOG = {
         "This email address is already in use. Please check the address.",
       "care.guardian_has_own_account":
         "This person manages their contact details through their own parent account. They can change the details there themselves.",
+      "care.guardian_invite_unavailable":
+        "This invitation could not be sent right now. Please contact the after-school care team.",
       "care.guardian_management_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
       "care.guardian_no_change":
@@ -2230,6 +2236,8 @@ export const ERROR_CATALOG = {
         "Этот адрес электронной почты уже используется. Проверьте адрес.",
       "care.guardian_has_own_account":
         "Этот человек управляет своими контактными данными через собственный родительский аккаунт. Он может сам изменить их там.",
+      "care.guardian_invite_unavailable":
+        "Сейчас не удалось отправить это приглашение. Обратитесь, пожалуйста, в группу продлённого дня.",
       "care.guardian_management_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
       "care.guardian_no_change": "Ничего не изменено. Проверьте свои данные.",
@@ -2671,6 +2679,8 @@ export const ERROR_CATALOG = {
         "Kjo adresë e-maili përdoret tashmë. Kontrolloni adresën.",
       "care.guardian_has_own_account":
         "Ky person i menaxhon të dhënat e kontaktit përmes llogarisë së vet prindërore. Ai mund t'i ndryshojë vetë të dhënat atje.",
+      "care.guardian_invite_unavailable":
+        "Kjo ftesë nuk mund të dërgohej tani. Ju lutemi kontaktoni kujdesin pas shkollës.",
       "care.guardian_management_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
       "care.guardian_no_change":
@@ -3127,6 +3137,8 @@ export const ERROR_CATALOG = {
         "Ten adres e-mail jest już używany. Sprawdź adres.",
       "care.guardian_has_own_account":
         "Ta osoba zarządza swoimi danymi kontaktowymi przez własne konto rodzica. Może sama zmienić tam te dane.",
+      "care.guardian_invite_unavailable":
+        "Nie udało się teraz wysłać tego zaproszenia. Prosimy o kontakt ze świetlicą.",
       "care.guardian_management_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
       "care.guardian_no_change":
@@ -3570,6 +3582,8 @@ export const ERROR_CATALOG = {
         "Bu e-posta adresi zaten kullanılıyor. Lütfen adresi kontrol edin.",
       "care.guardian_has_own_account":
         "Bu kişi iletişim bilgilerini kendi veli hesabından yönetiyor. Bilgileri orada kendisi değiştirebilir.",
+      "care.guardian_invite_unavailable":
+        "Bu davet şu anda gönderilemedi. Lütfen okul sonrası bakım ekibiyle iletişime geçin.",
       "care.guardian_management_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
       "care.guardian_no_change":
@@ -4018,6 +4032,8 @@ export const ERROR_CATALOG = {
         "Ця адреса ел. пошти вже використовується. Перевірте адресу.",
       "care.guardian_has_own_account":
         "Ця особа має власний батьківський обліковий запис і сама керує своїми контактними даними. Вона може сама змінити їх там.",
+      "care.guardian_invite_unavailable":
+        "Зараз не вдалося надіслати це запрошення. Будь ласка, зверніться до групи продовженого дня.",
       "care.guardian_management_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
       "care.guardian_no_change": "Нічого не змінено. Перевірте свої дані.",

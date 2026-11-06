@@ -298,6 +298,7 @@ type InviteToStudentResult struct {
 	GuardianProfileID int64
 	InvitationID      *int64
 	ExistingRole      string
+	MailHeld          bool
 }
 
 // RevokeAccessRequest removes one account's access to one child.

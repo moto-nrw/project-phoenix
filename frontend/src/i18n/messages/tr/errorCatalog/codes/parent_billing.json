@@ -41,5 +41,6 @@
   "sibling_group_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "sibling_group_invoiced": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "sibling_group_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-  "letter_mail_delayed": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+  "letter_mail_delayed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "letter_mail_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin."
 }

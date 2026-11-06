@@ -46,6 +46,7 @@ import {
   fetchGuardianDeletePreview,
   fetchStudentGuardianEmailStates,
   liftGuardianEmailBlock,
+  resumeGuardianEmails,
   stopGuardianEmails,
 } from "@/lib/guardian-api";
 import type {
@@ -80,6 +81,7 @@ function inviteSuccessMessage(
   name: string,
   email: string,
   confirmRoleUpgrade: boolean,
+  mailHeld = false,
 ): string {
   switch (outcome) {
     case "invited":
@@ -88,6 +90,9 @@ function inviteSuccessMessage(
       return `Die Anfrage für ${name} wartet auf Freigabe.`;
     case "already_linked":
     case "linked_existing_account":
+      if (mailHeld) {
+        return `${name} ist verknüpft. An ${email} geht kein Hinweis raus. Den Grund sehen Sie bei der Person.`;
+      }
       return confirmRoleUpgrade
         ? `${name} hat jetzt vollen Zugriff.`
         : `${name} hat schon ein Konto. Ein Hinweis zum Elternportal wird an ${email} gesendet.`;
@@ -95,6 +100,45 @@ function inviteSuccessMessage(
       return `${name} ist gespeichert.`;
   }
 }
+
+type GuardianEmailChange = "stop" | "resume" | "lift";
+
+const EMAIL_CHANGE_COPY: Record<
+  GuardianEmailChange,
+  {
+    readonly title: string;
+    readonly confirm: string;
+    readonly text: string;
+    readonly object: string;
+    readonly run: (guardianId: string) => Promise<void>;
+    readonly done: (name: string) => string;
+  }
+> = {
+  stop: {
+    title: "Mails stoppen?",
+    confirm: "Stoppen",
+    text: "Diese Person bekommt dann keine Mails der Schule mehr: keine Einladung, keine Elternbriefe, keine Termine. Das gilt auch nach einer neuen Adresse. Anmeldecodes und Mails zum Passwort kommen weiter an. Abrechnungsbriefe des Trägers auch.",
+    object: "der Stopp der Mails",
+    run: stopGuardianEmails,
+    done: (name) => `Die Mails an ${name} sind gestoppt.`,
+  },
+  resume: {
+    title: "Mails wieder senden?",
+    confirm: "Wieder senden",
+    text: "Diese Person bekommt dann wieder Mails der Schule.",
+    object: "der Stopp der Mails",
+    run: resumeGuardianEmails,
+    done: (name) => `${name} bekommt wieder Mails.`,
+  },
+  lift: {
+    title: "Sperre aufheben?",
+    confirm: "Aufheben",
+    text: "moto sendet dann wieder Mails an diese Adresse. Kommt erneut eine Mail zurück, wird die Adresse wieder gesperrt.",
+    object: "die Sperre",
+    run: liftGuardianEmailBlock,
+    done: (name) => `Die Sperre für ${name} ist aufgehoben.`,
+  },
+};
 
 interface StudentGuardianManagerProps {
   readonly studentId: string;
@@ -124,8 +168,11 @@ export default function StudentGuardianManager({
   // Stopping and freeing an address change what reaches a family: ask once.
   const [emailBlockChange, setEmailBlockChange] = useState<{
     guardian: GuardianWithRelationship;
-    action: "stop" | "lift";
+    action: GuardianEmailChange;
   } | null>(null);
+  const emailChangeCopy = emailBlockChange
+    ? EMAIL_CHANGE_COPY[emailBlockChange.action]
+    : null;
   const emailBlockErrors = useApiFormError();
   const [isChangingEmailBlock, setIsChangingEmailBlock] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -493,8 +540,10 @@ export default function StudentGuardianManager({
           getGuardianFullName(guardian),
           email,
           confirmRoleUpgrade,
+          result.mail_held,
         ),
       );
+      await loadEmailStates();
     } catch (err) {
       logger.error("guardian_invite_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -520,17 +569,10 @@ export default function StudentGuardianManager({
     emailBlockErrors.clear();
     setIsChangingEmailBlock(true);
     try {
-      if (action === "stop") {
-        await stopGuardianEmails(guardian.id);
-        toastSuccess(
-          `Die Mails an ${getGuardianFullName(guardian)} sind gestoppt.`,
-        );
-      } else {
-        await liftGuardianEmailBlock(guardian.id);
-        toastSuccess(
-          `Die Mails an ${getGuardianFullName(guardian)} sind wieder frei.`,
-        );
-      }
+      await EMAIL_CHANGE_COPY[action].run(guardian.id);
+      toastSuccess(
+        EMAIL_CHANGE_COPY[action].done(getGuardianFullName(guardian)),
+      );
       setEmailBlockChange(null);
       await loadEmailStates();
     } catch (err) {
@@ -540,7 +582,7 @@ export default function StudentGuardianManager({
         action,
       });
       await emailBlockErrors.show(err, {
-        object: action === "stop" ? "der Stopp der Mails" : "die Sperre",
+        object: EMAIL_CHANGE_COPY[action].object,
         retry: () => void confirmEmailBlockChange(),
       });
     } finally {
@@ -844,6 +886,12 @@ export default function StudentGuardianManager({
               ? undefined
               : (guardian) => setEmailBlockChange({ guardian, action: "lift" })
           }
+          onResumeEmails={
+            readOnly
+              ? undefined
+              : (guardian) =>
+                  setEmailBlockChange({ guardian, action: "resume" })
+          }
           readOnly={readOnly}
           showRelationship={true}
         />
@@ -882,22 +930,12 @@ export default function StudentGuardianManager({
         isOpen={emailBlockChange !== null}
         onClose={closeEmailBlockChange}
         onConfirm={() => void confirmEmailBlockChange()}
-        title={
-          emailBlockChange?.action === "stop"
-            ? "Mails stoppen?"
-            : "Mails wieder senden?"
-        }
-        confirmText={
-          emailBlockChange?.action === "stop" ? "Stoppen" : "Wieder senden"
-        }
+        title={emailChangeCopy?.title ?? ""}
+        confirmText={emailChangeCopy?.confirm ?? ""}
         cancelText="Abbrechen"
         isConfirmLoading={isChangingEmailBlock}
       >
-        <p className="text-sm text-gray-600">
-          {emailBlockChange?.action === "stop"
-            ? "Diese Person bekommt dann keine Mails der Schule mehr, auch keine Einladung und keine Elternbriefe. Anmeldecodes und Mails zum Passwort kommen weiter an."
-            : "moto sendet dann wieder Mails an diese Adresse. Kommt erneut eine Mail zurück, wird die Adresse wieder gesperrt."}
-        </p>
+        <p className="text-sm text-gray-600">{emailChangeCopy?.text}</p>
         <FormErrorAlert message={emailBlockErrors.error} className="mt-3" />
       </ConfirmationModal>
 

@@ -1170,7 +1170,7 @@ src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
 src/components/enrollment/phases-editor.tsx|text-[11px]@769 text-[11px]@774
 src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
-src/components/guardians/guardian-list.tsx|text-[10px]@437
+src/components/guardians/guardian-list.tsx|text-[10px]@458
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@744 text-[11px]@809
 src/components/parent/parent-enroll-picker.tsx|text-[11px]@228 text-[11px]@232
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546

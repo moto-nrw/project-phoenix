@@ -40,6 +40,7 @@ type EmailDeliveryStatus struct {
 	EmailStatus       string     `json:"email_status"`
 	MailOutcome       string     `json:"mail_outcome,omitempty"`
 	AddressMark       string     `json:"address_mark,omitempty"`
+	Stopped           bool       `json:"stopped,omitempty"`
 	LastError         *string    `json:"last_error,omitempty"`
 	SentAt            *time.Time `json:"sent_at,omitempty"`
 	Attempts          int        `json:"attempts"`
@@ -323,6 +324,7 @@ type LetterSummary struct {
 	EmailsDelivered       int `json:"emails_delivered"`
 	EmailsDelayed         int `json:"emails_delayed"`
 	EmailsAddressCheck    int `json:"emails_address_check"`
+	EmailsStopped         int `json:"emails_stopped"`
 	EmailsResendable      int `json:"emails_resendable"`
 	EmailsPending         int `json:"emails_pending"`
 	EmailsFailed          int `json:"emails_failed"`
@@ -393,10 +395,13 @@ func (s *service) LetterStatus(ctx context.Context, id int64) (*LetterStatus, er
 }
 
 // addLetterMailOutcome counts what the provider reported and what a resend could
-// still change. A marked address is never resendable: the list would hold the
-// mail back again (#5934).
+// still change. A marked address and a stopped person are never resendable: the
+// mail would stay back again (#5934). A mail that came back without a mark is, and
+// so is one to an address someone has corrected since.
 func addLetterMailOutcome(summary *LetterSummary, r EmailDeliveryStatus) {
 	switch {
+	case r.Stopped:
+		summary.EmailsStopped++
 	case r.AddressMark != "":
 		summary.EmailsAddressCheck++
 	case r.MailOutcome == mailOutcomeDelivered:

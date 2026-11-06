@@ -76,5 +76,6 @@
   "request_not_open": "{object} artık açık değil. Lütfen ilgili kişinize danışın.",
   "request_sharing_invalid": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
   "sick_note_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
-  "staff_managed_guardian_protected": "{object} için erişim izniniz yok. Okulla iletişime geçin."
+  "staff_managed_guardian_protected": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "guardian_invite_unavailable": "Bu davet şu anda gönderilemedi. Lütfen okul sonrası bakım ekibiyle iletişime geçin."
 }

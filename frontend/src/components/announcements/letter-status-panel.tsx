@@ -29,6 +29,7 @@ import { formatDate } from "~/lib/date-helpers";
 import {
   CHECK_ADDRESS_AT_GUARDIAN,
   mailStatusCopy,
+  TELL_THE_OGS_ABOUT_THE_ADDRESS,
 } from "~/lib/email-delivery-status";
 import {
   fetchLetterStatus,
@@ -326,12 +327,17 @@ export function LetterStatusPanel({
         )}
       </SectionCard>
 
-      {((s.emails_address_check ?? 0) > 0 || (s.emails_delayed ?? 0) > 0) && (
+      {((s.emails_address_check ?? 0) > 0 ||
+        (s.emails_stopped ?? 0) > 0 ||
+        (s.emails_delayed ?? 0) > 0) && (
         <Alert
           type="warning"
           message={[
             (s.emails_address_check ?? 0) > 0
-              ? `Bei ${s.emails_address_check} ${s.emails_address_check === 1 ? "Adresse" : "Adressen"} geht keine Mail raus. ${CHECK_ADDRESS_AT_GUARDIAN}`
+              ? `Bei ${s.emails_address_check} ${s.emails_address_check === 1 ? "Adresse" : "Adressen"} geht keine Mail raus. ${apiBase === undefined ? CHECK_ADDRESS_AT_GUARDIAN : TELL_THE_OGS_ABOUT_THE_ADDRESS}`
+              : null,
+            (s.emails_stopped ?? 0) > 0
+              ? `An ${s.emails_stopped} ${s.emails_stopped === 1 ? "Person" : "Personen"} gehen keine Mails, weil die Schule sie gestoppt hat.`
               : null,
             (s.emails_delayed ?? 0) > 0
               ? "Verzögerte Mails kommen später an. Sie werden nicht erneut gesendet."
@@ -462,6 +468,7 @@ function RecipientRow({ recipient }: { readonly recipient: LetterRecipient }) {
   const mailCopy = mailStatusCopy(
     recipient.mail_outcome,
     recipient.address_mark,
+    recipient.stopped,
   );
   const email = mailCopy
     ? { label: mailCopy.label, tone: mailCopy.tone, title: undefined }
