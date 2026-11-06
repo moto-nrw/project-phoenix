@@ -42,13 +42,27 @@ func TestBroadlyImportedPackagesCompileTheSameWithTestHooks(t *testing.T) {
 			if expr == nil {
 				continue
 			}
-			with := expr.Eval(func(tag string) bool { return tag == "testhooks" })
-			without := expr.Eval(func(string) bool { return false })
-			if with != without {
+			if mentionsTag(expr, "testhooks") {
 				t.Errorf("%s depends on the testhooks tag; move its hooks into a leaf package (#5985)", path)
 			}
 		}
 	}
+}
+
+// mentionsTag reports whether tag occurs anywhere in expr, so combinations such
+// as `testhooks && linux` count as tag-dependent too.
+func mentionsTag(expr constraint.Expr, tag string) bool {
+	switch e := expr.(type) {
+	case *constraint.TagExpr:
+		return e.Tag == tag
+	case *constraint.NotExpr:
+		return mentionsTag(e.X, tag)
+	case *constraint.AndExpr:
+		return mentionsTag(e.X, tag) || mentionsTag(e.Y, tag)
+	case *constraint.OrExpr:
+		return mentionsTag(e.X, tag) || mentionsTag(e.Y, tag)
+	}
+	return false
 }
 
 // goBuildConstraint returns the //go:build expression of a Go file, or nil.
