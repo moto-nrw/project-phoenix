@@ -57,6 +57,54 @@
       "target_owner": "security-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentGroups.SchoolGroups",
+      "binding_digest": "31ea4eea2bf949593a4273b0585e0c56",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentGroups.SchoolGroups",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentGroups.SchoolGroups",
+      "binding_digest": "620ed4702cff457728782a6475b88d57",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentGroups.SchoolGroups",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentGroups.SchoolGroups",
+      "binding_digest": "e37b1b98c132783039d77ce378556ff9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentGroups.SchoolGroups",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentRuntime.WithinSchool",
+      "binding_digest": "2123039ce8fb2fd91b5719791497933b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentRuntime.WithinSchool",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentRuntime.WithinSchool",
+      "binding_digest": "895da1f778d35ec7a30a90a9891bd7f3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentRuntime.WithinSchool",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentRuntime.WithinTraeger",
+      "binding_digest": "61075ed14e510971a5bd65d84b6818ec",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentRuntime.WithinTraeger",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CaregiverCapabilityViews.DisableSchoolAccountCaregiverCapability",
       "binding_digest": "56c603ab0f3c326ef757348cf0be50d5",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator.SchoolAccountCaregivers.DisableSchoolAccountCaregiverCapability",
@@ -79,6 +127,22 @@
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CaregiverCapabilityViews.GetSchoolAccountCaregiverCapability",
       "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentRuntime.WithinSchool",
+      "binding_digest": "2123039ce8fb2fd91b5719791497933b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/traeger.SchoolRuntime.WithinSchool",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentRuntime.WithinSchool",
+      "binding_digest": "895da1f778d35ec7a30a90a9891bd7f3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/traeger.SchoolRuntime.WithinSchool",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BillingCounts.CountActiveStudentsByTenant",

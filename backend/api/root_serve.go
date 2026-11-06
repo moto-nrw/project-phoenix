@@ -570,6 +570,7 @@ func composeServeRoot(
 				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications, delivery.Runtime.Module, env.HealthData))
 			return mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, delivery.Runtime.Module, config.Turnstile, env.HealthData, logger)
 		},
+		func() error { return mountTraegerDocumentRoutes(router, tenant, db, organizations) },
 	)
 	if err != nil {
 		return nil, nil, err

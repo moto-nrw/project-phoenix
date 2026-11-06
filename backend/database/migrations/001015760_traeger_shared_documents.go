@@ -26,7 +26,7 @@ func init() {
 // and 99):
 //
 //   - platform.traeger_documents: a file the Träger-Büro uploads (PDF, Word,
-//     Excel or an image) with its title. A document never changes; the only
+//     Excel, PowerPoint or an image) with its title. A document never changes; the only
 //     update allowed is the ON DELETE SET NULL of the account that uploaded
 //     it. Like the master data it belongs to the Träger, follows the Träger
 //     policy of ADR 0105 and goes with the Träger.
@@ -63,7 +63,8 @@ CREATE TABLE platform.traeger_documents (
 	CONSTRAINT chk_traeger_documents_content_type CHECK (content_type IN (
 		'application/pdf', 'image/png', 'image/jpeg',
 		'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-		'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+		'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+		'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 	)),
 	CONSTRAINT chk_traeger_documents_size CHECK (size_bytes > 0 AND size_bytes <= 10485760 AND octet_length(content) = size_bytes)
 );

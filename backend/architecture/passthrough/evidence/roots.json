@@ -1612,6 +1612,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (g traegerDocumentGroups) SchoolGroups(ctx context.Context) ([]organizationtenancy.TraegerDocumentGroup, error) {\n\tgroups, err := g.groups.ListGroups(ctx, traegerDocumentGroupLimit)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]organizationtenancy.TraegerDocumentGroup, 0, len(groups))\n\tfor _, group := range groups {\n\t\tresult = append(result, organizationtenancy.TraegerDocumentGroup{ID: group.ID, Name: group.Name})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/traegerDocumentGroups.SchoolGroups",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (t traegerHolidayTrail) ListHolidayTrail(ctx context.Context, organizationID int64, query traegerview.HolidayTrailQuery) ([]traegerview.AccessTrailEntry, error) {\n\trows, err := t.trail.ListHolidayAccess(ctx, organizationID, enrollment.HolidayAccessFilter(query))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tentries := make([]traegerview.AccessTrailEntry, 0, len(rows))\n\tfor _, row := range rows {\n\t\tentries = append(entries, traegerview.AccessTrailEntry{ID: row.ID, OccurredAt: row.OccurredAt, AccountID: row.AccountID, Kind: row.Kind, Data: row.Data})\n\t}\n\treturn entries, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/traegerHolidayTrail.ListHolidayTrail",

@@ -1151,6 +1151,11 @@
       "reason": "ADR 0109 (#4655): root translation of the Identity \u0026 Access Träger accounts; only accounts with a Träger role at the Träger are named."
     },
     {
+      "decision": "0084",
+      "id": "api/traegerDocumentGroups.SchoolGroups",
+      "reason": "ADR 0084 (#4692): Consumer-port adapter that lists the groups of the school of the tenant transaction through School Structure and translates them into the groups a Träger document release may name."
+    },
+    {
       "decision": "0137",
       "id": "api/traegerHolidayTrail.ListHolidayTrail",
       "reason": "ADR 0137 (#5326): root translation of Enrollment's holiday registration trail into the Träger projection's trail entries without a school."

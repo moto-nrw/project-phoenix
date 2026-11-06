@@ -5,6 +5,11 @@ const CodeTraegerAccessLogExportTooLarge = "traeger.access_log_export_too_large"
 const CodeTraegerAlreadyMember = "traeger.already_member"
 const CodeTraegerBankAccountLabelTaken = "traeger.bank_account_label_taken"
 const CodeTraegerBankAccountNotFound = "traeger.bank_account_not_found"
+const CodeTraegerDocumentAlreadyReleased = "traeger.document_already_released"
+const CodeTraegerDocumentAudienceInvalid = "traeger.document_audience_invalid"
+const CodeTraegerDocumentInvalid = "traeger.document_invalid"
+const CodeTraegerDocumentNotFound = "traeger.document_not_found"
+const CodeTraegerDocumentReleaseNotFound = "traeger.document_release_not_found"
 const CodeTraegerDocumentTemplateInvalid = "traeger.document_template_invalid"
 const CodeTraegerDocumentTemplateKindNotFound = "traeger.document_template_kind_not_found"
 const CodeTraegerDocumentTemplateUnchanged = "traeger.document_template_unchanged"
@@ -18,12 +23,18 @@ const CodeTraegerMemberNotFound = "traeger.member_not_found"
 const CodeTraegerNoMembership = "traeger.no_membership"
 const CodeTraegerSchoolNotFound = "traeger.school_not_found"
 const CodeTraegerSecondFactorRequired = "traeger.second_factor_required"
+const CodeTraegerSharedDocumentNotFound = "traeger.shared_document_not_found"
 
 var errorCodeClassesTraeger = []errorCodeClass{
 	{CodeTraegerAccessLogExportTooLarge, "input"},
 	{CodeTraegerAlreadyMember, "business_rejection"},
 	{CodeTraegerBankAccountLabelTaken, "input"},
 	{CodeTraegerBankAccountNotFound, "input"},
+	{CodeTraegerDocumentAlreadyReleased, "business_rejection"},
+	{CodeTraegerDocumentAudienceInvalid, "input"},
+	{CodeTraegerDocumentInvalid, "input"},
+	{CodeTraegerDocumentNotFound, "input"},
+	{CodeTraegerDocumentReleaseNotFound, "input"},
 	{CodeTraegerDocumentTemplateInvalid, "input"},
 	{CodeTraegerDocumentTemplateKindNotFound, "input"},
 	{CodeTraegerDocumentTemplateUnchanged, "business_rejection"},
@@ -37,6 +48,7 @@ var errorCodeClassesTraeger = []errorCodeClass{
 	{CodeTraegerNoMembership, "permission"},
 	{CodeTraegerSchoolNotFound, "permission"},
 	{CodeTraegerSecondFactorRequired, "permission"},
+	{CodeTraegerSharedDocumentNotFound, "input"},
 }
 
 func init() {

@@ -1,0 +1,121 @@
+package api
+
+import (
+	"context"
+	"fmt"
+	"slices"
+	"strings"
+
+	"github.com/go-chi/chi/v5"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+
+	organizationTenancyTraeger "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/traeger"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/tenant"
+)
+
+// traegerDocumentGroupLimit bounds the groups one school offers a release.
+const traegerDocumentGroupLimit = 500
+
+// mountTraegerDocumentRoutes serves the documents a Träger shares (#4692):
+// the Träger-Büro's routes at /traeger/documents and the school's at
+// /api/traeger-documents. The parents read them through the parents portal.
+func mountTraegerDocumentRoutes(root, tenantRouter chi.Router, db transactionruntime.Database, organizations HolidayOrganizations) error {
+	traegerDocuments, err := NewTraegerDocumentsHTTP(db, organizations)
+	if err != nil {
+		return err
+	}
+	root.Mount("/traeger/documents", traegerDocuments.TraegerRouter(ProtectedTraegerRoutes))
+	tenantRouter.Mount("/traeger-documents", NewSchoolTraegerDocumentsHTTP().Router(ProtectedTenantRoutes))
+	return nil
+}
+
+// NewTraegerDocumentsHTTP binds the Träger-Büro's documents: the schools to
+// Organisation & Tenancy and the groups of a school to School Structure in
+// that school's tenant transaction.
+func NewTraegerDocumentsHTTP(db transactionruntime.Database, organizations HolidayOrganizations) (*organizationTenancyTraeger.DocumentsResource, error) {
+	groups, err := schoolStructureCompose.New(schoolStructureCompose.Dependencies{DB: db.Pool(), Observe: func(schoolStructureCompose.Observation) {}})
+	if err != nil {
+		return nil, fmt.Errorf("traeger documents: school groups: %w", err)
+	}
+	documents := organizationTenancyCompose.NewTraegerDocuments(organizationtenancy.TraegerDocumentPorts{
+		Schools: traegerDocumentSchools{organizations: organizations},
+		Groups:  traegerDocumentGroups{groups: groups},
+		Runtime: traegerDocumentRuntime{},
+	})
+	return organizationTenancyTraeger.NewDocumentsResource(documents,
+		common.RequiresPermission(identityaccess.TraegerRightOverviewRead), common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage)), nil
+}
+
+// NewSchoolTraegerDocumentsHTTP binds the school's read of the documents
+// its Träger released, behind the right to manage the school's files.
+func NewSchoolTraegerDocumentsHTTP() *organizationTenancyTraeger.SchoolDocumentsResource {
+	return organizationTenancyTraeger.NewSchoolDocumentsResource(organizationTenancyCompose.NewSharedTraegerDocuments(),
+		traegerDocumentRuntime{}, common.RequiresPermission(permissions.FilesManage))
+}
+
+// traegerDocumentSchools lists the undeleted schools of the Träger by name.
+type traegerDocumentSchools struct {
+	organizations HolidayOrganizations
+}
+
+func (s traegerDocumentSchools) TraegerSchools(ctx context.Context, organizationID int64) ([]organizationtenancy.TraegerDocumentSchool, error) {
+	schools, err := s.organizations.ListSchoolsByOrganization(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]organizationtenancy.TraegerDocumentSchool, 0, len(schools))
+	for _, school := range schools {
+		if !school.IsDeleted() {
+			result = append(result, organizationtenancy.TraegerDocumentSchool{ID: school.ID, Name: school.Name})
+		}
+	}
+	slices.SortFunc(result, func(a, b organizationtenancy.TraegerDocumentSchool) int {
+		if order := strings.Compare(a.Name, b.Name); order != 0 {
+			return order
+		}
+		return int(a.ID - b.ID)
+	})
+	return result, nil
+}
+
+// traegerDocumentGroups reads the groups of the school of the tenant
+// transaction from School Structure.
+type traegerDocumentGroups struct {
+	groups schoolstructure.GroupListing
+}
+
+func (g traegerDocumentGroups) SchoolGroups(ctx context.Context) ([]organizationtenancy.TraegerDocumentGroup, error) {
+	groups, err := g.groups.ListGroups(ctx, traegerDocumentGroupLimit)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]organizationtenancy.TraegerDocumentGroup, 0, len(groups))
+	for _, group := range groups {
+		result = append(result, organizationtenancy.TraegerDocumentGroup{ID: group.ID, Name: group.Name})
+	}
+	return result, nil
+}
+
+// traegerDocumentRuntime opens a school's tenant transaction or the Träger
+// transaction, never both at once (ADR 0105).
+type traegerDocumentRuntime struct{}
+
+func (traegerDocumentRuntime) WithinSchool(ctx context.Context, schoolID int64, fn func(context.Context) error) error {
+	school, err := tenant.NewTenantID(schoolID)
+	if err != nil {
+		return err
+	}
+	return tenant.WithinTenant(ctx, school, fn)
+}
+
+func (traegerDocumentRuntime) WithinTraeger(ctx context.Context, organizationID int64, fn func(context.Context) error) error {
+	return tenant.WithinTraeger(ctx, organizationID, fn)
+}

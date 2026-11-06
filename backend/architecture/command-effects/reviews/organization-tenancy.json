@@ -71,6 +71,68 @@
       "target_owner": "security-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentGroups.SchoolGroups",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentGroups.SchoolGroups",
+      "reason": "Reviewed read: organization-tenancy reaches modules/schoolstructure.Capability.ListGroups (school-structure) through api.traegerDocumentGroups.SchoolGroups (#4692) to list the groups of one school in its tenant transaction for a Träger document release. No owned-row mutation or locking read.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentGroups.SchoolGroups",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentGroups.SchoolGroups",
+      "reason": "Reviewed read: organization-tenancy reaches modules/schoolstructure.GroupListing.ListGroups (school-structure) through api.traegerDocumentGroups.SchoolGroups (#4692) to list the groups of one school in its tenant transaction for a Träger document release. No owned-row mutation or locking read.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentGroups.SchoolGroups",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentGroups.SchoolGroups",
+      "reason": "Reviewed read: organization-tenancy reaches modules/schoolstructure.Owner.ListGroups (school-structure) through api.traegerDocumentGroups.SchoolGroups (#4692) to list the groups of one school in its tenant transaction for a Träger document release. No owned-row mutation or locking read.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentRuntime.WithinSchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentRuntime.WithinSchool",
+      "reason": "Read-only platform helper: organization-tenancy reaches tenant.NewTenantID (tenant-runtime) through api.traegerDocumentRuntime.WithinSchool (#4692). It validates the supplied school ID but performs no persistent, lock or scope effect.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentRuntime.WithinSchool",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentRuntime.WithinSchool",
+      "reason": "Platform protocol participation (scope): organization-tenancy reaches tenant.WithinTenant (tenant-runtime) through api.traegerDocumentRuntime.WithinSchool (#4692). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentRuntime.WithinTraeger",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentRuntime.WithinTraeger",
+      "reason": "Platform protocol participation (scope): organization-tenancy reaches tenant.WithinTraeger (tenant-runtime) through api.traegerDocumentRuntime.WithinTraeger (#4692). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CaregiverCapabilityViews.DisableSchoolAccountCaregiverCapability",
       "classification": "leaf",
@@ -101,6 +163,27 @@
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CaregiverCapabilityViews.GetSchoolAccountCaregiverCapability",
       "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentRuntime.WithinSchool",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/traeger.SchoolRuntime.WithinSchool",
+      "reason": "Read-only platform helper: organization-tenancy reaches tenant.NewTenantID (tenant-runtime) through api.traegerDocumentRuntime.WithinSchool (#4692). It validates the supplied school ID but performs no persistent, lock or scope effect.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentRuntime.WithinSchool",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/traeger.SchoolRuntime.WithinSchool",
+      "reason": "Platform protocol participation (scope): organization-tenancy reaches tenant.WithinTenant (tenant-runtime) through api.traegerDocumentRuntime.WithinSchool (#4692). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BillingCounts.CountActiveStudentsByTenant",

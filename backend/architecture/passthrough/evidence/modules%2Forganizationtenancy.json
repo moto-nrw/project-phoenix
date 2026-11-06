@@ -506,6 +506,34 @@
     },
     {
       "build": "production",
+      "evidence": "func (s *SharedTraegerDocuments) OpenParentDocument(ctx context.Context, organizationID, documentID int64, parent organizationtenancy.TraegerDocumentParent) (organizationtenancy.TraegerDocumentFile, error) {\n\tif len(parent.Schools) == 0 || parent.AccountID \u003c= 0 {\n\t\treturn organizationtenancy.TraegerDocumentFile{}, organizationtenancy.ErrTraegerDocumentNotFound\n\t}\n\tfile, found, err := s.store.OpenParentDocument(ctx, organizationID, documentID, parent)\n\tif err == nil \u0026\u0026 !found {\n\t\terr = organizationtenancy.ErrTraegerDocumentNotFound\n\t}\n\treturn file, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/SharedTraegerDocuments.OpenParentDocument",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *SharedTraegerDocuments) OpenSchoolDocument(ctx context.Context, schoolID, accountID, documentID int64) (organizationtenancy.TraegerDocumentFile, error) {\n\tfile, found, err := s.store.OpenSchoolDocument(ctx, schoolID, accountID, documentID)\n\tif err == nil \u0026\u0026 !found {\n\t\terr = organizationtenancy.ErrTraegerDocumentNotFound\n\t}\n\treturn file, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/SharedTraegerDocuments.OpenSchoolDocument",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *SharedTraegerDocuments) ParentDocuments(ctx context.Context, organizationID int64, parent organizationtenancy.TraegerDocumentParent) ([]organizationtenancy.SharedDocument, error) {\n\tif len(parent.Schools) == 0 {\n\t\treturn []organizationtenancy.SharedDocument{}, nil\n\t}\n\treturn s.store.ParentDocuments(ctx, organizationID, parent)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/SharedTraegerDocuments.ParentDocuments",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *SharedTraegerDocuments) SchoolDocuments(ctx context.Context, schoolID int64) ([]organizationtenancy.SharedDocument, error) {\n\treturn s.store.SchoolDocuments(ctx, schoolID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/internal/application/SharedTraegerDocuments.SchoolDocuments",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
       "evidence": "func (m *TraegerMasterData) LogoImage(ctx context.Context, organizationID int64) (organizationtenancy.TraegerLogoImage, error) {\n\tif organizationID \u003c= 0 {\n\t\treturn organizationtenancy.TraegerLogoImage{}, errTraegerRequired\n\t}\n\tlogo, found, err := m.store.LogoImage(ctx, organizationID)\n\tif err != nil {\n\t\treturn organizationtenancy.TraegerLogoImage{}, err\n\t}\n\tif !found {\n\t\treturn organizationtenancy.TraegerLogoImage{}, organizationtenancy.ErrTraegerLogoNotFound\n\t}\n\treturn logo, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/organizationtenancy/internal/application/TraegerMasterData.LogoImage",
