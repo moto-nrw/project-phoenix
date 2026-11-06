@@ -232,7 +232,7 @@ const MONTH_COLUMNS: DataTableColumn<KeyDateMonthRow>[] = [
       </span>
     ),
     sortValue: (month) => month.keyDates[0] ?? null,
-    stacked: "meta",
+    stacked: "field",
   },
   {
     key: "students",

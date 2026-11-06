@@ -275,6 +275,40 @@ describe("TraegerKeyDateCountsPage", () => {
     expect(within(months).getByText("15.10.2026, 20.10.2026")).toBeVisible();
   });
 
+  it("labels all key dates below the month in the phone layout", async () => {
+    mockFetchCounts.mockResolvedValue({
+      schools: [15, 20, 25].map((day) => ({
+        id: String(day),
+        name: `OGS ${day}`,
+        slug: `ogs-${day}`,
+        subdomain: `ogs-${day}`,
+        city: "Melle",
+        counts: [{ ...count("10", 10, 1), keyDate: `2026-10-${day}` }],
+      })),
+      months: [
+        {
+          period: "2026-10-01",
+          keyDate: "2026-10-15",
+          activeStudents: 30,
+          activeTerminals: 3,
+          schools: 3,
+        },
+      ],
+    } satisfies TraegerKeyDateCounts);
+    renderPage();
+
+    const dates = "15.10.2026, 20.10.2026, 25.10.2026";
+    await screen.findAllByText(dates);
+    const month = screen.getByRole("button", {
+      name: /Oktober 2026.*Aktive Kinder/,
+    });
+    const field = within(month).getByText(dates).closest("dd");
+    expect(field).toBeInTheDocument();
+    expect(field?.previousElementSibling).toHaveTextContent("Stichtage");
+    fireEvent.click(month);
+    expect(screen.getByText("3 von 3")).toBeVisible();
+  });
+
   it("says when no month is captured yet", async () => {
     mockFetchCounts.mockResolvedValue({
       schools: COUNTS.schools.map((school) => ({ ...school, counts: [] })),
