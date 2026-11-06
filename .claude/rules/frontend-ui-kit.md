@@ -124,6 +124,10 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Selectable row or tile (label around a Checkbox/Radio, mode-picker button, row with a selection state) | `ChoiceTile` — `as` = `label` (default) / `button` / `div`, `selected`, `disabled`, `tone` = `gray` `green` `blue`; padding via `className` | `~/components/ui/choice-tile` |
 | Label/value fields | `DataField` in a `dl`, `InfoSection`, `DataGrid`, `InfoText` | `~/components/ui/detail-modal-components` |
 | Select | `CustomSelect`, `MultiSelect`; own content: `ListboxDropdown` | `~/components/ui/<kebab-name>` |
+| Weekday choice | `WeekdayToggleGroup` | `~/components/ui/weekday-toggle-group` |
+| Chosen entry with a remove X; read-only without `onRemove` | `RemovableChip` | `~/components/ui/removable-chip` |
+| Number with minus and plus (exception: break stepper of time tracking) | `NumberStepper` | `~/components/ui/number-stepper` |
+| Day strip on a phone | `PlanningDayChip stacked` (`marker`, `statusLabel`, `today`) | `~/components/ui/planning/planning-context-bar` |
 | Date / range picker | `DatePicker`, `DateRangePicker` (selection gray-900, today blue); with time: `DateTimePicker` | `~/components/ui/<kebab-name>` |
 | Loading / skeleton | `Loading`, `Skeleton` | `~/components/ui/loading`, `~/components/ui/skeleton` |
 | Avatar | `Avatar` | `~/components/ui/avatar` |

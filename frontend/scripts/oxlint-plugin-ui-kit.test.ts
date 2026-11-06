@@ -2084,3 +2084,92 @@ describe.concurrent(
     });
   },
 );
+
+describe.concurrent("ui-kit Eingabe-Bausteine (#5596)", () => {
+  it.each([
+    [
+      "no-hand-rolled-removable-chip",
+      `<span className="inline-flex items-center rounded-full bg-gray-50">
+        {label}
+        <button type="button" onClick={remove} aria-label="Weg"><X /></button>
+      </span>`,
+    ],
+    [
+      "no-hand-rolled-number-stepper",
+      `<div className="flex">
+        <Button onClick={remove} aria-label="Weniger"><Minus /></Button>
+        <span>{label}</span>
+        <Button onClick={remove} aria-label="Mehr"><Plus /></Button>
+      </div>`,
+    ],
+    [
+      "no-hand-rolled-weekday-toggle",
+      `<div>{weekdays.map((day) => (
+        <label key={day}><Checkbox checked onChange={remove} />{day}</label>
+      ))}</div>`,
+    ],
+    [
+      "no-hand-rolled-weekday-toggle",
+      `<div>{WEEKDAYS.map((day) => (
+        <Button key={day} aria-pressed onClick={remove}>{day}</Button>
+      ))}</div>`,
+    ],
+  ])("%s fails the hand-built form", async (rule, element) => {
+    const result = await lintSource(
+      `import { Minus, Plus, X } from "lucide-react";
+      import { Button } from "~/components/ui/button";
+      import { Checkbox } from "~/components/ui/checkbox";
+      const weekdays = ["Mo"];
+      const WEEKDAYS = ["Mo"];
+      function Probe({ label, remove }: { label: string; remove: () => void }) {
+        return ${element};
+      }
+      void Probe; void Minus; void Plus; void X; void Button; void Checkbox;
+      void weekdays; void WEEKDAYS;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).toContain(rule);
+  });
+
+  it.each([
+    [
+      "no-hand-rolled-removable-chip",
+      `<RemovableChip label={label} onRemove={remove} removeLabel="Weg" />`,
+    ],
+    [
+      "no-hand-rolled-removable-chip",
+      // Eine Zeile mit Schließen-Kreuz ist kein Chip.
+      `<div className="flex rounded-xl border">
+        {label}
+        <button type="button" onClick={remove} aria-label="Weg"><X /></button>
+      </div>`,
+    ],
+    [
+      "no-hand-rolled-number-stepper",
+      `<Button onClick={remove} aria-label="Mehr"><Plus /></Button>`,
+    ],
+    [
+      "no-hand-rolled-weekday-toggle",
+      `<div>{weekdays.map((day) => (
+        <ToggleChip key={day} pressed onPressedChange={remove}>{day}</ToggleChip>
+      ))}</div>`,
+    ],
+  ])("%s accepts the kit form", async (rule, element) => {
+    const result = await lintSource(
+      `import { Plus, X } from "lucide-react";
+      import { Button } from "~/components/ui/button";
+      import { RemovableChip } from "~/components/ui/removable-chip";
+      import { ToggleChip } from "~/components/ui/toggle-chip";
+      const weekdays = ["Mo"];
+      function Probe({ label, remove }: { label: string; remove: () => void }) {
+        return ${element};
+      }
+      void Probe; void Plus; void X; void Button; void RemovableChip;
+      void ToggleChip; void weekdays;`,
+      "src/components/probe.tsx",
+    );
+
+    expect(result.output).not.toContain(rule);
+  });
+});

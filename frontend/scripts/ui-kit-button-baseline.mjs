@@ -123,18 +123,6 @@ export const buttonRatchetAllowlist = [
     reason: "Schalter (role=switch)",
   },
   {
-    rule: "no-hand-rolled-button",
-    file: "src/components/timetable/weekly-calendar-grid.tsx",
-    lines: [389],
-    reason: "Tagesauswahl (aria-pressed), Auswahlzeile",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/staff/dienstplan-resource-grid.tsx",
-    lines: [722],
-    reason: "Tagesauswahl (aria-pressed), Auswahlzeile",
-  },
-  {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
     lines: [856, 889, 989, 1158],
@@ -211,26 +199,14 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/students/care-plan-view.tsx",
-    lines: [503],
-    reason: "Mobile Tagesauswahl mit Auswahlzustand: Auswahlzeile",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1322],
-    reason: "Tagesauswahl mit Auswahlzustand: Auswahlzeile",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1565],
+    lines: [1544],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/companion-picker.tsx",
-    lines: [410],
+    lines: [396],
     reason: "Suchtreffer zum Auswählen: Auswahlzeile",
   },
   {
@@ -242,7 +218,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/planned-status-days-modal.tsx",
-    lines: [946],
+    lines: [947],
     reason: "Kalendertag zum Umschalten: Kalender-/Auswahlzelle",
   },
   {
@@ -272,12 +248,6 @@ export const buttonRatchetAllowlist = [
   },
   // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder
   // Navigation, nicht als Ruhezustand eines Knopfs.
-  {
-    rule: "no-grey-button-fill",
-    file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1322],
-    reason: "Tageskachel: grau markiert den gewählten Tag, kein Knopf",
-  },
   {
     rule: "no-grey-button-fill",
     file: "src/components/timetable/period-switcher-dropdown.tsx",

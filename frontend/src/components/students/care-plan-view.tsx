@@ -30,6 +30,7 @@ import {
 } from "~/components/ui/page-skeletons";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { SectionCard } from "~/components/ui/section-card";
+import { PlanningDayChip } from "~/components/ui/planning/planning-context-bar";
 import { resolveDayDeviation } from "~/lib/care-plan-helpers";
 import {
   careWeekDayCount,
@@ -496,27 +497,17 @@ function WeekBody({
 
       {/* Mobile: day-strip selector + selected day */}
       <div className="xl:hidden">
-        <div className="mb-3 flex gap-2 overflow-x-auto">
+        <div className="mb-3 flex gap-1">
           {weekDates.map((date, i) => {
-            const isSelected = i === selectedIndex;
             return (
-              <button
+              <PlanningDayChip
                 key={toISODate(date)}
-                type="button"
+                stacked
+                weekdayLabel={WEEKDAY_LABELS[i] ?? ""}
+                dateLabel={shortDate(date)}
+                selected={i === selectedIndex}
                 onClick={() => onSelectMobileDay(i)}
-                className={`flex shrink-0 flex-col items-center rounded-lg border px-3 py-1.5 text-sm transition-colors ${
-                  isSelected
-                    ? "border-transparent bg-gray-900 text-white"
-                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                }`}
-              >
-                <span className="font-semibold">{WEEKDAY_LABELS[i]}</span>
-                <span
-                  className={isSelected ? "text-gray-200" : "text-gray-400"}
-                >
-                  {shortDate(date)}
-                </span>
-              </button>
+              />
             );
           })}
         </div>

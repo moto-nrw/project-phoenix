@@ -4,7 +4,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
 
 import { Button } from "~/components/ui/button";
+import { StatusDot } from "~/components/ui/status-dot";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { cn } from "~/lib/utils";
 
 /**
  * PlanningContextBar is the shared header of all three planning surfaces
@@ -272,6 +274,17 @@ interface PlanningDayChipProps {
   readonly onClick?: () => void;
   readonly className?: string;
   readonly "aria-label"?: string;
+  /**
+   * Zweizeilig im Tagesstreifen am Telefon: die Tage teilen sich die Breite
+   * gleichmäßig, darunter stehen `marker`, `statusLabel` und der Heute-Punkt.
+   */
+  readonly stacked?: boolean;
+  /** Nur mit `stacked`: Zeichen unter dem Datum, z. B. der Schließtag. */
+  readonly marker?: ReactNode;
+  /** Nur mit `stacked`: kurzer Status des Tages, z. B. „Krank“. */
+  readonly statusLabel?: string;
+  /** Nur mit `stacked`: Punkt für heute, vorgelesen als „heute“. */
+  readonly today?: boolean;
 }
 
 /** Punktfarbe des Zählers: dieselbe Lückenfarbe wie im CoverageIndicator. */
@@ -297,13 +310,17 @@ export function PlanningDayChip({
   onClick,
   className,
   "aria-label": ariaLabel,
+  stacked = false,
+  marker,
+  statusLabel,
+  today = false,
 }: PlanningDayChipProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const chip = buttonRef.current;
     const contextRow = chip?.parentElement;
-    if (!selected || !chip || !contextRow) return;
+    if (!selected || stacked || !chip || !contextRow) return;
 
     const chipRect = chip.getBoundingClientRect();
     const rowRect = contextRow.getBoundingClientRect();
@@ -324,7 +341,9 @@ export function PlanningDayChip({
           DAY_CHIP_SCROLL_MARGIN_PX,
       });
     }
-  }, [selected]);
+  }, [selected, stacked]);
+
+  const quietText = selected ? "text-white/80" : "text-gray-500";
 
   return (
     <button
@@ -332,31 +351,65 @@ export function PlanningDayChip({
       type="button"
       onClick={onClick}
       aria-label={ariaLabel}
-      className={[
-        // 36 px und `text-sm`: der Tages-Chip ist ein Bedienelement in der
-        // Kontextzeile, kein Kleingedrucktes. `scroll-mx-1` hält beim
-        // automatischen Heranscrollen den Rand frei (#2031).
-        "inline-flex h-9 shrink-0 scroll-mx-1 items-center gap-1 rounded-md px-2.5 text-sm focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none",
+      aria-pressed={selected}
+      className={cn(
+        stacked
+          ? "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          : // 36 px und `text-sm`: der Tages-Chip ist ein Bedienelement in der
+            // Kontextzeile, kein Kleingedrucktes. `scroll-mx-1` hält beim
+            // automatischen Heranscrollen den Rand frei (#2031).
+            "inline-flex h-9 shrink-0 scroll-mx-1 items-center gap-1 rounded-md px-2.5 text-sm focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none",
         selected
           ? "bg-gray-900 text-white"
-          : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
-        className ?? "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+          : stacked
+            ? "text-gray-600 hover:bg-gray-100"
+            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
+        className,
+      )}
     >
-      <span className="font-medium">{weekdayLabel}</span>
-      <span className="tabular-nums">{dateLabel}</span>
-      {count !== undefined && count > 0 ? (
-        <span className="inline-flex items-center gap-1 font-semibold tabular-nums">
-          <span
-            aria-hidden
-            className="h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: COUNT_DOT_COLOR }}
-          />
-          {count}
-        </span>
-      ) : null}
+      {stacked ? (
+        <>
+          <span className={cn("text-xs font-medium", quietText)}>
+            {weekdayLabel}
+          </span>
+          <span className="text-sm font-semibold tabular-nums">
+            {dateLabel}
+          </span>
+          {marker}
+          {statusLabel ? (
+            <span
+              className={cn(
+                "w-full truncate text-center text-xs leading-tight",
+                quietText,
+              )}
+            >
+              {statusLabel}
+            </span>
+          ) : null}
+          {today ? (
+            <StatusDot
+              className={selected ? "bg-white" : "bg-moto-red"}
+              size="xs"
+              label="heute"
+            />
+          ) : null}
+        </>
+      ) : (
+        <>
+          <span className="font-medium">{weekdayLabel}</span>
+          <span className="tabular-nums">{dateLabel}</span>
+          {count !== undefined && count > 0 ? (
+            <span className="inline-flex items-center gap-1 font-semibold tabular-nums">
+              <span
+                aria-hidden
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: COUNT_DOT_COLOR }}
+              />
+              {count}
+            </span>
+          ) : null}
+        </>
+      )}
     </button>
   );
 }

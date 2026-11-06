@@ -11,7 +11,7 @@
 // „Speichern“ schreibt das ganze Set einmal per PUT (#3112). Vorher schrieb
 // jeder Chip-Klick sofort, ohne Abbrechen und ohne Hinweis.
 
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -29,6 +29,7 @@ import {
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { RemovableChip } from "~/components/ui/removable-chip";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { authFetch } from "~/lib/api-helpers";
 import { createLogger } from "~/lib/logger";
@@ -237,29 +238,19 @@ export function KlassenTab({
                 Noch keine Klasse zugewiesen.
               </p>
             )}
-            {shown.map((klass) => (
-              <span
-                key={klass}
-                // min-h-8 hält die Chip-Höhe konstant, egal ob der
-                // Entfernen-Button (h-8) daneben steht.
-                className={`inline-flex min-h-8 items-center gap-1 rounded-lg border border-gray-200 bg-white pl-3 text-sm font-medium text-gray-900 shadow-sm ${editing ? "pr-1" : "pr-3"}`}
-              >
-                {schoolClassLabel(klass)}
-                {editing && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`${schoolClassLabel(klass)} entfernen`}
-                    title={`${schoolClassLabel(klass)} entfernen`}
-                    onClick={() => removeClass(klass)}
-                    disabled={saving}
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Button>
-                )}
-              </span>
-            ))}
+            {shown.map((klass) =>
+              editing ? (
+                <RemovableChip
+                  key={klass}
+                  label={schoolClassLabel(klass)}
+                  onRemove={() => removeClass(klass)}
+                  removeLabel={`${schoolClassLabel(klass)} entfernen`}
+                  disabled={saving}
+                />
+              ) : (
+                <RemovableChip key={klass} label={schoolClassLabel(klass)} />
+              ),
+            )}
           </div>
 
           {editing && (

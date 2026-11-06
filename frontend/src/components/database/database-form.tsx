@@ -10,6 +10,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Button } from "~/components/ui/button";
+import { RemovableChip } from "~/components/ui/removable-chip";
 import { createLogger } from "~/lib/logger";
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
 import { useSWRAuth } from "~/lib/swr";
@@ -673,22 +674,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
               if (!option) return null;
 
               return (
-                <span
+                <RemovableChip
                   key={value}
-                  className="bg-moto-blue-soft text-moto-blue-strong inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium"
-                >
-                  {option.label}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleMultiselectRemove(field.name, selectedValues, value)
-                    }
-                    className="bg-moto-blue/20 text-moto-blue-strong hover:bg-moto-blue/30 hover:text-moto-blue-strong ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full"
-                    aria-label={`Remove ${option.label}`}
-                  >
-                    ×
-                  </button>
-                </span>
+                  label={option.label}
+                  onRemove={() =>
+                    handleMultiselectRemove(field.name, selectedValues, value)
+                  }
+                  removeLabel={`${option.label} entfernen`}
+                />
               );
             })}
           </div>

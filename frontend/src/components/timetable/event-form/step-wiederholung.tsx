@@ -13,6 +13,7 @@ import type { EventFormState, RepeatMode } from "./form-model";
 import { WEEKDAYS } from "./use-event-form";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { RequiredMark } from "~/components/ui/field-label";
+import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 
 const REPEAT_OPTIONS: Array<{ value: RepeatMode; label: string }> = [
   { value: "none", label: "Nie" },
@@ -214,22 +215,15 @@ export function StepWiederholung({
               Wochentage <RequiredMark />
             </span>
             <div className="flex flex-wrap gap-1.5">
-              {WEEKDAYS.map((iso) => {
-                const isActive = form.weekdays.includes(iso);
-                return (
-                  <Button
-                    key={iso}
-                    type="button"
-                    variant={isActive ? "primary" : "outline"}
-                    size="compact"
-                    className="min-w-[44px]"
-                    onClick={() => toggleWeekday(iso)}
-                    aria-pressed={isActive}
-                  >
-                    {weekdayLabel(iso)}
-                  </Button>
-                );
-              })}
+              <WeekdayToggleGroup
+                ariaLabel="Wochentage"
+                days={WEEKDAYS.map((iso) => ({
+                  value: iso,
+                  label: weekdayLabel(iso),
+                }))}
+                value={form.weekdays}
+                onToggle={toggleWeekday}
+              />
               {legacyWeekendWeekdays.map((iso) => (
                 <Button
                   key={iso}

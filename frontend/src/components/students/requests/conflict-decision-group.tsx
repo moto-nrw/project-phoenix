@@ -15,7 +15,7 @@ import { ApiError } from "~/lib/api-error";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { Checkbox } from "~/components/ui/checkbox";
+import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -104,29 +104,23 @@ function StaffValueField({
           <legend className="mb-1 text-sm font-medium text-gray-800">
             Tage
           </legend>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {DEPARTURE_WEEKDAYS.map((day) => (
-              <label
-                key={day.key}
-                htmlFor={`staff-day-${day.key}`}
-                className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-gray-800"
-              >
-                <Checkbox
-                  id={`staff-day-${day.key}`}
-                  checked={draft.days.includes(day.key)}
-                  onChange={(event) =>
-                    onChange({
-                      ...draft,
-                      days: event.target.checked
-                        ? [...draft.days, day.key]
-                        : draft.days.filter((value) => value !== day.key),
-                    })
-                  }
-                />
-                <span>{day.label}</span>
-              </label>
-            ))}
-          </div>
+          <WeekdayToggleGroup
+            ariaLabel="Tage"
+            days={DEPARTURE_WEEKDAYS.map((day) => ({
+              value: day.key,
+              label: day.label.slice(0, 2),
+              ariaLabel: day.label,
+            }))}
+            value={draft.days}
+            onToggle={(day) =>
+              onChange({
+                ...draft,
+                days: draft.days.includes(day)
+                  ? draft.days.filter((value) => value !== day)
+                  : [...draft.days, day],
+              })
+            }
+          />
           <p className="mt-1 text-xs text-gray-600">{OFFERING_NO_DAY_HINT}</p>
         </fieldset>
       </div>
