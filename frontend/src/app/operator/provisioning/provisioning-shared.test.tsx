@@ -9,11 +9,7 @@ import {
   SelectWithChevron,
   PlusIcon,
 } from "./provisioning-shared";
-import {
-  getLocationBadgeTone,
-  LOCATION_COLORS,
-  MOTO_COLOR_PALETTE,
-} from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 describe("FormField", () => {
   // #2519: a field error from the shared error path stays at the field.
@@ -142,10 +138,9 @@ describe("DeliveryStatusBadge", () => {
   it("should apply amber styling for pending", () => {
     render(<DeliveryStatusBadge status="pending" />);
 
-    const tone = getLocationBadgeTone(LOCATION_COLORS.WARNING);
     expect(screen.getByText("Ausstehend")).toHaveStyle({
-      backgroundColor: tone.backgroundColor,
-      color: tone.textColor,
+      backgroundColor: MOTO_COLOR_PALETTE.amber.soft,
+      color: MOTO_COLOR_PALETTE.amber.strong,
     });
   });
 
@@ -169,6 +164,7 @@ describe("DeliveryStatusBadge", () => {
 
     expect(screen.getByText("something_else")).toHaveStyle({
       backgroundColor: MOTO_COLOR_PALETTE.neutral.soft,
+      color: "#4B5563",
     });
   });
 });
