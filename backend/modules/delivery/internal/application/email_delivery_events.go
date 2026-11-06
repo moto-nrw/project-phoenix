@@ -71,10 +71,12 @@ func truncateDiagnostic(text string) string {
 }
 
 // addressSuppressed reports whether the suppression list holds this mail back.
-// It applies to mail of a school only: security mail always goes out, and
-// system and Träger mail has no school list.
+// It applies to mail a school sends to parents only: staff mail goes out until
+// the list has proven itself in production (#5935), security mail always goes
+// out, and system and Träger mail has no school list.
 func (w *Worker) addressSuppressed(ctx context.Context, intent domain.Intent) (bool, error) {
-	if intent.Transport != domain.TransportEmail || intent.Security || intent.TenantID <= 0 {
+	if intent.Transport != domain.TransportEmail || intent.Security || intent.TenantID <= 0 ||
+		!deliveryContract.IsParentMail(intent.Template) {
 		return false, nil
 	}
 	store, ok := w.store.(ports.EmailDeliveryEventStore)
