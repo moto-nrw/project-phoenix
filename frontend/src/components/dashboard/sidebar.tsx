@@ -81,12 +81,11 @@ import {
   SIDEBAR_ICON_CLASSES,
   SIDEBAR_NAV_GAP,
   SIDEBAR_NAV_PADDING,
-  SIDEBAR_WIDTH_COLLAPSED,
-  SIDEBAR_WIDTH_EXPANDED,
-  SIDEBAR_WIDTH_TRANSITION,
+  portalSidebarTopOffset,
   sidebarLabelClasses,
   sidebarRowClasses,
 } from "~/components/ui/sidebar-geometry";
+import { PortalSidebarFrame } from "~/components/ui/portal-sidebar";
 import { navigationIcons } from "~/lib/navigation-icons";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
@@ -608,49 +607,8 @@ interface SidebarProps {
   readonly className?: string;
 }
 
-// Auf-/Zuklappen als 200ms-Breiten-Slide (#2825, explizit gewünschte Motion;
-// bewusste, dokumentierte Abweichung von "compositor properties only" — die
-// Breiten-Animation ist das etablierte Sidebar-Muster, z. B. shadcn).
-//
-// Hülle und Sticky-Inhalt animieren gemeinsam (#2923). Früher rendete der
-// eingeklappte Zustand einen eigenen Icon-Streifen: der Inhalt wechselte
-// schlagartig, während nur die Hülle glitt — das war der zweite Sprung.
-// Jetzt sind es dieselben Zeilen in beiden Zuständen; sie wandern mit der
-// Kante, ihre Bezeichnungen bleiben einzeilig (truncate) und blenden aus,
-// statt umzubrechen. motion-safe respektiert prefers-reduced-motion.
-function asideClasses(collapsed: boolean, className: string): string {
-  // Kein overflow-hidden auf der Hülle: das machte sie zum Scroll-Container
-  // und hebelte das position:sticky des Innenbereichs aus. Nötig ist es auch
-  // nicht — der Inhalt ist in jeder Phase genau so breit wie die Hülle.
-  return `min-h-screen shrink-0 border-r border-gray-200/70 bg-white/95 ${
-    collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
-  } ${SIDEBAR_WIDTH_TRANSITION} ${className}`;
-}
-
-// Der klebende Innenbereich beginnt unter der Kopfzeile (ab lg 64px + 1px Rand,
-// #4345) plus 8px Luft und trägt dieselbe Breite und dieselbe Bewegung wie
-// die Hülle.
-//
-// Mitarbeiter-Vorschau (#2893): der feste Hinweisstreifen (h-12 = 48px)
-// schiebt die Kopfzeile nach unten. Die klebende Seitennavigation muss um
-// dieselbe Höhe mitwandern, sonst schiebt sich die Kopfzeile beim Scrollen
-// über ihre obersten Einträge. Der Streifen der öffentlichen Demo (#3467)
-// hat dieselbe Höhe.
-// Abends kommt unter dem Demo-Streifen eine Hinweiszeile dazu (h-8, #3921).
-function stickyClasses(
-  collapsed: boolean,
-  stripActive: boolean,
-  eveningRow = false,
-): string {
-  const offset = eveningRow
-    ? "top-[153px] h-[calc(100vh-153px)]"
-    : stripActive
-      ? "top-[121px] h-[calc(100vh-121px)]"
-      : "top-[73px] h-[calc(100vh-73px)]";
-  return `sticky ${offset} flex flex-col ${
-    collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED
-  } ${SIDEBAR_WIDTH_TRANSITION}`;
-}
+// Die Tenant-Shell setzt das mit `min-h-0!` außer Kraft (app-shell.tsx).
+const SIDEBAR_MIN_HEIGHT = "min-h-screen";
 
 interface SidebarContentProps extends SidebarProps {
   // Einklappbare Seitenleiste (#2825): der Zustand lebt im äußeren Sidebar-
@@ -1581,40 +1539,36 @@ function SidebarContent({
     );
 
     return (
-      <aside className={asideClasses(collapsed, className)}>
-        <div
-          className={stickyClasses(
-            collapsed,
-            isPreview === true || demoBannerShown,
-            eveningRow,
-          )}
+      <PortalSidebarFrame
+        collapsed={collapsed}
+        className={`${SIDEBAR_MIN_HEIGHT} ${className}`}
+        topOffset={portalSidebarTopOffset(
+          isPreview === true || demoBannerShown,
+          eveningRow,
+        )}
+      >
+        <nav
+          className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_PADDING}`}
         >
-          <nav
-            className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_PADDING}`}
-          >
-            {resolvedOperatorSections.map((section, index) => (
-              <div
-                key={section.label}
-                className={index > 0 ? "mt-5" : undefined}
-              >
-                {/* Die Bereichsüberschrift behält im Streifen ihre Höhe und
+          {resolvedOperatorSections.map((section, index) => (
+            <div key={section.label} className={index > 0 ? "mt-5" : undefined}>
+              {/* Die Bereichsüberschrift behält im Streifen ihre Höhe und
                     blendet nur aus: so bleibt die Gruppierung als Abstand
                     erhalten und die Icons darunter springen beim Klappen
                     nicht nach oben. */}
-                <p
-                  className={`mb-1.5 truncate px-3 text-xs font-semibold tracking-wider text-gray-400 uppercase motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
-                  aria-hidden={collapsed}
-                >
-                  {section.label}
-                </p>
-                <div className={SIDEBAR_NAV_GAP}>
-                  {section.items.map(renderOperatorItem)}
-                </div>
+              <p
+                className={`mb-1.5 truncate px-3 text-xs font-semibold tracking-wider text-gray-400 uppercase motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
+                aria-hidden={collapsed}
+              >
+                {section.label}
+              </p>
+              <div className={SIDEBAR_NAV_GAP}>
+                {section.items.map(renderOperatorItem)}
               </div>
-            ))}
-          </nav>
-        </div>
-      </aside>
+            </div>
+          ))}
+        </nav>
+      </PortalSidebarFrame>
     );
   }
 
@@ -1871,109 +1825,108 @@ function SidebarContent({
   };
 
   return (
-    <aside className={asideClasses(collapsed, className)}>
-      <div
-        className={stickyClasses(
-          collapsed,
-          isPreview === true || demoBannerShown,
-          eveningRow,
-        )}
-      >
-        {/* Rückweg ins Träger-Portal (#5687): nur in einer Sitzung, die über
+    <PortalSidebarFrame
+      collapsed={collapsed}
+      className={`${SIDEBAR_MIN_HEIGHT} ${className}`}
+      topOffset={portalSidebarTopOffset(
+        isPreview === true || demoBannerShown,
+        eveningRow,
+      )}
+    >
+      {/* Rückweg ins Träger-Portal (#5687): nur in einer Sitzung, die über
             das Träger-Büro kam. Außerhalb der Rollfläche, damit er immer
             sichtbar bleibt. */}
-        {traegerReturnHref ? (
-          <nav
-            aria-label="Rückweg"
-            className={`border-b border-gray-200 ${SIDEBAR_NAV_PADDING}`}
+      {traegerReturnHref ? (
+        <nav
+          aria-label="Rückweg"
+          className={`border-b border-gray-200 ${SIDEBAR_NAV_PADDING}`}
+        >
+          <NavLink
+            href={traegerReturnHref}
+            className={sidebarRowClasses({ isActive: false })}
+            {...(collapsed
+              ? {
+                  title: TRAEGER_RETURN_LABEL,
+                  "aria-label": TRAEGER_RETURN_LABEL,
+                }
+              : {})}
           >
-            <NavLink
-              href={traegerReturnHref}
-              className={sidebarRowClasses({ isActive: false })}
-              {...(collapsed
-                ? {
-                    title: TRAEGER_RETURN_LABEL,
-                    "aria-label": TRAEGER_RETURN_LABEL,
-                  }
-                : {})}
-            >
-              <MotoNavIcon
-                scene
-                concept={organizationsConcept}
-                active={false}
-                className={SIDEBAR_ICON_CLASSES}
-              />
-              {labelsMounted && (
-                <span className={sidebarLabelClasses(labelsVisible)}>
-                  {TRAEGER_RETURN_LABEL}
-                </span>
-              )}
-            </NavLink>
-          </nav>
-        ) : null}
+            <MotoNavIcon
+              scene
+              concept={organizationsConcept}
+              active={false}
+              className={SIDEBAR_ICON_CLASSES}
+            />
+            {labelsMounted && (
+              <span className={sidebarLabelClasses(labelsVisible)}>
+                {TRAEGER_RETURN_LABEL}
+              </span>
+            )}
+          </NavLink>
+        </nav>
+      ) : null}
 
-        {/* In den Einstellungen wechselt der Inhalt derselben Leiste (#5750). */}
-        {isStaffSettingsPath(pathname) ? (
-          <StaffSettingsSidebarNav
-            collapsed={collapsed}
-            labelsMounted={labelsMounted}
-            labelsVisible={labelsVisible}
-          />
-        ) : (
-          <>
-            {/* Main navigation, scrollable.
+      {/* In den Einstellungen wechselt der Inhalt derselben Leiste (#5750). */}
+      {isStaffSettingsPath(pathname) ? (
+        <StaffSettingsSidebarNav
+          collapsed={collapsed}
+          labelsMounted={labelsMounted}
+          labelsVisible={labelsVisible}
+        />
+      ) : (
+        <>
+          {/* Main navigation, scrollable.
                 Der Rollbalken bleibt ausgeklappt sichtbar — er ist dort der
                 einzige Hinweis, dass unten noch Einträge folgen. Nur im
                 64px-Streifen wird er ausgeblendet, wo er ein Viertel der Breite
                 einnähme (Muster: VS-Code-Aktivitätsleiste). */}
-            <nav
-              className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_GAP} ${SIDEBAR_NAV_PADDING}`}
-            >
-              {/* Startseite der Rolle: Home für Admins, Tagesplan (#2383) für
+          <nav
+            className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_GAP} ${SIDEBAR_NAV_PADDING}`}
+          >
+            {/* Startseite der Rolle: Home für Admins, Tagesplan (#2383) für
                   Betreuungskräfte — über den Gruppen, wie bisher. */}
-              {STAFF_NAV_TOP.map(renderEntry)}
+            {STAFF_NAV_TOP.map(renderEntry)}
 
-              {/* Die fünf Gruppen (#2826), in der Reihenfolge des Baums. Eine
+            {/* Die fünf Gruppen (#2826), in der Reihenfolge des Baums. Eine
                   Gruppe ohne sichtbare Zeile fällt weg. */}
-              {STAFF_NAV_GROUPS.map((group) => {
-                const rows = group.entries.map(renderEntry);
-                if (!rows.some(Boolean)) return null;
-                return (
-                  <div key={group.key} className="pt-2">
-                    <SidebarGroup
-                      label={group.label}
-                      icon={group.icon}
-                      tourId={`nav-group-${group.key}`}
-                      isOpen={isGroupOpen(group.key)}
-                      onToggle={() => toggleGroup(group.key)}
-                      containsActive={group.entries.some(isEntryActive)}
-                      badgeCount={group.entries.reduce(
-                        (sum, entry) => sum + entryBadgeCount(entry),
-                        0,
-                      )}
-                      badgeTone={group.key === "eltern" ? "parents" : "staff"}
-                      collapsed={collapsed}
-                      labelsMounted={labelsMounted}
-                      labelsVisible={labelsVisible}
-                    >
-                      {rows}
-                    </SidebarGroup>
-                  </div>
-                );
-              })}
-            </nav>
+            {STAFF_NAV_GROUPS.map((group) => {
+              const rows = group.entries.map(renderEntry);
+              if (!rows.some(Boolean)) return null;
+              return (
+                <div key={group.key} className="pt-2">
+                  <SidebarGroup
+                    label={group.label}
+                    icon={group.icon}
+                    tourId={`nav-group-${group.key}`}
+                    isOpen={isGroupOpen(group.key)}
+                    onToggle={() => toggleGroup(group.key)}
+                    containsActive={group.entries.some(isEntryActive)}
+                    badgeCount={group.entries.reduce(
+                      (sum, entry) => sum + entryBadgeCount(entry),
+                      0,
+                    )}
+                    badgeTone={group.key === "eltern" ? "parents" : "staff"}
+                    collapsed={collapsed}
+                    labelsMounted={labelsMounted}
+                    labelsVisible={labelsVisible}
+                  >
+                    {rows}
+                  </SidebarGroup>
+                </div>
+              );
+            })}
+          </nav>
 
-            {/* Bottom pinned items — gleiches Raster wie oben, damit der untere
+          {/* Bottom pinned items — gleiches Raster wie oben, damit der untere
                 Block in beiden Zuständen zur Hauptnavigation passt. */}
-            <nav
-              className={`border-t border-gray-200 ${SIDEBAR_NAV_GAP} ${SIDEBAR_NAV_PADDING}`}
-            >
-              {STAFF_NAV_BOTTOM.map(renderEntry)}
-            </nav>
-          </>
-        )}
-      </div>
-    </aside>
+          <nav
+            className={`border-t border-gray-200 ${SIDEBAR_NAV_GAP} ${SIDEBAR_NAV_PADDING}`}
+          >
+            {STAFF_NAV_BOTTOM.map(renderEntry)}
+          </nav>
+        </>
+      )}
+    </PortalSidebarFrame>
   );
 }
 
@@ -1984,8 +1937,11 @@ export function Sidebar({ className = "" }: SidebarProps) {
   return (
     <Suspense
       fallback={
-        <aside className={asideClasses(collapsed, className)}>
-          <div className={`sticky top-[73px] ${SIDEBAR_NAV_PADDING}`}>
+        <PortalSidebarFrame
+          collapsed={collapsed}
+          className={`${SIDEBAR_MIN_HEIGHT} ${className}`}
+        >
+          <div className={SIDEBAR_NAV_PADDING}>
             {/* Platzhalter im selben Raster wie die fertigen Zeilen: 40px
                 hoch, Icon an derselben Stelle — der Wechsel vom Platzhalter
                 zur Navigation verschiebt nichts. */}
@@ -2000,7 +1956,7 @@ export function Sidebar({ className = "" }: SidebarProps) {
               ))}
             </nav>
           </div>
-        </aside>
+        </PortalSidebarFrame>
       }
     >
       <SidebarContent
