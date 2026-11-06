@@ -24,12 +24,14 @@ var _ careplan.ContractOfferings = ContractOfferingStore{}
 func NewContractOfferingStore() ContractOfferingStore { return ContractOfferingStore{} }
 
 type contractOfferingRow struct {
-	ID          int64  `bun:"id"`
-	PhaseID     int64  `bun:"phase_id"`
-	Name        string `bun:"name"`
-	PriceCents  *int   `bun:"price_cents"`
-	IsActive    bool   `bun:"is_active"`
-	PickupTimes string `bun:"pickup_times"`
+	ID             int64    `bun:"id"`
+	PhaseID        int64    `bun:"phase_id"`
+	Name           string   `bun:"name"`
+	PriceCents     *int     `bun:"price_cents"`
+	IsActive       bool     `bun:"is_active"`
+	PickupTimes    string   `bun:"pickup_times"`
+	DaysOfWeekMode string   `bun:"days_of_week_mode"`
+	AvailableDays  []string `bun:"available_days,type:jsonb"`
 }
 
 // ContractOfferings lists the offerings of the school.
@@ -42,7 +44,7 @@ func (ContractOfferingStore) ContractOfferings(ctx context.Context, ids []int64)
 		ids = []int64{}
 	}
 	var rows []contractOfferingRow
-	if err := tx.NewRaw(`SELECT id, phase_id, name, price_cents, is_active,
+	if err := tx.NewRaw(`SELECT id, phase_id, name, price_cents, is_active, days_of_week_mode, available_days,
 			COALESCE(pickup_times, '{}'::jsonb)::text AS pickup_times FROM enrollment.care_offerings
 		WHERE tenant_id = ? AND counts_as_care AND (cardinality(?::bigint[]) = 0 OR id = ANY(?::bigint[]))
 		ORDER BY sort_order, name, id`, tenantID, pgdialect.Array(ids), pgdialect.Array(ids)).Scan(ctx, &rows); err != nil {
@@ -52,7 +54,8 @@ func (ContractOfferingStore) ContractOfferings(ctx context.Context, ids []int64)
 	for i, row := range rows {
 		result[i] = careplan.ContractOffering{
 			ID: row.ID, PhaseID: row.PhaseID, Name: row.Name, PriceCents: row.PriceCents, IsActive: row.IsActive,
-			PickupTimes: contractPickupTimes(row.PickupTimes),
+			PickupTimes:    contractPickupTimes(row.PickupTimes),
+			DaysOfWeekMode: row.DaysOfWeekMode, AvailableDays: row.AvailableDays,
 		}
 	}
 	return result, nil

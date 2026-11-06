@@ -10,6 +10,7 @@ const { api, mockPush } = vi.hoisted(() => ({
   api: {
     fetchCareContracts: vi.fn(),
     fetchContractCandidates: vi.fn(),
+    fetchTraegerSchools: vi.fn(),
     createCareContracts: vi.fn(),
     sendCareContracts: vi.fn(),
   },
@@ -17,6 +18,9 @@ const { api, mockPush } = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/traeger-care-contracts-api", () => api);
+vi.mock("~/lib/traeger-api", () => ({
+  fetchTraegerSchools: api.fetchTraegerSchools,
+}));
 vi.mock("~/lib/traeger-url", () => ({
   traegerPath: (path: string) => path.replace(/^\/traeger/, "") || "/",
 }));
@@ -93,7 +97,11 @@ describe("TraegerVertraegePage", () => {
     api.fetchCareContracts.mockResolvedValue({
       contracts: [DRAFT, SENT],
       counts: { entwurf: 1, versendet: 1 },
+      hasMore: false,
     });
+    api.fetchTraegerSchools.mockResolvedValue([
+      { id: "3", name: "OGS Am Lindenhof" },
+    ]);
     api.fetchContractCandidates.mockResolvedValue([
       CANDIDATE,
       {
@@ -120,6 +128,44 @@ describe("TraegerVertraegePage", () => {
     expect(
       screen.getByRole("button", { name: /Verträge erstellen \(3\)/ }),
     ).toBeInTheDocument();
+  });
+
+  it("loads older contracts and sends filters to the server", async () => {
+    api.fetchCareContracts
+      .mockResolvedValueOnce({
+        contracts: [SENT],
+        counts: { entwurf: 1100, versendet: 1 },
+        hasMore: true,
+      })
+      .mockResolvedValueOnce({
+        contracts: [DRAFT],
+        counts: { entwurf: 1100, versendet: 1 },
+        hasMore: false,
+      });
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Weitere Verträge laden" }),
+    );
+    expect((await screen.findAllByText("Lina Muster"))[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Ben Muster")[0]).toBeInTheDocument();
+    expect(api.fetchCareContracts).toHaveBeenLastCalledWith({
+      status: undefined,
+      schoolId: "",
+      search: "",
+      offset: 1,
+    });
+    fireEvent.change(
+      screen.getAllByPlaceholderText("Kind, Eltern oder Angebot suchen")[0]!,
+      { target: { value: "Mia" } },
+    );
+    await waitFor(() =>
+      expect(api.fetchCareContracts).toHaveBeenLastCalledWith({
+        status: undefined,
+        schoolId: "",
+        search: "Mia",
+        offset: 0,
+      }),
+    );
   });
 
   it("creates one draft per child over its modules, only with equal conditions", async () => {

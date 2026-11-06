@@ -111,8 +111,19 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	query := r.URL.Query()
+	offset, limit := 0, 0
+	for name, target := range map[string]*int{"offset": &offset, "limit": &limit} {
+		if raw := query.Get(name); raw != "" {
+			value, parseErr := strconv.Atoi(raw)
+			if parseErr != nil || value < 0 {
+				common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid %s", name)))
+				return
+			}
+			*target = value
+		}
+	}
 	list, err := rs.contracts.ListContracts(r.Context(), reviewer, carecontract.ContractFilter{
-		Status: query.Get("status"), SchoolID: schoolID, Search: query.Get("search"),
+		Status: query.Get("status"), SchoolID: schoolID, Search: query.Get("search"), Offset: offset, Limit: limit,
 	})
 	if err != nil {
 		tenant.MarkRollback(r.Context())

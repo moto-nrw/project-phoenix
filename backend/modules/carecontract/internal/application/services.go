@@ -33,9 +33,10 @@ func bookedCare(read schoolRead, application carecontract.Application, today cal
 		if !ok {
 			continue
 		}
+		days := effectiveBookingDays(booking, offering)
 		added := false
 		for _, day := range weekdayOrder {
-			if !slices.Contains(booking.Days, day) {
+			if !slices.Contains(days, day) {
 				continue
 			}
 			result.services = append(result.services, carecontract.Service{
@@ -65,6 +66,15 @@ func bookedCare(read schoolRead, application carecontract.Application, today cal
 	}
 	sortServices(result.services)
 	return result
+}
+
+// effectiveBookingDays resolves the fixed schedule even when the booking
+// stores no selection; a choice offering keeps only its selected days.
+func effectiveBookingDays(booking carecontract.Booking, offering carecontract.Offering) []string {
+	if offering.DaysOfWeekMode == "fixed" {
+		return offering.AvailableDays
+	}
+	return booking.Days
 }
 
 // addPrice keeps the monthly price of the module. A contract over several
@@ -164,7 +174,7 @@ func endsOn(terms carecontract.TemplateInput, from calendar.Date, until *calenda
 		end = &last
 	}
 	if terms.TermKind == carecontract.TermFixedMonths && terms.TermMonths != nil {
-		last := addMonths(from, *terms.TermMonths).AddDays(-1)
+		last := fixedTermEnd(from, *terms.TermMonths)
 		if end == nil || last.Before(*end) {
 			end = &last
 		}

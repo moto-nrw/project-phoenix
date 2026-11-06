@@ -46,7 +46,18 @@ export function ParentDocumentsPage() {
   const load = useCallback(async () => {
     clear();
     try {
-      setDocuments(await listMyDocuments());
+      const result = await listMyDocuments();
+      setDocuments(result.documents);
+      if (result.failedSource) {
+        void showLoadError(result.error, {
+          object: t(
+            result.failedSource === "letters"
+              ? "lettersErrorObject"
+              : "contractsErrorObject",
+          ),
+          retry: () => void load(),
+        });
+      }
     } catch (err) {
       setDocuments([]);
       void showLoadError(err, { object: t("errorObject") });
@@ -60,23 +71,26 @@ export function ParentDocumentsPage() {
   return (
     <ParentPage>
       <ParentPageHeader title={t("title")} description={t("description")} />
+      {error ? <LoadErrorAlert error={error} /> : null}
       {documents === null ? (
         <div className="space-y-3" aria-busy="true">
           <Skeleton className="h-36 w-full rounded-2xl" />
           <Skeleton className="h-36 w-full rounded-2xl" />
         </div>
-      ) : error ? (
-        <LoadErrorAlert error={error} />
       ) : documents.length === 0 ? (
-        <EmptyState
-          icon={<MotoConceptIcon concept={documentsConcept} />}
-          title={t("emptyTitle")}
-          description={t("emptyDescription")}
-        />
+        error ? null : (
+          <EmptyState
+            icon={<MotoConceptIcon concept={documentsConcept} />}
+            title={t("emptyTitle")}
+            description={t("emptyDescription")}
+          />
+        )
       ) : (
         <ul className="space-y-4">
           {documents.map((document) => (
-            <li key={`${document.organization_id}-${document.id}`}>
+            <li
+              key={`${document.kind}-${document.organization_id}-${document.id}`}
+            >
               <ParentDocumentCard document={document} />
             </li>
           ))}

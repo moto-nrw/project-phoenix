@@ -17,5 +17,7 @@
   "downloadErrorObject": "dokument",
   "careContract": "Umowa o opiekę",
   "bookedCare": "Zarezerwowana opieka",
-  "startsOn": "Początek"
+  "startsOn": "Początek",
+  "lettersErrorObject": "pisma",
+  "contractsErrorObject": "umowy opieki"
 }

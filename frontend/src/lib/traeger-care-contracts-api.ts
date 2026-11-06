@@ -104,6 +104,7 @@ export interface CareContractSummary {
 export interface CareContractList {
   readonly contracts: readonly CareContractSummary[];
   readonly counts: Readonly<Partial<Record<CareContractStatus, number>>>;
+  readonly hasMore: boolean;
 }
 
 export type ContractMailState = "queued" | "sent" | "failed" | "unknown";
@@ -384,14 +385,29 @@ function contractPath(id: string): string {
   return `${CONTRACTS_PATH}/${encodeURIComponent(id)}`;
 }
 
-export async function fetchCareContracts(): Promise<CareContractList> {
+export async function fetchCareContracts(
+  filter: {
+    status?: CareContractStatus;
+    schoolId?: string;
+    search?: string;
+    offset?: number;
+  } = {},
+): Promise<CareContractList> {
+  const query = new URLSearchParams();
+  if (filter.status) query.set("status", filter.status);
+  if (filter.schoolId) query.set("school_id", filter.schoolId);
+  if (filter.search) query.set("search", filter.search);
+  if (filter.offset) query.set("offset", String(filter.offset));
+  const path = query.size ? `${CONTRACTS_PATH}?${query}` : CONTRACTS_PATH;
   const body = await traegerRequest<{
     contracts: BackendSummary[] | null;
     counts: Partial<Record<CareContractStatus, number>> | null;
-  }>(CONTRACTS_PATH);
+    has_more: boolean;
+  }>(path);
   return {
     contracts: (body?.contracts ?? []).map(summaryFromBackend),
     counts: body?.counts ?? {},
+    hasMore: body?.has_more ?? false,
   };
 }
 
@@ -402,7 +418,45 @@ export async function fetchContractCandidates(): Promise<ContractCandidate[]> {
   return (rows ?? []).map(candidateFromBackend);
 }
 
+// The backend accepts at most 200 items per request. Sequential batches
+// keep large selections within that contract without concurrent PDF rendering.
+const MAX_BATCH = 200;
+
 export async function createCareContracts(
+  keys: readonly CandidateKey[],
+): Promise<CreateResult> {
+  const result: {
+    created: CareContractSummary[];
+    skipped: CreateResult["skipped"][number][];
+  } = { created: [], skipped: [] };
+  for (let offset = 0; offset < keys.length; offset += MAX_BATCH) {
+    const batch = await createCareContractBatch(
+      keys.slice(offset, offset + MAX_BATCH),
+    );
+    result.created.push(...batch.created);
+    result.skipped.push(...batch.skipped);
+  }
+  return result;
+}
+
+export async function sendCareContracts(
+  ids: readonly string[],
+): Promise<SendResult> {
+  const result: { sent: string[]; skipped: SendResult["skipped"][number][] } = {
+    sent: [],
+    skipped: [],
+  };
+  for (let offset = 0; offset < ids.length; offset += MAX_BATCH) {
+    const batch = await sendCareContractBatch(
+      ids.slice(offset, offset + MAX_BATCH),
+    );
+    result.sent.push(...batch.sent);
+    result.skipped.push(...batch.skipped);
+  }
+  return result;
+}
+
+async function createCareContractBatch(
   keys: readonly CandidateKey[],
 ): Promise<CreateResult> {
   const body = await traegerRequest<{
@@ -422,7 +476,7 @@ export async function createCareContracts(
   };
 }
 
-export async function sendCareContracts(
+async function sendCareContractBatch(
   ids: readonly string[],
 ): Promise<SendResult> {
   const body = await traegerRequest<{

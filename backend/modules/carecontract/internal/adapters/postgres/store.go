@@ -240,8 +240,8 @@ const summarySQL = `SELECT c.id, c.status, c.school_id, c.created_at, c.sent_at,
 // and a search over the names and the address.
 const listContractsSQL = summarySQL + ` AND (? = '' OR c.status = ?) AND (? = 0 OR c.school_id = ?)
 	AND (? = '' OR (v.child_first_name || ' ' || v.child_last_name || ' ' || COALESCE(p.first_name || ' ' || p.last_name, '')
-		|| ' ' || COALESCE(p.email, '')) ILIKE ?)
-	ORDER BY c.created_at DESC, c.id DESC LIMIT 1000`
+		|| ' ' || COALESCE(p.email, '') || ' ' || array_to_string(` + moduleNamesSQL + `, ' ')) ILIKE ?)
+	ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`
 
 // contractSQL is one contract.
 const contractSQL = summarySQL + ` AND c.id = ?`
@@ -282,7 +282,7 @@ func (Store) ListContracts(ctx context.Context, organizationID int64, filter car
 	}
 	var rows []summaryRow
 	if err := db.NewRaw(listContractsSQL, organizationID, filter.Status, filter.Status, filter.SchoolID, filter.SchoolID,
-		search, search).Scan(ctx, &rows); err != nil {
+		search, search, filter.Limit+1, filter.Offset).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: list contracts: %w", err)
 	}
 	result := make([]carecontract.ContractSummary, len(rows))

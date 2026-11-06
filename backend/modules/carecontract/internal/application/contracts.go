@@ -42,10 +42,20 @@ func (c *Contracts) ListContracts(ctx context.Context, reviewer carecontract.Rev
 	if filter.Status != "" && !knownStatus(filter.Status) {
 		return carecontract.ContractList{}, &carecontract.ValidationError{Fields: map[string]string{"status": "unknown"}}
 	}
+	if filter.Offset < 0 || filter.Limit < 0 || filter.Limit > 100 {
+		return carecontract.ContractList{}, &carecontract.ValidationError{Fields: map[string]string{"contracts": "invalid_pagination"}}
+	}
+	if filter.Limit == 0 {
+		filter.Limit = 50
+	}
 	filter.Search = strings.TrimSpace(filter.Search)
 	contracts, err := c.store.ListContracts(ctx, reviewer.OrganizationID, filter)
 	if err != nil {
 		return carecontract.ContractList{}, fmt.Errorf("care contract: list: %w", err)
+	}
+	hasMore := len(contracts) > filter.Limit
+	if hasMore {
+		contracts = contracts[:filter.Limit]
 	}
 	counts, err := c.store.CountContracts(ctx, reviewer.OrganizationID)
 	if err != nil {
@@ -63,7 +73,7 @@ func (c *Contracts) ListContracts(ctx context.Context, reviewer carecontract.Rev
 			return carecontract.ContractList{}, fmt.Errorf("care contract: record list read: %w", err)
 		}
 	}
-	return carecontract.ContractList{Contracts: contracts, Counts: counts}, nil
+	return carecontract.ContractList{Contracts: contracts, Counts: counts, HasMore: hasMore}, nil
 }
 
 // Contract reads one contract with the state of its mails.

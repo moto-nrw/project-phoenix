@@ -203,6 +203,8 @@ type ContractFilter struct {
 	Status   string
 	SchoolID int64
 	Search   string
+	Offset   int
+	Limit    int
 }
 
 // ContractSummary is one contract in the list.
@@ -226,6 +228,7 @@ type ContractSummary struct {
 type ContractList struct {
 	Contracts []ContractSummary `json:"contracts"`
 	Counts    map[string]int    `json:"counts"`
+	HasMore   bool              `json:"has_more"`
 }
 
 // Version is the frozen content of a contract version: the child, the

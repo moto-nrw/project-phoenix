@@ -14,6 +14,13 @@ const { api, mockPush } = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/traeger-care-contracts-api", () => api);
+vi.mock("~/components/ui/pdf-preview", () => ({
+  PdfPreview: ({ url, title }: { url: string | null; title: string }) => (
+    <div data-testid="pdf-preview" data-loaded={url !== null}>
+      {title}
+    </div>
+  ),
+}));
 vi.mock("~/lib/traeger-url", () => ({
   traegerPath: (path: string) => path.replace(/^\/traeger/, "") || "/",
 }));
@@ -123,6 +130,10 @@ describe("TraegerVertragPage", () => {
     expect(
       screen.getByText("Offene Ganztagsschule bis 16:30 Uhr"),
     ).toBeInTheDocument();
+    expect(await screen.findByTestId("pdf-preview")).toHaveAttribute(
+      "data-loaded",
+      "true",
+    );
     // Wednesday to Friday carry no care.
     expect(screen.getAllByText("Keine Betreuung")).toHaveLength(3);
     expect(

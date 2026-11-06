@@ -100,7 +100,7 @@ func careContractApplication(t *testing.T, db *bun.DB, schoolID, phaseID, offeri
 		VALUES (?, ?, ?, 'Muster', DATE '2019-03-04', '{}'::jsonb, 'approved', 'scheduled') RETURNING id`,
 		schoolID, requestID, first).Scan(ctx, &childID))
 	_, err := db.ExecContext(ctx, `INSERT INTO enrollment.care_offering_bookings (tenant_id, request_child_id, care_offering_id,
-			manual_selected_days, valid_from) VALUES (?, ?, ?, '["mon","tue","wed"]'::jsonb, DATE '2027-08-01')`,
+			manual_selected_days, valid_from) VALUES (?, ?, ?, '[]'::jsonb, DATE '2027-08-01')`,
 		schoolID, childID, offeringID)
 	require.NoError(t, err)
 	return childID
@@ -127,7 +127,7 @@ func newCareContractFixture(t *testing.T, name string) careContractFixture {
 		VALUES (?, 'Schuljahr 2027/28', 'school_year', DATE '2027-08-01', DATE '2028-07-31', 'waitlist', 'optional', true) RETURNING id`,
 		school).Scan(ctx, &phaseID))
 	offering := &testpkg.CareOffering{PhaseID: phaseID, Name: "Offene Ganztagsschule", DaysOfWeekMode: "fixed",
-		AvailableDays: []string{"mon", "tue", "wed", "thu", "fri"}, AutoAddGradeLevels: []int{}, IsActive: true, CountsAsCare: true}
+		AvailableDays: []string{"mon", "tue", "wed"}, AutoAddGradeLevels: []int{}, IsActive: true, CountsAsCare: true}
 	offering.TenantID = school
 	testpkg.InsertTestCareOffering(t, f.db, testpkg.TenantContext(school), offering)
 	// The offering ends at 14:00 on Monday and at 16:30 on the other days.
@@ -405,4 +405,45 @@ func TestCareContractListsQueryBudget(t *testing.T) {
 	assert.Len(t, read("/traeger/contracts"), len(list), "the list reads the same statements for any number of contracts")
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_contract_candidates", candidates)
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_contracts", list)
+}
+
+// Pagination and filters apply before the page is cut, not just to its rows.
+func TestCareContractListPaginatesAndFiltersAllContracts(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Seiten")
+	token := f.office.token
+	other := careContractApplication(t, f.db, f.school, f.phase, f.offering, "Ben", "ben@example.org")
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	rec := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts", map[string]any{"contracts": []any{f.key(), map[string]any{"school_id": f.school, "request_child_id": other}}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	created := decodeSchoolPortalData[careContractCreateBody](t, rec.Body.Bytes()).Created
+	require.Len(t, created, 2)
+	type page struct {
+		Contracts []careContractSummaryBody `json:"contracts"`
+		Counts    map[string]int            `json:"counts"`
+		HasMore   bool                      `json:"has_more"`
+	}
+	read := func(query string) page {
+		t.Helper()
+		response := traegerJSON(t, f.traeger, token, http.MethodGet, "/traeger/contracts?"+query, nil)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		return decodeSchoolPortalData[page](t, response.Body.Bytes())
+	}
+	first := read("limit=1")
+	require.Len(t, first.Contracts, 1)
+	assert.True(t, first.HasMore)
+	assert.Equal(t, 2, first.Counts["entwurf"])
+	next := read("limit=1&offset=1")
+	require.Len(t, next.Contracts, 1)
+	assert.False(t, next.HasMore)
+	assert.NotEqual(t, first.Contracts[0].ID, next.Contracts[0].ID)
+	assert.Empty(t, read("offset=1000").Contracts)
+	assert.Len(t, read("search=Lina&limit=1").Contracts, 1)
+	assert.Len(t, read("search=Ganztagsschule").Contracts, 2, "module names remain searchable")
+	assert.Empty(t, read("status=versendet").Contracts)
+	assert.Len(t, read("school_id="+strconv.FormatInt(f.school, 10)).Contracts, 2)
+	assert.Empty(t, read("school_id="+strconv.FormatInt(f.office.schools[1], 10)).Contracts)
+	for _, query := range []string{"offset=-1", "offset=no", "limit=101"} {
+		assert.Equal(t, http.StatusBadRequest, traegerJSON(t, f.traeger, token, http.MethodGet, "/traeger/contracts?"+query, nil).Code)
+	}
 }

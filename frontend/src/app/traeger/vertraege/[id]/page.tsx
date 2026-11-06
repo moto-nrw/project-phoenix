@@ -26,6 +26,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { PdfPreview } from "~/components/ui/pdf-preview";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -423,21 +424,10 @@ export default function TraegerVertragPage() {
                 : "So sieht der Vertrag mit Ihrem Briefkopf aus."
             }
           >
-            {pdfUrl ? (
-              <object
-                data={pdfUrl}
-                type="application/pdf"
-                aria-label={`Vertrag von ${childName(contract)}`}
-                className="h-[75vh] min-h-[480px] w-full rounded-xl border border-gray-200"
-              >
-                <p className="p-4 text-sm text-gray-600">
-                  Ihr Browser zeigt das PDF hier nicht an. Laden Sie es oben mit
-                  „PDF herunterladen“.
-                </p>
-              </object>
-            ) : (
-              <p className="text-sm text-gray-500">Die Vorschau lädt …</p>
-            )}
+            <PdfPreview
+              url={pdfUrl}
+              title={`Vertrag von ${childName(contract)}`}
+            />
           </SectionCard>
         </>
       ) : null}

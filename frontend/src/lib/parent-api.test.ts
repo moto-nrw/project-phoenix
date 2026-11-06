@@ -286,6 +286,25 @@ describe("listMyChildren", () => {
 // --- listEnrollableSchools -------------------------------------------
 
 describe("listMyDocuments", () => {
+  it.each(["/contracts", "/documents"])(
+    "keeps the available source when %s fails",
+    async (suffix) => {
+      mockFetch(async (input) =>
+        String(input).endsWith(suffix)
+          ? jsonResponse({ code: "general.internal_error" }, { status: 500 })
+          : jsonResponse({
+              data: [{ id: "1", sent_at: "2026-09-01T08:00:00Z" }],
+            }),
+      );
+      const result = await listMyDocuments();
+      expect(result.documents).toHaveLength(1);
+      expect(result.failedSource).toBe(
+        suffix === "/contracts" ? "contracts" : "letters",
+      );
+      expect(result.error).toBeInstanceOf(Error);
+    },
+  );
+
   it("merges the letters and the care contracts, newest first", async () => {
     const doc = (id: string, kind: string, sentAt: string) => ({
       id,
@@ -320,7 +339,11 @@ describe("listMyDocuments", () => {
     expect(urls.map((url) => new URL(url, "http://x").pathname).sort()).toEqual(
       ["/api/parent/me/documents", "/api/parent/me/documents/contracts"],
     );
-    expect(out.map((document) => document.id)).toEqual(["5", "8", "4"]);
+    expect(out.documents.map((document) => document.id)).toEqual([
+      "5",
+      "8",
+      "4",
+    ]);
   });
 });
 

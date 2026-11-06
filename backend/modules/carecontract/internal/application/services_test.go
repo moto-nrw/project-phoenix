@@ -80,3 +80,42 @@ func TestBookedCarePricesOnlyAContractOfOneModule(t *testing.T) {
 		{Weekday: "fri", CareOfferingID: 1, ModuleName: "Kurzbetreuung", EndsAt: "14:00"},
 	}, two.services)
 }
+
+func TestFixedMonthTermsEndWithoutOverflowingShortMonths(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		from   string
+		months int
+		want   string
+	}{
+		{"2027-01-31", 1, "2027-02-28"},
+		{"2028-01-31", 1, "2028-02-29"},
+		{"2028-02-29", 12, "2029-02-28"},
+		{"2027-03-31", 1, "2027-04-30"},
+		{"2027-01-30", 1, "2027-02-28"},
+		{"2027-01-28", 1, "2027-02-27"},
+		{"2027-08-01", 1, "2027-08-31"},
+		{"2027-12-15", 2, "2028-02-14"},
+	} {
+		t.Run(tc.from, func(t *testing.T) {
+			got := endsOn(carecontract.TemplateInput{TermKind: carecontract.TermFixedMonths, TermMonths: &tc.months}, calendar.Date(tc.from), nil)
+			if assert.NotNil(t, got) {
+				assert.Equal(t, calendar.Date(tc.want), *got)
+			}
+		})
+	}
+}
+
+func TestBookedCareResolvesFixedDaysButNotAnEmptyChoice(t *testing.T) {
+	t.Parallel()
+	read := schoolRead{offerings: map[int64]carecontract.Offering{
+		1: {ID: 1, Name: "Feste Betreuung", DaysOfWeekMode: "fixed", AvailableDays: []string{"mon", "fri"}, EndTimes: map[string]string{"mon": "14:00", "fri": "13:00"}},
+		2: {ID: 2, Name: "Wählbare Betreuung", DaysOfWeekMode: "selectable", AvailableDays: []string{"tue"}},
+	}}
+	got := bookedCare(read, carecontract.Application{Bookings: []carecontract.Booking{{CareOfferingID: 1}, {CareOfferingID: 2}}}, calendar.NewDate(2026, 11, 6))
+	assert.Equal(t, []carecontract.Service{
+		{Weekday: "mon", CareOfferingID: 1, ModuleName: "Feste Betreuung", EndsAt: "14:00"},
+		{Weekday: "fri", CareOfferingID: 1, ModuleName: "Feste Betreuung", EndsAt: "13:00"},
+	}, got.services)
+	assert.Equal(t, []int64{1}, got.offerings)
+}

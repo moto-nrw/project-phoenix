@@ -17,5 +17,7 @@
   "downloadErrorObject": "Belge",
   "careContract": "Bakım sözleşmesi",
   "bookedCare": "Rezerve edilen bakım",
-  "startsOn": "Başlangıç"
+  "startsOn": "Başlangıç",
+  "lettersErrorObject": "yazılar",
+  "contractsErrorObject": "bakım sözleşmeleri"
 }

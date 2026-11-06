@@ -57,6 +57,7 @@ export function traegerCareContractsTopic(): HelpTopic {
     result:
       "Die Eltern bekommen den Vertrag als PDF per Mail. Haben sie ein Konto in der Eltern-App, liegt er dort auch unter `Dokumente`. Der Status wird `Versendet`.",
     notes: [
+      "Die Suche und die Filter gelten für alle Verträge. Mit `Weitere Verträge laden` zeigen Sie ältere Treffer an.",
       "Beim ersten Senden hält moto das PDF fest. Ändern Sie danach Bedingungen oder Brieftext, bleibt der versendete Vertrag gleich.",
       "Unter `Versand` sehen Sie, ob die Mail angekommen ist. Mit `Erneut senden` geht dasselbe PDF noch einmal an die Eltern.",
       "Den Brieftext des Vertrags ändern Sie unter `Einstellungen` → `Briefkopf und Vorlagen` bei der Vorlage `Vertrag`.",

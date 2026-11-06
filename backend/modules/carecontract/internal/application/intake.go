@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -481,9 +482,15 @@ func offeringTemplate(school carecontract.School, offering carecontract.Offering
 	}
 }
 
-func addMonths(date calendar.Date, months int) calendar.Date {
-	instant := date.BerlinMidnight()
-	return calendar.DateFromTime(instant.AddDate(0, months, 0))
+// fixedTermEnd is the day before the matching day in the target month.
+// When that day does not exist, the term includes the target month's last day.
+func fixedTermEnd(date calendar.Date, months int) calendar.Date {
+	first := calendar.NewDate(date.Year(), date.Month()+time.Month(months), 1)
+	last := calendar.NewDate(first.Year(), first.Month()+1, 1).AddDays(-1)
+	if date.Day() > last.Day() {
+		return last
+	}
+	return calendar.NewDate(first.Year(), first.Month(), date.Day()).AddDays(-1)
 }
 
 func bookedOfferingIDs(applications []carecontract.Application) []int64 {

@@ -2475,16 +2475,43 @@ export interface ParentDocument {
  * the letters and the care contracts (#4678), newest first. 403 when no
  * relationship of the account grants them.
  */
-export async function listMyDocuments(): Promise<ParentDocument[]> {
-  const [letters, contracts] = await Promise.all([
+export interface ParentDocumentInbox {
+  readonly documents: ParentDocument[];
+  readonly failedSource: "letters" | "contracts" | null;
+  readonly error: unknown;
+}
+
+export async function listMyDocuments(): Promise<ParentDocumentInbox> {
+  const [letters, contracts] = await Promise.allSettled([
     getJson<ParentDocument[]>("/api/parent/me/documents"),
     getJson<ParentDocument[]>("/api/parent/me/documents/contracts"),
   ]);
-  return [...letters, ...contracts].sort(
+  if (letters.status === "rejected" && contracts.status === "rejected") {
+    throw letters.reason;
+  }
+  const documents = [
+    ...(letters.status === "fulfilled" ? letters.value : []),
+    ...(contracts.status === "fulfilled" ? contracts.value : []),
+  ].sort(
     (a, b) =>
       Date.parse(b.sent_at) - Date.parse(a.sent_at) ||
       Number(b.id) - Number(a.id),
   );
+  return {
+    documents,
+    failedSource:
+      letters.status === "rejected"
+        ? "letters"
+        : contracts.status === "rejected"
+          ? "contracts"
+          : null,
+    error:
+      letters.status === "rejected"
+        ? letters.reason
+        : contracts.status === "rejected"
+          ? contracts.reason
+          : null,
+  };
 }
 
 /**

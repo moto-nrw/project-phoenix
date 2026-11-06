@@ -51,13 +51,15 @@ type Application struct {
 // module: on each weekday the child ends at the offering's end time of that
 // day ("HH:MM", the Gehzeit), if the offering has one.
 type Offering struct {
-	ID         int64
-	PhaseID    int64
-	Name       string
-	PhaseName  string
-	PriceCents *int
-	Active     bool
-	EndTimes   map[string]string
+	ID             int64
+	PhaseID        int64
+	Name           string
+	PhaseName      string
+	PriceCents     *int
+	Active         bool
+	EndTimes       map[string]string
+	DaysOfWeekMode string
+	AvailableDays  []string
 }
 
 // SchoolAccess is one read of personal data of a school by the Träger-Büro,

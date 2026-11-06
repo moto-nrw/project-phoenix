@@ -17,5 +17,7 @@
   "downloadErrorObject": "документ",
   "careContract": "Договір про догляд",
   "bookedCare": "Заброньований догляд",
-  "startsOn": "Початок"
+  "startsOn": "Початок",
+  "lettersErrorObject": "листи",
+  "contractsErrorObject": "договори про догляд за дитиною"
 }

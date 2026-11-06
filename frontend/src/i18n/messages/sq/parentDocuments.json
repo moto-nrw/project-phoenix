@@ -17,5 +17,7 @@
   "downloadErrorObject": "dokumenti",
   "careContract": "Kontrata e kujdesit",
   "bookedCare": "Kujdesi i rezervuar",
-  "startsOn": "Fillimi"
+  "startsOn": "Fillimi",
+  "lettersErrorObject": "shkresat",
+  "contractsErrorObject": "kontratat e kujdesit"
 }

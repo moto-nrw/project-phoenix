@@ -8,7 +8,7 @@
 
 import { Plus, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CareContractCreateModal } from "~/components/traeger/care-contract-create-modal";
 import {
   CONTRACT_STATUS_LABELS,
@@ -48,6 +48,8 @@ import {
   fetchContractCandidates,
   sendCareContracts,
 } from "~/lib/traeger-care-contracts-api";
+import { fetchTraegerSchools, type TraegerSchool } from "~/lib/traeger-api";
+import { useDebounce } from "~/lib/use-debounce";
 import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerVertraegePage" });
@@ -57,6 +59,7 @@ type StatusChoice = CareContractStatus | "all";
 interface PageData {
   readonly list: CareContractList;
   readonly candidates: readonly ContractCandidate[];
+  readonly schools: readonly TraegerSchool[];
 }
 
 function contractHref(contract: CareContractSummary): string {
@@ -144,26 +147,19 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
   },
 ];
 
-function matchesSearch(contract: CareContractSummary, search: string): boolean {
-  if (!search) return true;
-  const haystack = [
-    contract.childFirstName,
-    contract.childLastName,
-    contract.partyName,
-    contract.partyEmail,
-    ...contract.moduleNames,
-  ]
-    .join(" ")
-    .toLocaleLowerCase("de-DE");
-  return haystack.includes(search.toLocaleLowerCase("de-DE"));
-}
-
 export default function TraegerVertraegePage() {
   const router = useRouter();
   const [data, setData] = useState<PageData | null>(null);
   const [status, setStatus] = useState<StatusChoice>("all");
   const [schoolId, setSchoolId] = useState("");
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search.trim(), 250);
+  const context = useRef<{
+    candidates: ContractCandidate[];
+    schools: TraegerSchool[];
+  } | null>(null);
+  const request = useRef(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [creating, setCreating] = useState(false);
   const [sending, setSending] = useState(false);
@@ -172,41 +168,72 @@ export default function TraegerVertraegePage() {
   const actionError = useApiErrorDisplay();
   const { success, warning } = useToast();
 
-  const load = useCallback(async () => {
-    try {
-      const [list, candidates] = await Promise.all([
-        fetchCareContracts(),
-        fetchContractCandidates(),
-      ]);
-      setData({ list, candidates });
-      clearLoadError();
-    } catch (err) {
-      logger.error("traeger_care_contracts_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await showLoadError(err, {
-        object: "die Verträge",
-        retry: () => void load(),
-      });
-    }
-  }, [clearLoadError, showLoadError]);
+  const load = useCallback(
+    async (offset = 0) => {
+      const currentRequest = ++request.current;
+      if (offset > 0) setLoadingMore(true);
+      try {
+        const [list, metadata] = await Promise.all([
+          fetchCareContracts({
+            status: status === "all" ? undefined : status,
+            schoolId,
+            search: debouncedSearch,
+            offset,
+          }),
+          context.current ??
+            Promise.all([
+              fetchContractCandidates(),
+              fetchTraegerSchools(),
+            ]).then(([candidates, schools]) => ({ candidates, schools })),
+        ]);
+        if (currentRequest !== request.current) return;
+        context.current = metadata;
+        setData((previous) => ({
+          ...metadata,
+          list: {
+            ...list,
+            contracts:
+              offset > 0 && previous
+                ? [...previous.list.contracts, ...list.contracts]
+                : list.contracts,
+          },
+        }));
+        clearLoadError();
+      } catch (err) {
+        if (currentRequest !== request.current) return;
+        logger.error("traeger_care_contracts_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        await showLoadError(err, {
+          object: "die Verträge",
+          retry: () => void load(offset),
+        });
+      } finally {
+        if (currentRequest === request.current) setLoadingMore(false);
+      }
+    },
+    [status, schoolId, debouncedSearch, clearLoadError, showLoadError],
+  );
+
+  const invalidateRequest = useCallback(() => {
+    request.current++;
+  }, []);
 
   useEffect(() => {
+    setData(null);
+    setSelected(new Set());
     void load();
-  }, [load]);
+    return invalidateRequest;
+  }, [load, invalidateRequest]);
 
-  const contracts = useMemo(() => data?.list.contracts ?? [], [data]);
-  const schools = useMemo(() => {
-    const names = new Map<string, string>();
-    for (const contract of contracts)
-      names.set(contract.schoolId, contract.schoolName);
-    return [...names].map(([value, label]) => ({ value, label }));
-  }, [contracts]);
-  const shown = contracts.filter(
-    (contract) =>
-      (status === "all" || contract.status === status) &&
-      (!schoolId || contract.schoolId === schoolId) &&
-      matchesSearch(contract, search.trim()),
+  const contracts = useMemo(() => [...(data?.list.contracts ?? [])], [data]);
+  const schools = (data?.schools ?? []).map((school) => ({
+    value: school.id,
+    label: school.name,
+  }));
+  const total = Object.values(data?.list.counts ?? {}).reduce(
+    (sum, count) => sum + count,
+    0,
   );
   const drafts = data?.list.counts.entwurf ?? 0;
   const sentCount = data?.list.counts.versendet ?? 0;
@@ -240,6 +267,8 @@ export default function TraegerVertraegePage() {
         error: err instanceof Error ? err.message : String(err),
       });
       void actionError.show(err, { object: "die Verträge" });
+      setSelected(new Set());
+      await load();
     } finally {
       setSending(false);
     }
@@ -261,8 +290,9 @@ export default function TraegerVertraegePage() {
           : `${result.skipped.length} Kinder hatten inzwischen einen Vertrag oder keine Bedingungen.`,
       );
     }
-    setStatus("entwurf");
-    await load();
+    context.current = null;
+    if (status === "entwurf") await load();
+    else setStatus("entwurf");
   };
 
   const filters: FilterConfig[] = [
@@ -330,12 +360,12 @@ export default function TraegerVertraegePage() {
       info="Hier erstellen Sie Betreuungsverträge aus den angenommenen Anmeldungen Ihrer Schulen. moto übernimmt Kind, Eltern, Beginn und die gebuchten Module je Wochentag. Sie prüfen den Entwurf und senden ihn per Mail und in die Eltern-App."
       tabs={careContractTabs("vertraege")}
       stats={
-        contracts.length > 0 || candidates.length > 0 ? (
+        total > 0 || candidates.length > 0 ? (
           <TenantPageStats
             items={[
               {
-                value: contracts.length,
-                label: contracts.length === 1 ? "Vertrag" : "Verträge",
+                value: total,
+                label: total === 1 ? "Vertrag" : "Verträge",
               },
               { value: drafts, label: drafts === 1 ? "Entwurf" : "Entwürfe" },
               { value: sentCount, label: "versendet" },
@@ -405,7 +435,7 @@ export default function TraegerVertraegePage() {
       {data ? (
         <DataTable
           columns={COLUMNS}
-          rows={shown}
+          rows={contracts}
           getRowKey={(contract) => contract.id}
           stackedOnMobile
           stackedLayout="row"
@@ -432,10 +462,20 @@ export default function TraegerVertraegePage() {
                   className="h-12 w-12"
                 />
               }
-              {...emptyText(contracts.length, candidates.length)}
+              {...emptyText(total, candidates.length)}
             />
           }
         />
+      ) : null}
+      {data?.list.hasMore ? (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={loadingMore || sending}
+          onClick={() => void load(contracts.length)}
+        >
+          {loadingMore ? "Wird geladen …" : "Weitere Verträge laden"}
+        </Button>
       ) : null}
       {data && selected.size > 0 && selectedDrafts.length < selected.size ? (
         <p className="text-sm text-gray-500">

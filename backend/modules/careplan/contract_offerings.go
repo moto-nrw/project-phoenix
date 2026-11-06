@@ -7,12 +7,14 @@ import "context"
 // A contract books it as a module; PickupTimes is its end time per weekday
 // ("mon" to "HH:MM").
 type ContractOffering struct {
-	ID          int64
-	PhaseID     int64
-	Name        string
-	PriceCents  *int
-	IsActive    bool
-	PickupTimes map[string]string
+	ID             int64
+	PhaseID        int64
+	Name           string
+	PriceCents     *int
+	IsActive       bool
+	PickupTimes    map[string]string
+	DaysOfWeekMode string
+	AvailableDays  []string
 }
 
 // ContractOfferings reads the offerings of the school that count as care,

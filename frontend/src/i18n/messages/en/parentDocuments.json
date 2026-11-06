@@ -17,5 +17,7 @@
   "downloadErrorObject": "the document",
   "careContract": "Care contract",
   "bookedCare": "Booked care",
-  "startsOn": "Starts on"
+  "startsOn": "Starts on",
+  "lettersErrorObject": "the letters",
+  "contractsErrorObject": "the care contracts"
 }
