@@ -206,7 +206,10 @@ var moduleLegacyFileBudgets = map[string]int{
 // and modules/workforce/compose (+13) add exactly 45 LOC.
 // ADR 0152: the document template constructor of
 // modules/organizationtenancy/compose adds exactly 6 LOC.
-const moduleComposeBudgetTotal = 12851
+// ADR 0154: the occupancy constructors of modules/careplan/compose (+13),
+// modules/enrollment/compose (+6) and modules/schoolstructure/compose (+13)
+// add exactly 32 LOC.
+const moduleComposeBudgetTotal = 12883
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -221,7 +224,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/auditlog/compose": 189,
 	// Raised by ADR 0128: the manual plans port of the booking materialization (+1).
 	// ADR 0151: the school figure constructor (+13).
-	"modules/careplan/compose":             1658,
+	// ADR 0154: the booked care offering constructor (+13).
+	"modules/careplan/compose":             1671,
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,
@@ -242,8 +246,9 @@ var moduleComposeBudgets = map[string]int{
 	// participant list constructor (+7); by ADR 0120: the holiday guest
 	// constructor (+6); by ADR 0137: the holiday access trail constructor (+7).
 	// #4722 shortened its comments by 7 LOC for the field cipher of
-	// modules/securityruntime/compose.
-	"modules/enrollment/compose":                   591,
+	// modules/securityruntime/compose. ADR 0154: the booked children
+	// constructor (+6).
+	"modules/enrollment/compose":                   597,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -282,7 +287,8 @@ var moduleComposeBudgets = map[string]int{
 	// #4722: the field cipher of the health information, construction only;
 	// the 7 LOC come out of modules/enrollment/compose, the total stays.
 	"modules/securityruntime/compose": 7,
-	"modules/schoolstructure/compose": 593,
+	// ADR 0154: the group names constructor (+13).
+	"modules/schoolstructure/compose": 606,
 	// Raised by ADR 0107: the Träger settings store, runtime and service.
 	"modules/settings/compose":             322,
 	"modules/studentdirectoryview/compose": 9,

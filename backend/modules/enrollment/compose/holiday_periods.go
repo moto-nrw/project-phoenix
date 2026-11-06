@@ -56,3 +56,9 @@ func NewHolidayAccessTrail() enrollment.HolidayAccessTrail {
 func NewOpenEnrollments() enrollment.OpenEnrollments {
 	return postgres.NewOpenEnrollmentStore()
 }
+
+// NewBookedChildren ties the approved children of the online enrollment to
+// their student, for the Träger's occupancy (#4676, ADR 0154).
+func NewBookedChildren() enrollment.BookedChildren {
+	return postgres.NewBookedChildStore()
+}

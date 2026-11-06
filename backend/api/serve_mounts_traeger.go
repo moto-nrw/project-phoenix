@@ -101,6 +101,7 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 		Sick: carePlanCompose.NewSickStudents(), OnSite: workforceCompose.NewOnSiteStaff(),
 		KeyDates:    traegerKeyDateCounts{organizations: organizations},
 		Enrollments: enrollmentCompose.NewOpenEnrollments(), Alerts: traegerAlertSettings{settings: settings},
+		Occupancy: traegerOccupancyPorts(),
 	})
 	if err != nil {
 		return nil, err
