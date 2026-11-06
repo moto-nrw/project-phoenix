@@ -120,8 +120,12 @@ async function executeWithRetry<T>(
       if (retried !== null) {
         return formatResponse(retried.data);
       }
-    } catch {
-      // Retry failed, fall through to token expired
+    } catch (retryError) {
+      // A backend answer other than 401 is the real result (403, 404, ...);
+      // only a failed authentication means the session has expired.
+      if (isApiResponseError(retryError) && retryError.status !== 401) {
+        throw retryError;
+      }
     }
 
     return createTokenExpiredResponse(request);

@@ -567,6 +567,44 @@ describe("Token Refresh and Retry Logic", () => {
     });
   });
 
+  it("forwards a non-401 backend error from the retry instead of the 401 envelope", async () => {
+    mockAuth.mockResolvedValueOnce(defaultSession);
+
+    const mockHandler = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiResponseError(401, "Unauthorized"))
+      .mockRejectedValueOnce(
+        new ApiResponseError(
+          403,
+          JSON.stringify({
+            type: "about:blank",
+            title: "Forbidden",
+            status: 403,
+            detail: "day log disabled",
+            code: "students.day_log_disabled",
+          }),
+          { contentType: "application/problem+json" },
+        ),
+      );
+
+    mockAuth.mockResolvedValueOnce({
+      user: { id: "1", token: "refreshed-token", name: "Test User" },
+      expires: "2099-01-01",
+    });
+
+    const handler = createGetHandler(mockHandler);
+    const request = createMockRequest("/api/test");
+    const response = await handler(request, createMockContext());
+
+    expect(mockHandler).toHaveBeenCalledTimes(2);
+    expect(response.status).toBe(403);
+    const json = await parseJsonResponse<ApiErrorResponse>(response);
+    expect(json).toMatchObject({
+      status: 403,
+      code: "students.day_log_disabled",
+    });
+  });
+
   it("retries a body handler (PUT) with the refreshed token and the same body", async () => {
     mockAuth.mockResolvedValueOnce(defaultSession);
     mockAuth.mockResolvedValueOnce({
