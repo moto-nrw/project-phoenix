@@ -42,7 +42,7 @@ import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
-import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { StatCard } from "~/components/ui/stat-card";
 import { ButtonLink } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { formatDate } from "~/lib/date-helpers";
@@ -343,12 +343,13 @@ function ChangeRequestsOverview({
         <LoadErrorAlert error={error} className="mt-4" />
       ) : (
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
-          <EnrollmentStatTile label="Offen" value={pending.length} />
-          <EnrollmentStatTile
+          <StatCard variant="inline" label="Offen" value={pending.length} />
+          <StatCard
+            variant="inline"
             label="Rückfragen"
             value={waitingForParent.length}
           />
-          <EnrollmentStatTile label="Gesamt" value={requests.length} />
+          <StatCard variant="inline" label="Gesamt" value={requests.length} />
         </div>
       )}
       {!failed && openCount === 0 ? (
@@ -527,10 +528,18 @@ function EnrollmentPhaseOverview({
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-4 gap-2">
-                <EnrollmentStatTile label="Gesamt" value={stats.total} />
-                <EnrollmentStatTile label="Offen" value={stats.open} />
-                <EnrollmentStatTile label="Bestätigt" value={stats.approved} />
-                <EnrollmentStatTile label="Abgelehnt" value={stats.rejected} />
+                <StatCard variant="inline" label="Gesamt" value={stats.total} />
+                <StatCard variant="inline" label="Offen" value={stats.open} />
+                <StatCard
+                  variant="inline"
+                  label="Bestätigt"
+                  value={stats.approved}
+                />
+                <StatCard
+                  variant="inline"
+                  label="Abgelehnt"
+                  value={stats.rejected}
+                />
               </div>
             </article>
           );

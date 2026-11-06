@@ -44,7 +44,7 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
 import {
-  EmptyState,
+  ProvisioningEmptyState,
   PlusIcon,
   SimpleEmptyState,
 } from "~/app/operator/provisioning/provisioning-shared";
@@ -731,7 +731,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
               !schoolsError &&
               organizationSchoolSummaries !== undefined &&
               activeSchools.length === 0 ? (
-              <EmptyState
+              <ProvisioningEmptyState
                 title="Keine Schulen"
                 description="Erstellen Sie eine neue Schule unter diesem Träger."
                 buttonLabel="Neue Schule"

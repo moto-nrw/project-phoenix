@@ -21,6 +21,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { StatCard } from "~/components/ui/stat-card";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   type AdminRequestChild,
@@ -772,9 +773,17 @@ function ReviewSidebar({
         description="Alle Kinder werden einzeln geprüft. Die Statusseite zeigt Eltern den aktuellen Stand der Anmeldung."
       >
         <div className="grid grid-cols-3 gap-2">
-          <SidebarMetric label="Kinder" value={data.children.length} />
-          <SidebarMetric label="Offen" value={childStats.open} />
-          <SidebarMetric label="Bestätigt" value={childStats.approved} />
+          <StatCard
+            variant="inline"
+            label="Kinder"
+            value={data.children.length}
+          />
+          <StatCard variant="inline" label="Offen" value={childStats.open} />
+          <StatCard
+            variant="inline"
+            label="Bestätigt"
+            value={childStats.approved}
+          />
         </div>
         <div className="mt-4">
           <DataGrid>
@@ -855,22 +864,6 @@ function ReviewSidebar({
           </section>
         );
       })}
-    </div>
-  );
-}
-
-function SidebarMetric({
-  label,
-  value,
-}: Readonly<{ label: string; value: number }>) {
-  return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2">
-      <span className="block text-lg leading-none font-semibold text-gray-900">
-        {value}
-      </span>
-      <span className="mt-1 block text-xs font-medium text-gray-500">
-        {label}
-      </span>
     </div>
   );
 }

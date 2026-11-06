@@ -59,7 +59,7 @@ const logger = createLogger({ component: "HolidayRegistrationEdit" });
 
 // The calendar of the kit date picker loads only when an open edit form
 // asks a date question; the German texts are its defaults.
-const ISODatePicker = lazy(() =>
+const LazyDatePicker = lazy(() =>
   import("~/components/ui/date-picker").then((module) => ({
     default: module.ISODatePicker,
   })),
@@ -610,7 +610,7 @@ function Questions({
           controlId={name.replaceAll(".", "-")}
           renderControl={(control) => (
             <Suspense fallback={null}>
-              <ISODatePicker
+              <LazyDatePicker
                 id={control.id}
                 name={control.name}
                 controlSize="md"

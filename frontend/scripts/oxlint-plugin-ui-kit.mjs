@@ -1,4 +1,6 @@
-import { dirname, normalize } from "node:path/posix";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join, normalize } from "node:path/posix";
+import { fileURLToPath } from "node:url";
 
 import {
   buttonRatchetAllowlist,
@@ -1081,13 +1083,11 @@ const TINY_TEXT_RE = /\btext-\[(?:9|10|11)px\]/g;
 
 const TINY_TEXT_BASELINE_FILES = new Set([
   "src/app/[tenant]/(protected)/calendar/page.tsx",
-  "src/app/[tenant]/(protected)/day-log/page.tsx",
   "src/app/[tenant]/(protected)/meal-plan/page.tsx",
   "src/app/[tenant]/(protected)/time-tracking/page.tsx",
   "src/app/[tenant]/(protected)/time-tracking/week-chart.tsx",
   "src/app/help/nfc/erste-schritte/page.tsx",
   "src/app/operator/provisioning/soft-delete-shared.tsx",
-  "src/components/active-supervisions/planned-now-section.tsx",
   "src/components/auth/role-permission-management-modal.tsx",
   "src/components/calendar/personal-calendar.tsx",
   "src/components/dashboard/header/reminders-bell.tsx",
@@ -1110,7 +1110,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/students/planned-status-days-modal.tsx",
   "src/components/students/school-checkin-fab.tsx",
   "src/components/time-tracking/edit-history-accordion.tsx",
-  "src/components/time-tracking/leave-requests-card.tsx",
   "src/components/time-tracking/vacation-request-modal.tsx",
   "src/components/timetable/bulk-substitution-modal.tsx",
   "src/components/timetable/event-form/multi-select-field.tsx",
@@ -1141,16 +1140,14 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 ]);
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
-src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@202
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1337 text-[11px]@1337 text-[10px]@1341 text-[10px]@1350 text-[11px]@1350
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@219 text-[11px]@263
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
-src/components/active-supervisions/planned-now-section.tsx|text-[11px]@430
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@907 text-[11px]@935 text-[11px]@1022 text-[11px]@1083 text-[11px]@1091 text-[11px]@1097 text-[11px]@1144 text-[11px]@1150 text-[10px]@1166 text-[11px]@1215 text-[11px]@1295 text-[11px]@1306 text-[11px]@1311
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@43 text-[10px]@99
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@969 text-[11px]@988
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978 text-[11px]@997
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1471
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
 src/components/enrollment/phases-editor.tsx|text-[11px]@769 text-[11px]@774
@@ -1168,7 +1165,6 @@ src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1
 src/components/students/planned-status-days-modal.tsx|text-[10px]@936 text-[11px]@936
 src/components/students/school-checkin-fab.tsx|text-[10px]@199
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
-src/components/time-tracking/leave-requests-card.tsx|text-[10px]@543
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@374
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@481 text-[11px]@525
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@148 text-[10px]@301 text-[11px]@307
@@ -2185,7 +2181,9 @@ function isDot(text) {
   return (
     tokens.includes("rounded-full") &&
     (tokens.some((token) => /^size-/.test(token) && DOT_SIZE_RE.test(token)) ||
-      (tokens.some((token) => token.startsWith("h-") && DOT_SIZE_RE.test(token)) &&
+      (tokens.some(
+        (token) => token.startsWith("h-") && DOT_SIZE_RE.test(token),
+      ) &&
         tokens.some(
           (token) => token.startsWith("w-") && DOT_SIZE_RE.test(token),
         )))
@@ -2218,7 +2216,10 @@ function hasHexAlphaTemplate(node) {
     );
   }
   if (node.type === "ConditionalExpression") {
-    return hasHexAlphaTemplate(node.consequent) || hasHexAlphaTemplate(node.alternate);
+    return (
+      hasHexAlphaTemplate(node.consequent) ||
+      hasHexAlphaTemplate(node.alternate)
+    );
   }
   if (node.type === "LogicalExpression") {
     return hasHexAlphaTemplate(node.left) || hasHexAlphaTemplate(node.right);
@@ -2228,7 +2229,8 @@ function hasHexAlphaTemplate(node) {
 
 function pillClassText(node, textOf) {
   if (jsxName(node.name) !== "span") return null;
-  if (staticAttributeValue(jsxAttribute(node, "role")) === "tooltip") return null;
+  if (staticAttributeValue(jsxAttribute(node, "role")) === "tooltip")
+    return null;
   const className = jsxAttribute(node, "className");
   if (!className?.value) return null;
   const text = textOf(className.value);
@@ -2456,8 +2458,7 @@ function expressionNamesIcon(expression) {
   }
   if (expression.type === "JSXElement")
     return elementNamesIcon(expression) || hasIconChild(expression);
-  if (expression.type === "JSXFragment")
-    return hasIconChild(expression);
+  if (expression.type === "JSXFragment") return hasIconChild(expression);
   if (expression.type === "ConditionalExpression") {
     return (
       expressionNamesIcon(expression.consequent) ||
@@ -2608,7 +2609,7 @@ const noSelectOverride = {
     },
     messages: {
       override:
-        "Keine eigene Optik am Auswahlfeld ({{tokens}}): Rahmen, Hintergrund, Höhe und Radius kommen aus dem Kit. controlSize=\"compact\" (ListboxDropdown: size) wählen, className nur für Layout (#5580, .claude/rules/frontend-ui-kit.md).",
+        'Keine eigene Optik am Auswahlfeld ({{tokens}}): Rahmen, Hintergrund, Höhe und Radius kommen aus dem Kit. controlSize="compact" (ListboxDropdown: size) wählen, className nur für Layout (#5580, .claude/rules/frontend-ui-kit.md).',
       unstyled:
         "unstyledTrigger ist nur im Kit erlaubt; außerhalb gilt die Feldoptik von ListboxDropdown (#5580).",
     },
@@ -2818,6 +2819,83 @@ const noSectionCardBleed = makeKitClassRule({
     tokens.some((token) => NEGATIVE_MARGIN_RE.test(bareUtility(token))),
 });
 
+// ui-kit/no-shadow-kit-name — eine lokale Funktion oder Konstante trägt nicht den
+// Namen eines Kit-Exports (#5583). Wer in einer Datei `StatCard` liest, soll die
+// Kit-Kachel vor sich haben, nicht einen Eigenbau, der nur so heißt. Die Namen
+// kommen aus den Kit-Dateien selbst, damit die Liste nicht veraltet.
+const KIT_EXPORT_RE =
+  /^export\s+(?:default\s+)?(?:async\s+)?(?:function\*?|const)\s+([A-Za-z_$][\w$]*)|^export\s+default\s+([A-Za-z_$][\w$]*)\s*;|^export\s*\{([^}]*)\}/gm;
+
+function readKitExportNames() {
+  const kitDir = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "../src/components/ui",
+  );
+  const names = new Set();
+  const files = readdirSync(kitDir, { recursive: true, encoding: "utf8" });
+  for (const file of files) {
+    if (!/\.tsx?$/.test(file) || /\.(test|stories)\./.test(file)) continue;
+    const source = readFileSync(join(kitDir, file), "utf8");
+    for (const [, declared, byDefault, list] of source.matchAll(
+      KIT_EXPORT_RE,
+    )) {
+      if (declared) names.add(declared);
+      if (byDefault) names.add(byDefault);
+      for (const entry of list?.split(",") ?? []) {
+        if (/^\s*type\s/.test(entry)) continue;
+        const exported = entry
+          .trim()
+          .split(/\s+as\s+/)
+          .pop();
+        if (exported) names.add(exported);
+      }
+    }
+  }
+  return names;
+}
+
+let kitExportNames;
+
+const noShadowKitName = {
+  meta: {
+    docs: {
+      description:
+        "Disallow local functions and constants named like a UI-kit export.",
+    },
+    messages: {
+      shadow:
+        "`{{name}}` ist ein Export des UI-Kits. Das Kit-Bauteil nutzen oder die lokale Funktion/Konstante nach ihrer Aufgabe benennen (#5583, .claude/rules/frontend-ui-kit.md).",
+    },
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (
+      EXEMPT_FILE_RE.test(key) ||
+      key.startsWith(UI_KIT_DIR) ||
+      key.startsWith("src/test/")
+    ) {
+      return {};
+    }
+    kitExportNames ??= readKitExportNames();
+    const check = (identifier) => {
+      if (
+        identifier?.type === "Identifier" &&
+        kitExportNames.has(identifier.name)
+      ) {
+        context.report({
+          node: identifier,
+          messageId: "shadow",
+          data: { name: identifier.name },
+        });
+      }
+    };
+    return {
+      FunctionDeclaration: (node) => check(node.id),
+      VariableDeclarator: (node) => check(node.id),
+    };
+  },
+};
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
@@ -2844,6 +2922,7 @@ export default {
     "no-section-card-bleed": noSectionCardBleed,
     "no-status-dot-outside-plans": noStatusDotOutsidePlans,
     "no-shadcn-tokens": noShadcnTokens,
+    "no-shadow-kit-name": noShadowKitName,
     "no-tenant-kicker": noTenantKicker,
     "no-tabs-as-value-switcher": noTabsAsValueSwitcher,
     "no-tiny-text": noTinyText,

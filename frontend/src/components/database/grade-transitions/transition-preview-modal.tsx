@@ -6,6 +6,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "~/lib/api-error";
+import { StatCard } from "~/components/ui/stat-card";
 import { Button } from "~/components/ui/button";
 import {
   FormErrorAlert,
@@ -180,24 +181,21 @@ export function TransitionPreviewModal({
             {preview && (
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="moto-content-surface rounded-xl border p-3 text-center">
-                    <p className="text-2xl font-semibold text-gray-900">
-                      {preview.totalStudents}
-                    </p>
-                    <p className="text-xs text-gray-500">Kinder gesamt</p>
-                  </div>
-                  <div className="moto-content-surface rounded-xl border p-3 text-center">
-                    <p className="text-moto-green text-2xl font-semibold">
-                      {preview.toPromote}
-                    </p>
-                    <p className="text-xs text-gray-500">werden versetzt</p>
-                  </div>
-                  <div className="moto-content-surface rounded-xl border p-3 text-center">
-                    <p className="text-moto-red text-2xl font-semibold">
-                      {preview.toGraduate}
-                    </p>
-                    <p className="text-xs text-gray-500">Abgänge</p>
-                  </div>
+                  <StatCard
+                    label="Kinder gesamt"
+                    value={preview.totalStudents}
+                    tone="neutral"
+                  />
+                  <StatCard
+                    label="werden versetzt"
+                    value={preview.toPromote}
+                    tone="green"
+                  />
+                  <StatCard
+                    label="Abgänge"
+                    value={preview.toGraduate}
+                    tone="red"
+                  />
                 </div>
 
                 <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200">

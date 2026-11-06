@@ -69,7 +69,7 @@ import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import { schoolClassLabel } from "~/lib/school-class-label";
-import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { StatCard } from "~/components/ui/stat-card";
 import { Button } from "~/components/ui/button";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { Input } from "~/components/ui/input";
@@ -1047,8 +1047,9 @@ export function PhasesEditor() {
           bis zur Unterkante des Bildschirms (`.moto-tenant-body`). */}
       <div className="hidden space-y-4 lg:flex lg:flex-col">
         <div className="grid gap-2 sm:grid-cols-3">
-          <EnrollmentStatTile
-            leading={
+          <StatCard
+            variant="inline"
+            icon={
               <MotoConceptIcon
                 concept={calendarPeriodsConcept}
                 colorMode="inherit"
@@ -1058,13 +1059,15 @@ export function PhasesEditor() {
             label="Anmeldephasen"
             value={phases.length}
           />
-          <EnrollmentStatTile
-            leading={<MotoConceptIcon concept={careTimesConcept} size={16} />}
+          <StatCard
+            variant="inline"
+            icon={<MotoConceptIcon concept={careTimesConcept} size={16} />}
             label="Aktiv"
             value={activePhaseCount}
           />
-          <EnrollmentStatTile
-            leading={
+          <StatCard
+            variant="inline"
+            icon={
               <MotoConceptIcon concept={calendarPeriodsConcept} size={18} />
             }
             label="In Vorbereitung"

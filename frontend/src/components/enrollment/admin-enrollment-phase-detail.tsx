@@ -66,7 +66,7 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
-import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { StatCard } from "~/components/ui/stat-card";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
@@ -967,19 +967,27 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       ) : (
         <>
           <div className="grid gap-3 md:grid-cols-4">
-            <EnrollmentStatTile
-              icon={Inbox}
+            <StatCard
+              variant="inline"
+              icon={<Inbox aria-hidden="true" />}
               label="Eingänge"
               value={stats.total}
             />
-            <EnrollmentStatTile icon={Clock} label="Offen" value={stats.open} />
-            <EnrollmentStatTile
-              icon={Check}
+            <StatCard
+              variant="inline"
+              icon={<Clock aria-hidden="true" />}
+              label="Offen"
+              value={stats.open}
+            />
+            <StatCard
+              variant="inline"
+              icon={<Check aria-hidden="true" />}
               label="Bestätigt"
               value={stats.approved}
             />
-            <EnrollmentStatTile
-              icon={X}
+            <StatCard
+              variant="inline"
+              icon={<X aria-hidden="true" />}
               label="Abgelehnt"
               value={stats.rejected}
             />
@@ -1154,12 +1162,14 @@ function ReportStats({
   return (
     <section className="relative z-10 space-y-2">
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-[repeat(7,minmax(0,1fr))_minmax(15rem,1.2fr)]">
-        <EnrollmentStatTile
+        <StatCard
+          variant="inline"
           label="Kinder"
           value={loading ? "…" : String(totals?.children ?? 0)}
         />
         {DAY_COUNT_OPTIONS.map((count) => (
-          <EnrollmentStatTile
+          <StatCard
+            variant="inline"
             key={count}
             label={formatDayCountLabel(count)}
             value={
