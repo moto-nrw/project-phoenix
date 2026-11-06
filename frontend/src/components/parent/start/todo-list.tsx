@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConcept } from "~/lib/moto-concepts";
@@ -82,8 +83,11 @@ export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
             {t("todo.description")}
           </p>
         </div>
-        <span className="bg-moto-blue/10 text-moto-blue-strong inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap tabular-nums">
-          {t("todo.openCount", { count: items.length })}
+        <span className="shrink-0">
+          <StatusBadge
+            tone="blue"
+            label={t("todo.openCount", { count: items.length })}
+          />
         </span>
       </div>
       <ul id="parent-todo-items" className="mt-4 divide-y divide-gray-100">

@@ -1113,14 +1113,11 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/dashboard/header/reminders-bell.tsx",
   "src/components/dashboard/sidebar.tsx",
   "src/components/enrollment/admin-enrollments-list.tsx",
-  "src/components/enrollment/enrollment-form-editor.tsx",
   "src/components/enrollment/enrollment-form.tsx",
-  "src/components/enrollment/phases-editor.tsx",
   "src/components/files/files-page.tsx",
   "src/components/guardians/guardian-contact-actions.tsx",
   "src/components/guardians/guardian-list.tsx",
   "src/components/parent/calendar/parent-calendar-page.tsx",
-  "src/components/parent/parent-enroll-picker.tsx",
   "src/components/parent/parent-meal-plan-page.tsx",
   "src/components/planning/closing-day-marker.tsx",
   "src/components/staff/absence-request-row.tsx",
@@ -1150,10 +1147,8 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/ui/planning/coverage-indicator.tsx",
   "src/components/ui/location-badge.tsx",
   "src/components/ui/notification-badge.tsx",
-  "src/components/ui/planning/origin-chip.tsx",
   "src/components/ui/page-header/FilterButton.tsx",
   "src/components/ui/page-header/OverflowMenu.tsx",
-  "src/components/ui/parent-visible-badge.tsx",
   "src/components/ui/planning/plan-block.tsx",
   "src/components/ui/planning/plan-legend.tsx",
   "src/components/ui/presence-badge.tsx",
@@ -1167,15 +1162,12 @@ src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@231
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@907 text-[11px]@935 text-[11px]@1022 text-[11px]@1083 text-[11px]@1091 text-[11px]@1097 text-[11px]@1144 text-[11px]@1150 text-[10px]@1166 text-[11px]@1215 text-[11px]@1295 text-[11px]@1306 text-[11px]@1311
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@43 text-[10px]@99
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978 text-[11px]@997
-src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1471
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
-src/components/enrollment/phases-editor.tsx|text-[11px]@769 text-[11px]@774
 src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@378
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@744 text-[11px]@809
-src/components/parent/parent-enroll-picker.tsx|text-[11px]@228 text-[11px]@232
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/planning/closing-day-marker.tsx|text-[10px]@54
 src/components/staff/absence-request-row.tsx|text-[11px]@107
@@ -1203,15 +1195,13 @@ src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@401 text-[9px]@417 text-[10px]@477 text-[11px]@477 text-[11px]@482 text-[10px]@505 text-[10px]@540 text-[11px]@540
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
-src/components/ui/location-badge.tsx|text-[11px]@122 text-[11px]@123 text-[10px]@295 text-[10px]@322
+src/components/ui/location-badge.tsx|text-[10px]@282
 src/components/ui/notification-badge.tsx|text-[10px]@15
-src/components/ui/planning/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
 src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@463 text-[11px]@535
-src/components/ui/parent-visible-badge.tsx|text-[11px]@44
 src/components/ui/planning/plan-block.tsx|text-[11px]@154 text-[11px]@175
 src/components/ui/planning/plan-legend.tsx|text-[11px]@106
-src/components/ui/presence-badge.tsx|text-[11px]@83 text-[11px]@84 text-[10px]@239
+src/components/ui/presence-badge.tsx|text-[10px]@200
 `);
 
 const noTinyText = makeClassStringRule({
