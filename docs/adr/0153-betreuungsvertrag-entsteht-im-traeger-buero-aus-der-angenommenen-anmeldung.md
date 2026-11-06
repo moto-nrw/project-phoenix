@@ -44,7 +44,7 @@ und hält fest, was er in den Registern ändert (ADR 0057 Punkt 5, ADR 0070).
    `internal/adapters/rendering`. Er importiert keinen anderen Domain-Owner;
    alle Kanten laufen über Ports, die die Root bindet
    (`api/serve_mounts_care_contract.go`, `roots/owners/parent_portal_documents.go`).
-2. **Tabellen** (Schema `care_contract`, Migration 1.15.759), alle mit
+2. **Tabellen** (Schema `care_contract`, Migration 1.15.770), alle mit
    `organization_id` und der Träger-Policy:
    - `contract_templates`: Vertragsvorlage je Schule und Angebot mit Laufzeit
      (unbefristet, bis Schuljahresende, feste Monate), Kündigungsfrist in
