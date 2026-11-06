@@ -19,7 +19,9 @@
 # `devbox run dev <command>` is the same thing with the pinned toolchain.
 # Every `up` replaces both managed native apps, even when selecting only one.
 # Shared postgres/mailpit stay running; frontend-only skips Go and migrations.
-# Backend children default to GOFLAGS="-p=4 -trimpath" and GOMAXPROCS=4; caller values win.
+# Backend children default to GOFLAGS="-p=4 -trimpath", GOMAXPROCS=4, CGO_ENABLED=0 and
+# GOTOOLCHAIN=local like devbox.json, so dev builds share Go cache entries with
+# tests even outside a Devbox shell; caller values win.
 #
 # Why .env and not backend/dev.env: parts of the backend read os.Getenv
 # directly (CORS, rate limits, OPERATOR_*, ADMIN_*) and never see dev.env.
@@ -293,6 +295,7 @@ cmd_up() {
     case "$name" in
       backend)
         GOFLAGS="${GOFLAGS--p=4 -trimpath}" GOMAXPROCS=${GOMAXPROCS-4} \
+          CGO_ENABLED=${CGO_ENABLED-0} GOTOOLCHAIN=${GOTOOLCHAIN-local} \
           start_svc backend backend bash -c 'go build -ldflags="-s -w" -o ./tmp/main . && ./tmp/main migrate && exec air -c .air.toml'
         echo "dev-native: backend http://localhost:$SERVER_HOST_PORT"
         ;;
@@ -347,6 +350,7 @@ cmd_in() {
     export PORT=$FRONTEND_HOST_PORT
   else
     export GOFLAGS="${GOFLAGS--p=4 -trimpath}" GOMAXPROCS=${GOMAXPROCS-4}
+    export CGO_ENABLED=${CGO_ENABLED-0} GOTOOLCHAIN=${GOTOOLCHAIN-local}
   fi
   cd "$ROOT/$dir"
   exec "$@"

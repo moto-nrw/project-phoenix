@@ -9,8 +9,6 @@ paths:
 
 This kit is the de-facto MOTO design system for project-phoenix (much by Florian / `fl0r14n28`). It encodes the correct radii, brand colors, shadows, and interaction patterns. Hand-rolling chrome is the drift.
 
-> `globals.css` imports only the package's CSS/tokens. Until the team migrates, the local `ui/` kit is the single source of truth.
-
 [ADR 0149](../../docs/adr/0149-ui-kit-entscheidet-jede-konkurrierende-variante-einmal.md) decides between competing kit variants, including pieces not built yet; read it before adding or migrating kit pieces.
 
 ## Source of truth
@@ -70,8 +68,6 @@ Prose cannot transfer taste, density, spacing judgment, or restraint. Examples c
 | Page scaffold     | `frontend/src/components/ui/tenant-page.tsx`                   | the root every tenant page renders                                                                                                                          |
 | Card primitive    | `frontend/src/components/ui/section-card.tsx`                  | the canonical card surface                                                                                                                                  |
 | Table primitive   | `frontend/src/components/ui/data-table.tsx`                    | the canonical table                                                                                                                                         |
-
-Keep this list current: replace a deleted or rewritten reference.
 
 ## Visual references — look at the real UI
 
@@ -138,6 +134,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Legend, also with counts | `PlanLegend` — entries with `value`, `variant="dot"`, `size="md"` | `~/components/ui/planning/plan-legend` |
 | Empty / no-results state | `EmptyState` — optional icon, title, description, action slot | `~/components/ui/empty-state` |
 | Back navigation (Unterseite → Sammlung) | `TenantPage` mit `back` / `backHref` / `backLabel`; außerhalb des Gerüsts `TenantBackLink` (Tenant) oder `BackLink` (anderes Portal, fertiger Pfad). Ein Link mit Pfeil und Ziel als Text („Zurück zu den Räumen"), auf jeder Breite, über dem Titel; nie ein eigener Knopf im Inhalt (#4364). Eine Ansicht ohne eigene Adresse (Editor → Übersicht derselben Seite) nimmt `BackAction`, denselben Rückweg als Knopf (#4397) | `~/components/ui/tenant-page`, `~/components/ui/back-link` |
+| Portal sidebar, bottom bar | `PortalSidebar`, `PortalSidebarFrame`; `PortalBottomNav`. Lint: `no-hand-rolled-portal-nav` | `~/components/ui/portal-sidebar`, `~/components/ui/portal-bottom-nav` |
 | Icon in a sidebar row (any portal) | `MotoNavIcon` with `scene` / `NavSceneIcon`: the glyph's animated scene; a glyph new to a sidebar needs a scene: `.claude/rules/sidebar-icon-scenes.md` | `~/components/ui/moto-nav-icon`, `~/components/ui/nav-scene-icon/nav-scene-icon` |
 | Link in the app shell (sidebar, bottom nav, breadcrumbs, header menus) | `NavLink` — `next/link` without viewport prefetch; prefetches on hover, focus, or touch start instead (#2976). | `~/components/ui/nav-link` |
 | Interner Link im Seiteninhalt | `NavigationLink` — meldet den Wechsel an die Portalhülle und verwirft die Meldung bei abgebrochenem Klick. `ButtonLink` nutzt dieselbe Meldung bei String-Zielen. Plain `next/link` bleibt richtig für externe Ziele, Downloads, neue Tabs und Bereiche ohne `PortalShell`. | `~/components/ui/navigation-link` |
