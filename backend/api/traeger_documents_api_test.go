@@ -11,11 +11,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -87,7 +89,9 @@ func newTraegerDocumentsFixture(t *testing.T) traegerDocumentsFixture {
 	tenantRouter := chi.NewRouter()
 	audit, err := auditCompose.NewTenantPersistence(db)
 	require.NoError(t, err)
-	require.NoError(t, mountTraegerDocumentRoutes(router, tenantRouter, testpkg.NewDatabase(t, db), organizations, audit.DataAccessLog))
+	ledger, err := auditCompose.NewObservedCommand(audit.AppendStore, slog.Default(), func(string, time.Duration, int, error) {})
+	require.NoError(t, err)
+	require.NoError(t, mountTraegerDocumentRoutes(router, tenantRouter, testpkg.NewDatabase(t, db), organizations, audit.DataAccessLog, ledger))
 	router.Mount("/api", tenantRouter)
 	f := traegerDocumentsFixture{db: db, portal: portal, router: testpkg.SessionVerifier(router)}
 	f.office = f.newOffice(t, "Träger Dokumente", identityaccess.TraegerRoleAdministration)
@@ -414,49 +418,74 @@ func TestTraegerDocumentReleaseKeepsAnyGroupName(t *testing.T) {
 	assert.Equal(t, strings.TrimSpace(name), strings.TrimSpace(release.GroupName))
 }
 
-// TestTraegerDocumentDownloadsAreLoggedAtTheReachedSchools pins the access
-// log of the Träger-Büro's downloads (ADR 0084 section 7, ADR 0088 section
-// 7): every download writes an entry into audit.data_access_log of each
-// school the document reaches through an active release; a document that
-// reaches no school is logged at every school of the Träger, so no download
-// leaves without an entry.
-func TestTraegerDocumentDownloadsAreLoggedAtTheReachedSchools(t *testing.T) {
+// traegerDownloadEntries reads the Träger's download ledger and the schools'
+// access log entries of one document.
+func (f traegerDocumentsFixture) downloadEntries(t *testing.T, organization, document int64) (ledger int, schools []int64) {
+	t.Helper()
+	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM audit.traeger_document_downloads
+		WHERE organization_id = ? AND document_id = ? AND actor_account_id > 0 AND client_ip <> ''`,
+		organization, document).Scan(t.Context(), &ledger))
+	require.NoError(t, f.db.NewRaw(`SELECT tenant_id FROM audit.data_access_log
+		WHERE resource_type = 'traeger_document_download' AND metadata->>'document_id' = ?
+			AND metadata->>'channel' = 'traeger_portal' AND actor_role = 'traeger'
+		ORDER BY id`, fmt.Sprint(document)).Scan(t.Context(), &schools))
+	return ledger, schools
+}
+
+func (f traegerDocumentsFixture) download(t *testing.T, token string, document int64) {
+	t.Helper()
+	rec := traegerJSON(t, f.router, token, http.MethodGet, fmt.Sprintf("/traeger/documents/%d/file", document), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+}
+
+// TestTraegerDocumentDownloadsAreLoggedAtTheTraegerAndTheReachedSchools pins
+// the audit of the Träger-Büro's downloads (#4692, ADR 0157): every download
+// lands in the Träger's own ledger audit.traeger_document_downloads, released
+// or not; a school's audit.data_access_log gets an entry only while an active
+// release makes the document reach that school (ADR 0084 section 7).
+func TestTraegerDocumentDownloadsAreLoggedAtTheTraegerAndTheReachedSchools(t *testing.T) {
 	t.Parallel()
 	f := newTraegerDocumentsFixture(t)
 	document := f.uploaded(t, f.office.token, "Elternliste")
-	download := func() {
-		t.Helper()
-		rec := traegerJSON(t, f.router, f.office.token, http.MethodGet, fmt.Sprintf("/traeger/documents/%d/file", document.ID), nil)
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	}
-	logged := func() []int64 {
-		t.Helper()
-		var schools []int64
-		require.NoError(t, f.db.NewRaw(`SELECT tenant_id FROM audit.data_access_log
-			WHERE resource_type = 'traeger_document_download' AND metadata->>'document_id' = ?
-				AND metadata->>'channel' = 'traeger_portal' AND actor_role = 'traeger'
-			ORDER BY id`, fmt.Sprint(document.ID)).Scan(t.Context(), &schools))
-		return schools
-	}
 
-	download()
-	assert.ElementsMatch(t, f.office.schools, logged(), "an unreleased document is logged at every school of the Träger")
+	f.download(t, f.office.token, document.ID)
+	ledger, schools := f.downloadEntries(t, f.office.organization, document.ID)
+	assert.Equal(t, 1, ledger, "the Träger's ledger records the download")
+	assert.Empty(t, schools, "an unreleased document reaches no school, so no school logs it")
 
 	f.released(t, f.office.token, document.ID, map[string]any{"audience": "schools", "school_id": f.office.schools[0]})
-	download()
-	entries := logged()
-	require.Len(t, entries, len(f.office.schools)+1, "the second download writes one entry")
-	assert.Equal(t, f.office.schools[0], entries[len(entries)-1], "a released document is logged where it reaches")
+	f.download(t, f.office.token, document.ID)
+	ledger, schools = f.downloadEntries(t, f.office.organization, document.ID)
+	assert.Equal(t, 2, ledger)
+	assert.Equal(t, []int64{f.office.schools[0]}, schools, "a released document is logged where it reaches")
+}
+
+// TestTraegerDocumentDownloadIsLoggedForATraegerWithoutSchools pins the
+// ledger for a Träger whose schools all left: the download is still recorded.
+func TestTraegerDocumentDownloadIsLoggedForATraegerWithoutSchools(t *testing.T) {
+	t.Parallel()
+	f := newTraegerDocumentsFixture(t)
+	document := f.uploaded(t, f.office.token, "Satzung")
+	other := testpkg.CreateTestOrganization(t, f.db, &testpkg.Organization{
+		Name: "Übernehmender Träger", Slug: fmt.Sprintf("uebernehmender-traeger-%d", testpkg.UniqueTestTenantID(t)),
+	})
+	_, err := f.db.ExecContext(t.Context(), `UPDATE platform.schools SET organization_id = ? WHERE organization_id = ?`, other.ID, f.office.organization)
+	require.NoError(t, err)
+
+	f.download(t, f.office.token, document.ID)
+	ledger, schools := f.downloadEntries(t, f.office.organization, document.ID)
+	assert.Equal(t, 1, ledger, "a Träger without schools still records the download")
+	assert.Empty(t, schools)
 }
 
 // TestTraegerDocumentDownloadLogNeverReachesAMovedSchool pins the school set
 // of the access log against stale releases (#4692 review): after a released
-// school moves to another Träger, a download of the former Träger is logged
-// at its current schools, never at the moved one.
+// school moves to another Träger, a download of the former Träger is never
+// logged at the moved school; the Träger's ledger still records it.
 func TestTraegerDocumentDownloadLogNeverReachesAMovedSchool(t *testing.T) {
 	t.Parallel()
 	f := newTraegerDocumentsFixture(t)
-	moved, stays := f.office.schools[0], f.office.schools[1]
+	moved := f.office.schools[0]
 	document := f.uploaded(t, f.office.token, "Elternliste")
 	f.released(t, f.office.token, document.ID, map[string]any{"audience": "schools", "school_id": moved})
 	other := testpkg.CreateTestOrganization(t, f.db, &testpkg.Organization{
@@ -465,11 +494,8 @@ func TestTraegerDocumentDownloadLogNeverReachesAMovedSchool(t *testing.T) {
 	_, err := f.db.ExecContext(t.Context(), `UPDATE platform.schools SET organization_id = ? WHERE id = ?`, other.ID, moved)
 	require.NoError(t, err)
 
-	rec := traegerJSON(t, f.router, f.office.token, http.MethodGet, fmt.Sprintf("/traeger/documents/%d/file", document.ID), nil)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-
-	var schools []int64
-	require.NoError(t, f.db.NewRaw(`SELECT tenant_id FROM audit.data_access_log
-		WHERE resource_type = 'traeger_document_download' AND metadata->>'document_id' = ?`, fmt.Sprint(document.ID)).Scan(t.Context(), &schools))
-	assert.Equal(t, []int64{stays}, schools, "the moved school never sees the former Träger's download")
+	f.download(t, f.office.token, document.ID)
+	ledger, schools := f.downloadEntries(t, f.office.organization, document.ID)
+	assert.Equal(t, 1, ledger)
+	assert.NotContains(t, schools, moved, "the moved school never sees the former Träger's download")
 }

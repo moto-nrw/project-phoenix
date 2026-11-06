@@ -120,7 +120,10 @@ func (rs *DocumentsResource) file(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	file, err := rs.documents.File(r.Context(), organizationID, accountID, documentID)
+	file, err := rs.documents.File(r.Context(), organizationtenancy.TraegerDocumentDownload{
+		OrganizationID: organizationID, AccountID: accountID, DocumentID: documentID,
+		ClientIP: common.GetClientIPString(r), UserAgent: r.UserAgent(),
+	})
 	if err != nil {
 		renderDocumentError(w, r, err)
 		return

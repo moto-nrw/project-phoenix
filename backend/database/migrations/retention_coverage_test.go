@@ -84,6 +84,7 @@ var tableRetentions = map[string]tableRetention{
 	"auth.organization_account_roles":                       parent("auth.accounts"),
 	"auth.traeger_invitations":                              own("hourly token-cleanup, DeleteExpiredSchoolInvitations also deletes expired Träger invitations (expires_at < now, #4650)"),
 	"audit.traeger_account_changes":                         own("hourly token-cleanup, operator audit log retention, DeleteExpiredOperatorAuditLog also deletes Träger account ledger entries (before 1 January of last year, #4650)"),
+	"audit.traeger_document_downloads":                      own("hourly token-cleanup, operator audit log retention, DeleteExpiredOperatorAuditLog also deletes Träger document download ledger entries (before 1 January of last year, #4692, ADR 0157); rows go with their document and with platform.organizations; actor_account_id CASCADE on account delete"),
 	"care_contract.contract_documents":                      parent("care_contract.contracts"),
 	"care_contract.contract_events":                         own("the trail of the contracts of a Träger keeps every read and write, also of a discarded draft (ADR 0153); it goes with platform.organizations when the Träger is erased (#4657); account_id SET NULL on account delete; the period follows with #4720"),
 	"care_contract.contract_mailings":                       parent("care_contract.contract_documents"),

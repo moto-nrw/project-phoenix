@@ -45,12 +45,18 @@ ADR 0070).
    der Freigabe. `school_id` trägt keinen Fremdschlüssel, wie bei den
    Betreuungsverträgen; ein Trigger prüft beim Einfügen, dass die Schule zum
    Träger gehört. So bleibt der Erasure-Plan der Schulen unverändert.
-6. **Zugriffsprotokoll:** Lädt das Träger-Büro ein Dokument herunter, schreibt
-   der Dienst nach der Träger-Transaktion einen Eintrag in
-   `audit.data_access_log` jeder Schule, die das Dokument über eine aktive
-   Freigabe erreicht und noch zum Träger gehört, jeweils in deren
-   Tenant-Transaktion (ADR 0084 §7, ADR 0088 §7). Ein Dokument ohne solche
-   Schule wird bei allen aktuellen Schulen des Trägers protokolliert. Ohne Eintrag verlässt keine Datei den Dienst.
+6. **Zugriffsprotokoll:** Jeder Download durch das Träger-Büro steht in
+   `audit.traeger_document_downloads` (Audit Platform), dem Protokoll des
+   Trägers ohne Schule wie `audit.traeger_account_changes`: Konto, Dokument,
+   Zeitpunkt, IP-Adresse und Browser, kein Titel und kein Dateiname. Der
+   Eintrag entsteht in der Träger-Transaktion, die die Datei liest; scheitert
+   er, scheitert der Download. Die Träger-Policy hält jeden Träger bei seinen
+   Zeilen, die stündliche Bereinigung löscht sie mit der Frist des
+   Operator-Protokolls (Ende des Folgejahres), und sie gehen mit dem Träger.
+   Zusätzlich bekommt `audit.data_access_log` einer Schule einen Eintrag,
+   solange eine aktive Freigabe das Dokument dieser Schule zugänglich macht
+   und die Schule noch zum Träger gehört (ADR 0084 §7, ADR 0088 §7). Ohne
+   Freigabe gibt es keinen Eintrag bei einer Schule.
 7. **Rechte im Träger-Büro:** Lesen „Übersicht lesen“, Hochladen, Freigeben und
    Zurücknehmen „Anmeldung verwalten“ (Verwaltung). Ein eigenes Recht wäre ein
    Nachtrag zu ADR 0084.

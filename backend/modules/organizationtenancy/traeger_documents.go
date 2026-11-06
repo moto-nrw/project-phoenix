@@ -128,9 +128,10 @@ type TraegerDocuments interface {
 	// Upload checks the title and the file and stores the document.
 	Upload(ctx context.Context, organizationID, accountID int64, upload TraegerDocumentUpload) (TraegerDocument, error)
 	// File reads the stored file of a document of the Träger.
-	// File reads the file for a member of the Träger-Büro and writes the
-	// download into the access log of each school the document reaches.
-	File(ctx context.Context, organizationID, accountID, documentID int64) (TraegerDocumentFile, error)
+	// File reads the file for a member of the Träger-Büro. Every download
+	// lands in the Träger's download ledger; the access log of a school gets
+	// it only while an active release makes the document reach that school.
+	File(ctx context.Context, download TraegerDocumentDownload) (TraegerDocumentFile, error)
 	// Audiences lists the schools of the Träger with their groups.
 	Audiences(ctx context.Context, organizationID int64) ([]TraegerDocumentSchool, error)
 	// Release releases a document for an audience.
@@ -143,13 +144,32 @@ type TraegerDocuments interface {
 // the owner: the schools of the Träger, the groups of a school and the
 // transactions.
 type TraegerDocumentPorts struct {
-	Schools TraegerDocumentSchools
-	Groups  TraegerDocumentGroups
-	Runtime TraegerDocumentRuntime
-	Access  TraegerDocumentAccessLog
+	Schools   TraegerDocumentSchools
+	Groups    TraegerDocumentGroups
+	Runtime   TraegerDocumentRuntime
+	Access    TraegerDocumentAccessLog
+	Downloads TraegerDocumentDownloadLog
 }
 
-// TraegerDocumentAccess is a download of the Träger-Büro.
+// TraegerDocumentDownload is a download of the Träger-Büro: who, which
+// document and from which client.
+type TraegerDocumentDownload struct {
+	OrganizationID int64
+	AccountID      int64
+	DocumentID     int64
+	ClientIP       string
+	UserAgent      string
+}
+
+// TraegerDocumentDownloadLog appends a download to the Träger's own ledger in
+// the caller's Träger transaction (ADR 0157): every download, released or
+// not, with or without schools.
+type TraegerDocumentDownloadLog interface {
+	RecordDownload(ctx context.Context, download TraegerDocumentDownload) error
+}
+
+// TraegerDocumentAccess is a download of the Träger-Büro as the access log
+// of a reached school records it.
 type TraegerDocumentAccess struct {
 	OrganizationID int64
 	AccountID      int64

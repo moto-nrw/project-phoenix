@@ -63,6 +63,7 @@
     {"name": "audit.substitution_changes", "scope": "tenant", "export": "include"},
     {"name": "audit.time_tracking_deletions", "scope": "tenant", "export": "include"},
     {"name": "audit.traeger_account_changes", "scope": "organization", "export": "include", "scopeColumn": "organization_id", "reason": "Ledger of the Träger-Büro account management (#4650); belongs to the Träger, not to one of its schools, and goes with the Träger.", "personKeys": {"actor_account_id": "auth.accounts.id", "target_account_id": "auth.accounts.id"}},
+    {"name": "audit.traeger_document_downloads", "scope": "organization", "export": "include", "scopeColumn": "organization_id", "reason": "Ledger of every download of a shared document by the Träger-Büro (#4692, ADR 0157); belongs to the Träger, not to one of its schools, and goes with the Träger.", "personKeys": {"actor_account_id": "auth.accounts.id"}},
     {"name": "audit.unregistered_tag_scans", "scope": "tenant", "export": "include"},
     {"name": "audit.wc_alias_migration_backup", "scope": "tenant", "export": "excludeInternal", "exportReason": "Administrative migration backup; current room data is returned from facilities.rooms."},
     {"name": "audit.work_session_edits", "scope": "tenant", "export": "include"},

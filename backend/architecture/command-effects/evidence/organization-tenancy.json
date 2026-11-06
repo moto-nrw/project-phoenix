@@ -89,6 +89,30 @@
       "target_owner": "audit-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentDownloadLedger.RecordDownload",
+      "binding_digest": "e63a5346c69656b87ba7a64e791eeb80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentDownloadLog.RecordDownload",
+      "source_owner": "organization-tenancy",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentDownloadLedger.RecordDownload",
+      "binding_digest": "750864422da6767053f3a1c14e30b36d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentDownloadLog.RecordDownload",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentDownloadLedger.RecordDownload",
+      "binding_digest": "36d096d1ef641042eebf5af2be2d3b4d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentDownloadLog.RecordDownload",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentGroups.SchoolGroups",
       "binding_digest": "31ea4eea2bf949593a4273b0585e0c56",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentGroups.SchoolGroups",

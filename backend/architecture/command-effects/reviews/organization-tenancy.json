@@ -115,6 +115,39 @@
       "target_owner": "audit-platform"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentDownloadLedger.RecordDownload",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentDownloadLog.RecordDownload",
+      "reason": "Platform protocol participation (mutation): organization-tenancy reaches *modules/auditlog/compose.Command.Append (audit-platform) through api.traegerDocumentDownloadLedger.RecordDownload. Every download of a shared document by the Träger-Büro lands in the Träger document download ledger in the Träger transaction that reads the file (ADR 0157). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentDownloadLedger.RecordDownload",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentDownloadLog.RecordDownload",
+      "reason": "Platform protocol participation (mutation): organization-tenancy reaches modules/auditlog/records.AppendStore.Append (audit-platform) through api.traegerDocumentDownloadLedger.RecordDownload. Every download of a shared document by the Träger-Büro lands in the Träger document download ledger in the Träger transaction that reads the file (ADR 0157). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentDownloadLedger.RecordDownload",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentDownloadLog.RecordDownload",
+      "reason": "Platform protocol participation (mutation): organization-tenancy reaches modules/auditlog/records.Command.Append (audit-platform) through api.traegerDocumentDownloadLedger.RecordDownload. Every download of a shared document by the Träger-Büro lands in the Träger document download ledger in the Träger transaction that reads the file (ADR 0157). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentGroups.SchoolGroups",
       "classification": "query",
       "effect": "query",

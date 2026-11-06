@@ -30,8 +30,8 @@ const traegerDocumentGroupLimit = 500
 // mountTraegerDocumentRoutes serves the documents a Träger shares (#4692):
 // the Träger-Büro's routes at /traeger/documents and the school's at
 // /api/traeger-documents. The parents read them through the parents portal.
-func mountTraegerDocumentRoutes(root, tenantRouter chi.Router, db transactionruntime.Database, organizations HolidayOrganizations, accessLog owners.DataAccessAppender) error {
-	traegerDocuments, err := NewTraegerDocumentsHTTP(db, organizations, accessLog)
+func mountTraegerDocumentRoutes(root, tenantRouter chi.Router, db transactionruntime.Database, organizations HolidayOrganizations, accessLog owners.DataAccessAppender, ledger auditModels.Command) error {
+	traegerDocuments, err := NewTraegerDocumentsHTTP(db, organizations, accessLog, ledger)
 	if err != nil {
 		return err
 	}
@@ -43,16 +43,17 @@ func mountTraegerDocumentRoutes(root, tenantRouter chi.Router, db transactionrun
 // NewTraegerDocumentsHTTP binds the Träger-Büro's documents: the schools to
 // Organisation & Tenancy and the groups of a school to School Structure in
 // that school's tenant transaction.
-func NewTraegerDocumentsHTTP(db transactionruntime.Database, organizations HolidayOrganizations, accessLog owners.DataAccessAppender) (*organizationTenancyTraeger.DocumentsResource, error) {
+func NewTraegerDocumentsHTTP(db transactionruntime.Database, organizations HolidayOrganizations, accessLog owners.DataAccessAppender, ledger auditModels.Command) (*organizationTenancyTraeger.DocumentsResource, error) {
 	groups, err := schoolStructureCompose.New(schoolStructureCompose.Dependencies{DB: db.Pool(), Observe: func(schoolStructureCompose.Observation) {}})
 	if err != nil {
 		return nil, fmt.Errorf("traeger documents: school groups: %w", err)
 	}
 	documents := organizationTenancyCompose.NewTraegerDocuments(organizationtenancy.TraegerDocumentPorts{
-		Schools: traegerDocumentSchools{organizations: organizations},
-		Groups:  traegerDocumentGroups{groups: groups},
-		Runtime: traegerDocumentRuntime{},
-		Access:  traegerDocumentAccessLog{log: accessLog},
+		Schools:   traegerDocumentSchools{organizations: organizations},
+		Groups:    traegerDocumentGroups{groups: groups},
+		Runtime:   traegerDocumentRuntime{},
+		Access:    traegerDocumentAccessLog{log: accessLog},
+		Downloads: traegerDocumentDownloadLedger{command: ledger},
 	})
 	return organizationTenancyTraeger.NewDocumentsResource(documents,
 		common.RequiresPermission(identityaccess.TraegerRightOverviewRead), common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage)), nil
@@ -138,5 +139,19 @@ func (l traegerDocumentAccessLog) RecordAccess(ctx context.Context, access organ
 		Metadata: map[string]any{
 			"channel": "traeger_portal", "organization_id": access.OrganizationID, "document_id": access.DocumentID,
 		},
+	})
+}
+
+// traegerDocumentDownloadLedger appends a download of the Träger-Büro to the
+// Träger's download ledger of the Audit Platform in the caller's Träger
+// transaction (ADR 0157).
+type traegerDocumentDownloadLedger struct {
+	command auditModels.Command
+}
+
+func (l traegerDocumentDownloadLedger) RecordDownload(ctx context.Context, download organizationtenancy.TraegerDocumentDownload) error {
+	return l.command.Append(ctx, &auditModels.TraegerDocumentDownload{
+		OrganizationID: download.OrganizationID, DocumentID: download.DocumentID, ActorAccountID: download.AccountID,
+		ClientIP: download.ClientIP, UserAgent: download.UserAgent,
 	})
 }

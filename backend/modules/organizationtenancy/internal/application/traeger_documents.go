@@ -30,8 +30,9 @@ var _ organizationtenancy.TraegerDocuments = (*TraegerDocuments)(nil)
 
 // NewTraegerDocuments builds the Träger-Büro's service.
 func NewTraegerDocuments(store ports.TraegerDocumentStore, dependencies organizationtenancy.TraegerDocumentPorts) *TraegerDocuments {
-	if store == nil || dependencies.Schools == nil || dependencies.Groups == nil || dependencies.Runtime == nil || dependencies.Access == nil {
-		panic("organization tenancy: the document store, the schools, the groups, the runtime and the access log are required")
+	if store == nil || dependencies.Schools == nil || dependencies.Groups == nil || dependencies.Runtime == nil ||
+		dependencies.Access == nil || dependencies.Downloads == nil {
+		panic("organization tenancy: the document store, the schools, the groups, the runtime and both audit logs are required")
 	}
 	return &TraegerDocuments{store: store, ports: dependencies}
 }
@@ -90,49 +91,65 @@ func documentFileError(err error) error {
 	return err
 }
 
-// File reads the stored file of a document of the Träger and writes the
-// download into the access log of each school the document reaches (ADR 0084
-// section 7). A document that reaches no school is logged at every school of
-// the Träger. A failed entry fails the download: no file leaves without it.
-func (d *TraegerDocuments) File(ctx context.Context, organizationID, accountID, documentID int64) (organizationtenancy.TraegerDocumentFile, error) {
-	if organizationID <= 0 {
+// File reads the stored file of a document of the Träger. The download lands
+// in the Träger's ledger in the same Träger transaction, released or not
+// (ADR 0157); after it, each school the document reaches through an active
+// release and that still belongs to the Träger gets an entry in its access
+// log (ADR 0084 section 7). A failed entry fails the download: no file leaves
+// without its audit.
+func (d *TraegerDocuments) File(ctx context.Context, download organizationtenancy.TraegerDocumentDownload) (organizationtenancy.TraegerDocumentFile, error) {
+	if download.OrganizationID <= 0 {
 		return organizationtenancy.TraegerDocumentFile{}, errTraegerRequired
 	}
 	var file organizationtenancy.TraegerDocumentFile
 	var reached []int64
 	var everySchool bool
-	err := d.ports.Runtime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
-		found, ok, readErr := d.store.DocumentFile(txCtx, organizationID, documentID)
-		if readErr == nil && !ok {
-			readErr = organizationtenancy.ErrTraegerDocumentNotFound
-		}
+	err := d.ports.Runtime.WithinTraeger(ctx, download.OrganizationID, func(txCtx context.Context) error {
+		var readErr error
+		file, reached, everySchool, readErr = d.readForDownload(txCtx, download)
 		if readErr != nil {
 			return readErr
 		}
-		file = found
-		reached, everySchool, readErr = d.store.ReachedSchools(txCtx, organizationID, documentID)
-		return readErr
+		return d.ports.Downloads.RecordDownload(txCtx, download)
 	})
 	if err != nil {
 		return organizationtenancy.TraegerDocumentFile{}, err
 	}
-	schools, err := d.loggedSchools(ctx, organizationID, reached, everySchool)
+	schools, err := d.reachedSchools(ctx, download.OrganizationID, reached, everySchool)
 	if err != nil {
 		return organizationtenancy.TraegerDocumentFile{}, err
 	}
-	access := organizationtenancy.TraegerDocumentAccess{OrganizationID: organizationID, AccountID: accountID, DocumentID: documentID}
+	access := organizationtenancy.TraegerDocumentAccess{
+		OrganizationID: download.OrganizationID, AccountID: download.AccountID, DocumentID: download.DocumentID,
+	}
 	if err := d.logSchools(ctx, access, schools); err != nil {
 		return organizationtenancy.TraegerDocumentFile{}, err
 	}
 	return file, nil
 }
 
-// loggedSchools are the schools a download is logged at: those the document
-// reaches that still belong to the Träger, or every current school of the
-// Träger while it reaches none or all. A release keeps the ID of a school that
-// since moved to another Träger or was erased; such a school never gets the
-// entry.
-func (d *TraegerDocuments) loggedSchools(ctx context.Context, organizationID int64, reached []int64, everySchool bool) ([]int64, error) {
+// readForDownload reads the file and the schools its active releases name.
+func (d *TraegerDocuments) readForDownload(ctx context.Context, download organizationtenancy.TraegerDocumentDownload) (organizationtenancy.TraegerDocumentFile, []int64, bool, error) {
+	file, ok, err := d.store.DocumentFile(ctx, download.OrganizationID, download.DocumentID)
+	if err == nil && !ok {
+		err = organizationtenancy.ErrTraegerDocumentNotFound
+	}
+	if err != nil {
+		return organizationtenancy.TraegerDocumentFile{}, nil, false, err
+	}
+	reached, everySchool, err := d.store.ReachedSchools(ctx, download.OrganizationID, download.DocumentID)
+	return file, reached, everySchool, err
+}
+
+// reachedSchools are the schools whose access log gets a download: those an
+// active release names, or all for a release for every school, kept only
+// while they still belong to the Träger. A release keeps the ID of a school
+// that since moved to another Träger or was erased; such a school never gets
+// the entry. A document no release reaches logs at no school.
+func (d *TraegerDocuments) reachedSchools(ctx context.Context, organizationID int64, reached []int64, everySchool bool) ([]int64, error) {
+	if !everySchool && len(reached) == 0 {
+		return nil, nil
+	}
 	schools, err := d.ports.Schools.TraegerSchools(ctx, organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("organization tenancy: list schools of the Träger: %w", err)
@@ -144,13 +161,9 @@ func (d *TraegerDocuments) loggedSchools(ctx context.Context, organizationID int
 	if everySchool {
 		return current, nil
 	}
-	kept := slices.DeleteFunc(slices.Clone(reached), func(school int64) bool {
+	return slices.DeleteFunc(slices.Clone(reached), func(school int64) bool {
 		return !slices.Contains(current, school)
-	})
-	if len(kept) == 0 {
-		return current, nil
-	}
-	return kept, nil
+	}), nil
 }
 
 // logSchools writes one entry per school into that school's access log, in
