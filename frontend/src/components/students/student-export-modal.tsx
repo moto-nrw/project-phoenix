@@ -1,5 +1,6 @@
 "use client";
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useEffect, useMemo, useState } from "react";
 import { Info } from "lucide-react";
 import {
@@ -357,8 +358,8 @@ export function StudentExportModal({
                 : `${activePreset?.label ?? "Vorlage"} kann angepasst werden.`}
             </p>
           </div>
-          <span className="shrink-0 rounded-full bg-gray-100 px-2 py-1 text-xs font-medium whitespace-nowrap text-gray-600">
-            {columns.length} aktiv
+          <span className="inline-flex shrink-0">
+            <StatusBadge label={`${columns.length} aktiv`} tone="gray" />
           </span>
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">

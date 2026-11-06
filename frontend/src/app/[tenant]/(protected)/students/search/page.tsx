@@ -1,5 +1,6 @@
 "use client";
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   buildStudentSearchFilters,
   fetchStudentSearch,
@@ -3821,9 +3822,11 @@ function SearchPageContent() {
                           <SectionCard
                             title={group.label}
                             action={
-                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                                {group.items.length}
-                              </span>
+                              <StatusBadge
+                                label={String(group.items.length)}
+                                tone="gray"
+                                compact
+                              />
                             }
                           >
                             <CollectionGrid>

@@ -888,10 +888,11 @@ export function StaffSessionTable({
                       </td>
                       <td className="px-3 py-3 text-gray-700 tabular-nums">
                         {openSession ? (
-                          <span className="bg-moto-green/10 text-moto-green-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
-                            <span className="bg-moto-green mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full" />
-                            eingestempelt
-                          </span>
+                          <StatusBadge
+                            label="eingestempelt"
+                            tone="green"
+                            compact
+                          />
                         ) : lastSession?.check_out_time ? (
                           hasMultipleBlocks ? (
                             <span title={multiBlockBoundsHint}>

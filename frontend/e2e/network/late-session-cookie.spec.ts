@@ -211,7 +211,9 @@ const endActions = {
       .getByRole("dialog")
       .getByRole("button", { name: "Abmelden" })
       .click();
-    await page.waitForURL((url) => url.pathname === "/");
+    await page.waitForURL((url) => url.pathname === "/", {
+      timeout: sessionCookieDeletionTimeout,
+    });
   },
   "Zur Schulanmeldung": async (page: Page, beforeSignout?: () => void) => {
     await page.goto(`${target}/home`);

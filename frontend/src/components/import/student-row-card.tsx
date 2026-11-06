@@ -1,3 +1,6 @@
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 type RowStatus = "new" | "existing" | "error" | "warning";
 
 interface DisplayRow {
@@ -25,28 +28,14 @@ interface StudentRowCardProps {
 function getStatusBadge(rowStatus: RowStatus) {
   switch (rowStatus) {
     case "new":
-      return (
-        <span className="bg-moto-green-soft text-moto-green-strong inline-flex items-center rounded-full px-2 py-1 text-xs font-medium">
-          Neu
-        </span>
-      );
+      return <StatusBadge label="Neu" tone="green" />;
     case "existing":
-      return (
-        <span className="bg-moto-blue-soft text-moto-blue-strong inline-flex items-center rounded-full px-2 py-1 text-xs font-medium">
-          Vorhanden
-        </span>
-      );
+      return <StatusBadge label="Vorhanden" tone="blue" />;
     case "error":
-      return (
-        <span className="bg-moto-red-soft text-moto-red-strong inline-flex items-center rounded-full px-2 py-1 text-xs font-medium">
-          Fehler
-        </span>
-      );
+      return <StatusBadge label="Fehler" tone="red" />;
     case "warning":
       return (
-        <span className="bg-moto-amber-soft text-moto-amber-strong inline-flex items-center rounded-full px-2 py-1 text-xs font-medium">
-          Warnung
-        </span>
+        <StatusColorBadge label="Warnung" color={LOCATION_COLORS.WARNING} />
       );
   }
 }
