@@ -244,7 +244,8 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0141: the payroll dispatch overview of modules/workforce (+1).
 // Lowered by #4497: the caterer scope of CapabilityGate.StartChallenge in
 // modules/identityaccess makes it no pass-through any more (-1).
-const modulePassthroughOwnerBudgetTotal = 1406
+// Lowered: AddGuardianPhone validates ambient create facts instead of merely forwarding.
+const modulePassthroughOwnerBudgetTotal = 1405
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -286,7 +287,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Added by ADR 0115: the rule checks and the link check of the new owner
 	// Elternabrechnung. Raised by ADR 0119: the billing run list (+1).
 	"modules/parentbilling":    6,
-	"modules/peopledirectory":  206,
+	"modules/peopledirectory":  205,
 	"modules/requestreview":    15,
 	"modules/schedulerruntime": 4,
 	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.

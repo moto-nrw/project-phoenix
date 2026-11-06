@@ -1189,6 +1189,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": data})
 			return
 		}
+		// The care contract step (#4678) reads the offerings and the
+		// accepted applications; this fake Träger has neither.
+		if r.Method == seedHTTPMethodGet && (r.URL.Path == "/traeger/contract-templates/" || r.URL.Path == "/traeger/contracts/candidates") {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			return
+		}
 		if r.Method == seedHTTPMethodPost && r.URL.Path == "/operator/organizations/test-traeger" {
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
 				"organization": map[string]any{"id": 9100, "test_system": true}, "schools": []any{},

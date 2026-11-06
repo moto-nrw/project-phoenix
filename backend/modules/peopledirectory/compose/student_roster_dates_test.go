@@ -1,10 +1,12 @@
-package compose
+package compose_test
 
 import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,7 +15,10 @@ import (
 func TestRosterDateSetKeepsPointMembershipAndTenantScope(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := buildModule(t, db)
+	module, err := peopleCompose.New(peopleCompose.Dependencies{
+		DB: db, StudentDirectory: testpkg.StudentDirectory{}, Observe: func(peopleCompose.Observation) {},
+	}, nil)
+	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	for _, tc := range []struct{ name, status, from, until, class string }{
 		{"regular", "active", "", "", "2a"},
@@ -38,7 +43,9 @@ func TestRosterDateSetKeepsPointMembershipAndTenantScope(t *testing.T) {
 		_, err := db.ExecContext(ctx, `UPDATE users.student_school_memberships SET status = ?, enrolled_from = ?, enrolled_until = ? WHERE student_profile_id = ? AND tenant_id = ?`, tc.status, from, until, child.ID, testpkg.Tenant(t))
 		require.NoError(t, err)
 	}
-	otherCtx, otherTenant := otherTenantContext(t, db)
+	otherTenant := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenant)
+	otherCtx := tenant.WithTenantID(ctx, otherTenant)
 	foreign := testpkg.CreateTestStudentForTenant(t, db, otherTenant, "Foreign", "Roster", "2a")
 	dates := []string{"2026-09-07", "2026-09-08", "2026-09-09", "2026-09-11"}
 	for _, today := range []string{"2026-09-08", "2026-09-12"} {

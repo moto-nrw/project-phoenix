@@ -83,14 +83,17 @@ func TestGuardianDirectory_FirstPhoneNeedsAmbientTransaction(t *testing.T) {
 	for _, ambient := range []bool{false, true} {
 		t.Run(map[bool]string{false: "top level", true: "ambient"}[ambient], func(t *testing.T) {
 			t.Parallel()
-			created := &peopledirectory.Guardian{ID: 12, TenantID: 13}
+			db := testpkg.SetupTestDB(t)
+			guardian := testpkg.CreateTestGuardianProfile(t, db, "first-phone@example.test")
+			created := &peopledirectory.Guardian{ID: guardian.ID, TenantID: testpkg.Tenant(t)}
 			ctx := tenant.WithTenantID(context.Background(), created.TenantID)
 			if ambient {
 				ctx = tenant.WithTransactionForTest(ctx, struct{}{})
 			}
 			stop := errors.New("stop before phone mutation")
 			service := guardianFactService{phone: func(txCtx context.Context, id int64, req peoplePorts.PhoneNumberCreateRequest) (*peopledirectory.GuardianProfilePhoneSnapshot, error) {
-				require.True(t, (RepositoryRuntime{}).InTransaction(txCtx))
+				_, inTransaction := tenant.TransactionFromContext(txCtx)
+				require.True(t, inTransaction)
 				require.Equal(t, created.ID, id)
 				if ambient {
 					require.Same(t, created, req.CreatedGuardian)
@@ -99,8 +102,16 @@ func TestGuardianDirectory_FirstPhoneNeedsAmbientTransaction(t *testing.T) {
 				}
 				return nil, stop
 			}}
-			directory := NewGuardianDirectory(service, guardianFactRuntime{}, nil)
-			_, err := directory.AddGuardianPhone(ctx, created.ID, peopledirectory.GuardianPhoneInput{
+			directory, err := peopleCompose.New(peopleCompose.Dependencies{
+				DB: db, StudentDirectory: testpkg.StudentDirectory{},
+				Observe: func(peopleCompose.Observation) {},
+				GuardianProvider: &peopleCompose.GuardianDirectoryProvider{
+					Guardians: service, Runtime: guardianFactRuntime{},
+					PermissionGranted: func(value any) bool { return value == true },
+				},
+			}, nil)
+			require.NoError(t, err)
+			_, err = directory.AddGuardianPhone(ctx, created.ID, peopledirectory.GuardianPhoneInput{
 				CreatedGuardian: created, PhoneNumber: "0171 1234567",
 			})
 			require.ErrorIs(t, err, stop)

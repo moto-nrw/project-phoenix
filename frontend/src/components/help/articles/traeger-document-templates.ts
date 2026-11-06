@@ -53,7 +53,7 @@ export function traegerDocumentTemplatesTopic(): HelpTopic {
       "Die `Vorschau` zeigt auch Anschrift, Rechnungsnummer und Debitorennummer. So sehen Sie Text, Nummern und Tabelle zusammen.",
       "Sind alle Platzhalter eines Absatzes leer, fehlt der Absatz im Brief. So entfallen zum Beispiel die Notfallnummern, wenn keine eingetragen sind.",
       "Mit `Standardtext laden` holen Sie den Text von moto zurück in den Editor.",
-      "Heute nutzt moto die Vorlage für das Bestätigungsschreiben der Ferien. Die anderen Dokumente folgen.",
+      "Heute nutzt moto die Vorlagen für das Bestätigungsschreiben der Ferien und für den Betreuungsvertrag. Die anderen Dokumente folgen.",
     ],
     differences: [
       "Sie können die Vorlage nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",

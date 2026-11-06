@@ -52,9 +52,11 @@ type PortalService interface {
 	// ListBillingDocuments lists the documents the Träger of the account's
 	// schools sent to its address, where a relationship grants
 	// parent_portal.enrollments.view at a school of that Träger (#4671).
-	ListBillingDocuments(ctx context.Context, accountID int64) ([]parentService.BillingDocument, error)
+	ListBillingDocuments(ctx context.Context, accountID int64, inbox parentService.DocumentInbox) ([]parentService.BillingDocument, error)
 	// BillingDocumentLetter reads the PDF of one document in that inbox.
 	BillingDocumentLetter(ctx context.Context, accountID, organizationID, documentID int64) (parentService.BillingDocumentFile, error)
+	// ContractDocumentFile reads the PDF of one sent care contract (ADR 0153).
+	ContractDocumentFile(ctx context.Context, accountID, organizationID, contractID int64) (parentService.BillingDocumentFile, error)
 
 	// ListEnrollmentsForAccount returns every enrollment.requests row
 	// where guardian_account_id matches the calling account, joined

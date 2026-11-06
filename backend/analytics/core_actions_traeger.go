@@ -96,6 +96,12 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	// Träger as well.
 	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/cancellation"}: notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/credits"}:      notCaptured,
+	// The care contracts and their templates (#4678, ADR 0153) belong to
+	// the Träger, not to a school.
+	{http.MethodPost, "/traeger/contracts/"}:                                notCaptured,
+	{http.MethodPost, "/traeger/contracts/send"}:                            notCaptured,
+	{http.MethodDelete, "/traeger/contracts/{id}"}:                          notCaptured,
+	{http.MethodPut, "/traeger/contract-templates/{schoolId}/{offeringId}"}: notCaptured,
 }
 
 func init() {

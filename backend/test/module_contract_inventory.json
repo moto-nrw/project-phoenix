@@ -18,6 +18,12 @@
     "test": "TestPublicCarePlanContractUpsertsOneObservableStatusDay"
   },
   {
+    "module": "care-contract",
+    "contract_package": "modules/carecontract",
+    "test_file": "modules/carecontract/compose/public_contract_test.go",
+    "test": "TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtTheFirstSend"
+  },
+  {
     "module": "communication",
     "contract_package": "modules/communication",
     "test_file": "modules/communication/public_contract_test.go",

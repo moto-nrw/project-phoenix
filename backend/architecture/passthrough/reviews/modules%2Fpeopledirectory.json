@@ -552,11 +552,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/peopledirectory/internal/application/GuardianDirectory.AddGuardianPhone",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/peopledirectory/internal/application/GuardianDirectory.AddGuardiansToStudent",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

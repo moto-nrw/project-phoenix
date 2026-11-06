@@ -50,7 +50,11 @@ describe("ParentDocumentsPage", () => {
   });
 
   it("shows each sent letter with its children, amount and sender", async () => {
-    mocks.listMyDocuments.mockResolvedValue([letter]);
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [letter],
+      failedSource: null,
+      error: null,
+    });
 
     render(<ParentDocumentsPage />);
 
@@ -69,10 +73,14 @@ describe("ParentDocumentsPage", () => {
   });
 
   it("names the letter of a Storno and a Gutschrift (#4690)", async () => {
-    mocks.listMyDocuments.mockResolvedValue([
-      { ...letter, id: "8", kind: "cancellation_letter", number: "FE-0008" },
-      { ...letter, id: "9", kind: "credit_letter", number: "FE-0009" },
-    ]);
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [
+        { ...letter, id: "8", kind: "cancellation_letter", number: "FE-0008" },
+        { ...letter, id: "9", kind: "credit_letter", number: "FE-0009" },
+      ],
+      failedSource: null,
+      error: null,
+    });
 
     render(<ParentDocumentsPage />);
 
@@ -85,7 +93,11 @@ describe("ParentDocumentsPage", () => {
   });
 
   it("downloads the stored PDF of a letter", async () => {
-    mocks.listMyDocuments.mockResolvedValue([letter]);
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [letter],
+      failedSource: null,
+      error: null,
+    });
     mocks.downloadMyDocument.mockResolvedValue(undefined);
 
     render(<ParentDocumentsPage />);
@@ -99,7 +111,11 @@ describe("ParentDocumentsPage", () => {
   });
 
   it("names a failed download in a toast", async () => {
-    mocks.listMyDocuments.mockResolvedValue([letter]);
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [letter],
+      failedSource: null,
+      error: null,
+    });
     mocks.downloadMyDocument.mockRejectedValue(
       new ApiError("diag", 404, {
         code: "parent_billing.parent_document_not_found",
@@ -118,8 +134,56 @@ describe("ParentDocumentsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps a loaded letter visible and downloadable beside the failed contract source", async () => {
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [letter],
+      failedSource: "contracts",
+      error: new ApiError("diag", 500, { code: "general.internal_error" }),
+    });
+    render(<ParentDocumentsPage />);
+    expect(
+      await screen.findByRole("heading", {
+        name: "Bestätigungsschreiben Herbstferien 2026",
+      }),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /Betreuungsverträge/,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Als PDF laden" }));
+    await waitFor(() =>
+      expect(mocks.downloadMyDocument).toHaveBeenCalledWith(letter),
+    );
+  });
+
+  it("keeps letters and contracts with identical IDs as distinct rows", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mocks.listMyDocuments.mockResolvedValue({
+        documents: [letter, { ...letter, kind: "care_contract" }],
+        failedSource: null,
+        error: null,
+      });
+      render(<ParentDocumentsPage />);
+      expect(
+        await screen.findByRole("heading", { name: "Betreuungsvertrag" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", {
+          name: "Bestätigungsschreiben Herbstferien 2026",
+        }),
+      ).toBeInTheDocument();
+      expect(errors).not.toHaveBeenCalled();
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
   it("explains an empty inbox and how letters arrive", async () => {
-    mocks.listMyDocuments.mockResolvedValue([]);
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [],
+      failedSource: null,
+      error: null,
+    });
 
     render(<ParentDocumentsPage />);
 

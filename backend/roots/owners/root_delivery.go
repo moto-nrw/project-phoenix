@@ -10,6 +10,8 @@ import (
 
 	realtime "github.com/moto-nrw/project-phoenix/realtime"
 
+	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
@@ -121,6 +123,8 @@ func BuildDeliveryWorker(
 		calendarService.EmailKindAppointmentReminder:  appointments,
 		// The confirmation letter of a Träger, mailed with its PDF (#4670).
 		parentbilling.MailKindBillingLetter: parentBillingLetterMailRenderer(parentBillingCompose.NewLetterMailRenderer(), defaultFrom),
+		// The care contract of a Träger, mailed with its PDF (#4678).
+		carecontract.MailKindContract: careContractMailRenderer(careContractCompose.NewContractMailRenderer(), defaultFrom),
 	}
 	enrollmentKinds := []string{}
 	for kind, renderer := range enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(), defaultFrom) {
@@ -132,7 +136,7 @@ func BuildDeliveryWorker(
 		calendarService.EmailKindAppointmentPublished, calendarService.EmailKindAppointmentUpdated,
 		calendarService.EmailKindAppointmentCancelled, calendarService.EmailKindAppointmentReminder,
 		identityaccess.MailKindGuardianInvitation, identityaccess.MailKindGuardianWelcome,
-	}, enrollmentKinds, []string{TransactionalMailKind, identityaccess.MailKindStaffWelcome, parentbilling.MailKindBillingLetter})
+	}, enrollmentKinds, []string{TransactionalMailKind, identityaccess.MailKindStaffWelcome, parentbilling.MailKindBillingLetter, carecontract.MailKindContract})
 	if err != nil {
 		return nil, err
 	}
