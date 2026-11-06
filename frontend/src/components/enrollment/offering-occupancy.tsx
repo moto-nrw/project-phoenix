@@ -7,6 +7,7 @@ import {
   DataTableStatusBadge,
 } from "~/components/ui/data-table";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { ProgressBar } from "~/components/ui/progress-bar";
 import type { CareOffering } from "~/lib/care-offering-api";
 import {
   type CareOfferingBookingStats,
@@ -17,12 +18,59 @@ import {
 type StatsById = Readonly<Record<string, CareOfferingBookingStats>>;
 
 /** „7 von 10“ und „3 frei“; ohne Kapazitätsgrenze nur die Belegung. */
-function OfferingOccupancyCell({
+export function OfferingOccupancyCell({
   occupancy,
   isActive,
-}: Readonly<{ occupancy: OfferingOccupancy | null; isActive: boolean }>) {
+  variant = "default",
+}: Readonly<{
+  occupancy: OfferingOccupancy | null;
+  isActive: boolean;
+  variant?: "default" | "progress";
+}>) {
   // Ohne Belegung keine Zahl: „0“ wäre falsch.
   if (!occupancy) return <span className="text-sm text-gray-500">–</span>;
+  if (variant === "progress") {
+    if (occupancy.capacity === null) {
+      return (
+        <span className="text-sm text-gray-500">
+          Keine Grenze
+          <span className="sr-only"> für dieses Angebot</span>
+        </span>
+      );
+    }
+    return (
+      <div className="w-40 max-md:w-full">
+        <span className="inline-flex flex-wrap items-center gap-2 text-sm text-gray-900 tabular-nums">
+          <span>
+            <span className="font-semibold">{occupancy.booked}</span>
+            <span className="text-gray-500"> von {occupancy.capacity}</span>
+          </span>
+          {isActive ? (
+            occupancy.full ? (
+              <StatusBadge
+                tone="orange"
+                size="xs"
+                label={
+                  occupancy.booked > occupancy.capacity ? "Überbelegt" : "Voll"
+                }
+              />
+            ) : (
+              <span className="text-xs text-gray-500">
+                {occupancy.free} frei
+              </span>
+            )
+          ) : null}
+        </span>
+        <ProgressBar
+          value={Math.min(occupancy.booked, occupancy.capacity)}
+          max={occupancy.capacity}
+          tone={occupancy.full ? "orange" : "green"}
+          label={`${occupancy.booked} von ${occupancy.capacity} Plätzen belegt`}
+          className="mt-1.5"
+        />
+      </div>
+    );
+  }
   if (occupancy.capacity == null) {
     return <span className="text-sm text-gray-700">{occupancy.booked}</span>;
   }

@@ -35,6 +35,7 @@ type Overview struct {
 	keyDates    traegerview.KeyDateCountReads
 	enrollments traegerview.OpenEnrollments
 	alerts      traegerview.AlertSettings
+	occupancy   traegerview.OccupancyPorts
 	now         func() time.Time
 	withinAdmin func(context.Context, func(context.Context) error) error
 }
@@ -45,13 +46,13 @@ var _ traegerview.Overview = (*Overview)(nil)
 // the projection reads in; it is the Träger-Portal's only one (ADR 0084).
 func New(ports traegerview.Ports, rows SchoolRows, withinAdmin func(context.Context, func(context.Context) error) error) (*Overview, error) {
 	if ports.SchoolIDs == nil || rows == nil || ports.Trail == nil || ports.Persons == nil || ports.Staff == nil || ports.Bureau == nil || ports.Recorder == nil || ports.Holiday == nil || ports.Rosters == nil || ports.Present == nil || ports.Sick == nil || ports.OnSite == nil || ports.KeyDates == nil ||
-		ports.Enrollments == nil || ports.Alerts == nil || withinAdmin == nil {
-		return nil, errors.New("traeger view: school IDs, rows, access trail, persons, staff, Träger-Büro addresses, access recorder, holiday trail, school figures, Stichtagszahlen, open enrollments, alert thresholds and the administrative transaction are required")
+		ports.Enrollments == nil || ports.Alerts == nil || !occupancyPortsBound(ports.Occupancy) || withinAdmin == nil {
+		return nil, errors.New("traeger view: school IDs, rows, access trail, persons, staff, Träger-Büro addresses, access recorder, holiday trail, school figures, Stichtagszahlen, open enrollments, alert thresholds, occupancy reads and the administrative transaction are required")
 	}
 	return &Overview{
 		schoolIDs: ports.SchoolIDs, rows: rows, trail: ports.Trail, persons: ports.Persons, staff: ports.Staff, bureau: ports.Bureau,
 		recorder: ports.Recorder, holiday: ports.Holiday, rosters: ports.Rosters, present: ports.Present, sick: ports.Sick, onSite: ports.OnSite, keyDates: ports.KeyDates,
-		enrollments: ports.Enrollments, alerts: ports.Alerts, now: time.Now, withinAdmin: withinAdmin,
+		enrollments: ports.Enrollments, alerts: ports.Alerts, occupancy: ports.Occupancy, now: time.Now, withinAdmin: withinAdmin,
 	}, nil
 }
 
