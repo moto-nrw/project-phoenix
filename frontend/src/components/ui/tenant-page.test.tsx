@@ -175,7 +175,7 @@ describe("TenantPage", () => {
     expect(container.querySelector(".animate-pulse")).toBeInTheDocument();
   });
 
-  it("reicht den deaktivierten Zustand an das Suchfeld weiter", async () => {
+  it("reicht den deaktivierten Zustand an das Suchfeld weiter", () => {
     render(
       <TenantPage
         title="Räume"
@@ -187,7 +187,7 @@ describe("TenantPage", () => {
       />,
     );
 
-    for (const searchField of await screen.findAllByRole("textbox")) {
+    for (const searchField of screen.getAllByRole("textbox")) {
       expect(searchField).toBeDisabled();
     }
   });
@@ -327,7 +327,7 @@ describe("TenantPage", () => {
     expect(last).toHaveTextContent("Noch kein Kind angelegt.");
   });
 
-  it("schaltet Seitenreiter per Klick, nicht erst per mousedown", async () => {
+  it("schaltet Seitenreiter per Klick, nicht erst per mousedown", () => {
     const onChange = vi.fn();
     render(
       <TenantPage
@@ -345,7 +345,7 @@ describe("TenantPage", () => {
       </TenantPage>,
     );
 
-    const aktiv = await screen.findByRole("tab", { name: "Stammdaten" });
+    const aktiv = screen.getByRole("tab", { name: "Stammdaten" });
     const inaktiv = screen.getByRole("tab", { name: /Dokumente/ });
     expect(aktiv).toHaveAttribute("aria-selected", "true");
     expect(inaktiv).toHaveAttribute("aria-selected", "false");
@@ -357,7 +357,7 @@ describe("TenantPage", () => {
     expect(onChange).toHaveBeenCalledWith("dokumente");
   });
 
-  it("wechselt Reiter mit den Pfeiltasten in einer Roving-Tabulator-Reihenfolge", async () => {
+  it("wechselt Reiter mit den Pfeiltasten in einer Roving-Tabulator-Reihenfolge", () => {
     const onChange = vi.fn();
     render(
       <TenantPage
@@ -374,7 +374,7 @@ describe("TenantPage", () => {
       />,
     );
 
-    const first = await screen.findByRole("tab", { name: "Stammdaten" });
+    const first = screen.getByRole("tab", { name: "Stammdaten" });
     const second = screen.getByRole("tab", { name: "Dokumente" });
     first.focus();
     fireEvent.keyDown(first, { key: "ArrowRight" });
@@ -387,7 +387,7 @@ describe("TenantPage", () => {
     expect(onChange).toHaveBeenLastCalledWith("verlauf");
   });
 
-  it("keeps a tab reachable when the current value matches no tab", async () => {
+  it("keeps a tab reachable when the current value matches no tab", () => {
     const onChange = vi.fn();
     render(
       <TenantPage
@@ -403,7 +403,7 @@ describe("TenantPage", () => {
       />,
     );
 
-    const first = await screen.findByRole("tab", { name: "Stammdaten" });
+    const first = screen.getByRole("tab", { name: "Stammdaten" });
     const second = screen.getByRole("tab", { name: "Dokumente" });
     expect(first).toHaveAttribute("aria-selected", "false");
     expect(second).toHaveAttribute("aria-selected", "false");
@@ -417,7 +417,7 @@ describe("TenantPage", () => {
     expect(onChange).toHaveBeenCalledWith("dokumente");
   });
 
-  it("lässt einen Reiter mit Zielpfad wie einen Link navigieren", async () => {
+  it("lässt einen Reiter mit Zielpfad wie einen Link navigieren", () => {
     const onChange = vi.fn();
     render(
       <TenantPage
@@ -433,7 +433,7 @@ describe("TenantPage", () => {
       />,
     );
 
-    const tab = await screen.findByRole("tab", { name: "Personal" });
+    const tab = screen.getByRole("tab", { name: "Personal" });
     const event = new MouseEvent("click", { bubbles: true, cancelable: true });
     tab.dispatchEvent(event);
 
@@ -441,7 +441,7 @@ describe("TenantPage", () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
-  it("erhält den Zielpfad eines Reiters im Überlaufmenü", async () => {
+  it("erhält den Zielpfad eines Reiters im Überlaufmenü", () => {
     const onChange = vi.fn();
     const clientWidth = vi
       .spyOn(HTMLElement.prototype, "clientWidth", "get")
@@ -469,7 +469,7 @@ describe("TenantPage", () => {
         />,
       );
 
-      const tablist = await screen.findByRole("tablist", {
+      const tablist = screen.getByRole("tablist", {
         name: "Seitenbereiche",
       });
       const moreButton = screen.getByRole("tab", { name: "Mehr" });
@@ -536,7 +536,7 @@ describe("TenantPage", () => {
       consoleError.mockRestore();
     }
   });
-  it("zeigt die Reiter auf jeder Breite als ein Band, nie als Auswahlliste", async () => {
+  it("zeigt die Reiter auf jeder Breite als ein Band, nie als Auswahlliste", () => {
     render(
       <TenantPage
         title="Einstellungen"
@@ -557,9 +557,7 @@ describe("TenantPage", () => {
     // Eine Auswahlliste zeigte auf dem Telefon nur den aktiven Wert
     // („Betrieb") und las sich als Filter. Das Band nennt alle Bereiche.
     expect(screen.queryByRole("combobox")).toBeNull();
-    const band = await screen.findByRole("tablist", {
-      name: "Einstellungsbereiche",
-    });
+    const band = screen.getByRole("tablist", { name: "Einstellungsbereiche" });
     expect(band.className).toContain("max-sm:overflow-x-auto");
     expect(within(band).getAllByRole("tab")).toHaveLength(2);
   });
