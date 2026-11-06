@@ -1,6 +1,6 @@
 {
   "scenario": "workforce.workforce20.birthday_overview",
-  "max": 11,
+  "max": 10,
   "exact": true,
   "description": "Full protected Resource HTTP request; paired positive domain N=3/N=8. Exact observed SQL, including transaction; no minimum or flat-growth claim."
 }

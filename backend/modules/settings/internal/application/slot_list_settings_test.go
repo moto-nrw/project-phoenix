@@ -85,7 +85,7 @@ func TestSlotListSettingsPreservesExplicitSnapshotContexts(t *testing.T) {
 	}
 }
 
-func TestSlotListSettingsBatchesOnlyColdLockedReads(t *testing.T) {
+func TestSlotListSettingsRefreshesRequestSnapshotAfterLock(t *testing.T) {
 	t.Parallel()
 	for _, active := range []bool{false, true} {
 		t.Run(map[bool]string{false: "no-transaction", true: "locked-transaction"}[active], func(t *testing.T) {
@@ -106,11 +106,10 @@ func TestSlotListSettingsBatchesOnlyColdLockedReads(t *testing.T) {
 			require.Equal(t, "17:30", gotLong)
 			if active {
 				require.Equal(t, 1, locks)
-				require.Equal(t, [][]string{{config.KeySlotListShortDayCutoff, config.KeySlotListLongDayCutoff}}, repo.findManyKeys)
 			} else {
 				require.Zero(t, locks)
-				require.Equal(t, [][]string{{config.KeySlotListShortDayCutoff}, {config.KeySlotListLongDayCutoff}}, repo.findManyKeys)
 			}
+			require.Equal(t, [][]string{{"test.other", config.KeyTimetableEnabled, config.KeySlotListLongDayCutoff, config.KeySlotListShortDayCutoff}}, repo.findManyKeys)
 		})
 	}
 }

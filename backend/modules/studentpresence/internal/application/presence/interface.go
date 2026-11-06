@@ -20,7 +20,8 @@ type Service interface {
 	EndActiveGroupSession(ctx context.Context, id int64) error
 
 	// Visit operations
-	CreateVisit(ctx context.Context, visit *studentpresence.Visit) error
+	CreateVisit(ctx context.Context, visit *studentpresence.Visit, admission ...studentpresence.VisitAdmission) error
+	LockStudentForVisit(context.Context, int64) (studentpresence.VisitAdmission, error)
 	UpdateVisit(ctx context.Context, visit *studentpresence.Visit) error
 	DeleteVisit(ctx context.Context, id int64) error
 	FindVisitsByStudentID(ctx context.Context, studentID int64) ([]studentpresence.Visit, error)

@@ -84,9 +84,19 @@ func (v visits) Current(ctx context.Context, studentID int64) (*ports.CurrentVis
 	return current, nil
 }
 
-func (v visits) Record(ctx context.Context, studentID, sessionID int64) (int64, error) {
-	visit := &studentpresence.Visit{StudentID: studentID, ActiveGroupID: sessionID, EntryTime: v.clock.Now()}
-	if err := v.active.CreateVisit(ctx, visit); err != nil {
+func (v visits) LockStudent(ctx context.Context, studentID int64) (ports.VisitRecorder, error) {
+	locked, err := v.active.LockStudentForVisit(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	return func(ctx context.Context, studentID, sessionID int64) (int64, error) {
+		visit := &studentpresence.Visit{StudentID: studentID, ActiveGroupID: sessionID, EntryTime: v.clock.Now()}
+		return recordLockedVisit(ctx, v.active, locked, visit)
+	}, nil
+}
+
+func recordLockedVisit(ctx context.Context, active studentpresence.VisitCommands, locked studentpresence.VisitAdmission, visit *studentpresence.Visit) (int64, error) {
+	if err := active.CreateVisit(ctx, visit, locked); err != nil {
 		var roomCapacity *studentpresence.RoomCapacityError
 		if errors.As(err, &roomCapacity) {
 			return 0, &ports.RoomCapacityExceeded{

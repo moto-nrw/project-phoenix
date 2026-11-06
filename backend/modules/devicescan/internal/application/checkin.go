@@ -16,6 +16,7 @@ import (
 // produced: the visit that was open, its id and room, and whether it was
 // closed by this scan.
 type currentVisitCheckout struct {
+	Recorder         ports.VisitRecorder
 	Visit            *ports.CurrentVisit
 	VisitID          *int64
 	PreviousRoomName string
@@ -63,7 +64,8 @@ func (s *Service) checkoutCurrentVisit(ctx context.Context, student *ports.Stude
 	// The child before its visit: a bulk move locks the child and then the
 	// visit, so a scan that closed the visit first and waited for the child
 	// at its check-in deadlocked against it (#5278).
-	if err := s.visits.LockStudent(ctx, student.ID); err != nil {
+	recorder, err := s.visits.LockStudent(ctx, student.ID)
+	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to lock student",
 			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),
@@ -72,7 +74,7 @@ func (s *Service) checkoutCurrentVisit(ctx context.Context, student *ports.Stude
 	}
 	visit, err := s.loadCurrentVisit(ctx, student.ID)
 	if err != nil || visit == nil {
-		return currentVisitCheckout{}, err
+		return currentVisitCheckout{Recorder: recorder}, err
 	}
 	s.logger.DebugContext(ctx, "student has active visit, performing checkout",
 		slog.String("student_name", person.FirstName+" "+person.LastName),
@@ -107,7 +109,7 @@ func (s *Service) checkoutCurrentVisit(ctx context.Context, student *ports.Stude
 		slog.Int64("visit_id", visit.ID),
 	)
 	visitID := visit.ID
-	return currentVisitCheckout{Visit: visit, VisitID: &visitID, PreviousRoomName: previousRoomName, CheckedOut: true}, nil
+	return currentVisitCheckout{Recorder: recorder, Visit: visit, VisitID: &visitID, PreviousRoomName: previousRoomName, CheckedOut: true}, nil
 }
 
 // shouldSkipCheckin reports a scan of the room the child just left: the
@@ -132,7 +134,7 @@ func (s *Service) processStudentCheckin(ctx context.Context, student *ports.Stud
 	result := &checkinResult{}
 	switch {
 	case input.RoomID != nil && !input.SkipCheckin:
-		visitID, selection, err := s.processCheckin(ctx, student, person, *input.RoomID, input.DeviceID)
+		visitID, selection, err := s.processCheckin(ctx, student, person, *input.RoomID, input.DeviceID, input.Checkout.Recorder)
 		if err != nil {
 			return nil, err
 		}
@@ -152,7 +154,7 @@ func (s *Service) processStudentCheckin(ctx context.Context, student *ports.Stud
 
 // processCheckin opens a visit in the room's session and returns the visit
 // id with the session that received it.
-func (s *Service) processCheckin(ctx context.Context, student *ports.Student, person *ports.Person, roomID, deviceID int64) (*int64, *selectedSession, error) {
+func (s *Service) processCheckin(ctx context.Context, student *ports.Student, person *ports.Person, roomID, deviceID int64, recorder ports.VisitRecorder) (*int64, *selectedSession, error) {
 	s.logger.DebugContext(ctx, "performing check-in to room",
 		slog.String("student_name", person.FirstName+" "+person.LastName),
 		slog.Int64("student_id", student.ID),
@@ -183,7 +185,7 @@ func (s *Service) processCheckin(ctx context.Context, student *ports.Student, pe
 		slog.Int64("student_id", student.ID),
 		slog.Int64("active_group_id", selection.Session.ID),
 	)
-	visitID, err := s.visits.Record(ctx, student.ID, selection.Session.ID)
+	visitID, err := recorder(ctx, student.ID, selection.Session.ID)
 	if err != nil {
 		return nil, nil, s.classifyRecordFailure(ctx, student.ID, selection, err)
 	}

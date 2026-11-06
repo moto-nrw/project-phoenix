@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.peopledirectory.guardian_phones.replace_8",
+  "max": 2,
+  "exact": true,
+  "description": "Replace 8 guardian phone rows, retaining input order and duplicates."
+}

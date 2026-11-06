@@ -1,6 +1,6 @@
 {
   "scenario": "modules.devicescan.yard_scan.distinct_activities",
-  "max": 40,
+  "max": 39,
   "exact": true,
-  "description": "Yard scan with eight distinct activities in the tenant transaction, including roster selection and visit writes."
+  "description": "Yard scan with eight distinct activities in the tenant transaction, including roster selection and visit writes. Reuses the existing child lock for membership admission, preserving cancellation before domain validation."
 }

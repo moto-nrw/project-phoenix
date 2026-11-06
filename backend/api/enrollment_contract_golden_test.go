@@ -211,10 +211,10 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 	require.Equal(t, len(small.total), len(large.total), "response overview queries must not grow with the roster")
 	require.Equal(t, 1, small.responded, "the shallow rollover chain must resolve to its original child")
 	require.Equal(t, 2, large.responded, "the deeper rollover chain must resolve to its original child")
-	// withoutModuleLock already proved the module lock's single switch read;
-	// the route's own settings stay one read.
+	// The module lock stays in place; its settings read also fills the route's
+	// school snapshot, so both consumers share one query.
 	for _, run := range []queryRun{small, large} {
-		require.Len(t, run.settings, 2, "the module lock and the route must each resolve settings once")
+		require.Len(t, run.settings, 1, "the module lock and the route must share the school settings snapshot")
 	}
 	countRolloverSourceQueries := func(queries []string) int {
 		count := 0

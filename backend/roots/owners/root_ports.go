@@ -269,7 +269,7 @@ type TimetableSettings interface {
 // TimetableOperationPresence is the Student Presence slice the operational
 // day writes visits through.
 type TimetableOperationPresence interface {
-	CreateVisit(ctx context.Context, visit *studentpresence.Visit) error
+	CreateVisit(ctx context.Context, visit *studentpresence.Visit, admission ...studentpresence.VisitAdmission) error
 	EndVisit(ctx context.Context, id int64) error
 	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error)
 }

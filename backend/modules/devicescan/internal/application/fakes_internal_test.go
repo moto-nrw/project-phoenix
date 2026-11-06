@@ -247,9 +247,9 @@ type fakeVisits struct {
 	steps []string
 }
 
-func (v *fakeVisits) LockStudent(context.Context, int64) error {
+func (v *fakeVisits) LockStudent(context.Context, int64) (ports.VisitRecorder, error) {
 	v.steps = append(v.steps, "lock")
-	return v.lockErr
+	return v.Record, v.lockErr
 }
 func (v *fakeVisits) Current(context.Context, int64) (*ports.CurrentVisit, error) {
 	v.steps = append(v.steps, "current")

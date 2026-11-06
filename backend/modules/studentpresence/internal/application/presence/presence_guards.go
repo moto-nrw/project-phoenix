@@ -38,6 +38,10 @@ func (s *service) ensureStudentCheckinAllowed(ctx context.Context, studentID int
 		}
 		return nil, err
 	}
+	return s.checkStudentAdmission(student)
+}
+
+func (s *service) checkStudentAdmission(student *StudentRecord) (*StudentRecord, error) {
 	if student.IsAlumnus() {
 		return nil, ErrStudentGraduated
 	}

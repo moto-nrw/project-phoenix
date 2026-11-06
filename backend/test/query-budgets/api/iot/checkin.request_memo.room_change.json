@@ -1,6 +1,6 @@
 {
   "scenario": "api.iot.checkin.request_memo.room_change",
-  "max": 39,
+  "max": 35,
   "exact": true,
   "description": "Real kiosk scan request transaction with the production request settings memo enabled; N3 and N8 children present. Excludes pre-request device authentication. Restored unoptimized admission after rejected cancellation-precedence change."
 }
