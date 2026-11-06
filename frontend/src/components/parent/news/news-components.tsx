@@ -815,15 +815,7 @@ export function NewsCard({
     >
       <span className="relative shrink-0">
         <ConceptIconTile concept={concept} iconTone="blue" />
-        {outstanding && (
-          <>
-            <span
-              className="bg-moto-blue absolute top-0.5 right-0.5 size-2 rounded-full ring-2 ring-white"
-              aria-hidden="true"
-            />
-            <span className="sr-only">{t("newsOutstanding")}</span>
-          </>
-        )}
+        {outstanding && <span className="sr-only">{t("newsOutstanding")}</span>}
       </span>
       <span className="min-w-0 flex-1">
         <NewsCardType item={item} />

@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
 import {
   CircleNotchIcon,
   PaperPlaneRightIcon,
 } from "@phosphor-icons/react/ssr";
 import { Button } from "~/components/ui/button";
+import { Textarea } from "~/components/ui/textarea";
 
 // Hard client cap mirroring the backend's 2000-rune message/note limit
 // (maxMessageLen in modules/communication/internal/parentmessages, maxParentNoteLen on the parent side).
@@ -54,29 +54,6 @@ export function MessageComposer({
   readonly sendingLabel?: string;
   readonly fieldLabel?: string;
 }) {
-  const ref = useRef<HTMLTextAreaElement | null>(null);
-
-  // Grow with the content up to a max, then scroll inside the field. The max
-  // is 160px, but at most a third of the visible viewport: with a phone's
-  // soft keyboard open the chat is only a few hundred pixels tall, and a
-  // 160px field would push the line being typed out of the chat (#3664).
-  const autoSize = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    const visibleHeight = window.visualViewport?.height ?? window.innerHeight;
-    const maxHeight = Math.min(160, Math.round(visibleHeight / 3));
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
-    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
-  }, []);
-  useEffect(autoSize, [value, autoSize]);
-  // The keyboard opens after the field gains focus, without a value change.
-  useEffect(() => {
-    const vv = window.visualViewport;
-    vv?.addEventListener("resize", autoSize);
-    return () => vv?.removeEventListener("resize", autoSize);
-  }, [autoSize]);
-
   const disabled = externallyDisabled || sending || value.trim().length === 0;
 
   const parent = tone === "parent";
@@ -93,10 +70,10 @@ export function MessageComposer({
         <label htmlFor="message-composer" className="sr-only">
           {fieldLabel}
         </label>
-        <textarea
+        <Textarea
           id="message-composer"
           name="message-composer"
-          ref={ref}
+          autoGrow
           rows={1}
           value={value}
           maxLength={MAX_MESSAGE_LEN}
@@ -117,11 +94,11 @@ export function MessageComposer({
           }}
           disabled={externallyDisabled || sending}
           placeholder={placeholder}
-          className={`w-full resize-none overflow-hidden rounded-lg border border-gray-300 bg-white text-gray-900 transition-[border-color,box-shadow] hover:border-gray-400 focus:border-gray-400 focus:ring-2 focus:ring-gray-300 focus:outline-none disabled:opacity-60 ${
+          className={
             parent
-              ? "max-h-40 min-h-8 px-3 py-1.5 text-base leading-5 pointer-coarse:min-h-11 pointer-coarse:py-3"
-              : "max-h-40 min-h-10 px-4 py-2.5 text-sm leading-5 pointer-coarse:min-h-11 pointer-coarse:py-3"
-          }`}
+              ? "min-h-8 px-3 py-1.5 text-base leading-5 pointer-coarse:min-h-11 pointer-coarse:py-3"
+              : "min-h-10 px-4 py-2.5 leading-5 pointer-coarse:min-h-11 pointer-coarse:py-3"
+          }
         />
         {value.length >= COUNTER_VISIBLE_FROM ? (
           <span

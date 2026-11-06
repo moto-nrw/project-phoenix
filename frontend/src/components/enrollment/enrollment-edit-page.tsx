@@ -19,6 +19,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { useApiLoadError, useToast } from "~/contexts/ToastContext";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { Textarea } from "~/components/ui/textarea";
 import { ParentPageHeader } from "~/components/parent/parent-page";
 
 const logger = createLogger({ component: "EnrollmentEditPage" });
@@ -196,18 +197,16 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
           <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
             {t("changeRequestEyebrow")}
           </p>
-          <label className="mt-3 block">
-            <span className="text-sm font-semibold text-gray-700">
-              {t("changeRequestReasonLabel")}
-            </span>
-            <textarea
+          <div className="mt-3">
+            <Textarea
+              label={t("changeRequestReasonLabel")}
               value={changeReason}
               onChange={(event) => setChangeReason(event.target.value)}
               rows={3}
               placeholder={t("changeRequestReasonPlaceholder")}
-              className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+              className="resize-y"
             />
-          </label>
+          </div>
         </section>
       ) : null}
 

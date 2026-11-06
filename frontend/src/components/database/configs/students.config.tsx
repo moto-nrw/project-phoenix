@@ -246,13 +246,6 @@ export const studentsConfig = defineEntityConfig<Student>({
                 }`}
               >
                 <span className="flex items-center">
-                  <span
-                    className={`mr-2 inline-block h-3 w-3 flex-shrink-0 rounded-full ${
-                      isPresentLocation(student.current_location)
-                        ? "bg-moto-green-strong"
-                        : "bg-gray-300"
-                    }`}
-                  />
                   <span className="truncate">Im Haus</span>
                 </span>
               </div>
@@ -269,13 +262,6 @@ export const studentsConfig = defineEntityConfig<Student>({
                 }`}
               >
                 <span className="flex items-center">
-                  <span
-                    className={`mr-2 inline-block h-3 w-3 flex-shrink-0 rounded-full ${
-                      isTransitLocation(student.current_location)
-                        ? "bg-moto-magenta"
-                        : "bg-gray-300"
-                    }`}
-                  />
                   <span className="truncate">Unterwegs</span>
                 </span>
               </div>
@@ -292,13 +278,6 @@ export const studentsConfig = defineEntityConfig<Student>({
                 }`}
               >
                 <span className="flex items-center">
-                  <span
-                    className={`mr-2 inline-block h-3 w-3 flex-shrink-0 rounded-full ${
-                      isSchoolyardLocation(student.current_location)
-                        ? "bg-moto-orange"
-                        : "bg-gray-300"
-                    }`}
-                  />
                   <span className="truncate">Schulhof</span>
                 </span>
               </div>
@@ -315,11 +294,6 @@ export const studentsConfig = defineEntityConfig<Student>({
                 }`}
               >
                 <span className="flex items-center">
-                  <span
-                    className={`mr-2 inline-block h-3 w-3 flex-shrink-0 rounded-full ${
-                      student.bus ? "bg-moto-orange" : "bg-gray-300"
-                    }`}
-                  />
                   <span className="truncate">
                     {student.bus ? formatBusDays(student.bus_days) : "Bus"}
                   </span>

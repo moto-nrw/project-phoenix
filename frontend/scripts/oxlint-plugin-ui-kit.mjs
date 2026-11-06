@@ -4,7 +4,6 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
-import { dotRatchetBaseline } from "./ui-kit-dot-baseline.mjs";
 import { pillRatchetBaseline } from "./ui-kit-pill-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 
@@ -57,7 +56,7 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 // Two more keep dots where they belong (#5598, ADR 0149):
 //
 //   ui-kit/no-hand-rolled-dot       — dots and colour bars by hand outside
-//                                     src/components/ui/; shrink-only baseline
+//                                     src/components/ui/; hard-zero
 //   ui-kit/no-status-dot-outside-plans — StatusDot only in legends and plans
 //
 // Three more catch classes that never render or miss contrast (#5577):
@@ -72,9 +71,9 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //
 // One more keeps form fields on the kit (#5217):
 //
-//   ui-kit/no-raw-input             — no hand-built <input> outside
-//                                     src/components/ui/; use Input,
-//                                     Checkbox, Radio, TimeField,
+//   ui-kit/no-raw-input             — no hand-built <input> or <textarea>
+//                                     outside src/components/ui/; use Input,
+//                                     Textarea, Checkbox, Radio, TimeField,
 //                                     ConsentCheckbox or ColorSwatchInput.
 //                                     Hidden and file inputs stay native.
 //
@@ -1145,13 +1144,13 @@ const TINY_TEXT_BASELINE = parseLocationBaseline(`
 src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@202
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1337 text-[11px]@1337 text-[10px]@1341 text-[10px]@1350 text-[11px]@1350
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
-src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@233 text-[11px]@277
+src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@219 text-[11px]@263
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@430
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@907 text-[11px]@935 text-[11px]@1022 text-[11px]@1083 text-[11px]@1091 text-[11px]@1097 text-[11px]@1144 text-[11px]@1150 text-[10px]@1166 text-[11px]@1215 text-[11px]@1295 text-[11px]@1306 text-[11px]@1311
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@43 text-[10px]@99
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@973 text-[11px]@992
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@969 text-[11px]@988
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1471
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
 src/components/enrollment/phases-editor.tsx|text-[11px]@769 text-[11px]@774
@@ -1176,7 +1175,7 @@ src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@148 text-
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
 src/components/timetable/gap-jump-list.tsx|text-[10px]@109 text-[11px]@132 text-[11px]@147
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[10px]@325 text-[9px]@445 text-[9px]@1079 text-[11px]@1393 text-[11px]@1419 text-[11px]@1595 text-[10px]@1704 text-[11px]@1727
+src/components/timetable/instance-detail-modal.tsx|text-[10px]@325 text-[9px]@442 text-[9px]@1076 text-[11px]@1390 text-[11px]@1416 text-[11px]@1592 text-[10px]@1701 text-[11px]@1724
 src/components/timetable/month-planner-grid.tsx|text-[11px]@67 text-[11px]@143 text-[11px]@152 text-[11px]@173 text-[9px]@204 text-[10px]@238
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@199 text-[10px]@215 text-[11px]@224 text-[10px]@266 text-[10px]@290 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@404 text-[11px]@471
@@ -1643,9 +1642,11 @@ const noRawInput = {
     type: "problem",
     docs: {
       description:
-        "Build form fields from the kit instead of a hand-styled <input>.",
+        "Build form fields from the kit instead of a hand-styled <input> or <textarea>.",
     },
     messages: {
+      rawTextarea:
+        "Kein eigenes <textarea>. Textarea aus ~/components/ui/textarea nehmen; autoGrow wächst mit dem Inhalt (#5587, .claude/rules/frontend-ui-kit.md).",
       rawInput:
         'Kein eigenes <input>. Input, Checkbox, Radio, TimeField, ConsentCheckbox oder ColorSwatchInput aus ~/components/ui nehmen (#5217, .claude/rules/frontend-ui-kit.md). Nur type="hidden" und type="file" bleiben nativ.',
     },
@@ -1663,7 +1664,12 @@ const noRawInput = {
     }
     return {
       JSXOpeningElement(node) {
-        if (jsxName(node.name) !== "input") return;
+        const name = jsxName(node.name);
+        if (name === "textarea") {
+          context.report({ node, messageId: "rawTextarea" });
+          return;
+        }
+        if (name !== "input") return;
         if (NATIVE_INPUT_TYPES.has(staticInputType(node) ?? "")) return;
         context.report({ node, messageId: "rawInput" });
       },
@@ -2315,9 +2321,9 @@ const noHandRolledDot = makeRatchetRule({
     "Build dots and colour bars from StatusDot, ColorBar or PlanLegend instead of a hand-styled element.",
   message:
     "Kein Punkt und kein Farbbalken von Hand: in Legenden und Plänen StatusDot, ColorBar oder PlanLegend; sonst nennt StatusBadge den Status mit Text (#5598, .claude/rules/frontend-ui-kit.md).",
-  baselines: dotRatchetBaseline,
+  // Hard-zero: der Bestand ist abgebaut, jede neue Stelle schlägt fehl.
+  baselines: {},
   allowlist: [],
-  countEnv: "UI_KIT_DOT_RATCHET",
   kitFile: "src/components/ui/status-dot.tsx",
   exemptDir: UI_KIT_DIR,
   detect: ({ classText: textOf, found, constants }) => ({
@@ -2559,8 +2565,16 @@ const SELECT_COMPONENT_MODULES = new Map([
   ["@/components/ui/multi-select", "MultiSelect"],
   ["~/components/ui/listbox-dropdown", "ListboxDropdown"],
   ["@/components/ui/listbox-dropdown", "ListboxDropdown"],
+  ["~/components/ui/date-range-picker", "DateRangePicker"],
+  ["@/components/ui/date-range-picker", "DateRangePicker"],
 ]);
-const SELECT_COMPONENTS = new Set(["CustomSelect", "MultiSelect", "ListboxDropdown"]);
+const SELECT_COMPONENTS = new Set([
+  "CustomSelect",
+  "MultiSelect",
+  "ListboxDropdown",
+  // Sein Auslöser ist der der Auswahlfelder (#5585).
+  "DateRangePicker",
+]);
 const SELECT_CLASS_PROPS = [
   "className",
   "triggerClassName",

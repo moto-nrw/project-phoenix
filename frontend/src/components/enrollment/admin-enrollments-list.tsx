@@ -733,10 +733,6 @@ function EnrollmentSetupGuide({
           className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
           <span className="flex min-w-0 items-center gap-3.5">
-            <span
-              className="bg-moto-green h-2.5 w-2.5 shrink-0 rounded-full"
-              aria-hidden="true"
-            />
             <span className="min-w-0">
               <span className="block text-base font-semibold text-gray-900">
                 Online-Anmeldung eingerichtet
@@ -915,10 +911,15 @@ function EnrollmentSetupGuide({
                         <span className="min-w-0 truncate text-gray-700">
                           {step.title}
                         </span>
-                        <span
-                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${getStepDotClass(step.status)}`}
-                          aria-hidden="true"
-                        />
+                        {isStepComplete(step.status) && (
+                          <>
+                            <Check
+                              className="text-moto-green-strong h-4 w-4 shrink-0"
+                              aria-hidden="true"
+                            />
+                            <span className="sr-only">Erledigt</span>
+                          </>
+                        )}
                       </NavigationLink>
                     ))}
                   </div>
@@ -948,11 +949,6 @@ function getStepIconClass(status: SetupStepStatus) {
     return "border-moto-green/30 bg-moto-green/15 text-moto-green-strong";
   }
   return "border-gray-200 bg-white text-gray-500";
-}
-
-function getStepDotClass(status: SetupStepStatus) {
-  if (isStepComplete(status)) return "bg-moto-green";
-  return "bg-gray-300";
 }
 
 function StatusPill({
@@ -991,10 +987,6 @@ function StepMeta({
     <span
       className={`inline-flex items-center gap-1.5 text-[11px] font-medium whitespace-nowrap ${className}`}
     >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${getStepDotClass(status)}`}
-        aria-hidden="true"
-      />
       {label}
     </span>
   );
