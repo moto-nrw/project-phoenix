@@ -39,10 +39,10 @@ const (
 var (
 	// ErrTraegerDocumentNotFound reports a document that is not the
 	// Träger's, or one the reader's releases do not cover.
-	ErrTraegerDocumentNotFound = errors.New("Träger document not found")
+	ErrTraegerDocumentNotFound = errors.New("the Träger document was not found")
 	// ErrTraegerDocumentReleaseNotFound reports a release that is not the
 	// document's or is already revoked.
-	ErrTraegerDocumentReleaseNotFound = errors.New("Träger document release not found")
+	ErrTraegerDocumentReleaseNotFound = errors.New("the Träger document release was not found")
 	// ErrTraegerDocumentFileType reports a file that is not a PDF, Word,
 	// Excel, PowerPoint, PNG or JPEG file by its name and its content.
 	ErrTraegerDocumentFileType = errors.New("the file type is not admitted")
