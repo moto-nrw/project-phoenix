@@ -79,6 +79,35 @@ func (rs *Resource) billingDocumentPDF(w http.ResponseWriter, r *http.Request) {
 		renderBillingDocumentError(w, r, err)
 		return
 	}
+	writeDocumentFile(w, file)
+}
+
+// contractDocumentPDF answers the PDF of one care contract in the inbox.
+func (rs *Resource) contractDocumentPDF(w http.ResponseWriter, r *http.Request) {
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
+		return
+	}
+	organizationID, err := common.ParseIDParam(r, "organizationId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	contractID, err := common.ParseIDParam(r, "contractId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	file, err := rs.ParentService.ContractDocumentFile(r.Context(), int64(claims.ID), organizationID, contractID)
+	if err != nil {
+		renderBillingDocumentError(w, r, err)
+		return
+	}
+	writeDocumentFile(w, file)
+}
+
+func writeDocumentFile(w http.ResponseWriter, file parentService.BillingDocumentFile) {
 	w.Header().Set("Content-Type", file.ContentType)
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
 	w.Header().Set("Cache-Control", "no-store")

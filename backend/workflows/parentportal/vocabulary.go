@@ -44,6 +44,7 @@ type (
 	BillingDocumentPush             = care.BillingDocumentPush
 	BillingDocumentReader           = care.BillingDocumentReader
 	BillingDocumentsPort            = care.BillingDocuments
+	ContractDocumentsPort           = care.ContractDocuments
 	BillingDocumentNotifierPort     = care.BillingDocumentNotifier
 	ParentAccountsPort              = care.ParentAccounts
 	SchoolTraegerPort               = care.SchoolTraeger
@@ -81,6 +82,7 @@ type (
 )
 
 const (
+	DocumentKindContract         = care.DocumentKindContract
 	DayStatePresent              = care.DayStatePresent
 	DayStateUnknown              = care.DayStateUnknown
 	RelatedAccountActive         = care.RelatedAccountActive

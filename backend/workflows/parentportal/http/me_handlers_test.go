@@ -152,6 +152,11 @@ func (f *fakeParentService) BillingDocumentLetter(_ context.Context, accountID, 
 	return f.documentFile, f.documentsErr
 }
 
+func (f *fakeParentService) ContractDocumentFile(_ context.Context, accountID, organizationID, contractID int64) (parentService.BillingDocumentFile, error) {
+	f.gotDocumentsAccount, f.gotDocumentOrganization, f.gotDocumentID = accountID, organizationID, contractID
+	return f.documentFile, f.documentsErr
+}
+
 func (f *fakeParentService) HolidayRegistrationFamily(_ context.Context, accountID, organizationID int64, schoolIDs []int64) (*parentService.HolidayRegistrationFamily, error) {
 	f.gotHolidayAccount, f.gotHolidayOrganization, f.gotHolidaySchools = accountID, organizationID, schoolIDs
 	if f.holidayFamily != nil {

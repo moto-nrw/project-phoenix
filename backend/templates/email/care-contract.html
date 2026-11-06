@@ -1,0 +1,22 @@
+{{define "care-contract.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <h1>Ihr Betreuungsvertrag</h1>
+
+    <p>Guten Tag{{if .GuardianName}} {{.GuardianName}}{{end}},</p>
+
+    <p>im Anhang finden Sie den Betreuungsvertrag{{if .ChildName}} für <strong>{{.ChildName}}</strong>{{end}}{{if .OfferingName}} im Angebot <strong>{{.OfferingName}}</strong>{{end}}.</p>
+
+    <div class="highlight-box">
+        <p style="margin: 0; font-size: 14px;"><strong>Was müssen Sie tun?</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Bitte lesen Sie den Vertrag in Ruhe. Prüfen Sie Betreuungstage, Beginn und Beitrag. Stimmt etwas nicht? Dann melden Sie sich beim Träger.</p>
+    </div>
+
+    <p>Haben Sie die moto Eltern-App? Dann finden Sie den Vertrag auch dort unter „Dokumente“.</p>
+
+    <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an den Träger{{if .SchoolName}} ({{.SchoolName}}){{end}}. Die Kontaktdaten stehen im Vertrag.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

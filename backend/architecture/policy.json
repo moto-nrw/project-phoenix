@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 97,
+  "policy_epoch": 98,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -123,6 +123,10 @@
     },
     {
       "id": "parent-billing",
+      "kind": "domain"
+    },
+    {
+      "id": "care-contract",
       "kind": "domain"
     },
     {

@@ -57,7 +57,7 @@ func documentInbox(t *testing.T) (*parentService.Portal, parentService.DocumentN
 		ChildRepo: repos.ParentChildReads(), PersonRepo: owners.NewParentPersonReads(people.Person),
 		GuardianProfileRepo: owners.NewParentGuardianProfileReads(people.GuardianProfile),
 		Logger:              slog.Default(), CarePlanPolicy: owners.NewParentCarePlanPolicy(),
-		BillingDocuments: owners.NewParentBillingDocuments(), TraegerRuntime: owners.ParentPortalRuntime{},
+		BillingDocuments: owners.NewParentBillingDocuments(), ContractDocuments: owners.NewParentContractDocuments(), TraegerRuntime: owners.ParentPortalRuntime{},
 		SchoolTraeger: owners.NewParentSchoolTraeger(organizations), ParentAccounts: owners.NewParentAccounts(identity),
 		DocumentNotifier: pushes,
 	}

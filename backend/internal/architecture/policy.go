@@ -457,7 +457,7 @@ func (p *Policy) validateCanonicalOwners() error {
 		"observability", "scheduler-runtime", "security-runtime", "settings-platform",
 		"tenant-runtime", "transaction-runtime",
 	}
-	const decision = "ADRs 0010, 0012 and 0088"
+	const decision = "ADRs 0010, 0012, 0088 and 0153"
 	domainOwners := []string{
 		"appointments", "care-plan", "communication", "device-fleet",
 		"enrollment", "facilities", "feedback", "file-storage", "identity-access",
@@ -470,6 +470,12 @@ func (p *Policy) validateCanonicalOwners() error {
 	// either map is exact, nothing else is accepted.
 	if slices.ContainsFunc(p.Owners, func(owner Owner) bool { return owner.ID == "parent-billing" && owner.Kind == "domain" }) {
 		domainOwners = append(domainOwners, "parent-billing")
+		slices.Sort(domainOwners)
+	}
+	// ADR 0153 adds the Betreuungsvertrag of ADR 0088 (#4678), on the same
+	// terms: a policy before it keeps the domains it had.
+	if slices.ContainsFunc(p.Owners, func(owner Owner) bool { return owner.ID == "care-contract" && owner.Kind == "domain" }) {
+		domainOwners = append(domainOwners, "care-contract")
 		slices.Sort(domainOwners)
 	}
 	canonicalOwners := []struct {

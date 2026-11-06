@@ -69,6 +69,18 @@ type BillingDocuments interface {
 	BillingDocumentLetter(ctx context.Context, organizationID, documentID int64, reader BillingDocumentReader) (BillingDocumentFile, error)
 }
 
+// DocumentKindContract is the kind of a care contract in the inbox.
+const DocumentKindContract = "care_contract"
+
+// ContractDocuments is the port to the Betreuungsvertrag's contracts in the
+// inbox of one Träger (#4678, ADR 0153). A contract lies there once it was
+// sent to the account's address, the party of ADR 0088 section 7. Both
+// operations join the caller's Träger transaction and record the read.
+type ContractDocuments interface {
+	ListContractDocuments(ctx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error)
+	ContractDocumentFile(ctx context.Context, organizationID, contractID int64, reader BillingDocumentReader) (BillingDocumentFile, error)
+}
+
 // Traeger is the Träger of a school with the name the inbox shows.
 type Traeger struct {
 	ID   int64
@@ -122,7 +134,11 @@ func (s *Service) ListBillingDocuments(ctx context.Context, accountID int64) ([]
 	for _, organization := range traeger {
 		err := s.TraegerRuntime.WithinTraeger(ctx, organization.ID, func(txCtx context.Context) error {
 			found, listErr := s.BillingDocuments.ListBillingDocuments(txCtx, organization.ID, reader)
-			for _, document := range found {
+			if listErr != nil {
+				return listErr
+			}
+			contracts, listErr := s.ContractDocuments.ListContractDocuments(txCtx, organization.ID, reader)
+			for _, document := range append(found, contracts...) {
 				document.OrganizationID, document.TraegerName = organization.ID, organization.Name
 				documents = append(documents, document)
 			}
@@ -164,10 +180,32 @@ func (s *Service) BillingDocumentLetter(ctx context.Context, accountID, organiza
 	return file, nil
 }
 
+// ContractDocumentFile reads the PDF of one care contract in the inbox of
+// the account, under the same two conditions as a letter.
+func (s *Service) ContractDocumentFile(ctx context.Context, accountID, organizationID, contractID int64) (BillingDocumentFile, error) {
+	traeger, reader, err := s.billingDocumentAccess(ctx, accountID)
+	if err != nil {
+		return BillingDocumentFile{}, err
+	}
+	if !slices.ContainsFunc(traeger, func(t Traeger) bool { return t.ID == organizationID }) || contractID <= 0 {
+		return BillingDocumentFile{}, ErrBillingDocumentNotFound
+	}
+	var file BillingDocumentFile
+	err = s.TraegerRuntime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
+		var readErr error
+		file, readErr = s.ContractDocuments.ContractDocumentFile(txCtx, organizationID, contractID, reader)
+		return readErr
+	})
+	if err != nil {
+		return BillingDocumentFile{}, err
+	}
+	return file, nil
+}
+
 // billingDocumentAccess resolves the Träger the account's relationships open
 // and the account's current address, in one administrative transaction.
 func (s *Service) billingDocumentAccess(ctx context.Context, accountID int64) ([]Traeger, BillingDocumentReader, error) {
-	if s.BillingDocuments == nil || s.TraegerRuntime == nil || s.SchoolTraeger == nil || s.ParentAccounts == nil {
+	if s.BillingDocuments == nil || s.ContractDocuments == nil || s.TraegerRuntime == nil || s.SchoolTraeger == nil || s.ParentAccounts == nil {
 		return nil, BillingDocumentReader{}, errors.New("parent: document inbox is not configured")
 	}
 	var access documentAccess

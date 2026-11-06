@@ -55,6 +55,7 @@ type PortalService interface {
 	ListBillingDocuments(ctx context.Context, accountID int64) ([]parentService.BillingDocument, error)
 	// BillingDocumentLetter reads the PDF of one document in that inbox.
 	BillingDocumentLetter(ctx context.Context, accountID, organizationID, documentID int64) (parentService.BillingDocumentFile, error)
+	ContractDocumentFile(ctx context.Context, accountID, organizationID, contractID int64) (parentService.BillingDocumentFile, error)
 
 	// ListEnrollmentsForAccount returns every enrollment.requests row
 	// where guardian_account_id matches the calling account, joined

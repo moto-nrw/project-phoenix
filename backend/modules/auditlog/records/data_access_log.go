@@ -157,6 +157,11 @@ const (
 	// and answers to health questions. StudentID is SET; RangeStart and
 	// RangeEnd span the weeks; metadata carries week_ids.
 	ResourceTypeHolidayStudentHealth = "holiday_student_health"
+	// ResourceTypeCareContractApplications records the Träger-Büro reading
+	// the accepted applications of a school to create care contracts
+	// (#4678, ADR 0153): child, guardian and booked offering. StudentID is
+	// NULL; metadata carries the view and the row count.
+	ResourceTypeCareContractApplications = "care_contract_applications"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

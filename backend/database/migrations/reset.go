@@ -84,6 +84,7 @@ func resetDatabase(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 		"display",        // created by migration 1.15.175
 		"documents",      // created by migration 1.15.332
 		"parent_billing", // created by migration 1.15.645
+		"care_contract",  // created by migration 1.15.757
 	}
 
 	// 1. Drop all schemas with CASCADE to remove all objects inside them

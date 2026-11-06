@@ -53,6 +53,8 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// from the claims; the Träger only from the account's relationships.
 	r.Get("/me/documents", rs.listBillingDocuments)
 	r.Get("/me/documents/{organizationId}/{documentId}/pdf", rs.billingDocumentPDF)
+	// A care contract sent to the account's address (#4678).
+	r.Get("/me/documents/{organizationId}/contracts/{contractId}/pdf", rs.contractDocumentPDF)
 }
 
 func (rs *Resource) mountCalendarRoutes(r chi.Router) {

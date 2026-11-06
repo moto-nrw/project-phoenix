@@ -75,6 +75,7 @@ type Dependencies struct {
 
 	// Document inbox (#4671, ADR 0126).
 	BillingDocuments    care.BillingDocuments
+	ContractDocuments   care.ContractDocuments
 	TraegerRuntime      care.TraegerRuntime
 	SchoolTraeger       care.SchoolTraeger
 	ParentAccounts      care.ParentAccounts
@@ -133,7 +134,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		CareOfferingRepo: deps.CareOfferingRepo, OfferingChanges: deps.OfferingChanges,
 		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos, ChildDataAccess: deps.ChildDataAccess,
 		ParentRequestEvents: deps.ParentRequestEvents,
-		BillingDocuments:    deps.BillingDocuments, TraegerRuntime: deps.TraegerRuntime, SchoolTraeger: deps.SchoolTraeger,
+		BillingDocuments:    deps.BillingDocuments, ContractDocuments: deps.ContractDocuments, TraegerRuntime: deps.TraegerRuntime, SchoolTraeger: deps.SchoolTraeger,
 		ParentAccounts: deps.ParentAccounts, DocumentNotifier: deps.DocumentNotifier,
 		GuardianChanges: newGuardianChanges(deps.GuardianChanges), PickupSignatures: deps.Signatures,
 		GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
