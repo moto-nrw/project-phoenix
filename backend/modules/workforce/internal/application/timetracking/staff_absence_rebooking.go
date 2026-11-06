@@ -199,21 +199,27 @@ func validateRebookingRequest(req RebookAbsencesRequest, reason string) ([]int64
 // loadRebookedAbsences reads the entries and prepares their new shape. Only
 // entries the Leitung or the staff member entered directly qualify: a
 // vacation request has its own workflow, and a sick report its plan cascade.
+// Read the set under the held staff locks, but validate in request order so
+// a later missing or invalid entry cannot hide an earlier refusal.
 func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID int64, ids []int64, baseType string, typeID *int64) ([]rebookedAbsence, error) {
-	entries := make([]rebookedAbsence, 0, len(ids))
-	for _, id := range ids {
-		storedAbsence, err := s.absenceRepo.FindStaffAbsence(ctx, id)
-		absence := absenceToRecord(storedAbsence)
-		err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound)
-		if err != nil {
-			if isRecordNotFound(err) {
-				return nil, workforce.ErrAbsenceNotFound
-			}
-			return nil, err
-		}
-		if absence == nil || absence.StaffID != staffID {
+	storedAbsences, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, IDs: ids})
+	if err = rowReadError("find by id", err, workforce.ErrStaffAbsenceNotFound); err != nil {
+		if isRecordNotFound(err) {
 			return nil, workforce.ErrAbsenceNotFound
 		}
+		return nil, err
+	}
+	byID := make(map[int64]workforce.StaffAbsence, len(storedAbsences))
+	for _, absence := range storedAbsences {
+		byID[absence.ID] = absence
+	}
+	entries := make([]rebookedAbsence, 0, len(ids))
+	for _, id := range ids {
+		storedAbsence, found := byID[id]
+		if !found || storedAbsence.StaffID != staffID {
+			return nil, workforce.ErrAbsenceNotFound
+		}
+		absence := absenceToRecord(storedAbsence)
 		day := absence.DateStart.Format("02.01.2006")
 		switch {
 		case absence.AbsenceType == AbsenceTypeSick:

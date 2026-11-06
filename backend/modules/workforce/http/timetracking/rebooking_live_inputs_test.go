@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
+	"strconv"
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -92,5 +93,33 @@ func TestRebookingMonthValidationKeepsRequestOrder(t *testing.T) {
 		require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 		require.Contains(t, rec.Body.String(), `"code":"workforce.month_closed"`)
 		require.Contains(t, rec.Body.String(), `"month":"Juli 2026"`)
+	}
+}
+
+func TestRebookingCandidateValidationKeepsRequestOrderBeforeMissingRows(t *testing.T) {
+	t.Parallel()
+	f := setupRebookFixture(t, 30)
+	ctx := testpkg.Ctx(t)
+	_, err := f.tc.db.NewRaw(`UPDATE active.staff_absences SET absence_type = 'sick' WHERE tenant_id = ? AND id = ?`, testpkg.Tenant(t), f.absences[0]).Exec(ctx)
+	require.NoError(t, err)
+	other := testpkg.CreateTestStaff(t, f.tc.db, "Rebooking", "Other")
+	_, err = f.tc.db.NewRaw(`UPDATE active.staff_absences SET staff_id = ? WHERE tenant_id = ? AND id = ?`, other.ID, testpkg.Tenant(t), f.absences[1]).Exec(ctx)
+	require.NoError(t, err)
+	var missingID int64
+	require.NoError(t, f.tc.db.NewRaw(`SELECT nextval(pg_get_serial_sequence('active.staff_absences', 'id'))`).Scan(ctx, &missingID))
+	sickID := strconv.FormatInt(f.absences[0], 10)
+	for _, unavailableID := range []int64{f.absences[1], missingID} {
+		for _, dryRun := range []bool{true, false} {
+			body := f.body("Candidate validation order", dryRun)
+			body["absence_ids"] = []string{sickID, strconv.FormatInt(unavailableID, 10)}
+			rec := f.rebook(t, body)
+			require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+			require.Contains(t, rec.Body.String(), `"code":"workforce.rebooking_sick_report"`)
+			require.Contains(t, rec.Body.String(), `"details":{"day":"07.08.2026"}`)
+			slices.Reverse(body["absence_ids"].([]string))
+			rec = f.rebook(t, body)
+			require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+			require.Equal(t, []string{"sick:", "comp_time:", "comp_time:"}, f.storedTypes(t))
+		}
 	}
 }

@@ -57,7 +57,7 @@ func TestLoadRebookedAbsencesOnlyMapsMissingRowsToNotFound(t *testing.T) {
 			t.Parallel()
 
 			svc, repo, _ := absSetupService()
-			repo.findByIDFunc = func(context.Context, any) (*StaffAbsence, error) {
+			repo.listFunc = func(context.Context, workforce.StaffAbsenceFilter) ([]*StaffAbsence, error) {
 				return nil, tt.findErr
 			}
 
@@ -96,14 +96,15 @@ func TestLoadRebookedAbsencesRejectsEntriesThatHaveNotEnded(t *testing.T) {
 
 			svc, repo, _ := absSetupService()
 			svc.todayFunc = func() Date { return today }
-			repo.findByIDFunc = func(context.Context, any) (*StaffAbsence, error) {
-				return &StaffAbsence{
+			repo.listFunc = func(context.Context, workforce.StaffAbsenceFilter) ([]*StaffAbsence, error) {
+				return []*StaffAbsence{{
+					Model:       Model{ID: 71},
 					StaffID:     7,
 					AbsenceType: AbsenceTypeCompTime,
 					DateStart:   tt.start,
 					DateEnd:     tt.end,
 					Status:      AbsenceStatusReported,
-				}, nil
+				}}, nil
 			}
 
 			_, err := svc.loadRebookedAbsences(context.Background(), 7, []int64{71}, AbsenceTypeOther, nil)

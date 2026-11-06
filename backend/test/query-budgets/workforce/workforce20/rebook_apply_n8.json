@@ -1,6 +1,6 @@
 {
   "scenario": "workforce.workforce20.rebook_apply_n8",
-  "max": 44,
+  "max": 37,
   "exact": true,
   "description": "Full protected Resource HTTP request; paired positive domain N=3/N=8. Exact observed SQL, including transaction; no minimum or flat-growth claim."
 }
