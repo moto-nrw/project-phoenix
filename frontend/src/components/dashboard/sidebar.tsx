@@ -607,6 +607,9 @@ interface SidebarProps {
   readonly className?: string;
 }
 
+// Die Tenant-Shell setzt das mit `min-h-0!` außer Kraft (app-shell.tsx).
+const SIDEBAR_MIN_HEIGHT = "min-h-screen";
+
 interface SidebarContentProps extends SidebarProps {
   // Einklappbare Seitenleiste (#2825): der Zustand lebt im äußeren Sidebar-
   // Wrapper (useSidebarCollapsed), damit auch der Suspense-Fallback die
@@ -1538,7 +1541,7 @@ function SidebarContent({
     return (
       <PortalSidebarFrame
         collapsed={collapsed}
-        className={`min-h-screen ${className}`}
+        className={`${SIDEBAR_MIN_HEIGHT} ${className}`}
         topOffset={portalSidebarTopOffset(
           isPreview === true || demoBannerShown,
           eveningRow,
@@ -1824,7 +1827,7 @@ function SidebarContent({
   return (
     <PortalSidebarFrame
       collapsed={collapsed}
-      className={`min-h-screen ${className}`}
+      className={`${SIDEBAR_MIN_HEIGHT} ${className}`}
       topOffset={portalSidebarTopOffset(
         isPreview === true || demoBannerShown,
         eveningRow,
@@ -1936,7 +1939,7 @@ export function Sidebar({ className = "" }: SidebarProps) {
       fallback={
         <PortalSidebarFrame
           collapsed={collapsed}
-          className={`min-h-screen ${className}`}
+          className={`${SIDEBAR_MIN_HEIGHT} ${className}`}
         >
           <div className={SIDEBAR_NAV_PADDING}>
             {/* Platzhalter im selben Raster wie die fertigen Zeilen: 40px

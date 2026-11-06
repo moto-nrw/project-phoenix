@@ -166,7 +166,7 @@ function ParentMainBottomNav({ badges, gates, childCount }: ParentNavCounts) {
         })}
 
         <PortalBottomNavButton
-          buttonRef={moreButtonRef}
+          ref={moreButtonRef}
           label={t(PARENT_MORE_ENTRY.tKey)}
           concept={PARENT_MORE_ENTRY.concept}
           active={moreActive}

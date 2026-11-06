@@ -1190,7 +1190,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
       }
       return isAnyAdditionalNavActive ? moreButtonRef.current : null;
     },
-    `${activeMainIndex}|${isAnyAdditionalNavActive}|${displayMainItems
+    `${activeMainIndex}|${isAnyAdditionalNavActive}|${isOverflowMenuOpen}|${displayMainItems
       .map((item) => item.href)
       .join()}`,
   );
@@ -1440,7 +1440,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
         {showOverflowMenu && (
           <PortalBottomNavButton
-            buttonRef={moreButtonRef}
+            ref={moreButtonRef}
             label={moreLabel}
             icon={
               <Icon

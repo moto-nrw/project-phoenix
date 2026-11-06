@@ -2978,9 +2978,9 @@ const PORTAL_NAV_SHELL_SIGNATURES = [
   ["absolute", "top-0", "h-full", "rounded-full", "bg-gray-100"],
   ["flex", "min-h-[44px]", "justify-center", "gap-2.5", "rounded-full"],
   ["border-r", "border-gray-200/70", "bg-white/95"],
-  ["sticky", "top-[73px]"],
-  ["sticky", "top-[121px]"],
-  ["sticky", "top-[153px]"],
+  ["top-[73px]", "h-[calc(100vh-73px)]"],
+  ["top-[121px]", "h-[calc(100vh-121px)]"],
+  ["top-[153px]", "h-[calc(100vh-153px)]"],
 ];
 const PORTAL_NAV_KIT_ROW_EXPORTS = new Set([
   "PORTAL_ICON_CLASSES",

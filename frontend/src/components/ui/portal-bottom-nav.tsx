@@ -6,8 +6,8 @@ import {
   useRef,
   useState,
   type ButtonHTMLAttributes,
+  type ComponentProps,
   type ReactNode,
-  type Ref,
   type RefObject,
 } from "react";
 import { Z_LAYER } from "./overlay-styles";
@@ -123,15 +123,12 @@ function bottomNavItemClassName({
   active,
   paddingClassName,
   quiet = false,
-  shrinkActive = false,
 }: Pick<
   PortalBottomNavItemProps,
-  "active" | "paddingClassName" | "quiet" | "shrinkActive"
+  "active" | "paddingClassName" | "quiet"
 >): string {
   const idle = quiet ? ITEM_IDLE_QUIET : ITEM_IDLE;
-  return `${ITEM} ${paddingClassName} ${active ? ITEM_ACTIVE : idle} ${
-    shrinkActive ? bottomNavItemShrink(active) : ""
-  }`;
+  return `${ITEM} ${paddingClassName} ${active ? ITEM_ACTIVE : idle}`;
 }
 
 function bottomNavItemShrink(active: boolean): string {
@@ -190,7 +187,8 @@ function BottomNavItemContent({
 
 /**
  * Die schwebende mobile Leiste eines Portals mit eigener Navigation unter
- * 1024 px, geteilt vom Schul- und vom Träger-Portal (#5145). Ab 1024 px
+ * 1024 px, geteilt von Tenant-, Eltern-, Schul- und Träger-Portal (#5145,
+ * #5603). Ab 1024 px
  * übernimmt die Seitenleiste; CSS blendet die Leiste dort schon beim ersten
  * Paint aus.
  */
@@ -307,7 +305,6 @@ export function PortalBottomNavLink({
           active,
           paddingClassName,
           quiet,
-          shrinkActive,
         })}
       >
         <BottomNavItemContent
@@ -338,21 +335,17 @@ export function PortalBottomNavButton({
   labelClassName,
   quiet,
   shrinkActive,
-  buttonRef,
   ...buttonProps
 }: Omit<
-  ButtonHTMLAttributes<HTMLButtonElement>,
+  ComponentProps<"button">,
   "children" | "className" | "aria-label" | "type"
 > &
   PortalNavIconProps &
-  PortalBottomNavItemProps & {
-    readonly buttonRef?: Ref<HTMLButtonElement>;
-  }) {
+  PortalBottomNavItemProps) {
   return (
     <li className={shrinkActive ? bottomNavItemShrink(active) : undefined}>
       <button
         {...buttonProps}
-        ref={buttonRef}
         type="button"
         data-active={active ? "true" : "false"}
         aria-label={label}
@@ -360,7 +353,6 @@ export function PortalBottomNavButton({
           active,
           paddingClassName,
           quiet,
-          shrinkActive,
         })} ${BUTTON_FILLS_ITEM}`}
       >
         <BottomNavItemContent

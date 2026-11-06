@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { useRef } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { logoutConcept } from "~/lib/concepts/logout";
 import { moreConcept } from "~/lib/concepts/more";
@@ -39,7 +39,7 @@ function BarWithIndicator({ activeKey }: { readonly activeKey: string }) {
         label="Mehr"
         concept={moreConcept}
         active={activeKey === "more"}
-        buttonRef={(element) => {
+        ref={(element: HTMLButtonElement | null) => {
           refs.current.more = element;
         }}
       />
@@ -54,6 +54,11 @@ function indicatorElement() {
 }
 
 describe("PortalBottomNav (#5603)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
   it("trägt den übergebenen Namen und ohne Angabe „Hauptnavigation“", () => {
     const { unmount } = render(
       <PortalBottomNav listClassName="gap-1">
@@ -104,6 +109,7 @@ describe("PortalBottomNav (#5603)", () => {
       "false",
     );
     expect(screen.getByTestId("eigenes-icon")).toBeInTheDocument();
+    // Anker: Das aktive Feld zeigt seinen Namen, die Leiste ist also gerendert.
     expect(screen.queryByText("Mehr")).not.toBeInTheDocument();
   });
 
@@ -123,7 +129,6 @@ describe("PortalBottomNav (#5603)", () => {
     });
     // Anker: Die Leiste selbst bleibt stehen.
     expect(screen.getByRole("link", { name: "Start" })).toBeVisible();
-    vi.restoreAllMocks();
   });
 
   it("misst neu, wenn das Ziel seine Breite ändert", async () => {
@@ -150,8 +155,6 @@ describe("PortalBottomNav (#5603)", () => {
     act(() => notifyResize());
 
     expect(indicatorElement()?.style.width).toBe("96px");
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
   });
 });
 

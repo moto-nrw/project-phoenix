@@ -12,18 +12,12 @@ import { NavLink, type NavLinkProps } from "~/components/ui/nav-link";
 import {
   PORTAL_ICON_CLASSES,
   portalSidebarRowClasses,
+  type PortalSidebarTopOffset,
   SIDEBAR_WIDTH_COLLAPSED,
   SIDEBAR_WIDTH_EXPANDED,
   SIDEBAR_WIDTH_TRANSITION,
 } from "~/components/ui/sidebar-geometry";
 import type { MotoConcept } from "~/lib/moto-concepts";
-
-/**
- * Ab dieser Fensterposition klebt die Leiste: unter der Kopfzeile (73 px), mit
- * einem festen Streifen darüber (Demo, Mitarbeiter-Vorschau: 121 px), mit der
- * Abendzeile der Demo darunter (153 px).
- */
-export type PortalSidebarTopOffset = 73 | 121 | 153;
 
 const STICKY_POSITION: Readonly<Record<PortalSidebarTopOffset, string>> = {
   73: "top-[73px] h-[calc(100vh-73px)]",
