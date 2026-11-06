@@ -31,17 +31,14 @@ type (
 	OfferingStudentDirectory = application.OfferingStudentDirectory
 )
 
-// Application services the composition root hands to its consumers beyond
-// their public contract.
+// Application services the composition root hands to its consumers beyond their public contract.
 type (
 	// Phases is the phase administration; the rollover also uses its
 	// eligibility guard.
 	Phases = application.Phases
-	// PhaseExpirySnapshots reads the owner's phase-expiry report for the
-	// tenant in context.
+	// PhaseExpirySnapshots reads the owner's phase-expiry report for the tenant in context.
 	PhaseExpirySnapshots = application.PhaseExpiryProjection
-	// ApprovedOfferingProjection resolves approved offering selections to
-	// still-enrolled children, also for Care Plan's baselines.
+	// ApprovedOfferingProjection resolves approved offering selections to still-enrolled children, also for Care Plan's baselines.
 	ApprovedOfferingProjection = application.ApprovedOfferingProjection
 )
 
@@ -92,14 +89,12 @@ func NewFormSchemas(records FormSchemaRecords, settings CollectionSettings, logg
 	}), runtime.Transactions)
 }
 
-// NewPhaseExpirySnapshots composes the phase-expiry report inputs for the
-// tenant in context from People Directory and Care Plan reads.
+// NewPhaseExpirySnapshots composes the phase-expiry report inputs for the tenant in context from People Directory and Care Plan reads.
 func NewPhaseExpirySnapshots(owner ExpirySnapshots, students enrollment.PhaseExpiryStudents, carePlan enrollment.PhaseExpiryOfferings, bookings enrollment.PhaseExpiryBookings) *PhaseExpirySnapshots {
 	return application.NewPhaseExpiryProjection(owner, students, carePlan, bookings, tenant.FromContext)
 }
 
-// NewPhaseExpiryWarnings composes the administrator-facing phase-expiry
-// warnings over a snapshot source.
+// NewPhaseExpiryWarnings composes the administrator-facing phase-expiry warnings over a snapshot source.
 func NewPhaseExpiryWarnings(snapshots application.PhaseExpirySnapshots) enrollment.PhaseExpiryWarnings {
 	return application.NewPhaseExpiryWarnings(snapshots)
 }

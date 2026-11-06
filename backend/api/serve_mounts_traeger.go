@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	studentPresenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/traegerportal"
 	"github.com/moto-nrw/project-phoenix/modules/traegerview"
@@ -73,7 +74,7 @@ type TraegerAudit struct {
 // #4649) at /traeger: the public sign-in and the Träger route group, which
 // accepts only Träger sessions. Token refresh and logout go through the
 // shared scope-preserving /auth/refresh and /auth/logout.
-func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings settingsHTTP.TraegerOperations, healthData enrollment.HolidayHealthCipher) error {
+func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher) error {
 	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings, healthData)
 	if err != nil {
 		return err
@@ -88,7 +89,7 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 // Tenancy to the portal's route ports. healthData opens the health
 // information of a holiday registration behind the right
 // "Gesundheitsangaben sehen" (#4722).
-func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings settingsHTTP.TraegerOperations, healthData enrollment.HolidayHealthCipher) (*traegerportal.Resource, error) {
+func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher) (*traegerportal.Resource, error) {
 	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil {
 		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log and the settings are required")
 	}
@@ -98,7 +99,8 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 		Bureau:  traegerBureauAddresses{roles: identity},
 		Rosters: schoolMembershipCompose.NewSchoolRosters(), Present: studentPresenceCompose.NewPresentStudents(),
 		Sick: carePlanCompose.NewSickStudents(), OnSite: workforceCompose.NewOnSiteStaff(),
-		KeyDates: traegerKeyDateCounts{organizations: organizations},
+		KeyDates:    traegerKeyDateCounts{organizations: organizations},
+		Enrollments: enrollmentCompose.NewOpenEnrollments(), Alerts: traegerAlertSettings{settings: settings},
 	})
 	if err != nil {
 		return nil, err
@@ -114,6 +116,34 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity),
 		portalPasswordResets(identity, identityaccess.PasswordResetScopeTraeger), overviewRoutes, holidayPeriods,
 		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, overviewRoutes, identity), nil
+}
+
+// TraegerPortalSettings is the Träger level of the settings system as the
+// portal serves it: the settings routes and the thresholds of the dashboard
+// hints (#4675).
+type TraegerPortalSettings interface {
+	settingsHTTP.TraegerOperations
+	TraegerInts(ctx context.Context, organizationID int64, keys []string) (map[string]int, error)
+}
+
+// traegerAlertSettings binds the thresholds of the dashboard hints (#4675) to
+// the Träger values of the settings system.
+type traegerAlertSettings struct {
+	settings TraegerPortalSettings
+}
+
+func (s traegerAlertSettings) AlertThresholds(ctx context.Context, organizationID int64) (traegerview.AlertThresholds, error) {
+	values, err := s.settings.TraegerInts(ctx, organizationID, []string{
+		configModels.KeyTraegerAlertChildrenPerStaff, configModels.KeyTraegerAlertSickPercent, configModels.KeyTraegerAlertOpenEnrollments,
+	})
+	if err != nil {
+		return traegerview.AlertThresholds{}, err
+	}
+	return traegerview.AlertThresholds{
+		ChildrenPerStaff: values[configModels.KeyTraegerAlertChildrenPerStaff],
+		SickPercent:      values[configModels.KeyTraegerAlertSickPercent],
+		OpenEnrollments:  values[configModels.KeyTraegerAlertOpenEnrollments],
+	}, nil
 }
 
 // holidaySchoolNames binds the school names of the holiday registration

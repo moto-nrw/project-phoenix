@@ -201,9 +201,7 @@ export function PendingInvitationsList({
         <h2 className="text-sm font-semibold text-gray-900">
           Offene Einladungen
         </h2>
-        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-          {invitations.length}
-        </span>
+        <StatusBadge label={String(invitations.length)} tone="gray" compact />
       </div>
 
       <LoadErrorAlert error={loadError.error} className="mb-4" />
@@ -291,19 +289,17 @@ export function PendingInvitationsList({
                       </td>
                       <td className="hidden px-3 py-2 whitespace-nowrap md:table-cell md:px-4 md:py-3">
                         {isValidDate && expiresDate ? (
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap md:px-2.5 md:py-1 ${isExpired ? "bg-moto-red-soft text-moto-red-strong" : "bg-gray-100 text-gray-700"}`}
-                          >
-                            {expiresDate.toLocaleDateString("de-DE", {
+                          <StatusBadge
+                            label={`${expiresDate.toLocaleDateString("de-DE", {
                               day: "2-digit",
                               month: "2-digit",
                               year: "numeric",
-                            })}{" "}
-                            {expiresDate.toLocaleTimeString("de-DE", {
+                            })} ${expiresDate.toLocaleTimeString("de-DE", {
                               hour: "2-digit",
                               minute: "2-digit",
-                            })}
-                          </span>
+                            })}`}
+                            tone={isExpired ? "red" : "gray"}
+                          />
                         ) : (
                           <span className="text-xs text-gray-400">
                             Ungültig
