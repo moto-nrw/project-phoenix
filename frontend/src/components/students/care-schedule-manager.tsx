@@ -83,7 +83,7 @@ import {
 import {
   type AllowedDepartureModes,
   DEPARTURE_MODE_LABELS,
-} from "~/lib/student-helpers";
+} from "~/lib/departure-plan";
 import {
   type DayData as PickupDayData,
   type PickupData,
@@ -110,6 +110,8 @@ import { sickConcept } from "~/lib/concepts/sick";
 import { excusedConcept } from "~/lib/concepts/excused";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Loading } from "~/components/ui/loading";
+import { CARE_SCHEDULE_STALE_EVENT } from "~/lib/care-schedule-stale";
+import { groupKeys } from "~/lib/swr/groups-keys";
 
 const logger = createLogger({ component: "CareScheduleManager" });
 const statusDayDateFormatter = new Intl.DateTimeFormat("de-DE", {
@@ -241,7 +243,7 @@ function invalidatePickupCaches() {
     mutate(
       (key) =>
         typeof key === "string" &&
-        (key.includes("ogs-students-") || key.includes("dashboard")),
+        (key.includes(groupKeys.liveFamily) || key.includes("dashboard")),
     ).catch(() => undefined);
   } catch {
     return;
@@ -538,8 +540,8 @@ export function CareScheduleManager({
       renderedCareDataRequestId.current = requestId;
       setArrivalData(arrival);
       setPickupData(pickup);
-      setCareDaysSource(settings.care_days_source);
-      setSchoolPeriods(settings.school_periods ?? []);
+      setCareDaysSource(settings.careDaysSource);
+      setSchoolPeriods(settings.schoolPeriods);
       setTimePresets({
         arrival: settings.defaultArrivalTime ?? "",
         pickup: settings.defaultPickupTime ?? "",
@@ -652,9 +654,8 @@ export function CareScheduleManager({
       }
       refreshFromRemote();
     };
-    window.addEventListener("phoenix:care-schedule-stale", onStale);
-    return () =>
-      window.removeEventListener("phoenix:care-schedule-stale", onStale);
+    window.addEventListener(CARE_SCHEDULE_STALE_EVENT, onStale);
+    return () => window.removeEventListener(CARE_SCHEDULE_STALE_EVENT, onStale);
   }, [refreshFromRemote]);
 
   // Drain a refresh that arrived while the user was editing.
@@ -806,7 +807,7 @@ export function CareScheduleManager({
       try {
         if (arrival) {
           const existing = arrivalData.exceptions.find(
-            (exception) => exception.exception_date.slice(0, 10) === dayISO,
+            (exception) => exception.exceptionDate.slice(0, 10) === dayISO,
           );
           if (arrival.kind === "regular") {
             if (existing) {
@@ -911,14 +912,14 @@ export function CareScheduleManager({
     [studentId, refreshCareData],
   );
   const handleUpdateArrivalNote = useCallback(
-    async (date: string, noteId: number, content: string) => {
+    async (date: string, noteId: string, content: string) => {
       await updateArrivalNote(studentId, noteId, { note_date: date, content });
       await refreshCareData();
     },
     [studentId, refreshCareData],
   );
   const handleDeleteArrivalNote = useCallback(
-    async (noteId: number) => {
+    async (noteId: string) => {
       await deleteArrivalNote(studentId, noteId);
       await refreshCareData();
     },

@@ -150,7 +150,7 @@ const ogsApi: ClassArrivalExceptionApi = {
   earliestBlockStart,
 };
 
-export interface ClassArrivalExceptionPanelProps {
+interface ClassArrivalExceptionPanelProps {
   readonly schoolClass: string;
   /** "Klasse 4a", steht in der Bestätigung. */
   readonly classLabel: string;

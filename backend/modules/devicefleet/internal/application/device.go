@@ -113,14 +113,24 @@ func (s *Service) UpdateDeviceStatus(ctx context.Context, deviceID string, statu
 	})
 }
 
-// UpdateDeviceLastSeen writes last_seen for one device addressed by its
-// globally unique primary key, so a ping stays cross-tenant safe.
+// UpdateDeviceLastSeen records an observation for one device addressed by
+// its globally unique primary key, so a ping stays cross-tenant safe. An
+// observation older than the stored one leaves last_seen unchanged.
 func (s *Service) UpdateDeviceLastSeen(ctx context.Context, id int64, lastSeen time.Time) error {
 	if id <= 0 {
 		return s.reject("update_device_last_seen", devicefleet.ErrInvalidDevice)
 	}
-	return s.updateOneColumnSet(ctx, "update_device_last_seen",
-		domain.UpdateDevice{ID: id, LastSeen: &lastSeen}, []string{"last_seen"})
+	return s.runWrite(ctx, "update_device_last_seen", func(ctx context.Context, stats *domain.OperationStats) error {
+		affected, queryStats, err := s.deps.Devices.TouchLastSeen(ctx, id, lastSeen)
+		stats.Add(queryStats)
+		if err != nil {
+			return err
+		}
+		if affected != 1 {
+			return fmt.Errorf("devicefleet: expected 1 rows affected, got %d", affected)
+		}
+		return nil
+	})
 }
 
 // UpdateRoomID moves one device into a room.

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -27,11 +28,12 @@ import {
   resendInvitation,
   revokeInvitation,
 } from "~/lib/invitation-api";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { mailStatusCopy } from "~/lib/email-delivery-status";
 import type { PendingInvitation } from "~/lib/invitation-helpers";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { isValidDateString, isDateExpired } from "~/lib/utils/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { StatusBadge } from "~/components/ui/status-badge";
 import { Loading } from "~/components/ui/loading";
 import { SectionCard } from "~/components/ui/section-card";
 
@@ -42,6 +44,28 @@ interface PendingInvitationsListProps {
   /** Nach dem Widerrufen: eine externe Person steht wieder auf „Kein
    * Konto“ (#4573), die Personalliste lädt ihren Stand neu. */
   readonly onRevoked?: () => void;
+}
+
+// Mail to staff still goes out to a marked address (#5935), so the note only says
+// what is known about the address and never speaks of a block. The address of an
+// invitation is fixed: the next step is a new invitation.
+function staffMailNote(invitation: PendingInvitation): string | null {
+  const nextStep =
+    "Stimmt die Adresse nicht, löschen Sie die Einladung und laden Sie neu ein.";
+  if (invitation.mailOutcome === "undeliverable") {
+    return `Die Mail kam nicht an. ${nextStep}`;
+  }
+  if (invitation.addressMark === "complained") {
+    return `Von dieser Adresse kam eine Beschwerde über eine Mail. ${nextStep}`;
+  }
+  if (invitation.addressMark === "failed") {
+    return `Eine frühere Mail an diese Adresse kam nicht an. ${nextStep}`;
+  }
+  if (invitation.mailOutcome === "accepted") return null;
+  return (
+    mailStatusCopy(invitation.mailOutcome, "", false, invitation.providerBlock)
+      ?.explanation ?? null
+  );
 }
 
 export function PendingInvitationsList({
@@ -232,73 +256,109 @@ export function PendingInvitationsList({
                 const expiresDate = isValidDate
                   ? new Date(invitation.expiresAt)
                   : null;
+                const mailCopy = mailStatusCopy(
+                  invitation.mailOutcome,
+                  invitation.addressMark,
+                  false,
+                  invitation.providerBlock,
+                );
+
+                const mailNote = staffMailNote(invitation);
 
                 return (
-                  <tr
-                    key={invitation.id}
-                    className="transition-colors hover:bg-gray-50/50"
-                  >
-                    <td className="max-w-0 truncate px-3 py-2 text-xs font-medium text-gray-900 md:px-4 md:py-3 md:text-sm">
-                      {invitation.email}
-                    </td>
-                    <td className="hidden truncate px-3 py-2 text-xs text-gray-600 sm:table-cell md:px-4 md:py-3 md:text-sm">
-                      {getRoleDisplayName(invitation.roleName)}
-                    </td>
-                    <td className="hidden truncate px-3 py-2 text-xs text-gray-500 md:px-4 md:py-3 lg:table-cell">
-                      {invitation.creatorEmail ??
-                        (invitation.firstName && invitation.lastName
-                          ? `${invitation.firstName} ${invitation.lastName}`
-                          : "System")}
-                    </td>
-                    <td className="hidden px-3 py-2 whitespace-nowrap md:table-cell md:px-4 md:py-3">
-                      {isValidDate && expiresDate ? (
-                        <StatusBadge
-                          label={`${expiresDate.toLocaleDateString("de-DE", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                          })} ${expiresDate.toLocaleTimeString("de-DE", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}`}
-                          tone={isExpired ? "red" : "gray"}
-                        />
-                      ) : (
-                        <span className="text-xs text-gray-400">Ungültig</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap md:px-4 md:py-3">
-                      {/* Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC
+                  <Fragment key={invitation.id}>
+                    <tr className="transition-colors hover:bg-gray-50/50">
+                      <td className="max-w-0 px-3 py-2 text-xs font-medium text-gray-900 md:px-4 md:py-3 md:text-sm">
+                        <span className="block truncate">
+                          {invitation.email}
+                        </span>
+                        {mailCopy && (
+                          <span className="mt-1 block">
+                            <StatusBadge
+                              label={mailCopy.label}
+                              tone={mailCopy.tone}
+                              compact
+                            />
+                          </span>
+                        )}
+                      </td>
+                      <td className="hidden truncate px-3 py-2 text-xs text-gray-600 sm:table-cell md:px-4 md:py-3 md:text-sm">
+                        {getRoleDisplayName(invitation.roleName)}
+                      </td>
+                      <td className="hidden truncate px-3 py-2 text-xs text-gray-500 md:px-4 md:py-3 lg:table-cell">
+                        {invitation.creatorEmail ??
+                          (invitation.firstName && invitation.lastName
+                            ? `${invitation.firstName} ${invitation.lastName}`
+                            : "System")}
+                      </td>
+                      <td className="hidden px-3 py-2 whitespace-nowrap md:table-cell md:px-4 md:py-3">
+                        {isValidDate && expiresDate ? (
+                          <StatusBadge
+                            label={`${expiresDate.toLocaleDateString("de-DE", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            })} ${expiresDate.toLocaleTimeString("de-DE", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}`}
+                            tone={isExpired ? "red" : "gray"}
+                          />
+                        ) : (
+                          <span className="text-xs text-gray-400">
+                            Ungültig
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right whitespace-nowrap md:px-4 md:py-3">
+                        {/* Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC
                           Bauart 1 Regel 4). Löschen fragt weiter im
                           ConfirmationModal nach. */}
-                      <div className="flex justify-end">
-                        <OverflowMenu
-                          ariaLabel={`Aktionen für ${invitation.email}`}
-                          items={[
-                            ...(isExpired
-                              ? []
-                              : [
-                                  {
-                                    label: "Erneut senden",
-                                    icon: (
-                                      <Send className="h-4 w-4" aria-hidden />
-                                    ),
-                                    disabled: actionLoading === invitation.id,
-                                    onClick: () => handleResend(invitation.id),
-                                  },
-                                ]),
-                            {
-                              label: "Löschen",
-                              icon: <Trash2 className="h-4 w-4" aria-hidden />,
-                              destructive: true,
-                              disabled: actionLoading === invitation.id,
-                              onClick: () => setRevokeTarget(invitation),
-                            },
-                          ]}
-                        />
-                      </div>
-                    </td>
-                  </tr>
+                        <div className="flex justify-end">
+                          <OverflowMenu
+                            ariaLabel={`Aktionen für ${invitation.email}`}
+                            items={[
+                              ...(isExpired ||
+                              invitation.mailOutcome === "delayed" ||
+                              invitation.providerBlock === "active" ||
+                              invitation.providerBlock === "unreadable"
+                                ? []
+                                : [
+                                    {
+                                      label: "Erneut senden",
+                                      icon: (
+                                        <Send className="h-4 w-4" aria-hidden />
+                                      ),
+                                      disabled: actionLoading === invitation.id,
+                                      onClick: () =>
+                                        handleResend(invitation.id),
+                                    },
+                                  ]),
+                              {
+                                label: "Löschen",
+                                icon: (
+                                  <Trash2 className="h-4 w-4" aria-hidden />
+                                ),
+                                destructive: true,
+                                disabled: actionLoading === invitation.id,
+                                onClick: () => setRevokeTarget(invitation),
+                              },
+                            ]}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                    {mailNote && (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-3 pb-3 text-xs text-gray-600 md:px-4"
+                        >
+                          {mailNote}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>

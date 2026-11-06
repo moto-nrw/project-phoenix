@@ -110,7 +110,8 @@ export function inviteStaffTopic(): HelpTopic {
       "Auf dem Handy steht `+ Personal` als runder Knopf unten rechts. Er öffnet dieselbe Auswahl.",
     ],
     troubleshootingDetails: [
-      "Die Einladung kam nicht an? Prüfen Sie die E-Mail-Adresse und den Spam-Ordner. Danach laden Sie erneut ein.",
+      "Die Einladung kam nicht an? Unter `Offene Einladungen` steht bei der Adresse `Nicht zustellbar` oder `Adresse prüfen`. Stimmt die Adresse nicht, löschen Sie die Einladung und laden neu ein. Prüfen Sie auch den Spam-Ordner.",
+      "Bei der Adresse steht `Verzögert`, und `Erneut senden` fehlt? Die Mail kommt später an. Bitte warten Sie, sonst kommt sie doppelt an.",
       "Eine Zeile wird als Fehler gemeldet? Dann gibt es die Person schon.",
       "moto erkennt eine bekannte Zeile an der Personalnummer, sonst an der E-Mail, sonst am Namen.",
       "Fehlt `Personal` in der Seitenleiste? Dafür braucht Ihre Rolle ein eigenes Recht.",

@@ -8,7 +8,14 @@
 
 import { Plus, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { CareContractCreateModal } from "~/components/traeger/care-contract-create-modal";
 import {
   CONTRACT_STATUS_LABELS,
@@ -75,7 +82,9 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
         <NavigationLink
           href={contractHref(contract)}
           className="font-medium text-gray-900 hover:underline"
-          onClick={(event) => event.stopPropagation()}
+          onClick={(event: MouseEvent<HTMLAnchorElement>) =>
+            event.stopPropagation()
+          }
         >
           {childName(contract)}
         </NavigationLink>

@@ -10,6 +10,7 @@ import {
 } from "react";
 import { AlertTriangle, BellRing, CheckCircle2, RefreshCw } from "lucide-react";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -25,6 +26,12 @@ import {
 } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
+import {
+  CHECK_ADDRESS_AT_GUARDIAN,
+  mailStatusCopy,
+  STOP_SHARED_NOTE,
+  TELL_THE_OGS_ABOUT_THE_ADDRESS,
+} from "~/lib/email-delivery-status";
 import {
   fetchLetterStatus,
   remindUnanswered,
@@ -46,9 +53,9 @@ import { SpinnerIcon } from "~/components/ui/icons";
  * "jemand hat in moto bestätigt" are different facts. Merging them into one
  * status is what would let a school believe a letter arrived when it did not.
  *
- * The e-mail column says "Versendet", never "Zugestellt" — the backend only
- * knows the mail was handed to the mail server. Real delivery confirmation
- * needs provider webhooks (#1937).
+ * The e-mail column says "Zugestellt" only when the mail provider reported it
+ * (#5934). A mail the server merely took stays "Versendet"; plain SMTP and the
+ * fallback mailbox report nothing, so their mails never get further.
  */
 const EMAIL_LABELS: Record<
   LetterRecipient["email_status"],
@@ -62,6 +69,7 @@ const EMAIL_LABELS: Record<
   },
   pending: { label: "Wird gesendet", tone: "blue" },
   failed: { label: "Fehlgeschlagen", tone: "red" },
+  cancelled: { label: "Abgebrochen", tone: "gray" },
   not_sent: { label: "Nicht versendet", tone: "gray" },
 };
 
@@ -223,6 +231,8 @@ export function LetterStatusPanel({
 
   const s = status.summary;
   const hasFailures = s.emails_failed > 0;
+  // A marked address stays out of the resend, or the button would do nothing.
+  const resendable = s.emails_resendable ?? s.emails_failed;
 
   return (
     <div className="space-y-4">
@@ -267,6 +277,21 @@ export function LetterStatusPanel({
             <DataField label="E-Mails versendet">
               <span className="tabular-nums">{s.emails_sent}</span>
             </DataField>
+            {(s.emails_delivered ?? 0) > 0 && (
+              <DataField label="Davon zugestellt">
+                <span className="tabular-nums">{s.emails_delivered}</span>
+              </DataField>
+            )}
+            {(s.emails_delayed ?? 0) > 0 && (
+              <DataField label="Verzögert">
+                <span className="tabular-nums">{s.emails_delayed}</span>
+              </DataField>
+            )}
+            {(s.emails_address_check ?? 0) > 0 && (
+              <DataField label="Adresse prüfen">
+                <span className="tabular-nums">{s.emails_address_check}</span>
+              </DataField>
+            )}
             {s.emails_pending > 0 && (
               <DataField label="Wird gesendet">
                 <span className="tabular-nums">{s.emails_pending}</span>
@@ -319,6 +344,31 @@ export function LetterStatusPanel({
         )}
       </SectionCard>
 
+      {((s.emails_address_check ?? 0) > 0 ||
+        (s.emails_stopped ?? 0) > 0 ||
+        (s.emails_provider_blocked ?? 0) > 0 ||
+        (s.emails_delayed ?? 0) > 0) && (
+        <Alert
+          type="warning"
+          message={[
+            (s.emails_address_check ?? 0) > 0
+              ? `Bei ${s.emails_address_check} ${s.emails_address_check === 1 ? "Adresse" : "Adressen"} geht keine Mail raus. ${apiBase === undefined ? CHECK_ADDRESS_AT_GUARDIAN : TELL_THE_OGS_ABOUT_THE_ADDRESS}`
+              : null,
+            (s.emails_stopped ?? 0) > 0
+              ? `An ${s.emails_stopped} ${s.emails_stopped === 1 ? "Person" : "Personen"} gehen keine Mails, weil die Schule sie gestoppt hat.`
+              : null,
+            (s.emails_provider_blocked ?? 0) > 0
+              ? `Bei ${s.emails_provider_blocked} ${s.emails_provider_blocked === 1 ? "Adresse" : "Adressen"} geht eine neue Mail gerade nicht raus. Den Grund sehen Sie beim Empfänger.`
+              : null,
+            (s.emails_delayed ?? 0) > 0
+              ? "Verzögerte Mails kommen später an. Sie werden nicht erneut gesendet."
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        />
+      )}
+
       {canAct && (
         <div className="flex flex-wrap gap-2">
           {/* Two problems, two buttons: "hat nicht bestätigt" and "die Mail kam
@@ -339,7 +389,7 @@ export function LetterStatusPanel({
             variant="outline"
             size="md"
             onClick={() => void runAction("resend")}
-            disabled={busy !== null || !hasFailures}
+            disabled={busy !== null || resendable === 0}
             className="gap-1.5"
           >
             <RefreshCw className="h-4 w-4" aria-hidden />
@@ -436,10 +486,25 @@ function ChildRow({ child }: { readonly child: LetterChild }) {
 function RecipientRow({ recipient }: { readonly recipient: LetterRecipient }) {
   // Fall back rather than crash: the backend may add a status this build does
   // not know yet, and an unknown value must not take the whole page down.
-  const email = EMAIL_LABELS[recipient.email_status] ?? {
-    label: recipient.email_status,
-    tone: "gray" as StatusBadgeTone,
-  };
+  const mailedTo = recipient.mailed_to ?? recipient.email;
+  const addressChanged = !!recipient.email && mailedTo !== recipient.email;
+  // The result belongs to the address the mail went to. A mark belongs to the
+  // current address, so it never reads as the result of the old one.
+  const mailCopy = mailStatusCopy(
+    recipient.mail_outcome,
+    addressChanged ? "" : recipient.address_mark,
+    recipient.stopped,
+    recipient.provider_block,
+  );
+  const email = mailCopy
+    ? { label: mailCopy.label, tone: mailCopy.tone, title: undefined }
+    : (EMAIL_LABELS[recipient.email_status] ?? {
+        label: recipient.email_status,
+        tone: "gray" as StatusBadgeTone,
+      });
+  // The note says it in plain words; the raw server text stays out then.
+  const note =
+    recipient.mail_outcome === "accepted" ? null : mailCopy?.explanation;
   const portal = REACHABILITY_LABELS[recipient.reachability] ?? null;
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
@@ -447,10 +512,20 @@ function RecipientRow({ recipient }: { readonly recipient: LetterRecipient }) {
         <p className="truncate text-sm text-gray-900">
           {fullName(recipient.first_name, recipient.last_name)}
         </p>
-        {recipient.email && (
-          <p className="truncate text-xs text-gray-500">{recipient.email}</p>
+        {mailedTo && (
+          <p className="truncate text-xs text-gray-500">{mailedTo}</p>
         )}
-        {recipient.last_error && (
+        {addressChanged && (
+          <p className="truncate text-xs text-gray-500">
+            Aktuelle Adresse: {recipient.email}
+            {recipient.address_mark ? " (Adresse prüfen)" : ""}
+          </p>
+        )}
+        {note && <p className="text-xs text-gray-600">{note}</p>}
+        {recipient.stopped && recipient.stop_shared && (
+          <p className="text-xs text-gray-600">{STOP_SHARED_NOTE}</p>
+        )}
+        {recipient.last_error && !mailCopy && (
           <p
             className="truncate text-xs text-gray-500"
             title={recipient.last_error}

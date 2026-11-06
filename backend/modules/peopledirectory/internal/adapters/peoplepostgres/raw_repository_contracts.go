@@ -66,6 +66,7 @@ type rawStudentRepository interface {
 	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]calendar.Date, error)
 }
 type rawGuardianProfileRepository interface {
+	SetEmailsStopped(ctx context.Context, id int64, stopped bool) error
 	directory.GuardianProfileReads
 	Create(ctx context.Context, profile *models.GuardianProfile) error
 	FindByID(ctx context.Context, id int64) (*models.GuardianProfile, error)

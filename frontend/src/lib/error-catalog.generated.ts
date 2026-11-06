@@ -87,6 +87,8 @@ export const ERROR_CATALOG = {
         "Diese E-Mail-Adresse wird bereits verwendet. Bitte prüfen Sie die Adresse.",
       "care.guardian_has_own_account":
         "Diese Person verwaltet ihre Kontaktdaten über ein eigenes Elternkonto. Sie kann die Angaben dort selbst ändern.",
+      "care.guardian_invite_unavailable":
+        "Diese Einladung konnte gerade nicht gesendet werden. Bitte wenden Sie sich an die OGS.",
       "care.guardian_management_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "care.guardian_no_change":
@@ -617,6 +619,8 @@ export const ERROR_CATALOG = {
         "Die E-Mail-Adresse wurde zu oft geändert. Bitte versuchen Sie es in einer Stunde erneut.",
       "identity.email_change_same_email":
         "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
+      "identity.guardian_email_address_blocked":
+        "Die Einladung wurde nicht gesendet, weil an diese Person keine Mails gehen. Den Grund und den nächsten Schritt sehen Sie bei der Person.",
       "identity.guardian_invitation_email_not_queued":
         "Die Einladung konnte gerade nicht verschickt werden. Bitte versuchen Sie es noch einmal.",
       "identity.invalid_credentials":
@@ -627,12 +631,18 @@ export const ERROR_CATALOG = {
         "Sie sind mit einem anderen Konto angemeldet. Bitte melden Sie sich mit der eingeladenen E-Mail-Adresse an.",
       "identity.invitation_expired":
         "Diese Einladung ist abgelaufen oder wurde schon benutzt. Bitte fragen Sie die Person, die Sie eingeladen hat, nach einer neuen Einladung.",
+      "identity.invitation_mail_delayed":
+        "Die letzte Einladung ist noch unterwegs. Bitte warten Sie, sonst kommt sie doppelt an.",
       "identity.invitation_not_found":
         "Diese Einladung gibt es nicht. Bitte prüfen Sie den Link in der E-Mail.",
       "identity.invitation_rate_limited":
         "Es wurden zu viele Einladungen verschickt. Bitte versuchen Sie es in einer Stunde erneut.",
       "identity.lehrkraft_role_immutable":
         "Ein Lehrkraft-Konto behält seine Rolle. Für eine andere Rolle braucht die Person ein neues Konto.",
+      "identity.mail_block_unreadable":
+        "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal.",
+      "identity.mail_blocked_at_provider":
+        "Diese Adresse ist gesperrt. Eine neue Mail hilft nicht. Der moto-Support muss das klären.",
       "identity.mfa_already_enrolled":
         "Die Zwei-Faktor-Anmeldung ist schon eingerichtet. Bitte laden Sie die Seite neu.",
       "identity.mfa_blocked":
@@ -811,6 +821,12 @@ export const ERROR_CATALOG = {
         "Diese Rechnung hat schon eine Gutschrift. Schreiben Sie den Rest gut, statt zu stornieren.",
       "parent_billing.invoice_number_taken":
         "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnungsvorgaben“.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal.",
+      "parent_billing.letter_mail_blocked":
+        "Diese Adresse ist gesperrt. Bitte drucken Sie das Schreiben. Der moto-Support klärt die Sperre.",
+      "parent_billing.letter_mail_delayed":
+        "Die letzte Mail an diese Familie ist noch unterwegs. Bitte warten Sie, sonst kommt sie doppelt an.",
       "parent_billing.letter_mail_pending":
         "Die Mail an diese Familie wird gerade gesendet. Bitte warten Sie, bis sie gesendet ist oder nicht zugestellt wurde.",
       "parent_billing.letterhead_too_long":
@@ -1083,6 +1099,12 @@ export const ERROR_CATALOG = {
         "Die anfragende Person hat keinen Zugriff mehr auf das Kind. Bitte lehnen Sie {object} ab.",
       "students.guardian_account_holder_too_long":
         "Der Name des Kontoinhabers ist zu lang. Bitte kürzen Sie ihn.",
+      "students.guardian_email_block_lift_failed":
+        "Die Sperre konnte gerade nicht aufgehoben werden. Bitte versuchen Sie es noch einmal.",
+      "students.guardian_email_block_needs_review":
+        "Diese Sperre können Sie nicht aufheben, weil die Person eine Mail als unerwünscht gemeldet hat. Bitte sprechen Sie die Person direkt an.",
+      "students.guardian_email_block_stays":
+        "Diese Sperre lässt sich hier nicht aufheben. Bitte tragen Sie eine andere Adresse ein oder melden Sie sich beim moto-Support.",
       "students.guardian_email_taken":
         "Diese E-Mail-Adresse gehört schon zu einer anderen Person. Bitte wählen Sie die vorhandene Person über die Suche aus.",
       "students.guardian_iban_invalid":
@@ -1679,6 +1701,8 @@ export const ERROR_CATALOG = {
         "This email address is already in use. Please check the address.",
       "care.guardian_has_own_account":
         "This person manages their contact details through their own parent account. They can change the details there themselves.",
+      "care.guardian_invite_unavailable":
+        "This invitation could not be sent right now. Please contact the after-school care team.",
       "care.guardian_management_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
       "care.guardian_no_change":
@@ -1982,6 +2006,8 @@ export const ERROR_CATALOG = {
         "The demo school is being prepared. Please try again in a moment.",
       "identity.email_already_exists":
         "There is already an account for this email address. Please use a different address.",
+      "identity.guardian_email_address_blocked":
+        "The invitation could not be sent right now. Please try again.",
       "identity.guardian_invitation_email_not_queued":
         "The invitation could not be sent right now. Please try again.",
       "identity.invalid_credentials":
@@ -1992,8 +2018,14 @@ export const ERROR_CATALOG = {
         "You are signed in with a different account. Please sign in with the invited email address.",
       "identity.invitation_expired":
         "This invitation has expired or has already been used. Please ask the person who invited you for a new invitation.",
+      "identity.invitation_mail_delayed":
+        "The invitation could not be sent right now. Please try again.",
       "identity.invitation_not_found":
         "This invitation does not exist. Please check the link in the email.",
+      "identity.mail_block_unreadable":
+        "We cannot check right now whether this address is blocked. Please try again later.",
+      "identity.mail_blocked_at_provider":
+        "This address is blocked. Sending again will not help. moto support needs to resolve this.",
       "identity.mfa_blocked":
         "Too many attempts. Please wait a few minutes and then try again.",
       "identity.mfa_session_required":
@@ -2042,6 +2074,8 @@ export const ERROR_CATALOG = {
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
       "parent_billing.holiday_quote_invalid":
         "The fee cannot be calculated for these weeks. Please reload the page.",
+      "parent_billing.letter_mail_block_unreadable":
+        "We cannot check right now whether this address is blocked. Please try again later.",
       "parent_billing.parent_document_not_found":
         "This document is no longer available. Please reload the page.",
       "school.parent_conference_change_closed":
@@ -2072,6 +2106,12 @@ export const ERROR_CATALOG = {
         "{object} has been changed in the meantime. Please reload the page.",
       "students.export_selection_too_large":
         "The selection has {total} children. A list can have at most {limit} children. Please narrow the selection, for example by group or class.",
+      "students.guardian_email_block_lift_failed":
+        "{object} could not be saved. Please check your entries.",
+      "students.guardian_email_block_needs_review":
+        "{object} could not be saved. Please check your entries.",
+      "students.guardian_email_block_stays":
+        "{object} could not be saved. Please check your entries.",
       "students.offering_change_capacity_full":
         "One of the offerings has no free places left. Please check the occupancy.",
       "students.offering_changes_no_enrollment":
@@ -2208,6 +2248,8 @@ export const ERROR_CATALOG = {
         "Этот адрес электронной почты уже используется. Проверьте адрес.",
       "care.guardian_has_own_account":
         "Этот человек управляет своими контактными данными через собственный родительский аккаунт. Он может сам изменить их там.",
+      "care.guardian_invite_unavailable":
+        "Сейчас не удалось отправить это приглашение. Обратитесь, пожалуйста, в группу продлённого дня.",
       "care.guardian_management_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
       "care.guardian_no_change": "Ничего не изменено. Проверьте свои данные.",
@@ -2463,6 +2505,8 @@ export const ERROR_CATALOG = {
         "Демо-школа сейчас готовится. Попробуйте ещё раз через минуту.",
       "identity.email_already_exists":
         "Для этого адреса электронной почты уже есть учётная запись. Укажите другой адрес.",
+      "identity.guardian_email_address_blocked":
+        "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.guardian_invitation_email_not_queued":
         "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.invalid_credentials":
@@ -2473,8 +2517,14 @@ export const ERROR_CATALOG = {
         "Вы вошли в другой аккаунт. Войдите с адресом электронной почты из приглашения.",
       "identity.invitation_expired":
         "Это приглашение истекло или уже было использовано. Попросите человека, который вас пригласил, отправить новое приглашение.",
+      "identity.invitation_mail_delayed":
+        "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.invitation_not_found":
         "Такого приглашения нет. Проверьте ссылку в письме.",
+      "identity.mail_block_unreadable":
+        "Сейчас нельзя проверить, заблокирован ли этот адрес. Попробуйте позже.",
+      "identity.mail_blocked_at_provider":
+        "Этот адрес заблокирован. Повторная отправка не поможет. Это должна решить поддержка moto.",
       "identity.mfa_blocked":
         "Слишком много попыток. Подождите несколько минут и попробуйте снова.",
       "identity.mfa_session_required":
@@ -2521,6 +2571,8 @@ export const ERROR_CATALOG = {
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
       "parent_billing.holiday_quote_invalid":
         "Не удаётся рассчитать взнос за эти недели. Пожалуйста, обновите страницу.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Сейчас нельзя проверить, заблокирован ли этот адрес. Попробуйте позже.",
       "parent_billing.parent_document_not_found":
         "Этот документ больше недоступен. Пожалуйста, обновите страницу.",
       "school.parent_conference_change_closed":
@@ -2535,6 +2587,12 @@ export const ERROR_CATALOG = {
         "Данные изменились: {object}. Обновите страницу.",
       "students.export_selection_too_large":
         "Выбрано детей: {total}. В списке может быть не больше {limit} детей. Сузьте выбор, например по группе или классу.",
+      "students.guardian_email_block_lift_failed":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
+      "students.guardian_email_block_needs_review":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
+      "students.guardian_email_block_stays":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
       "students.offering_change_capacity_full":
         "В одном из вариантов больше нет свободных мест. Проверьте заполненность.",
       "students.offering_changes_no_enrollment":
@@ -2639,6 +2697,8 @@ export const ERROR_CATALOG = {
         "Kjo adresë e-maili përdoret tashmë. Kontrolloni adresën.",
       "care.guardian_has_own_account":
         "Ky person i menaxhon të dhënat e kontaktit përmes llogarisë së vet prindërore. Ai mund t'i ndryshojë vetë të dhënat atje.",
+      "care.guardian_invite_unavailable":
+        "Kjo ftesë nuk mund të dërgohej tani. Ju lutemi kontaktoni kujdesin pas shkollës.",
       "care.guardian_management_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
       "care.guardian_no_change":
@@ -2907,6 +2967,8 @@ export const ERROR_CATALOG = {
         "Shkolla demo po përgatitet. Provoni përsëri pas pak.",
       "identity.email_already_exists":
         "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
+      "identity.guardian_email_address_blocked":
+        "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.guardian_invitation_email_not_queued":
         "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.invalid_credentials":
@@ -2917,8 +2979,14 @@ export const ERROR_CATALOG = {
         "Jeni i identifikuar me një llogari tjetër. Hyni me adresën e e-mailit që është ftuar.",
       "identity.invitation_expired":
         "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini personit që ju ftoi një ftesë të re.",
+      "identity.invitation_mail_delayed":
+        "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.invitation_not_found":
         "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
+      "identity.mail_block_unreadable":
+        "Tani nuk mund të kontrollohet nëse kjo adresë është e bllokuar. Ju lutemi provoni përsëri më vonë.",
+      "identity.mail_blocked_at_provider":
+        "Kjo adresë është e bllokuar. Dërgimi përsëri nuk ndihmon. Këtë duhet ta sqarojë mbështetja e moto.",
       "identity.mfa_blocked":
         "Shumë përpjekje. Prisni disa minuta dhe provoni përsëri.",
       "identity.mfa_session_required":
@@ -2966,6 +3034,8 @@ export const ERROR_CATALOG = {
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
       "parent_billing.holiday_quote_invalid":
         "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Tani nuk mund të kontrollohet nëse kjo adresë është e bllokuar. Ju lutemi provoni përsëri më vonë.",
       "parent_billing.parent_document_not_found":
         "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
       "school.parent_conference_change_closed":
@@ -2980,6 +3050,12 @@ export const ERROR_CATALOG = {
         "Ndërkohë është ndryshuar: {object}. Ju lutemi ringarkoni faqen.",
       "students.export_selection_too_large":
         "Përzgjedhja ka {total} fëmijë. Një listë mund të ketë më së shumti {limit} fëmijë. Ju lutemi ngushtoni përzgjedhjen, p.sh. sipas grupit ose klasës.",
+      "students.guardian_email_block_lift_failed":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+      "students.guardian_email_block_needs_review":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+      "students.guardian_email_block_stays":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
       "students.offering_change_capacity_full":
         "Në njërën nga ofertat nuk ka më vende të lira. Kontrolloni zënien e vendeve.",
       "students.offering_changes_no_enrollment":
@@ -3085,6 +3161,8 @@ export const ERROR_CATALOG = {
         "Ten adres e-mail jest już używany. Sprawdź adres.",
       "care.guardian_has_own_account":
         "Ta osoba zarządza swoimi danymi kontaktowymi przez własne konto rodzica. Może sama zmienić tam te dane.",
+      "care.guardian_invite_unavailable":
+        "Nie udało się teraz wysłać tego zaproszenia. Prosimy o kontakt ze świetlicą.",
       "care.guardian_management_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
       "care.guardian_no_change":
@@ -3341,6 +3419,8 @@ export const ERROR_CATALOG = {
         "Szkoła demo jest właśnie przygotowywana. Spróbuj ponownie za chwilę.",
       "identity.email_already_exists":
         "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
+      "identity.guardian_email_address_blocked":
+        "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.guardian_invitation_email_not_queued":
         "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.invalid_credentials":
@@ -3351,8 +3431,14 @@ export const ERROR_CATALOG = {
         "Jesteś zalogowany na inne konto. Zaloguj się adresem e-mail, na który przyszło zaproszenie.",
       "identity.invitation_expired":
         "To zaproszenie wygasło lub zostało już użyte. Poproś osobę, która Cię zaprosiła, o nowe zaproszenie.",
+      "identity.invitation_mail_delayed":
+        "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.invitation_not_found":
         "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
+      "identity.mail_block_unreadable":
+        "Nie można teraz sprawdzić, czy ten adres jest zablokowany. Spróbuj ponownie później.",
+      "identity.mail_blocked_at_provider":
+        "Ten adres jest zablokowany. Ponowne wysłanie nie pomoże. Sprawę musi wyjaśnić pomoc techniczna moto.",
       "identity.mfa_blocked":
         "Zbyt wiele prób. Odczekaj kilka minut i spróbuj ponownie.",
       "identity.mfa_session_required":
@@ -3400,6 +3486,8 @@ export const ERROR_CATALOG = {
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
       "parent_billing.holiday_quote_invalid":
         "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Nie można teraz sprawdzić, czy ten adres jest zablokowany. Spróbuj ponownie później.",
       "parent_billing.parent_document_not_found":
         "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
       "school.parent_conference_change_closed":
@@ -3414,6 +3502,12 @@ export const ERROR_CATALOG = {
         "W międzyczasie zmieniono: {object}. Odśwież stronę.",
       "students.export_selection_too_large":
         "Wybrano {total} dzieci. Lista może mieć najwyżej {limit} dzieci. Zawęź wybór, na przykład według grupy lub klasy.",
+      "students.guardian_email_block_lift_failed":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+      "students.guardian_email_block_needs_review":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+      "students.guardian_email_block_stays":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
       "students.offering_change_capacity_full":
         "W jednej z ofert nie ma już wolnych miejsc. Sprawdź obłożenie.",
       "students.offering_changes_no_enrollment":
@@ -3518,6 +3612,8 @@ export const ERROR_CATALOG = {
         "Bu e-posta adresi zaten kullanılıyor. Lütfen adresi kontrol edin.",
       "care.guardian_has_own_account":
         "Bu kişi iletişim bilgilerini kendi veli hesabından yönetiyor. Bilgileri orada kendisi değiştirebilir.",
+      "care.guardian_invite_unavailable":
+        "Bu davet şu anda gönderilemedi. Lütfen okul sonrası bakım ekibiyle iletişime geçin.",
       "care.guardian_management_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
       "care.guardian_no_change":
@@ -3780,6 +3876,8 @@ export const ERROR_CATALOG = {
         "Demo okul hazırlanıyor. Lütfen birazdan tekrar deneyin.",
       "identity.email_already_exists":
         "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
+      "identity.guardian_email_address_blocked":
+        "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.guardian_invitation_email_not_queued":
         "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.invalid_credentials":
@@ -3790,8 +3888,14 @@ export const ERROR_CATALOG = {
         "Başka bir hesapla giriş yaptınız. Lütfen davet edilen e-posta adresiyle giriş yapın.",
       "identity.invitation_expired":
         "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen sizi davet eden kişiden yeni bir davet isteyin.",
+      "identity.invitation_mail_delayed":
+        "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.invitation_not_found":
         "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
+      "identity.mail_block_unreadable":
+        "Bu adresin engelli olup olmadığı şu anda kontrol edilemiyor. Lütfen daha sonra tekrar deneyin.",
+      "identity.mail_blocked_at_provider":
+        "Bu adres engellendi. Yeniden göndermek işe yaramaz. Bunu moto destek ekibi çözmelidir.",
       "identity.mfa_blocked":
         "Çok fazla deneme yapıldı. Lütfen birkaç dakika bekleyin ve sonra yeniden deneyin.",
       "identity.mfa_session_required":
@@ -3838,6 +3942,8 @@ export const ERROR_CATALOG = {
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
       "parent_billing.holiday_quote_invalid":
         "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Bu adresin engelli olup olmadığı şu anda kontrol edilemiyor. Lütfen daha sonra tekrar deneyin.",
       "parent_billing.parent_document_not_found":
         "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
       "school.parent_conference_change_closed":
@@ -3852,6 +3958,12 @@ export const ERROR_CATALOG = {
         "{object} bu arada değiştirildi. Lütfen sayfayı yenileyin.",
       "students.export_selection_too_large":
         "Seçimde {total} çocuk var. Bir liste en fazla {limit} çocuk içerebilir. Lütfen seçimi daraltın, örneğin gruba veya sınıfa göre.",
+      "students.guardian_email_block_lift_failed":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+      "students.guardian_email_block_needs_review":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+      "students.guardian_email_block_stays":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
       "students.offering_change_capacity_full":
         "Tekliflerden birinde boş yer kalmadı. Lütfen doluluk durumunu kontrol edin.",
       "students.offering_changes_no_enrollment":
@@ -3956,6 +4068,8 @@ export const ERROR_CATALOG = {
         "Ця адреса ел. пошти вже використовується. Перевірте адресу.",
       "care.guardian_has_own_account":
         "Ця особа має власний батьківський обліковий запис і сама керує своїми контактними даними. Вона може сама змінити їх там.",
+      "care.guardian_invite_unavailable":
+        "Зараз не вдалося надіслати це запрошення. Будь ласка, зверніться до групи продовженого дня.",
       "care.guardian_management_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
       "care.guardian_no_change": "Нічого не змінено. Перевірте свої дані.",
@@ -4211,6 +4325,8 @@ export const ERROR_CATALOG = {
         "Демо-школа зараз готується. Спробуйте ще раз за хвилину.",
       "identity.email_already_exists":
         "Для цієї адреси електронної пошти вже є обліковий запис. Укажіть іншу адресу.",
+      "identity.guardian_email_address_blocked":
+        "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.guardian_invitation_email_not_queued":
         "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.invalid_credentials":
@@ -4221,8 +4337,14 @@ export const ERROR_CATALOG = {
         "Ви увійшли в інший обліковий запис. Увійдіть з адресою ел. пошти, на яку надійшло запрошення.",
       "identity.invitation_expired":
         "Це запрошення вже недійсне або його вже використали. Попросіть людину, яка вас запросила, надіслати нове запрошення.",
+      "identity.invitation_mail_delayed":
+        "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.invitation_not_found":
         "Такого запрошення немає. Перевірте посилання в листі.",
+      "identity.mail_block_unreadable":
+        "Зараз неможливо перевірити, чи заблоковано цю адресу. Спробуйте пізніше.",
+      "identity.mail_blocked_at_provider":
+        "Цю адресу заблоковано. Повторне надсилання не допоможе. Це має вирішити підтримка moto.",
       "identity.mfa_blocked":
         "Забагато спроб. Зачекайте кілька хвилин і спробуйте ще раз.",
       "identity.mfa_session_required":
@@ -4269,6 +4391,8 @@ export const ERROR_CATALOG = {
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
       "parent_billing.holiday_quote_invalid":
         "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
+      "parent_billing.letter_mail_block_unreadable":
+        "Зараз неможливо перевірити, чи заблоковано цю адресу. Спробуйте пізніше.",
       "parent_billing.parent_document_not_found":
         "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
       "school.parent_conference_change_closed":
@@ -4283,6 +4407,12 @@ export const ERROR_CATALOG = {
         "Дані змінилися: {object}. Оновіть сторінку.",
       "students.export_selection_too_large":
         "Вибрано дітей: {total}. У списку може бути не більше {limit} дітей. Звузьте вибір, наприклад за групою або класом.",
+      "students.guardian_email_block_lift_failed":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
+      "students.guardian_email_block_needs_review":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
+      "students.guardian_email_block_stays":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
       "students.offering_change_capacity_full":
         "В одній із пропозицій більше немає вільних місць. Перевірте заповненість.",
       "students.offering_changes_no_enrollment":

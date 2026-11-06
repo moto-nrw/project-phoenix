@@ -699,6 +699,110 @@ func TestResendFailedEmailsOnlyRetriesFailures(t *testing.T) {
 	}
 }
 
+// A marked address stays out of the resend: the list would hold the mail back
+// again and the school would read the button as done (#5934).
+func TestResendFailedEmailsSkipsAMarkedAddress(t *testing.T) {
+	t.Parallel()
+
+	published := time.Now().Add(-time.Hour)
+	a := letterDraft(StaffParentAnnouncementDeliveryLetter, StaffEmailAudiencePortalOnly)
+	a.PublishedAt = &published
+	marked := "gesperrt@example.test"
+	free := "frei@example.test"
+	deliveries := &letterDeliveries{list: []EmailDeliveryStatus{
+		{DeliveryID: 1, RecipientEmail: &marked, EmailStatus: "failed", AddressMark: "failed", MailOutcome: "blocked", Reachability: reachabilityOK},
+		{DeliveryID: 2, RecipientEmail: &free, EmailStatus: "failed", MailOutcome: "send_failed", Reachability: reachabilityOK},
+	}}
+	outbox := &letterOutbox{}
+	svc := newLetterService(&letterRepo{announcement: a}, outbox, deliveries)
+
+	count, err := svc.ResendFailedEmails(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("ResendFailedEmails: %v", err)
+	}
+	if count != 1 || len(outbox.requests) != 1 {
+		t.Fatalf("queued %d addresses in %d request(s), want only the free one", count, len(outbox.requests))
+	}
+	if got, _ := outbox.requests[0].Payload[emailPayloadRecipient].(string); got != free {
+		t.Errorf("resent to %q, want %q", got, free)
+	}
+}
+
+func TestLetterSummaryCountsWhatAResendCanChange(t *testing.T) {
+	t.Parallel()
+
+	address := "familie@example.test"
+	var summary LetterSummary
+	for _, row := range []EmailDeliveryStatus{
+		{EmailStatus: "sent", MailOutcome: "delivered"},
+		{EmailStatus: "sent", MailOutcome: "delayed"},
+		{EmailStatus: "sent", MailOutcome: "accepted"},
+		{EmailStatus: "failed", MailOutcome: "blocked", AddressMark: "complained"},
+		{EmailStatus: "sent", MailOutcome: "undeliverable", AddressMark: "failed"},
+		{EmailStatus: "sent", MailOutcome: "undeliverable"},
+		{EmailStatus: "failed", RecipientEmail: &address, MailOutcome: "send_failed"},
+		// Delivery now reports a mail that came back or was held back as failed
+		// (#5934). Without a mark, a new mail can change it.
+		{EmailStatus: "failed", RecipientEmail: &address, MailOutcome: "undeliverable"},
+		{EmailStatus: "failed", RecipientEmail: &address, MailOutcome: "blocked"},
+		{EmailStatus: "failed", RecipientEmail: &address, MailOutcome: "overdue"},
+		// A stop is the school's decision: neither an address to check nor resendable.
+		{EmailStatus: "failed", MailOutcome: "blocked", Stopped: true},
+		{EmailStatus: "failed", MailOutcome: "undeliverable", AddressMark: "failed", Stopped: true},
+	} {
+		addLetterMailOutcome(&summary, row)
+	}
+	if summary.EmailsDelivered != 1 || summary.EmailsDelayed != 1 || summary.EmailsAddressCheck != 2 ||
+		summary.EmailsResendable != 4 || summary.EmailsStopped != 2 {
+		t.Fatalf("summary = %+v", summary)
+	}
+}
+
+func TestLetterSummaryOnlyOffersWhatAResendCanReach(t *testing.T) {
+	t.Parallel()
+	address := "frei@example.test"
+	empty := ""
+	var summary LetterSummary
+	for _, row := range []EmailDeliveryStatus{
+		{EmailStatus: "failed", RecipientEmail: &address, MailOutcome: "provider_blocked", ProviderBlock: "active"},
+		{EmailStatus: "failed", RecipientEmail: &address, MailOutcome: "provider_blocked", ProviderBlock: "unreadable"},
+		{EmailStatus: "failed", MailOutcome: "send_failed"},
+		{EmailStatus: "failed", RecipientEmail: &empty, MailOutcome: "send_failed"},
+		{EmailStatus: "cancelled", RecipientEmail: &address, MailOutcome: "cancelled"},
+		{EmailStatus: "failed", RecipientEmail: &address, MailOutcome: "provider_blocked", ProviderBlock: "none"},
+	} {
+		addLetterMailOutcome(&summary, row)
+	}
+	if summary.EmailsProviderBlocked != 2 || summary.EmailsResendable != 1 {
+		t.Fatalf("summary = %+v", summary)
+	}
+}
+
+func TestResendFailedEmailsLeavesAStoppedOrMarkedAddressAlone(t *testing.T) {
+	t.Parallel()
+
+	published := time.Now().Add(-time.Hour)
+	a := letterDraft(StaffParentAnnouncementDeliveryLetter, StaffEmailAudiencePortalOnly)
+	a.PublishedAt = &published
+	stopped, marked, free, provider := "gestoppt@example.test", "gesperrt@example.test", "frei@example.test", "anbieter@example.test"
+	deliveries := &letterDeliveries{list: []EmailDeliveryStatus{
+		{DeliveryID: 1, RecipientEmail: &stopped, EmailStatus: "failed", Stopped: true},
+		{DeliveryID: 2, RecipientEmail: &marked, EmailStatus: "failed", AddressMark: "failed"},
+		{DeliveryID: 3, RecipientEmail: &free, EmailStatus: "failed"},
+		{DeliveryID: 4, RecipientEmail: &provider, EmailStatus: "failed", ProviderBlock: "active"},
+	}}
+	outbox := &letterOutbox{}
+	svc := newLetterService(&letterRepo{announcement: a}, outbox, deliveries)
+
+	count, err := svc.ResendFailedEmails(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("ResendFailedEmails: %v", err)
+	}
+	if count != 1 || len(outbox.requests) != 1 {
+		t.Fatalf("queued %d addresses in %d request(s), want only the free one", count, len(outbox.requests))
+	}
+}
+
 func TestResendFailedEmailsDeduplicatesSharedAddress(t *testing.T) {
 	t.Parallel()
 

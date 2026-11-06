@@ -100,6 +100,8 @@ type Guardian struct {
 	HasAccount             bool
 	AccountID              *int64
 	PhoneNumbers           []GuardianPhone
+	// EmailsStopped says the school decided this person gets no school mail.
+	EmailsStopped bool
 }
 
 // FullName joins the two name parts, skipping an empty one.

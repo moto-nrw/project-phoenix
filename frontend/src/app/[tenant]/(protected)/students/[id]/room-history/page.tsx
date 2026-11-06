@@ -25,7 +25,9 @@ import {
   studentHistoryBack,
 } from "../student-referrer";
 import { useApiLoadError } from "~/contexts/ToastContext";
-import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
+import { ApiError } from "~/lib/api-error";
+import { fetchStudent, fetchStudentAttendanceHistory } from "~/lib/student-api";
+import type { Student } from "~/lib/student-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -33,12 +35,10 @@ import { createLogger } from "~/lib/logger";
 import {
   type AttendanceHistory,
   type AttendanceHistoryDay,
-  type BackendAttendanceHistoryResponse,
   formatDate,
   formatAttendanceSlotStatus,
   formatDuration,
   formatTime,
-  mapAttendanceHistoryResponse,
 } from "~/lib/attendance-history-helpers";
 import {
   attendanceActorLabel,
@@ -58,18 +58,6 @@ import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
 const logger = createLogger({ component: "StudentRoomHistoryPage" });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-
-interface Student {
-  id: string;
-  first_name: string;
-  second_name: string;
-  name?: string;
-  school_class: string;
-  group_id?: string;
-  group_name?: string;
-  /** Per-school switch `gdpr.attendance_log_enabled`; off answers 403. */
-  attendance_log_enabled?: boolean;
-}
 
 const ROOM_HISTORY_DESCRIPTION =
   "Wo dieses Kind an einem Tag war und wer es ein- und ausgecheckt hat.";
@@ -751,16 +739,12 @@ function StudentRoomHistoryPageContent() {
   // Start at the top instead of inheriting the previous page's scroll position
   useScrollToTop(studentId);
 
-  const fetchStudent = useCallback(async (): Promise<Student | null> => {
+  const loadStudent = useCallback(async (): Promise<Student | null> => {
     try {
-      const res = await transportFetch(`/api/students/${studentId}`);
+      return await fetchStudent(studentId);
+    } catch (err) {
       // The name only decorates the header; without it the page still shows
       // the protocol under its generic title.
-      if (!res.ok) return null;
-      const body = (await res.json()) as { data?: Student };
-      return body.data ?? null;
-    } catch (err) {
-      // Same as above: the header falls back to the generic title.
       logger.error("student_fetch_failed", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
@@ -771,25 +755,16 @@ function StudentRoomHistoryPageContent() {
 
   const fetchHistory = useCallback(async (): Promise<void> => {
     try {
-      const res = await transportFetch(
-        `/api/students/${studentId}/attendance-history`,
-      );
-      if (res.status === 404) {
+      setHistory(await fetchStudentAttendanceHistory(studentId));
+      setNotFound(false);
+      clearHistoryError();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
         setNotFound(true);
         setHistory(null);
         clearHistoryError();
         return;
       }
-      if (!res.ok) {
-        throw await apiErrorFromResponse(res, "attendance history failed");
-      }
-      const body = (await res.json()) as {
-        data: BackendAttendanceHistoryResponse;
-      };
-      setHistory(mapAttendanceHistoryResponse(body.data));
-      setNotFound(false);
-      clearHistoryError();
-    } catch (err) {
       logger.error("attendance_history_fetch_failed", {
         student_id: studentId,
         error: err instanceof Error ? err.message : String(err),
@@ -807,7 +782,7 @@ function StudentRoomHistoryPageContent() {
     setLoading(true);
 
     void (async () => {
-      const [s] = await Promise.all([fetchStudent(), fetchHistory()]);
+      const [s] = await Promise.all([loadStudent(), fetchHistory()]);
       if (cancelled) return;
       setStudent(s);
       setLoading(false);
@@ -816,7 +791,7 @@ function StudentRoomHistoryPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [fetchStudent, fetchHistory, attempt]);
+  }, [loadStudent, fetchHistory, attempt]);
 
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)

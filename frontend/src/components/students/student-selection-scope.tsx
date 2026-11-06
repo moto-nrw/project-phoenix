@@ -12,7 +12,7 @@ import dynamic from "next/dynamic";
 import { StudentSelectionBar } from "~/components/students/student-selection-bar";
 import { useBulkCheckinActions } from "~/components/students/use-bulk-checkin-actions";
 import { useToast } from "~/contexts/ToastContext";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import type { StudentExportFilters } from "~/lib/student-export-api";
 import { useSchoolCheckinMode } from "~/lib/hooks/use-school-checkin-mode";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";

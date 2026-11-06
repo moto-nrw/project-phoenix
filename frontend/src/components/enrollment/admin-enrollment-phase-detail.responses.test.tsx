@@ -74,8 +74,8 @@ vi.mock("~/lib/enrollment-public-url", () => ({
   useEnrollmentPublicUrl: () => "http://demo.localhost:3000/anmeldung/1",
 }));
 
-vi.mock("~/lib/api", () => ({
-  studentService: { getStudents: vi.fn() },
+vi.mock("~/lib/student-api", () => ({
+  fetchSchoolClasses: vi.fn(() => Promise.resolve([])),
 }));
 
 vi.mock("~/components/enrollment/phase-response-overview", () => ({

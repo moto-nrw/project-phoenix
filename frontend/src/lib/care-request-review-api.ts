@@ -1,4 +1,4 @@
-import type { DepartureMode } from "~/lib/student-helpers";
+import type { DepartureMode } from "~/lib/departure-plan";
 import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 /**
  * Staff client for the parent care-schedule change-request review queue

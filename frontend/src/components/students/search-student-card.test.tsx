@@ -5,7 +5,7 @@ import "@testing-library/jest-dom/vitest";
 
 import { SearchStudentCard } from "./search-student-card";
 import { StudentCardClockProvider } from "./student-card-clock";
-import type { Student } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 
 // The card renders the shared StudentCard, whose photo row asks the settings
 // API whether Fotos are switched on. Not the subject here.

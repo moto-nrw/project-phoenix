@@ -156,10 +156,13 @@ vi.mock("~/lib/hooks/use-user-context", async (importOriginal) => ({
   }),
 }));
 
+vi.mock("~/lib/student-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/student-api")>()),
+  fetchStudents: (...args: unknown[]) => mockGetStudents(...args),
+  fetchSchoolClasses: vi.fn(() => Promise.resolve([])),
+}));
+
 vi.mock("~/lib/api", () => ({
-  studentService: {
-    getStudents: (...args: unknown[]) => mockGetStudents(...args),
-  },
   groupService: {
     getGroups: vi.fn(() => Promise.resolve([])),
   },

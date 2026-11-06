@@ -58,4 +58,8 @@ var lifecycleSentinels = []struct {
 	{domain.ErrGuardianInvitationNotFound, identityaccess.ErrGuardianInvitationNotFound},
 	{identityaccess.ErrGuardianInvitationExpired, identityaccess.ErrGuardianInvitationExpired},
 	{domain.ErrGuardianAccessMailNotQueued, identityaccess.ErrGuardianAccessMailNotQueued},
+	{domain.ErrGuardianEmailAddressBlocked, identityaccess.ErrGuardianEmailAddressBlocked},
+	{domain.ErrInvitationMailDelayed, identityaccess.ErrInvitationMailDelayed},
+	{domain.ErrMailBlockedAtProvider, identityaccess.ErrMailBlockedAtProvider},
+	{domain.ErrMailBlockUnreadable, identityaccess.ErrMailBlockUnreadable},
 }

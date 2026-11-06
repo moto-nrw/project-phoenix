@@ -123,10 +123,10 @@ describe("PresentChildrenPicker", () => {
 
     await screen.findByText("Anna Abel");
     expect(mocks.fetchStudents).toHaveBeenCalledWith({
-      location_state: "present",
-      include_pickup_times: true,
+      locationState: "present",
+      includePickupTimes: true,
       page: 1,
-      page_size: 100,
+      pageSize: 100,
     });
     expect(screen.getByText("geht 16:00")).toBeInTheDocument();
     expect(screen.getByText("ohne Gehzeit")).toBeInTheDocument();
@@ -173,16 +173,16 @@ describe("PresentChildrenPicker", () => {
     await screen.findByText("Anna Abel");
     expect(await screen.findByText("Cem Celik")).toBeInTheDocument();
     expect(mocks.fetchStudents).toHaveBeenNthCalledWith(1, {
-      location_state: "present",
-      include_pickup_times: true,
+      locationState: "present",
+      includePickupTimes: true,
       page: 1,
-      page_size: 100,
+      pageSize: 100,
     });
     expect(mocks.fetchStudents).toHaveBeenNthCalledWith(2, {
-      location_state: "present",
-      include_pickup_times: true,
+      locationState: "present",
+      includePickupTimes: true,
       page: 2,
-      page_size: 100,
+      pageSize: 100,
     });
   });
 
@@ -279,9 +279,9 @@ describe("PresentChildrenPicker", () => {
     beforeEach(() => {
       mocks.fetchCareOfferingOptions.mockResolvedValue(offerings);
       mocks.fetchStudents.mockImplementation(
-        ({ care_offering_id }: { care_offering_id?: string }) =>
+        ({ careOfferingId }: { careOfferingId?: string }) =>
           Promise.resolve({
-            students: care_offering_id ? offeringStudents : presentStudents,
+            students: careOfferingId ? offeringStudents : presentStudents,
           }),
       );
     });
@@ -321,11 +321,11 @@ describe("PresentChildrenPicker", () => {
       expect(screen.queryByText("Anna Abel")).not.toBeInTheDocument();
       expect(screen.queryByText("Dana Dorn")).not.toBeInTheDocument();
       expect(mocks.fetchStudents).toHaveBeenLastCalledWith({
-        location_state: "present",
-        include_pickup_times: true,
+        locationState: "present",
+        includePickupTimes: true,
         page: 1,
-        page_size: 100,
-        care_offering_id: "11",
+        pageSize: 100,
+        careOfferingId: "11",
       });
       expect(
         screen.getByText(
@@ -345,7 +345,7 @@ describe("PresentChildrenPicker", () => {
       fireEvent.click(screen.getByRole("option", { name: "Kurzbetreuung" }));
       await waitFor(() =>
         expect(mocks.fetchStudents).toHaveBeenLastCalledWith(
-          expect.objectContaining({ care_offering_id: "12" }),
+          expect.objectContaining({ careOfferingId: "12" }),
         ),
       );
       expect(globalThis.localStorage.getItem(OFFERING_STORAGE_KEY)).toBe("12");
@@ -365,7 +365,7 @@ describe("PresentChildrenPicker", () => {
       ).toHaveTextContent("Kurzbetreuung");
       expect(mocks.fetchStudents).toHaveBeenCalledTimes(1);
       expect(mocks.fetchStudents).toHaveBeenCalledWith(
-        expect.objectContaining({ care_offering_id: "12" }),
+        expect.objectContaining({ careOfferingId: "12" }),
       );
     });
 
@@ -428,9 +428,9 @@ describe("PresentChildrenPicker", () => {
     it("points to all present children when nobody booked the offering", async () => {
       globalThis.localStorage.setItem(OFFERING_STORAGE_KEY, "11");
       mocks.fetchStudents.mockImplementation(
-        ({ care_offering_id }: { care_offering_id?: string }) =>
+        ({ careOfferingId }: { careOfferingId?: string }) =>
           Promise.resolve({
-            students: care_offering_id ? [] : presentStudents,
+            students: careOfferingId ? [] : presentStudents,
           }),
       );
       renderPicker();

@@ -16,7 +16,8 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { studentService, type Group } from "~/lib/api";
+import { type Group } from "~/lib/api";
+import { fetchSchoolClasses } from "~/lib/student-api";
 import { fetchActivities } from "~/lib/activity-api";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
@@ -65,7 +66,7 @@ function useTargetOptions(type: GroupTargetType) {
         const activities = await fetchActivities();
         return activities.map((a) => ({ value: a.id, label: a.name }));
       }
-      const classes = await studentService.getSchoolClasses();
+      const classes = await fetchSchoolClasses();
       return classes.map((c) => ({ value: c, label: c }));
     },
     { revalidateOnFocus: false, keepPreviousData: false },

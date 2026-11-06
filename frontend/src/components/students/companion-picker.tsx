@@ -13,7 +13,7 @@ import {
   allowedModesIncludeAccompanied,
   DEPARTURE_WEEKDAYS,
   type AllowedDepartureModes,
-} from "~/lib/student-helpers";
+} from "~/lib/departure-plan";
 import {
   COMPANION_WEEKDAYS,
   companionDisplayName,
@@ -140,7 +140,7 @@ export function CompanionPicker({
     let cancelled = false;
     setSearching(true);
     const timer = setTimeout(() => {
-      fetchStudents({ search: trimmed, page_size: 25 })
+      fetchStudents({ search: trimmed, pageSize: 25 })
         .then(({ students }) => {
           if (cancelled) return;
           const linked = new Set(

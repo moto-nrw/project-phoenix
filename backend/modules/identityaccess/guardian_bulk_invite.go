@@ -8,6 +8,14 @@ const (
 	// BulkInviteProblemEmailNotQueued: the outbox did not take the mail, so
 	// this guardian's writes rolled back and a later run can try again (#4602).
 	BulkInviteProblemEmailNotQueued = "email_not_queued"
+	// BulkInviteProblemAddressBlocked: the school's list would hold the mail back.
+	BulkInviteProblemAddressBlocked = "address_blocked"
+	// BulkInviteProblemMailDelayed: the mail server still tries the last mail.
+	BulkInviteProblemMailDelayed = "mail_delayed"
+	// BulkInviteProblemProviderBlocked: the mail provider withholds mail to the address now.
+	BulkInviteProblemProviderBlocked = "provider_blocked"
+	// BulkInviteProblemBlockUnreadable: the provider's state could not be read.
+	BulkInviteProblemBlockUnreadable = "block_unreadable"
 )
 
 // BulkInviteRequest invites the guardians of the given children to the

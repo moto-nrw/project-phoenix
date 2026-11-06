@@ -19,6 +19,7 @@ import {
 } from "~/lib/holiday-host-api";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
+import { studentKeys } from "~/lib/swr/portal-keys";
 
 function ContactList({
   contacts,
@@ -68,7 +69,7 @@ export function HolidayGuestSection({
   // Reloads on focus and once a minute: a cancellation, changed contacts or
   // the end of the read-only days reach an open sheet without a reload.
   const sheet = useSWRAuth(
-    canRead ? `holiday-guest:${studentId}` : null,
+    canRead ? studentKeys.holidayGuest(studentId) : null,
     () => fetchHolidayGuestSheet(studentId),
     { revalidateOnFocus: true, refreshInterval: 60_000 },
   );

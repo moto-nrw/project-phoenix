@@ -12,9 +12,10 @@ import { Input } from "~/components/ui/input";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
-import { studentService } from "~/lib/api";
+import { fetchSchoolClasses, fetchStudents } from "~/lib/student-api";
 import { fetchActivities } from "~/lib/activity-api";
-import type { Group, Student } from "~/lib/api";
+import type { Group } from "~/lib/api";
+import type { Student } from "~/lib/student-helpers";
 import type { Activity } from "~/lib/activity-helpers";
 import type { AnnouncementTarget } from "~/lib/parent-announcements-api";
 
@@ -178,7 +179,7 @@ export function ParentTargetPicker({
       ? `parent-announcements-student-search-${debouncedSearch}`
       : null,
     async () => {
-      const result = await studentService.getStudents({
+      const result = await fetchStudents({
         search: debouncedSearch,
         pageSize: 20,
       });
@@ -387,7 +388,7 @@ export function useParentTargetLookups(enabled: boolean): {
     mutate: reloadClasses,
   } = useSWRAuth<string[]>(
     enabled ? "parent-announcements-classes" : null,
-    () => studentService.getSchoolClasses(),
+    () => fetchSchoolClasses(),
     { revalidateOnFocus: false },
   );
   const groupsLoadError = useSwrLoadError(

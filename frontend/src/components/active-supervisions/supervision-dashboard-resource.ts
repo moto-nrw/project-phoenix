@@ -2,7 +2,8 @@ import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
-import type { DepartureMode, TeacherHint } from "~/lib/student-helpers";
+import type { DepartureMode } from "~/lib/departure-plan";
+import type { TeacherHint } from "~/lib/student-helpers";
 import type { OpenRoomView, SchulhofStatusResponse } from "./view-model";
 const logger = createLogger({ component: "useSupervisionDashboard" });
 

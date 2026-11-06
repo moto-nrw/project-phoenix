@@ -562,7 +562,13 @@ vi.mock("~/lib/arrival-schedule-helpers", () => ({
 }));
 
 const mockSchoolCheckinStudent = vi.fn();
+const mockUpdateStudent = vi.fn();
 vi.mock("~/lib/student-api", () => ({
+  updateStudent: (
+    id: string,
+    data: unknown,
+  ): Promise<Record<string, unknown>> =>
+    mockUpdateStudent(id, data) as Promise<Record<string, unknown>>,
   schoolCheckinStudent: (
     studentId: string,
     action: "in" | "out",
@@ -588,7 +594,6 @@ interface MockStudent {
   group_name: string;
   current_location: string;
   bus: boolean;
-  buskind: boolean;
   birthday: string;
   health_info: string;
   extra_info: string;
@@ -623,17 +628,7 @@ vi.mock("~/lib/hooks/use-student-enrollment-extra-fields", () => ({
   ) => mockUseStudentEnrollmentExtraFields(studentId, hasFullAccess),
 }));
 
-// Mock student service
-const mockUpdateStudent = vi.fn();
-vi.mock("~/lib/api", () => ({
-  studentService: {
-    updateStudent: (
-      id: string,
-      data: unknown,
-    ): Promise<Record<string, unknown>> =>
-      mockUpdateStudent(id, data) as Promise<Record<string, unknown>>,
-  },
-}));
+vi.mock("~/lib/api", () => ({}));
 
 const mockCreateStudentStatusDays = vi.fn();
 const mockFetchStudentStatusDays = vi.fn();
@@ -685,7 +680,6 @@ const mockStudent = {
   group_name: "Gruppe A",
   current_location: "Raum 101",
   bus: false,
-  buskind: false,
   birthday: "2015-05-15",
   address_street: "Musterstraße 12",
   address_postal_code: "50667",
@@ -1676,7 +1670,7 @@ describe("StudentDetailPage", () => {
       mockCreateStudentStatusDays.mockResolvedValue([]);
 
       mockUseStudentData.mockReturnValue({
-        student: { ...mockStudent, buskind: true },
+        student: { ...mockStudent, bus: true },
         loading: false,
         error: null,
         hasFullAccess: true,
