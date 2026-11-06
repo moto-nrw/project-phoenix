@@ -31,7 +31,8 @@ export function endCareTopic(): HelpTopic {
       {
         title: "Mehrere Kinder auf einmal abmelden",
         steps: [
-          "Öffnen Sie oben rechts das Menü mit den drei Punkten und wählen Sie `Auswählen`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Auswählen`.",
           "Haken Sie die Kinder an.",
           "Wählen Sie `Betreuung beenden`.",
           "Gehen Sie die beiden Schritte wie oben durch.",

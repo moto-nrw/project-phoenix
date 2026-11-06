@@ -322,30 +322,62 @@ function isIconSized(attributes: ts.JsxAttributes): boolean {
   );
 }
 
+/** Konstanten einer Datei: `actions={headActions}` zählt wie inline. */
+type LocalConstants = ReadonlyMap<string, ts.Expression>;
+
+function collectLocalConstants(file: ts.SourceFile): LocalConstants {
+  const constants = new Map<string, ts.Expression>();
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      ts.getCombinedNodeFlags(node) & ts.NodeFlags.Const
+    ) {
+      constants.set(node.name.text, node.initializer);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return constants;
+}
+
 /** Sichtbare Text-Aktionen; bei Verzweigungen zählt der vollere Zweig. */
-function countTextActions(node: ts.Node | undefined): number {
+function countTextActions(
+  node: ts.Node | undefined,
+  constants: LocalConstants,
+  seen: ReadonlySet<string> = new Set(),
+): number {
   if (!node) return 0;
+  if (ts.isIdentifier(node)) {
+    if (seen.has(node.text)) return 0;
+    return countTextActions(
+      constants.get(node.text),
+      constants,
+      new Set([...seen, node.text]),
+    );
+  }
   if (ts.isJsxExpression(node) || ts.isParenthesizedExpression(node)) {
-    return countTextActions(node.expression);
+    return countTextActions(node.expression, constants, seen);
   }
   if (ts.isConditionalExpression(node)) {
     return Math.max(
-      countTextActions(node.whenTrue),
-      countTextActions(node.whenFalse),
+      countTextActions(node.whenTrue, constants, seen),
+      countTextActions(node.whenFalse, constants, seen),
     );
   }
   if (ts.isBinaryExpression(node)) {
     const operator = node.operatorToken.kind;
     if (operator === ts.SyntaxKind.AmpersandAmpersandToken) {
-      return countTextActions(node.right);
+      return countTextActions(node.right, constants, seen);
     }
     if (
       operator === ts.SyntaxKind.BarBarToken ||
       operator === ts.SyntaxKind.QuestionQuestionToken
     ) {
       return Math.max(
-        countTextActions(node.left),
-        countTextActions(node.right),
+        countTextActions(node.left, constants, seen),
+        countTextActions(node.right, constants, seen),
       );
     }
     return 0;
@@ -364,7 +396,7 @@ function countTextActions(node: ts.Node | undefined): number {
   }
   if (ts.isJsxElement(node) || ts.isJsxFragment(node)) {
     return node.children.reduce(
-      (sum, child) => sum + countTextActions(child),
+      (sum, child) => sum + countTextActions(child, constants, seen),
       0,
     );
   }
@@ -412,8 +444,9 @@ function headViolations(source: string): string[] {
     ts.ScriptKind.TSX,
   );
   const violations: string[] = [];
+  const constants = collectLocalConstants(file);
   const checkActions = (node: ts.Node | undefined) => {
-    const count = countTextActions(node);
+    const count = countTextActions(node, constants);
     if (count > 1) violations.push(`${count} sichtbare Text-Aktionen`);
   };
   const checkStats = (node: ts.Node | undefined) => {
@@ -514,6 +547,15 @@ describe("Seitenkopf des Tenant-Portals (Spec R3 und R4)", () => {
     ).toEqual(["2 sichtbare Text-Aktionen"]);
   });
 
+  it("folgt einer Konstante in actions", () => {
+    expect(
+      headViolations(`
+        const headActions = <><Button>Eins</Button><Button>Zwei</Button></>;
+        const page = <TenantPage title="A" actions={headActions} />;
+      `),
+    ).toEqual(["2 sichtbare Text-Aktionen"]);
+  });
+
   it("zählt Symbolknöpfe, Menüs und einander ausschließende Zweige nicht", () => {
     expect(
       headViolations(`<TenantPage title="A" actions={
@@ -534,10 +576,11 @@ describe("Seitenkopf des Tenant-Portals (Spec R3 und R4)", () => {
   it.each(tenantHeads.map((head) => [head.id, head] as const))(
     "%s hält Statuszeile und Aktionen ein",
     (id, head) => {
+      // Die Ausnahme deckt genau das eine Paar, keine dritte Aktion.
       const violations = headViolations(head.source).filter(
         (violation) =>
           !(id in MEHR_ALS_EINE_AKTION) ||
-          !violation.endsWith("sichtbare Text-Aktionen"),
+          violation !== "2 sichtbare Text-Aktionen",
       );
       expect(violations, id).toEqual([]);
     },

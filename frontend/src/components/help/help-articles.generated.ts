@@ -647,7 +647,8 @@ export const activeSupervisionTopic = function activeSupervisionTopic(
         // #3823, ADR 0091: externe Kräfte mit einer von drei Zugangsstufen.
         title: "Weitere Betreuer eintragen",
         steps: [
-          "Wählen Sie in der laufenden Aufsicht `Betreuer hinzufügen`.",
+          "Öffnen Sie in der laufenden Aufsicht oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Betreuer hinzufügen`.",
           "Wählen Sie die Person unter `Betreuer auswählen` und dann `Hinzufügen`.",
           "Fehlt die Person, zum Beispiel jemand von der Musikschule? Wählen Sie `Externe Person eintragen`.",
           "Tragen Sie `Vorname` und `Nachname` ein.",
@@ -1288,7 +1289,8 @@ export const careTimesTopic = function careTimesTopic(): HelpTopic {
         title: "Zeiten für mehrere Kinder auf einmal setzen",
         steps: [
           "Öffnen Sie `Datenverwaltung` und danach `Kinderdaten`.",
-          "Wählen Sie oben rechts `Auswählen`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Auswählen`.",
           "Haken Sie die Kinder an.",
           "Wählen Sie `Ankunftszeiten` oder `Gehzeiten`.",
           "Tragen Sie die Zeiten ein und wählen Sie `Speichern`.",
@@ -1514,7 +1516,8 @@ export const classListEntriesTopic =
           title: "Viele Einträge auf einmal",
           steps: [
             "Öffnen Sie `Klassenliste`.",
-            "Wählen Sie oben `Sammelimport`.",
+            "Öffnen Sie oben das Menü mit den drei Punkten.",
+            "Wählen Sie `Sammelimport`.",
             "Folgen Sie den Schritten auf der Seite.",
           ],
         },
@@ -1622,7 +1625,9 @@ export const createStudentTopic = function createStudentTopic(): HelpTopic {
         description:
           "Für ein ganzes Schuljahr ist die Vorlage schneller als das Fenster.",
         steps: [
-          "Öffnen Sie `Kinderdaten` und wählen Sie oben `Importieren`.",
+          "Öffnen Sie `Kinderdaten`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Importieren`.",
           "Wählen Sie bei `Format wählen` `Excel (.xlsx)` oder `CSV (Komma-getrennt)`.",
           "Wählen Sie `Vorlage herunterladen`.",
           "Tragen Sie die Kinder ein. Beim Geburtstag geht zum Beispiel `14.03.2018`.",
@@ -2188,7 +2193,8 @@ export const endCareTopic = function endCareTopic(): HelpTopic {
       {
         title: "Mehrere Kinder auf einmal abmelden",
         steps: [
-          "Wählen Sie oben rechts `Auswählen`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Auswählen`.",
           "Haken Sie die Kinder an.",
           "Wählen Sie `Betreuung beenden`.",
           "Gehen Sie die beiden Schritte wie oben durch.",
@@ -2270,13 +2276,13 @@ export const enrollmentExportTopic =
       steps: [
         "Öffnen Sie `Anmeldungen` und danach `Überblick`.",
         "Wählen Sie bei der Phase `Anmeldungen ansehen`.",
-        "Wählen Sie oben `Anmeldungen exportieren`.",
-        "Wählen Sie `PDF`, `Word` oder `Excel`.",
+        "Öffnen Sie oben das Menü mit den drei Punkten.",
+        "Wählen Sie unter `Exportieren` `PDF`, `Word` oder `Excel`.",
       ],
       result: "Die Datei wird erstellt und heruntergeladen.",
       notes: [
         "Oben steht, wie viele Eingänge die Phase hat und wie viele davon offen sind.",
-        "Die Seite hat drei Exporte: `Anmeldungen exportieren`, `Klassenliste exportieren` und `Auswertung exportieren`.",
+        "Die Seite hat drei Exporte: `Exportieren` im Menü für die Anmeldungen sowie `Klassenliste exportieren` und `Auswertung exportieren` weiter unten.",
         "`Klassenliste exportieren` gilt für die Klasse, die Sie unter `Klasse für Klassenliste` wählen.",
         "`Auswertung exportieren` bietet PDF und Word `ausführlich` oder als `kompakte Tabelle`.",
       ],
@@ -2797,7 +2803,7 @@ export const firstStepsTopic = function firstStepsTopic(): HelpTopic {
       "Sie können jeden Schritt in der Checkliste aufklappen, auch in anderer Reihenfolge.",
       "Ob moto auch den Raum erfasst, stimmt das moto-Team mit Ihnen ab.",
       "Sie möchten die Anwesenheit mit NFC-Armbändern erfassen? Dann melden Sie sich beim moto-Team.",
-      "Sie haben eine Liste aller Kinder? Wählen Sie in der Tour zu `Erstes Kind anlegen` den Knopf `Importieren`. Dann zeigt die Tour den Import.",
+      "Sie haben eine Liste aller Kinder? Starten Sie die Tour zu `Erstes Kind anlegen`. Öffnen Sie dort das Menü mit den drei Punkten. Wählen Sie `Importieren`. Dann zeigt die Tour den Import.",
       "Ihre OGS nutzt die Eltern-App nicht? Dann überspringen Sie `Erste Eltern einladen`.",
       "Der Stand gilt für die ganze OGS. Andere Leitungen sehen denselben Stand.",
     ],
@@ -3541,7 +3547,9 @@ export const inviteStaffTopic = function inviteStaffTopic(): HelpTopic {
         description:
           "Für ein ganzes Team ist die Vorlage schneller als einzelne Einladungen.",
         steps: [
-          "Öffnen Sie `Personal` und wählen Sie oben `Importieren`.",
+          "Öffnen Sie `Personal`.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Importieren`.",
           "Wählen Sie bei `Format wählen` `Excel (.xlsx)` oder `CSV (Komma-getrennt)`.",
           "Wählen Sie `Vorlage herunterladen`.",
           "Füllen Sie `Vorname`, `Nachname` und `Rolle` aus. Diese drei sind Pflicht.",
@@ -7681,7 +7689,8 @@ export const staffQualificationsTopic =
           steps: [
             "Öffnen Sie `Datenverwaltung` und danach `Nachweise`.",
             "Filtern Sie oben nach `Status` oder `Art`.",
-            "Wählen Sie `Für Excel herunterladen`, um die Liste als Datei zu speichern.",
+            "Öffnen Sie oben das Menü mit den drei Punkten.",
+            "Wählen Sie `Für Excel herunterladen`, um die Liste als Datei zu speichern. Ohne Treffer gibt es den Eintrag nicht.",
           ],
         },
         {

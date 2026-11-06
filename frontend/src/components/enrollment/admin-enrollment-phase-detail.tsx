@@ -923,7 +923,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
                 onClick: () => undefined,
               },
               ...exportMenuItems({
-                header: "Anmeldungen exportieren",
+                header: "Exportieren",
                 options: ENROLLMENT_EXPORT_OPTIONS,
                 busyKey: exportingFormat,
                 onSelect: (option) => {

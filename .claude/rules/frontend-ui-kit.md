@@ -71,7 +71,7 @@ Prose cannot transfer taste, density, spacing judgment, or restraint. Examples c
 | Card primitive    | `frontend/src/components/ui/section-card.tsx`                  | the canonical card surface                                                                                                                                  |
 | Table primitive   | `frontend/src/components/ui/data-table.tsx`                    | the canonical table                                                                                                                                         |
 
-Keep this list current.
+Keep this list current: replace a deleted or rewritten reference.
 
 ## Visual references — look at the real UI
 

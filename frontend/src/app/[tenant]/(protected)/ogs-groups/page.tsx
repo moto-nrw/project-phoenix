@@ -845,7 +845,6 @@ function OGSGroupPageContent() {
     ).length;
 
     return {
-      totalStudents: groupStudents.length,
       sickCount,
       excusedCount,
     };

@@ -36,7 +36,8 @@ export function staffQualificationsTopic(): HelpTopic {
         steps: [
           "Öffnen Sie `Datenverwaltung` und danach `Nachweise`.",
           "Filtern Sie oben nach `Status` oder `Art`.",
-          "Öffnen Sie oben das Menü mit den drei Punkten und wählen Sie `Für Excel herunterladen`, um die Liste als Datei zu speichern.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Für Excel herunterladen`, um die Liste als Datei zu speichern. Ohne Treffer gibt es den Eintrag nicht.",
         ],
       },
       {

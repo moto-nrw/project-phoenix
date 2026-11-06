@@ -841,13 +841,26 @@ describe("SchoolSetupWizard", () => {
     render(<SchoolSetupWizard />);
     visibleTarget("student-menu");
     const create = visibleTarget("create");
+    // jsdom misst den body mit Größe 0; die Tour prüft ihn, solange das Menü zu ist.
+    const bodyRects = vi
+      .spyOn(document.body, "getClientRects")
+      .mockReturnValue([{}] as unknown as DOMRectList);
+    const bodyRect = vi
+      .spyOn(document.body, "getBoundingClientRect")
+      .mockReturnValue({
+        top: 0,
+        left: 0,
+        width: 1440,
+        height: 900,
+        bottom: 900,
+        right: 1440,
+      } as DOMRect);
 
     fireEvent.click(screen.getByRole("button", { name: "Zeig es mir" }));
     await screen.findByRole("dialog", { name: "Viele Kinder auf einmal" });
     await waitForHighlight();
     fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
-    // Das Menü blieb zu: Die Station „Importieren wählen“ entfällt still.
-    await act(() => vi.advanceTimersByTimeAsync(2000));
+    // Das Menü blieb zu: Die Station „Importieren wählen“ entfällt sofort.
     await screen.findByRole("dialog", { name: "Ein Kind anlegen" });
     await waitForHighlight();
 
@@ -862,6 +875,8 @@ describe("SchoolSetupWizard", () => {
     expect(
       await screen.findByRole("dialog", { name: "Ein Kind anlegen" }),
     ).toBeInTheDocument();
+    bodyRects.mockRestore();
+    bodyRect.mockRestore();
   });
 
   it("continues with the import when the person chooses Importieren", async () => {

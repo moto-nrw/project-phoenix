@@ -108,11 +108,14 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     or ListboxDropdown outside the kit;
 //                                     pick controlSize, pass layout only
 //
-// Two more keep SectionCard the only card head (#5581):
+// One more keeps the control height in the kit (#5605):
 //
 //   ui-kit/no-control-height-override — no `h-8`, `h-9` or `!size-*` on Input,
 //                                     selects, DateRangePicker or OverflowMenu;
-//                                     hard-zero (#5605)
+//                                     hard-zero
+//
+// Two more keep SectionCard the only card head (#5581):
+//
 //   ui-kit/no-important-override   — no `!` utility on a kit component; the
 //                                     missing prop goes into the kit
 //                                     (shrink-only baseline per file)
