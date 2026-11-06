@@ -13,12 +13,14 @@ import (
 // the parent portal functions without a lock are "beide"; the colour and the
 // texts of the branding are "traeger" (#4653), and so are the switch for the
 // debtor number at the confirmation of a holiday registration (#5621) and
-// the payment sentence of the confirmation letter (#5622); everything else
-// stays at the school. A change of these lists is a product
+// the payment sentence of the confirmation letter (#5622); how the
+// contracts of a school come about is "beide" (#4680: Träger value with a
+// school override); everything else stays at the school. A change of these lists is a product
 // decision.
 func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 	t.Parallel()
 	want := []string{
+		config.KeyCareContractConclusionMode,
 		config.KeyEnrollmentLegalAGBText, config.KeyEnrollmentLegalDSGVOEnabled, config.KeyEnrollmentLegalDSGVOText,
 		config.KeyEnrollmentLegalEmailContactEnabled, config.KeyEnrollmentLegalEmailContactText,
 		config.KeyEnrollmentLegalPhotoEnabled, config.KeyEnrollmentLegalPhotoText, config.KeyEnrollmentLegalTermsEnabled,

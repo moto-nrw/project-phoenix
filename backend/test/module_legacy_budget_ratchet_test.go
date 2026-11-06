@@ -210,7 +210,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // contract offerings constructor of modules/careplan/compose (+9), the
 // contract applications constructor of modules/enrollment/compose (+5) and
 // the contract port of workflows/parentportal/compose (+1) add exactly 68 LOC.
-const moduleComposeBudgetTotal = 12919
+const moduleComposeBudgetTotal = 12916
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -272,7 +272,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0126: the document inbox constructor (+6).
 	// Added by ADR 0153: construction of the care contract owner, with the
 	// ports of the contract reads for the schools' access logs.
-	"modules/carecontract/compose":                53,
+	"modules/carecontract/compose":                50,
 	"modules/parentbilling/compose":               50,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.

@@ -341,6 +341,13 @@ func (c *Contracts) send(ctx context.Context, reviewer carecontract.Reviewer, co
 	if err != nil {
 		return err
 	}
+	return c.deliver(ctx, reviewer, record, destination)
+}
+
+// deliver sends the contract read under its row lock: it freezes the PDF of
+// a draft, enqueues the mail and records the send.
+func (c *Contracts) deliver(ctx context.Context, reviewer carecontract.Reviewer, record ContractRecord, destination string) error {
+	contractID := record.Summary.ID
 	if record.Summary.Status != carecontract.StatusDraft && record.Summary.Status != carecontract.StatusSent {
 		return carecontract.ErrContractNotSendable
 	}
@@ -362,6 +369,7 @@ func (c *Contracts) send(ctx context.Context, reviewer carecontract.Reviewer, co
 		ChildName: fullName(record.Version.ChildFirstName, record.Version.ChildLastName),
 		Modules:   joinGerman(ModuleNames(record.Version.Services)), Filename: file.Filename, PDF: file.Data,
 		IdempotencyKey: fmt.Sprintf("care-contract:%d:%d", contractID, previousSends+1),
+		Concluded:      record.Concluded != nil,
 	})
 	if err != nil {
 		return fmt.Errorf("care contract: enqueue mail: %w", err)

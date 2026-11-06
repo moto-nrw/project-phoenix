@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractModes.ConclusionMode",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.ConclusionModes.ConclusionMode",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/records.BatchSettingsService.ResolveString: resolves care_contract.conclusion_mode of the school in its tenant transaction, school value over Träger value over default (#4680, ADR 0086).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractLetterheads.Letterhead",
       "classification": "query",
       "effect": "query",

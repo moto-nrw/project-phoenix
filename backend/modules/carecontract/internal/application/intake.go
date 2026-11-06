@@ -31,6 +31,7 @@ type Intake struct {
 	bookings     carecontract.SchoolBookings
 	access       carecontract.SchoolAccessLog
 	runtime      carecontract.Runtime
+	modes        carecontract.ConclusionModes
 	today        func() calendar.Date
 }
 
@@ -41,6 +42,7 @@ type IntakePorts struct {
 	Bookings     carecontract.SchoolBookings
 	Access       carecontract.SchoolAccessLog
 	Runtime      carecontract.Runtime
+	Modes        carecontract.ConclusionModes
 }
 
 var _ carecontract.Intake = (*Intake)(nil)
@@ -48,11 +50,11 @@ var _ carecontract.Intake = (*Intake)(nil)
 // NewIntake builds the intake over the root-bound ports.
 func NewIntake(store Store, ports IntakePorts, today func() calendar.Date) *Intake {
 	if store == nil || ports.Schools == nil || ports.Applications == nil || ports.Bookings == nil || ports.Access == nil ||
-		ports.Runtime == nil || today == nil {
-		panic("care contract: the store, the schools, the applications, the bookings, the access log, the runtime and the clock are required")
+		ports.Runtime == nil || ports.Modes == nil || today == nil {
+		panic("care contract: the store, the schools, the applications, the bookings, the access log, the runtime, the conclusion modes and the clock are required")
 	}
 	return &Intake{store: store, schools: ports.Schools, applications: ports.Applications, bookings: ports.Bookings,
-		access: ports.Access, runtime: ports.Runtime, today: today}
+		access: ports.Access, runtime: ports.Runtime, modes: ports.Modes, today: today}
 }
 
 // schoolRead is what the intake read in one school's tenant transaction.
@@ -261,6 +263,33 @@ func draftOfferings(draft NewContract) []int64 {
 	return ids
 }
 
+// ConclusionModes tells for every school of the Träger how its contracts
+// come about (#4680): its own value, else the Träger's, else Weg a. It reads
+// a setting, no personal data, in each school's tenant transaction.
+func (in *Intake) ConclusionModes(ctx context.Context, reviewer carecontract.Reviewer) ([]carecontract.SchoolConclusion, error) {
+	if err := checkReviewer(reviewer); err != nil {
+		return nil, err
+	}
+	schools, err := in.schools.TraegerSchools(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return nil, fmt.Errorf("care contract: schools: %w", err)
+	}
+	result := make([]carecontract.SchoolConclusion, 0, len(schools))
+	for _, school := range schools {
+		var mode string
+		err := in.runtime.WithinSchool(ctx, school.ID, func(txCtx context.Context) error {
+			var err error
+			mode, err = in.modes.ConclusionMode(txCtx, school.ID)
+			return err
+		})
+		if err != nil {
+			return nil, fmt.Errorf("care contract: conclusion mode of school %d: %w", school.ID, err)
+		}
+		result = append(result, carecontract.SchoolConclusion{SchoolID: school.ID, SchoolName: school.Name, Mode: mode})
+	}
+	return result, nil
+}
+
 // Templates lists every offering of the Träger's schools with its template.
 func (in *Intake) Templates(ctx context.Context, reviewer carecontract.Reviewer) ([]carecontract.OfferingTemplate, error) {
 	if err := checkReviewer(reviewer); err != nil {
@@ -406,24 +435,12 @@ func (in *Intake) readSchools(ctx context.Context, reviewer carecontract.Reviewe
 	for _, school := range schools {
 		read := schoolRead{school: school, offerings: map[int64]carecontract.Offering{}}
 		err := in.runtime.WithinSchool(ctx, school.ID, func(txCtx context.Context) error {
-			applications, err := in.acceptedApplications(txCtx, children[school.ID])
-			if err != nil {
+			if err := in.readSchool(txCtx, &read, children[school.ID]); err != nil || len(read.applications) == 0 {
 				return err
-			}
-			read.applications = applications
-			if len(applications) == 0 {
-				return nil
-			}
-			offerings, err := in.offerings(txCtx, bookedOfferingIDs(applications))
-			if err != nil {
-				return err
-			}
-			for _, offering := range offerings {
-				read.offerings[offering.ID] = offering
 			}
 			return in.access.RecordAccess(txCtx, carecontract.SchoolAccess{
 				OrganizationID: reviewer.OrganizationID, AccountID: reviewer.AccountID,
-				Data: carecontract.SchoolAccessApplications, View: view, Rows: len(applications),
+				Data: carecontract.SchoolAccessApplications, View: view, Rows: len(read.applications),
 			})
 		})
 		if err != nil {
@@ -432,6 +449,28 @@ func (in *Intake) readSchools(ctx context.Context, reviewer carecontract.Reviewe
 		reads = append(reads, read)
 	}
 	return reads, nil
+}
+
+// readSchool reads, in the school's tenant transaction the caller holds, its
+// accepted application children (all, or only requestChildIDs) with their
+// bookings and the offerings they book.
+func (in *Intake) readSchool(ctx context.Context, read *schoolRead, requestChildIDs []int64) error {
+	applications, err := in.acceptedApplications(ctx, requestChildIDs)
+	if err != nil {
+		return err
+	}
+	read.applications = applications
+	if len(applications) == 0 {
+		return nil
+	}
+	offerings, err := in.offerings(ctx, bookedOfferingIDs(applications))
+	if err != nil {
+		return err
+	}
+	for _, offering := range offerings {
+		read.offerings[offering.ID] = offering
+	}
+	return nil
 }
 
 // acceptedApplications reads the accepted application children with their

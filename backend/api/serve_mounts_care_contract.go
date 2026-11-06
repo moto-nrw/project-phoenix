@@ -35,8 +35,8 @@ import (
 // /traeger/contracts and the templates of the offerings at
 // /traeger/contract-templates.
 func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) {
-	resource := NewCareContractHTTP(organizations, settings, delivery, accessLog)
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) {
+	resource := NewCareContractHTTP(organizations, settings, schoolSettings, delivery, accessLog)
 	root.Mount("/traeger/contracts", resource.ContractRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/contract-templates", resource.TemplateRouter(ProtectedTraegerRoutes))
 }
@@ -47,19 +47,62 @@ func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations
 // tenant transaction, the letterhead and the contract template to the
 // master data and the branding of the Träger, and the mail to Delivery.
 func NewCareContractHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) *careContractHTTP.Resource {
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) *careContractHTTP.Resource {
+	contractPorts, intakePorts := careContractPorts(organizations, settings, schoolSettings, delivery, accessLog)
+	return careContractHTTP.NewResource(careContractCompose.NewContracts(contractPorts), careContractCompose.NewIntake(intakePorts),
+		common.RequiresPermission(identityaccess.TraegerRightContractsManage))
+}
+
+// NewCareContractConclusion builds the Worker's conclusion at the
+// acceptance (Weg b, #4680) over the same ports as the portal routes, so
+// the automatic contract reads, renders and sends exactly like the
+// Träger-Büro's.
+func NewCareContractConclusion(organizations HolidayOrganizations, settings TraegerBrandingSettings,
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) carecontract.Conclusion {
+	return careContractCompose.NewConclusion(careContractPorts(organizations, settings, schoolSettings, delivery, accessLog))
+}
+
+func careContractPorts(organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings CareContractSchoolSettings,
+	delivery deliveryRuntime.Capability, accessLog owners.DataAccessAppender) (careContractCompose.ContractPorts, careContractCompose.IntakePorts) {
+	if schoolSettings == nil {
+		panic("care contract: the school settings are required")
+	}
 	letterheads := careContractLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(),
 		templates: organizationTenancyCompose.NewTraegerDocumentTemplates(), settings: settings}
-	contracts := careContractCompose.NewContracts(careContractCompose.ContractPorts{
+	return careContractCompose.ContractPorts{
 		Letterheads: letterheads, Post: careContractPost{delivery: delivery},
 		Runtime: careContractRuntime{}, Access: careContractAccessLog{log: accessLog},
-	})
-	intake := careContractCompose.NewIntake(careContractCompose.IntakePorts{
+	}, careContractCompose.IntakePorts{
 		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications()},
 		Bookings: careContractBookings{offerings: carePlanCompose.NewContractOfferings(), bookings: carePlanCompose.NewOfferingBookings()},
 		Access:   careContractAccessLog{log: accessLog}, Runtime: careContractRuntime{},
-	})
-	return careContractHTTP.NewResource(contracts, intake, common.RequiresPermission(identityaccess.TraegerRightContractsManage))
+		Modes: careContractModes{settings: schoolSettings},
+	}
+}
+
+// CareContractSchoolSettings resolves a setting of the school whose tenant
+// transaction the caller holds: its own value, else its Träger's, else the
+// default (ADR 0086).
+type CareContractSchoolSettings interface {
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
+// careContractModes binds how a school concludes its contracts to the
+// setting care_contract.conclusion_mode (#4680). An unknown value is an
+// error, never the default: the registry admits only the two values.
+type careContractModes struct {
+	settings CareContractSchoolSettings
+}
+
+func (m careContractModes) ConclusionMode(ctx context.Context, _ int64) (string, error) {
+	mode, err := m.settings.ResolveString(ctx, configModels.KeyCareContractConclusionMode)
+	if err != nil {
+		return "", err
+	}
+	if mode != carecontract.ModeSendLater && mode != carecontract.ModeOnAcceptance {
+		return "", fmt.Errorf("care contract: unknown conclusion mode %q", mode)
+	}
+	return mode, nil
 }
 
 // careContractSchools lists the undeleted schools of the Träger.

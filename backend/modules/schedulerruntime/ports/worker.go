@@ -61,6 +61,9 @@ type WorkerDependencies struct {
 	BookingConsistency      BookingConsistencyAudit
 	HolidayGuests           HolidayGuestReconciliation
 	PlannedStaffExits       PlannedStaffExits
+	// CareContractConclusion concludes the contracts at the acceptance
+	// (#4680); nil leaves the job out.
+	CareContractConclusion CareContractConclusion
 	// StaffQualificationReminders sends the Nachweis reminders (#4808).
 	StaffQualificationReminders StaffQualificationReminders
 	WeekProtocols               WeekProtocolEvenings

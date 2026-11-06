@@ -21,9 +21,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The states of a contract (ADR 0088 section 2). This owner reaches only
-// StatusDraft and StatusSent today; signature (#4679), conclusion at the
-// acceptance (#4680) and termination (#4682) move it further.
+// The states of a contract (ADR 0088 section 2). The Träger-Büro reaches
+// StatusDraft and StatusSent; the conclusion (conclusion.go: at the
+// acceptance, #4680, or with the signature, #4679) reaches StatusActive;
+// termination (#4682) moves it further.
 const (
 	StatusDraft  = "entwurf"
 	StatusSent   = "versendet"
@@ -226,6 +227,8 @@ type ContractSummary struct {
 	EffectiveFrom  calendar.Date `json:"effective_from"`
 	CreatedAt      time.Time     `json:"created_at"`
 	SentAt         *time.Time    `json:"sent_at"`
+	// Concluded is how and when the contract was concluded; nil before.
+	Concluded *Concluded `json:"concluded"`
 }
 
 // ContractList is the filtered list with the count of every status over all
@@ -364,6 +367,9 @@ type Intake interface {
 	Templates(ctx context.Context, reviewer Reviewer) ([]OfferingTemplate, error)
 	// SaveTemplate creates or replaces the template of one offering.
 	SaveTemplate(ctx context.Context, reviewer Reviewer, schoolID, offeringID int64, input TemplateInput) (OfferingTemplate, error)
+	// ConclusionModes tells for every school of the Träger how its contracts
+	// come about: ModeSendLater (Weg a) or ModeOnAcceptance (Weg b).
+	ConclusionModes(ctx context.Context, reviewer Reviewer) ([]SchoolConclusion, error)
 }
 
 // InboxReader is the parents' account that reads its inbox, with its
@@ -408,6 +414,9 @@ type ContractMail struct {
 	Filename       string `json:"filename"`
 	PDF            []byte `json:"pdf"`
 	IdempotencyKey string `json:"idempotency_key"`
+	// Concluded tells that the contract is concluded already (Weg b): the
+	// parents receive it for their records and sign nothing.
+	Concluded bool `json:"concluded,omitempty"`
 }
 
 // RenderedContractMail is the mail the worker sends.
@@ -426,6 +435,7 @@ type ContractMailContent struct {
 	TraegerName  string
 	ChildName    string
 	Modules      string
+	Concluded    bool
 }
 
 // ContractMailRenderer renders the payload of a claimed contract mail.

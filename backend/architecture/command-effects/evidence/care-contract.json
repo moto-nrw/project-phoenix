@@ -1,6 +1,14 @@
 {
   "entries": [
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.careContractModes.ConclusionMode",
+      "binding_digest": "f6080717cd4005bac83e2b968e18441e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.ConclusionModes.ConclusionMode",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractLetterheads.Letterhead",
       "binding_digest": "3cd0a03036d3f7035a48f3b28dc84759",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Letterheads.Letterhead",
