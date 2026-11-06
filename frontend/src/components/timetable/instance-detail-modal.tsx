@@ -50,11 +50,7 @@ import {
   type GuardianNoticeDraft,
 } from "./guardian-notice-fields";
 import { OriginChip } from "~/components/ui/planning/origin-chip";
-import {
-  GROUP_ROOM_SHADES,
-  LOCATION_COLORS,
-  MOTO_COLOR_PALETTE,
-} from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceWebEnabled,
@@ -84,6 +80,8 @@ import type {
 } from "~/lib/timetable-types";
 import { RosterMaintenanceBadge } from "./roster-maintenance-badge";
 import { SeriesRosterReview } from "./series-roster-review";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import {
   instanceRoomLabel,
   getActivityTypeBadge,
@@ -297,36 +295,16 @@ interface InstanceStatusBadgeProps {
   status: InstanceStatus;
 }
 
-/** Schrift auf den beiden gefüllten Statusflächen (grün, rot). */
-const STATUS_BADGE_ON_CLASS = "text-white";
-
 function InstanceStatusBadge({ status }: InstanceStatusBadgeProps) {
-  // Flächen aus LOCATION_COLORS bzw. der neutralen Palette, die Schrift als
-  // Tailwind-Klasse (gray-700 = neutral.strong, gray-500 = neutral.base) —
-  // kein Hex-Literal neben einem Token in derselben Tabelle.
-  const palette: Record<InstanceStatus, { bg: string; text: string }> = {
-    planned: {
-      bg: MOTO_COLOR_PALETTE.neutral.soft,
-      text: "text-gray-700",
-    },
-    // Füllton statt GROUP_ROOM: Weiß auf #83CD2D erreicht nur 1,96:1 (#5141).
-    active: { bg: GROUP_ROOM_SHADES.fill, text: STATUS_BADGE_ON_CLASS },
-    // Abgeschlossen steht auf derselben neutralen Fläche wie "Geplant", trägt
-    // aber die hellere Schrift: erledigt, nicht offen.
-    completed: {
-      bg: MOTO_COLOR_PALETTE.neutral.soft,
-      text: "text-gray-500",
-    },
-    cancelled: { bg: LOCATION_COLORS.DANGER, text: STATUS_BADGE_ON_CLASS },
+  const tone: Record<InstanceStatus, "green" | "gray" | "red"> = {
+    planned: "gray",
+    active: "green",
+    completed: "gray",
+    cancelled: "red",
   };
-  const { bg, text } = palette[status];
+
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase ${text}`}
-      style={{ backgroundColor: bg }}
-    >
-      {getStatusLabel(status)}
-    </span>
+    <StatusBadge label={getStatusLabel(status)} tone={tone[status]} size="xs" />
   );
 }
 
@@ -437,14 +415,7 @@ function ActivityTypeBadge({
 }: Readonly<{ activityType: EnrichedInstance["activityType"] }>) {
   const badge = getActivityTypeBadge(activityType);
   if (!badge) return null;
-  return (
-    <span
-      className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white uppercase"
-      style={{ backgroundColor: badge.bg }}
-    >
-      {badge.label}
-    </span>
-  );
+  return <StatusColorBadge label={badge.label} color={badge.color} size="xs" />;
 }
 
 function AssignedStaffSection({

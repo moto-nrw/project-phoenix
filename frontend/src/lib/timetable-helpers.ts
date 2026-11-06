@@ -14,11 +14,7 @@ import {
   parseISODate,
   toISODate,
 } from "./date-helpers";
-import {
-  GROUP_ROOM_SHADES,
-  LOCATION_COLORS,
-  MOTO_COLOR_PALETTE,
-} from "./location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "./location-helper";
 import {
   shouldMaterializeWeekPattern,
   type CalendarPeriod,
@@ -138,15 +134,14 @@ export function getActivityColor(type: ActivityType): string {
  */
 export function getActivityTypeBadge(
   type: ActivityType,
-): { label: string; bg: string } | null {
+): { label: string; color: string } | null {
   switch (type) {
     case "activity":
-      // Trägt weiße Schrift, darum der Füllton statt GROUP_ROOM (#5141).
-      return { label: "AG", bg: GROUP_ROOM_SHADES.fill };
+      return { label: "AG", color: LOCATION_COLORS.GROUP_ROOM };
     case "external":
-      return { label: "EXTERN", bg: LOCATION_COLORS.SCHOOLYARD };
+      return { label: "EXTERN", color: LOCATION_COLORS.SCHOOLYARD };
     case "duty":
-      return { label: "DIENST", bg: MOTO_COLOR_PALETTE.navy.base };
+      return { label: "DIENST", color: MOTO_COLOR_PALETTE.navy.base };
     case "care":
       return null;
   }

@@ -13,21 +13,20 @@
 
 import type { ReactNode } from "react";
 
-import { timetableToneColors, type TimetableTone } from "./timetable-style";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
 import { StatusDot } from "~/components/ui/status-dot";
+import { timetableToneColors, type TimetableTone } from "./timetable-style";
 
-/** Subtracts `amount` (0-255) from each RGB channel, clamped at 0 — a
- * simple, dependency-free darken so tone text/icons stay legible on the
- * light tint background (mirrors why the old StatPill's "accent" colors
- * were hand-picked darker than the raw brand hex, e.g. amber #EAB308 as
- * plain text has poor contrast on white). */
-function darkenHex(hex: string, amount: number): string {
-  const num = Number.parseInt(hex.slice(1), 16);
-  const r = Math.max(0, (num >> 16) - amount);
-  const g = Math.max(0, ((num >> 8) & 0xff) - amount);
-  const b = Math.max(0, (num & 0xff) - amount);
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
-}
+const TIMETABLE_BADGE_TONES: Record<TimetableTone, StatusBadgeTone> = {
+  neutral: "gray",
+  success: "green",
+  info: "blue",
+  warning: "orange",
+  danger: "red",
+};
 
 interface TimetableRatioPillProps {
   readonly icon: ReactNode;
@@ -70,25 +69,13 @@ export function TimetableRatioPill({
     );
   }
 
-  const textColor = darkenHex(color, 70);
-
   return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
-      style={{
-        backgroundColor: `${color}1A`,
-        borderColor: `${color}33`,
-        color: textColor,
-      }}
-    >
-      <span aria-hidden className="flex shrink-0 items-center">
-        {icon}
-      </span>
-      <span className="font-medium" style={{ color: `${textColor}CC` }}>
-        {label}
-      </span>
-      <span className="font-bold tabular-nums">{value}</span>
-    </span>
+    <StatusBadge
+      icon={icon}
+      label={`${label} ${value}`}
+      title={title}
+      tone={TIMETABLE_BADGE_TONES[tone]}
+    />
   );
 }
 

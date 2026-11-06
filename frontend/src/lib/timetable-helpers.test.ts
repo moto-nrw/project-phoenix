@@ -346,15 +346,14 @@ describe("activity/status helpers", () => {
     expect(getActivityTypeBadge("care")).toBeNull();
     expect(getActivityTypeBadge("activity")).toEqual({
       label: "AG",
-      // Weiße Schrift, darum der Füllton statt #83CD2D (#5141).
-      bg: "#4A7F14",
+      color: "#83CD2D",
     });
     expect(getActivityTypeBadge("external")).toEqual({
       label: "EXTERN",
-      bg: "#F78C10",
+      color: "#F78C10",
     });
     expect(getActivityTypeBadge("duty")?.label).toBe("DIENST");
-    expect(getActivityColor("duty")).toBe(getActivityTypeBadge("duty")?.bg);
+    expect(getActivityColor("duty")).toBe(getActivityTypeBadge("duty")?.color);
   });
 
   it("labels a block without room (#3822)", () => {

@@ -51,7 +51,10 @@ import { Input } from "~/components/ui/input";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Radio } from "~/components/ui/radio";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import {
   SlideOver,
   SlideOverCloseButton,
@@ -576,16 +579,23 @@ export function SubstitutionSlideOver({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <SlideOverTitle>{instance.title}</SlideOverTitle>
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-gray-600 uppercase">
-                      {getStatusLabel(instance.status)}
-                    </span>
+                    <StatusBadge
+                      label={getStatusLabel(instance.status)}
+                      tone={
+                        instance.status === "active"
+                          ? "green"
+                          : instance.status === "cancelled"
+                            ? "red"
+                            : "gray"
+                      }
+                      size="xs"
+                    />
                     {typeBadge && (
-                      <span
-                        className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white uppercase"
-                        style={{ backgroundColor: typeBadge.bg }}
-                      >
-                        {typeBadge.label}
-                      </span>
+                      <StatusColorBadge
+                        label={typeBadge.label}
+                        color={typeBadge.color}
+                        size="xs"
+                      />
                     )}
                   </div>
                   <SlideOverDescription>
@@ -784,78 +794,82 @@ export function SubstitutionSlideOver({
                                 </span>
                                 <div className="flex flex-wrap items-center justify-end gap-2">
                                   {removed ? (
-                                    <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
-                                      Wird entfernt
-                                    </span>
+                                    <StatusBadge
+                                      label="Wird entfernt"
+                                      tone="gray"
+                                      size="xs"
+                                    />
                                   ) : row.isAbsent && !restored ? (
-                                    <span className="bg-moto-red/10 text-moto-red-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
-                                      Abwesend
-                                    </span>
+                                    <StatusBadge
+                                      label="Abwesend"
+                                      tone="red"
+                                      size="xs"
+                                    />
                                   ) : restored ? (
-                                    <span className="bg-moto-green/20 text-moto-green-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
-                                      Wird wiederhergestellt
-                                    </span>
+                                    <StatusBadge
+                                      label="Wird wiederhergestellt"
+                                      tone="green"
+                                      size="xs"
+                                    />
                                   ) : (
-                                    <span className="bg-moto-green/20 text-moto-green-strong rounded-full px-2 py-0.5 text-[10px] font-semibold">
-                                      Ersatz
-                                    </span>
+                                    <StatusBadge
+                                      label="Ersatz"
+                                      tone="green"
+                                      size="xs"
+                                    />
                                   )}
                                   {canEdit && !row.isSickAbsence && (
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="compact"
-                                      onClick={() =>
-                                        toggleRemoveSub(row.staffId)
-                                      }
-                                    >
-                                      {removed ? (
-                                        <>
-                                          <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                                          Rückgängig
-                                        </>
-                                      ) : (
-                                        <>
-                                          <MotoConceptIcon
-                                            concept={substitutionConcept}
-                                            size={14}
-                                            className="mr-1"
-                                          />
-                                          Entfernen
-                                        </>
-                                      )}
-                                    </Button>
-                                  )}
-                                  {canEdit &&
-                                    row.isAbsent &&
-                                    !row.isSickAbsence &&
-                                    !removed &&
-                                    canRestore && (
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="compact"
-                                        onClick={() =>
-                                          toggleRestoreSub(row.staffId)
-                                        }
-                                      >
-                                        {restored ? (
-                                          <>
+                                    <OverflowMenu
+                                      ariaLabel={`Aktionen für ${staffLabel(staffNames, row.staffId)}`}
+                                      triggerSize="sm"
+                                      items={[
+                                        {
+                                          label: removed
+                                            ? "Rückgängig"
+                                            : "Entfernen",
+                                          icon: removed ? (
+                                            <RotateCcw
+                                              className="h-3.5 w-3.5"
+                                              aria-hidden
+                                            />
+                                          ) : (
                                             <MotoConceptIcon
                                               concept={substitutionConcept}
                                               size={14}
-                                              className="mr-1"
                                             />
-                                            Rückgängig
-                                          </>
-                                        ) : (
-                                          <>
-                                            <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                                            Anwesend melden
-                                          </>
-                                        )}
-                                      </Button>
-                                    )}
+                                          ),
+                                          onClick: () =>
+                                            toggleRemoveSub(row.staffId),
+                                        },
+                                        ...(row.isAbsent &&
+                                        !removed &&
+                                        canRestore
+                                          ? [
+                                              {
+                                                label: restored
+                                                  ? "Rückgängig"
+                                                  : "Anwesend melden",
+                                                icon: restored ? (
+                                                  <MotoConceptIcon
+                                                    concept={
+                                                      substitutionConcept
+                                                    }
+                                                    size={14}
+                                                  />
+                                                ) : (
+                                                  <RotateCcw
+                                                    className="h-3.5 w-3.5"
+                                                    aria-hidden
+                                                  />
+                                                ),
+                                                onClick: () =>
+                                                  toggleRestoreSub(row.staffId),
+                                              },
+                                            ]
+                                          : []),
+                                      ]}
+                                    />
+                                  )}
                                 </div>
                               </li>
                             );
@@ -1238,9 +1252,7 @@ function HistoryTab({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         <div className="mb-3">
-          <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] text-gray-600">
-            {contextChip}
-          </span>
+          <StatusBadge label={contextChip} tone="outline" size="xs" />
         </div>
 
         {showSkeleton ? (
