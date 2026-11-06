@@ -82,7 +82,7 @@ func BuildCalendarApp(
 ) calendarCompose.Application {
 	repos, links := owner.Repositories, env.Links
 	cfg := NewCalendarFacts(people.Staff, people.Students, NewCalendarGuardianDirectory(people.GuardianProfiles, persons), people.StudentGuardians,
-		carePlanCompose.NewParentChildLinks(portal.ParentChild), structure.Groups)
+		ParentCalendarChildren(carePlanCompose.NewParentChildLinks(portal.ParentChild), settings), structure.Groups)
 	cfg = BindCalendarScheduleFacts(cfg, repos.InstanceStaff, repos.ActivityInstance.Reads, facilitiesCompose.NewRoomRecords(rooms),
 		newWorkforceShiftRows(workTime), newWorkforceShiftTypeRows(workTime))
 	cfg = BindCalendarFeedFacts(cfg, organizations, identity, identity, people.Persons)

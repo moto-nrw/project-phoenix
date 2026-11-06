@@ -2186,11 +2186,27 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarChildPort.ListByAccount",
+      "binding_digest": "0300630d6d2c1f77a18a0ac3c28c7956",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Children.ListByAccount",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.SettingsSnapshot.Bool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarChildPort.ListByAccount",
       "binding_digest": "2ea8ef01f947e349552937851d6f5679",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Children.ListByAccount",
       "source_owner": "school-calendar",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/compose.ParentChildLinks.ListByAccount",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarChildPort.ListByAccount",
+      "binding_digest": "bce47d19a679121dfd9111e3fe2ef56c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Children.ListByAccount",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarGroupPort.List",

@@ -3,8 +3,10 @@ package owners
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -74,6 +76,69 @@ func (r bookedParentChildReads) ListByAccount(ctx context.Context, accountID int
 				return nil, err
 			}
 			bookedBySchool[child.TenantID] = booked
+		}
+		if booked {
+			kept = append(kept, child)
+		}
+	}
+	return kept, nil
+}
+
+// ParentCalendarChildren hides the children of a school that has not booked
+// Eltern-App from the parent calendar and its subscribed ICS feed, as
+// ParentChildReadsForBookedSchools does for the parents portal (#4895). The
+// calendar lists the children inside its administrative lookup, and the feed
+// is read without a login; one batch read joins that transaction instead of
+// opening a tenant transaction per school. A failed read is an error, never
+// a booking decision.
+func ParentCalendarChildren(links ParentChildLinkSource, reader ParentPortalBookingReader) ParentChildLinkSource {
+	if links == nil {
+		return nil
+	}
+	if reader == nil {
+		panic("parent calendar children: settings reader is required")
+	}
+	module, ok := settingsValues.LookupModule(settingsValues.ModuleElternApp)
+	if !ok {
+		panic("parent calendar children: module Eltern-App is not registered")
+	}
+	return bookedParentChildLinks{links: links, reader: reader, key: module.SettingKey}
+}
+
+// ParentPortalBookingReader resolves settings of several schools in one read
+// and joins an ambient administrative transaction.
+type ParentPortalBookingReader interface {
+	ResolveManyForTenants(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*settingsCompose.SettingsSnapshot, error)
+}
+
+type bookedParentChildLinks struct {
+	links  ParentChildLinkSource
+	reader ParentPortalBookingReader
+	key    string
+}
+
+func (l bookedParentChildLinks) ListByAccount(ctx context.Context, accountID int64) ([]ParentChildLink, error) {
+	children, err := l.links.ListByAccount(ctx, accountID)
+	if err != nil || len(children) == 0 {
+		return children, err
+	}
+	tenantIDs := make([]int64, 0, len(children))
+	for _, child := range children {
+		tenantIDs = append(tenantIDs, child.TenantID)
+	}
+	snapshots, err := l.reader.ResolveManyForTenants(ctx, tenantIDs, []string{l.key})
+	if err != nil {
+		return nil, err
+	}
+	kept := make([]ParentChildLink, 0, len(children))
+	for _, child := range children {
+		snapshot := snapshots[child.TenantID]
+		if snapshot == nil {
+			return nil, fmt.Errorf("parent calendar children: booking of school %d missing", child.TenantID)
+		}
+		booked, err := snapshot.Bool(l.key)
+		if err != nil {
+			return nil, err
 		}
 		if booked {
 			kept = append(kept, child)
