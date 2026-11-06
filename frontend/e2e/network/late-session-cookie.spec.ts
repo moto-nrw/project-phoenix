@@ -57,6 +57,20 @@ async function login(page: Page) {
     .fill(randomBytes(24).toString("hex"));
   await page.getByRole("button", { name: "Anmelden", exact: true }).click();
   await page.waitForURL(`${source}/home`);
+
+  // Compile both parts of the logout flow before the late-response scenario
+  // starts. The CSRF read and non-mutating OPTIONS preflight leave the
+  // still-live session intact.
+  const [csrfStatus, logoutStatus] = await page.evaluate(async () =>
+    Promise.all([
+      fetch("/api/auth/csrf").then((response) => response.status),
+      fetch("/api/auth/logout", { method: "OPTIONS" }).then(
+        (response) => response.status,
+      ),
+    ]),
+  );
+  expect(csrfStatus).toBe(200);
+  expect(logoutStatus).toBe(204);
 }
 
 /** Only cookie metadata and its presence; never its value in evidence. */
