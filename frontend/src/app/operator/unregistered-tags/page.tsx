@@ -24,6 +24,7 @@ import {
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
 import type { FormErrorInput } from "~/components/ui/form-error";
+import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { rfidConcept } from "~/lib/concepts/rfid";
@@ -371,19 +372,16 @@ export function ResolveScanModal({
         <span className="font-mono font-medium">{scan.tagUid}</span> ·{" "}
         {scan.schoolName}
       </p>
-      <label
-        htmlFor="resolution-note"
-        className="mt-4 block text-sm font-medium text-gray-700"
-      >
-        Notiz
-      </label>
-      <textarea
-        id="resolution-note"
-        name="resolution_note"
-        value={note}
-        onChange={(event) => onNoteChange(event.target.value)}
-        className="mt-1 min-h-24 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-100 focus:outline-none"
-      />
+      <div className="mt-4">
+        <Textarea
+          id="resolution-note"
+          name="resolution_note"
+          label="Notiz"
+          value={note}
+          onChange={(event) => onNoteChange(event.target.value)}
+          className="min-h-24 resize-y"
+        />
+      </div>
     </Modal>
   );
 }
