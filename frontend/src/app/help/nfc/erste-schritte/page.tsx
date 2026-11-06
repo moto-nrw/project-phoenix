@@ -112,10 +112,6 @@ export default function NfcQuickstartPage() {
 
           <div className="flex flex-1 flex-col px-10 py-9 print:px-8 print:py-6">
             <div className="relative grid gap-4 print:gap-3">
-              <div
-                className="absolute top-10 bottom-10 left-1/2 hidden w-[2px] -translate-x-1/2 rounded-full bg-gray-300 md:block print:block"
-                aria-hidden="true"
-              />
               {steps.map((step, index) => {
                 const Icon = step.icon;
                 const isRight = index === 1;

@@ -470,13 +470,15 @@ describe("Kopf der Kindakte", () => {
       expect(rowFor("arrival").queryByText("Ausnahme")).toBeNull();
     });
 
-    it("does not render the exception dot when isPickupException is false", () => {
+    it("does not render the exception badge when isPickupException is false", () => {
       renderHeaderWithTimes({
         todayPickupPlannedTime: "15:30",
         isPickupException: false,
       });
 
-      expect(rowFor("pickup").queryByTitle("Ausnahme")).toBeNull();
+      const pickup = rowFor("pickup");
+      expect(pickup.getByText("15:30")).toBeInTheDocument();
+      expect(pickup.queryByText("Ausnahme")).toBeNull();
     });
 
     it("renders an optional pickup note inline in parentheses", () => {
