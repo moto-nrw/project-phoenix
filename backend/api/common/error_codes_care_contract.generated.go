@@ -5,7 +5,6 @@ const CodeCareContractApplicationNotFound = "care_contract.application_not_found
 const CodeCareContractContractInputInvalid = "care_contract.contract_input_invalid"
 const CodeCareContractContractNotDraft = "care_contract.contract_not_draft"
 const CodeCareContractContractNotFound = "care_contract.contract_not_found"
-const CodeCareContractInboxDocumentNotFound = "care_contract.inbox_document_not_found"
 const CodeCareContractLetterheadTooLong = "care_contract.letterhead_too_long"
 const CodeCareContractOfferingNotFound = "care_contract.offering_not_found"
 const CodeCareContractSchoolOutsideTraeger = "care_contract.school_outside_traeger"
@@ -16,7 +15,6 @@ var errorCodeClassesCareContract = []errorCodeClass{
 	{CodeCareContractContractInputInvalid, "input"},
 	{CodeCareContractContractNotDraft, "business_rejection"},
 	{CodeCareContractContractNotFound, "business_rejection"},
-	{CodeCareContractInboxDocumentNotFound, "business_rejection"},
 	{CodeCareContractLetterheadTooLong, "business_rejection"},
 	{CodeCareContractOfferingNotFound, "business_rejection"},
 	{CodeCareContractSchoolOutsideTraeger, "permission"},

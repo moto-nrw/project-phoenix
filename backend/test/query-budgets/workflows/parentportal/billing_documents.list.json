@@ -1,6 +1,6 @@
 {
   "scenario": "workflows.parentportal.billing_documents.list",
-  "max": 16,
+  "max": 17,
   "exact": false,
-  "description": "workflows/parentportal — GET /parent/me/documents (#4671, ADR 0126):\nthe account's children with their relationships, the Träger of their\nschools and the account's address in one administrative transaction,\nthen per Träger its binding, the sent documents of the address and one\ntrail entry per run. Flat in the number of documents."
+  "description": "workflows/parentportal — GET /parent/me/documents (#4671, ADR 0126):\nthe account's children with their relationships, the Träger of their\nschools and the account's address in one administrative transaction,\nthen per Träger its binding, the sent documents of the address and one\ntrail entry per run. Flat in the number of documents.\nADR 0153 (#4678) adds one statement per Träger: the sent care contracts\nof the address, read by the Betreuungsvertrag, with no trail entry when\nthere is none."
 }

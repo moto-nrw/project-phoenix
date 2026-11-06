@@ -28,6 +28,22 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "billing.invalid_key_day":
         "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage.",
+      "care_contract.application_not_found":
+        "Diese Anmeldung gibt es nicht mehr oder sie ist nicht angenommen. Bitte laden Sie die Seite neu.",
+      "care_contract.contract_input_invalid":
+        "Bitte wählen Sie mindestens einen und höchstens 200 Einträge aus.",
+      "care_contract.contract_not_draft":
+        "Der Vertrag ist schon versendet. Er lässt sich nicht mehr verwerfen.",
+      "care_contract.contract_not_found":
+        "Diesen Vertrag gibt es nicht. Bitte öffnen Sie ihn über „Verträge“.",
+      "care_contract.letterhead_too_long":
+        "Absender oder Fußzeile sind zu lang für den Vertrag. Bitte kürzen Sie sie unter „Briefkopf und Vorlagen“.",
+      "care_contract.offering_not_found":
+        "Dieses Angebot gibt es an der Schule nicht mehr. Bitte laden Sie die Seite neu.",
+      "care_contract.school_outside_traeger":
+        "Diese Schule gehört nicht zu Ihrem Träger.",
+      "care_contract.template_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
       "care.announcement_stale":
         "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
       "care.care_exception_conflict":
@@ -1604,6 +1620,21 @@ export const ERROR_CATALOG = {
       fieldCheck: "Please check this field.",
     },
     codes: {
+      "care_contract.application_not_found":
+        "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.contract_input_invalid":
+        "Please select at least one and at most 200 entries.",
+      "care_contract.contract_not_draft":
+        "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_found":
+        "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.letterhead_too_long":
+        "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.offering_not_found":
+        "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.school_outside_traeger":
+        "This school does not belong to your provider.",
+      "care_contract.template_invalid": "Please check the marked fields.",
       "care.announcement_stale":
         "{object} has been changed in the meantime. Please reload the page.",
       "care.care_exception_conflict":
@@ -2117,6 +2148,21 @@ export const ERROR_CATALOG = {
       fieldCheck: "Проверьте это поле.",
     },
     codes: {
+      "care_contract.application_not_found":
+        "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.contract_input_invalid":
+        "Please select at least one and at most 200 entries.",
+      "care_contract.contract_not_draft":
+        "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_found":
+        "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.letterhead_too_long":
+        "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.offering_not_found":
+        "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.school_outside_traeger":
+        "This school does not belong to your provider.",
+      "care_contract.template_invalid": "Please check the marked fields.",
       "care.announcement_stale":
         "Данные изменились: {object}. Обновите страницу.",
       "care.care_exception_conflict":
@@ -2533,6 +2579,21 @@ export const ERROR_CATALOG = {
       fieldCheck: "Kontrolloni këtë fushë.",
     },
     codes: {
+      "care_contract.application_not_found":
+        "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.contract_input_invalid":
+        "Please select at least one and at most 200 entries.",
+      "care_contract.contract_not_draft":
+        "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_found":
+        "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.letterhead_too_long":
+        "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.offering_not_found":
+        "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.school_outside_traeger":
+        "This school does not belong to your provider.",
+      "care_contract.template_invalid": "Please check the marked fields.",
       "care.announcement_stale":
         "Ndërkohë është ndryshuar: {object}. Ju lutemi ringarkoni faqen.",
       "care.care_exception_conflict":
@@ -2964,6 +3025,21 @@ export const ERROR_CATALOG = {
       fieldCheck: "Sprawdź to pole.",
     },
     codes: {
+      "care_contract.application_not_found":
+        "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.contract_input_invalid":
+        "Please select at least one and at most 200 entries.",
+      "care_contract.contract_not_draft":
+        "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_found":
+        "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.letterhead_too_long":
+        "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.offering_not_found":
+        "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.school_outside_traeger":
+        "This school does not belong to your provider.",
+      "care_contract.template_invalid": "Please check the marked fields.",
       "care.announcement_stale":
         "W międzyczasie zmieniono: {object}. Odśwież stronę.",
       "care.care_exception_conflict":
@@ -3382,6 +3458,21 @@ export const ERROR_CATALOG = {
       fieldCheck: "Bu alanı kontrol edin.",
     },
     codes: {
+      "care_contract.application_not_found":
+        "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.contract_input_invalid":
+        "Please select at least one and at most 200 entries.",
+      "care_contract.contract_not_draft":
+        "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_found":
+        "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.letterhead_too_long":
+        "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.offering_not_found":
+        "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.school_outside_traeger":
+        "This school does not belong to your provider.",
+      "care_contract.template_invalid": "Please check the marked fields.",
       "care.announcement_stale":
         "{object} bu arada değiştirildi. Lütfen sayfayı yenileyin.",
       "care.care_exception_conflict":
@@ -3806,6 +3897,21 @@ export const ERROR_CATALOG = {
       fieldCheck: "Перевірте це поле.",
     },
     codes: {
+      "care_contract.application_not_found":
+        "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.contract_input_invalid":
+        "Please select at least one and at most 200 entries.",
+      "care_contract.contract_not_draft":
+        "The contract has already been sent. It can no longer be discarded.",
+      "care_contract.contract_not_found":
+        "This contract does not exist. Please open it from “Contracts”.",
+      "care_contract.letterhead_too_long":
+        "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
+      "care_contract.offering_not_found":
+        "This offering no longer exists at the school. Please reload the page.",
+      "care_contract.school_outside_traeger":
+        "This school does not belong to your provider.",
+      "care_contract.template_invalid": "Please check the marked fields.",
       "care.announcement_stale": "Дані змінилися: {object}. Оновіть сторінку.",
       "care.care_exception_conflict":
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",

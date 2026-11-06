@@ -253,3 +253,69 @@ func TestDocumentInboxQueryBudget(t *testing.T) {
 	assert.Len(t, documents, 3)
 	querybudgets.AssertQueryBudget(t, "workflows.parentportal.billing_documents.list", counter.Queries())
 }
+
+// inboxContract stores a care contract of the Träger for child as the
+// Betreuungsvertrag does; sentTo records a send of its PDF to that address.
+func inboxContract(t *testing.T, db *bun.DB, organization, school int64, child, sentTo string) int64 {
+	t.Helper()
+	ctx := context.Background()
+	status := "entwurf"
+	if sentTo != "" {
+		status = "versendet"
+	}
+	var contract, version, document int64
+	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id, care_offering_id, status, sent_at)
+		VALUES (?, ?, ?, 3, ?, CASE WHEN ? = 'entwurf' THEN NULL ELSE NOW() END) RETURNING id`,
+		organization, school, testpkg.UniqueTestTenantID(t), status, status).Scan(ctx, &contract))
+	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contract_versions (organization_id, contract_id, version_number, effective_from,
+			child_first_name, child_last_name, school_name, offering_name, term_kind, notice_months, notice_to, special_termination,
+			special_termination_note, statute_required, statute_title, statute_url, contract_partner)
+		VALUES (?, ?, 1, '2027-08-01', ?, 'Schneider', 'OGS Am Lindenhof', 'Ganztag', 'open_ended', 1, 'month_end', false, '', false, '', '', '')
+		RETURNING id`, organization, contract, child).Scan(ctx, &version))
+	if sentTo == "" {
+		return contract
+	}
+	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contract_documents (organization_id, contract_id, contract_version_id,
+			template_version, filename, pdf) VALUES (?, ?, ?, 0, 'betreuungsvertrag.pdf', ?) RETURNING id`,
+		organization, contract, version, []byte("%PDF-1.4 Vertrag "+child)).Scan(ctx, &document))
+	_, err := db.ExecContext(ctx, `INSERT INTO care_contract.contract_mailings (organization_id, contract_id, contract_document_id,
+			outbox_id, recipient_email) VALUES (?, ?, ?, ?, ?)`, organization, contract, document, testpkg.UniqueTestTenantID(t), sentTo)
+	require.NoError(t, err)
+	return contract
+}
+
+// TestDocumentInboxShowsTheFamilysSentContracts pins ADR 0153 point 7: a care
+// contract lies in the inbox of the account its mail went to, beside the
+// letters; a draft and a contract sent to another family never show, and
+// every read lands in the contract's trail with the account.
+func TestDocumentInboxShowsTheFamilysSentContracts(t *testing.T) {
+	t.Parallel()
+	portal, _, _, db := documentInbox(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	var organization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, chain.TenantID).Scan(ctx, &organization))
+	testpkg.OwnTraegerCareContracts(t, db, organization)
+	sent := inboxContract(t, db, organization, chain.TenantID, "Felix", chain.Email)
+	otherFamily := inboxContract(t, db, organization, chain.TenantID, "Tom", "andere.familie@example.org")
+	draft := inboxContract(t, db, organization, chain.TenantID, "Mia", "")
+
+	documents, err := portal.ListBillingDocuments(ctx, chain.AccountID)
+	require.NoError(t, err)
+	require.Len(t, documents, 1, "only the contract sent to the own address")
+	assert.Equal(t, sent, documents[0].ID)
+	assert.Equal(t, parentService.DocumentKindContract, documents[0].Kind)
+	assert.Equal(t, []string{"Felix"}, documents[0].ChildNames)
+
+	file, err := portal.ContractDocumentFile(ctx, chain.AccountID, organization, sent)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("%PDF-1.4 Vertrag Felix"), file.Data, "the stored PDF")
+	for name, contract := range map[string]int64{"contract of another family": otherFamily, "draft": draft} {
+		_, err := portal.ContractDocumentFile(ctx, chain.AccountID, organization, contract)
+		assert.ErrorIs(t, err, parentService.ErrBillingDocumentNotFound, name)
+	}
+	var reads int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM care_contract.contract_events WHERE organization_id = ? AND account_id = ?
+		AND action = 'read' AND details->>'inbox' IS NOT NULL`, organization, chain.AccountID).Scan(ctx, &reads))
+	assert.Equal(t, 2, reads, "the list and the download are in the trail")
+}

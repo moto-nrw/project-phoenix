@@ -25,12 +25,6 @@
       "legacy": "care_contract.contract_not_found"
     },
     {
-      "code": "care_contract.inbox_document_not_found",
-      "class": "business_rejection",
-      "parameters": [],
-      "legacy": "care_contract.inbox_document_not_found"
-    },
-    {
       "code": "care_contract.letterhead_too_long",
       "class": "business_rejection",
       "parameters": [],
