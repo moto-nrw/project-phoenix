@@ -173,6 +173,10 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		// The first seeded parent's document inbox after the letters went
 		// out (#4671).
 		data = []map[string]any{{"id": "71", "organization_id": "3"}}
+	case path == "/parent/me/documents/contracts":
+		// The first seeded parent's contract waiting for the signature
+		// (#4679).
+		data = []map[string]any{{"id": "72", "organization_id": "3", "contract_status": "versendet"}}
 	case path == "/parent/holiday-registrations/link-key/family":
 		// The first seeded parent's prefill of the same link (#4662).
 		data = map[string]any{"guardian": map[string]any{}, "children": []map[string]any{{"student_id": "9", "school_id": "1"}}}

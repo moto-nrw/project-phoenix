@@ -10,8 +10,9 @@ import "maps"
 // ADR 0121 their branding read for the letters, which #5621 shares with the
 // read of the debtor number switch. ADR 0153 adds the intake of the
 // Betreuungsvertrag, which reads each school in its tenant transaction and
-// then writes in the Träger transaction. A further site needs its own
-// decision.
+// then writes in the Träger transaction. ADR 0155 adds the signature of
+// the contract over its one-time link and the reminders of the worker. A
+// further site needs its own decision.
 var traegerTransactionSites = map[string]string{
 	"tenant/traeger.go:WithinTraeger:runtime.withinTraeger#1":                                                                           "ADR 0086 section 5 and ADR 0105: the tenant runtime's Träger transaction entry point refuses a school, administrative or foreign Träger unit and binds the Träger for the adapter; never selected by a missing school.",
 	"modules/transactionruntime/compose/tenant_runtime.go:NewTenantRuntime:unitOfWork.WithinTraeger#1":                                  "ADR 0086 section 5 and ADR 0105: Transaction Runtime binds the PostgreSQL Träger transaction into the serving unit of work; the demo runtime gets none.",
@@ -28,6 +29,8 @@ var traegerTransactionSites = map[string]string{
 	"modules/carecontract/internal/application/intake.go:*Intake.CreateContracts:in.runtime.WithinTraeger#1":                            "ADR 0153: the drafts of the accepted applications, their versions, parties and trail entries commit together in the Träger transaction of the session's Träger, after each school was read in its own tenant transaction; a second draft for the same key is skipped.",
 	"modules/carecontract/internal/application/intake.go:*Intake.SaveTemplate:in.runtime.WithinTraeger#1":                               "ADR 0153: a contract template and its trail entry commit together in the Träger transaction of the session's Träger, after the offering was found in its school's tenant transaction.",
 	"modules/carecontract/internal/application/intake.go:*Intake.Templates:in.runtime.WithinTraeger#1":                                  "ADR 0153: the templates of the Träger are read in its Träger transaction after the offerings of each school were read in that school's tenant transaction; it writes nothing.",
+	"modules/carecontract/internal/application/reminders.go:*Reminders.RemindDue:r.ports.Runtime.WithinTraeger#1":                       "ADR 0155: the reminders of one Träger, their new one-time links, the outbox mails and the trail entries commit together in that Träger's transaction; one Träger's failure does not hold back the next.",
+	"modules/carecontract/internal/application/signing.go:*Signatures.withinLink:s.ports.Runtime.WithinTraeger#1":                       "ADR 0155: the one-time link names its Träger; the link, the contract under its row lock, the signature with its ledger entry, the conclusion and the confirmation mail commit together in that Träger's transaction.",
 }
 
 // withoutReviewedTraegerTransactions removes exactly the reviewed Träger

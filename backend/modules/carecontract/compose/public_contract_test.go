@@ -3,7 +3,6 @@ package compose_test
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"testing"
@@ -111,8 +110,15 @@ func (d *tokenDouble) NewToken() (string, string, error) {
 
 func (*tokenDouble) Fingerprint(raw string) string { return sha256Hex([]byte(raw)) }
 
+// sha256Hex stands in for the root's SHA-256 fingerprint: a deterministic
+// digest of the same 64-hex shape, since the owner's tests may not import
+// crypto.
 func sha256Hex(data []byte) string {
-	sum := sha256.Sum256(data)
+	var sum [32]byte
+	for i, b := range data {
+		sum[i%len(sum)] ^= b
+		sum[(i*7+3)%len(sum)] += b + byte(i)
+	}
 	return hex.EncodeToString(sum[:])
 }
 
