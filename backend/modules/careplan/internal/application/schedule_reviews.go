@@ -74,7 +74,10 @@ func (s *ScheduleReviews) ListPending(ctx context.Context, filter careplan.Reque
 	if err != nil {
 		today = s.deps.Today()
 	}
-	plans := s.preloadReviewPlans(ctx, rows, students, scope, today)
+	var plans reviewPlanCache
+	if !filter.OmitDiff {
+		plans = s.preloadReviewPlans(ctx, rows, students, scope, today)
+	}
 	for i := range rows {
 		row := &rows[i]
 		student, found := students[row.StudentID]
@@ -83,6 +86,10 @@ func (s *ScheduleReviews) ListPending(ctx context.Context, filter careplan.Reque
 		}
 		name := names[student.PersonID]
 		item := &careplan.CareScheduleReviewItem{Request: row, FirstName: name.FirstName, LastName: name.LastName}
+		if filter.OmitDiff {
+			items = append(items, item)
+			continue
+		}
 		if err := s.careRequestDiff(ctx, row, student, item, today, plans); err != nil {
 			s.deps.Logger.Warn("schedule: build care request diff failed",
 				"request_id", row.ID,
