@@ -59,6 +59,7 @@ func NewIntake(store Store, ports IntakePorts, today func() calendar.Date) *Inta
 
 // schoolRead is what the intake read in one school's tenant transaction.
 type schoolRead struct {
+	automatic    bool
 	school       carecontract.School
 	applications []carecontract.Application
 	offerings    map[int64]carecontract.Offering
@@ -117,7 +118,7 @@ func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templa
 				PhaseName:     firstText(booked.phaseName, application.PhaseName),
 				Services:      boundServices(booked.services, lastDay(booked.until)),
 				EffectiveFrom: booked.effectiveFrom(application, today),
-				TemplateIssue: issue,
+				TemplateIssue: issue, HasAcceptance: len(application.Acceptances) > 0,
 			})
 		}
 	}
@@ -223,6 +224,11 @@ func (in *Intake) draft(key carecontract.CandidateKey, reads []schoolRead, templ
 	if !ok {
 		return NewContract{}, carecontract.SkipNotFound
 	}
+	if read.automatic {
+		// The school concludes at the acceptance: no manual draft may take
+		// the key the conclusion needs (#4680).
+		return NewContract{}, carecontract.SkipConclusionAutomatic
+	}
 	index := slices.IndexFunc(read.applications, func(a carecontract.Application) bool { return a.RequestChildID == key.RequestChildID })
 	if index < 0 {
 		return NewContract{}, carecontract.SkipNotFound
@@ -245,6 +251,7 @@ func (in *Intake) draft(key carecontract.CandidateKey, reads []schoolRead, templ
 		Services: boundServices(booked.services, ends), PriceCents: booked.price, Terms: terms,
 	}
 	return NewContract{
+		AcceptedAt: application.AcceptedAt, Acceptances: application.Acceptances,
 		Key: contractKey, StudentID: application.StudentID, Version: version,
 		Party: NewParty{
 			FirstName: application.GuardianFirstName, LastName: application.GuardianLastName,
@@ -435,6 +442,13 @@ func (in *Intake) readSchools(ctx context.Context, reviewer carecontract.Reviewe
 	for _, school := range schools {
 		read := schoolRead{school: school, offerings: map[int64]carecontract.Offering{}}
 		err := in.runtime.WithinSchool(ctx, school.ID, func(txCtx context.Context) error {
+			if view == accessViewCreate {
+				mode, err := in.modes.ConclusionMode(txCtx, school.ID)
+				if err != nil {
+					return err
+				}
+				read.automatic = mode == carecontract.ModeOnAcceptance
+			}
 			if err := in.readSchool(txCtx, &read, children[school.ID]); err != nil || len(read.applications) == 0 {
 				return err
 			}

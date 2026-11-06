@@ -17,7 +17,7 @@ var careContractDefinitions = []config.Definition{
 		Key:             config.KeyCareContractConclusionMode,
 		Levels:          config.LevelBoth,
 		Label:           "Wann gilt der Betreuungsvertrag?",
-		Description:     "Bei der Annahme: Nimmt die Schule eine Anmeldung an, gilt der Vertrag sofort. Die Eltern bekommen ihn per E-Mail und in der Eltern-App. Sie müssen nichts unterschreiben. Später verschicken: Das Träger-Büro erstellt den Vertrag und schickt ihn den Eltern.",
+		Description:     "Bei der Annahme: Nimmt die Schule eine Anmeldung an, gilt der Vertrag sofort. Die Eltern bekommen ihn per E-Mail und in der Eltern-App und müssen nichts unterschreiben. Voraussetzung: Die Eltern stimmen im Anmeldeformular den Vertragsbedingungen zu (AGB / Teilnahmebedingungen). Später verschicken: Das Träger-Büro erstellt den Vertrag und schickt ihn den Eltern.",
 		Type:            config.FieldSelect,
 		Default:         "nachtraeglich",
 		ReadPermission:  "config:read",

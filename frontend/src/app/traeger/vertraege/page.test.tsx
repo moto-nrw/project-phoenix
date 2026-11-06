@@ -267,6 +267,20 @@ describe("TraegerVertraegePage", () => {
     ).toHaveAttribute("href", "/einstellungen");
   });
 
+  it("does not offer manual drafts for schools concluding at acceptance", async () => {
+    api.fetchConclusionModes.mockResolvedValue([
+      { schoolId: "3", schoolName: "OGS Am Lindenhof", mode: "bei_annahme" },
+    ]);
+    renderPage();
+    await screen.findAllByText("Lina Muster");
+    fireEvent.click(screen.getByRole("button", { name: /Verträge erstellen/ }));
+    expect(await screen.findByLabelText("Mia Kern auswählen")).toBeDisabled();
+    expect(screen.getAllByText("Zustimmung zum Vertrag fehlt")).toHaveLength(1);
+    expect(
+      screen.getByText(/sind hier keine Entwürfe nötig/),
+    ).toBeInTheDocument();
+  });
+
   it("names an active contract with the day it was concluded", async () => {
     api.fetchCareContracts.mockResolvedValue({
       contracts: [

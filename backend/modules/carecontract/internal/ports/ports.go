@@ -25,10 +25,12 @@ type ContractKey struct {
 
 // NewContract is a draft with its first version and its party.
 type NewContract struct {
-	Key       ContractKey
-	StudentID *int64
-	Version   carecontract.Version
-	Party     NewParty
+	AcceptedAt  *time.Time
+	Acceptances []carecontract.AcceptedText
+	Key         ContractKey
+	StudentID   *int64
+	Version     carecontract.Version
+	Party       NewParty
 }
 
 // NewParty is the party of a new draft.

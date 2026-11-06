@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Conclusions serves carecontract.Conclusion: the conclusion at the
@@ -57,7 +59,7 @@ func (c *Conclusions) ConcludeAccepted(ctx context.Context, organizationID int64
 	if err != nil || len(reads) == 0 {
 		return run, err
 	}
-	existing, templates, err := c.readContracts(ctx, organizationID, reads)
+	existing, templates, changed, err := c.readContracts(ctx, organizationID, reads)
 	if err != nil {
 		return run, err
 	}
@@ -68,13 +70,25 @@ func (c *Conclusions) ConcludeAccepted(ctx context.Context, organizationID int64
 			if existing[ContractKey(key)] || len(bookedCare(read, application, today).services) == 0 {
 				continue
 			}
-			draft, reason := c.intake.draft(key, reads, templates, existing, today)
+			draft, reason := c.conclusionDraft(key, reads, templates, existing, changed, today)
 			if err := c.concludeChild(ctx, organizationID, key, draft, reason, &run); err != nil {
 				return run, err
 			}
 		}
 	}
 	return run, nil
+}
+
+// conclusionDraft builds the contract of one candidate, or names why it
+// cannot be concluded: the reasons of a draft, then the missing or outdated
+// proof of the parents' agreement.
+func (c *Conclusions) conclusionDraft(key carecontract.CandidateKey, reads []schoolRead, templates templateIndex,
+	existing map[ContractKey]bool, changed templateChanges, today calendar.Date) (NewContract, string) {
+	draft, reason := c.intake.draft(key, reads, templates, existing, today)
+	if reason != "" {
+		return draft, reason
+	}
+	return draft, acceptanceIssue(draft, changed.since(key.SchoolID, draftOfferings(draft)))
 }
 
 // concludeChild concludes the contract of one candidate, or records in run
@@ -95,23 +109,43 @@ func (c *Conclusions) concludeChild(ctx context.Context, organizationID int64, k
 	return nil
 }
 
-// readContracts reads the keys of the Träger's contracts at the schools
-// and its templates in the Träger transaction.
-func (c *Conclusions) readContracts(ctx context.Context, organizationID int64, reads []schoolRead) (map[ContractKey]bool, templateIndex, error) {
+// templateChanges holds when the conditions of each offering last changed.
+type templateChanges map[[2]int64]time.Time
+
+// since is the latest change of the conditions of the offerings at the
+// school.
+func (t templateChanges) since(schoolID int64, offerings []int64) time.Time {
+	var latest time.Time
+	for _, offering := range offerings {
+		if changed := t[[2]int64{schoolID, offering}]; changed.After(latest) {
+			latest = changed
+		}
+	}
+	return latest
+}
+
+// readContracts reads the templates of the Träger with their last change and
+// the keys of its contracts at the schools in the Träger transaction.
+func (c *Conclusions) readContracts(ctx context.Context, organizationID int64, reads []schoolRead) (map[ContractKey]bool, templateIndex, templateChanges, error) {
 	var existing map[ContractKey]bool
-	var templates templateIndex
+	var rows []TemplateRow
 	err := c.intake.runtime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
 		var err error
-		if templates, err = c.intake.templateIndex(txCtx, organizationID); err != nil {
+		if rows, err = c.intake.store.Templates(txCtx, organizationID); err != nil {
 			return err
 		}
 		existing, err = c.intake.store.ContractKeys(txCtx, organizationID, readSchoolIDs(reads))
 		return err
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("care contract: read contracts: %w", err)
+		return nil, nil, nil, fmt.Errorf("care contract: read contracts: %w", err)
 	}
-	return existing, templates, nil
+	templates, changed := make(templateIndex, len(rows)), make(templateChanges, len(rows))
+	for _, row := range rows {
+		key := [2]int64{row.SchoolID, row.OfferingID}
+		templates[key], changed[key] = row.Template.TemplateInput, row.Template.UpdatedAt
+	}
+	return existing, templates, changed, nil
 }
 
 func holdBackReason(err error) string {
@@ -166,19 +200,14 @@ func (c *Conclusions) concludeOne(ctx context.Context, organizationID int64, dra
 		if id, err = c.intake.store.InsertContract(txCtx, organizationID, 0, draft); err != nil {
 			return err
 		}
-		schoolID := draft.Key.SchoolID
-		if err := c.intake.store.InsertEvents(txCtx, organizationID, []Event{{
-			ContractID: &id, SchoolID: &schoolID, Action: ActionCreate,
-			Details: map[string]any{"request_child_id": draft.Key.RequestChildID, "care_offering_ids": draftOfferings(draft),
-				"conclusion": carecontract.MethodWithApplication},
-		}}); err != nil {
-			return err
-		}
-		conclusion := carecontract.Concluded{Method: carecontract.MethodWithApplication, At: c.clock.now()}
 		record, err := c.intake.store.Contract(txCtx, organizationID, id, true)
 		if err != nil {
 			return err
 		}
+		if err := c.recordAcceptance(txCtx, organizationID, record, draft); err != nil {
+			return err
+		}
+		conclusion := carecontract.Concluded{Method: carecontract.MethodWithApplication, At: *draft.AcceptedAt}
 		record.Concluded = &conclusion
 		if err := c.contracts.deliver(txCtx, system, record, ""); err != nil {
 			return sendHoldBack(err)
@@ -201,4 +230,57 @@ func sendHoldBack(err error) error {
 		return errHoldBack{reason: carecontract.SkipRecipientMissing}
 	}
 	return err
+}
+
+// acceptanceIssue names why the application gives no proof that the parents
+// agreed to the conditions of this contract (ADR 0088 section 3, Weg b): the
+// school's acceptance needs its instant, and the submission a required
+// conditions block the parents ticked, with the checksum taken when it was
+// shown, before the acceptance. Conditions changed after the submission are
+// not the ones the parents agreed to. Approval alone or a missing checksum is
+// no proof; the contract then waits and nothing is reconstructed.
+func acceptanceIssue(draft NewContract, termsChanged time.Time) string {
+	proof, ok := acceptanceProof(draft)
+	switch {
+	case !ok:
+		return carecontract.SkipAcceptanceMissing
+	case termsChanged.After(proof.SubmittedAt):
+		return carecontract.SkipAcceptanceChanged
+	}
+	return ""
+}
+
+// acceptanceProof is the latest ticked conditions block submitted before the
+// school accepted the application.
+func acceptanceProof(draft NewContract) (carecontract.AcceptedText, bool) {
+	if draft.AcceptedAt == nil || draft.AcceptedAt.IsZero() {
+		return carecontract.AcceptedText{}, false
+	}
+	var found carecontract.AcceptedText
+	for _, proof := range draft.Acceptances {
+		if proof.SHA256 == "" || proof.SubmittedAt.IsZero() || proof.SubmittedAt.After(*draft.AcceptedAt) {
+			continue
+		}
+		if proof.SubmittedAt.After(found.SubmittedAt) {
+			found = proof
+		}
+	}
+	return found, !found.SubmittedAt.IsZero()
+}
+
+// recordAcceptance writes the creation of the contract with the proof it
+// rests on into the trail: which conditions block, its checksum, when it was
+// submitted and accepted.
+func (c *Conclusions) recordAcceptance(ctx context.Context, organizationID int64, record ContractRecord, draft NewContract) error {
+	proof, ok := acceptanceProof(draft)
+	if !ok {
+		return errHoldBack{reason: carecontract.SkipAcceptanceMissing}
+	}
+	id, schoolID := record.Summary.ID, draft.Key.SchoolID
+	return c.intake.store.InsertEvents(ctx, organizationID, []Event{{
+		ContractID: &id, SchoolID: &schoolID, Action: ActionCreate,
+		Details: map[string]any{"request_child_id": draft.Key.RequestChildID, "care_offering_ids": draftOfferings(draft),
+			"conclusion": carecontract.MethodWithApplication, "acceptance_key": proof.Key, "acceptance_sha256": proof.SHA256,
+			"submitted_at": proof.SubmittedAt, "accepted_at": *draft.AcceptedAt, "processed_at": c.clock.now()},
+	}})
 }

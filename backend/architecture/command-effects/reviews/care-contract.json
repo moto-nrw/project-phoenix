@@ -153,7 +153,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolApplications.AcceptedApplications",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.AcceptedContractApplications: reads the accepted application children of the school in its tenant transaction (#4678, ADR 0153).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.AcceptedContractApplications: reads the accepted application children, original acceptance instant and checksummed consent text in the school transaction. The root only maps values; no mutation or scope switch (#4678, #4680, ADR 0153).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.AcceptedContractApplications",
       "target_owner": "enrollment"
