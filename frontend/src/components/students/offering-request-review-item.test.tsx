@@ -782,7 +782,7 @@ describe("OfferingRequestReviewItem", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByText(
-          "Danach ist für Lara Beispiel kein Betreuungstag mehr gebucht. Die Abmeldung muss anschließend abgeschlossen werden.",
+          "Ab dem 01.02.2027 ist für Lara Beispiel kein Betreuungstag mehr gebucht. Die Abmeldung muss anschließend abgeschlossen werden.",
         ),
       ).toBeInTheDocument();
       fireEvent.click(

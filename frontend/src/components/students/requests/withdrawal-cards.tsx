@@ -14,6 +14,7 @@ import { CareExitModal } from "~/components/students/care-exit-modal";
 import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
 import { RequestReviewCard } from "~/components/students/request-review-card";
 import type { CareWithdrawalCompletion } from "~/lib/care-exit-api";
+import { careWithdrawalNotice } from "~/lib/care-withdrawal-notice";
 import { formatDate } from "~/lib/date-helpers";
 
 export function OpenWithdrawalCard({
@@ -73,8 +74,8 @@ export function OpenWithdrawalCard({
       }
     >
       <p className="text-sm text-gray-600">
-        Für dieses Kind ist kein Betreuungstag mehr gebucht. Beenden Sie jetzt
-        die Betreuung.
+        {careWithdrawalNotice(row)} Tragen Sie das Ende jetzt mit „Betreuung
+        beenden“ ein.
       </p>
     </RequestReviewCard>
   );
