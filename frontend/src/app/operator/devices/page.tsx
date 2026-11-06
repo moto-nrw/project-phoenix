@@ -278,7 +278,7 @@ function OperatorDevicesPageContent() {
 
 export default function OperatorDevicesPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<TenantPage title="Geräte" loading />}>
       <OperatorDevicesPageContent />
     </Suspense>
   );

@@ -326,7 +326,7 @@ function OperatorAccountsPageContent() {
 
 export default function OperatorAccountsPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<TenantPage title="Konten" loading />}>
       <OperatorAccountsPageContent />
     </Suspense>
   );

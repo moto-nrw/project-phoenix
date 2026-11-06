@@ -422,7 +422,7 @@ function OperatorBillingPageContent() {
 
 export default function OperatorBillingPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<TenantPage title="Stichtagszahlen" loading />}>
       <OperatorBillingPageContent />
     </Suspense>
   );

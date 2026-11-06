@@ -196,7 +196,7 @@ function OperatorPersonsPageContent() {
 
 export default function OperatorPersonsPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<TenantPage title="Personen" loading />}>
       <OperatorPersonsPageContent />
     </Suspense>
   );

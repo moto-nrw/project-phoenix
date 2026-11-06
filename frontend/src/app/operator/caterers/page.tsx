@@ -134,7 +134,7 @@ function OperatorCaterersPageContent() {
 
 export default function OperatorCaterersPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<TenantPage title="Caterer" loading />}>
       <OperatorCaterersPageContent />
     </Suspense>
   );
