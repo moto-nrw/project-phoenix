@@ -225,3 +225,13 @@ func TestContractMailSubjectNamesNoChild(t *testing.T) {
 	assert.Equal(t, "Ihr Betreuungsvertrag", mail.Subject)
 	assert.Equal(t, "Lina Muster", mail.Content.ChildName, "the body names the child")
 }
+
+// A contract whose only module has no price still names the fee rule: the
+// frozen PDF never prints an empty amount.
+func TestContractWithoutPriceNamesTheFeeRule(t *testing.T) {
+	t.Parallel()
+	version := carecontract.Version{Services: []carecontract.Service{{Weekday: "mon", CareOfferingID: 1, ModuleName: "Kurzbetreuung"}}}
+	facts := termFacts(version, carecontract.Letterhead{SenderText: "Träger"})
+	assert.Contains(t, facts, LetterFact{Label: "Beitrag im Monat", Value: feeByStatute})
+	assert.Equal(t, feeByStatute, letterValues(ContractRecord{Version: version}, carecontract.Letterhead{})["summe"].Text)
+}

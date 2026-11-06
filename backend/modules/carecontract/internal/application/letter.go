@@ -58,6 +58,10 @@ var weekdayOrder = []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
 // tariffs per weekday and module (#4684) price it.
 const feeByRules = "laut Beitragsordnung für die gebuchten Module"
 
+// feeByStatute names the fee of a contract whose only module has no price,
+// so the frozen PDF never prints an empty amount.
+const feeByStatute = "laut Beitragsordnung"
+
 func contractLetter(record ContractRecord, head carecontract.Letterhead) Letter {
 	version := record.Version
 	filled := templates.Fill(letterTemplate(head.Template), letterValues(record, head))
@@ -141,6 +145,8 @@ func letterValues(record ContractRecord, head carecontract.Letterhead) map[strin
 		values["summe"] = text(formatEuro(*version.PriceCents))
 	case moduleCount(version.Services) > 1:
 		values["summe"] = text(feeByRules)
+	default:
+		values["summe"] = text(feeByStatute)
 	}
 	return values
 }
@@ -167,6 +173,8 @@ func termFacts(version carecontract.Version, head carecontract.Letterhead) []Let
 		facts = append(facts, LetterFact{Label: "Beitrag im Monat", Value: formatEuro(*version.PriceCents), Bold: true})
 	case moduleCount(version.Services) > 1:
 		facts = append(facts, LetterFact{Label: "Beitrag im Monat", Value: feeByRules})
+	default:
+		facts = append(facts, LetterFact{Label: "Beitrag im Monat", Value: feeByStatute})
 	}
 	facts = append(facts,
 		LetterFact{Label: "Kündigung", Value: NoticeText(terms)},

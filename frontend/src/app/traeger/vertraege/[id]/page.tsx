@@ -360,7 +360,7 @@ export default function TraegerVertragPage() {
                             ),
                           ).size > 1
                         ? "Laut Beitragsordnung für die gebuchten Module"
-                        : "Kein Beitrag hinterlegt"}
+                        : "Laut Beitragsordnung (das Angebot hat keinen Preis)"}
                   </DataField>
                 </DataGrid>
               </SectionCard>
