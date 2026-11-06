@@ -2,9 +2,14 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
+
+	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	emailWebhooksHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/webhooks"
 
 	"github.com/go-chi/chi/v5"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
@@ -61,6 +66,35 @@ func mountRequestFeed(root, tenant chi.Router, db transactionruntime.Database, l
 	root.Mount("/public/request-feed", resource.PublicRouter())
 	tenant.Mount("/students/change-requests/rss-feed", resource.TenantRouter())
 	return nil
+}
+
+// emailWebhookPath hangs at the root, outside every session group: the signature
+// is the credential and the school comes from the matched mail.
+const emailWebhookPath = "/webhooks"
+
+func mountEmailWebhooks(root chi.Router, ingest emailWebhooksHTTP.Ingest) {
+	root.Mount(emailWebhookPath, emailWebhooksHTTP.NewResource(ingest, renderEmailWebhookFailure, emailWebhookRateLimit()).Router())
+}
+
+// emailWebhookFailureRules answer by what the provider should do next: it
+// retries a timeout, 408, 429 and 5xx, and drops other 4xx. No text tells a
+// sender why a signature was refused.
+var emailWebhookFailureRules = []apiCommon.ErrorRule{
+	{Target: deliveryContract.ErrEmailWebhookUnknownProvider, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorNotFoundWithCode, errors.New("unknown webhook provider"), apiCommon.CodeGeneralInput)},
+	{Target: deliveryContract.ErrEmailWebhookSignature, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorUnauthorizedWithCode, errors.New("invalid webhook signature"), apiCommon.CodeGeneralPermission)},
+	{Target: deliveryContract.ErrEmailWebhookPayload, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorInvalidRequestWithCode, errors.New("invalid webhook payload"), apiCommon.CodeGeneralInput)},
+	{Target: emailWebhooksHTTP.ErrBodyTooLarge, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorRequestTooLargeWithCode, emailWebhooksHTTP.ErrBodyTooLarge, apiCommon.CodeGeneralRequestTooLarge)},
+}
+
+func renderEmailWebhookFailure(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, deliveryContract.ErrEmailWebhookNotConfigured) {
+		// A state of this deployment that anyone can ask about without a
+		// signature. The provider retries the 503; nobody has to be paged.
+		slog.Default().WarnContext(r.Context(), "email webhook has no signing secret")
+		apiCommon.RenderExpectedUnavailable(w, r, errors.New("the webhook is not configured"), apiCommon.CodeGeneralUnavailable)
+		return
+	}
+	apiCommon.RenderError(w, r, apiCommon.RenderWithRules(err, emailWebhookFailureRules, apiCommon.ErrorInternalServerRenderer("the webhook delivery could not be stored")))
 }
 
 // mountModuleRoutes mounts the route groups modules serve themselves.
