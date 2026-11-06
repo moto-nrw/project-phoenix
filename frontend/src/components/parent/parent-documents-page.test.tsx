@@ -199,6 +199,19 @@ describe("ParentDocumentsPage", () => {
     );
   });
 
+  it("names the documents as a whole when several sources fail (#4692 review)", async () => {
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [],
+      shared: [],
+      failedSource: "several",
+      error: new ApiError("diag", 500, { code: "general.internal_error" }),
+    });
+    render(<ParentDocumentsPage />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/Die Dokumente/);
+    expect(alert).not.toHaveTextContent(/Briefe|Betreuungsverträge/);
+  });
+
   it("keeps letters and contracts with identical IDs as distinct rows", async () => {
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     try {

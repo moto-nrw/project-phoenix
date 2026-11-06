@@ -396,3 +396,17 @@ func TestTraegerDocumentReadsExpireWithoutAnyOpening(t *testing.T) {
 	}))
 	assert.Equal(t, []string{"kept"}, reads(), "the expired read goes, the younger one stays")
 }
+
+// TestTraegerDocumentReleaseKeepsAnyGroupName pins the release to a group
+// whose name a school may give it: group names have no length limit, so the
+// release keeps the whole name instead of failing (#4692 review).
+func TestTraegerDocumentReleaseKeepsAnyGroupName(t *testing.T) {
+	t.Parallel()
+	f := newTraegerDocumentsFixture(t)
+	school := f.office.schools[0]
+	name := strings.Repeat("Sonnenblumen ", 20)
+	group := f.group(t, school, name)
+	document := f.uploaded(t, f.office.token, "Elternbrief")
+	release := f.released(t, f.office.token, document.ID, map[string]any{"audience": "parents", "school_id": school, "group_id": group})
+	assert.Equal(t, strings.TrimSpace(name), strings.TrimSpace(release.GroupName))
+}

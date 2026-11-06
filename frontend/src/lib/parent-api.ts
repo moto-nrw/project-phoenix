@@ -2479,7 +2479,8 @@ export interface ParentDocumentInbox {
   readonly documents: ParentDocument[];
   /** Documents a Träger released for the parents (#4692). */
   readonly shared: ParentSharedDocument[];
-  readonly failedSource: "letters" | "contracts" | "shared" | null;
+  /** `several` when more than one source failed: no single one is named. */
+  readonly failedSource: "letters" | "contracts" | "shared" | "several" | null;
   readonly error: unknown;
 }
 
@@ -2525,13 +2526,13 @@ export async function listMyDocuments(): Promise<ParentDocumentInbox> {
     ["contracts", contracts],
     ["shared", shared],
   ] as const;
-  const firstFailure = failed.find(
-    ([, result]) => result.status === "rejected",
-  );
+  const failures = failed.filter(([, result]) => result.status === "rejected");
+  const firstFailure = failures[0];
   return {
     documents,
     shared: shared.status === "fulfilled" ? shared.value : [],
-    failedSource: firstFailure ? firstFailure[0] : null,
+    failedSource:
+      failures.length > 1 ? "several" : firstFailure ? firstFailure[0] : null,
     error:
       firstFailure && firstFailure[1].status === "rejected"
         ? firstFailure[1].reason

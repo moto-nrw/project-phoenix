@@ -93,7 +93,7 @@ CREATE TABLE platform.traeger_document_releases (
 	CONSTRAINT chk_traeger_document_releases_group CHECK (
 		(group_id IS NULL AND group_name IS NULL)
 		OR (audience = 'parents' AND school_id IS NOT NULL AND group_id IS NOT NULL
-			AND BTRIM(group_name) <> '' AND char_length(group_name) <= 200)
+			AND BTRIM(group_name) <> '')
 	),
 	CONSTRAINT chk_traeger_document_releases_revoked CHECK (revoked_at IS NOT NULL OR revoked_by IS NULL)
 );

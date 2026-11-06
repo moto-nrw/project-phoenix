@@ -300,6 +300,17 @@ describe("listMyDocuments", () => {
     expect(result.failedSource).toBe("shared");
   });
 
+  it("names no single source when two of the three fail (#4692 review)", async () => {
+    mockFetch(async (input) =>
+      String(input).endsWith("/shared")
+        ? jsonResponse({ data: [] })
+        : jsonResponse({ code: "general.internal_error" }, { status: 500 }),
+    );
+    const result = await listMyDocuments();
+    expect(result.failedSource).toBe("several");
+    expect(result.error).toBeInstanceOf(Error);
+  });
+
   it("returns the documents a Träger released for the parents (#4692)", async () => {
     const shared = {
       id: "9",

@@ -10,7 +10,7 @@
  * decides what is sent or released.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
@@ -33,6 +33,7 @@ import {
 } from "~/lib/parent-api";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
 import { documentsConcept } from "~/lib/concepts/documents";
+import type { MotoConcept } from "~/lib/moto-concepts";
 
 /** The title of each kind of letter in the inbox (#4690). */
 const DOCUMENT_TITLES = {
@@ -60,6 +61,7 @@ const FAILED_OBJECTS = {
   letters: "lettersErrorObject",
   contracts: "contractsErrorObject",
   shared: "sharedErrorObject",
+  several: "errorObject",
 } as const;
 
 function inboxEntries(
@@ -146,22 +148,33 @@ export function ParentDocumentsPage() {
   );
 }
 
-function ParentDocumentCard({
-  document,
-}: Readonly<{ document: ParentDocument }>) {
+/**
+ * One document of the inbox with its download: a letter, a care contract or
+ * a document a Träger released. The kinds differ only in title and facts.
+ */
+function InboxDocumentCard({
+  concept,
+  title,
+  description,
+  downloadLabel,
+  onDownload,
+  children,
+}: Readonly<{
+  concept: MotoConcept;
+  title: string;
+  description: string;
+  downloadLabel: string;
+  onDownload: () => Promise<void>;
+  children: ReactNode;
+}>) {
   const t = useTranslations("parentDocuments");
-  const locale = useLocale();
   const { show } = useApiErrorDisplay();
   const [downloading, setDownloading] = useState(false);
-  const amount = new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: "EUR",
-  }).format(document.total_cents / 100);
 
   const download = async () => {
     setDownloading(true);
     try {
-      await downloadMyDocument(document);
+      await onDownload();
     } catch (err) {
       void show(err, { object: t("downloadErrorObject") });
     } finally {
@@ -172,15 +185,9 @@ function ParentDocumentCard({
   return (
     <ParentSection
       level={2}
-      concept={
-        document.kind === "care_contract"
-          ? careContractsConcept
-          : documentsConcept
-      }
-      title={t(DOCUMENT_TITLES[document.kind], {
-        period: document.period_name,
-      })}
-      description={t("sender", { traeger: document.traeger_name })}
+      concept={concept}
+      title={title}
+      description={description}
       actions={
         <Button
           type="button"
@@ -189,36 +196,60 @@ function ParentDocumentCard({
           onClick={() => void download()}
           disabled={downloading}
         >
-          {downloading ? t("downloading") : t("download")}
+          {downloading ? t("downloading") : downloadLabel}
         </Button>
       }
     >
-      {document.kind === "care_contract" ? (
-        <DataGrid>
-          <DataField label={t("children")}>
-            {document.child_names.join(", ")}
-          </DataField>
-          <DataField label={t("bookedCare")}>{document.period_name}</DataField>
-          <DataField label={t("startsOn")}>
-            {formatDate(document.service_from, false, locale)}
-          </DataField>
-          <DataField label={t("sentAt")}>
-            {formatDate(document.sent_at, false, locale)}
-          </DataField>
-        </DataGrid>
-      ) : (
-        <DataGrid>
-          <DataField label={t("children")}>
-            {document.child_names.join(", ")}
-          </DataField>
-          <DataField label={t("amount")}>{amount}</DataField>
-          <DataField label={t("number")}>{document.number}</DataField>
-          <DataField label={t("sentAt")}>
-            {formatDate(document.sent_at, false, locale)}
-          </DataField>
-        </DataGrid>
-      )}
+      {children}
     </ParentSection>
+  );
+}
+
+function ParentDocumentCard({
+  document,
+}: Readonly<{ document: ParentDocument }>) {
+  const t = useTranslations("parentDocuments");
+  const locale = useLocale();
+  const contract = document.kind === "care_contract";
+  const amount = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "EUR",
+  }).format(document.total_cents / 100);
+
+  return (
+    <InboxDocumentCard
+      concept={contract ? careContractsConcept : documentsConcept}
+      title={t(DOCUMENT_TITLES[document.kind], {
+        period: document.period_name,
+      })}
+      description={t("sender", { traeger: document.traeger_name })}
+      downloadLabel={t("download")}
+      onDownload={() => downloadMyDocument(document)}
+    >
+      <DataGrid>
+        <DataField label={t("children")}>
+          {document.child_names.join(", ")}
+        </DataField>
+        {contract ? (
+          <>
+            <DataField label={t("bookedCare")}>
+              {document.period_name}
+            </DataField>
+            <DataField label={t("startsOn")}>
+              {formatDate(document.service_from, false, locale)}
+            </DataField>
+          </>
+        ) : (
+          <>
+            <DataField label={t("amount")}>{amount}</DataField>
+            <DataField label={t("number")}>{document.number}</DataField>
+          </>
+        )}
+        <DataField label={t("sentAt")}>
+          {formatDate(document.sent_at, false, locale)}
+        </DataField>
+      </DataGrid>
+    </InboxDocumentCard>
   );
 }
 
@@ -238,44 +269,20 @@ function ParentSharedDocumentCard({
 }: Readonly<{ document: ParentSharedDocument }>) {
   const t = useTranslations("parentDocuments");
   const locale = useLocale();
-  const { show } = useApiErrorDisplay();
-  const [downloading, setDownloading] = useState(false);
-
-  const download = async () => {
-    setDownloading(true);
-    try {
-      await downloadMySharedDocument(document);
-    } catch (err) {
-      void show(err, { object: t("downloadErrorObject") });
-    } finally {
-      setDownloading(false);
-    }
-  };
+  const kind = fileKind(document.content_type);
 
   return (
-    <ParentSection
-      level={2}
+    <InboxDocumentCard
       concept={documentsConcept}
       title={document.title}
       description={t("sharedSender", { traeger: document.traeger_name })}
-      actions={
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          onClick={() => void download()}
-          disabled={downloading}
-        >
-          {downloading ? t("downloading") : t("downloadFile")}
-        </Button>
-      }
+      downloadLabel={t("downloadFile")}
+      onDownload={() => downloadMySharedDocument(document)}
     >
       <DataGrid>
         <DataField label={t("file")}>
           {[
-            fileKind(document.content_type) === "image"
-              ? t("image")
-              : fileKind(document.content_type),
+            kind === "image" ? t("image") : kind,
             formatBytes(document.size_bytes),
           ]
             .filter(Boolean)
@@ -285,6 +292,6 @@ function ParentSharedDocumentCard({
           {formatDate(document.released_at, false, locale)}
         </DataField>
       </DataGrid>
-    </ParentSection>
+    </InboxDocumentCard>
   );
 }
