@@ -314,11 +314,7 @@ func (s *service) transferActiveVisitsBetweenGroups(ctx context.Context, oldGrou
 		count, err := s.SchoolPresence.TransferOpenVisits(ctx, oldGroupID, newGroupID)
 		return int(count), err
 	}
-	oldGroup, err := s.GroupRepo.FindByID(ctx, oldGroupID)
-	if err != nil {
-		return 0, err
-	}
-	newGroup, err := s.GroupRepo.FindByID(ctx, newGroupID)
+	oldGroup, newGroup, err := s.GroupRepo.FindVisitTransferGroups(ctx, oldGroupID, newGroupID)
 	if err != nil {
 		return 0, err
 	}
