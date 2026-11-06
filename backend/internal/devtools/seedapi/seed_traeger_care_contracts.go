@@ -4,15 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 )
 
 // seedTraegerCareContractsStep gives the demo Träger its care contracts
 // (#4678, ADR 0153) through the Träger routes, the way the Träger-Büro works:
 // a contract template for every active offering of its schools, a draft for
 // every accepted application over all modules the child books, and every
-// second draft sent. The page
-// "Verträge" then shows drafts and sent contracts side by side. Every step
-// is idempotent, so several demo schools may seed the same Träger at once.
+// second draft sent. The last few candidates of one school get no draft:
+// that school then concludes its contracts at the acceptance (#4680), so the
+// Worker's conclusion makes theirs active within minutes. The page
+// "Verträge" then shows drafts, sent and active contracts side by side.
+// Every step is idempotent, so several demo schools may seed the same
+// Träger at once.
 type seedTraegerCareContractsStep struct{}
 
 func (seedTraegerCareContractsStep) Name() string { return "Seeding the Träger care contracts" }
@@ -43,7 +47,7 @@ func (seedTraegerCareContractsStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	created, err := seedCareContractDrafts(rt.Client, auth)
+	created, err := seedCareContractDrafts(rt, auth)
 	if err != nil {
 		return err
 	}
@@ -89,7 +93,8 @@ func seedCareContractTemplates(client *Client, auth AuthRef) (int, error) {
 
 // seedCareContractDrafts creates a draft for every candidate with a
 // template; a candidate another seeding school took meanwhile is skipped.
-func seedCareContractDrafts(client *Client, auth AuthRef) (int, error) {
+func seedCareContractDrafts(rt *Runtime, auth AuthRef) (int, error) {
+	client := rt.Client
 	raw, err := client.GetWithAuth(auth, "/traeger/contracts/candidates")
 	if err != nil {
 		return 0, fmt.Errorf("read the contract candidates: %w", err)
@@ -100,14 +105,16 @@ func seedCareContractDrafts(client *Client, auth AuthRef) (int, error) {
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return 0, fmt.Errorf("read the contract candidates: %w", err)
 	}
+	onAcceptance, reserved := seedConclusionCandidates(envelope.Data)
 	keys := []map[string]any{}
 	for _, candidate := range envelope.Data {
-		if candidate.TemplateIssue == "" && len(keys) < 200 {
+		held := candidate.SchoolID == onAcceptance && reserved[candidate.RequestChildID]
+		if candidate.TemplateIssue == "" && !held && len(keys) < 200 {
 			keys = append(keys, map[string]any{"school_id": candidate.SchoolID, "request_child_id": candidate.RequestChildID})
 		}
 	}
 	if len(keys) == 0 {
-		return 0, nil
+		return 0, seedConclusionAtAcceptance(rt, onAcceptance)
 	}
 	raw, err = client.PostWithAuth(auth, "/traeger/contracts/", map[string]any{"contracts": keys})
 	if err != nil {
@@ -121,7 +128,42 @@ func seedCareContractDrafts(client *Client, auth AuthRef) (int, error) {
 	if err := json.Unmarshal(raw, &created); err != nil {
 		return 0, fmt.Errorf("read the created contracts: %w", err)
 	}
-	return len(created.Data.Created), nil
+	return len(created.Data.Created), seedConclusionAtAcceptance(rt, onAcceptance)
+}
+
+// seedConclusionCandidates picks the school with the highest ID among the
+// candidates and reserves its last three candidates for the conclusion at
+// the acceptance; they get no draft.
+func seedConclusionCandidates(candidates []seedCareContractCandidate) (int64, map[int64]bool) {
+	var school int64
+	for _, candidate := range candidates {
+		school = max(school, candidate.SchoolID)
+	}
+	ids := []int64{}
+	for _, candidate := range candidates {
+		if candidate.SchoolID == school && candidate.TemplateIssue == "" {
+			ids = append(ids, candidate.RequestChildID)
+		}
+	}
+	slices.Sort(ids)
+	reserved := map[int64]bool{}
+	for _, id := range ids[max(0, len(ids)-3):] {
+		reserved[id] = true
+	}
+	return school, reserved
+}
+
+// seedConclusionAtAcceptance lets the school conclude its contracts at the
+// acceptance, after its other candidates got their drafts.
+func seedConclusionAtAcceptance(rt *Runtime, schoolID int64) error {
+	if schoolID <= 0 {
+		return nil
+	}
+	path := fmt.Sprintf("/operator/schools/%d/settings/values/%s", schoolID, "care_contract.conclusion_mode")
+	if _, err := rt.Client.PutWithAuth(rt.OperatorAuth, path, map[string]any{"value": "bei_annahme"}); err != nil {
+		return fmt.Errorf("let school %d conclude at the acceptance: %w", schoolID, err)
+	}
+	return nil
 }
 
 // seedCareContractSends sends every second draft, so the list shows both
