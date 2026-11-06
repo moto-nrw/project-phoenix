@@ -751,6 +751,7 @@ export default function MealPlanPage() {
                         key={row.clientId}
                         className="group relative min-h-20 rounded-lg border border-gray-200 bg-white p-3.5 pr-10 transition focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-200 pointer-coarse:pr-12"
                       >
+                        {/* oxlint-disable-next-line ui-kit/no-raw-input -- Inline-Editor in der Gerichtekarte: kein eigener Rahmen, die Karte ist das Feld */}
                         <textarea
                           rows={1}
                           className={dishFieldClass}
@@ -761,6 +762,7 @@ export default function MealPlanPage() {
                             updateDish(date, idx, "dish", e.target.value)
                           }
                         />
+                        {/* oxlint-disable-next-line ui-kit/no-raw-input -- Inline-Editor in der Gerichtekarte: kein eigener Rahmen, die Karte ist das Feld */}
                         <textarea
                           rows={1}
                           className={noteFieldClass}

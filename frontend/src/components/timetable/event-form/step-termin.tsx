@@ -7,11 +7,11 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { RequiredMark } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
 import { categorySelectProps } from "./category-option";
 import type { PlanningTrack } from "~/lib/planning-track-api";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { getActivityColor } from "~/lib/timetable-helpers";
-import { timetableTextAreaClass } from "../timetable-style";
 import { Field } from "./field";
 import { isoWeekday } from "./form-model";
 import type { EventFormState } from "./form-model";
@@ -401,18 +401,15 @@ export function StepTermin({
 
       {isSeriesFlow ? (
         <Field label="Wochennotiz" htmlFor="event_series_notes">
-          <textarea
+          <Textarea
             id="event_series_notes"
+            hint="Gilt dauerhaft für die ganze Terminreihe und erscheint an jedem Termin. Bleibt bei Re-Plan und Serienänderungen erhalten."
             value={form.seriesNotes}
             onChange={(event) => update("seriesNotes", event.target.value)}
             rows={3}
-            className={timetableTextAreaClass}
+            className="resize-y"
             placeholder="z. B. Raum erst ab 14 Uhr offen"
           />
-          <p className="mt-1 text-xs text-gray-500">
-            Gilt dauerhaft für die ganze Terminreihe und erscheint an jedem
-            Termin. Bleibt bei Re-Plan und Serienänderungen erhalten.
-          </p>
         </Field>
       ) : (
         <>
@@ -431,12 +428,12 @@ export function StepTermin({
             </div>
           )}
           <Field label="Tagesnotiz" htmlFor="event_notes">
-            <textarea
+            <Textarea
               id="event_notes"
               value={form.notes}
               onChange={(event) => update("notes", event.target.value)}
               rows={3}
-              className={timetableTextAreaClass}
+              className="resize-y"
               placeholder="Nur für diesen einen Termin"
             />
           </Field>

@@ -80,6 +80,7 @@ import { FamilyProtectionControl } from "~/components/students/family-protection
 import { StudentConsentsReadOnly } from "~/components/students/student-consents-read-only";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { Textarea } from "~/components/ui/textarea";
 import {
   StudentCheckoutSection,
   StudentCheckinSection,
@@ -1657,20 +1658,14 @@ function StudentDetailPageContent() {
             )}
             {!student.sick && (
               <div className="mt-4">
-                <label
-                  htmlFor="sick-reason"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Grund (optional)
-                </label>
-                <textarea
+                <Textarea
                   id="sick-reason"
+                  label="Grund (optional)"
                   value={sickReason}
                   onChange={(e) => setSickReason(e.target.value)}
                   rows={2}
                   maxLength={2000}
                   placeholder="z. B. Fieber, beim Arzt"
-                  className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
                 />
               </div>
             )}

@@ -72,9 +72,9 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //
 // One more keeps form fields on the kit (#5217):
 //
-//   ui-kit/no-raw-input             — no hand-built <input> outside
-//                                     src/components/ui/; use Input,
-//                                     Checkbox, Radio, TimeField,
+//   ui-kit/no-raw-input             — no hand-built <input> or <textarea>
+//                                     outside src/components/ui/; use Input,
+//                                     Textarea, Checkbox, Radio, TimeField,
 //                                     ConsentCheckbox or ColorSwatchInput.
 //                                     Hidden and file inputs stay native.
 //
@@ -1643,9 +1643,11 @@ const noRawInput = {
     type: "problem",
     docs: {
       description:
-        "Build form fields from the kit instead of a hand-styled <input>.",
+        "Build form fields from the kit instead of a hand-styled <input> or <textarea>.",
     },
     messages: {
+      rawTextarea:
+        "Kein eigenes <textarea>. Textarea aus ~/components/ui/textarea nehmen; autoGrow wächst mit dem Inhalt (#5587, .claude/rules/frontend-ui-kit.md).",
       rawInput:
         'Kein eigenes <input>. Input, Checkbox, Radio, TimeField, ConsentCheckbox oder ColorSwatchInput aus ~/components/ui nehmen (#5217, .claude/rules/frontend-ui-kit.md). Nur type="hidden" und type="file" bleiben nativ.',
     },
@@ -1663,7 +1665,12 @@ const noRawInput = {
     }
     return {
       JSXOpeningElement(node) {
-        if (jsxName(node.name) !== "input") return;
+        const name = jsxName(node.name);
+        if (name === "textarea") {
+          context.report({ node, messageId: "rawTextarea" });
+          return;
+        }
+        if (name !== "input") return;
         if (NATIVE_INPUT_TYPES.has(staticInputType(node) ?? "")) return;
         context.report({ node, messageId: "rawInput" });
       },

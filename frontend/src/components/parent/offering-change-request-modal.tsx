@@ -13,7 +13,6 @@ import { Loader2 } from "lucide-react";
 
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
-import { RequiredMark } from "~/components/ui/field-label";
 import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
@@ -24,6 +23,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { RequestSharingSelector } from "~/components/parent/request-sharing-control";
 import { useRequestVersion } from "~/components/parent/request-edit-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   getChildOfferingCatalog,
@@ -616,26 +616,21 @@ export function OfferingChangeRequestModal({
                 </p>
               </div>
 
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700">
-                  {t("careOfferingsModal.noteLabel")}
-                  {reasonRequired && <RequiredMark />}
-                </span>
-                <textarea
-                  name="note"
-                  value={note}
-                  onChange={(event) => {
-                    setNote(event.target.value);
-                    if (form.fieldError("note")) form.clear();
-                  }}
-                  aria-invalid={Boolean(form.fieldError("note"))}
-                  rows={3}
-                  maxLength={2000}
-                  required={reasonRequired}
-                  placeholder={t("careOfferingsModal.notePlaceholder")}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-                />
-              </label>
+              <Textarea
+                name="note"
+                label={t("careOfferingsModal.noteLabel")}
+                value={note}
+                onChange={(event) => {
+                  setNote(event.target.value);
+                  if (form.fieldError("note")) form.clear();
+                }}
+                aria-invalid={Boolean(form.fieldError("note"))}
+                rows={3}
+                maxLength={2000}
+                required={reasonRequired}
+                placeholder={t("careOfferingsModal.notePlaceholder")}
+                className="resize-y"
+              />
               {!editRequestId && (
                 <RequestSharingSelector
                   studentId={studentId}
