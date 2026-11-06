@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
 import { DataTable } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 interface PersonsTableProps {
   persons: OperatorPerson[];
@@ -38,20 +39,10 @@ export function PersonTags({
   return (
     <div className="flex flex-wrap gap-1">
       {person.isStaff && (
-        <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
-          Mitarbeiter
-        </span>
+        <StatusBadge tone="blue" compact label="Mitarbeiter" />
       )}
-      {person.isStudent && (
-        <span className="bg-moto-green/10 text-moto-green-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
-          Kinder
-        </span>
-      )}
-      {person.hasRfidCard && (
-        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-          RFID
-        </span>
-      )}
+      {person.isStudent && <StatusBadge tone="green" compact label="Kinder" />}
+      {person.hasRfidCard && <StatusBadge tone="gray" compact label="RFID" />}
     </div>
   );
 }

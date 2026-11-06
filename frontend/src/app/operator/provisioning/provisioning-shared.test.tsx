@@ -9,6 +9,11 @@ import {
   SelectWithChevron,
   PlusIcon,
 } from "./provisioning-shared";
+import {
+  getLocationBadgeTone,
+  LOCATION_COLORS,
+  MOTO_COLOR_PALETTE,
+} from "~/lib/location-helper";
 
 describe("FormField", () => {
   // #2519: a field error from the shared error path stays at the field.
@@ -128,25 +133,29 @@ describe("DeliveryStatusBadge", () => {
   it("should apply green styling for sent", () => {
     render(<DeliveryStatusBadge status="sent" />);
 
-    const badge = screen.getByText("Gesendet");
-    expect(badge.className).toContain("bg-moto-green/15");
-    expect(badge.className).toContain("text-moto-green-strong");
+    expect(screen.getByText("Gesendet")).toHaveStyle({
+      backgroundColor: MOTO_COLOR_PALETTE.green.soft,
+      color: MOTO_COLOR_PALETTE.green.strong,
+    });
   });
 
-  it("should apply yellow styling for pending", () => {
+  it("should apply amber styling for pending", () => {
     render(<DeliveryStatusBadge status="pending" />);
 
-    const badge = screen.getByText("Ausstehend");
-    expect(badge.className).toContain("bg-moto-amber-soft");
-    expect(badge.className).toContain("text-moto-amber-strong");
+    const tone = getLocationBadgeTone(LOCATION_COLORS.WARNING);
+    expect(screen.getByText("Ausstehend")).toHaveStyle({
+      backgroundColor: tone.backgroundColor,
+      color: tone.textColor,
+    });
   });
 
   it("should apply red styling for failed", () => {
     render(<DeliveryStatusBadge status="failed" />);
 
-    const badge = screen.getByText("Fehlgeschlagen");
-    expect(badge.className).toContain("bg-moto-red/10");
-    expect(badge.className).toContain("text-moto-red-strong");
+    expect(screen.getByText("Fehlgeschlagen")).toHaveStyle({
+      backgroundColor: MOTO_COLOR_PALETTE.red.soft,
+      color: MOTO_COLOR_PALETTE.red.strong,
+    });
   });
 
   it("should fall back to raw status text for unknown status", () => {
@@ -158,9 +167,9 @@ describe("DeliveryStatusBadge", () => {
   it("should apply gray styling for unknown status", () => {
     render(<DeliveryStatusBadge status="something_else" />);
 
-    const badge = screen.getByText("something_else");
-    expect(badge.className).toContain("bg-gray-100");
-    expect(badge.className).toContain("text-gray-500");
+    expect(screen.getByText("something_else")).toHaveStyle({
+      backgroundColor: MOTO_COLOR_PALETTE.neutral.soft,
+    });
   });
 });
 

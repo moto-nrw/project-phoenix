@@ -9,65 +9,73 @@ import type {
 } from "~/lib/operator/provisioning-helpers";
 import { DataTable } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
+import {
+  StatusBadge,
+  type StatusBadgeTone,
+} from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 type AccountRow = SchoolAccount | OrgAccount;
 
-function getAccountCapabilityMeta(account: SchoolAccount) {
+type AccountBadge =
+  { label: string; tone: StatusBadgeTone } | { label: string; color: string };
+
+function AccountBadgePill({ badge }: Readonly<{ badge: AccountBadge }>) {
+  if ("color" in badge) {
+    return <StatusColorBadge label={badge.label} color={badge.color} compact />;
+  }
+  return <StatusBadge tone={badge.tone} compact label={badge.label} />;
+}
+
+function getAccountCapabilityMeta(account: SchoolAccount): AccountBadge {
   if (account.isActiveCaregiver && account.hasAdminRole) {
     return {
       label: "Verwaltung + Betreuung",
-      className: "bg-moto-green/15 text-moto-green-strong",
+      tone: "green",
     };
   }
   if (account.isActiveCaregiver) {
     return {
       label: "Betreuung aktiv",
-      className: "bg-moto-orange/15 text-moto-orange-strong",
+      tone: "orange",
     };
   }
   if (account.hasUserRole && !account.hasCaregiverProfile) {
     return {
       label: "Betreuung unvollständig",
-      className: "bg-moto-amber/15 text-moto-amber-strong",
+      color: LOCATION_COLORS.WARNING,
     };
   }
   if (account.hasCaregiverProfile && !account.hasUserRole) {
     return {
       label: "Betreuungsprofil inaktiv",
-      className: "bg-gray-100 text-gray-700",
+      tone: "gray",
     };
   }
   if (account.hasAdminRole) {
     return {
       label: "Nur Verwaltung",
-      className: "bg-moto-blue/15 text-moto-blue-hover",
+      tone: "blue",
     };
   }
   return {
     label: "Keine Betreuung",
-    className: "bg-gray-100 text-gray-600",
+    tone: "gray",
   };
 }
 
 function AccountStatusBadge({ status }: Readonly<{ status: string }>) {
-  const styles: Record<string, string> = {
-    active: "bg-moto-green/15 text-moto-green-strong",
-    pending: "bg-moto-amber/15 text-moto-amber-strong",
-    invited: "bg-moto-purple/15 text-moto-purple-strong",
-    inactive: "bg-gray-100 text-gray-500",
-  };
-  const labels: Record<string, string> = {
-    active: "Aktiv",
-    pending: "Ausstehend",
-    invited: "Eingeladen",
-    inactive: "Inaktiv",
+  const badges: Record<string, AccountBadge> = {
+    active: { label: "Aktiv", tone: "green" },
+    pending: { label: "Ausstehend", color: LOCATION_COLORS.WARNING },
+    invited: { label: "Eingeladen", tone: "purple" },
+    inactive: { label: "Inaktiv", tone: "gray" },
   };
   return (
-    <span
-      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles[status] ?? "bg-gray-100 text-gray-500"}`}
-    >
-      {labels[status] ?? status}
-    </span>
+    <AccountBadgePill
+      badge={badges[status] ?? { label: status, tone: "gray" }}
+    />
   );
 }
 
@@ -144,12 +152,7 @@ export function AccountsTable({
           row.roleName ? (
             <span className="inline-flex flex-wrap gap-1">
               {row.roleName.split(", ").map((role) => (
-                <span
-                  key={role}
-                  className="bg-moto-blue/10 text-moto-blue-hover inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
-                >
-                  {role}
-                </span>
+                <StatusBadge key={role} tone="blue" compact label={role} />
               ))}
             </span>
           ) : (
@@ -167,16 +170,9 @@ export function AccountsTable({
       {
         key: "capability",
         header: "Einsatz",
-        render: (row) => {
-          const capability = getAccountCapabilityMeta(row);
-          return (
-            <span
-              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${capability.className}`}
-            >
-              {capability.label}
-            </span>
-          );
-        },
+        render: (row) => (
+          <AccountBadgePill badge={getAccountCapabilityMeta(row)} />
+        ),
       },
       {
         key: "status",

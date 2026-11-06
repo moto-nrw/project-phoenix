@@ -101,7 +101,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/auth/auth-shell.tsx",
-    lines: [361],
+    lines: [362],
     reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
   },
   {
@@ -119,7 +119,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/app/operator/provisioning/provisioning-shared.tsx",
-    lines: [209],
+    lines: [213],
     reason: "Schalter (role=switch)",
   },
   {
@@ -302,13 +302,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/app/operator/announcements/page.tsx",
-    lines: [696],
+    lines: [697],
     reason: "Auslöser des Dringlichkeits-Felds, sieht aus wie ein Select",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/app/operator/announcements/page.tsx",
-    lines: [806, 948, 1037],
+    lines: [807, 949, 1038],
     reason: "Auswahlzeilen mit Häkchen (Rollen, Träger, Schulen), kein Knopf",
   },
 ];
