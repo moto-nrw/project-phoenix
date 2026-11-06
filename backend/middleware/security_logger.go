@@ -31,11 +31,6 @@ func NewSecurityLogger() *SecurityLogger {
 	return &SecurityLogger{logger: redacted.With("component", "security")}
 }
 
-// NewSecurityLoggerWith writes the security events to logger.
-func NewSecurityLoggerWith(logger *slog.Logger) *SecurityLogger {
-	return &SecurityLogger{logger: logger}
-}
-
 // LogEvent logs a security event with context
 func (sl *SecurityLogger) LogEvent(eventType string, r *http.Request, details map[string]interface{}) {
 	ip := GetClientIP(r)

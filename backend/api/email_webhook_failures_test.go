@@ -101,7 +101,7 @@ func TestEmailWebhookWithoutSecretStaysOutOfSentryAndTheErrorLog(t *testing.T) {
 func TestEmailWebhookRateLimitWritesTheSecurityEvent(t *testing.T) {
 	t.Parallel()
 	var logs bytes.Buffer
-	limit := newEmailWebhookRateLimit(customMiddleware.NewSecurityLoggerWith(slog.New(slog.NewTextHandler(&logs, nil))))
+	limit := newEmailWebhookRateLimit(customMiddleware.NewSecurityLoggerForTest(slog.New(slog.NewTextHandler(&logs, nil))))
 	handler := limit(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
 
 	rejected := 0

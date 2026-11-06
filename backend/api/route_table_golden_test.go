@@ -41,6 +41,7 @@ import (
 	"runtime"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -49,6 +50,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/stretchr/testify/require"
 
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"
 )
@@ -470,9 +472,9 @@ func checkEmailWebhookIsNotBehindASession(t *testing.T, apiInstance *goldenRunti
 		VALUES (?, 'welcome', 'sent', '{"address":"Guardian-Router@example.com"}', '{}')
 		RETURNING id, delivery_token`, school).Scan(ctx, &mail))
 	post := func(path, secret, body string, at time.Time) int {
-		signature, delivery := testpkg.SignLettermintWebhook(secret, at, body)
+		delivery := strconv.FormatInt(at.Unix(), 10)
 		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
-		request.Header.Set("X-Lettermint-Signature", signature)
+		request.Header.Set("X-Lettermint-Signature", deliveryCompose.LettermintSignatureForTest(secret, delivery, body))
 		request.Header.Set("X-Lettermint-Delivery", delivery)
 		recorder := httptest.NewRecorder()
 		apiInstance.handler.ServeHTTP(recorder, request)
