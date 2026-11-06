@@ -1,5 +1,7 @@
 package users
 
+import "github.com/uptrace/bun"
+
 // The INSERT consumes the UPDATE's result, so the guardian row is locked and
 // its retention mark is cleared before a relationship can be inserted. Keep
 // the unconditional UPDATE even for an existing pair: re-linking still clears
@@ -32,15 +34,15 @@ const insertNonPrimaryRelationshipSQL = nonPrimaryRelationshipPrefix + nonPrimar
 const insertNonPrimaryRelationshipIfAbsentSQL = nonPrimaryRelationshipPrefix +
 	`ON CONFLICT (tenant_id, student_id, guardian_profile_id) DO NOTHING` + nonPrimaryRelationshipSuffix
 
-func relationshipInsertStatement(primary, ifAbsent bool) string {
+func relationshipInsertQuery(db bun.IDB, primary, ifAbsent bool, args ...any) *bun.RawQuery {
 	switch {
 	case !primary && ifAbsent:
-		return insertNonPrimaryRelationshipIfAbsentSQL
+		return db.NewRaw(insertNonPrimaryRelationshipIfAbsentSQL, args...)
 	case !primary:
-		return insertNonPrimaryRelationshipSQL
+		return db.NewRaw(insertNonPrimaryRelationshipSQL, args...)
 	case ifAbsent:
-		return insertRelationshipIfAbsentSQL
+		return db.NewRaw(insertRelationshipIfAbsentSQL, args...)
 	default:
-		return insertRelationshipSQL
+		return db.NewRaw(insertRelationshipSQL, args...)
 	}
 }

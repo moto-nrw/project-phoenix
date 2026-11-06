@@ -214,7 +214,7 @@ func (r *GuardianRelationshipRepository) insertRelationship(ctx context.Context,
 	}
 	args := []any{rel.TenantID, rel.StudentID, rel.GuardianProfileID, rel.RelationshipType, rel.GuardianRole,
 		rel.IsPrimary, rel.IsEmergencyContact, rel.EmergencyPriority, rel.IsPayer}
-	insert := db.NewRaw(relationshipInsertStatement(rel.IsPrimary, ifAbsent), args...)
+	insert := relationshipInsertQuery(db, rel.IsPrimary, ifAbsent, args...)
 	var rows []struct {
 		ID        int64     `bun:"id"`
 		CreatedAt time.Time `bun:"created_at"`
