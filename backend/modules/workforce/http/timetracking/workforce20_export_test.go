@@ -3,7 +3,6 @@ package timetracking
 import (
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -15,12 +14,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Test-only exports keep the DB behavior tests external while reusing the
-// existing route composition, signed caller, and rebooking fixture.
-var Workforce20OwnToken = ownToken
-var Workforce20DecodeRebook = decodeRebook
+// External DB tests consume the owner-local test support, as the existing
+// root composition seams do. No external test imports an HTTP implementation.
+func init() {
+	workforcetest.OwnGrowthRouter = newWorkforce20OwnRouter
+	workforcetest.OwnGrowthToken = ownToken
+	workforcetest.RebookGrowthFixture = newWorkforce20RebookFixture
+}
 
-func NewWorkforce20OwnRouter(t *testing.T) (*bun.DB, http.Handler) {
+func newWorkforce20OwnRouter(t *testing.T) (*bun.DB, http.Handler) {
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	db, caps := workforcetest.ComposeAdmin(t)
@@ -34,18 +36,7 @@ func NewWorkforce20OwnRouter(t *testing.T) (*bun.DB, http.Handler) {
 	return db, router
 }
 
-type Workforce20RebookFixture struct {
-	DB                *bun.DB
-	Router            http.Handler
-	SubjectID, TypeID int64
-	Absences          []int64
-	Rebook            func(*testing.T, map[string]any) *httptest.ResponseRecorder
-	Body              func(string, bool) map[string]any
-	AugustBalance     func(*testing.T) int
-	StoredTypes       func(*testing.T) []string
-}
-
-func NewWorkforce20RebookFixture(t *testing.T, n int) Workforce20RebookFixture {
+func newWorkforce20RebookFixture(t *testing.T, n int) workforcetest.RebookFixture {
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	f := setupRebookFixture(t, 30)
@@ -53,5 +44,5 @@ func NewWorkforce20RebookFixture(t *testing.T, n int) Workforce20RebookFixture {
 		day := 24 + len(f.absences) - 3
 		f.absences = append(f.absences, insertAbsenceRow(t, f.tc, map[string]any{"staff_id": f.subjectID, "absence_type": "comp_time", "date_start": fmt.Sprintf("2026-08-%02d", day), "date_end": fmt.Sprintf("2026-08-%02d", day), "status": "reported", "created_by": f.subjectID, "requested_at": time.Now()}))
 	}
-	return Workforce20RebookFixture{DB: f.tc.db, Router: f.tc.router, SubjectID: f.subjectID, TypeID: f.typeID, Absences: f.absences, Rebook: f.rebook, Body: f.body, AugustBalance: f.augustBalance, StoredTypes: f.storedTypes}
+	return workforcetest.RebookFixture{DB: f.tc.db, Router: f.tc.router, SubjectID: f.subjectID, TypeID: f.typeID, Absences: f.absences, Rebook: f.rebook, Body: f.body, AugustBalance: f.augustBalance, StoredTypes: f.storedTypes}
 }

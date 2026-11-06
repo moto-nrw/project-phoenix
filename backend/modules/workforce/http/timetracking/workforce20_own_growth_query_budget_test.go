@@ -11,8 +11,7 @@ import (
 	"testing"
 	"time"
 
-	settings "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/workforcetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
@@ -24,9 +23,9 @@ func TestWorkforce20OwnGrowth(t *testing.T) {
 		t.Run(route, func(t *testing.T) {
 			testpkg.OwnTenant(t)
 			testpkg.SetupIsolatedTestDB(t)
-			db, router := timetracking.NewWorkforce20OwnRouter(t)
+			db, router := workforcetest.OwnGrowthRouter(t)
 			staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Own", "Reader")
-			testpkg.SetTestTenantSetting(t, db, testpkg.Tenant(t), settings.KeyTimeTrackingAccountStartDate, `"2026-01-01"`)
+			testpkg.SetTestTenantSetting(t, db, testpkg.Tenant(t), "operations.time_tracking_account_start_date", `"2026-01-01"`)
 			foreign := testpkg.NewTenantScope(t, db)
 			foreignStaff := testpkg.CreateTestStaffForTenant(t, db, foreign.TenantID, "Foreign", "Own")
 			insert := func(table string, row map[string]any) int64 {
@@ -73,7 +72,7 @@ func TestWorkforce20OwnGrowth(t *testing.T) {
 				if route == "absences" {
 					path = "/time-tracking/absences?from=2026-02-01&to=2026-02-28"
 				}
-				token := timetracking.Workforce20OwnToken(t, account.ID, 0, "time_tracking:own", "users:read")
+				token := workforcetest.OwnGrowthToken(t, account.ID, 0, "time_tracking:own", "users:read")
 				req := httptest.NewRequest(http.MethodGet, path, nil)
 				req.Header.Set("Authorization", "Bearer "+token)
 				counter := testpkg.CaptureQueries(t, db)
@@ -162,7 +161,7 @@ func TestWorkforce20OwnGrowth(t *testing.T) {
 				}
 				counts = append(counts, len(counter.Queries()))
 				denied := httptest.NewRequest(http.MethodGet, path, nil)
-				denied.Header.Set("Authorization", "Bearer "+timetracking.Workforce20OwnToken(t, account.ID, 0))
+				denied.Header.Set("Authorization", "Bearer "+workforcetest.OwnGrowthToken(t, account.ID, 0))
 				deniedRec := httptest.NewRecorder()
 				router.ServeHTTP(deniedRec, denied)
 				require.Equal(t, http.StatusForbidden, deniedRec.Code, deniedRec.Body.String())

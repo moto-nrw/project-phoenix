@@ -1,13 +1,14 @@
 package timetracking_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/workforcetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
@@ -19,14 +20,15 @@ func TestWorkforce20RebookGrowth(t *testing.T) {
 		t.Run(fmt.Sprint(n), func(t *testing.T) {
 			testpkg.OwnTenant(t)
 			testpkg.SetupIsolatedTestDB(t)
-			f := timetracking.NewWorkforce20RebookFixture(t, n)
+			f := workforcetest.RebookGrowthFixture(t, n)
 			before := f.AugustBalance(t)
 			for _, dryRun := range []bool{true, false} {
 				counter := testpkg.CaptureQueries(t, f.DB)
 				rec := f.Rebook(t, f.Body("Workforce20 rebooking", dryRun))
 				counter.Stop()
 				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-				result := timetracking.Workforce20DecodeRebook(t, rec)
+				var result workforce20RebookResponse
+				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &result), rec.Body.String())
 				require.Equal(t, !dryRun, result.Data.Applied)
 				require.Equal(t, float64(n), result.Data.Days)
 				require.Equal(t, n*480, result.Data.BalanceDeltaMinutes)
@@ -73,4 +75,24 @@ func TestWorkforce20RebookGrowth(t *testing.T) {
 			require.Equal(t, http.StatusUnauthorized, rec.Code)
 		})
 	}
+}
+
+type workforce20RebookResponse struct {
+	Data struct {
+		Absences []struct {
+			ID               int64  `json:"id"`
+			AbsenceType      string `json:"absence_type"`
+			AbsenceTypeID    string `json:"absence_type_id"`
+			AbsenceTypeLabel string `json:"absence_type_label"`
+		} `json:"absences"`
+		Days                float64 `json:"days"`
+		BalanceDeltaMinutes int     `json:"balance_delta_minutes"`
+		Allowances          []struct {
+			Year          int     `json:"year"`
+			RemainingDays float64 `json:"remaining_days"`
+			BookingDays   float64 `json:"booking_days"`
+		} `json:"allowances"`
+		AllowanceExceeded bool `json:"allowance_exceeded"`
+		Applied           bool `json:"applied"`
+	} `json:"data"`
 }
