@@ -116,6 +116,8 @@ interface StatusPillCommonProps {
    * with an ellipsis; the full label stays in the tooltip.
    */
   readonly truncate?: boolean;
+  /** Lets a long label break onto a second line instead of overflowing. */
+  readonly wrap?: boolean;
 }
 
 /**
@@ -133,6 +135,7 @@ export function StatusPillBase({
   textColor,
   outline = false,
   truncate = false,
+  wrap = false,
 }: StatusPillCommonProps & {
   readonly backgroundColor?: string;
   readonly textColor?: string;
@@ -142,7 +145,9 @@ export function StatusPillBase({
   return (
     <span
       title={title ?? (truncate ? label : undefined)}
-      className={`inline-flex items-center rounded-full text-xs font-medium whitespace-nowrap ${
+      className={`inline-flex items-center rounded-full text-xs font-medium ${
+        wrap ? "whitespace-normal" : "whitespace-nowrap"
+      } ${
         iconNode ? "gap-1" : ""
       } ${truncate ? "max-w-full min-w-0" : ""} ${sizeClass(size, compact)} ${outline ? OUTLINE_CLASS : ""}`}
       style={outline ? undefined : { backgroundColor, color: textColor }}

@@ -112,4 +112,11 @@ describe("StatusBadge", () => {
     expect(text).toHaveClass("truncate");
     expect(text.parentElement).toHaveAttribute("title", label);
   });
+
+  it("lets a long label break instead of overflowing", () => {
+    render(<StatusBadge label="Teilweise gutgeschrieben" tone="blue" wrap />);
+    const badge = screen.getByText("Teilweise gutgeschrieben");
+    expect(badge).toHaveClass("whitespace-normal");
+    expect(badge).not.toHaveClass("whitespace-nowrap");
+  });
 });

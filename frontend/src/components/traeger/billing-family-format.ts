@@ -41,7 +41,7 @@ export function billingTabs(
 /** What an invoice still asks for, as a pill. */
 export const INVOICE_STATUS_LABELS: Record<BillingInvoiceStatus, string> = {
   open: "Offen",
-  partly_credited: "Teilweise gutgeschrieben",
+  partly_credited: "Teilgutschrift",
   credited: "Gutgeschrieben",
   cancelled: "Storniert",
   nothing_due: "Nichts zu zahlen",

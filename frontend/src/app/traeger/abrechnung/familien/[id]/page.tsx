@@ -94,7 +94,9 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
     header: "Ferienzeitraum",
     render: (document) => (
       <span className="block min-w-0">
-        <span className="block text-gray-900">{document.periodName}</span>
+        <span className="block wrap-break-word text-gray-900">
+          {document.periodName}
+        </span>
         <span className="block text-sm text-gray-500 md:whitespace-nowrap">
           {formatDateRange(document.serviceFrom, document.serviceUntil)}
         </span>
@@ -128,6 +130,7 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
         <StatusBadge
           label={INVOICE_STATUS_LABELS[document.status]}
           tone={INVOICE_STATUS_TONES[document.status]}
+          wrap
         />
       ) : (
         "–"

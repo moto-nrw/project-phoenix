@@ -136,7 +136,7 @@ describe("TraegerBillingFamilyPage", () => {
     expect(api.fetchBillingFamily).toHaveBeenCalledWith("4");
     expect(screen.getAllByText("115,00 €").length).toBeGreaterThan(0);
     expect(screen.getAllByText("80,00 €").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Teilweise gutgeschrieben")[0]).toBeVisible();
+    expect(screen.getAllByText("Teilgutschrift")[0]).toBeVisible();
     expect(screen.getAllByText("Storniert").length).toBeGreaterThan(0);
     expect(
       screen.getAllByText("Zu FE-0003 · Erster Tag krank")[0],
@@ -159,7 +159,7 @@ describe("TraegerBillingFamilyPage", () => {
     expect(invoice.getByText("Jonas, Lotta")).toBeInTheDocument();
     expect(invoice.getByText("Betrag")).toBeInTheDocument();
     expect(invoice.getByText("120,00 €")).toBeInTheDocument();
-    expect(invoice.getByText("Teilweise gutgeschrieben")).toBeInTheDocument();
+    expect(invoice.getByText("Teilgutschrift")).toBeInTheDocument();
     expect(invoice.getByText("Offen")).toBeInTheDocument();
     expect(invoice.getByText("115,00 €")).toBeInTheDocument();
 
