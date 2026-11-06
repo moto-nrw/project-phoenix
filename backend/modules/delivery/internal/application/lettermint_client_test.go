@@ -171,3 +171,48 @@ func TestLettermintLiftWithoutEntryIsDone(t *testing.T) {
 	require.NoError(t, client.LiftSuppression(context.Background(), "eltern@example.com"))
 	assert.Equal(t, int32(1), calls.Load())
 }
+
+func TestLettermintLiftChecksLaterPagesBeforeDeleting(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []string{"bounce", "complaint", "error", "endless"} {
+		t.Run(scenario, func(t *testing.T) {
+			t.Parallel()
+			var deleted []string
+			reads := 0
+			client := lettermintAPIClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodDelete {
+					assert.Equal(t, 2, reads, "read every page before deleting")
+					deleted = append(deleted, r.URL.Path)
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				reads++
+				assert.Equal(t, "eltern@example.com", r.URL.Query().Get("filter[value]"))
+				if reads == 1 || scenario == "endless" {
+					_, _ = w.Write([]byte(`{"data":[{"id":"s1","type":"email","value":"eltern@example.com","reason":"hard_bounce"}],"next_cursor":"c2"}`))
+					return
+				}
+				assert.Equal(t, "c2", r.URL.Query().Get("page[cursor]"))
+				switch scenario {
+				case "error":
+					w.WriteHeader(http.StatusBadGateway)
+				case "complaint":
+					_, _ = w.Write([]byte(`{"data":[{"id":"s2","type":"email","value":"eltern@example.com","reason":"spam_complaint"}]}`))
+				default:
+					_, _ = w.Write([]byte(`{"data":[{"id":"s2","type":"email","value":"eltern@example.com","reason":"hard_bounce"}]}`))
+				}
+			})
+			err := client.LiftSuppression(context.Background(), "eltern@example.com")
+			if scenario == "bounce" {
+				require.NoError(t, err)
+				assert.Equal(t, []string{"/v1/suppressions/s1", "/v1/suppressions/s2"}, deleted)
+			} else {
+				require.Error(t, err)
+				if scenario == "complaint" {
+					assert.ErrorIs(t, err, domain.ErrSuppressionNeedsReview)
+				}
+				assert.Empty(t, deleted)
+			}
+		})
+	}
+}

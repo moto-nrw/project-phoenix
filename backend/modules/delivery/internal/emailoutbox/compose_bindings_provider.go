@@ -100,6 +100,7 @@ func (p *MailPushProvider) SendEmail(ctx context.Context, intent deliveryContrac
 	return deliveryContract.ProviderResult{
 		StatusCode: deliveryContract.ProviderAcceptedStatusCode,
 		MessageID:  receipt.MessageID, ProviderMessageID: receipt.ProviderMessageID,
+		UsedFallback: receipt.UsedFallback,
 	}, nil
 }
 

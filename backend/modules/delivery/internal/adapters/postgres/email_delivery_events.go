@@ -110,9 +110,12 @@ func applyEmailEvent(ctx context.Context, db bun.IDB, mail emailEventMailRow, ev
 	if mail.Fallback != nil {
 		// The mail left over the fallback: the event stays in the history, and
 		// the provider no longer speaks for it.
+		if event.State == domain.EmailDeliveryComplained {
+			return suppressEmailEventAddress(ctx, db, mail, event)
+		}
 		return nil
 	}
-	if event.Reroute && mail.Security {
+	if event.Reroute && mail.Security && (result.State == "" || result.State == domain.EmailDeliveryDelayed) {
 		if _, err := db.ExecContext(ctx, emailEventRerouteSQL, time.Now(), mail.ID); err != nil {
 			return err
 		}
@@ -126,6 +129,10 @@ func applyEmailEvent(ctx context.Context, db bun.IDB, mail emailEventMailRow, ev
 		}
 		result.State = next
 	}
+	return suppressEmailEventAddress(ctx, db, mail, event)
+}
+
+func suppressEmailEventAddress(ctx context.Context, db bun.IDB, mail emailEventMailRow, event domain.EmailDeliveryEvent) error {
 	if !event.State.BlocksAddress() || event.KeepsAddress || mail.TenantID == nil || mail.Address == nil || *mail.Address == "" {
 		return nil
 	}
@@ -246,8 +253,22 @@ func (s *Store) DeleteEmailSuppression(ctx context.Context, tenantID int64, addr
 	if err != nil {
 		return err
 	}
-	if _, err := db.ExecContext(ctx, `DELETE FROM platform.email_suppressions WHERE tenant_id = ? AND address = ?`,
-		tenantID, normalizedAddress(address)); err != nil {
+	// Recheck under the row lock after the provider call: a complaint may have
+	// replaced the bounce since the initial eligibility check.
+	var reason string
+	err = db.NewRaw(`SELECT reason FROM platform.email_suppressions WHERE tenant_id = ? AND address = ? FOR UPDATE`,
+		tenantID, normalizedAddress(address)).Scan(ctx, &reason)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err == nil && domain.EmailSuppressionReason(reason) == domain.EmailSuppressionComplained {
+		return domain.ErrSuppressionNeedsReview
+	}
+	if err == nil {
+		_, err = db.ExecContext(ctx, `DELETE FROM platform.email_suppressions WHERE tenant_id = ? AND address = ? AND reason <> 'complained'`,
+			tenantID, normalizedAddress(address))
+	}
+	if err != nil {
 		return fmt.Errorf("delivery postgres: delete email suppression: %w", err)
 	}
 	return nil
