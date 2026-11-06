@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { metadataLoadError } from "./metadata-load-error";
+import { isRefusal, metadataLoadError } from "./metadata-load-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
 import { traegerKeys } from "~/lib/swr/portal-keys";
@@ -23,8 +23,11 @@ export function useTraegerKeyDateCounts() {
     "die Stichtagszahlen",
     response.mutate,
   );
+  // A refusal withdraws the cached counts too, so the page head cannot keep
+  // showing them above the error.
+  const refused = isRefusal(response.error);
   return {
-    counts: response.data ?? null,
+    counts: refused ? null : (response.data ?? null),
     error: metadataLoadError(
       error,
       response.data !== undefined,
