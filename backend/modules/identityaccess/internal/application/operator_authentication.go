@@ -361,15 +361,15 @@ func (s *OperatorAuthentication) UpdateProfile(ctx context.Context, operatorID i
 	if err != nil {
 		return domain.Operator{}, err
 	}
-	operator, err := s.operators.findOperatorByID(ctx, operatorID)
+	// UpdateOperator edits the row it locked, so a status change committed
+	// meanwhile is kept rather than reverted by this edit.
+	updated, err := s.operators.UpdateOperator(ctx, operatorID, func(operator *identityaccess.Operator) error {
+		operator.DisplayName = displayName
+		return nil
+	})
 	if errors.Is(err, identityaccess.ErrOperatorNotFound) {
 		return domain.Operator{}, identityaccess.ErrOperatorNotFound
 	}
-	if err != nil {
-		return domain.Operator{}, err
-	}
-	operator.DisplayName = displayName
-	updated, err := s.operators.UpdateOperator(ctx, identityaccess.Operator(operator))
 	if err != nil {
 		return domain.Operator{}, fmt.Errorf("failed to update operator profile: %w", err)
 	}
@@ -399,19 +399,38 @@ func (s *OperatorAuthentication) ChangePassword(ctx context.Context, operatorID 
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
-	operator.PasswordHash = hash
 	return s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if _, err := s.operators.UpdateOperator(txCtx, identityaccess.Operator(operator)); err != nil {
-			return fmt.Errorf("failed to update password: %w", err)
+		return s.storeRotatedPassword(txCtx, operatorID, operator.PasswordHash, hash)
+	})
+}
+
+// storeRotatedPassword writes the new hash on the caller's transaction and
+// invalidates the e-mail change links and refresh sessions with it. The
+// verification ran without a lock and the hash is slow, so the hash is set on
+// the row UpdateOperator locked: a deactivation committed meanwhile stays in
+// force, and a password rotated meanwhile (verifiedHash no longer stored)
+// invalidates the proof.
+func (s *OperatorAuthentication) storeRotatedPassword(ctx context.Context, operatorID int64, verifiedHash, hash string) error {
+	_, err := s.operators.UpdateOperator(ctx, operatorID, func(current *identityaccess.Operator) error {
+		if current.PasswordHash != verifiedHash {
+			return identityaccess.ErrOperatorPasswordMismatch
 		}
-		if err := s.credentials.RevokeEmailChanges(txCtx, operatorID); err != nil {
-			return fmt.Errorf("failed to invalidate email change tokens after password change: %w", err)
-		}
-		if err := s.revokeAllWithAudit(txCtx, operatorID, "password_change"); err != nil {
-			return fmt.Errorf("failed to revoke refresh tokens after password change: %w", err)
-		}
+		current.PasswordHash = hash
 		return nil
 	})
+	if errors.Is(err, identityaccess.ErrOperatorPasswordMismatch) || errors.Is(err, identityaccess.ErrOperatorNotFound) {
+		return err
+	}
+	if err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+	if err := s.credentials.RevokeEmailChanges(ctx, operatorID); err != nil {
+		return fmt.Errorf("failed to invalidate email change tokens after password change: %w", err)
+	}
+	if err := s.revokeAllWithAudit(ctx, operatorID, "password_change"); err != nil {
+		return fmt.Errorf("failed to revoke refresh tokens after password change: %w", err)
+	}
+	return nil
 }
 
 // revokeFamilyWithAudit deletes the session's family and records the

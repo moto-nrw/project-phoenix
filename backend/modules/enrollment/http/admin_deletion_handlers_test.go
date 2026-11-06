@@ -16,6 +16,10 @@ func (deletionServiceStub) PreviewRequest(context.Context, int64) (*capability.D
 	return &capability.DeletionImpact{}, nil
 }
 
+func (deletionServiceStub) RequestMailOutcomes(context.Context, int64) ([]capability.RequestMailOutcome, error) {
+	return nil, nil
+}
+
 func (deletionServiceStub) PreviewChild(context.Context, int64, int64) (*capability.DeletionImpact, error) {
 	return &capability.DeletionImpact{}, nil
 }
@@ -39,6 +43,7 @@ func TestAdminEnrollmentDeletionRoutesRequireConfigManage(t *testing.T) {
 		path   string
 	}{
 		{http.MethodGet, "/admin/requests/42/delete-impact"},
+		{http.MethodGet, "/admin/requests/42/mails"},
 		{http.MethodDelete, "/admin/requests/42/"},
 		{http.MethodGet, "/admin/requests/42/children/7/delete-impact"},
 		{http.MethodDelete, "/admin/requests/42/children/7"},

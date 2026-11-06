@@ -16,6 +16,7 @@ GET /api/enrollment/admin/requests/{id}/
 GET /api/enrollment/admin/requests/{id}/children/{childId}/delete-impact
 GET /api/enrollment/admin/requests/{id}/children/{childId}/offering-adjustments
 GET /api/enrollment/admin/requests/{id}/delete-impact
+GET /api/enrollment/admin/requests/{id}/mails
 GET /api/enrollment/admin/requests/{id}/uploads/{uploadId}
 GET /api/enrollment/admin/students/{studentId}/requests/
 GET /api/enrollment/captcha-config/{tenantSlug}

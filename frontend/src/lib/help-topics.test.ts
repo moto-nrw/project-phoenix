@@ -603,8 +603,8 @@ describe("getParentHelpTopicForPath", () => {
     // 99 seit #4774: Soll und Ist vergleichen.
     // 100 seit #4769: das geteilte Wochenprotokoll.
     // 101 seit #4808: Nachweise wie Erste Hilfe im Blick behalten.
-    // 102 seit #4692: Dokumente vom Träger finden.
-    expect(leadTopics).toHaveLength(102);
+    // 103 seit #4692: Dokumente vom Träger finden.
+    expect(leadTopics).toHaveLength(103);
     expect(
       leadTopics.every(
         (topic) =>

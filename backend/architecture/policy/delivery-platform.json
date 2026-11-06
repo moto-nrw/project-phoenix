@@ -237,6 +237,14 @@
       "write_owner": "delivery-platform"
     },
     {
+      "name": "platform.delivery_guardian_contacts",
+      "write_owner": "delivery-platform"
+    },
+    {
+      "name": "platform.delivery_traeger_schools",
+      "write_owner": "delivery-platform"
+    },
+    {
       "name": "platform.delivery_known_email_addresses",
       "write_owner": "delivery-platform"
     },

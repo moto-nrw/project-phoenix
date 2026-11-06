@@ -126,6 +126,7 @@ function leadTopics(
     // Zuerst der Zugang: ohne Konto sieht eine Familie weder Mitteilung
     // noch Elternbrief noch Essensplan.
     articles.inviteGuardiansTopic(),
+    articles.emailDeliveryTopic(),
     articles.parentAnnouncementTopic(),
     articles.parentLetterTopic(),
     articles.schoolTraegerDocumentsTopic(),

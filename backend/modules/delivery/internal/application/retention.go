@@ -43,7 +43,7 @@ func (r *Retention) DeleteExpiredDeliveries(ctx context.Context) (int, int, erro
 	if result.DeliveryEvents, err = r.store.DeleteExpiredEmailDeliveryEvents(ctx, tenantID, before); err != nil {
 		return 0, 0, err
 	}
-	if result.Suppressions, err = r.store.DeleteExpiredEmailSuppressions(ctx, tenantID, r.now().Add(-domain.SuppressionRetention)); err != nil {
+	if result.Suppressions, err = r.store.DeleteUnheldEmailSuppressions(ctx, tenantID); err != nil {
 		return 0, 0, err
 	}
 	if result.DeliveryLogs, err = r.store.DeleteExpiredEmailDeliveryLogs(ctx, tenantID, before); err != nil {

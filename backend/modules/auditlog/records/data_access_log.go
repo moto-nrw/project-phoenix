@@ -41,6 +41,12 @@ const (
 	// "Anzeigen"-toggle (#1423). StudentID stays NULL; metadata carries
 	// staff_id.
 	ResourceTypeStaffFinancialReveal = "staff_financial_reveal"
+	// ResourceTypeGuardianEmailStop and ResourceTypeGuardianEmailLift record a
+	// person of the school stopping a guardian's mail, taking the stop back, or
+	// lifting the block on the address (#5934). StudentID stays NULL; metadata
+	// carries guardian_profile_id and action, never the address.
+	ResourceTypeGuardianEmailStop = "guardian_email_stop"
+	ResourceTypeGuardianEmailLift = "guardian_email_lift"
 	// ResourceTypeGuardianFinancialView records serving the MASKED bank
 	// details of one guardian (#2608). StudentID stays NULL; metadata carries
 	// guardian_profile_id.

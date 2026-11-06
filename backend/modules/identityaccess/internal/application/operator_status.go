@@ -74,14 +74,10 @@ func (p *OperatorProvisioning) DeleteDeactivatedOperators(ctx context.Context) (
 func (p *OperatorProvisioning) changeOperatorStatus(ctx context.Context, status identityaccess.OperatorStatusChange, action string, change func(context.Context, *domain.Operator) error) (domain.Operator, error) {
 	var result domain.Operator
 	err := p.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		operator, err := p.operators.findOperatorForUpdate(txCtx, status.OperatorID)
+		operator, err := p.operators.UpdateOperator(txCtx, status.OperatorID, func(locked *identityaccess.Operator) error {
+			return change(txCtx, (*domain.Operator)(locked))
+		})
 		if err != nil {
-			return err
-		}
-		if err := change(txCtx, &operator); err != nil {
-			return err
-		}
-		if _, err := p.operators.UpdateOperator(txCtx, identityaccess.Operator(operator)); err != nil {
 			return err
 		}
 		if err := p.recordStatusChange(txCtx, status, action); err != nil {

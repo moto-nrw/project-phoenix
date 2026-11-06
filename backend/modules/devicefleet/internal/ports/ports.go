@@ -13,6 +13,8 @@ type DeviceStore interface {
 	Create(context.Context, devicefleet.CreateDevice) (devicefleet.Device, domain.OperationStats, error)
 	Update(context.Context, domain.UpdateDevice) (devicefleet.Device, domain.OperationStats, error)
 	UpdateColumns(context.Context, domain.UpdateDevice, []string) (int64, domain.OperationStats, error)
+	// TouchLastSeen moves last_seen forward to the observation, never back.
+	TouchLastSeen(context.Context, int64, time.Time) (int64, domain.OperationStats, error)
 	UpdateStatusByDeviceID(context.Context, string, devicefleet.DeviceStatus) (int64, domain.OperationStats, error)
 	Delete(context.Context, int64) (int64, domain.OperationStats, error)
 	FindByID(context.Context, int64, string) (devicefleet.Device, bool, domain.OperationStats, error)

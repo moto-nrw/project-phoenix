@@ -188,6 +188,29 @@ func (c *lettermintClient) LiftSuppression(ctx context.Context, address string) 
 	return nil
 }
 
+// SuppressionActive reads the block of one exact address. The list stays with the
+// caller's question: the filter matches parts of a value, and other addresses on a
+// page are neither kept nor reported.
+func (c *lettermintClient) SuppressionActive(ctx context.Context, address string) (bool, error) {
+	query := url.Values{"filter[value]": {address}, "page[size]": {apiPageSize}}
+	for range apiMaxPages {
+		var page lettermintSuppressionPage
+		if err := c.get(ctx, "/suppressions", query, &page); err != nil {
+			return false, err
+		}
+		for _, entry := range page.Data {
+			if entry.Type == apiTypeEmail && strings.EqualFold(entry.Value, address) {
+				return true, nil
+			}
+		}
+		if page.NextCursor == nil || *page.NextCursor == "" {
+			return false, nil
+		}
+		query.Set("page[cursor]", *page.NextCursor)
+	}
+	return false, fmt.Errorf("lettermint api: suppression pagination limit reached")
+}
+
 // lettermintSuppressionPage is one page of the provider's list.
 type lettermintSuppressionPage struct {
 	Data []struct {

@@ -55,6 +55,30 @@ func (rs *Resource) getAdminRequestDeleteImpact(w http.ResponseWriter, r *http.R
 	rs.previewEnrollmentDeletion(w, r, requestID, 0)
 }
 
+// getAdminRequestMails serves GET /admin/requests/{id}/mails: what became of the
+// mails to the family (#5934).
+func (rs *Resource) getAdminRequestMails(w http.ResponseWriter, r *http.Request) {
+	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
+		return
+	}
+	if rs.DeletionService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("enrollment deletion service not configured")))
+		return
+	}
+	var outcomes []capability.RequestMailOutcome
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		var readErr error
+		outcomes, readErr = rs.DeletionService.RequestMailOutcomes(ctx, requestID)
+		return readErr
+	})
+	if err != nil {
+		renderEnrollmentDeletionError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, outcomes, "Request mails retrieved successfully")
+}
+
 func (rs *Resource) getAdminChildDeleteImpact(w http.ResponseWriter, r *http.Request) {
 	requestID, childID, ok := parseEnrollmentDeletionIDs(w, r)
 	if !ok {

@@ -149,6 +149,7 @@ var (
 	ErrInviteDisabled                   = care.ErrInviteDisabled
 	ErrInviteSocialWorkerManaged        = care.ErrInviteSocialWorkerManaged
 	ErrInviteMailNotQueued              = care.ErrInviteMailNotQueued
+	ErrInviteMailUnavailable            = care.ErrInviteMailUnavailable
 	ErrMasterDataDuplicatePending       = care.ErrMasterDataDuplicatePending
 	ErrMasterDataEditDisabled           = care.ErrMasterDataEditDisabled
 	ErrMasterDataFieldNotEditable       = care.ErrMasterDataFieldNotEditable

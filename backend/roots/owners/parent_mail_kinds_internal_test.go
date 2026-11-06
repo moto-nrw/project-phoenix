@@ -3,10 +3,12 @@ package owners
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,10 +23,11 @@ func TestParentMailKindsMatchTheOwners(t *testing.T) {
 		enrollment.MailKindRolloverOptIn, enrollment.MailKindRolloverOptOut,
 		enrollment.MailKindChangeRequestQuestion, enrollment.MailKindChangeRequestApproved, enrollment.MailKindChangeRequestRejected,
 		enrollment.MailKindHolidayRegistrationReceived,
+		carecontract.MailKindContract,
 	} {
 		assert.True(t, deliveryContract.IsParentMail(kind), kind)
 	}
-	for _, kind := range []string{TransactionalMailKind, enrollment.MailKindAdminNotification, enrollment.MailKindDecisionDigest, identityaccess.MailKindStaffWelcome} {
+	for _, kind := range []string{parentbilling.MailKindBillingLetter, TransactionalMailKind, enrollment.MailKindAdminNotification, enrollment.MailKindDecisionDigest, identityaccess.MailKindStaffWelcome} {
 		assert.False(t, deliveryContract.IsParentMail(kind), kind)
 	}
 }
