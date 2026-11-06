@@ -265,7 +265,8 @@ func (d *Dispatcher) tryDelivery(ctx context.Context, cfg dispatchConfig, attemp
 		"error", err,
 	)
 
-	d.invokeCallback(ctx, cfg, attempt, mailcontract.DeliveryStatusFailed, err, attempt == cfg.maxAttempts)
+	final := attempt == cfg.maxAttempts || errors.Is(err, mailcontract.ErrPermanentRejection)
+	d.invokeCallback(ctx, cfg, attempt, mailcontract.DeliveryStatusFailed, err, final)
 	return err
 }
 
