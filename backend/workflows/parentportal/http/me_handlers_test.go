@@ -33,6 +33,7 @@ type fakeParentService struct {
 	gotConferenceBook       []bool
 	documents               []parentService.BillingDocument
 	documentFile            parentService.BillingDocumentFile
+	sharedDocuments         []parentService.SharedDocument
 	documentsErr            error
 	gotDocumentsAccount     int64
 	gotDocumentOrganization int64
@@ -154,6 +155,16 @@ func (f *fakeParentService) BillingDocumentLetter(_ context.Context, accountID, 
 
 func (f *fakeParentService) ContractDocumentFile(_ context.Context, accountID, organizationID, contractID int64) (parentService.BillingDocumentFile, error) {
 	f.gotDocumentsAccount, f.gotDocumentOrganization, f.gotDocumentID = accountID, organizationID, contractID
+	return f.documentFile, f.documentsErr
+}
+
+func (f *fakeParentService) ListSharedDocuments(_ context.Context, accountID int64) ([]parentService.SharedDocument, error) {
+	f.gotDocumentsAccount = accountID
+	return f.sharedDocuments, f.documentsErr
+}
+
+func (f *fakeParentService) SharedDocumentFile(_ context.Context, accountID, organizationID, documentID int64) (parentService.BillingDocumentFile, error) {
+	f.gotDocumentsAccount, f.gotDocumentOrganization, f.gotDocumentID = accountID, organizationID, documentID
 	return f.documentFile, f.documentsErr
 }
 

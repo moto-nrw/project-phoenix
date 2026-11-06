@@ -27,6 +27,36 @@
       "legacy": "traeger.bank_account_not_found"
     },
     {
+      "code": "traeger.document_already_released",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "traeger.document_already_released"
+    },
+    {
+      "code": "traeger.document_audience_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.document_audience_invalid"
+    },
+    {
+      "code": "traeger.document_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.document_invalid"
+    },
+    {
+      "code": "traeger.document_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.document_not_found"
+    },
+    {
+      "code": "traeger.document_release_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.document_release_not_found"
+    },
+    {
       "code": "traeger.document_template_invalid",
       "class": "input",
       "parameters": [],
@@ -105,6 +135,12 @@
       "class": "permission",
       "parameters": [],
       "legacy": "traeger.second_factor_required"
+    },
+    {
+      "code": "traeger.shared_document_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.shared_document_not_found"
     }
   ]
 }
