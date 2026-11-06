@@ -71,7 +71,7 @@ func (p *MailPushProvider) SendEmail(ctx context.Context, intent deliveryContrac
 		relatedID = *intent.RelatedEntityID
 	}
 	row := &Intent{
-		ID: intent.ID, TenantID: intent.TenantID, Kind: intent.Template,
+		ID: intent.ID, TenantID: intent.TenantID, Kind: intent.Template, DeliveryToken: intent.DeliveryToken,
 		RelatedEntityType: relatedType, RelatedEntityID: relatedID,
 		Payload: payload, PayloadJSON: intent.EmailPayload, Attempts: intent.Attempts,
 	}
@@ -80,17 +80,26 @@ func (p *MailPushProvider) SendEmail(ctx context.Context, intent deliveryContrac
 		return deliveryContract.ProviderResult{}, err
 	}
 	transport := Transport{Mailer: p.Mailer, MailIdentity: p.MailIdentity, Tenants: p.Tenants, Logger: p.Logger}
-	err = transport.Send(ctx, row, renderer, email.NewEmail(intent.EmailRecipient.Name, intent.EmailRecipient.Address))
+	receipt, err := transport.Send(ctx, row, renderer, email.NewEmail(intent.EmailRecipient.Name, intent.EmailRecipient.Address))
 	if errors.Is(err, ErrRenderCancelled) {
 		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %v", deliveryContract.ErrCancelled, err)
 	}
 	if errors.Is(err, ErrRenderDeferred) {
 		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %v", deliveryContract.ErrDeferred, err)
 	}
+	if errors.Is(err, email.ErrRecipientRejected) {
+		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %w: %v", deliveryContract.ErrPermanent, deliveryContract.ErrRecipientRejected, err)
+	}
+	if errors.Is(err, email.ErrPermanentRejection) {
+		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %v", deliveryContract.ErrPermanent, err)
+	}
 	if err != nil {
 		return deliveryContract.ProviderResult{}, err
 	}
-	return deliveryContract.ProviderResult{StatusCode: deliveryContract.ProviderAcceptedStatusCode}, nil
+	return deliveryContract.ProviderResult{
+		StatusCode: deliveryContract.ProviderAcceptedStatusCode,
+		MessageID:  receipt.MessageID, ProviderMessageID: receipt.ProviderMessageID,
+	}, nil
 }
 
 // SendPush sends the claimed push when its subscription is still authorized.
