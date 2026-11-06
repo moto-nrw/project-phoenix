@@ -1,4 +1,4 @@
-package compose
+package mail
 
 import (
 	"testing"
@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func lettermintConfig() EmailProviderConfig {
-	return EmailProviderConfig{
+func lettermintConfig() ProviderConfig {
+	return ProviderConfig{
 		Provider: "lettermint", SecurityFrom: "noreply@mail.example", NoticeFrom: "nachrichten@mail.example",
 		WebhookSecrets: "whsec_test", TeamToken: "lm_team_test", WebhookID: "hook-1",
 		FallbackHost: "smtp.example", FallbackPort: 587, FallbackUser: "app@example.org", FallbackPassword: "test-only", FallbackFrom: "app@example.org",
@@ -18,7 +18,7 @@ func lettermintConfig() EmailProviderConfig {
 func TestWithoutProviderNothingIsRequired(t *testing.T) {
 	t.Parallel()
 	for _, provider := range []string{"", "  ", "smtp", "SMTP"} {
-		config := EmailProviderConfig{Provider: provider}
+		config := ProviderConfig{Provider: provider}
 
 		require.NoError(t, config.Validate(), provider)
 		assert.False(t, config.UsesLettermint())
@@ -31,17 +31,17 @@ func TestWithoutProviderNothingIsRequired(t *testing.T) {
 func TestLettermintRequiresEveryValueAndNamesTheMissingOnes(t *testing.T) {
 	t.Parallel()
 	require.NoError(t, lettermintConfig().Validate())
-	for key, clear := range map[string]func(*EmailProviderConfig){
-		"EMAIL_FROM_SECURITY_ADDRESS":  func(c *EmailProviderConfig) { c.SecurityFrom = " " },
-		"EMAIL_FROM_NOTICES_ADDRESS":   func(c *EmailProviderConfig) { c.NoticeFrom = "" },
-		"EMAIL_WEBHOOK_SECRETS":        func(c *EmailProviderConfig) { c.WebhookSecrets = " , " },
-		"LETTERMINT_TEAM_API_TOKEN":    func(c *EmailProviderConfig) { c.TeamToken = "" },
-		"LETTERMINT_WEBHOOK_ID":        func(c *EmailProviderConfig) { c.WebhookID = "" },
-		"EMAIL_FALLBACK_SMTP_HOST":     func(c *EmailProviderConfig) { c.FallbackHost = "" },
-		"EMAIL_FALLBACK_SMTP_PORT":     func(c *EmailProviderConfig) { c.FallbackPort = 0 },
-		"EMAIL_FALLBACK_SMTP_USER":     func(c *EmailProviderConfig) { c.FallbackUser = "" },
-		"EMAIL_FALLBACK_SMTP_PASSWORD": func(c *EmailProviderConfig) { c.FallbackPassword = "" },
-		"EMAIL_FALLBACK_FROM_ADDRESS":  func(c *EmailProviderConfig) { c.FallbackFrom = "" },
+	for key, clear := range map[string]func(*ProviderConfig){
+		"EMAIL_FROM_SECURITY_ADDRESS":  func(c *ProviderConfig) { c.SecurityFrom = " " },
+		"EMAIL_FROM_NOTICES_ADDRESS":   func(c *ProviderConfig) { c.NoticeFrom = "" },
+		"EMAIL_WEBHOOK_SECRETS":        func(c *ProviderConfig) { c.WebhookSecrets = " , " },
+		"LETTERMINT_TEAM_API_TOKEN":    func(c *ProviderConfig) { c.TeamToken = "" },
+		"LETTERMINT_WEBHOOK_ID":        func(c *ProviderConfig) { c.WebhookID = "" },
+		"EMAIL_FALLBACK_SMTP_HOST":     func(c *ProviderConfig) { c.FallbackHost = "" },
+		"EMAIL_FALLBACK_SMTP_PORT":     func(c *ProviderConfig) { c.FallbackPort = 0 },
+		"EMAIL_FALLBACK_SMTP_USER":     func(c *ProviderConfig) { c.FallbackUser = "" },
+		"EMAIL_FALLBACK_SMTP_PASSWORD": func(c *ProviderConfig) { c.FallbackPassword = "" },
+		"EMAIL_FALLBACK_FROM_ADDRESS":  func(c *ProviderConfig) { c.FallbackFrom = "" },
 	} {
 		config := lettermintConfig()
 		clear(&config)
@@ -56,7 +56,7 @@ func TestLettermintRequiresEveryValueAndNamesTheMissingOnes(t *testing.T) {
 
 func TestUnknownProviderFailsTheStart(t *testing.T) {
 	t.Parallel()
-	err := EmailProviderConfig{Provider: "brevo"}.Validate()
+	err := ProviderConfig{Provider: "brevo"}.Validate()
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "EMAIL_PROVIDER")

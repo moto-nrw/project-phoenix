@@ -522,9 +522,11 @@ func composeServeRoot(
 		func() error {
 			return mountDemoAccess(router, authAPI.ComposedDemoAccess(identity.DemoAccess()), viper.GetString("app_env"), config.FrontendURL, viper.GetString("tenant_domain"))
 		},
-		func() error { mountPublicRoutes(router, metricsToken, db.Pool().PingContext); return nil },
+		func() error {
+			mountPublicRoutes(router, metricsToken, db.Pool().PingContext, delivery.Runtime.EmailWebhooks)
+			return nil
+		},
 		func() error { return mountRequestFeed(router, tenant, db, logger, config.FrontendURL) },
-		func() error { mountEmailWebhooks(router, delivery.Runtime.EmailWebhookIngest()); return nil },
 		func() error { return mountModuleRoutes(tenant, settings.Service) },
 		func() error {
 			return mountStudentRoutes(tenant, db, logger, deviceAuth, studentPresence, persons, services, membership, caller, reviewPolicy,

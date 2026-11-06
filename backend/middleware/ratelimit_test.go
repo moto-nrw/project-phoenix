@@ -70,6 +70,7 @@ func TestRateLimiterLoopbackExemption(t *testing.T) {
 }
 
 func TestRateLimiterExemptPathPrefixBypassesOnlyThatPath(t *testing.T) {
+	t.Parallel()
 	limiter := NewRateLimiter(1, 1)
 	limiter.ExemptPathPrefix("/webhooks/")
 	handler := limiter.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))

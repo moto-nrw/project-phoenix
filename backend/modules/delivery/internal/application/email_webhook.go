@@ -49,12 +49,16 @@ func (w *EmailWebhooks) IngestEmailWebhook(ctx context.Context, providerName str
 		return deliveryContract.ErrEmailWebhookNotConfigured
 	}
 	if err := provider.Verify(header, body, w.now()); err != nil {
-		w.logger.Warn("email webhook delivery rejected", slog.String("provider", provider.Name()), slog.String("reason", err.Error()))
+		w.logger.Warn("email webhook delivery rejected",
+			slog.String("provider", provider.Name()),
+			slog.String("reason", err.Error()))
 		return deliveryContract.ErrEmailWebhookSignature
 	}
 	reported, err := provider.Parse(body)
 	if err != nil {
-		w.logger.Warn("email webhook payload rejected", slog.String("provider", provider.Name()), slog.String("reason", err.Error()))
+		w.logger.Warn("email webhook payload rejected",
+			slog.String("provider", provider.Name()),
+			slog.String("reason", err.Error()))
 		return fmt.Errorf("%w: %v", deliveryContract.ErrEmailWebhookPayload, err)
 	}
 	if reported.Event == nil {

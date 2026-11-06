@@ -1,8 +1,8 @@
-// Package lettermint speaks to the mail provider Lettermint: it verifies and
-// reads its webhook deliveries and calls its Team API. Signature scheme and
-// payloads follow https://lettermint.co/docs/platform/webhooks/ (read
-// 2026-11-06).
-package lettermint
+// The Lettermint files speak to that mail provider: they verify and read its
+// webhook deliveries and call its Team API. Signature scheme and payloads follow
+// https://lettermint.co/docs/platform/webhooks/ (read 2026-11-06).
+
+package application
 
 import (
 	"crypto/hmac"
@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	providerName    = "lettermint"
-	headerSignature = "X-Lettermint-Signature"
-	headerDelivery  = "X-Lettermint-Delivery"
-	signatureWindow = 5 * time.Minute
+	lettermintProviderName    = "lettermint"
+	lettermintHeaderSignature = "X-Lettermint-Signature"
+	lettermintHeaderDelivery  = "X-Lettermint-Delivery"
+	lettermintSignatureWindow = 5 * time.Minute
 )
 
 // The reasons a delivery is refused. The caller answers all of them alike, so
@@ -29,15 +29,15 @@ var (
 	errTimestampOutOfSpan = errors.New("lettermint webhook: timestamp is outside the accepted window")
 )
 
-// Webhook verifies and reads one provider's deliveries.
-type Webhook struct {
+// lettermintWebhook verifies and reads one provider's deliveries.
+type lettermintWebhook struct {
 	secrets []string
 }
 
-// NewWebhook takes the comma-separated secrets. Several secrets let a secret
+// newLettermintWebhook takes the comma-separated secrets. Several secrets let a secret
 // be rotated without a gap; each is used as is, with its whsec_ prefix.
-func NewWebhook(secretList string) *Webhook {
-	webhook := &Webhook{}
+func newLettermintWebhook(secretList string) *lettermintWebhook {
+	webhook := &lettermintWebhook{}
 	for part := range strings.SplitSeq(secretList, ",") {
 		if secret := strings.TrimSpace(part); secret != "" {
 			webhook.secrets = append(webhook.secrets, secret)
@@ -47,17 +47,17 @@ func NewWebhook(secretList string) *Webhook {
 }
 
 // Name is the provider's path segment.
-func (*Webhook) Name() string { return providerName }
+func (*lettermintWebhook) Name() string { return lettermintProviderName }
 
 // Configured reports whether a secret exists to verify with.
-func (w *Webhook) Configured() bool { return len(w.secrets) > 0 }
+func (w *lettermintWebhook) Configured() bool { return len(w.secrets) > 0 }
 
 // Verify checks the signature over the raw body. Lettermint signs
 // "{t}.{body}" and sends t=<unix>,v1=<hex>. Its SDKs also require the delivery
 // header to equal the signed time, and so does moto.
-func (w *Webhook) Verify(header func(string) string, body []byte, now time.Time) error {
-	stamp, provided, ok := parseSignature(header(headerSignature))
-	if !ok || header(headerDelivery) != stamp {
+func (w *lettermintWebhook) Verify(header func(string) string, body []byte, now time.Time) error {
+	stamp, provided, ok := parseLettermintSignature(header(lettermintHeaderSignature))
+	if !ok || header(lettermintHeaderDelivery) != stamp {
 		return errSignatureMissing
 	}
 	unix, err := strconv.ParseInt(stamp, 10, 64)
@@ -68,22 +68,22 @@ func (w *Webhook) Verify(header func(string) string, body []byte, now time.Time)
 	if !w.matches(stamp, body, provided) {
 		return errSignatureMismatch
 	}
-	if age := now.Sub(time.Unix(unix, 0)); age > signatureWindow || age < -signatureWindow {
+	if age := now.Sub(time.Unix(unix, 0)); age > lettermintSignatureWindow || age < -lettermintSignatureWindow {
 		return errTimestampOutOfSpan
 	}
 	return nil
 }
 
-func (w *Webhook) matches(stamp string, body, provided []byte) bool {
+func (w *lettermintWebhook) matches(stamp string, body, provided []byte) bool {
 	for _, secret := range w.secrets {
-		if hmac.Equal(signatureMAC(secret, stamp, body), provided) {
+		if hmac.Equal(lettermintMAC(secret, stamp, body), provided) {
 			return true
 		}
 	}
 	return false
 }
 
-func signatureMAC(secret, stamp string, body []byte) []byte {
+func lettermintMAC(secret, stamp string, body []byte) []byte {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(stamp))
 	mac.Write([]byte("."))
@@ -91,7 +91,7 @@ func signatureMAC(secret, stamp string, body []byte) []byte {
 	return mac.Sum(nil)
 }
 
-func parseSignature(value string) (string, []byte, bool) {
+func parseLettermintSignature(value string) (string, []byte, bool) {
 	var stamp string
 	var provided []byte
 	for part := range strings.SplitSeq(value, ",") {

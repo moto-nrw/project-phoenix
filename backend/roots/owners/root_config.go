@@ -2,6 +2,7 @@ package owners
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -24,6 +25,8 @@ type EmailProviderSettings struct {
 	FallbackUser     string
 	FallbackPassword string
 	FallbackFrom     string
+	// Logger is set by the root that builds the provider.
+	Logger *slog.Logger
 }
 
 // ServiceConfig is the process configuration snapshot consumed by one service

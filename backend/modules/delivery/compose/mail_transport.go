@@ -12,6 +12,4 @@ func NewMailDispatcher(mailer mail.Mailer, logger *slog.Logger, observers ...mai
 	return email.NewDispatcher(mailer, logger, observers...)
 }
 
-func IsLoggingMailTransport(mailer mail.Mailer) bool {
-	return email.IsLoggingMailTransport(mailer)
-}
+func IsLoggingMailTransport(mailer mail.Mailer) bool { return email.IsLoggingMailTransport(mailer) }

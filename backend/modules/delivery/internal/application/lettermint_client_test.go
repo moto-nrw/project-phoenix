@@ -1,4 +1,4 @@
-package lettermint
+package application
 
 import (
 	"context"
@@ -14,21 +14,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testTeamToken = "lm_team_test" //nolint:gosec // fake value for the httptest server
+const lettermintTestToken = "lm_team_test" //nolint:gosec // fake value for the httptest server
 
-func apiClient(t *testing.T, handler http.HandlerFunc) *Client {
+func lettermintAPIClient(t *testing.T, handler http.HandlerFunc) *lettermintClient {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "Bearer "+testTeamToken, r.Header.Get("Authorization"))
+		assert.Equal(t, "Bearer "+lettermintTestToken, r.Header.Get("Authorization"))
 		handler(w, r)
 	}))
 	t.Cleanup(server.Close)
-	return NewClient(ClientConfig{BaseURL: server.URL + "/v1", TeamToken: testTeamToken, WebhookID: "hook-1"})
+	return newLettermintClient(lettermintClientConfig{BaseURL: server.URL + "/v1", TeamToken: lettermintTestToken, WebhookID: "hook-1"})
 }
 
-func TestMessageEventsReadsAllPagesAndMapsTheEvents(t *testing.T) {
+func TestLettermintMessageEventsReadsAllPagesAndMapsTheEvents(t *testing.T) {
 	t.Parallel()
-	client := apiClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client := lettermintAPIClient(t, func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/v1/messages/m-1/events", r.URL.Path)
 		assert.Equal(t, "timestamp", r.URL.Query().Get("sort"))
 		if r.URL.Query().Get("page[cursor]") == "" {
@@ -51,31 +51,31 @@ func TestMessageEventsReadsAllPagesAndMapsTheEvents(t *testing.T) {
 	assert.Equal(t, "api:delivered:2026-11-06T12:00:30Z", events[0].ProviderEventID, "the same event read twice is stored once")
 }
 
-func TestMessageEventsAreEmptyBeyondTheProvidersRetention(t *testing.T) {
+func TestLettermintMessageEventsAreEmptyBeyondTheProvidersRetention(t *testing.T) {
 	t.Parallel()
-	client := apiClient(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNotFound) })
+	client := lettermintAPIClient(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNotFound) })
 
 	_, err := client.MessageEvents(context.Background(), "gone")
 
 	assert.ErrorIs(t, err, domain.ErrProviderNotFound)
 }
 
-func TestClientReportsRateLimitAndFailuresWithoutTheToken(t *testing.T) {
+func TestLettermintClientReportsRateLimitAndFailuresWithoutTheToken(t *testing.T) {
 	t.Parallel()
-	limited := apiClient(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTooManyRequests) })
+	limited := lettermintAPIClient(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTooManyRequests) })
 	_, err := limited.MessageEvents(context.Background(), "m")
 	assert.ErrorIs(t, err, domain.ErrProviderRateLimited)
 
-	failing := apiClient(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadGateway) })
+	failing := lettermintAPIClient(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadGateway) })
 	_, err = failing.MessageEvents(context.Background(), "m")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "502")
-	assert.NotContains(t, err.Error(), testTeamToken)
+	assert.NotContains(t, err.Error(), lettermintTestToken)
 }
 
-func TestMessageIDIsEscapedInThePath(t *testing.T) {
+func TestLettermintMessageIDIsEscapedInThePath(t *testing.T) {
 	t.Parallel()
-	client := apiClient(t, func(w http.ResponseWriter, r *http.Request) {
+	client := lettermintAPIClient(t, func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/v1/messages/a%2Fb/events", r.URL.EscapedPath())
 		_, _ = w.Write([]byte(`{"data":[]}`))
 	})
@@ -85,7 +85,7 @@ func TestMessageIDIsEscapedInThePath(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestWebhookEnabledReadsTheConfiguredWebhook(t *testing.T) {
+func TestLettermintWebhookEnabledReadsTheConfiguredWebhook(t *testing.T) {
 	t.Parallel()
 	for name, test := range map[string]struct {
 		body    string
@@ -99,7 +99,7 @@ func TestWebhookEnabledReadsTheConfiguredWebhook(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			client := apiClient(t, func(w http.ResponseWriter, r *http.Request) {
+			client := lettermintAPIClient(t, func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "/v1/webhooks/hook-1", r.URL.Path)
 				_, _ = w.Write([]byte(test.body))
 			})
@@ -116,10 +116,10 @@ func TestWebhookEnabledReadsTheConfiguredWebhook(t *testing.T) {
 	}
 }
 
-// suppressionServer answers the list and counts the deletions.
-func suppressionServer(t *testing.T, list string, deleted *[]string) *Client {
+// lettermintSuppressionServer answers the list and counts the deletions.
+func lettermintSuppressionServer(t *testing.T, list string, deleted *[]string) *lettermintClient {
 	t.Helper()
-	return apiClient(t, func(w http.ResponseWriter, r *http.Request) {
+	return lettermintAPIClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
 			*deleted = append(*deleted, strings.TrimPrefix(r.URL.Path, "/v1/suppressions/"))
 			_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "status": "removed"})
@@ -131,10 +131,10 @@ func suppressionServer(t *testing.T, list string, deleted *[]string) *Client {
 	})
 }
 
-func TestLiftSuppressionRemovesOnlyTheExactHardBounce(t *testing.T) {
+func TestLettermintLiftRemovesOnlyTheExactHardBounce(t *testing.T) {
 	t.Parallel()
 	var deleted []string
-	client := suppressionServer(t, `{"data":[
+	client := lettermintSuppressionServer(t, `{"data":[
 		{"id":"s1","type":"email","value":"Eltern@Example.com","reason":"hard_bounce","scope":"team"},
 		{"id":"s2","type":"email","value":"eltern@example.com.evil.org","reason":"hard_bounce","scope":"team"},
 		{"id":"s3","type":"domain","value":"eltern@example.com","reason":"hard_bounce","scope":"team"},
@@ -146,10 +146,10 @@ func TestLiftSuppressionRemovesOnlyTheExactHardBounce(t *testing.T) {
 	assert.Equal(t, []string{"s1"}, deleted, "partial matches and other reasons stay")
 }
 
-func TestLiftSuppressionRefusesAComplaintAndRemovesNothing(t *testing.T) {
+func TestLettermintLiftRefusesAComplaintAndRemovesNothing(t *testing.T) {
 	t.Parallel()
 	var deleted []string
-	client := suppressionServer(t, `{"data":[
+	client := lettermintSuppressionServer(t, `{"data":[
 		{"id":"s1","type":"email","value":"eltern@example.com","reason":"hard_bounce","scope":"team"},
 		{"id":"s2","type":"email","value":"eltern@example.com","reason":"spam_complaint","scope":"route"}
 	]}`, &deleted)
@@ -160,10 +160,10 @@ func TestLiftSuppressionRefusesAComplaintAndRemovesNothing(t *testing.T) {
 	assert.Empty(t, deleted)
 }
 
-func TestLiftSuppressionWithoutEntryIsDone(t *testing.T) {
+func TestLettermintLiftWithoutEntryIsDone(t *testing.T) {
 	t.Parallel()
 	var calls atomic.Int32
-	client := apiClient(t, func(w http.ResponseWriter, _ *http.Request) {
+	client := lettermintAPIClient(t, func(w http.ResponseWriter, _ *http.Request) {
 		calls.Add(1)
 		_, _ = w.Write([]byte(`{"data":[]}`))
 	})

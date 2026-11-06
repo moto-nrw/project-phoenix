@@ -55,7 +55,7 @@ func TestTransportHandsTheMailKindToTheMailer(t *testing.T) {
 	sent := &email.Message{}
 	transport := Transport{Mailer: receiptMailTransport{sent: sent}, Tenants: contextCheckingMailTransactions{}, Logger: slog.Default()}
 
-	receipt, err := transport.Send(context.Background(), &Intent{TenantID: 1, DeliveryToken: "token-1", Security: true, UseFallback: true},
+	receipt, err := transport.Send(context.Background(), &Intent{TenantID: 42, DeliveryToken: "token-1", Security: true, UseFallback: true},
 		&recordingMailRenderer{}, email.NewEmail("", "guardian@example.com"))
 
 	require.NoError(t, err)

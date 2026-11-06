@@ -11,6 +11,8 @@ import (
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 )
 
 const (
@@ -56,6 +58,29 @@ func NewEmailReconciliation(store interface {
 	return &EmailReconciliation{store: store, api: api, fallback: fallback, logger: logger, observe: observe, now: time.Now}
 }
 
+// NewEmailEvents composes the webhook, the reconciliation and the lifting of a
+// block for this deployment's provider. The webhook exists in every deployment
+// and answers 503 without a secret; the rest does nothing on plain SMTP.
+func NewEmailEvents(config mail.ProviderConfig, store *WorkerCommands, observe ports.Observer) (*EmailWebhooks, *EmailReconciliation) {
+	logger := config.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger = logger.With("component", "email_events")
+	var api ports.EmailProviderAPI
+	if config.UsesLettermint() {
+		api = newLettermintClient(lettermintClientConfig{TeamToken: config.TeamToken, WebhookID: config.WebhookID})
+	}
+	fallback := config.UsesLettermint()
+	webhooks := NewEmailWebhooks(store, []ports.EmailWebhookProvider{newLettermintWebhook(config.WebhookSecrets)}, fallback, logger, observe)
+	return webhooks, NewEmailReconciliation(store, api, fallback, logger, observe)
+}
+
+var (
+	_ delivery.EmailWebhooks     = (*EmailWebhooks)(nil)
+	_ delivery.EmailSuppressions = (*EmailReconciliation)(nil)
+)
+
 // reconcileRun counts what one run found.
 type reconcileRun struct {
 	checked, missed, silent int
@@ -65,7 +90,7 @@ type reconcileRun struct {
 // ReconcileEmailDelivery brings the open mails up to the provider's record and returns the alarms.
 // Every alarm is an error, so it reaches the job's failure reporting.
 func (r *EmailReconciliation) ReconcileEmailDelivery(ctx context.Context) error {
-	if r.api == nil {
+	if r == nil || r.api == nil {
 		return nil
 	}
 	now := r.now()
@@ -137,7 +162,7 @@ func (r *EmailReconciliation) recordEvents(ctx context.Context, mail domain.Prov
 		}
 		if result.Rerouted || (result.State != "" && result.State != state) {
 			run.missed++
-			state = result.State
+			state = event.State
 		}
 	}
 	return state, nil
@@ -152,7 +177,11 @@ func (r *EmailReconciliation) alarms(run *reconcileRun) error {
 		failures = append(failures, fmt.Errorf("%w: %d", ErrEmailEventsSilent, run.silent))
 	}
 	if err := errors.Join(failures...); err != nil {
-		r.logger.Error("email delivery alarm", slog.Int("checked", run.checked), slog.Int("missed", run.missed), slog.Int("silent", run.silent), slog.String("error", err.Error()))
+		r.logger.Error("email delivery alarm",
+			slog.Int("checked", run.checked),
+			slog.Int("missed", run.missed),
+			slog.Int("silent", run.silent),
+			slog.String("error", err.Error()))
 		return err
 	}
 	return nil

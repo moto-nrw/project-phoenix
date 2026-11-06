@@ -1,4 +1,4 @@
-package lettermint
+package application
 
 import (
 	"context"
@@ -24,26 +24,26 @@ const (
 	apiTypeEmail    = "email"
 )
 
-// ClientConfig configures the Team API client. BaseURL is empty in production;
+// lettermintClientConfig configures the Team API client. BaseURL is empty in production;
 // tests point it at their own server.
-type ClientConfig struct {
+type lettermintClientConfig struct {
 	BaseURL   string
 	TeamToken string
 	WebhookID string
 	HTTP      *http.Client
 }
 
-// Client calls Lettermint's Team API.
-type Client struct {
+// lettermintClient calls Lettermint's Team API.
+type lettermintClient struct {
 	baseURL   string
 	token     string
 	webhookID string
 	http      *http.Client
 }
 
-// NewClient builds the client with a bounded HTTP timeout.
-func NewClient(config ClientConfig) *Client {
-	client := &Client{baseURL: config.BaseURL, token: config.TeamToken, webhookID: config.WebhookID, http: config.HTTP}
+// newLettermintClient builds the client with a bounded HTTP timeout.
+func newLettermintClient(config lettermintClientConfig) *lettermintClient {
+	client := &lettermintClient{baseURL: config.BaseURL, token: config.TeamToken, webhookID: config.WebhookID, http: config.HTTP}
 	if client.baseURL == "" {
 		client.baseURL = apiBaseURL
 	}
@@ -54,14 +54,14 @@ func NewClient(config ClientConfig) *Client {
 }
 
 // get decodes one answer into target. The token never enters an error.
-func (c *Client) get(ctx context.Context, path string, query url.Values, target any) error {
+func (c *lettermintClient) get(ctx context.Context, path string, query url.Values, target any) error {
 	if query != nil {
 		path += "?" + query.Encode()
 	}
 	return c.call(ctx, http.MethodGet, path, target)
 }
 
-func (c *Client) call(ctx context.Context, method, path string, target any) error {
+func (c *lettermintClient) call(ctx context.Context, method, path string, target any) error {
 	request, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, nil)
 	if err != nil {
 		return fmt.Errorf("lettermint api: build request: %w", err)
@@ -70,7 +70,7 @@ func (c *Client) call(ctx context.Context, method, path string, target any) erro
 	request.Header.Set("Accept", "application/json")
 	response, err := c.http.Do(request)
 	if err != nil {
-		return fmt.Errorf("lettermint api: %s failed: %w", method, redactURL(err))
+		return fmt.Errorf("lettermint api: %s failed: %w", method, lettermintRedactURL(err))
 	}
 	defer func() { _ = response.Body.Close() }()
 	switch {
@@ -90,9 +90,9 @@ func (c *Client) call(ctx context.Context, method, path string, target any) erro
 	return nil
 }
 
-// redactURL drops the request URL of a transport error: it can hold a
+// lettermintRedactURL drops the request URL of a transport error: it can hold a
 // recipient's address in its query.
-func redactURL(err error) error {
+func lettermintRedactURL(err error) error {
 	if urlErr, ok := err.(*url.Error); ok {
 		return urlErr.Err
 	}
@@ -103,7 +103,7 @@ func redactURL(err error) error {
 // of retention. These events have no ID and no server answer: the ID is derived
 // so the same event read twice is stored once, and a blocklist bounce cannot be
 // recognized here. Only the webhook can tell it.
-func (c *Client) MessageEvents(ctx context.Context, providerMessageID string) ([]domain.EmailDeliveryEvent, error) {
+func (c *lettermintClient) MessageEvents(ctx context.Context, providerMessageID string) ([]domain.EmailDeliveryEvent, error) {
 	path := "/messages/" + url.PathEscape(providerMessageID) + "/events"
 	query := url.Values{"page[size]": {apiPageSize}, "sort": {"timestamp"}}
 	events := []domain.EmailDeliveryEvent{}
@@ -119,7 +119,7 @@ func (c *Client) MessageEvents(ctx context.Context, providerMessageID string) ([
 			return nil, err
 		}
 		for _, item := range page.Data {
-			if event, ok := apiEvent(item.Event, item.Timestamp, providerMessageID); ok {
+			if event, ok := lettermintAPIEvent(item.Event, item.Timestamp, providerMessageID); ok {
 				events = append(events, event)
 			}
 		}
@@ -131,8 +131,8 @@ func (c *Client) MessageEvents(ctx context.Context, providerMessageID string) ([
 	return events, nil
 }
 
-func apiEvent(name, timestamp, providerMessageID string) (domain.EmailDeliveryEvent, bool) {
-	outcome, known := outcomes[strings.TrimPrefix(name, "message.")]
+func lettermintAPIEvent(name, timestamp, providerMessageID string) (domain.EmailDeliveryEvent, bool) {
+	outcome, known := lettermintOutcomes[strings.TrimPrefix(name, "message.")]
 	occurredAt, err := time.Parse(time.RFC3339, timestamp)
 	if !known || err != nil {
 		return domain.EmailDeliveryEvent{}, false
@@ -147,7 +147,7 @@ func apiEvent(name, timestamp, providerMessageID string) (domain.EmailDeliveryEv
 // WebhookEnabled reports whether Lettermint still calls moto's webhook. It
 // disables a webhook after 72 hours of failures. An answer without the field is
 // an error: it must not read as either state.
-func (c *Client) WebhookEnabled(ctx context.Context) (bool, error) {
+func (c *lettermintClient) WebhookEnabled(ctx context.Context) (bool, error) {
 	var answer struct {
 		Enabled *bool `json:"enabled"`
 		Data    struct {
@@ -170,7 +170,7 @@ func (c *Client) WebhookEnabled(ctx context.Context) (bool, error) {
 // applies team-wide and never expires. A complaint's block needs a review by
 // the provider's support, so nothing is removed if one exists. Blocks set by
 // hand or by an unsubscribe are someone's decision and stay.
-func (c *Client) LiftSuppression(ctx context.Context, address string) error {
+func (c *lettermintClient) LiftSuppression(ctx context.Context, address string) error {
 	var page struct {
 		Data []struct {
 			ID     string `json:"id"`

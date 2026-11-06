@@ -8,6 +8,7 @@ import (
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 )
 
@@ -28,6 +29,12 @@ type Runtime struct {
 	// EmailReconciliation compares open mails with the provider's record and
 	// lifts a block. It does nothing on plain SMTP.
 	EmailReconciliation *EmailReconciliation
+}
+
+// NewRuntime composes the module for this deployment's mail provider.
+func NewRuntime(module delivery.Capability, store *WorkerCommands, observe func(domain.Observation), wakeups func(context.Context) <-chan struct{}, provider mail.ProviderConfig) *Runtime {
+	webhooks, reconciliation := NewEmailEvents(provider, store, observe)
+	return &Runtime{Module: module, Store: store, Observe: observe, EmailWakeups: wakeups, EmailWebhooks: webhooks, EmailReconciliation: reconciliation}
 }
 
 // NewWorker composes the outbox worker over the store of runtime, sending
