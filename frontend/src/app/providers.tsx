@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { ModalProvider } from "@/components/ui/modal-context";
 import { NotificationBridge } from "~/components/notifications/notification-bridge";
 import { ServiceWorkerRegistrar } from "~/components/notifications/service-worker-registrar";
-import { TenantNotBookedSlots } from "~/components/tenant/tenant-not-booked-slots";
+import { ModuleNotBookedSlots } from "~/components/tenant/module-not-booked-state";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { schedulePostHogInitialization } from "~/lib/posthog-client";
 
@@ -27,7 +27,7 @@ export function Providers({
       <ToastProvider>
         <NotificationBridge />
         <ServiceWorkerRegistrar />
-        <TenantNotBookedSlots>{children}</TenantNotBookedSlots>
+        <ModuleNotBookedSlots>{children}</ModuleNotBookedSlots>
       </ToastProvider>
     </ModalProvider>
   );

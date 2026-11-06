@@ -1,17 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  ModuleNotBookedAlert,
-  ModuleNotBookedState,
-} from "~/components/tenant/module-not-booked-state";
-import { NotBookedSlotProvider } from "./not-booked-slot";
+import { ModuleNotBookedSlots } from "~/components/tenant/module-not-booked-state";
 import { FormErrorAlert, LoadErrorAlert } from "./form-error-alert";
-
-const NOT_BOOKED_SLOTS = {
-  Alert: ModuleNotBookedAlert,
-  State: ModuleNotBookedState,
-};
 
 const session = vi.hoisted(() => ({ permissions: [] as string[] }));
 vi.mock("next-auth/react", () => ({
@@ -120,7 +111,7 @@ describe("FormErrorAlert", () => {
 
   it("explains a form refusal to staff through their Leitung", () => {
     render(
-      <NotBookedSlotProvider slots={NOT_BOOKED_SLOTS}>
+      <ModuleNotBookedSlots>
         <FormErrorAlert
           message={{
             message: "Katalogtext",
@@ -128,7 +119,7 @@ describe("FormErrorAlert", () => {
             attempt: 1,
           }}
         />
-      </NotBookedSlotProvider>,
+      </ModuleNotBookedSlots>,
     );
 
     expect(screen.getByRole("status")).toHaveTextContent(
@@ -140,7 +131,7 @@ describe("FormErrorAlert", () => {
     session.permissions = ["config:manage"];
 
     render(
-      <NotBookedSlotProvider slots={NOT_BOOKED_SLOTS}>
+      <ModuleNotBookedSlots>
         <LoadErrorAlert
           error={{
             message: "Katalogtext",
@@ -148,7 +139,7 @@ describe("FormErrorAlert", () => {
             attempt: 1,
           }}
         />
-      </NotBookedSlotProvider>,
+      </ModuleNotBookedSlots>,
     );
 
     expect(screen.getByRole("status")).toHaveTextContent(

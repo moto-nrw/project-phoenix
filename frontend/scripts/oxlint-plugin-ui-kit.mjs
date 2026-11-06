@@ -25,8 +25,8 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //                                     src/components/ui/; use Modal / Drawer /
 //                                     OverflowMenu from the kit
 //   ui-kit/no-hand-rolled-surface   — hand-built card surfaces
-//                                     (`rounded-xl/2xl` + `border` + `bg-white`)
-//                                     outside src/components/ui/; use
+//                                     (`rounded-xl/2xl` + `border` + `bg-white`),
+//                                     in the kit except SURFACE_KIT_CONTROLS; use
 //                                     moto-content-surface (cards),
 //                                     moto-popover-surface (floating menus),
 //                                     ChoiceTile (selectable rows) or a kit
@@ -76,7 +76,7 @@ import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.
 //   ui-kit/no-kit-domain-import     — files in components/ui import no other
 //                                     components and fetch no data (#5586)
 //   ui-kit/no-raw-input             — no hand-built <input> or <textarea>
-//                                     outside src/components/ui/; use Input,
+//                                     outside RAW_INPUT_KIT_PRIMITIVES; use Input,
 //                                     Textarea, Checkbox, Radio, TimeField,
 //                                     ConsentCheckbox or ColorSwatchInput.
 //                                     Hidden and file inputs stay native.

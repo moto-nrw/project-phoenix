@@ -29,8 +29,8 @@ interface PasswordResetModalProps {
   readonly inputControlSize?: "default" | "compact";
   readonly copy?: PasswordResetModalCopy;
   /**
-   * The owner's shared API error path (`useApiFormError`), handed in because
-   * the kit may not import contexts (#2517). A failed request shows the
+   * The owner's shared API error path (`useApiFormError`), handed in by the
+   * page (#2517). A failed request shows the
    * catalog text of its code in the dialog, a field error marks the address,
    * and the wait after too many requests is read from the code.
    */

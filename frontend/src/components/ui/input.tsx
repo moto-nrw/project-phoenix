@@ -103,7 +103,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
               setOwnRevealed(!isRevealed);
               onRevealedChange?.(!isRevealed);
             }}
-            className="absolute top-1/2 right-2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            className="absolute top-1/2 right-2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none pointer-coarse:right-1 pointer-coarse:h-11 pointer-coarse:w-11"
             aria-label={isRevealed ? hidePasswordLabel : showPasswordLabel}
           >
             {isRevealed ? (

@@ -7,7 +7,7 @@ import { useApiFormError } from "~/contexts/ToastContext";
 
 /**
  * The staff "Passwort vergessen" dialog on the shared error path (#2517):
- * the kit modal may not import contexts, so this owner hands it the form
+ * this owner hands the modal the form
  * error path. Errors stay in the open dialog.
  */
 export function TenantPasswordResetModal({

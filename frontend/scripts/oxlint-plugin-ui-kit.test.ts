@@ -1995,6 +1995,18 @@ describe.concurrent("ui-kit/no-kit-domain-import", () => {
     );
   });
 
+  it("reports a re-export out of the kit", async () => {
+    const result = await lintSource(
+      `export { Thing } from "~/components/auth/thing";
+      export * from "~/components/database/other";`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.output.match(/ui-kit\(no-kit-domain-import\)/g)).toHaveLength(
+      2,
+    );
+  });
+
   it("reports fetch and useSWR in the kit", async () => {
     const result = await lintSource(
       `import useSWR from "swr";
@@ -2056,6 +2068,14 @@ describe.concurrent(
     it("accepts a raw input in a real primitive", async () => {
       const result = await lintSource(rawInput, "src/components/ui/input.tsx");
       expect(result.output).not.toContain("no-raw-input");
+    });
+
+    it("accepts a surface in a kit control on the allowlist", async () => {
+      const result = await lintSource(
+        surface,
+        "src/components/ui/checkbox-card.tsx",
+      );
+      expect(result.output).not.toContain("no-hand-rolled-surface");
     });
 
     it("reports a hand-built surface in a kit file off the allowlist", async () => {

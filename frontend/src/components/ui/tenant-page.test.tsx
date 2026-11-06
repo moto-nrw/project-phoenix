@@ -11,16 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import Link from "next/link";
 import { TenantPage, TenantPageStats } from "./tenant-page";
 import { Button, ButtonLink } from "./button";
-import {
-  ModuleNotBookedAlert,
-  ModuleNotBookedState,
-} from "~/components/tenant/module-not-booked-state";
-import { NotBookedSlotProvider } from "./not-booked-slot";
-
-const NOT_BOOKED_SLOTS = {
-  Alert: ModuleNotBookedAlert,
-  State: ModuleNotBookedState,
-};
+import { ModuleNotBookedSlots } from "~/components/tenant/module-not-booked-state";
 
 // Der Zustand für nicht gebuchte Module liest die Sitzung (#4894).
 vi.mock("next-auth/react", () => ({
@@ -833,7 +824,7 @@ describe("TenantPage", () => {
 describe("TenantPage mit nicht gebuchtem Modul", () => {
   it("erklärt das Modul statt einen Fehler zu zeigen", () => {
     render(
-      <NotBookedSlotProvider slots={NOT_BOOKED_SLOTS}>
+      <ModuleNotBookedSlots>
         <TenantPage
           title="Mein Dienstplan"
           error={{
@@ -844,7 +835,7 @@ describe("TenantPage mit nicht gebuchtem Modul", () => {
         >
           <p>Inhalt</p>
         </TenantPage>
-      </NotBookedSlotProvider>,
+      </ModuleNotBookedSlots>,
     );
 
     expect(screen.getByText("Dienstplan ist nicht gebucht")).toBeVisible();

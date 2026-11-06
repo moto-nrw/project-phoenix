@@ -11,17 +11,8 @@ import {
 
 import { NotBookedPageProvider } from "~/lib/not-booked-page-context";
 
-import {
-  ModuleNotBookedAlert,
-  ModuleNotBookedState,
-} from "~/components/tenant/module-not-booked-state";
-import { NotBookedSlotProvider } from "./not-booked-slot";
+import { ModuleNotBookedSlots } from "~/components/tenant/module-not-booked-state";
 import { TenantPage } from "./tenant-page";
-
-const NOT_BOOKED_SLOTS = {
-  Alert: ModuleNotBookedAlert,
-  State: ModuleNotBookedState,
-};
 
 const navigation = vi.hoisted(() => ({ pathname: "/time-tracking" }));
 vi.mock("next/navigation", () => ({
@@ -43,7 +34,7 @@ const TENANT = { tenantId: 1, slug: "demo" } as TenantInfo;
 
 function renderGate(title = "Zeiterfassung") {
   return render(
-    <NotBookedSlotProvider slots={NOT_BOOKED_SLOTS}>
+    <ModuleNotBookedSlots>
       <NotBookedPageProvider>
         <TenantPage
           title={title}
@@ -52,7 +43,7 @@ function renderGate(title = "Zeiterfassung") {
           <div>Inhalt der Seite</div>
         </TenantPage>
       </NotBookedPageProvider>
-    </NotBookedSlotProvider>,
+    </ModuleNotBookedSlots>,
   );
 }
 

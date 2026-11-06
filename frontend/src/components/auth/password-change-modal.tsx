@@ -29,8 +29,8 @@ interface PasswordChangeModalProps {
   readonly onSuccess?: () => void;
   readonly apiEndpoint?: string;
   /**
-   * The owner's shared API error path (`useApiFormError`), handed in because
-   * the kit may not import contexts (#2517). A refused change shows the
+   * The owner's shared API error path (`useApiFormError`), handed in by the
+   * page (#2517). A refused change shows the
    * catalog text of its code in the dialog and marks the field the backend
    * names (`current_password`, `new_password`).
    */
