@@ -52,6 +52,8 @@ var lettermintStateless = map[string]bool{
 	"queued": true, "processed": true, "sent": true, "created": true,
 }
 
+var lettermintAddressStatuses = map[string]bool{"5.1.1": true, "5.1.2": true, "5.1.3": true, "5.1.4": true, "5.1.6": true, "5.1.10": true}
+
 type lettermintEnvelope struct {
 	ID        string    `json:"id"`
 	Event     string    `json:"event"`
@@ -107,14 +109,14 @@ func (o lettermintOutcome) event(diagnostic string) domain.EmailDeliveryEvent {
 }
 
 // answerClearsAddress applies the rule of the school's list to a bounce: only
-// 5.1.x proves a wrong address. An answer without an enhanced code leaves
-// Lettermint's verdict standing.
+// the statuses that classifySendError also accepts prove an unusable address. An
+// answer without an enhanced code leaves Lettermint's verdict standing.
 func (e lettermintEnvelope) answerClearsAddress() bool {
 	if e.Data.Response == nil {
 		return false
 	}
 	enhanced := e.Data.Response.EnhancedCode
-	return strings.HasPrefix(enhanced, "5.") && !strings.HasPrefix(enhanced, "5.1.")
+	return strings.HasPrefix(enhanced, "5.") && !lettermintAddressStatuses[enhanced]
 }
 
 func (e lettermintEnvelope) diagnostic() string {

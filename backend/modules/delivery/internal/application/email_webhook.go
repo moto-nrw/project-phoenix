@@ -83,5 +83,7 @@ func (w *EmailWebhooks) acknowledge(provider string, reported domain.ReportedEma
 	if len(name) > maxLoggedEventName {
 		name = name[:maxLoggedEventName]
 	}
-	w.logger.Warn("unknown email webhook event", slog.String("provider", provider), slog.String("event", name))
+	w.logger.Warn("unknown email webhook event",
+		slog.String("provider", provider),
+		slog.String("event", name))
 }
