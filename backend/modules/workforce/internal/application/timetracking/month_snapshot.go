@@ -45,3 +45,8 @@ type MonthSnapshots interface {
 	ReopenMonthSnapshot(context.Context, int64, int64, time.Time, string) (int64, error)
 	LockStaffBalanceWrites(context.Context, int64) error
 }
+
+// absenceMonthSnapshotReader supplies the active closes for a rebooking's staff.
+type absenceMonthSnapshotReader interface {
+	ClosedMonthSnapshotsForStaff(context.Context, []int64) ([]*MonthSnapshot, error)
+}

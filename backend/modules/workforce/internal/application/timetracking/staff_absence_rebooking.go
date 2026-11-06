@@ -135,9 +135,13 @@ func (s *staffAbsenceService) previewRebooking(ctx context.Context, staffID int6
 	if err != nil {
 		return nil, err
 	}
+	snapshots, err := s.rebookingClosedMonths(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
 	result := &AbsenceRebookingResult{}
 	for _, entry := range entries {
-		if err := s.validateRebookedAbsence(ctx, entry); err != nil {
+		if err := s.validateRebookedAbsence(ctx, entry, snapshots); err != nil {
 			return nil, err
 		}
 		result.Days += countWorkingDays(entry.after.DateStart, entry.after.DateEnd, effectiveStartHalf(entry.after), effectiveEndHalf(entry.after))
@@ -248,10 +252,10 @@ func (s *staffAbsenceService) loadRebookingAbsences(ctx context.Context, staffID
 	return absences, nil
 }
 
-func (s *staffAbsenceService) validateRebookedAbsence(ctx context.Context, entry rebookedAbsence) error {
+func (s *staffAbsenceService) validateRebookedAbsence(ctx context.Context, entry rebookedAbsence, snapshots []*MonthSnapshot) error {
 	after := entry.after
 	day := after.DateStart.Format("02.01.2006")
-	if err := s.rejectClosedMonths(ctx, after.StaffID, after.DateStart, after.DateEnd); err != nil {
+	if err := rejectClosedMonths(snapshots, after.DateStart, after.DateEnd); err != nil {
 		return err
 	}
 	// Only vacation keeps half days at the edges of a longer range; every
@@ -311,24 +315,33 @@ func validateRebookedAbsenceOverlaps(absences []*StaffAbsence, entries []rebooke
 	return nil
 }
 
+// rebookingClosedMonths loads the staff's active closes once under the existing
+// absence/balance lock. Validation still visits entries and months in request
+// order, and all other guards keep their live readers.
+func (s *staffAbsenceService) rebookingClosedMonths(ctx context.Context, staffID int64) ([]*MonthSnapshot, error) {
+	if s.snapshotRepo == nil {
+		return nil, nil
+	}
+	snapshots, err := s.snapshotRepo.ClosedMonthSnapshotsForStaff(ctx, []int64{staffID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to check month close state for rebooking: %w", err)
+	}
+	return snapshots, nil
+}
+
 // rejectClosedMonths blocks a change inside a closed month: its closing
 // balance is frozen, so the Stundenkonto would not follow the new type.
-func (s *staffAbsenceService) rejectClosedMonths(ctx context.Context, staffID int64, start, end calendar.Date) error {
-	if s.snapshotRepo == nil {
-		return nil
-	}
+func rejectClosedMonths(snapshots []*MonthSnapshot, start, end calendar.Date) error {
 	for key := monthOf(start); !monthOf(end).before(key); key = key.next() {
-		snapshot, err := s.snapshotRepo.LatestClosedMonth(ctx, staffID, key.Year, key.Month)
-		if err != nil {
-			return fmt.Errorf("failed to check month close state for rebooking: %w", err)
-		}
-		if snapshot != nil && snapshot.Year == key.Year && snapshot.Month == key.Month {
-			month := germanMonth(key)
-			return rebookingBlocked(
-				workforce.MonthClosedCode, workforce.RebookingValues{Month: month},
-				"Der %s ist abgeschlossen. Öffnen Sie den Monat zuerst wieder. Das geht im Reiter Zeiterfassung.",
-				month,
-			)
+		for _, snapshot := range snapshots {
+			if snapshot.Year == key.Year && snapshot.Month == key.Month {
+				month := germanMonth(key)
+				return rebookingBlocked(
+					workforce.MonthClosedCode, workforce.RebookingValues{Month: month},
+					"Der %s ist abgeschlossen. Öffnen Sie den Monat zuerst wieder. Das geht im Reiter Zeiterfassung.",
+					month,
+				)
+			}
 		}
 	}
 	return nil
