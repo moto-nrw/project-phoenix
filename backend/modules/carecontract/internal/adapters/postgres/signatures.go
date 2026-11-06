@@ -198,49 +198,34 @@ func (Store) PaperDocument(ctx context.Context, organizationID, contractID int64
 	return row.file(err, carecontract.ErrContractNotFound)
 }
 
-// ConcludeContract moves a draft or sent contract to its signed state and
-// makes its version effective. A contract past that answers
-// ErrContractNotSignable.
-func (Store) ConcludeContract(ctx context.Context, organizationID, contractID, versionID int64, status string, at time.Time) error {
+// ConcludeContract moves a sent contract to aktiv and its version from
+// beantragt to wirksam. Both updates are conditional: a contract that is no
+// longer versendet, or a version no longer beantragt, answers
+// ErrContractNotSignable and changes nothing the caller keeps.
+func (Store) ConcludeContract(ctx context.Context, organizationID, contractID, versionID int64, _ time.Time) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return err
 	}
-	// A paper contract of a draft was handed over on paper: it counts as
-	// sent when it was signed.
-	result, err := db.ExecContext(ctx, `UPDATE care_contract.contracts SET status = ?, signed_at = ?, sent_at = COALESCE(sent_at, ?)
-		WHERE organization_id = ? AND id = ? AND status IN (?, ?)`,
-		status, at, at, organizationID, contractID, carecontract.StatusDraft, carecontract.StatusSent)
+	result, err := db.ExecContext(ctx, `UPDATE care_contract.contracts SET status = ?
+		WHERE organization_id = ? AND id = ? AND status = ?`,
+		carecontract.StatusActive, organizationID, contractID, carecontract.StatusSent)
 	if err != nil {
 		return fmt.Errorf("care contract postgres: conclude contract: %w", err)
 	}
 	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
 		return carecontract.ErrContractNotSignable
 	}
-	if _, err := db.ExecContext(ctx, `UPDATE care_contract.contract_versions SET status = ?
+	result, err = db.ExecContext(ctx, `UPDATE care_contract.contract_versions SET status = ?
 		WHERE organization_id = ? AND contract_id = ? AND id = ? AND status = ?`,
-		carecontract.VersionEffective, organizationID, contractID, versionID, carecontract.VersionRequested); err != nil {
+		carecontract.VersionEffective, organizationID, contractID, versionID, carecontract.VersionRequested)
+	if err != nil {
 		return fmt.Errorf("care contract postgres: make version effective: %w", err)
 	}
+	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
+		return carecontract.ErrContractNotSignable
+	}
 	return nil
-}
-
-// ActivateDue makes the signed contracts aktiv whose effective version has
-// begun by today.
-func (Store) ActivateDue(ctx context.Context, organizationID int64, today calendar.Date) (int, error) {
-	db, err := traegerDB(ctx, organizationID)
-	if err != nil {
-		return 0, err
-	}
-	result, err := db.ExecContext(ctx, `UPDATE care_contract.contracts AS c SET status = ?
-		WHERE c.organization_id = ? AND c.status = ? AND EXISTS (SELECT 1 FROM care_contract.contract_versions AS v
-			WHERE v.organization_id = c.organization_id AND v.contract_id = c.id AND v.status = ? AND v.effective_from <= ?)`,
-		carecontract.StatusActive, organizationID, carecontract.StatusSigned, carecontract.VersionEffective, today)
-	if err != nil {
-		return 0, fmt.Errorf("care contract postgres: activate contracts: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	return int(affected), err
 }
 
 // Reminders reads the reminder mails of a contract, oldest first.

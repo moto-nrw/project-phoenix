@@ -8,15 +8,14 @@ import (
 
 const (
 	careContractRemindersStartupDelay = 80 * time.Second
-	// careContractRemindersInterval: a reminder is due after whole days and
-	// an activation on a calendar day, so an hourly look reaches both on
-	// their day.
+	// careContractRemindersInterval: a reminder is due after whole days, so
+	// an hourly look reaches it on its day.
 	careContractRemindersInterval = time.Hour
 	careContractRemindersTimeout  = 10 * time.Minute
 )
 
 // scheduleCareContractRemindersTask reminds parents of care contracts they
-// have not signed and activates signed contracts (#4679).
+// have not signed (#4679).
 func (s *Scheduler) scheduleCareContractRemindersTask() {
 	if s.careContractReminders == nil {
 		s.getLogger().Info("care contract reminders not configured")

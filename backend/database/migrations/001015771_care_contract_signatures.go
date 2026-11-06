@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const careContractSignaturesVersion = "1.15.761"
+const careContractSignaturesVersion = "1.15.771"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -45,8 +45,10 @@ func init() {
 //     not signed yet, at most one per number and contract.
 //
 // The request role adds signatures, links and reminders and never changes a
-// signature; of a link it may only set used_at. A contract becomes
-// unterschrieben or aktiv with signed_at, and its version becomes wirksam.
+// signature; of a link it may only set used_at. A signed contract becomes
+// aktiv and its version wirksam, the transition #4680 (1.15.760) guards with
+// its trigger once both are merged; the grant on the status of a version is
+// the same in both.
 const careContractSignaturesUpSQL = `
 CREATE TABLE audit.traeger_signatures (
 	id BIGSERIAL PRIMARY KEY,
@@ -73,10 +75,6 @@ CREATE INDEX idx_traeger_signatures_signer_account ON audit.traeger_signatures (
 	WHERE signer_account_id IS NOT NULL;
 COMMENT ON TABLE audit.traeger_signatures IS
 	'Signature ledger of the Audit Platform at the Träger (#4785, #4679): append only, Träger policy.';
-
-ALTER TABLE care_contract.contracts ADD COLUMN signed_at TIMESTAMPTZ;
-ALTER TABLE care_contract.contracts ADD CONSTRAINT chk_contracts_signed
-	CHECK (status NOT IN ('unterschrieben', 'aktiv') OR signed_at IS NOT NULL);
 
 CREATE TABLE care_contract.contract_signatures (
 	id BIGSERIAL PRIMARY KEY,
@@ -174,7 +172,7 @@ COMMENT ON TABLE care_contract.contract_reminders IS
 
 ALTER TABLE care_contract.contract_events DROP CONSTRAINT chk_contract_events_action;
 ALTER TABLE care_contract.contract_events ADD CONSTRAINT chk_contract_events_action
-	CHECK (action IN ('read', 'create', 'send', 'discard', 'template', 'sign', 'remind'));
+	CHECK (action IN ('read', 'create', 'send', 'discard', 'template', 'conclude', 'sign', 'remind'));
 
 ALTER TABLE audit.traeger_signatures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit.traeger_signatures FORCE ROW LEVEL SECURITY;
@@ -202,7 +200,6 @@ REVOKE ALL ON audit.traeger_signatures, care_contract.contract_signatures, care_
 GRANT SELECT, INSERT ON audit.traeger_signatures, care_contract.contract_signatures, care_contract.contract_signing_links,
 	care_contract.contract_reminders TO phoenix_tenant;
 GRANT UPDATE (used_at) ON care_contract.contract_signing_links TO phoenix_tenant;
-GRANT UPDATE (signed_at) ON care_contract.contracts TO phoenix_tenant;
 GRANT UPDATE (status) ON care_contract.contract_versions TO phoenix_tenant;
 GRANT USAGE ON SEQUENCE audit.traeger_signatures_id_seq, care_contract.contract_signatures_id_seq,
 	care_contract.contract_signing_links_id_seq, care_contract.contract_reminders_id_seq TO phoenix_tenant;
@@ -217,12 +214,10 @@ DROP TABLE IF EXISTS care_contract.contract_reminders;
 DROP TABLE IF EXISTS care_contract.contract_signatures;
 DROP TABLE IF EXISTS care_contract.contract_signing_links;
 DROP TABLE IF EXISTS audit.traeger_signatures;
+DELETE FROM care_contract.contract_events WHERE action IN ('sign', 'remind');
 ALTER TABLE care_contract.contract_events DROP CONSTRAINT IF EXISTS chk_contract_events_action;
 ALTER TABLE care_contract.contract_events ADD CONSTRAINT chk_contract_events_action
-	CHECK (action IN ('read', 'create', 'send', 'discard', 'template'));
-ALTER TABLE care_contract.contracts DROP CONSTRAINT IF EXISTS chk_contracts_signed;
-ALTER TABLE care_contract.contracts DROP COLUMN IF EXISTS signed_at;
-REVOKE UPDATE (status) ON care_contract.contract_versions FROM phoenix_tenant;
+	CHECK (action IN ('read', 'create', 'send', 'discard', 'template', 'conclude'));
 `
 
 func careContractSignaturesUp(ctx context.Context, db *bun.DB) error {

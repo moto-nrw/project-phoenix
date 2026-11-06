@@ -5651,7 +5651,10 @@ export const parentDepartureTopic = function parentDepartureTopic(): HelpTopic {
   };
 } satisfies typeof authored_parentDepartureTopic;
 
-/** `/parents/documents` (#4671, #4678): Schreiben und Verträge des Trägers. */
+/**
+ * `/parents/documents` (#4671, #4678, #4679): Schreiben und Verträge des
+ * Trägers, den Betreuungsvertrag unterschreiben.
+ */
 export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.parentDocuments,
@@ -5662,13 +5665,32 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
     group: "nachrichten",
     audience: "parent",
     icon: "FileText",
-    steps: [
-      "Tippen Sie unten auf `Mehr`.",
-      "Wählen Sie `Dokumente`.",
-      "Wählen Sie beim Schreiben `Als PDF laden`.",
+    instructionGroups: [
+      {
+        title: "Ein Schreiben laden",
+        steps: [
+          "Tippen Sie unten auf `Mehr`.",
+          "Wählen Sie `Dokumente`.",
+          "Wählen Sie beim Schreiben `Als PDF laden`.",
+        ],
+      },
+      {
+        title: "Den Betreuungsvertrag unterschreiben",
+        description:
+          "Ein Vertrag mit `Wartet auf Ihre Unterschrift` braucht Ihre Unterschrift. Das geht auch über den Link in der Mail, ohne Konto.",
+        steps: [
+          "Wählen Sie beim Vertrag `Lesen und unterschreiben`.",
+          "Lesen Sie die gebuchte Betreuung und den Vertrag als PDF.",
+          "Lesen Sie die Widerrufsbelehrung. Setzen Sie den Haken bei `Ich habe die Widerrufsbelehrung gelesen.`",
+          "Soll die Betreuung schon vor dem Ende der Widerrufsfrist beginnen? Setzen Sie auch diesen Haken.",
+          "Unterschreiben Sie mit dem Finger oder tippen Sie Ihren Namen. Wählen Sie `Unterschrift bestätigen`.",
+          "Wählen Sie `Vertrag verbindlich unterschreiben`.",
+        ],
+      },
     ],
+    steps: [],
     result:
-      "Sie bekommen das Schreiben als PDF. Sie können es speichern oder drucken.",
+      "Sie bekommen das Schreiben als PDF. Nach der Unterschrift steht beim Vertrag `Unterschrieben`, und Sie bekommen eine Bestätigung mit dem Vertrag per Mail.",
     notes: [
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
@@ -5678,6 +5700,8 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
     troubleshootingDetails: [
       "Ein Schreiben fehlt? Hier liegt es nur, wenn es an die Mail-Adresse Ihres Kontos ging. Haben Sie bei der Anmeldung eine andere Adresse angegeben, bekommen Sie es nur per Mail.",
       "Statt der Liste steht, dass Ihnen die Berechtigung fehlt? Bitte fragen Sie die Schule.",
+      "Der Link in der Mail gilt nicht mehr? Er gilt nur einmal und 30 Tage. Unterschreiben Sie in der Eltern-App unter `Dokumente`. Oder fragen Sie beim Träger nach einem neuen Link.",
+      "Beim Vertrag fehlt `Lesen und unterschreiben`? Dann darf Ihr Konto für dieses Kind nicht unterschreiben. Bitte fragen Sie die Schule.",
     ],
     related: [
       HELP_TOPICS.parentHolidayRegistration,
@@ -10013,8 +10037,9 @@ export const traegerBriefkopfTopic =
   } satisfies typeof authored_traegerBriefkopfTopic;
 
 /**
- * `/traeger/vertraege` (#4678): Vertragsbedingungen je Angebot festlegen,
- * Entwürfe aus angenommenen Anmeldungen erstellen, prüfen und senden.
+ * `/traeger/vertraege` (#4678, #4679): Vertragsbedingungen je Angebot
+ * festlegen, Entwürfe aus angenommenen Anmeldungen erstellen, prüfen und
+ * senden; die Unterschrift der Eltern und den Papiervertrag erfassen.
  */
 export const traegerCareContractsTopic =
   function traegerCareContractsTopic(): HelpTopic {
@@ -10023,7 +10048,7 @@ export const traegerCareContractsTopic =
       title: "Betreuungsverträge erstellen und senden",
       question: "Wie schicke ich den Eltern den Betreuungsvertrag?",
       summary:
-        "Aus jeder angenommenen Anmeldung erstellt moto einen Vertragsentwurf mit den gebuchten Modulen je Wochentag. Sie prüfen ihn und senden ihn per Mail und in die Eltern-App.",
+        "Aus jeder angenommenen Anmeldung erstellt moto einen Vertragsentwurf mit den gebuchten Modulen je Wochentag. Sie prüfen ihn und senden ihn per Mail und in die Eltern-App. Die Eltern unterschreiben online oder auf Papier.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "Signature",
@@ -10065,6 +10090,28 @@ export const traegerCareContractsTopic =
             "Mehrere Entwürfe auf einmal: Setzen Sie in der Liste die Haken und wählen Sie oben `Entwürfe senden`.",
           ],
         },
+        {
+          title: "Unterschrift der Eltern",
+          description:
+            "Die Eltern unterschreiben in der Eltern-App oder über den Link in der Mail. Sie zeichnen mit dem Finger oder tippen ihren Namen.",
+          steps: [
+            "Öffnen Sie den Vertrag. Die Karte `Unterschrift` zeigt `Wartet auf Eltern` oder `Unterschrieben`.",
+            "Nach der Unterschrift ist der Vertrag `Aktiv`. Die Karte zeigt, wer wann auf welchem Weg unterschrieben hat, die Widerrufsfrist und die gespeicherte Unterschrift.",
+            "Die Eltern bekommen eine Bestätigung mit dem Vertrag und der Widerrufsbelehrung per Mail.",
+          ],
+        },
+        {
+          title: "Papiervertrag erfassen",
+          description:
+            "Für Familien ohne Internet oder einen Vertrag, den es nur auf Papier gibt.",
+          steps: [
+            "Wählen Sie oben `PDF herunterladen` und drucken Sie den Vertrag.",
+            "Die Eltern unterschreiben ihn. Scannen Sie den unterschriebenen Vertrag als PDF.",
+            "Wählen Sie auf der Vertragsseite in der Karte `Unterschrift` den Knopf `Papiervertrag erfassen`.",
+            "Prüfen Sie `Unterschrieben von` und `Unterschrieben am`. Wählen Sie mit `PDF wählen` die Datei.",
+            "Wählen Sie `Vertrag abschließen`. Der Vertrag ist dann `Aktiv`. Mit `Papiervertrag laden` holen Sie das PDF später wieder.",
+          ],
+        },
       ],
       steps: [],
       result:
@@ -10075,6 +10122,8 @@ export const traegerCareContractsTopic =
         "Unter `Versand` sehen Sie, ob die Mail gesendet wurde. Mit `Versand aktualisieren` prüfen Sie den neuen Stand. Mit `Erneut senden` geht dasselbe PDF noch einmal an die Eltern.",
         "Den Brieftext des Vertrags ändern Sie unter `Einstellungen` → `Briefkopf und Vorlagen` bei der Vorlage `Vertrag`.",
         "Mit `PDF herunterladen` bekommen Sie den Vertrag zum Drucken, etwa für Familien ohne Mail.",
+        "Hat ein Vertrag noch keine Unterschrift, bekommen die Eltern eine Erinnerung per Mail, höchstens drei. Nach wie vielen Tagen, legen Sie unter `Einstellungen` → `Allgemein` im Bereich `Betreuungsverträge` fest. Bei 0 gibt es keine Erinnerung.",
+        "Der Link in der Mail gilt einmal und 30 Tage. Jede Erinnerung bringt einen neuen Link.",
       ],
       differences: [
         "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
@@ -10086,6 +10135,8 @@ export const traegerCareContractsTopic =
         "Ein Entwurf ist falsch? Wählen Sie auf seiner Seite oben `Entwurf verwerfen`. Danach erstellen Sie ihn neu. Einen versendeten Vertrag können Sie nicht verwerfen.",
         "Der Versand zeigt `Nicht angekommen`? Prüfen Sie die Adresse mit der Schule. Tragen Sie auf der Vertragsseite unter `Versand` die `Neue Versandadresse` ein. Wählen Sie `An diese Adresse senden`. Das PDF, die Vertragspartei und bisherige Versanddaten bleiben gleich. Spätere Wiederholungen nutzen die letzte Versandadresse.",
         "Der Name des Vertragspartners fehlt? Ergänzen Sie den Briefkopf. Oder verwerfen Sie den Entwurf und erstellen ihn mit eingetragenem Vertragspartner neu.",
+        "Die Eltern sagen, der Link gilt nicht mehr? Er war schon benutzt oder ist abgelaufen. Wählen Sie `Erneut senden`. Die Eltern bekommen einen neuen Link. Oder sie unterschreiben in der Eltern-App unter `Dokumente`.",
+        "Die Karte `Unterschrift` meldet, die Prüfsumme stimmt nicht? Der gespeicherte Nachweis wurde verändert. Melden Sie das dem moto-Team.",
       ],
       related: [
         HELP_TOPICS.traegerDocumentTemplates,

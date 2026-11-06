@@ -287,7 +287,7 @@ func (s *Signatures) sign(ctx context.Context, organizationID int64, record Cont
 	}); err != nil {
 		return carecontract.SigningView{}, err
 	}
-	status, err := concludeContract(ctx, s.store, organizationID, record, now)
+	status, err := concludeSigned(ctx, s.store, organizationID, record, now)
 	if err != nil {
 		return carecontract.SigningView{}, err
 	}

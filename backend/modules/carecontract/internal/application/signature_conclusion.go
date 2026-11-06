@@ -12,27 +12,19 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The conclusion of a contract (#4679). A signature, online or on paper,
-// concludes the contract: from its effective date it is aktiv, before that
-// unterschrieben, and its version becomes wirksam. #4680 concludes a
-// contract at the acceptance of the application the same way; both meet in
-// concludeContract once #4680 is merged.
+// The conclusion of a signed contract (#4679). A signature, online or on
+// paper, concludes the sent contract: it becomes aktiv and its version
+// wirksam, under the row lock the caller holds. #4680 concludes a contract
+// at the acceptance of the application with the same transition
+// (concludeContract there, methods einfach_elektronisch and papier for the
+// signature); once both are merged, concludeSigned calls it.
 
-// concludedStatus is the state of a concluded contract on a day.
-func concludedStatus(effectiveFrom, today calendar.Date) string {
-	if effectiveFrom.After(today) {
-		return carecontract.StatusSigned
-	}
-	return carecontract.StatusActive
-}
-
-// concludeContract moves the contract of record to its concluded state.
-func concludeContract(ctx context.Context, store SignatureStore, organizationID int64, record ContractRecord, at time.Time) (string, error) {
-	status := concludedStatus(record.Version.EffectiveFrom, calendar.DateFromTime(at))
-	if err := store.ConcludeContract(ctx, organizationID, record.Summary.ID, record.Version.ID, status, at); err != nil {
+// concludeSigned moves the sent contract of record to aktiv.
+func concludeSigned(ctx context.Context, store SignatureStore, organizationID int64, record ContractRecord, at time.Time) (string, error) {
+	if err := store.ConcludeContract(ctx, organizationID, record.Summary.ID, record.Version.ID, at); err != nil {
 		return "", err
 	}
-	return status, nil
+	return carecontract.StatusActive, nil
 }
 
 // versionChecksum is the SHA-256 of the structured version the parents

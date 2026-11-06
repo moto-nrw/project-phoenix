@@ -2,8 +2,9 @@ import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
 /**
- * `/traeger/vertraege` (#4678): Vertragsbedingungen je Angebot festlegen,
- * Entwürfe aus angenommenen Anmeldungen erstellen, prüfen und senden.
+ * `/traeger/vertraege` (#4678, #4679): Vertragsbedingungen je Angebot
+ * festlegen, Entwürfe aus angenommenen Anmeldungen erstellen, prüfen und
+ * senden; die Unterschrift der Eltern und den Papiervertrag erfassen.
  */
 export function traegerCareContractsTopic(): HelpTopic {
   return {
@@ -11,7 +12,7 @@ export function traegerCareContractsTopic(): HelpTopic {
     title: "Betreuungsverträge erstellen und senden",
     question: "Wie schicke ich den Eltern den Betreuungsvertrag?",
     summary:
-      "Aus jeder angenommenen Anmeldung erstellt moto einen Vertragsentwurf mit den gebuchten Modulen je Wochentag. Sie prüfen ihn und senden ihn per Mail und in die Eltern-App.",
+      "Aus jeder angenommenen Anmeldung erstellt moto einen Vertragsentwurf mit den gebuchten Modulen je Wochentag. Sie prüfen ihn und senden ihn per Mail und in die Eltern-App. Die Eltern unterschreiben online oder auf Papier.",
     group: "anmeldeverwaltung",
     audience: "traeger",
     icon: "Signature",
@@ -53,6 +54,28 @@ export function traegerCareContractsTopic(): HelpTopic {
           "Mehrere Entwürfe auf einmal: Setzen Sie in der Liste die Haken und wählen Sie oben `Entwürfe senden`.",
         ],
       },
+      {
+        title: "Unterschrift der Eltern",
+        description:
+          "Die Eltern unterschreiben in der Eltern-App oder über den Link in der Mail. Sie zeichnen mit dem Finger oder tippen ihren Namen.",
+        steps: [
+          "Öffnen Sie den Vertrag. Die Karte `Unterschrift` zeigt `Wartet auf Eltern` oder `Unterschrieben`.",
+          "Nach der Unterschrift ist der Vertrag `Aktiv`. Die Karte zeigt, wer wann auf welchem Weg unterschrieben hat, die Widerrufsfrist und die gespeicherte Unterschrift.",
+          "Die Eltern bekommen eine Bestätigung mit dem Vertrag und der Widerrufsbelehrung per Mail.",
+        ],
+      },
+      {
+        title: "Papiervertrag erfassen",
+        description:
+          "Für Familien ohne Internet oder einen Vertrag, den es nur auf Papier gibt.",
+        steps: [
+          "Wählen Sie oben `PDF herunterladen` und drucken Sie den Vertrag.",
+          "Die Eltern unterschreiben ihn. Scannen Sie den unterschriebenen Vertrag als PDF.",
+          "Wählen Sie auf der Vertragsseite in der Karte `Unterschrift` den Knopf `Papiervertrag erfassen`.",
+          "Prüfen Sie `Unterschrieben von` und `Unterschrieben am`. Wählen Sie mit `PDF wählen` die Datei.",
+          "Wählen Sie `Vertrag abschließen`. Der Vertrag ist dann `Aktiv`. Mit `Papiervertrag laden` holen Sie das PDF später wieder.",
+        ],
+      },
     ],
     steps: [],
     result:
@@ -63,6 +86,8 @@ export function traegerCareContractsTopic(): HelpTopic {
       "Unter `Versand` sehen Sie, ob die Mail gesendet wurde. Mit `Versand aktualisieren` prüfen Sie den neuen Stand. Mit `Erneut senden` geht dasselbe PDF noch einmal an die Eltern.",
       "Den Brieftext des Vertrags ändern Sie unter `Einstellungen` → `Briefkopf und Vorlagen` bei der Vorlage `Vertrag`.",
       "Mit `PDF herunterladen` bekommen Sie den Vertrag zum Drucken, etwa für Familien ohne Mail.",
+      "Hat ein Vertrag noch keine Unterschrift, bekommen die Eltern eine Erinnerung per Mail, höchstens drei. Nach wie vielen Tagen, legen Sie unter `Einstellungen` → `Allgemein` im Bereich `Betreuungsverträge` fest. Bei 0 gibt es keine Erinnerung.",
+      "Der Link in der Mail gilt einmal und 30 Tage. Jede Erinnerung bringt einen neuen Link.",
     ],
     differences: [
       "Sie sehen `Verträge` nicht in der Navigation? Ihnen fehlt das Recht `Verträge verwalten`. Wenden Sie sich an eine Person mit der Rolle `Leitung`.",
@@ -74,6 +99,8 @@ export function traegerCareContractsTopic(): HelpTopic {
       "Ein Entwurf ist falsch? Wählen Sie auf seiner Seite oben `Entwurf verwerfen`. Danach erstellen Sie ihn neu. Einen versendeten Vertrag können Sie nicht verwerfen.",
       "Der Versand zeigt `Nicht angekommen`? Prüfen Sie die Adresse mit der Schule. Tragen Sie auf der Vertragsseite unter `Versand` die `Neue Versandadresse` ein. Wählen Sie `An diese Adresse senden`. Das PDF, die Vertragspartei und bisherige Versanddaten bleiben gleich. Spätere Wiederholungen nutzen die letzte Versandadresse.",
       "Der Name des Vertragspartners fehlt? Ergänzen Sie den Briefkopf. Oder verwerfen Sie den Entwurf und erstellen ihn mit eingetragenem Vertragspartner neu.",
+      "Die Eltern sagen, der Link gilt nicht mehr? Er war schon benutzt oder ist abgelaufen. Wählen Sie `Erneut senden`. Die Eltern bekommen einen neuen Link. Oder sie unterschreiben in der Eltern-App unter `Dokumente`.",
+      "Die Karte `Unterschrift` meldet, die Prüfsumme stimmt nicht? Der gespeicherte Nachweis wurde verändert. Melden Sie das dem moto-Team.",
     ],
     related: [
       HELP_TOPICS.traegerDocumentTemplates,

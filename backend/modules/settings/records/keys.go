@@ -797,9 +797,3 @@ const KeyParentBillingSiblingRank = "parent_billing.sibling_rank"
 // left after the sibling discount or the full price (#5664). Only the Träger
 // sets it (LevelTraeger).
 const KeyParentBillingCostTakeoverOrder = "parent_billing.cost_takeover_order"
-
-// KeyCareContractSignatureReminderDays is after how many days a Träger
-// reminds parents of a care contract they have not signed yet (#4679): the
-// days since the last mail or reminder. 0 sends no reminder. Only the
-// Träger sets it (LevelTraeger).
-const KeyCareContractSignatureReminderDays = "care_contract.signature_reminder_days"

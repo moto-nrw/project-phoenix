@@ -161,7 +161,7 @@ func TestCareContractMailLinkSignsOnceOnlyItsContract(t *testing.T) {
 
 	rec = publicSigning(t, f.traeger, http.MethodPost, link+"/sign", signature)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), `"status":"unterschrieben"`, "signed before its effective date")
+	assert.Contains(t, rec.Body.String(), `"status":"aktiv"`, "the signature concludes the contract")
 
 	// The link is used: neither reading nor signing works again.
 	for _, attempt := range []struct{ method, path string }{{http.MethodGet, link}, {http.MethodPost, link + "/sign"}} {
@@ -171,7 +171,7 @@ func TestCareContractMailLinkSignsOnceOnlyItsContract(t *testing.T) {
 	assert.Equal(t, "versendet", signedDetail(t, f, other).Status, "the link signed only its own contract")
 
 	detail := signedDetail(t, f, contract)
-	assert.Equal(t, "unterschrieben", detail.Status)
+	assert.Equal(t, "aktiv", detail.Status)
 	require.NotNil(t, detail.Signature)
 	assert.Equal(t, "mail_link", detail.Signature.Channel)
 	assert.Equal(t, "Erika Muster", detail.Signature.SignerName)
@@ -244,7 +244,7 @@ func TestCareContractSignedOnPaperNeedsAPDFAndTheRight(t *testing.T) {
 	rec = paperUpload(t, f, f.office.token, draft, "vertrag.pdf", pdf)
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
 	detail := signedDetail(t, f, draft)
-	assert.Equal(t, "unterschrieben", detail.Status)
+	assert.Equal(t, "aktiv", detail.Status)
 	require.NotNil(t, detail.Signature)
 	assert.Equal(t, "paper", detail.Signature.Method)
 	assert.Equal(t, "office", detail.Signature.Channel)
@@ -280,8 +280,7 @@ func (reminderSender) TraegerLetterhead(context.Context, int64) (string, error) 
 // TestCareContractRemindersFollowTheTraegersDays pins the reminders
 // (#4679): a sent contract without signature is reminded once its last mail
 // is as old as the Träger's days, at most three times, never after it was
-// signed and never with 0 days; a signed contract becomes aktiv once its
-// effective date came.
+// signed and never with 0 days.
 func TestCareContractRemindersFollowTheTraegersDays(t *testing.T) {
 	t.Parallel()
 	f := newCareContractFixture(t, "Träger Vertrag Erinnerung")
@@ -328,9 +327,6 @@ func TestCareContractRemindersFollowTheTraegersDays(t *testing.T) {
 	assert.Len(t, signedDetail(t, f, waiting).Reminders, 3)
 	assert.Empty(t, signedDetail(t, f, signed).Reminders)
 
-	_, err := f.db.ExecContext(ctx, `UPDATE care_contract.contract_versions SET effective_from = CURRENT_DATE - 1 WHERE contract_id = ?`, signed)
-	require.NoError(t, err)
-	run(7)
-	assert.Equal(t, "aktiv", signedDetail(t, f, signed).Status, "a signed contract is aktiv from its effective date")
+	assert.Equal(t, "aktiv", signedDetail(t, f, signed).Status)
 	assert.Equal(t, "versendet", signedDetail(t, f, waiting).Status)
 }

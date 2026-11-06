@@ -21,9 +21,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The states of a contract (ADR 0088 section 2). The signature (#4679)
-// moves a sent contract to StatusSigned, or StatusActive from its effective
-// date; conclusion at the acceptance (#4680) and termination (#4682) follow.
+// The states of a contract (ADR 0088 section 2). This owner reaches only
+// StatusDraft and StatusSent today; signature (#4679), conclusion at the
+// acceptance (#4680) and termination (#4682) move it further.
 const (
 	StatusDraft  = "entwurf"
 	StatusSent   = "versendet"

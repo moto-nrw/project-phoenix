@@ -102,7 +102,7 @@ func TestContractSigningInTheInboxNeedsTheOwnAddressAndTheChildsSubmitRight(t *t
 	raw, err = portal.SignContract(ctx, chain.AccountID, organization, sent, signature)
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(raw, &view))
-	assert.Equal(t, "unterschrieben", view.Status, "signed before its effective date 2027-08-01")
+	assert.Equal(t, "aktiv", view.Status, "the signature concludes the contract")
 	require.NotNil(t, view.Signature)
 	assert.Equal(t, "drawn", view.Signature.Method)
 

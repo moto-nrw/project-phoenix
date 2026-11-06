@@ -139,6 +139,29 @@ export interface CareContractDetail extends CareContractSummary {
     readonly state: ContractMailState;
   }[];
   readonly documentFrozen: boolean;
+  /** The signature of the current version (#4679); null until signed. */
+  readonly signature: ContractSignature | null;
+  /** The reminders of a contract that waits for its signature. */
+  readonly reminders: readonly {
+    readonly number: number;
+    readonly sentAt: string;
+  }[];
+}
+
+/** How a contract was signed (#4679). */
+export interface ContractSignature {
+  readonly method: "drawn" | "typed" | "paper";
+  readonly channel: "parent_account" | "mail_link" | "office";
+  readonly signerName: string;
+  readonly signedAt: string;
+  readonly signedOn: string;
+  readonly documentSha256: string;
+  readonly earlyStartRequested: boolean;
+  readonly withdrawalEndsOn: string | null;
+  /** The drawn or typed signature as a base64 PNG; empty on paper. */
+  readonly imagePng: string;
+  readonly paperFilename: string;
+  readonly intact: boolean;
 }
 
 type CreateSkipReason =
@@ -257,6 +280,20 @@ interface BackendDetail extends BackendSummary {
   mailings:
     { recipient: string; sent_at: string; state: ContractMailState }[] | null;
   document_frozen: boolean;
+  signature?: {
+    method: ContractSignature["method"];
+    channel: ContractSignature["channel"];
+    signer_name: string;
+    signed_at: string;
+    signed_on: string;
+    document_sha256: string;
+    early_start_requested: boolean;
+    withdrawal_ends_on: string | null;
+    image_png: string | null;
+    paper_filename: string;
+    intact: boolean;
+  } | null;
+  reminders?: { number: number; sent_at: string }[] | null;
 }
 
 function termsFromBackend(terms: BackendTerms): ContractTerms {
@@ -378,6 +415,25 @@ function detailFromBackend(row: BackendDetail): CareContractDetail {
       state: mailing.state,
     })),
     documentFrozen: row.document_frozen,
+    signature: row.signature
+      ? {
+          method: row.signature.method,
+          channel: row.signature.channel,
+          signerName: row.signature.signer_name,
+          signedAt: row.signature.signed_at,
+          signedOn: row.signature.signed_on,
+          documentSha256: row.signature.document_sha256,
+          earlyStartRequested: row.signature.early_start_requested,
+          withdrawalEndsOn: row.signature.withdrawal_ends_on,
+          imagePng: row.signature.image_png ?? "",
+          paperFilename: row.signature.paper_filename,
+          intact: row.signature.intact,
+        }
+      : null,
+    reminders: (row.reminders ?? []).map((reminder) => ({
+      number: reminder.number,
+      sentAt: reminder.sent_at,
+    })),
   };
 }
 
@@ -572,4 +628,70 @@ export async function saveContractTemplate(
       { method: "PUT", body: termsToBackend(terms) },
     ),
   );
+}
+
+/**
+ * Records a contract the parents signed on paper (#4679): the signed PDF,
+ * who signed and on which day. The contract is concluded afterwards.
+ */
+export async function recordPaperSignature(
+  id: string,
+  input: {
+    readonly file: File;
+    readonly signerName: string;
+    readonly signedOn: string;
+  },
+): Promise<void> {
+  const form = new FormData();
+  form.append("file", input.file);
+  form.append("signer_name", input.signerName);
+  form.append("signed_on", input.signedOn);
+  const response = await transportFetch(`${contractPath(id)}/paper-signature`, {
+    method: "POST",
+    credentials: "include",
+    cache: "no-store",
+    body: form,
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    let body: unknown = null;
+    try {
+      body = text ? (JSON.parse(text) as unknown) : null;
+    } catch {
+      body = null;
+    }
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      body,
+    );
+  }
+}
+
+/** The uploaded PDF of a contract signed on paper. */
+export async function downloadPaperSignature(
+  id: string,
+): Promise<ContractFile> {
+  const response = await transportFetch(`${contractPath(id)}/paper-signature`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    let body: unknown = null;
+    try {
+      body = text ? (JSON.parse(text) as unknown) : null;
+    } catch {
+      body = null;
+    }
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      body,
+    );
+  }
+  return {
+    blob: await response.blob(),
+    filename: filenameFromDisposition(response) ?? "vertrag-papier.pdf",
+  };
 }

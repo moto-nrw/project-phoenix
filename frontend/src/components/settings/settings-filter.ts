@@ -21,6 +21,8 @@ export const TAB_LABELS: Record<string, string> = {
   branding: "Briefkopf",
   // Ferienbetreuung des Trägers (#5621); nur im Träger-Portal.
   ferien: "Ferienbetreuung",
+  // Betreuungsverträge des Trägers (#4679); nur im Träger-Portal.
+  vertraege: "Betreuungsverträge",
 };
 
 export function displayTabLabel(tab: SchemaTab): string {
@@ -63,6 +65,7 @@ export const categoryLabels: Record<string, string> = {
   "ferien-beitrag": "Ferienbeitrag",
   "ferien-bestaetigung": "Bestätigen einer Ferienanmeldung",
   "ferien-schreiben": "Schreiben an die Familien",
+  "vertraege-unterschrift": "Unterschrift der Eltern",
   formular: "Anmeldeformular",
   "fristen-essen": "Fristen",
   "frueh-abgeholt": "Früh abgeholt",

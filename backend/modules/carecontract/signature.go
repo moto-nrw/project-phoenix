@@ -161,8 +161,7 @@ type PaperSignatures interface {
 }
 
 // Reminders sends the due reminders of the contracts that wait for a
-// signature and activates signed contracts whose effective date came, over
-// every Träger. It opens its own units.
+// signature, over every Träger. It opens its own units.
 type Reminders interface {
 	RemindDue(ctx context.Context) error
 }

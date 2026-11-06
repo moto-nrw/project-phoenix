@@ -14,8 +14,7 @@ import (
 // Reminders (#4679): a sent contract that waits for its signature gets a
 // reminder mail with a new one-time link once its last mail or reminder is
 // as many days old as the Träger set, at most carecontract.MaxReminders
-// times. A Träger that sets 0 days sends none. The same run makes signed
-// contracts aktiv whose effective date came.
+// times. A Träger that sets 0 days sends none.
 
 // ReminderPorts are the root-bound ports of the reminders.
 type ReminderPorts struct {
@@ -66,9 +65,6 @@ func (r *Reminders) RemindDue(ctx context.Context) error {
 
 func (r *Reminders) remindTraeger(ctx context.Context, organizationID int64) error {
 	now := r.clock.now()
-	if _, err := r.store.ActivateDue(ctx, organizationID, calendar.DateFromTime(now)); err != nil {
-		return err
-	}
 	days, err := r.ports.Settings.SignatureReminderDays(ctx, organizationID)
 	if err != nil {
 		return fmt.Errorf("reminder days: %w", err)

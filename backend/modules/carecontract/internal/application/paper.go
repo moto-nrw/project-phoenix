@@ -43,6 +43,13 @@ func (s *Signatures) RecordPaperSignature(ctx context.Context, reviewer carecont
 	if _, _, err := s.contracts.frozenDocument(ctx, reviewer, record); err != nil {
 		return err
 	}
+	now := s.clock.now()
+	if record.Summary.Status == carecontract.StatusDraft {
+		// The parents got the contract on paper: it counts as sent then.
+		if err := s.store.MarkSent(ctx, reviewer.OrganizationID, contractID, now); err != nil {
+			return err
+		}
+	}
 	document, err := s.store.CurrentDocument(ctx, reviewer.OrganizationID, contractID)
 	if err != nil {
 		return err
@@ -51,7 +58,6 @@ func (s *Signatures) RecordPaperSignature(ctx context.Context, reviewer carecont
 	if err != nil {
 		return err
 	}
-	now := s.clock.now()
 	documentID, recorder := document.ID, reviewer.AccountID
 	if err := s.store.InsertSignature(ctx, reviewer.OrganizationID, NewSignature{
 		ContractID: contractID, VersionID: record.Version.ID, DocumentID: &documentID, Method: carecontract.SignaturePaper,
@@ -61,7 +67,7 @@ func (s *Signatures) RecordPaperSignature(ctx context.Context, reviewer carecont
 	}); err != nil {
 		return err
 	}
-	status, err := concludeContract(ctx, s.store, reviewer.OrganizationID, record, now)
+	status, err := concludeSigned(ctx, s.store, reviewer.OrganizationID, record, now)
 	if err != nil {
 		return err
 	}

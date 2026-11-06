@@ -22,6 +22,7 @@ import {
   serviceDays,
 } from "~/components/traeger/care-contract-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
+import { CareContractSignatureCard } from "~/components/traeger/care-contract-signature-card";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -316,6 +317,7 @@ export default function TraegerVertragPage() {
       {contract ? (
         <>
           <StatusNotice contract={contract} />
+          <CareContractSignatureCard contract={contract} onChanged={load} />
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="flex flex-col gap-6 lg:col-span-2">
               <SectionCard

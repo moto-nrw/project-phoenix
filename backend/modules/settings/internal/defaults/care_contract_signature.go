@@ -8,10 +8,10 @@ import (
 // the parents have not signed yet is reminded. Only the Träger sets it; 0
 // sends no reminder. The Betreuungsvertrag sends at most three reminders.
 func init() {
-	registerDefinitions(careContractDefinitions)
+	registerDefinitions(careContractSignatureDefinitions)
 }
 
-var careContractDefinitions = []config.Definition{
+var careContractSignatureDefinitions = []config.Definition{
 	{
 		Key:             config.KeyCareContractSignatureReminderDays,
 		Levels:          config.LevelTraeger,
