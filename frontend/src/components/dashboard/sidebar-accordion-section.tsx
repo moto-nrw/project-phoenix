@@ -13,7 +13,7 @@ import {
   SIDEBAR_ICON_CLASSES,
   sidebarLabelClasses,
   sidebarRowClasses,
-} from "~/components/dashboard/sidebar-geometry";
+} from "~/components/ui/sidebar-geometry";
 import type { MotoConcept } from "~/lib/moto-concepts";
 
 interface SidebarAccordionSectionProps {

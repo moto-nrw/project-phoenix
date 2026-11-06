@@ -1,7 +1,17 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import {
+  ModuleNotBookedAlert,
+  ModuleNotBookedState,
+} from "~/components/tenant/module-not-booked-state";
+import { NotBookedSlotProvider } from "./not-booked-slot";
 import { FormErrorAlert, LoadErrorAlert } from "./form-error-alert";
+
+const NOT_BOOKED_SLOTS = {
+  Alert: ModuleNotBookedAlert,
+  State: ModuleNotBookedState,
+};
 
 const session = vi.hoisted(() => ({ permissions: [] as string[] }));
 vi.mock("next-auth/react", () => ({
@@ -94,7 +104,7 @@ describe("FormErrorAlert", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Gleicher Fehler");
   });
 
-  it("explains a form refusal to staff through their Leitung", () => {
+  it("shows the ordinary error without a not-booked slot", () => {
     render(
       <FormErrorAlert
         message={{
@@ -103,6 +113,22 @@ describe("FormErrorAlert", () => {
           attempt: 1,
         }}
       />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Katalogtext");
+  });
+
+  it("explains a form refusal to staff through their Leitung", () => {
+    render(
+      <NotBookedSlotProvider slots={NOT_BOOKED_SLOTS}>
+        <FormErrorAlert
+          message={{
+            message: "Katalogtext",
+            notBookedModule: "zeiterfassung",
+            attempt: 1,
+          }}
+        />
+      </NotBookedSlotProvider>,
     );
 
     expect(screen.getByRole("status")).toHaveTextContent(
@@ -114,13 +140,15 @@ describe("FormErrorAlert", () => {
     session.permissions = ["config:manage"];
 
     render(
-      <LoadErrorAlert
-        error={{
-          message: "Katalogtext",
-          notBookedModule: "zeiterfassung",
-          attempt: 1,
-        }}
-      />,
+      <NotBookedSlotProvider slots={NOT_BOOKED_SLOTS}>
+        <LoadErrorAlert
+          error={{
+            message: "Katalogtext",
+            notBookedModule: "zeiterfassung",
+            attempt: 1,
+          }}
+        />
+      </NotBookedSlotProvider>,
     );
 
     expect(screen.getByRole("status")).toHaveTextContent(

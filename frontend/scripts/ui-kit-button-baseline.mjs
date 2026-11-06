@@ -46,7 +46,7 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/ui/plan-block.tsx",
+    file: "src/components/ui/planning/plan-block.tsx",
     lines: [208],
     reason: "Planungsblock im Raster: Kachel, kein Knopf",
   },
@@ -131,7 +131,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/staff/dienstplan-resource-grid.tsx",
-    lines: [719],
+    lines: [722],
     reason: "Tagesauswahl (aria-pressed), Auswahlzeile",
   },
   {
@@ -157,7 +157,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1062],
+    lines: [1065],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {

@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { CoverageIndicator } from "./coverage-indicator";
 
 const meta = {
-  title: "components/ui/CoverageIndicator",
+  title: "components/ui/planning/CoverageIndicator",
   component: CoverageIndicator,
   args: {
     state: "covered",

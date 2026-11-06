@@ -2,7 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ModalProvider, useModal } from "~/components/dashboard/modal-context";
+import { ModalProvider, useModal } from "~/components/ui/modal-context";
 import { setTestClock } from "~/test/clock";
 import { DemoWeekendNotice, isWeekendDay } from "./demo-weekend-notice";
 

@@ -8,12 +8,12 @@ import React, {
   useState,
   type RefObject,
 } from "react";
-import { Modal } from "./modal";
-import { Button } from "./button";
-import { FormErrorAlert } from "./form-error-alert";
-import { SpinnerIcon } from "./icons";
-import { Input } from "./input";
-import type { DatabaseFormErrorPath } from "./database/database-form";
+import { Modal } from "~/components/ui/modal";
+import { Button } from "~/components/ui/button";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { SpinnerIcon } from "~/components/ui/icons";
+import { Input } from "~/components/ui/input";
+import type { DatabaseFormErrorPath } from "~/components/database/database-form";
 import { wireErrorCode } from "~/lib/api-error";
 import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
 import { createLogger } from "~/lib/logger";
@@ -98,7 +98,7 @@ const EmailIcon = ({ className }: { className?: string }) => (
 );
 
 // Success Check Icon Component
-const CheckIcon = ({ className }: { className?: string }) => (
+const SuccessCheckIcon = ({ className }: { className?: string }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width="48"
@@ -261,7 +261,7 @@ export function PasswordResetModal({
         {isSuccess ? (
           <>
             {/* Success State */}
-            <CheckIcon className="text-moto-green-strong mx-auto mb-4 h-12 w-12" />
+            <SuccessCheckIcon className="text-moto-green-strong mx-auto mb-4 h-12 w-12" />
             <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-800 sm:text-4xl">
               {copy.successTitle}
             </h1>

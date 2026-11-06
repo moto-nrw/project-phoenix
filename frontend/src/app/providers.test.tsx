@@ -9,7 +9,7 @@ vi.mock("~/lib/posthog-client", () => ({
 }));
 
 // Mock all provider components
-vi.mock("@/components/dashboard/modal-context", () => ({
+vi.mock("@/components/ui/modal-context", () => ({
   ModalProvider: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="modal-provider">{children}</div>
   ),

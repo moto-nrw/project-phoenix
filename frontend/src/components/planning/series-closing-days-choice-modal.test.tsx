@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { ModalProvider } from "~/components/dashboard/modal-context";
+import { ModalProvider } from "~/components/ui/modal-context";
 import { SeriesClosingDaysChoiceModal } from "./series-closing-days-choice-modal";
 
 function renderPrompt(currentChoice?: boolean) {

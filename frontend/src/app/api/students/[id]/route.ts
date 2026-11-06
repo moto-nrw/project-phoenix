@@ -282,7 +282,7 @@ export const PUT = createPutHandler<
       // form loaded would, on a refused save, leave somebody else's newer
       // consent overwritten by a stale echo while the user is told nothing was
       // saved. Both clients omit the untouched pair for exactly that reason
-      // (student-stammdaten-tab.tsx, ui/database/database-form.tsx); an omitted
+      // (student-stammdaten-tab.tsx, components/database/database-form.tsx); an omitted
       // pair skips the write below. Send the pair or neither — this is a full
       // upsert, so a lone field resets the other one to its default.
       let consentSaved = false;

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { ModuleNotBookedState } from "~/components/ui/module-not-booked-state";
+import { ModuleNotBookedState } from "~/components/tenant/module-not-booked-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import type { ModuleKey } from "~/lib/modules";

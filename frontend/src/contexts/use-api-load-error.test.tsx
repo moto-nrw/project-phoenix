@@ -6,6 +6,11 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import {
+  ModuleNotBookedAlert,
+  ModuleNotBookedState,
+} from "~/components/tenant/module-not-booked-state";
+import { NotBookedSlotProvider } from "~/components/ui/not-booked-slot";
 import { describe, expect, it, vi } from "vitest";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
@@ -74,10 +79,17 @@ function TestSection({
   );
 }
 
+const NOT_BOOKED_SLOTS = {
+  Alert: ModuleNotBookedAlert,
+  State: ModuleNotBookedState,
+};
+
 function renderSection(error: unknown, retry?: () => void) {
   return render(
     <ToastProvider>
-      <TestSection error={error} retry={retry} />
+      <NotBookedSlotProvider slots={NOT_BOOKED_SLOTS}>
+        <TestSection error={error} retry={retry} />
+      </NotBookedSlotProvider>
     </ToastProvider>,
   );
 }

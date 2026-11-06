@@ -5,7 +5,7 @@ import { CoverageIndicator } from "./coverage-indicator";
 import { PlanBlock } from "./plan-block";
 
 const meta = {
-  title: "components/ui/PlanBlock",
+  title: "components/ui/planning/PlanBlock",
   component: PlanBlock,
   args: {
     timeRange: "12:00–14:00",

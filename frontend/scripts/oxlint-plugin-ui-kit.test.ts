@@ -1086,14 +1086,14 @@ describe.concurrent("ui-kit/no-raw-input", () => {
     expect(output).not.toContain("no-raw-input");
   });
 
-  it("leaves the kit itself alone", async () => {
+  it("leaves the kit's primitives alone", async () => {
     const result = await lintSource(
       `
       export function Field() {
         return <input aria-label="Vorname" />;
       }
     `,
-      "src/components/ui/field.tsx",
+      "src/components/ui/input.tsx",
     );
     const output = result.output;
 
@@ -1969,3 +1969,98 @@ describe("ui-kit/no-important-override baseline is current (#5581)", () => {
     }
   });
 });
+
+describe.concurrent("ui-kit/no-kit-domain-import", () => {
+  it("reports a kit file that imports a domain component", async () => {
+    const result = await lintSource(
+      `import { Thing } from "~/components/dashboard/thing";
+      void Thing;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-kit-domain-import)");
+  });
+
+  it("reports a relative path out of the kit and a dynamic import", async () => {
+    const result = await lintSource(
+      `import { Thing } from "../../help/thing";
+      void Thing;
+      void import("../../auth/other");`,
+      "src/components/ui/page-header/probe.tsx",
+    );
+
+    expect(result.output.match(/ui-kit\(no-kit-domain-import\)/g)).toHaveLength(
+      2,
+    );
+  });
+
+  it("reports fetch and useSWR in the kit", async () => {
+    const result = await lintSource(
+      `import useSWR from "swr";
+      export function useProbe() {
+        void fetch("/api/x");
+        void window.fetch("/api/y");
+        return useSWR("k");
+      }`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.output.match(/ui-kit\(no-kit-domain-import\)/g)).toHaveLength(
+      4,
+    );
+  });
+
+  it("accepts kit-internal imports, lib helpers and files outside the kit", async () => {
+    const inKit = await lintSource(
+      `import { Button } from "./button";
+      import { Alert } from "~/components/ui/alert";
+      import { Tile } from "../icon-tile";
+      import { cn } from "~/lib/utils";
+      void Button; void Alert; void Tile; void cn;`,
+      "src/components/ui/planning/probe.tsx",
+    );
+    const outside = await lintSource(
+      `import { Thing } from "~/components/help/thing";
+      void Thing;
+      void fetch("/api/x");`,
+      "src/components/parent/probe.tsx",
+    );
+
+    expect(inKit.output).not.toContain("no-kit-domain-import");
+    expect(outside.output).not.toContain("no-kit-domain-import");
+  });
+
+  it("leaves kit tests alone", async () => {
+    const result = await lintSource(
+      `import { Thing } from "~/components/home/thing";
+      void Thing;`,
+      "src/components/ui/probe.test.tsx",
+    );
+
+    expect(result.output).not.toContain("no-kit-domain-import");
+  });
+});
+
+describe.concurrent(
+  "kit allowlists for no-raw-input and no-hand-rolled-surface",
+  () => {
+    const rawInput = `export const Probe = () => <input type="text" />;`;
+    const surface = `export const Probe = () => <div className="rounded-2xl border border-gray-200 bg-white p-4" />;`;
+
+    it("reports a raw input in a kit file that is no primitive", async () => {
+      const result = await lintSource(rawInput, "src/components/ui/probe.tsx");
+      expect(result.output).toContain("ui-kit(no-raw-input)");
+    });
+
+    it("accepts a raw input in a real primitive", async () => {
+      const result = await lintSource(rawInput, "src/components/ui/input.tsx");
+      expect(result.output).not.toContain("no-raw-input");
+    });
+
+    it("reports a hand-built surface in a kit file off the allowlist", async () => {
+      const result = await lintSource(surface, "src/components/ui/probe.tsx");
+      expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
+    });
+  },
+);

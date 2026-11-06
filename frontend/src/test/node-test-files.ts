@@ -51,7 +51,7 @@ export const nodeLogicTestFiles = [
   "src/components/ui/collection-view-switch.test.ts",
   "src/components/ui/lazy-day-picker.test.ts",
   "src/components/ui/page-header/types.test.ts",
-  "src/components/ui/plan-design-guards.test.ts",
+  "src/components/ui/planning/plan-design-guards.test.ts",
   "src/components/ui/tenant-page-scaffold.test.ts",
   "src/env.client.test.ts",
   "src/i18n/date-fns-locale.test.ts",

@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 
-import { PasswordResetModal } from "~/components/ui/password-reset-modal";
+import { PasswordResetModal } from "~/components/auth/password-reset-modal";
 import { useApiFormError } from "~/contexts/ToastContext";
 
 /**

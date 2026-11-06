@@ -34,7 +34,7 @@ import { fetchStudentFeedback, type FeedbackEntry } from "~/lib/feedback-api";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { feedbackConcept } from "~/lib/concepts/feedback";
-import { PlanLegend } from "~/components/ui/plan-legend";
+import { PlanLegend } from "~/components/ui/planning/plan-legend";
 
 const logger = createLogger({ component: "StudentFeedbackHistoryPage" });
 

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import { PlanningContextBar, PlanningDayChip } from "./planning-context-bar";
-import { SegmentedControl } from "./segmented-control";
+import { SegmentedControl } from "../segmented-control";
 
 describe("PlanningContextBar", () => {
   it("navigiert zurück und weiter und trägt keine eigene Überschrift", () => {

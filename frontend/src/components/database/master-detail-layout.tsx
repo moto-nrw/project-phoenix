@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
-import { useModal } from "~/components/dashboard/modal-context";
+import { useModal } from "~/components/ui/modal-context";
 import { cn } from "~/lib/utils";
 import {
   Drawer,
