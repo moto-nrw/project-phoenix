@@ -11060,7 +11060,7 @@ export const traegerSharedDocumentsTopic =
           steps: [
             "Wählen Sie in der Navigation `Dokumente`.",
             "Wählen Sie oben `Dokument hochladen`.",
-            "Ziehen Sie die Datei in das Feld. Oder wählen Sie `Datei hierher ziehen oder auswählen`.",
+            "Ziehen Sie die Datei in das Feld. Oder wählen Sie `Datei auswählen`.",
             "Prüfen Sie den `Titel`. Eltern und Schulen sehen diesen Titel.",
             "Wählen Sie `Hochladen`. moto öffnet danach die Seite des Dokuments.",
           ],

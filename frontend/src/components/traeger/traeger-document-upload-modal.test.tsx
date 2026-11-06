@@ -8,9 +8,10 @@ vi.mock("~/lib/traeger-documents-api", async (importOriginal) => ({
   uploadTraegerDocument: vi.fn(),
 }));
 
-// A refused file names its reason at the file field itself, so a screen
-// reader on the focused field hears why (#4692 review).
-it("links the reason a file is refused to the file field", async () => {
+// A refused file names its reason under the drop zone and a screen reader
+// hears it as soon as it appears: the kit's Dropzone owns the file input
+// (#4692 review, #5599).
+it("announces the reason a file is refused", async () => {
   render(
     <ToastProvider>
       <TraegerDocumentUploadModal
@@ -20,10 +21,8 @@ it("links the reason a file is refused to the file field", async () => {
       />
     </ToastProvider>,
   );
-  const input = document.querySelector<HTMLInputElement>('input[type="file"]');
-  if (!input) throw new Error("file input missing");
 
-  fireEvent.change(input, {
+  fireEvent.change(screen.getByLabelText("Dokument auswählen"), {
     target: {
       files: [new File(["<html>"], "liste.html", { type: "text/html" })],
     },
@@ -32,9 +31,31 @@ it("links the reason a file is refused to the file field", async () => {
   const reason = await screen.findByText(
     "Erlaubt sind PDF, Word, Excel, PowerPoint und Bilder (PNG, JPEG).",
   );
-  expect(reason.id).not.toBe("");
-  expect(input.getAttribute("aria-describedby")?.split(" ")).toContain(
-    reason.id,
+  expect(reason).toHaveAttribute("role", "alert");
+  expect(reason.id).toBe("traeger-document-file-error");
+});
+
+it("takes a file from the drop zone and offers another one", async () => {
+  render(
+    <ToastProvider>
+      <TraegerDocumentUploadModal
+        isOpen
+        onClose={vi.fn()}
+        onUploaded={vi.fn()}
+      />
+    </ToastProvider>,
   );
-  expect(input).toHaveAttribute("aria-invalid", "true");
+
+  fireEvent.change(screen.getByLabelText("Dokument auswählen"), {
+    target: {
+      files: [
+        new File(["%PDF"], "hausordnung_2026.pdf", { type: "application/pdf" }),
+      ],
+    },
+  });
+
+  expect(await screen.findByText("hausordnung_2026.pdf")).toBeInTheDocument();
+  expect(screen.getByLabelText(/Titel/)).toHaveValue("hausordnung 2026");
+  fireEvent.click(screen.getByRole("button", { name: "Andere Datei" }));
+  expect(screen.getByLabelText("Dokument auswählen")).toBeInTheDocument();
 });

@@ -4,9 +4,9 @@
 // (#4692). Freigegeben ist es danach noch nicht: das geschieht auf der Seite
 // des Dokuments.
 
-import { UploadSimpleIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
+import { Dropzone } from "~/components/ui/dropzone";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
@@ -15,7 +15,6 @@ import { Input } from "~/components/ui/input";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { formatBytes } from "~/lib/files-api";
 import { createLogger } from "~/lib/logger";
-import { cn } from "~/lib/utils";
 import {
   TRAEGER_DOCUMENT_ACCEPT,
   TRAEGER_DOCUMENT_MAX_BYTES,
@@ -60,10 +59,8 @@ export function TraegerDocumentUploadModal({
 }>) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
-  const [dragging, setDragging] = useState(false);
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const picker = useRef<HTMLInputElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
 
@@ -71,12 +68,10 @@ export function TraegerDocumentUploadModal({
     if (!isOpen) return;
     setFile(null);
     setTitle("");
-    setDragging(false);
     clearErrors();
   }, [isOpen, clearErrors]);
 
-  const choose = (picked: File | undefined) => {
-    if (!picked) return;
+  const choose = (picked: File) => {
     formErrors.clear();
     if (!admitted(picked)) {
       formErrors.invalid("Diese Datei geht nicht.", {
@@ -145,25 +140,6 @@ export function TraegerDocumentUploadModal({
           void submit();
         }}
       >
-        <input
-          ref={picker}
-          id="traeger-document-file"
-          name="file"
-          type="file"
-          accept={TRAEGER_DOCUMENT_ACCEPT}
-          aria-describedby={
-            fileError
-              ? "traeger-document-file-hint traeger-document-file-error"
-              : "traeger-document-file-hint"
-          }
-          aria-invalid={fileError ? true : undefined}
-          className="peer sr-only"
-          onChange={(event) => {
-            const picked = event.currentTarget.files?.[0];
-            event.currentTarget.value = "";
-            choose(picked);
-          }}
-        />
         {file ? (
           <div className="flex items-center gap-3 rounded-xl border border-gray-200 px-4 py-3">
             <FileTypeIcon
@@ -182,48 +158,31 @@ export function TraegerDocumentUploadModal({
               type="button"
               variant="ghost"
               size="compact"
-              onClick={() => picker.current?.click()}
+              onClick={() => setFile(null)}
             >
               Andere Datei
             </Button>
           </div>
         ) : (
-          <label
-            htmlFor="traeger-document-file"
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragging(true);
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(event) => {
-              event.preventDefault();
-              setDragging(false);
-              choose(event.dataTransfer.files[0]);
-            }}
-            className={cn(
-              "flex w-full cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-gray-400",
-              dragging
-                ? "border-gray-500 bg-gray-50"
-                : "border-gray-200 hover:border-gray-400 hover:bg-gray-50",
-              fileError && "border-moto-red/60",
-            )}
-          >
-            <UploadSimpleIcon
-              className="h-8 w-8 text-gray-400"
-              aria-hidden="true"
-            />
-            <span className="text-sm font-medium text-gray-900">
-              Datei hierher ziehen oder auswählen
-            </span>
-            <span
-              id="traeger-document-file-hint"
-              className="text-xs text-gray-500"
-            >
-              PDF, Word, Excel, PowerPoint oder Bild, höchstens 10 MB
-            </span>
-          </label>
+          <Dropzone
+            accept={TRAEGER_DOCUMENT_ACCEPT}
+            legend="Bereich zum Hochladen eines Dokuments"
+            label="Datei hierher ziehen"
+            dragLabel="Datei hier ablegen"
+            buttonLabel="Datei auswählen"
+            inputLabel="Dokument auswählen"
+            hint="PDF, Word, Excel, PowerPoint oder Bild, höchstens 10 MB"
+            disabled={saving}
+            onFile={choose}
+          />
         )}
-        <FieldErrorHint id="traeger-document-file-error" message={fileError} />
+        {/* Die Drop-Zone besitzt ihr Dateifeld; der Grund einer abgelehnten
+            Datei wird deshalb beim Erscheinen vorgelesen. */}
+        <FieldErrorHint
+          id="traeger-document-file-error"
+          message={fileError}
+          live
+        />
         <Input
           id="traeger-document-title"
           name="title"
