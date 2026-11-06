@@ -160,7 +160,7 @@
     "capacityFull": "One of the selected offerings has no places left. Please choose another offering or contact the school.",
     "alreadyPending": "There is already a request for your child. Please wait for it to be reviewed.",
     "withdrawalConfirmTitle": "End all booked care?",
-    "withdrawalConfirmBody": "After this, {name} will have no booked care day. Do you really want to send this request?",
+    "withdrawalConfirmBody": "From {date}, {name} will have no booked care day. Do you really want to send this request?",
     "withdrawalConfirmBack": "Back",
     "withdrawalConfirmSubmit": "Send request",
     "errorObjectCatalog": "the list of offerings",

@@ -160,7 +160,7 @@
     "capacityFull": "Një nga ofertat e zgjedhura nuk ka më vende të lira. Ju lutemi zgjidhni një ofertë tjetër ose kontaktoni shkollën.",
     "alreadyPending": "Ka tashmë një kërkesë për fëmijën tuaj. Prisni shqyrtimin e saj.",
     "withdrawalConfirmTitle": "Të çregjistrohet plotësisht nga përkujdesja?",
-    "withdrawalConfirmBody": "Pas kësaj, {name} nuk do të ketë asnjë ditë përkujdesjeje të rezervuar. Dëshironi vërtet ta dërgoni këtë kërkesë?",
+    "withdrawalConfirmBody": "Nga {date}, {name} nuk do të ketë asnjë ditë përkujdesjeje të rezervuar. Dëshironi vërtet ta dërgoni këtë kërkesë?",
     "withdrawalConfirmBack": "Kthehu",
     "withdrawalConfirmSubmit": "Dërgo kërkesën",
     "errorObjectCatalog": "lista e ofertave",
