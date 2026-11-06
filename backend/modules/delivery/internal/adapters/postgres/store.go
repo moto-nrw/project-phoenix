@@ -81,8 +81,13 @@ const pushStartDeliverySQL = `UPDATE platform.push_outbox
 	WHERE id = ? AND status = 'claimed' AND lease_token = ?
 	RETURNING lease_token`
 
+// A provider's acceptance can come after its event that it cannot deliver the
+// mail. Then the mail goes back in the queue for the fallback transport, which
+// reports no provider ID.
 const emailFinalizeSentSQL = `UPDATE platform.email_outbox
-	SET status = 'sent', provider_result = ?,
+	SET status = CASE WHEN fallback_requested_at IS NOT NULL AND ?::jsonb->>'provider_message_id' IS NOT NULL
+			THEN 'pending' ELSE 'sent' END,
+		provider_result = ?,
 		message_id = ?::jsonb->>'message_id',
 		provider_message_id = ?::jsonb->>'provider_message_id',
 		sent_at = ?, last_error = NULL,
@@ -157,6 +162,8 @@ type intentRow struct {
 	OrganizationID    *int64          `bun:"organization_id"`
 	Kind              string          `bun:"kind"`
 	Security          bool            `bun:"security"`
+	FallbackRequested *time.Time      `bun:"fallback_requested_at"`
+	DeliveryChecked   *time.Time      `bun:"delivery_checked_at"`
 	DeliveryToken     string          `bun:"delivery_token"`
 	MessageID         *string         `bun:"message_id"`
 	ProviderMessageID *string         `bun:"provider_message_id"`
@@ -376,7 +383,7 @@ func (s *Store) FinalizeSent(ctx context.Context, transport domain.Transport, id
 		var execErr error
 		switch transport {
 		case domain.TransportEmail:
-			resultResult, execErr = db.NewRaw(emailFinalizeSentSQL, providerResult, providerResult, providerResult, sentAt, sentAt, id, token).Exec(txCtx)
+			resultResult, execErr = db.NewRaw(emailFinalizeSentSQL, providerResult, providerResult, providerResult, providerResult, sentAt, sentAt, id, token).Exec(txCtx)
 		case domain.TransportPush:
 			resultResult, execErr = db.NewRaw(pushFinalizeSentSQL, providerResult, sentAt, sentAt, id, token).Exec(txCtx)
 		default:
@@ -721,7 +728,7 @@ func toDomainRows(transport domain.Transport, rows []intentRow) []domain.Intent 
 		}
 		result = append(result, domain.Intent{
 			ID: row.ID, TenantID: row.TenantID, OrganizationID: organizationID, Transport: transport, Template: row.Kind,
-			Security: row.Security, DeliveryToken: row.DeliveryToken,
+			Security: row.Security, UseFallback: row.FallbackRequested != nil, DeliveryToken: row.DeliveryToken,
 			IdempotencyKey: row.IdempotencyKey, RelatedEntityType: row.RelatedEntityType,
 			RelatedEntityID: row.RelatedEntityID, Recipient: row.Recipient, Payload: row.Payload,
 			Status: row.Status, Attempts: row.Attempts, NextRetryAt: row.NextRetryAt,

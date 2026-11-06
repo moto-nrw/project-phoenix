@@ -1,9 +1,21 @@
 package domain
 
 import (
+	"errors"
 	"regexp"
 	"slices"
 	"time"
+)
+
+var (
+	// ErrProviderNotFound reports something the provider does not (or no longer)
+	// keep, such as a mail after its retention.
+	ErrProviderNotFound = errors.New("delivery: provider does not know the message")
+	// ErrProviderRateLimited asks to stop calling the provider for now.
+	ErrProviderRateLimited = errors.New("delivery: provider rate limit reached")
+	// ErrSuppressionNeedsReview reports a complaint's block: only the provider's
+	// support can lift it after a review.
+	ErrSuppressionNeedsReview = errors.New("delivery: suppression after a complaint needs a review")
 )
 
 // EmailDeliveryState says what happened to a mail after the mail server
@@ -56,6 +68,12 @@ type EmailDeliveryEvent struct {
 	State             EmailDeliveryState
 	OccurredAt        time.Time
 	Diagnostic        string
+	// KeepsAddress marks a failure that says nothing about the address: the
+	// provider's IPs on a blocklist or moto's own mail rejected by a filter. The
+	// address stays off the school's list.
+	KeepsAddress bool
+	// Reroute asks to send a security mail again over the fallback transport.
+	Reroute bool
 }
 
 // EmailDeliveryEventResult reports what recording an event did.
@@ -63,6 +81,34 @@ type EmailDeliveryEventResult struct {
 	Matched  bool
 	Recorded bool
 	State    EmailDeliveryState
+	// Rerouted reports that the event put a security mail back in the queue for
+	// the fallback transport.
+	Rerouted bool
+}
+
+// ReportedEmailEvent is one verified webhook delivery. An event moto has no
+// state for carries no Event: it is acknowledged, never an error.
+type ReportedEmailEvent struct {
+	Name  string
+	Known bool
+	Event *EmailDeliveryEvent
+}
+
+// ProviderMailQuery selects open mails: accepted in the window and not asked
+// about since CheckedBefore.
+type ProviderMailQuery struct {
+	SentAfter     time.Time
+	SentBefore    time.Time
+	CheckedBefore time.Time
+	Limit         int
+}
+
+// ProviderMail is an accepted mail whose outcome is still open.
+type ProviderMail struct {
+	ID                int64
+	ProviderMessageID string
+	State             EmailDeliveryState
+	SentAt            time.Time
 }
 
 // SuppressionRetention is how long the suppression list keeps an address after

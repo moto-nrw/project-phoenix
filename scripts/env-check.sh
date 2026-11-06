@@ -29,6 +29,11 @@ exit_code=0
 # Keys that only exist in local dev (.env.example), not in deployed environments
 DEV_ONLY_KEYS="COMPOSE_BAKE COMPOSE_DOCKER_CLI_BUILD DB_DEBUG DOCKER_BUILDKIT FRONTEND_HOST_PORT MAILPIT_HOST_PORT MAILPIT_SMTP_HOST_PORT POSTGRES_HOST_PORT SERVER_HOST_PORT TEST_DB_DSN TEST_DB_PORT"
 
+# Keys the deployed environments gain in #5935, a human step. Until then the
+# stack must deploy without them (see PENDING_SOPS_VALUES in check-runtime-env.py).
+# #5935 removes them here.
+PENDING_SOPS_KEYS="EMAIL_FALLBACK_FROM_ADDRESS EMAIL_FALLBACK_SMTP_HOST EMAIL_FALLBACK_SMTP_PASSWORD EMAIL_FALLBACK_SMTP_PORT EMAIL_FALLBACK_SMTP_USER EMAIL_FROM_NOTICES_ADDRESS EMAIL_FROM_SECURITY_ADDRESS EMAIL_PROVIDER EMAIL_WEBHOOK_SECRETS LETTERMINT_TEAM_API_TOKEN LETTERMINT_WEBHOOK_ID"
+
 # Keys that only exist in deployed environments, not in local dev
 DEPLOY_ONLY_KEYS=""
 
@@ -165,7 +170,7 @@ if [[ -f "$ENV_EXAMPLE" && ${#ENVS[@]} -ge 1 ]]; then
     has_real_missing=false
     while IFS= read -r key; do
       [[ -z "$key" ]] && continue
-      if ! is_excluded "$key" "$DEV_ONLY_KEYS"; then
+      if ! is_excluded "$key" "$DEV_ONLY_KEYS $PENDING_SOPS_KEYS"; then
         if [[ "$has_real_missing" == false ]]; then
           echo "❌ ${ENVS[0]}.sops.env is missing keys (present in .env.example):"
           has_real_missing=true

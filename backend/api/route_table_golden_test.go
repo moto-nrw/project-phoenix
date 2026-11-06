@@ -418,6 +418,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 			})
 			t.Run("route table", func(t *testing.T) { checkRouteTableGolden(t, api) })
 			t.Run("core action classification", func(t *testing.T) { checkCoreActionClassification(t, api) })
+			t.Run("email webhook outside the sessions", func(t *testing.T) { checkEmailWebhookIsNotBehindASession(t, api) })
 			t.Run("IoT auth matrix", func(t *testing.T) { checkIoTAuthMatrixGolden(t, api) })
 			t.Run("error envelope on every route", func(t *testing.T) { checkErrorEnvelopeOnEveryRoute(t, api) })
 			t.Run("IoT error code declarations", checkIoTErrorCodesGolden)
@@ -449,4 +450,19 @@ func TestFullProductionRouterGolden(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, called)
 	t.Run("invalid runtime dependencies", checkRuntimeRejectsMissingDependencies)
+}
+
+// checkEmailWebhookIsNotBehindASession posts without any session. The test
+// process has no secret, so the known provider must answer 503: a 401 would mean
+// the route moved into an authenticated group, which breaks every provider.
+func checkEmailWebhookIsNotBehindASession(t *testing.T, apiInstance *goldenRuntime) {
+	t.Parallel()
+	for path, want := range map[string]int{
+		"/webhooks/email/delivery/lettermint": http.StatusServiceUnavailable,
+		"/webhooks/email/delivery/other":      http.StatusNotFound,
+	} {
+		recorder := httptest.NewRecorder()
+		apiInstance.handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`)))
+		require.Equal(t, want, recorder.Code, path)
+	}
 }

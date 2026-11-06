@@ -205,6 +205,7 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 	generalBurst := parsePositiveInt(os.Getenv("RATE_LIMIT_BURST"), 10)
 
 	generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
+	generalRateLimiter.ExemptPathPrefix(emailWebhookPath + "/")
 	generalRateLimiter.SetBucketFunc(func(r *http.Request) string {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
@@ -296,4 +297,21 @@ func (limiters authRateLimiters) authMiddleware() func(http.Handler) http.Handle
 		return nil
 	}
 	return limiters.auth.Middleware()
+}
+
+// A letter to a whole school brings a burst of provider events from a few IPs,
+// far above the limit of one person. The webhook has its own limit for that.
+const (
+	emailWebhookRequestsPerMinute = 1200
+	emailWebhookBurst             = 300
+)
+
+// emailWebhookRateLimit is nil when rate limiting is disabled.
+func emailWebhookRateLimit() func(http.Handler) http.Handler {
+	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
+		return nil
+	}
+	limiter := customMiddleware.NewRateLimiter(emailWebhookRequestsPerMinute, emailWebhookBurst)
+	limiter.SetRejectObserver(observability.RecordRateLimitRejection)
+	return limiter.Middleware()
 }

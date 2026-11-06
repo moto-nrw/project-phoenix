@@ -50,6 +50,8 @@ type ClaimedIntent struct {
 	Transport         Transport
 	Template          string
 	DeliveryToken     string
+	Security          bool
+	UseFallback       bool
 	RelatedEntityType *string
 	RelatedEntityID   *int64
 	EmailRecipient    EmailRecipient

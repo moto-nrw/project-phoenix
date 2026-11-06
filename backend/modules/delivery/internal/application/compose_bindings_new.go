@@ -23,6 +23,11 @@ type Runtime struct {
 	Observe func(domain.Observation)
 	// EmailWakeups reports committed e-mail enqueues; nil polls only.
 	EmailWakeups func(context.Context) <-chan struct{}
+	// EmailWebhooks takes in what mail providers report.
+	EmailWebhooks *EmailWebhooks
+	// EmailReconciliation compares open mails with the provider's record and
+	// lifts a block. It does nothing on plain SMTP.
+	EmailReconciliation *EmailReconciliation
 }
 
 // NewWorker composes the outbox worker over the store of runtime, sending
@@ -32,7 +37,7 @@ func NewWorkerBinding(runtime *Runtime, provider Provider) (*delivery.Worker, er
 		return nil, errors.New("delivery compose: runtime and provider are required")
 	}
 	worker := NewWorker(runtime.Store, ProviderAdapter{Provider: provider}, runtime.Observe)
-	return delivery.NewWorker(workerEngine{Worker: worker, workerBacklog: runtime.Store, wakeups: runtime.EmailWakeups}), nil
+	return delivery.NewWorker(workerEngine{Worker: worker, workerBacklog: runtime.Store, wakeups: runtime.EmailWakeups, EmailReconciliation: runtime.EmailReconciliation}), nil
 }
 
 // workerEngine runs the worker and counts the backlog, the intents still
@@ -40,6 +45,7 @@ func NewWorkerBinding(runtime *Runtime, provider Provider) (*delivery.Worker, er
 type workerEngine struct {
 	*Worker
 	workerBacklog
+	*EmailReconciliation
 	wakeups func(context.Context) <-chan struct{}
 }
 
@@ -88,7 +94,7 @@ type ProviderAdapter struct{ Provider Provider }
 func (p ProviderAdapter) Send(ctx context.Context, intent domain.Intent) (deliveryContract.ProviderResult, error) {
 	claimed := deliveryContract.ClaimedIntent{
 		ID: intent.ID, TenantID: intent.TenantID, OrganizationID: intent.OrganizationID, Transport: deliveryContract.Transport(intent.Transport),
-		Template: intent.Template, DeliveryToken: intent.DeliveryToken, RelatedEntityType: intent.RelatedEntityType,
+		Template: intent.Template, DeliveryToken: intent.DeliveryToken, Security: intent.Security, UseFallback: intent.UseFallback, RelatedEntityType: intent.RelatedEntityType,
 		RelatedEntityID: intent.RelatedEntityID, Attempts: intent.Attempts,
 	}
 	if intent.LeaseToken != nil {

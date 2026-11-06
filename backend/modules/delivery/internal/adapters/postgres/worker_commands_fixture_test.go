@@ -94,3 +94,31 @@ func (c *workerCommandsForTest) EmailAddressSuppressed(ctx context.Context, tena
 	})
 	return
 }
+
+func (c *workerCommandsForTest) OpenProviderMails(ctx context.Context, query domain.ProviderMailQuery) (result0 []domain.ProviderMail, err error) {
+	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
+		result0, err = c.Store.OpenProviderMails(txCtx, query)
+		return err
+	})
+	return
+}
+
+func (c *workerCommandsForTest) MarkEmailDeliveryChecked(ctx context.Context, id int64, at time.Time) error {
+	return c.withinAdmin(ctx, func(txCtx context.Context) error {
+		return c.Store.MarkEmailDeliveryChecked(txCtx, id, at)
+	})
+}
+
+func (c *workerCommandsForTest) EmailSuppressionReason(ctx context.Context, tenantID int64, address string) (result0 domain.EmailDeliveryState, result1 bool, err error) {
+	err = c.withinAdmin(ctx, func(txCtx context.Context) error {
+		result0, result1, err = c.Store.EmailSuppressionReason(txCtx, tenantID, address)
+		return err
+	})
+	return
+}
+
+func (c *workerCommandsForTest) DeleteEmailSuppression(ctx context.Context, tenantID int64, address string) error {
+	return c.withinAdmin(ctx, func(txCtx context.Context) error {
+		return c.Store.DeleteEmailSuppression(txCtx, tenantID, address)
+	})
+}

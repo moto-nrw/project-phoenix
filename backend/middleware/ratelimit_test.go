@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // statusesFor sends the same request twice through a limiter with a burst of
@@ -65,4 +67,21 @@ func TestRateLimiterLoopbackExemption(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRateLimiterExemptPathPrefixBypassesOnlyThatPath(t *testing.T) {
+	limiter := NewRateLimiter(1, 1)
+	limiter.ExemptPathPrefix("/webhooks/")
+	handler := limiter.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+	status := func(path string) int {
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, path, nil))
+		return recorder.Code
+	}
+
+	for range 5 {
+		assert.Equal(t, http.StatusNoContent, status("/webhooks/email/delivery/lettermint"))
+	}
+	assert.Equal(t, http.StatusNoContent, status("/api/x"))
+	assert.Equal(t, http.StatusTooManyRequests, status("/api/x"), "other paths keep the limit")
 }

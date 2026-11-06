@@ -42,6 +42,29 @@ func (r *recordingMailRenderer) RecordDelivery(ctx context.Context, _ *Intent, r
 	return nil
 }
 
+type receiptMailTransport struct{ sent *email.Message }
+
+func (receiptMailTransport) Send(email.Message) error { panic("ReceiptMailer must be used") }
+func (m receiptMailTransport) SendWithReceipt(_ context.Context, message email.Message) (email.Receipt, error) {
+	*m.sent = message
+	return email.Receipt{ProviderMessageID: "provider-1"}, nil
+}
+
+func TestTransportHandsTheMailKindToTheMailer(t *testing.T) {
+	t.Parallel()
+	sent := &email.Message{}
+	transport := Transport{Mailer: receiptMailTransport{sent: sent}, Tenants: contextCheckingMailTransactions{}, Logger: slog.Default()}
+
+	receipt, err := transport.Send(context.Background(), &Intent{TenantID: 1, DeliveryToken: "token-1", Security: true, UseFallback: true},
+		&recordingMailRenderer{}, email.NewEmail("", "guardian@example.com"))
+
+	require.NoError(t, err)
+	require.Equal(t, "provider-1", receipt.ProviderMessageID)
+	require.True(t, sent.Security)
+	require.True(t, sent.UseFallback)
+	require.Equal(t, "token-1", sent.DeliveryToken)
+}
+
 func TestTransportRecordsAttemptAfterSendingContextEnds(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())

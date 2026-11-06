@@ -9,6 +9,10 @@ import "maps"
 var emailDeliveryEventTransactionSites = map[string]string{
 	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.RecordEmailDeliveryEvent:c.transactions.WithinAdmin#1": "Delivery worker command records one delivery event; the mail and thereby its school are found only by the identity in the event.",
 	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.EmailAddressSuppressed:c.transactions.WithinAdmin#1":   "Delivery worker command reads the suppression list of the claimed mail's school.",
+	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.OpenProviderMails:c.transactions.WithinAdmin#1":        "Delivery reconciliation reads the open mails of all schools; a mail is checked by its provider ID, and its school only follows from it.",
+	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.MarkEmailDeliveryChecked:c.transactions.WithinAdmin#1": "Delivery reconciliation notes when it last asked the provider about one mail, across schools.",
+	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.EmailSuppressionReason:c.transactions.WithinAdmin#1":   "Delivery reads why one address is on the named school's suppression list before the provider's block is lifted.",
+	"modules/delivery/internal/application/worker_commands.go:*WorkerCommands.DeleteEmailSuppression:c.transactions.WithinAdmin#1":   "Delivery removes one address from the named school's suppression list after the provider lifted its block.",
 }
 
 func withoutReviewedEmailDeliveryEventTransactions(current map[string]string) map[string]string {

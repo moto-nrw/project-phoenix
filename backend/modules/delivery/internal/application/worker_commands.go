@@ -18,6 +18,7 @@ type WorkerRecords interface {
 	targetedEmailStore
 	targetedPushStore
 	ports.EmailDeliveryEventStore
+	ports.EmailReconciliationStore
 	DeleteExpiredSystemEmails(context.Context, time.Time, int) (int, error)
 }
 
@@ -160,4 +161,32 @@ func (c *WorkerCommands) EmailAddressSuppressed(ctx context.Context, tenantID in
 		return err
 	})
 	return
+}
+
+func (c *WorkerCommands) OpenProviderMails(ctx context.Context, query domain.ProviderMailQuery) (result0 []domain.ProviderMail, err error) {
+	err = c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+		result0, err = c.WorkerRecords.OpenProviderMails(txCtx, query)
+		return err
+	})
+	return
+}
+
+func (c *WorkerCommands) MarkEmailDeliveryChecked(ctx context.Context, id int64, at time.Time) error {
+	return c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+		return c.WorkerRecords.MarkEmailDeliveryChecked(txCtx, id, at)
+	})
+}
+
+func (c *WorkerCommands) EmailSuppressionReason(ctx context.Context, tenantID int64, address string) (result0 domain.EmailDeliveryState, result1 bool, err error) {
+	err = c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+		result0, result1, err = c.WorkerRecords.EmailSuppressionReason(txCtx, tenantID, address)
+		return err
+	})
+	return
+}
+
+func (c *WorkerCommands) DeleteEmailSuppression(ctx context.Context, tenantID int64, address string) error {
+	return c.transactions.WithinAdmin(ctx, func(txCtx context.Context) error {
+		return c.WorkerRecords.DeleteEmailSuppression(txCtx, tenantID, address)
+	})
 }

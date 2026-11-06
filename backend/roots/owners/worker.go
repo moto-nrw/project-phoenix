@@ -136,6 +136,7 @@ func NewWorker(
 		StudentLifecycleAudit:        schedulerStudentAudit(studentAudit),
 		CareExitEffector:             schedules.Lifecycle,
 		OutboxWorker:                 outbox,
+		EmailReconciliation:          outbox,
 		SettleExpiredTransfers:       exportTransferCompose.NewDispatchRecovery(),
 		AppointmentReminders:         reminders,
 		RolloverDeadlineRunner:       rolloverDeadlines{rollovers: flows.Rollovers},

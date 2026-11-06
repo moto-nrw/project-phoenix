@@ -29,6 +29,20 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/delivery/http/webhooks",
+      "owner": "delivery-platform",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/delivery/internal/application/lettermint",
+      "owner": "delivery-platform",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/delivery/internal/adapters/postgres",
       "owner": "delivery-platform",
       "role": "postgres",

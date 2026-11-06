@@ -10,6 +10,22 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
+// EmailProviderSettings are the configuration values of the mail provider. Plain
+// values, so the root's configuration holds no owner's type.
+type EmailProviderSettings struct {
+	Provider         string
+	SecurityFrom     string
+	NoticeFrom       string
+	WebhookSecrets   string
+	TeamToken        string
+	WebhookID        string
+	FallbackHost     string
+	FallbackPort     int
+	FallbackUser     string
+	FallbackPassword string
+	FallbackFrom     string
+}
+
 // ServiceConfig is the process configuration snapshot consumed by one service
 // graph. Capturing it at the composition root keeps service construction pure
 // and lets independent graphs coexist in the same process.
@@ -20,6 +36,7 @@ type ServiceConfig struct {
 	EmailSMTPPassword          string
 	EmailFromName              string
 	EmailFromAddress           string
+	EmailProvider              EmailProviderSettings
 	FrontendURL                string
 	PublicAPIURL               string
 	ParentsURL                 string

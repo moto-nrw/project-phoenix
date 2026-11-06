@@ -87,6 +87,7 @@ func requiredWorkerJobIDs() []ports.JobID {
 		"timetable-auto-end",
 		"activate-students",
 		"email-outbox",
+		"email-delivery-reconciliation",
 		"rollover-deadline",
 		"appointment-reminders",
 		"announcement-reminders",
@@ -132,6 +133,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.autoEnd), "timetable-auto-end", s.scheduleAutoEndTask)
 	add(!isNilDependency(s.studentLifecycleRepo), "activate-students", s.scheduleActivateStudentsTask)
 	add(!isNilDependency(s.outboxWorker), "email-outbox", s.scheduleOutboxWorkerTask)
+	add(!isNilDependency(s.emailReconciliation), "email-delivery-reconciliation", s.scheduleEmailReconciliationTask)
 	add(!isNilDependency(s.rolloverDeadlineRunner), "rollover-deadline", s.scheduleRolloverDeadlineTask)
 	add(!isNilDependency(s.appointmentReminders), "appointment-reminders", s.scheduleAppointmentReminderTask)
 	add(!isNilDependency(s.announcementReminders), "announcement-reminders", s.scheduleAnnouncementReminderTask)

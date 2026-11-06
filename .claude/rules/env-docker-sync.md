@@ -26,6 +26,10 @@ PostHog has no host variable, because the browser reaches it through the
 same-origin `/ingest` proxy. Optional does not mean a fallback endpoint or
 credential may be invented.
 
+Until #5935, `EMAIL_PROVIDER` is empty by default: plain SMTP, and its group
+(#5933) binds as `${KEY-}` without SOPS keys. `lettermint` requires the whole
+group and fails the start naming missing keys.
+
 Tenant settings resolve only from tenant overrides or registry defaults;
 environment fallbacks are not allowed, including legacy compatibility chains.
 Follow `settings-system.md`; env vars are for infrastructure, not school-admin

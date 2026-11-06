@@ -194,6 +194,20 @@ var (
 	ErrIdempotencyConflict = errors.New("delivery: idempotency key reused with different intent")
 )
 
+// What a webhook delivery can fail on. Each decides the sender's next step: a
+// refusal is final, ErrEmailWebhookNotConfigured and a store failure are worth
+// a retry.
+var (
+	ErrEmailWebhookUnknownProvider = errors.New("delivery: unknown email webhook provider")
+	ErrEmailWebhookNotConfigured   = errors.New("delivery: email webhook has no signing secret")
+	ErrEmailWebhookSignature       = errors.New("delivery: email webhook signature rejected")
+	ErrEmailWebhookPayload         = errors.New("delivery: email webhook payload rejected")
+)
+
+// ErrEmailSuppressionNeedsReview reports the block of a complaint: it stays
+// until the provider's support reviewed it, and nobody at moto lifts it.
+var ErrEmailSuppressionNeedsReview = errors.New("delivery: suppression after a complaint needs a review")
+
 type Status struct {
 	IdempotencyKey *string
 	ID             int64
