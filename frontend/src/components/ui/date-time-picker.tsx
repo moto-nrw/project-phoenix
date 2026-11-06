@@ -117,7 +117,7 @@ export function DateTimePicker({
   };
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
+    <div className={`flex flex-wrap items-center gap-2 ${className}`}>
       <ISODatePicker
         id={id}
         value={day}
@@ -146,7 +146,7 @@ export function DateTimePicker({
         calendarLayout={calendarLayout}
         ariaLabel={dateAriaLabel}
         invalid={invalid}
-        className="min-w-0 flex-1"
+        className="min-w-44 flex-1"
         placeholder="Datum wählen"
       />
       <div className="w-28 shrink-0">
