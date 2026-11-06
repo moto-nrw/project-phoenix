@@ -57,7 +57,7 @@ func (r *Reminders) RemindDue(ctx context.Context) error {
 			return r.remindTraeger(txCtx, organizationID)
 		})
 		if err != nil {
-			failures = append(failures, fmt.Errorf("Träger %d: %w", organizationID, err))
+			failures = append(failures, fmt.Errorf("organization %d: %w", organizationID, err))
 		}
 	}
 	return errors.Join(failures...)
