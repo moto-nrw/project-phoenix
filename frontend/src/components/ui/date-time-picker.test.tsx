@@ -387,6 +387,30 @@ describe("DateTimePicker", () => {
       expect(onChange).toHaveBeenLastCalledWith("2026-09-01T10:30");
     });
 
+    it("offers the exact minimum in a boundary hour without a five-minute step", async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      render(
+        <Controlled
+          initial="2026-09-01T23:55"
+          min="2026-09-01T23:58"
+          onChange={onChange}
+        />,
+      );
+
+      await openPicker(user);
+
+      expect(option("Minute", "55")).toHaveAttribute("aria-disabled", "true");
+      expect(option("Minute", "58")).not.toHaveAttribute("aria-disabled");
+
+      await user.click(option("Stunde", "23"));
+      expect(onChange).toHaveBeenLastCalledWith("2026-09-01T23:58");
+      await user.click(option("Minute", "58"));
+
+      expect(onChange).toHaveBeenCalledTimes(2);
+      expect(onChange).toHaveBeenLastCalledWith("2026-09-01T23:58");
+    });
+
     it("keeps the day when a time is picked after erasing it", async () => {
       const user = userEvent.setup();
       const onChange = vi.fn();

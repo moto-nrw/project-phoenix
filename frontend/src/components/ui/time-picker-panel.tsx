@@ -21,6 +21,19 @@ const MINUTES = Array.from({ length: 12 }, (_, step) =>
 export const COMPLETE_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ENABLED_OPTION = '[role="option"]:not([aria-disabled="true"])';
 
+function optionsForMinuteColumn(hour: string | null, minTime?: string) {
+  const minHour = minTime?.slice(0, 2);
+  const minMinute = minTime?.slice(3);
+  if (
+    hour !== minHour ||
+    minMinute === undefined ||
+    MINUTES.includes(minMinute)
+  ) {
+    return MINUTES;
+  }
+  return [...MINUTES, minMinute].sort();
+}
+
 function focusColumn(column: HTMLElement | null) {
   const option =
     column?.querySelector<HTMLElement>(
@@ -152,6 +165,7 @@ export function TimePickerPanel({
   const time = COMPLETE_TIME.exec(value);
   const hour = time?.[1] ?? null;
   const minute = time?.[2] ?? waitingMinute;
+  const minuteOptions = optionsForMinuteColumn(hour, minTime);
 
   useLayoutEffect(() => {
     centerSelectedOption(hourColumnRef.current);
@@ -242,7 +256,7 @@ export function TimePickerPanel({
         />
         <TimeColumn
           label="Minute"
-          options={MINUTES}
+          options={minuteOptions}
           selected={minute}
           isDisabled={(option) =>
             minTime !== undefined &&
