@@ -311,6 +311,8 @@ func (c *Contracts) ResendContract(ctx context.Context, reviewer carecontract.Re
 
 func (c *Contracts) sendContracts(ctx context.Context, reviewer carecontract.Reviewer, ids []int64, destination string) (carecontract.SendResult, error) {
 	result := carecontract.SendResult{Sent: []int64{}, Skipped: []carecontract.SendSkip{}}
+	// The send holds its transaction, so the whole batch shares the provider's limits.
+	ctx = c.post.ShareMailBlockLimit(ctx)
 	for _, id := range ids {
 		err := c.send(ctx, reviewer, id, destination)
 		switch {

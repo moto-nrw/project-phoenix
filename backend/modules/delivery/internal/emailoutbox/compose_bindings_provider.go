@@ -88,6 +88,9 @@ func (p *MailPushProvider) SendEmail(ctx context.Context, intent deliveryContrac
 	if errors.Is(err, ErrRenderDeferred) {
 		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %v", deliveryContract.ErrDeferred, err)
 	}
+	if errors.Is(err, email.ErrFallbackRemoved) {
+		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %v", deliveryContract.ErrPermanent, err)
+	}
 	if errors.Is(err, email.ErrRecipientRejected) {
 		return deliveryContract.ProviderResult{}, fmt.Errorf("%w: %w: %v", deliveryContract.ErrPermanent, deliveryContract.ErrRecipientRejected, err)
 	}

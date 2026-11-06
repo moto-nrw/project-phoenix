@@ -474,16 +474,16 @@ func TestProviderBlocksReadEachAddressOnceAndNameEveryState(t *testing.T) {
 
 func TestProviderBlocksStayWithinTheirLimit(t *testing.T) {
 	t.Parallel()
-	addresses := make([]string, 0, providerBlockReads+3)
-	for i := range providerBlockReads + 3 {
+	addresses := make([]string, 0, deliveryContract.ProviderBlockReads+3)
+	for i := range deliveryContract.ProviderBlockReads + 3 {
 		addresses = append(addresses, fmt.Sprintf("a%d@example.com", i))
 	}
 	api := &stubProviderAPI{}
 
 	blocks := reconciler(&reconcileStore{}, api).ProviderEmailBlocks(context.Background(), addresses)
 
-	assert.Len(t, api.blockAsked, providerBlockReads)
-	assert.Equal(t, deliveryContract.EmailProviderBlockUnreadable, blocks[addresses[providerBlockReads]], "what it left out is not offered")
+	assert.Len(t, api.blockAsked, deliveryContract.ProviderBlockReads)
+	assert.Equal(t, deliveryContract.EmailProviderBlockUnreadable, blocks[addresses[deliveryContract.ProviderBlockReads]], "what it left out is not offered")
 }
 
 // hangingProviderAPI answers only when the caller's context ends.
@@ -507,11 +507,67 @@ func TestProviderBlocksHoldTheCallerForAtMostTheBudget(t *testing.T) {
 
 		blocks := reconciliation.ProviderEmailBlocks(context.Background(), []string{"a@example.com", "b@example.com"})
 
-		assert.Equal(t, providerBlockBudget, time.Since(start))
+		assert.Equal(t, deliveryContract.ProviderBlockTime, time.Since(start))
 		assert.Equal(t, []string{"a@example.com"}, api.blockAsked)
 		assert.Equal(t, deliveryContract.EmailProviderBlockUnreadable, blocks["a@example.com"])
 		assert.Equal(t, deliveryContract.EmailProviderBlockUnreadable, blocks["b@example.com"], "nothing is offered on a guess")
 	})
+}
+
+// One request shares one budget, however many mails ask: a bulk send of contracts
+// costs the transaction at most one budget, and the rest is not sent on a guess.
+func TestProviderBlocksShareTheBudgetOfTheRequest(t *testing.T) {
+	t.Parallel()
+	t.Run("a hanging provider", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			api := &hangingProviderAPI{}
+			reconciliation := NewEmailReconciliation(&reconcileStore{}, api, true, slog.New(slog.DiscardHandler), func(domain.Observation) {})
+			ctx := deliveryContract.WithProviderBlockBudget(context.Background())
+			start := time.Now()
+
+			first := reconciliation.ProviderEmailBlocks(ctx, []string{"a@example.com"})
+			second := reconciliation.ProviderEmailBlocks(ctx, []string{"b@example.com"})
+
+			assert.Equal(t, deliveryContract.ProviderBlockTime, time.Since(start), "not once per call")
+			assert.Equal(t, []string{"a@example.com"}, api.blockAsked)
+			assert.Equal(t, deliveryContract.EmailProviderBlockUnreadable, first["a@example.com"])
+			assert.Equal(t, deliveryContract.EmailProviderBlockUnreadable, second["b@example.com"])
+		})
+	})
+	t.Run("the number of reads", func(t *testing.T) {
+		t.Parallel()
+		api := &stubProviderAPI{}
+		ctx := deliveryContract.WithProviderBlockBudget(context.Background())
+		var last map[string]deliveryContract.EmailProviderBlock
+		for i := range deliveryContract.ProviderBlockReads + 1 {
+			last = reconciler(&reconcileStore{}, api).ProviderEmailBlocks(ctx, []string{fmt.Sprintf("a%d@example.com", i)})
+		}
+
+		assert.Len(t, api.blockAsked, deliveryContract.ProviderBlockReads)
+		assert.Equal(t, deliveryContract.EmailProviderBlockUnreadable, last[fmt.Sprintf("a%d@example.com", deliveryContract.ProviderBlockReads)])
+	})
+	t.Run("a rate limit", func(t *testing.T) {
+		t.Parallel()
+		api := &stubProviderAPI{blockErrs: map[string]error{"a@example.com": domain.ErrProviderRateLimited}}
+		ctx := deliveryContract.WithProviderBlockBudget(context.Background())
+
+		reconciler(&reconcileStore{}, api).ProviderEmailBlocks(ctx, []string{"a@example.com"})
+		blocks := reconciler(&reconcileStore{}, api).ProviderEmailBlocks(ctx, []string{"b@example.com"})
+
+		assert.Equal(t, []string{"a@example.com"}, api.blockAsked)
+		assert.Equal(t, deliveryContract.EmailProviderBlockUnreadable, blocks["b@example.com"])
+	})
+}
+
+// Without a shared budget each call has its own, as a single read needs nothing else.
+func TestProviderBlocksWithoutASharedBudgetStartAnew(t *testing.T) {
+	t.Parallel()
+	api := &stubProviderAPI{}
+	for i := range deliveryContract.ProviderBlockReads + 1 {
+		reconciler(&reconcileStore{}, api).ProviderEmailBlocks(context.Background(), []string{fmt.Sprintf("a%d@example.com", i)})
+	}
+	assert.Len(t, api.blockAsked, deliveryContract.ProviderBlockReads+1)
 }
 
 func TestProviderBlocksStopAtTheRateLimit(t *testing.T) {

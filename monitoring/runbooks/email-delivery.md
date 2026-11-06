@@ -91,6 +91,20 @@ Als Blocklisten-Bounce zählt, in dieser Reihenfolge:
    bleibt frei, die Sicherheitsmail nimmt den Notweg.
 3. Sonst gilt das Ereignis selbst.
 
+## Alarm „Security mail fallback request ended“
+
+Eine Sicherheitsmail wartete auf den Notweg, aber in dieser Umgebung fehlt
+`EMAIL_FALLBACK_*`. Das passiert, wenn der Notweg entfernt wird, solange eine
+Anforderung offen ist. moto sendet die Mail nicht noch einmal über Lettermint,
+denn Lettermint hat sie schon aufgegeben. Sie endet als `dead_letter`, und die
+Anforderung gilt als beendet. Die Logzeile nennt `template` und `reason`, nie die
+Adresse.
+
+1. Prüfen, ob `EMAIL_FALLBACK_*` absichtlich fehlt. Wird der Notweg noch gebraucht,
+   die Werte per `sops edit` wieder eintragen und deployen.
+2. Die Mail wird nicht wiederholt. Die betroffene Person startet den Vorgang neu,
+   zum Beispiel die Anmeldung.
+
 ## Webhook-Secret wechseln
 
 `EMAIL_WEBHOOK_SECRETS` nimmt mehrere Werte, kommagetrennt. Jeder gültige reicht.
@@ -133,10 +147,11 @@ Es gelten diese Grenzen:
 
 - Gefragt wird nur nach Adressen, bei denen eine Mail eine Sperre hinterlassen hat
   (Sperre, Abmeldung, Beschwerde). Ohne solche Adresse gibt es keine Abfrage.
-- Ein Aufruf dauert höchstens 3 Sekunden und stellt höchstens 10 Anfragen. Was er
+- Ein Aufruf wartet höchstens 3 Sekunden und stellt höchstens 10 Anfragen. Was er
   nicht lesen kann, gilt als `unreadable`, und moto sendet nichts.
-- Sammelversand von Verträgen ruft das je Vertrag mit einem solchen Ergebnis einmal
-  auf. Die 3 Sekunden gelten dort pro Vertrag, nicht pro Anfrage.
+- Der Sammelversand von Verträgen teilt diese Grenze über die ganze Anfrage, nicht
+  je Vertrag. Verträge darüber hinaus überspringt er mit `mail_block_unreadable`.
+  Sie lassen sich in einem neuen Versand erneut senden.
 
 Solange die Abfrage läuft, belegt die Anfrage eine Datenbankverbindung und hält ihre
 Zeilensperren (zum Beispiel auf den Eltern-Profilen beim Einladen). Antwortet

@@ -691,6 +691,55 @@ func TestCareContractSameAddressAsCorrectionKeepsItsResult(t *testing.T) {
 	assert.Equal(t, 4, mails())
 }
 
+// A bulk send asks the provider within one budget for the whole request: past it a
+// contract is refused as unreadable, not sent on a guess (#5957).
+func TestCareContractBulkSendSharesTheProviderBudget(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Sammelversand")
+	token := f.office.token
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	keys := []any{f.key()}
+	for i := range deliveryContract.ProviderBlockReads + 1 {
+		child := careContractApplication(t, f.db, f.school, f.phase, f.offering, fmt.Sprintf("Kind%d", i), fmt.Sprintf("sammel-%d-%d@example.org", i, testpkg.UniqueTestTenantID(t)))
+		keys = append(keys, map[string]any{"school_id": f.school, "request_child_id": child})
+	}
+	rec := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts", map[string]any{"contracts": keys})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	created := decodeSchoolPortalData[careContractCreateBody](t, rec.Body.Bytes()).Created
+	require.Len(t, created, len(keys))
+	ids := make([]int64, 0, len(created))
+	for _, contract := range created {
+		ids = append(ids, contract.ID)
+	}
+	send := func() *httptest.ResponseRecorder {
+		t.Helper()
+		rec := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts/send", map[string]any{"contract_ids": ids})
+		require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+		return rec
+	}
+	send()
+	_, err := f.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW(), delivery_state = 'unsubscribed', delivery_state_at = NOW()
+		WHERE organization_id = ? AND kind = 'care_contract'`, f.office.organization)
+	require.NoError(t, err)
+
+	body := send().Body.String()
+
+	result := decodeSchoolPortalData[struct {
+		Sent    []int64 `json:"sent"`
+		Skipped []struct {
+			Reason string `json:"reason"`
+		} `json:"skipped"`
+	}](t, []byte(body))
+	assert.Len(t, result.Sent, deliveryContract.ProviderBlockReads, "the budget of the request")
+	require.Len(t, result.Skipped, len(ids)-deliveryContract.ProviderBlockReads)
+	for _, skipped := range result.Skipped {
+		assert.Equal(t, "mail_block_unreadable", skipped.Reason)
+	}
+	var mails int
+	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM platform.email_outbox WHERE organization_id = ? AND kind = 'care_contract'`, f.office.organization).Scan(context.Background(), &mails))
+	assert.Equal(t, len(ids)+deliveryContract.ProviderBlockReads, mails, "a refused contract queued nothing")
+}
+
 // A school's list and stop hold a contract's mail back, and the Träger reads the
 // reason as it is now, through a read that works inside its own transaction.
 func TestCareContractMailNamesAHoldOfTheSchool(t *testing.T) {

@@ -2140,6 +2140,7 @@ export const emailDeliveryTopic = function emailDeliveryTopic(): HelpTopic {
           "`Ergebnis unbekannt`: Ob die Mail rausging, ist nicht bekannt.",
           "`Abgebrochen`: Die Mail wurde nicht mehr gesendet.",
           "`Abgemeldet`: Die Person hat sich von den Mails abgemeldet. Sprechen Sie sie direkt an.",
+          "`Alte Adresse abgemeldet` oder `Alte Adresse gesperrt`: Die Person hat inzwischen eine neue Adresse. Eine neue Mail an diese Adresse ist möglich.",
           "`Adresse prüfen`: An diese Adresse geht keine Mail mehr raus, weil sie gesperrt ist.",
           "`Versand gestoppt`: Ihre Schule hat die Mails an diese Person gestoppt. Nutzt noch jemand diese Adresse, gehen Mails an die Adresse weiter raus.",
         ],
