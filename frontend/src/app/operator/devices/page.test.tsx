@@ -323,6 +323,18 @@ describe("OperatorDevicesPage", () => {
     expect(screen.getByText("status:offline")).toBeInTheDocument();
   });
 
+  it("falls back for inherited status-map keys", () => {
+    const device = { ...mockDevice, isOnline: false, status: "constructor" };
+    withDefaultSWR({ allDevices: [device] });
+
+    render(<OperatorDevicesPage />);
+
+    expect(screen.getByText("status:constructor")).toHaveStyle({
+      backgroundColor: "#F3F4F6",
+      color: "#4B5563",
+    });
+  });
+
   it("renders maintenance status badge", () => {
     const maintenanceDevice = {
       ...mockDevice,

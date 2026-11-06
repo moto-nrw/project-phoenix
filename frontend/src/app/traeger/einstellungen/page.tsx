@@ -5,7 +5,8 @@
 // abweichen, wo die Einstellung das erlaubt; Schul-Abweichungen ändert nur die
 // Schule selbst.
 
-import { useCallback, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { SettingsCategory } from "~/components/settings/settings-category";
 import { displayTabLabel } from "~/components/settings/settings-filter";
 import { Alert } from "~/components/ui/alert";
@@ -35,6 +36,12 @@ import {
 
 const logger = createLogger({ component: "TraegerSettingsPage" });
 
+/**
+ * Opens a settings area by its key, e.g. `?bereich=dashboard` from the hints
+ * of the dashboard (#4675). An unknown key opens the first area.
+ */
+const AREA_PARAM = "bereich";
+
 /** Der Bereich mit den Kontaktdaten; er liegt nicht im Einstellungs-Schema. */
 const CONTACT_TAB = "kontakt";
 
@@ -53,13 +60,25 @@ function hasWritableSetting(schema: SettingsSchema): boolean {
 }
 
 export default function TraegerSettingsPage() {
+  // `useSearchParams` braucht eine Suspense-Grenze; bis dahin lädt die Seite.
+  return (
+    <Suspense fallback={<TenantPage title="Allgemein" loading />}>
+      <TraegerSettingsContent />
+    </Suspense>
+  );
+}
+
+function TraegerSettingsContent() {
+  const searchParams = useSearchParams();
   const {
     data: schema,
     isLoading: loading,
     loadError,
     mutate,
   } = useTraegerSettingsSchema();
-  const [selectedTab, setSelectedTab] = useState<string | null>(null);
+  const [selectedTab, setSelectedTab] = useState<string | null>(
+    () => searchParams?.get(AREA_PARAM) ?? null,
+  );
   const refresh = useCallback(() => mutate().catch(() => undefined), [mutate]);
 
   // Save and reset throw the ApiError of a failed request; the field shows

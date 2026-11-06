@@ -1157,7 +1157,7 @@ const TINY_TEXT_BASELINE = parseLocationBaseline(`
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1337 text-[11px]@1337 text-[10px]@1341 text-[10px]@1350 text-[11px]@1350
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@219 text-[11px]@263
-src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
+src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@231
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@907 text-[11px]@935 text-[11px]@1022 text-[11px]@1083 text-[11px]@1091 text-[11px]@1097 text-[11px]@1144 text-[11px]@1150 text-[10px]@1166 text-[11px]@1215 text-[11px]@1295 text-[11px]@1306 text-[11px]@1311
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@43 text-[10px]@99

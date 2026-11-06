@@ -49,6 +49,7 @@ import {
 import { GraduatesModal } from "./graduates-modal";
 import { TransitionEditor } from "./transition-editor";
 import { TransitionPreviewModal } from "./transition-preview-modal";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 const logger = createLogger({ component: "GradeTransitionsManager" });
 
@@ -70,15 +71,11 @@ function TransitionStatusBadge({
   readonly status: TransitionStatus;
 }) {
   return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
-      style={{
-        backgroundColor: `${STATUS_COLORS[status]}1A`,
-        color: STATUS_COLORS[status],
-      }}
-    >
-      {STATUS_LABELS[status]}
-    </span>
+    <StatusColorBadge
+      label={STATUS_LABELS[status]}
+      color={STATUS_COLORS[status]}
+      compact
+    />
   );
 }
 
