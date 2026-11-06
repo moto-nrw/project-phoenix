@@ -74,10 +74,15 @@ func (w *lettermintWebhook) Verify(header func(string) string, body []byte, now 
 	return nil
 }
 
-func (w *lettermintWebhook) matches(stamp string, body, provided []byte) bool {
+// matches accepts any provided value under any secret: during a rotation a
+// sender may sign with both.
+func (w *lettermintWebhook) matches(stamp string, body []byte, provided [][]byte) bool {
 	for _, secret := range w.secrets {
-		if hmac.Equal(lettermintMAC(secret, stamp, body), provided) {
-			return true
+		mac := lettermintMAC(secret, stamp, body)
+		for _, value := range provided {
+			if hmac.Equal(mac, value) {
+				return true
+			}
 		}
 	}
 	return false
@@ -91,20 +96,20 @@ func lettermintMAC(secret, stamp string, body []byte) []byte {
 	return mac.Sum(nil)
 }
 
-func parseLettermintSignature(value string) (string, []byte, bool) {
+// parseLettermintSignature skips a value it cannot read: another value of the
+// same header may still match.
+func parseLettermintSignature(value string) (string, [][]byte, bool) {
 	var stamp string
-	var provided []byte
+	var provided [][]byte
 	for part := range strings.SplitSeq(value, ",") {
 		key, text, _ := strings.Cut(strings.TrimSpace(part), "=")
 		switch key {
 		case "t":
 			stamp = text
 		case "v1":
-			decoded, err := hex.DecodeString(text)
-			if err != nil || len(decoded) != sha256.Size {
-				return "", nil, false
+			if decoded, err := hex.DecodeString(text); err == nil && len(decoded) == sha256.Size {
+				provided = append(provided, decoded)
 			}
-			provided = decoded
 		}
 	}
 	return stamp, provided, stamp != "" && provided != nil

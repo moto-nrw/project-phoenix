@@ -86,6 +86,7 @@ var guardianConflictCodes = []struct {
 	{identityaccess.ErrGuardianEmailAddressBlocked, apiCommon.CodeIdentityGuardianEmailAddressBlocked},
 	{identityaccess.ErrInvitationMailDelayed, apiCommon.CodeIdentityInvitationMailDelayed},
 	{deliveryContract.ErrEmailSuppressionNeedsReview, apiCommon.CodeStudentsGuardianEmailBlockNeedsReview},
+	{deliveryContract.ErrEmailSuppressionStaysAtProvider, apiCommon.CodeStudentsGuardianEmailBlockStays},
 }
 
 func guardianFailureKind(kind GuardianFailureKind) usersAPI.FailureKind {

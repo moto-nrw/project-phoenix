@@ -89,5 +89,6 @@
   "staff_value_unsupported": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "status_day_conflict": "Bazı günlerde zaten bir kayıt var. Bu günler değiştirilmedi.",
   "guardian_email_block_needs_review": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-  "guardian_email_block_lift_failed": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
+  "guardian_email_block_lift_failed": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "guardian_email_block_stays": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
 }

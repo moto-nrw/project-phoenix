@@ -89,5 +89,6 @@
   "staff_value_unsupported": "{object} could not be saved. Please check your entries.",
   "status_day_conflict": "Some days already have an entry. These days were not changed.",
   "guardian_email_block_needs_review": "{object} could not be saved. Please check your entries.",
-  "guardian_email_block_lift_failed": "{object} could not be saved. Please check your entries."
+  "guardian_email_block_lift_failed": "{object} could not be saved. Please check your entries.",
+  "guardian_email_block_stays": "{object} could not be saved. Please check your entries."
 }

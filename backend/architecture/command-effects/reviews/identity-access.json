@@ -4716,6 +4716,26 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
+      "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.EmailAddressMarks in its tenant transaction (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailAddressMarks",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.GuardianMailBlocks",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.GuardianInvitationDelivery.GuardianMailBlocks",
+      "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.LatestEmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.LatestEmailOutcomes",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.InvitationExpiry",
       "classification": "query",
       "effect": "query",
@@ -6116,6 +6136,16 @@
       "source_owner": "identity-access",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.enqueue",
       "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.invitationDelivery.InvitationMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolInvitationDelivery.InvitationMailStates",
+      "reason": "Read-only delivery state: identity-access reads what became of a mail or address through runtime.EmailOutcomes.EmailOutcomes in its tenant transaction (#5934). No persistent, lock or scope effect.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.EmailOutcomes",
+      "target_owner": "delivery-platform"
     },
     {
       "adr": "0098",

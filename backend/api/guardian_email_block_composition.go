@@ -101,10 +101,16 @@ func guardianEmailBlockFlows(delivery GuardianEmailDelivery, runtime peopleCompo
 			return err
 		}
 		err = delivery.Suppressions.LiftEmailSuppression(ctx, tenantID, address)
-		if err == nil || errors.Is(err, deliveryContract.ErrEmailSuppressionNeedsReview) {
+		switch {
+		case err == nil, errors.Is(err, deliveryContract.ErrEmailSuppressionNotFound):
+			// Nothing holds the address as far as moto knows: it is free.
+			return nil
+		case errors.Is(err, deliveryContract.ErrEmailSuppressionNeedsReview),
+			errors.Is(err, deliveryContract.ErrEmailSuppressionStaysAtProvider):
 			return err
+		default:
+			return fmt.Errorf("%w: %w", errGuardianEmailBlockLiftFailed, err)
 		}
-		return fmt.Errorf("%w: %w", errGuardianEmailBlockLiftFailed, err)
 	}
 	return stop, lift
 }

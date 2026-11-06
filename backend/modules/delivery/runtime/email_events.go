@@ -14,9 +14,20 @@ type EmailWebhooks interface {
 	IngestEmailWebhook(ctx context.Context, provider string, header func(string) string, body []byte) error
 }
 
-// EmailSuppressions changes a school's list. Each method opens its own tenant
-// transaction: lifting calls the provider, which a request's transaction must
-// not wait for.
+// EmailSuppressions frees an address after a correction, on the school's list
+// and at the provider. nil means it is free as far as moto knows. Any error means
+// it stays blocked and the list is unchanged:
+//
+//   - ErrEmailSuppressionNotFound: not on the school's list and, with a provider,
+//     no mail of the school to exactly this address. Nothing was asked of the
+//     provider. A caller that only wants the address free can treat this as done.
+//   - ErrEmailSuppressionNeedsReview: a complaint's block, here or at the provider.
+//   - ErrEmailSuppressionStaysAtProvider: a manual or unsubscribe block.
+//   - anything else: a failure worth another try.
+//
+// Plain SMTP has no provider, so only the school's list counts there. Each method
+// opens its own tenant transaction: lifting calls the provider, which a request's
+// transaction must not wait for.
 type EmailSuppressions interface {
 	// LiftEmailSuppression frees an address someone at the school checked, on
 	// the school's list and at the provider. A complaint's block stays: the

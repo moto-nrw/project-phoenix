@@ -143,7 +143,7 @@ func (d invitationDelivery) dispatchSchoolInvitation(ctx context.Context, invita
 	message := *identityMessage(d.from, email.NewEmail("", invitation.Email), mail)
 	message.ReplyTo = email.NewEmail(replyIdentity.Name, replyIdentity.Address)
 	return enqueueDurableMail(ctx, d.durable, DurableMail{
-		TenantID: invitation.TenantID, Message: message, Type: invitationMailType, ReferenceID: invitation.ID,
+		TenantID: invitation.TenantID, Message: message, Type: "invitation", ReferenceID: invitation.ID,
 		Backoff: d.backoff, BaseRetry: invitation.Delivery.RetryCount, ExpiresAt: invitation.ExpiresAt,
 	})
 }

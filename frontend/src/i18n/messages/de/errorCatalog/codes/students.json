@@ -89,5 +89,6 @@
   "staff_value_unsupported": "Ein eigener Wert ist hier nicht möglich. Bitte wählen Sie einen Wunsch oder „Keine Änderung“.",
   "status_day_conflict": "An einigen Tagen gibt es schon einen Eintrag. Diese Tage wurden nicht geändert.",
   "guardian_email_block_needs_review": "Diese Sperre können Sie nicht aufheben, weil die Person eine Mail als unerwünscht gemeldet hat. Bitte sprechen Sie die Person direkt an.",
-  "guardian_email_block_lift_failed": "Die Sperre konnte gerade nicht aufgehoben werden. Bitte versuchen Sie es noch einmal."
+  "guardian_email_block_lift_failed": "Die Sperre konnte gerade nicht aufgehoben werden. Bitte versuchen Sie es noch einmal.",
+  "guardian_email_block_stays": "Diese Sperre lässt sich hier nicht aufheben. Bitte tragen Sie eine andere Adresse ein oder melden Sie sich beim moto-Support."
 }

@@ -46,6 +46,24 @@ func TestLettermintParseMapsEveryEvent(t *testing.T) {
 		"hard bounce":         {event: "message.hard_bounced", extra: bounced, state: domain.EmailDeliveryFailed},
 		"policy hard bounce":  {event: "message.hard_bounced", extra: `,"response":{"status_code":550,"enhanced_status_code":"5.7.26","content":"unauthenticated"}`, state: domain.EmailDeliveryFailed, keepsAddress: true},
 		"blocked hard bounce": {event: "message.hard_bounced", extra: blocked, state: domain.EmailDeliveryFailed, keepsAddress: true, reroute: true},
+		"address status beats the blocklist words": {event: "message.hard_bounced", state: domain.EmailDeliveryFailed,
+			extra: `,"response":{"status_code":550,"enhanced_status_code":"5.1.1","content":"user not listed in Domino Directory"}`},
+		"address status in the text only": {event: "message.hard_bounced", state: domain.EmailDeliveryFailed,
+			extra: `,"response":{"status_code":550,"content":"5.1.1 user not listed in Domino Directory."}`},
+		"address status 5.1.10": {event: "message.hard_bounced", state: domain.EmailDeliveryFailed,
+			extra: `,"response":{"status_code":550,"enhanced_status_code":"5.1.10","content":"recipient not found by SMTP address lookup, low reputation"}`},
+		"address status after another one": {event: "message.hard_bounced", state: domain.EmailDeliveryFailed,
+			extra: `,"response":{"status_code":550,"content":"5.7.1 5.1.1 not listed in the directory"}`},
+		"temporary address status": {event: "message.soft_bounced", state: domain.EmailDeliveryDelayed,
+			extra: `,"response":{"status_code":450,"enhanced_status_code":"4.1.1","content":"user not listed in directory, try later"}`},
+		"banned sending IP": {event: "message.hard_bounced", state: domain.EmailDeliveryFailed, keepsAddress: true, reroute: true,
+			extra: `,"response":{"status_code":550,"enhanced_status_code":"5.7.606","content":"Access denied, banned sending IP [192.0.2.1]"}`},
+		"low reputation": {event: "message.hard_bounced", state: domain.EmailDeliveryFailed, keepsAddress: true, reroute: true,
+			extra: `,"response":{"status_code":554,"enhanced_status_code":"5.7.1","content":"rejected due to low reputation of the sending host"}`},
+		"reputation on a soft bounce": {event: "message.soft_bounced", state: domain.EmailDeliveryDelayed, keepsAddress: true, reroute: true,
+			extra: `,"response":{"status_code":421,"enhanced_status_code":"4.7.0","content":"try later, IP reputation too low"}`},
+		"an IP that looks like a status": {event: "message.hard_bounced", state: domain.EmailDeliveryFailed, keepsAddress: true, reroute: true,
+			extra: `,"response":{"status_code":554,"enhanced_status_code":"5.7.1","content":"client 5.1.1.4 blocked using zen.spamhaus.org"}`},
 		"failed":              {event: "message.failed", extra: `,"reason":"TLS","reason_code":"enforced_tls_failed"`, state: domain.EmailDeliveryFailed, keepsAddress: true, reroute: true},
 		"suppressed":          {event: "message.suppressed", extra: `,"reason":"hard_bounce","scope":"team"`, state: domain.EmailDeliverySuppressed, reroute: true},
 		"complaint":           {event: "message.spam_complaint", state: domain.EmailDeliveryComplained},
@@ -124,4 +142,41 @@ func TestLettermintParseRejectsWhatItCannotUse(t *testing.T) {
 			assert.Error(t, err)
 		})
 	}
+}
+
+// The issue asks for 2xx on unknown events, so nothing but the name is read.
+func TestLettermintParseAcknowledgesUnknownEventsOfAnyShape(t *testing.T) {
+	t.Parallel()
+	for _, body := range []string{
+		`{"id":7,"event":"message.something_new","timestamp":1762430400,"data":"text"}`,
+		`{"event":"message.something_new","data":{"message_id":12,"headers":"none","response":[1,2]}}`,
+		`{"id":{"a":1},"event":"webhook.test","data":[]}`,
+	} {
+		reported, err := newLettermintWebhook(lettermintTestSecret).Parse([]byte(body))
+
+		require.NoError(t, err, body)
+		assert.Nil(t, reported.Event, body)
+	}
+}
+
+func TestLettermintParseStillRefusesABodyWithoutAName(t *testing.T) {
+	t.Parallel()
+	for _, body := range []string{`not json`, `{"id":"e1"}`, `{"event":7}`, `[]`} {
+		_, err := newLettermintWebhook(lettermintTestSecret).Parse([]byte(body))
+
+		assert.Error(t, err, body)
+	}
+}
+
+func TestLettermintParseReadsANumericReasonCode(t *testing.T) {
+	t.Parallel()
+	reported, err := newLettermintWebhook(lettermintTestSecret).Parse(lettermintBody("message.failed", `,"reason":"no route","reason_code":421`))
+
+	require.NoError(t, err)
+	require.NotNil(t, reported.Event)
+	assert.Equal(t, "421 no route", reported.Event.Diagnostic)
+
+	reported, err = newLettermintWebhook(lettermintTestSecret).Parse(lettermintBody("message.failed", `,"reason":"no route","reason_code":null`))
+	require.NoError(t, err)
+	assert.Equal(t, "no route", reported.Event.Diagnostic)
 }

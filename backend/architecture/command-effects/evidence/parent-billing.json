@@ -74,7 +74,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.LetterMailStates",
-      "binding_digest": "984b93abc6b7f11e4fe93394981257c5",
+      "binding_digest": "71947170b71780521875d1d10ec78a4a",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterPost.LetterMailStates",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",

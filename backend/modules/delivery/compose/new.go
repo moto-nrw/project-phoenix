@@ -43,8 +43,7 @@ func NewModule(dependencies ModuleDependencies) (*Runtime, error) {
 		return nil, errors.New("delivery compose: all dependencies are required")
 	}
 	raw := postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase)
-	transactions := NewTenantTransactions(dependencies.DB)
-	store := application.NewWorkerCommands(raw, transactions.WithinSystem, transactions.WithinTenant)
+	store := application.NewWorkerCommands(raw, NewTenantTransactions(dependencies.DB).WithinSystem, NewTenantTransactions(dependencies.DB).WithinTenant)
 	observe := application.NewObservationAdapter(dependencies.Observe)
 	return (*Runtime)(application.NewRuntime(application.NewService(store, dependencies.People, observe), store, observe, postgres.EmailWakeups(dependencies.DB), dependencies.EmailProvider)), nil
 }

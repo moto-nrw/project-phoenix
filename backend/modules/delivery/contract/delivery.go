@@ -211,6 +211,18 @@ var (
 // until the provider's support reviewed it, and nobody at moto lifts it.
 var ErrEmailSuppressionNeedsReview = errors.New("delivery: suppression after a complaint needs a review")
 
+// ErrEmailSuppressionNotFound reports an address with no connection to the
+// school: it is not on the school's list, and with a provider the school has no
+// mail to it either. Nothing changed, also at the provider, whose block applies
+// to the whole team. A caller that only wants the address free can treat it as
+// done.
+var ErrEmailSuppressionNotFound = errors.New("delivery: the school has no suppression for this address")
+
+// ErrEmailSuppressionStaysAtProvider reports a manual or unsubscribe block at
+// the provider. It is someone's decision, so the address stays blocked and
+// nothing changed, neither at the provider nor on the school's list.
+var ErrEmailSuppressionStaysAtProvider = errors.New("delivery: the provider keeps a manual or unsubscribe block")
+
 type Status struct {
 	IdempotencyKey *string
 	ID             int64

@@ -1077,6 +1077,8 @@ export const ERROR_CATALOG = {
         "Die Sperre konnte gerade nicht aufgehoben werden. Bitte versuchen Sie es noch einmal.",
       "students.guardian_email_block_needs_review":
         "Diese Sperre können Sie nicht aufheben, weil die Person eine Mail als unerwünscht gemeldet hat. Bitte sprechen Sie die Person direkt an.",
+      "students.guardian_email_block_stays":
+        "Diese Sperre lässt sich hier nicht aufheben. Bitte tragen Sie eine andere Adresse ein oder melden Sie sich beim moto-Support.",
       "students.guardian_email_taken":
         "Diese E-Mail-Adresse gehört schon zu einer anderen Person. Bitte wählen Sie die vorhandene Person über die Suche aus.",
       "students.guardian_iban_invalid":
@@ -2059,6 +2061,8 @@ export const ERROR_CATALOG = {
         "{object} could not be saved. Please check your entries.",
       "students.guardian_email_block_needs_review":
         "{object} could not be saved. Please check your entries.",
+      "students.guardian_email_block_stays":
+        "{object} could not be saved. Please check your entries.",
       "students.offering_change_capacity_full":
         "One of the offerings has no free places left. Please check the occupancy.",
       "students.offering_changes_no_enrollment":
@@ -2515,6 +2519,8 @@ export const ERROR_CATALOG = {
         "Не удалось сохранить: {object}. Проверьте введённые данные.",
       "students.guardian_email_block_needs_review":
         "Не удалось сохранить: {object}. Проверьте введённые данные.",
+      "students.guardian_email_block_stays":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
       "students.offering_change_capacity_full":
         "В одном из вариантов больше нет свободных мест. Проверьте заполненность.",
       "students.offering_changes_no_enrollment":
@@ -2953,6 +2959,8 @@ export const ERROR_CATALOG = {
         "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
       "students.guardian_email_block_needs_review":
         "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+      "students.guardian_email_block_stays":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
       "students.offering_change_capacity_full":
         "Në njërën nga ofertat nuk ka më vende të lira. Kontrolloni zënien e vendeve.",
       "students.offering_changes_no_enrollment":
@@ -3379,6 +3387,8 @@ export const ERROR_CATALOG = {
       "students.guardian_email_block_lift_failed":
         "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
       "students.guardian_email_block_needs_review":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+      "students.guardian_email_block_stays":
         "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
       "students.offering_change_capacity_full":
         "W jednej z ofert nie ma już wolnych miejsc. Sprawdź obłożenie.",
@@ -3811,6 +3821,8 @@ export const ERROR_CATALOG = {
         "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
       "students.guardian_email_block_needs_review":
         "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+      "students.guardian_email_block_stays":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
       "students.offering_change_capacity_full":
         "Tekliflerden birinde boş yer kalmadı. Lütfen doluluk durumunu kontrol edin.",
       "students.offering_changes_no_enrollment":
@@ -4234,6 +4246,8 @@ export const ERROR_CATALOG = {
       "students.guardian_email_block_lift_failed":
         "Не вдалося зберегти: {object}. Перевірте введені дані.",
       "students.guardian_email_block_needs_review":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
+      "students.guardian_email_block_stays":
         "Не вдалося зберегти: {object}. Перевірте введені дані.",
       "students.offering_change_capacity_full":
         "В одній із пропозицій більше немає вільних місць. Перевірте заповненість.",

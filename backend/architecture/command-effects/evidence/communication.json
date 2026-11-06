@@ -618,7 +618,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.announcementDeliveryAdapter.ListForEntity",
-      "binding_digest": "c1de0fd9aa31bd281c931af1bcc70461",
+      "binding_digest": "a2b27b2f9cdf4f00e0f265aefa7175eb",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentAnnouncementDeliveryRecorder.ListForEntity",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EmailDeliveryStatuses",

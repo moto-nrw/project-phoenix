@@ -64,6 +64,9 @@ func CurrentServiceConfig() owners.ServiceConfig {
 		EmailFromAddress:  viper.GetString("email_from_address"),
 		EmailProvider: owners.EmailProviderSettings{
 			Provider:         viper.GetString("email_provider"),
+			SMTPHost:         viper.GetString("email_smtp_host"),
+			SMTPUser:         viper.GetString("email_smtp_user"),
+			SMTPPassword:     viper.GetString("email_smtp_password"),
 			SecurityFrom:     viper.GetString("email_from_security_address"),
 			NoticeFrom:       viper.GetString("email_from_notices_address"),
 			WebhookSecrets:   viper.GetString("email_webhook_secrets"),
