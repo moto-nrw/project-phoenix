@@ -72,7 +72,7 @@ function columns(schools: SchoolNames): DataTableColumn<TraegerDocument>[] {
           </span>
         ),
       sortValue: (document) => document.releases.length,
-      stacked: "meta",
+      stacked: "field",
     },
     {
       key: "reads",
@@ -83,7 +83,7 @@ function columns(schools: SchoolNames): DataTableColumn<TraegerDocument>[] {
         </span>
       ),
       sortValue: (document) => document.reads,
-      stacked: "meta",
+      stacked: "hidden",
     },
     {
       key: "created",
@@ -94,7 +94,7 @@ function columns(schools: SchoolNames): DataTableColumn<TraegerDocument>[] {
         </span>
       ),
       sortValue: (document) => document.createdAt,
-      stacked: "meta",
+      stacked: "hidden",
     },
   ];
 }
@@ -138,6 +138,7 @@ export default function TraegerDocumentsPage() {
             type="button"
             variant="primary"
             size="md"
+            className="gap-2"
             onClick={() => setUploading(true)}
           >
             <UploadSimpleIcon className="h-4 w-4" aria-hidden="true" />
@@ -166,6 +167,7 @@ export default function TraegerDocumentsPage() {
         loadingRowCount={3}
         stackedOnMobile
         stackedLayout="row"
+        stackedDetailKey="releases"
         onRowClick={(document) =>
           router.push(traegerPath(`/traeger/dokumente/${document.id}`))
         }

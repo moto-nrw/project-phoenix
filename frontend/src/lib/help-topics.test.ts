@@ -603,7 +603,8 @@ describe("getParentHelpTopicForPath", () => {
     // 99 seit #4774: Soll und Ist vergleichen.
     // 100 seit #4769: das geteilte Wochenprotokoll.
     // 101 seit #4808: Nachweise wie Erste Hilfe im Blick behalten.
-    expect(leadTopics).toHaveLength(101);
+    // 102 seit #4692: Dokumente vom Träger finden.
+    expect(leadTopics).toHaveLength(102);
     expect(
       leadTopics.every(
         (topic) =>
@@ -732,6 +733,7 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerHolidayContribution,
       HELP_TOPICS.traegerCareContracts,
       HELP_TOPICS.traegerBillingRun,
+      HELP_TOPICS.traegerSharedDocuments,
       HELP_TOPICS.traegerAccessLog,
       HELP_TOPICS.traegerBriefkopf,
       HELP_TOPICS.traegerDocumentTemplates,
@@ -741,6 +743,8 @@ describe("getParentHelpTopicForPath", () => {
     expect([...new Set(traegerTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "anmeldeverwaltung",
+      // Dokumente für Eltern und Schulen (#4692).
+      "elternarbeit",
       "auswertung",
       "konfiguration",
       "probleme",

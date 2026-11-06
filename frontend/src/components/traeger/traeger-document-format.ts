@@ -49,7 +49,7 @@ export function releaseAudienceLabel(
     return school ?? "Alle Schulen";
   }
   if (release.groupId !== null) {
-    return `Eltern der Gruppe ${release.groupName} (${school ?? "eine Schule"})`;
+    return `Eltern der Gruppe „${release.groupName}“ (${school ?? "eine Schule"})`;
   }
   return school === null ? "Eltern an allen Schulen" : `Eltern: ${school}`;
 }
@@ -64,7 +64,7 @@ export function schoolReleaseAudienceLabel(
       : "Ihre Schule";
   }
   if (release.groupId !== null) {
-    return `Eltern der Gruppe ${release.groupName}`;
+    return `Eltern der Gruppe „${release.groupName}“`;
   }
   return release.schoolId === null
     ? "Eltern an allen Schulen"

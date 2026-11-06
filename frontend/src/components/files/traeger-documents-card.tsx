@@ -108,13 +108,12 @@ export function TraegerDocumentsCard({
                     {document.title}
                   </p>
                   <p className="mt-0.5 text-sm text-gray-600">
-                    Für{" "}
                     {document.releases
                       .map(schoolReleaseAudienceLabel)
-                      .join(", ")}{" "}
-                    · seit {formatBerlinDate(document.releasedAt)}
+                      .join(" · ")}
                   </p>
                   <p className="text-xs text-gray-500">
+                    Seit {formatBerlinDate(document.releasedAt)} ·{" "}
                     {document.fileName} · {documentFileFacts(document)}
                   </p>
                 </div>
@@ -124,6 +123,7 @@ export function TraegerDocumentsCard({
                   type="button"
                   variant="surface"
                   size="compact"
+                  className="gap-1.5"
                   aria-label={`Herunterladen: ${document.title}`}
                   disabled={busyId === document.id}
                   onClick={() => void download(document)}

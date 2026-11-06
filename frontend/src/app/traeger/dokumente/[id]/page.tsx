@@ -149,6 +149,7 @@ export default function TraegerDocumentPage() {
               type="button"
               variant="outline"
               size="md"
+              className="gap-2"
               onClick={() => void download()}
               disabled={downloading}
             >
@@ -160,6 +161,7 @@ export default function TraegerDocumentPage() {
                 type="button"
                 variant="primary"
                 size="md"
+                className="gap-2"
                 onClick={() => setReleasing(true)}
               >
                 <ShareNetworkIcon className="h-4 w-4" aria-hidden="true" />
