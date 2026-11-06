@@ -1136,6 +1136,11 @@
       "reason": "ADR 0109 (#4655): root translation of the Audit Platform's access trail actors into the Träger projection's port vocabulary."
     },
     {
+      "decision": "0086",
+      "id": "api/traegerAlertSettings.AlertThresholds",
+      "reason": "ADR 0086 (#4675): Consumer-port adapter of the Träger projection's alert settings port; it reads the three dashboard thresholds through the Settings Platform's Träger level in its own Träger transaction and translates the keys into the projection's AlertThresholds."
+    },
+    {
       "decision": "0109",
       "id": "api/traegerBureauAddresses.BureauAddresses",
       "reason": "ADR 0109 (#4655): root translation of the Identity \u0026 Access Träger accounts; only accounts with a Träger role at the Träger are named."
