@@ -287,8 +287,5 @@ type CalendarCalDAVSettings interface {
 // ParentChildLinkSource lists the children a guardian account reaches
 // (careplanCompose.ParentChildLinks).
 type ParentChildLinkSource interface {
-	ListByAccount(context.Context, int64) ([]ParentChildLink, error)
+	ListByAccount(context.Context, int64) ([]carePlanBindingPorts.ParentChildLink, error)
 }
-
-// ParentChildLink is one child a guardian account reaches.
-type ParentChildLink = carePlanBindingPorts.ParentChildLink

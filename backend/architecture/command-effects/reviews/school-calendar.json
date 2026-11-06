@@ -2963,27 +2963,27 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Children.ListByAccount",
-      "reason": "Read-only target: school-calendar reaches modules/settings/compose.SettingsSnapshot.Bool (settings-platform) through roots/owners.calendarChildPort.ListByAccount, which keeps the children of schools that booked Eltern-App. One batch settings read inside the calendar's administrative lookup; no persistent, lock or scope effect.",
-      "source_owner": "school-calendar",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.SettingsSnapshot.Bool",
-      "target_owner": "settings-platform"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarChildPort.ListByAccount",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Children.ListByAccount",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/compose.ParentChildLinks.ListByAccount; modules/careplan/internal/application/parent_portal_people.go:59. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "school-calendar",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/compose.ParentChildLinks.ListByAccount",
       "target_owner": "care-plan"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarChildPort.ListByAccount",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarElternAppBookings.ElternAppBooked",
       "classification": "query",
       "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Children.ListByAccount",
-      "reason": "Read-only target: school-calendar reaches modules/settings/records.BatchSettingsService.ResolveManyForTenants (settings-platform) through roots/owners.calendarChildPort.ListByAccount, which keeps the children of schools that booked Eltern-App. One batch settings read inside the calendar's administrative lookup; no persistent, lock or scope effect.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.ElternAppBookings.ElternAppBooked",
+      "reason": "Read-only target: school-calendar reaches modules/settings/records.SettingsSnapshot.Bool (settings-platform) through roots/owners.calendarElternAppBookings.ElternAppBooked, which reports which schools booked Eltern-App so the calendar keeps only their children. One batch settings read inside the calendar's administrative lookup; no persistent, lock or scope effect.",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Bool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarElternAppBookings.ElternAppBooked",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.ElternAppBookings.ElternAppBooked",
+      "reason": "Read-only target: school-calendar reaches modules/settings/records.BatchSettingsService.ResolveManyForTenants (settings-platform) through roots/owners.calendarElternAppBookings.ElternAppBooked, which reports which schools booked Eltern-App so the calendar keeps only their children. One batch settings read inside the calendar's administrative lookup; no persistent, lock or scope effect.",
       "source_owner": "school-calendar",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
       "target_owner": "settings-platform"
