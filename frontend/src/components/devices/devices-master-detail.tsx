@@ -17,6 +17,7 @@ import {
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { devicesConfig } from "~/components/database/configs/devices.config";
 import { Alert } from "~/components/ui/alert";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { DatabaseForm } from "~/components/ui/database/database-form";
@@ -77,9 +78,10 @@ export function DevicesMasterDetail({
       isSelected={selectedId === device.id}
       onSelect={() => onSelect(device.id)}
       trailingAccessory={
-        <span
-          aria-label={device.is_online ? "Online" : "Offline"}
-          className={`mr-1 h-2 w-2 shrink-0 rounded-full ${device.is_online ? "bg-moto-green" : "bg-gray-400"}`}
+        <StatusBadge
+          size="xs"
+          tone={device.is_online ? "green" : "gray"}
+          label={device.is_online ? "Online" : "Offline"}
         />
       }
     />
@@ -247,9 +249,6 @@ function DeviceStammdatenTab({
           </DataField>
           <DataField label="Verbindung">
             <span className="inline-flex items-center gap-1.5">
-              <span
-                className={`inline-block h-2 w-2 rounded-full ${device.is_online ? "bg-moto-green" : "bg-gray-400"}`}
-              />
               {device.is_online ? "Online" : "Offline"}
               {!device.is_online ? (
                 <span className="text-xs font-normal text-gray-500">

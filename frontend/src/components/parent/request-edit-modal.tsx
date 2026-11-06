@@ -4,12 +4,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Button } from "~/components/ui/button";
-import { RequiredMark } from "~/components/ui/field-label";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { TimeField } from "~/components/ui/time-field";
+import { Textarea } from "~/components/ui/textarea";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { createLogger } from "~/lib/logger";
@@ -356,21 +356,17 @@ export function RequestEditModal({
             />
           </label>
         ) : (
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-gray-700">
-              {t("reasonLabel")}
-              {reasonRequired && <RequiredMark />}
-            </span>
-            <textarea
-              name="request-reason"
-              aria-invalid={fieldError("request-reason") ? true : undefined}
-              value={draft.text}
-              onChange={(event) => set({ text: event.target.value })}
-              rows={3}
-              maxLength={2000}
-              className="min-h-20 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            />
-          </label>
+          <Textarea
+            name="request-reason"
+            label={t("reasonLabel")}
+            aria-required={reasonRequired}
+            error={fieldError("request-reason")}
+            value={draft.text}
+            onChange={(event) => set({ text: event.target.value })}
+            rows={3}
+            maxLength={2000}
+            className="min-h-20 text-base"
+          />
         )}
       </div>
     </Modal>

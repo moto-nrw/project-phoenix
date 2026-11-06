@@ -53,3 +53,57 @@ it("does not continue a one-digit-hour entry after leaving the field", async () 
 
   expect(input).toHaveValue("01:30");
 });
+
+it("names an inline field for screen readers without a visible label", () => {
+  render(
+    <TimeField
+      inline
+      value="15:30"
+      onChange={() => undefined}
+      label="Beginn"
+      hint="Uhrzeit im Format 15:30"
+      placeholder="Uhrzeit"
+    />,
+  );
+
+  const input = screen.getByRole("textbox", { name: "Beginn" });
+  expect(input).toHaveAccessibleDescription("Uhrzeit im Format 15:30");
+  // Anker: das Feld ist über seinen Namen gefunden.
+  expect(input).toHaveValue("15:30");
+  expect(screen.queryByText("Beginn")).not.toBeInTheDocument();
+});
+
+it("locks a disabled field", () => {
+  render(
+    <TimeField
+      disabled
+      value=""
+      onChange={() => undefined}
+      label="Beginn"
+      hint="Uhrzeit im Format 15:30"
+      placeholder="Uhrzeit"
+    />,
+  );
+
+  expect(screen.getByPlaceholderText("Uhrzeit")).toBeDisabled();
+});
+
+it("reports leaving the field", () => {
+  let left = false;
+  render(
+    <TimeField
+      value="15:30"
+      onChange={() => undefined}
+      onBlur={() => {
+        left = true;
+      }}
+      label="Beginn"
+      hint="Uhrzeit im Format 15:30"
+      placeholder="Uhrzeit"
+    />,
+  );
+
+  fireEvent.blur(screen.getByPlaceholderText("Uhrzeit"));
+
+  expect(left).toBe(true);
+});

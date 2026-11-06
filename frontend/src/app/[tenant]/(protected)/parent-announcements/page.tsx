@@ -90,6 +90,7 @@ import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { AttachmentList } from "~/components/ui/attachment-list";
+import { Textarea } from "~/components/ui/textarea";
 import { formatBytes } from "~/lib/files-api";
 import {
   berlinClockFromISO,
@@ -1534,36 +1535,18 @@ function AnnouncementFormModal({
                     }
                   />
 
-                  <div>
-                    <label
-                      htmlFor="announcement-body"
-                      className="mb-2 block text-sm font-medium text-gray-700"
-                    >
-                      Text
-                    </label>
-                    <textarea
-                      id="announcement-body"
-                      name="body"
-                      aria-invalid={bodyError ? true : undefined}
-                      aria-describedby={
-                        bodyError ? "announcement-body-error" : undefined
-                      }
-                      value={body}
-                      onChange={(e) => setBody(e.target.value)}
-                      rows={5}
-                      maxLength={4000}
-                      placeholder="Inhalt der Mitteilung… Links im Text werden für Eltern klickbar."
-                      className={`block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 ${bodyError ? "ring-moto-red" : "ring-gray-200"}`}
-                    />
-                    {bodyError ? (
-                      <p
-                        id="announcement-body-error"
-                        className="text-moto-red-strong mt-1 text-xs"
-                      >
-                        {bodyError}
-                      </p>
-                    ) : null}
-                  </div>
+                  <Textarea
+                    id="announcement-body"
+                    name="body"
+                    label="Text"
+                    error={bodyError ?? undefined}
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    rows={5}
+                    maxLength={4000}
+                    placeholder="Inhalt der Mitteilung… Links im Text werden für Eltern klickbar."
+                    className="resize-y px-4 py-3 text-base"
+                  />
 
                   <Input
                     label="Link (optional)"
@@ -1859,28 +1842,21 @@ function AnnouncementFormModal({
                       )}
                     </div>
                     {reminderDay && (
-                      <div>
-                        <label
-                          htmlFor="announcement-reminder-text"
-                          className="mb-2 block text-sm font-medium text-gray-700"
-                        >
-                          Erinnerungstext (optional)
-                        </label>
-                        <textarea
-                          id="announcement-reminder-text"
-                          value={reminderText}
-                          onChange={(e) => setReminderText(e.target.value)}
-                          rows={2}
-                          maxLength={MAX_REMINDER_TEXT_LENGTH}
-                          placeholder="Kurz das Wichtigste, z. B. „Morgen endet die Betreuung um 13:00 Uhr.“"
-                          className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
-                        />
-                        <p className="mt-1.5 text-xs text-gray-500">
-                          {isLetterForm
+                      <Textarea
+                        id="announcement-reminder-text"
+                        label="Erinnerungstext (optional)"
+                        hint={
+                          isLetterForm
                             ? "Ohne eigenen Text schickt moto den Text des Elternbriefs noch einmal."
-                            : "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal."}
-                        </p>
-                      </div>
+                            : "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal."
+                        }
+                        value={reminderText}
+                        onChange={(e) => setReminderText(e.target.value)}
+                        rows={2}
+                        maxLength={MAX_REMINDER_TEXT_LENGTH}
+                        placeholder="Kurz das Wichtigste, z. B. „Morgen endet die Betreuung um 13:00 Uhr.“"
+                        className="resize-y px-4 py-3 text-base"
+                      />
                     )}
                   </section>
                 )}

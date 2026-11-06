@@ -26,6 +26,7 @@ import {
   ParentVisibleBadge,
   ParentVisibilityLegend,
 } from "~/components/ui/parent-visible-badge";
+import { Textarea } from "~/components/ui/textarea";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { CompanionPicker } from "./companion-picker";
 import type {
@@ -333,11 +334,12 @@ function TextareaField({
         {label}
         {parentVisibleHint && <ParentVisibleBadge hint={parentVisibleHint} />}
       </h3>
-      <textarea
+      <Textarea
+        aria-label={label}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
-        className="focus:border-moto-blue focus:ring-moto-blue block w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs transition-colors focus:ring-1 md:text-sm"
+        className="text-xs md:text-sm"
         placeholder={placeholder}
         maxLength={2000}
       />

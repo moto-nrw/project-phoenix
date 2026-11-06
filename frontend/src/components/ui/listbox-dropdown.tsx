@@ -17,6 +17,10 @@ import {
 import { createPortal } from "react-dom";
 
 import { cn } from "~/lib/utils";
+import {
+  selectTriggerClassName,
+  type SelectTriggerSize,
+} from "./select-trigger-styles";
 
 import { CheckboxIndicator } from "./checkbox";
 
@@ -29,20 +33,11 @@ export interface ListboxDropdownOption<K extends string> {
 }
 
 /**
- * The look of every select in the kit (#5580). Trigger, menu, option and
- * checkbox come from here; callers choose a `size` and pass layout classes
- * (width, flex) only. `ui-kit/no-select-override` keeps frame, fill, height
- * and radius out of their class props.
+ * The look of every select in the kit (#5580). Trigger (`select-trigger-styles`),
+ * menu, option and checkbox come from here; callers choose a `size` and pass
+ * layout classes (width, flex) only. `ui-kit/no-select-override` keeps frame,
+ * fill, height and radius out of their class props.
  */
-const TRIGGER_BASE_CLASS =
-  "flex items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100! disabled:text-gray-500 disabled:opacity-80";
-const TRIGGER_HEIGHT_CLASS = { default: "h-10", compact: "h-9" } as const;
-// `moto-content-surface` is unlayered: it beats the red invalid tint and the
-// grey disabled fill, so it sits on the neutral, enabled branch only.
-const TRIGGER_SURFACE_CLASS = "moto-content-surface moto-hover-elevated";
-const TRIGGER_DISABLED_CLASS = "border-gray-200";
-const TRIGGER_INVALID_CLASS = "border-moto-red! bg-moto-red/5!";
-
 const MENU_SURFACE_CLASS = "moto-popover-surface rounded-xl border";
 const LIST_SCROLL_CLASS = "scrollbar-thin overflow-y-auto py-1";
 
@@ -52,7 +47,7 @@ const OPTION_IDLE_CLASS = "text-gray-700 hover:bg-gray-50";
 const OPTION_ACTIVE_CLASS = "bg-gray-50 font-medium text-gray-900";
 const OPTION_DISABLED_CLASS = "cursor-not-allowed text-gray-400";
 
-export type ListboxDropdownSize = keyof typeof TRIGGER_HEIGHT_CLASS;
+export type ListboxDropdownSize = SelectTriggerSize;
 
 /**
  * Label and chevron of the kit trigger. `CustomSelect` and `MultiSelect`
@@ -1047,16 +1042,7 @@ export function ListboxDropdown<K extends string>({
         className={
           unstyledTrigger
             ? className
-            : cn(
-                TRIGGER_BASE_CLASS,
-                TRIGGER_HEIGHT_CLASS[size],
-                invalid
-                  ? TRIGGER_INVALID_CLASS
-                  : disabled
-                    ? TRIGGER_DISABLED_CLASS
-                    : TRIGGER_SURFACE_CLASS,
-                className,
-              )
+            : selectTriggerClassName({ size, invalid, disabled, className })
         }
         data-testid={testId}
       >
