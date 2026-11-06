@@ -360,7 +360,7 @@ export function RequestEditModal({
             name="request-reason"
             label={t("reasonLabel")}
             aria-required={reasonRequired}
-            aria-invalid={fieldError("request-reason") ? true : undefined}
+            error={fieldError("request-reason")}
             value={draft.text}
             onChange={(event) => set({ text: event.target.value })}
             rows={3}

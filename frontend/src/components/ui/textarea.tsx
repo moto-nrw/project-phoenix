@@ -45,15 +45,17 @@ function useAutoGrow(
   value: unknown,
 ) {
   useEffect(() => {
+    if (enabled && ref.current) fitToContent(ref.current);
+  }, [ref, enabled, value]);
+  // The keyboard opens after the field gains focus, without a value change.
+  useEffect(() => {
     const field = ref.current;
     if (!enabled || !field) return;
-    fitToContent(field);
-    // The keyboard opens after the field gains focus, without a value change.
     const onResize = () => fitToContent(field);
     const viewport = window.visualViewport;
     viewport?.addEventListener("resize", onResize);
     return () => viewport?.removeEventListener("resize", onResize);
-  }, [ref, enabled, value]);
+  }, [ref, enabled]);
 }
 
 // Multiline counterpart to ui/Input — same ring-based chrome and focus

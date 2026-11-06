@@ -624,7 +624,7 @@ export function OfferingChangeRequestModal({
                   setNote(event.target.value);
                   if (form.fieldError("note")) form.clear();
                 }}
-                aria-invalid={Boolean(form.fieldError("note"))}
+                error={form.fieldError("note")}
                 rows={3}
                 maxLength={2000}
                 required={reasonRequired}
